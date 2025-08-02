@@ -144,14 +144,14 @@ async function pollRedisForTool(
 
 /**
  * Handle tool calls that require user interruption/approval
- * Returns { approved: boolean, rejected: boolean, message?: string } to distinguish between rejection and timeout
+ * Returns { approved: boolean, rejected: boolean, error?: boolean, message?: string } to distinguish between rejection, timeout, and error
  */
 async function interruptHandler(
   toolCallId: string
-): Promise<{ approved: boolean; rejected: boolean; message?: string }> {
+): Promise<{ approved: boolean; rejected: boolean; error?: boolean; message?: string }> {
   if (!toolCallId) {
     logger.error('interruptHandler: No tool call ID provided')
-    return { approved: false, rejected: false }
+    return { approved: false, rejected: false, error: true, message: 'No tool call ID provided' }
   }
 
   logger.info('Starting interrupt handler for tool call', { toolCallId })
@@ -182,12 +182,12 @@ async function interruptHandler(
 
     if (status === 'error') {
       logger.error('Tool execution failed with error', { toolCallId, message })
-      return { approved: false, rejected: false, message }
+      return { approved: false, rejected: false, error: true, message }
     }
 
     if (status === 'background') {
       logger.info('Tool execution moved to background', { toolCallId, message })
-      return { approved: false, rejected: false, message }
+      return { approved: true, rejected: false, message }
     }
 
     if (status === 'success') {
@@ -196,13 +196,14 @@ async function interruptHandler(
     }
 
     logger.warn('Unexpected tool call status', { toolCallId, status, message })
-    return { approved: false, rejected: false, message }
+    return { approved: false, rejected: false, error: true, message: `Unexpected tool call status: ${status}` }
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     logger.error('Error in interrupt handler', {
       toolCallId,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage,
     })
-    return { approved: false, rejected: false }
+    return { approved: false, rejected: false, error: true, message: `Interrupt handler error: ${errorMessage}` }
   }
 }
 
@@ -298,7 +299,7 @@ export async function POST(req: NextRequest) {
       })
 
       // Handle interrupt flow
-      const { approved, rejected, message } = await interruptHandler(toolCallId)
+      const { approved, rejected, error, message } = await interruptHandler(toolCallId)
 
       if (rejected) {
         logger.info(`[${requestId}] Tool execution rejected by user`, {
@@ -311,6 +312,18 @@ export async function POST(req: NextRequest) {
             'The user decided to skip running this tool. This was a user decision.'
           ),
           { status: 200 } // Changed to 200 - user rejection is a valid response
+        )
+      }
+
+      if (error) {
+        logger.error(`[${requestId}] Tool execution failed with error`, {
+          methodId,
+          toolCallId,
+          message,
+        })
+        return NextResponse.json(
+          createErrorResponse(message || 'Tool execution failed with unknown error'),
+          { status: 500 } // 500 Internal Server Error
         )
       }
 

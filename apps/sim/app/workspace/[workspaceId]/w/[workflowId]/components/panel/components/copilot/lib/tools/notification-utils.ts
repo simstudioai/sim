@@ -26,6 +26,7 @@ const STATE_MAPPINGS: Partial<Record<ToolState, NotificationStatus>> = {
 const SERVER_TOOL_MAPPINGS: Partial<Record<ToolState, NotificationStatus>> = {
     accepted: 'accepted',
     rejected: 'rejected',
+    background: 'background',
 }
 
 export async function notifyServerTool(toolId: string, toolName: string, toolState: ToolState): Promise<void> {

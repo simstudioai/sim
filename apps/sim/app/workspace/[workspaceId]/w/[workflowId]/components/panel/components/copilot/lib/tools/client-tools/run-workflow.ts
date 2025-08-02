@@ -34,15 +34,15 @@ export class RunWorkflowTool extends BaseTool {
         },
         executing: {
           displayName: 'Running workflow',
-          icon: 'loader'
+          icon: 'spinner'
         },
         accepted: {
           displayName: 'Running workflow',
-          icon: 'play'
+          icon: 'spinner'
         },
         success: {
           displayName: 'Executed workflow',
-          icon: 'check'
+          icon: 'play'
         },
         rejected: {
           displayName: 'Skipped workflow execution',
@@ -54,7 +54,11 @@ export class RunWorkflowTool extends BaseTool {
         },
         background: {
           displayName: 'Running workflow in background',
-          icon: 'background'
+          icon: 'spinner'
+        },
+        aborted: {
+          displayName: 'Aborted stream',
+          icon: 'abort'
         }
       }
     },
@@ -285,12 +289,14 @@ export class RunWorkflowTool extends BaseTool {
 
       // Check if execution was successful
       if (result && (!('success' in result) || result.success !== false)) {
-        // Notify success - workflow actually completed
-        await this.notify(
-          toolCall.id,
-          'success',
-          'Workflow execution completed successfully'
-        )
+        // Only notify if THIS tool wasn't moved to background
+        if (!options?.context?.movedToBackgroundToolIds?.has(toolCall.id)) {
+          await this.notify(
+            toolCall.id,
+            'success',
+            'Workflow execution completed successfully'
+          )
+        }
         
         options?.onStateChange?.('success')
         
@@ -303,14 +309,16 @@ export class RunWorkflowTool extends BaseTool {
           }
         }
       } else {
-        // Execution failed - notify error
+        // Execution failed - only notify if THIS tool wasn't moved to background
         const errorMessage = result?.error || 'Workflow execution failed'
         
-        await this.notify(
-          toolCall.id,
-          'errored',
-          `Workflow execution failed: ${errorMessage}`
-        )
+        if (!options?.context?.movedToBackgroundToolIds?.has(toolCall.id)) {
+          await this.notify(
+            toolCall.id,
+            'errored',
+            `Workflow execution failed: ${errorMessage}`
+          )
+        }
         
         options?.onStateChange?.('errored')
         
@@ -326,13 +334,15 @@ export class RunWorkflowTool extends BaseTool {
       const { setIsExecuting } = useExecutionStore.getState()
       setIsExecuting(false)
       
-      // Notify error - actual error occurred during execution
+      // Only notify if THIS tool wasn't moved to background
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      await this.notify(
-        toolCall.id,
-        'errored',
-        `Workflow execution error: ${errorMessage}`
-      )
+      if (!options?.context?.movedToBackgroundToolIds?.has(toolCall.id)) {
+        await this.notify(
+          toolCall.id,
+          'errored',
+          `Workflow execution error: ${errorMessage}`
+        )
+      }
       
       options?.onStateChange?.('errored')
       
