@@ -42,26 +42,26 @@ async function updateToolCallStatus(
     while (Date.now() - startTime < timeout) {
       const exists = await redis.exists(key)
       if (exists) {
-        logger.info('Tool call found in Redis, updating status', { 
-          toolCallId, 
-          key, 
-          pollDuration: Date.now() - startTime 
+        logger.info('Tool call found in Redis, updating status', {
+          toolCallId,
+          key,
+          pollDuration: Date.now() - startTime,
         })
         break
       }
 
       // Wait before next poll
-      await new Promise(resolve => setTimeout(resolve, pollInterval))
+      await new Promise((resolve) => setTimeout(resolve, pollInterval))
     }
 
     // Final check if key exists after polling
     const exists = await redis.exists(key)
     if (!exists) {
-      logger.warn('Tool call not found in Redis after polling timeout', { 
-        toolCallId, 
-        key, 
+      logger.warn('Tool call not found in Redis after polling timeout', {
+        toolCallId,
+        key,
         timeout,
-        pollDuration: Date.now() - startTime 
+        pollDuration: Date.now() - startTime,
       })
       return false
     }
