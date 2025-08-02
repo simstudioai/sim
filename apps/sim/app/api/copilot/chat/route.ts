@@ -8,6 +8,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { copilotChats } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
+import { env } from '@/lib/env'
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -24,8 +25,8 @@ const ChatMessageSchema = z.object({
 })
 
 // Sim Agent API configuration
-const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || 'http://localhost:8000'
+const SIM_AGENT_API_KEY = env.SIM_AGENT_API_KEY
 
 /**
  * Generate a chat title using LLM
