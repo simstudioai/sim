@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
 import { copilotToolRegistry } from '../tools/registry'
@@ -233,7 +234,7 @@ const MethodExecutionSchema = z.object({
 // Simple internal API key authentication
 function checkInternalApiKey(req: NextRequest) {
   const apiKey = req.headers.get('x-api-key')
-  const expectedApiKey = process.env.INTERNAL_API_SECRET
+  const expectedApiKey = env.INTERNAL_API_SECRET
 
   if (!expectedApiKey) {
     return { success: false, error: 'Internal API key not configured' }
