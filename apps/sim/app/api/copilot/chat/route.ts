@@ -4,11 +4,11 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { copilotChats } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
-import { env } from '@/lib/env'
 
 const logger = createLogger('CopilotChatAPI')
 
