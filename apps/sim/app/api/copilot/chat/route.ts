@@ -123,23 +123,6 @@ export async function POST(req: NextRequest) {
     const session = await getSession()
     let authenticatedUserId: string | null = session?.user?.id || null
 
-    // If no session, check for API key auth
-    if (!authenticatedUserId) {
-      const apiKeyHeader = req.headers.get('x-api-key')
-      if (apiKeyHeader) {
-        // Verify API key
-        const [apiKeyRecord] = await db
-          .select({ userId: apiKeyTable.userId })
-          .from(apiKeyTable)
-          .where(eq(apiKeyTable.key, apiKeyHeader))
-          .limit(1)
-
-        if (apiKeyRecord) {
-          authenticatedUserId = apiKeyRecord.userId
-        }
-      }
-    }
-
     if (!authenticatedUserId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
