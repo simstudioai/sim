@@ -10,12 +10,88 @@ interface GetWorkflowConsoleParams {
   includeDetails?: boolean
 }
 
+interface BlockExecution {
+  id: string
+  blockId: string
+  blockName: string
+  blockType: string
+  startedAt: string
+  endedAt: string
+  durationMs: number
+  status: 'success' | 'error' | 'skipped'
+  errorMessage?: string
+  inputData: any
+  outputData: any
+  cost?: {
+    total: number
+    input: number
+    output: number
+    model?: string
+    tokens?: {
+      total: number
+      prompt: number
+      completion: number
+    }
+  }
+}
+
+interface ExecutionEntry {
+  id: string
+  executionId: string
+  level: string
+  message: string
+  trigger: string
+  startedAt: string
+  endedAt: string | null
+  durationMs: number | null
+  blockCount: number
+  successCount: number
+  errorCount: number
+  skippedCount: number
+  totalCost: number | null
+  totalTokens: number | null
+  blockExecutions: BlockExecution[]
+  output?: any // Final workflow output
+}
+
 interface WorkflowConsoleResult {
-  entries: any[]
+  entries: ExecutionEntry[]
   totalEntries: number
   workflowId: string
   retrievedAt: string
   hasBlockDetails: boolean
+}
+
+// Helper function to extract block executions from trace spans
+function extractBlockExecutionsFromTraceSpans(traceSpans: any[]): BlockExecution[] {
+  const blockExecutions: BlockExecution[] = []
+
+  function processSpan(span: any) {
+    if (span.blockId) {
+      blockExecutions.push({
+        id: span.id,
+        blockId: span.blockId,
+        blockName: span.name || '',
+        blockType: span.type,
+        startedAt: span.startTime,
+        endedAt: span.endTime,
+        durationMs: span.duration || 0,
+        status: span.status || 'success',
+        errorMessage: span.output?.error || undefined,
+        inputData: span.input || {},
+        outputData: span.output || {},
+        cost: span.cost || undefined,
+      })
+    }
+
+    // Process children recursively
+    if (span.children && Array.isArray(span.children)) {
+      span.children.forEach(processSpan)
+    }
+  }
+
+  traceSpans.forEach(processSpan)
+  return blockExecutions
 }
 
 class GetWorkflowConsoleTool extends BaseCopilotTool<
@@ -38,14 +114,11 @@ async function getWorkflowConsole(
   params: GetWorkflowConsoleParams
 ): Promise<WorkflowConsoleResult> {
   const logger = createLogger('GetWorkflowConsole')
-  const { workflowId, limit = 10, includeDetails = false } = params
+  const { workflowId, limit = 3, includeDetails = true } = params // Default to 3 executions and include details
 
   logger.info('Fetching workflow console logs', { workflowId, limit, includeDetails })
 
-  // Limit the number of entries to prevent large payloads that break streaming
-  const effectiveLimit = Math.min(limit, 10) // Cap at 10 entries for streaming safety
-
-  // Get recent execution logs for the workflow
+  // Get recent execution logs for the workflow (past 3 executions by default)
   const executionLogs = await db
     .select({
       id: workflowExecutionLogs.id,
@@ -59,44 +132,58 @@ async function getWorkflowConsole(
       blockCount: workflowExecutionLogs.blockCount,
       successCount: workflowExecutionLogs.successCount,
       errorCount: workflowExecutionLogs.errorCount,
+      skippedCount: workflowExecutionLogs.skippedCount,
       totalCost: workflowExecutionLogs.totalCost,
+      totalTokens: workflowExecutionLogs.totalTokens,
       metadata: workflowExecutionLogs.metadata,
     })
     .from(workflowExecutionLogs)
     .where(eq(workflowExecutionLogs.workflowId, workflowId))
     .orderBy(desc(workflowExecutionLogs.startedAt))
-    .limit(effectiveLimit)
+    .limit(limit)
 
-  // Format the response with size-conscious trimming
-  const formattedEntries = executionLogs.map((log) => {
-    const entry: any = {
+  // Format the response with detailed block execution data
+  const formattedEntries: ExecutionEntry[] = executionLogs.map((log) => {
+    // Extract trace spans from metadata
+    const metadata = log.metadata as any
+    const traceSpans = metadata?.traceSpans || []
+    const blockExecutions = extractBlockExecutionsFromTraceSpans(traceSpans)
+
+    // Try to find the final output from the last executed block
+    let finalOutput: any = undefined
+    if (blockExecutions.length > 0) {
+      // Look for blocks that typically provide final output (sorted by end time)
+      const sortedBlocks = [...blockExecutions].sort(
+        (a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime()
+      )
+      
+      // Find the last successful block that has meaningful output
+      const outputBlock = sortedBlocks.find(
+        (block) => block.status === 'success' && block.outputData && Object.keys(block.outputData).length > 0
+      )
+      
+      if (outputBlock) {
+        finalOutput = outputBlock.outputData
+      }
+    }
+
+    const entry: ExecutionEntry = {
       id: log.id,
       executionId: log.executionId,
       level: log.level,
       message: log.message,
-      // Truncate trigger data if it's too large to prevent streaming issues
-      trigger:
-        typeof log.trigger === 'string' && log.trigger.length > 100
-          ? `${log.trigger.substring(0, 100)}...`
-          : log.trigger,
-      startedAt: log.startedAt,
-      endedAt: log.endedAt,
+      trigger: log.trigger,
+      startedAt: log.startedAt.toISOString(),
+      endedAt: log.endedAt?.toISOString() || null,
       durationMs: log.totalDurationMs,
       blockCount: log.blockCount,
       successCount: log.successCount,
       errorCount: log.errorCount,
+      skippedCount: log.skippedCount || 0,
       totalCost: log.totalCost ? Number.parseFloat(log.totalCost.toString()) : null,
-      type: 'execution',
-    }
-
-    // Only include metadata if details are requested and it's not too large
-    if (includeDetails && log.metadata) {
-      const metadataStr =
-        typeof log.metadata === 'string' ? log.metadata : JSON.stringify(log.metadata)
-      if (metadataStr.length <= 500) {
-        // Limit metadata size
-        entry.metadata = log.metadata
-      }
+      totalTokens: log.totalTokens,
+      blockExecutions: includeDetails ? blockExecutions : [],
+      output: finalOutput,
     }
 
     return entry
@@ -107,6 +194,7 @@ async function getWorkflowConsole(
   logger.info('Workflow console result prepared', {
     entryCount: formattedEntries.length,
     resultSizeKB: Math.round(resultSize / 1024),
+    hasBlockDetails: includeDetails,
   })
 
   return {
@@ -114,6 +202,6 @@ async function getWorkflowConsole(
     totalEntries: formattedEntries.length,
     workflowId,
     retrievedAt: new Date().toISOString(),
-    hasBlockDetails: false,
+    hasBlockDetails: includeDetails,
   }
 }
