@@ -2,14 +2,14 @@
  * Base class for all copilot tools
  */
 
-import type { 
-  Tool, 
-  CopilotToolCall, 
-  ToolConfirmResponse, 
-  ToolExecuteResult, 
-  ToolMetadata, 
+import type {
+  CopilotToolCall,
+  Tool,
+  ToolConfirmResponse,
+  ToolExecuteResult,
+  ToolExecutionOptions,
+  ToolMetadata,
   ToolState,
-  ToolExecutionOptions 
 } from './types'
 
 export abstract class BaseTool implements Tool {
@@ -22,11 +22,15 @@ export abstract class BaseTool implements Tool {
   /**
    * Notify the backend about the tool state change
    */
-  protected async notify(toolCallId: string, state: ToolState, message?: string): Promise<ToolConfirmResponse> {
+  protected async notify(
+    toolCallId: string,
+    state: ToolState,
+    message?: string
+  ): Promise<ToolConfirmResponse> {
     try {
       // Map ToolState to NotificationStatus for API
       const notificationStatus = state === 'errored' ? 'error' : state
-      
+
       const response = await fetch('/api/copilot/confirm', {
         method: 'POST',
         headers: {
@@ -57,7 +61,10 @@ export abstract class BaseTool implements Tool {
   /**
    * Execute the tool - must be implemented by each tool
    */
-  abstract execute(toolCall: CopilotToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult>
+  abstract execute(
+    toolCall: CopilotToolCall,
+    options?: ToolExecutionOptions
+  ): Promise<ToolExecuteResult>
 
   /**
    * Get the display name for the current state
@@ -88,7 +95,7 @@ export abstract class BaseTool implements Tool {
   getIcon(toolCall: CopilotToolCall): string {
     const { state } = toolCall
     const stateConfig = this.metadata.displayConfig.states[state]
-    
+
     // Return state-specific icon or default
     return stateConfig?.icon || 'default'
   }
@@ -113,11 +120,11 @@ export abstract class BaseTool implements Tool {
     const actionToState: Record<string, ToolState> = {
       run: 'executing', // Changed from 'accepted' to 'executing'
       skip: 'rejected',
-      background: 'background'
+      background: 'background',
     }
 
     const newState = actionToState[action]
-    
+
     // Update state locally
     options?.onStateChange?.(newState)
 
@@ -127,11 +134,12 @@ export abstract class BaseTool implements Tool {
       await this.execute(toolCall, options)
     } else {
       // For skip/background, just notify
-      const message = action === 'skip' 
-        ? this.getDisplayName({ ...toolCall, state: 'rejected' })
-        : 'The user moved execution to the background'
-      
+      const message =
+        action === 'skip'
+          ? this.getDisplayName({ ...toolCall, state: 'rejected' })
+          : 'The user moved execution to the background'
+
       await this.notify(toolCall.id, newState, message)
     }
   }
-} 
+}

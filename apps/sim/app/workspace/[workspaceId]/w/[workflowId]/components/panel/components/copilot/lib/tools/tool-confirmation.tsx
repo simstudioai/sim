@@ -5,13 +5,13 @@
  * Renders Run/Skip buttons for tools requiring user confirmation
  */
 
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { CopilotToolCall } from './types'
-import { executeToolWithStateManagement } from './utils'
 import { notifyServerTool } from './notification-utils'
 import { toolRegistry } from './registry'
+import type { CopilotToolCall } from './types'
+import { executeToolWithStateManagement } from './utils'
 
 interface ToolConfirmationProps {
   toolCall: CopilotToolCall
@@ -26,7 +26,7 @@ export function ToolConfirmation({
   onStateChange,
   context,
   onConfirm,
-  showBackground = false
+  showBackground = false,
 }: ToolConfirmationProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [buttonsHidden, setButtonsHidden] = useState(false)
@@ -37,7 +37,7 @@ export function ToolConfirmation({
 
     // Hide buttons immediately
     setButtonsHidden(true)
-    
+
     if (action === 'background') {
       setIsMovingToBackground(true)
     } else {
@@ -52,21 +52,21 @@ export function ToolConfirmation({
 
       // Check if this is a server tool or client tool
       const isClientTool = toolRegistry.getTool(toolCall.name) !== undefined
-      
+
       if (isClientTool) {
         // For client tools, use the existing state management system
         await executeToolWithStateManagement(toolCall, action, {
           onStateChange,
-          context
+          context,
         })
       } else {
         // For server tools, use the notification system
         const toolState = action === 'run' ? 'accepted' : 'rejected'
         const uiState = action === 'run' ? 'accepted' : 'rejected'
-        
+
         // Update UI state
         onStateChange(uiState)
-        
+
         try {
           await notifyServerTool(toolCall.id, toolCall.name, toolState)
           console.log(`Server tool ${toolCall.id} ${action === 'run' ? 'accepted' : 'rejected'}`)
@@ -110,7 +110,7 @@ export function ToolConfirmation({
       >
         Skip
       </Button>
-      
+
       {showBackground && (
         <Button
           onClick={() => handleAction('background')}
@@ -124,4 +124,4 @@ export function ToolConfirmation({
       )}
     </div>
   )
-} 
+}

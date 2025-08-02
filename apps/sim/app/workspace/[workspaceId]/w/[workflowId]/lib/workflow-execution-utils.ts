@@ -5,20 +5,20 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useExecutionStore } from '@/stores/execution/store'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { mergeSubblockState } from '@/stores/workflows/utils'
-import { Executor } from '@/executor'
-import { Serializer } from '@/serializer'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { getBlock } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
+import { Executor } from '@/executor'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
+import { Serializer } from '@/serializer'
 import type { SerializedWorkflow } from '@/serializer/types'
-import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('WorkflowExecutionUtils')
 
@@ -63,7 +63,7 @@ export function getWorkflowExecutionContext(): WorkflowExecutionContext {
 
   const workflowState = useWorkflowStore.getState().getWorkflowState()
   const { isShowingDiff, isDiffReady, diffWorkflow } = useWorkflowDiffStore.getState()
-  
+
   // Determine which workflow to use - same logic as useCurrentWorkflow
   const shouldUseDiff = isShowingDiff && isDiffReady && !!diffWorkflow
   const currentWorkflow = shouldUseDiff ? diffWorkflow : workflowState
@@ -89,7 +89,13 @@ export async function executeWorkflowWithLogging(
   context: WorkflowExecutionContext,
   options: WorkflowExecutionOptions = {}
 ): Promise<ExecutionResult | StreamingExecution> {
-  const { activeWorkflowId, currentWorkflow, getAllVariables, getVariablesByWorkflowId, setExecutor } = context
+  const {
+    activeWorkflowId,
+    currentWorkflow,
+    getAllVariables,
+    getVariablesByWorkflowId,
+    setExecutor,
+  } = context
   const { workflowInput, onStream, executionId } = options
 
   const {
@@ -307,7 +313,7 @@ export async function executeWorkflowWithFullLogging(
 ): Promise<ExecutionResult | StreamingExecution> {
   const context = getWorkflowExecutionContext()
   const executionId = options.executionId || uuidv4()
-  
+
   try {
     const result = await executeWorkflowWithLogging(context, {
       ...options,
@@ -317,9 +323,11 @@ export async function executeWorkflowWithFullLogging(
     // For ExecutionResult (not streaming), persist logs
     if (result && 'success' in result) {
       // Don't await log persistence to avoid blocking the UI
-      persistExecutionLogs(context.activeWorkflowId, executionId, result as ExecutionResult).catch((err) => {
-        logger.error('Error persisting logs:', { error: err })
-      })
+      persistExecutionLogs(context.activeWorkflowId, executionId, result as ExecutionResult).catch(
+        (err) => {
+          logger.error('Error persisting logs:', { error: err })
+        }
+      )
     }
 
     return result
@@ -338,4 +346,4 @@ export async function executeWorkflowWithFullLogging(
 
     throw error
   }
-} 
+}

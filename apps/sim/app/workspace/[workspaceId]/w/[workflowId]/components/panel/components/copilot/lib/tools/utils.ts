@@ -4,7 +4,7 @@
  */
 
 import React from 'react'
-import { 
+import {
   Blocks,
   Check,
   CheckCircle,
@@ -18,6 +18,7 @@ import {
   Info,
   Lightbulb,
   Loader2,
+  type LucideIcon,
   Minus,
   Network,
   Play,
@@ -32,10 +33,9 @@ import {
   X,
   XCircle,
   Zap,
-  type LucideIcon
 } from 'lucide-react'
-import type { CopilotToolCall, ToolState } from './types'
 import { toolRegistry } from './registry'
+import type { CopilotToolCall, ToolState } from './types'
 
 /**
  * Map icon identifiers to Lucide icon components
@@ -52,7 +52,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   background: Eye,
   play: Play,
   wrench: Wrench, // Using Zap as wrench icon
-  
+
   // Generic icons for tools
   search: Search,
   code: Code,
@@ -74,9 +74,9 @@ const ICON_MAP: Record<string, LucideIcon> = {
   workflow: Workflow, // Flowchart icon with boxes and connecting lines
   network: Network, // Complex network icon with multiple interconnected nodes
   gitbranch: GitBranch, // Git branching icon showing workflow paths
-  
+
   // Default
-  default: Lightbulb
+  default: Lightbulb,
 }
 
 /**
@@ -93,7 +93,10 @@ export function getToolIcon(toolCall: CopilotToolCall): LucideIcon {
   // For server tools, use server tool metadata
   const serverToolMetadata = toolRegistry.getServerToolMetadata(toolCall.name)
   if (serverToolMetadata) {
-    const stateConfig = serverToolMetadata.displayConfig.states[toolCall.state as keyof typeof serverToolMetadata.displayConfig.states]
+    const stateConfig =
+      serverToolMetadata.displayConfig.states[
+        toolCall.state as keyof typeof serverToolMetadata.displayConfig.states
+      ]
     if (stateConfig?.icon) {
       return ICON_MAP[stateConfig.icon] || ICON_MAP.default
     }
@@ -122,7 +125,7 @@ export function toolRequiresConfirmation(toolCall: CopilotToolCall): boolean {
     // Client-side tool
     return tool.requiresConfirmation(toolCall)
   }
-  
+
   // Server-side tool - check if it requires interrupt and is in pending state
   const requiresInterrupt = toolRegistry.requiresInterrupt(toolCall.name)
   return requiresInterrupt && toolCall.state === 'pending'
@@ -162,23 +165,29 @@ export function getToolStateClasses(state: ToolState): string {
 /**
  * Render the appropriate icon for a tool state
  */
-export function renderToolStateIcon(toolCall: CopilotToolCall, className: string = 'h-3 w-3'): React.ReactElement {
+export function renderToolStateIcon(
+  toolCall: CopilotToolCall,
+  className = 'h-3 w-3'
+): React.ReactElement {
   const Icon = getToolIcon(toolCall)
   const stateClasses = getToolStateClasses(toolCall.state)
-  
+
   // Special rendering for certain states
   if (toolCall.state === 'executing') {
     return React.createElement(Icon, { className: `${className} animate-spin ${stateClasses}` })
   }
-  
+
   if (toolCall.state === 'rejected') {
     // Special "skipped" icon style
-    return React.createElement('div', 
-      { className: `flex ${className} items-center justify-center rounded-full border border-gray-400` },
+    return React.createElement(
+      'div',
+      {
+        className: `flex ${className} items-center justify-center rounded-full border border-gray-400`,
+      },
       React.createElement(Minus, { className: 'h-2 w-2 text-gray-500' })
     )
   }
-  
+
   return React.createElement(Icon, { className: `${className} ${stateClasses}` })
 }
 
@@ -201,7 +210,7 @@ export async function executeToolWithStateManagement(
 
   await tool.handleUserAction(toolCall, action, {
     onStateChange: options.onStateChange,
-    context: options.context
+    context: options.context,
   })
 }
 
@@ -236,25 +245,29 @@ export function createToolActionButton({
   disabled = false,
   loading = false,
   variant,
-  size = 'sm'
+  size = 'sm',
 }: ToolActionButtonProps): React.ReactElement {
   const baseClasses = 'font-medium transition-colors disabled:opacity-50'
-  
+
   const sizeClasses = size === 'sm' ? 'h-6 px-2 text-xs' : 'h-8 px-3 text-sm'
-  
+
   const variantClasses = {
-    primary: 'bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200',
-    secondary: 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600',
-    tertiary: 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+    primary:
+      'bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200',
+    secondary:
+      'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600',
+    tertiary:
+      'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700',
   }
 
-  return React.createElement('button',
+  return React.createElement(
+    'button',
     {
       onClick,
       disabled,
-      className: `${baseClasses} ${sizeClasses} ${variantClasses[variant]}`
+      className: `${baseClasses} ${sizeClasses} ${variantClasses[variant]}`,
     },
     loading && React.createElement(Loader2, { className: 'mr-1 h-3 w-3 animate-spin' }),
     label
   )
-} 
+}

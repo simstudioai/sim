@@ -150,18 +150,19 @@ async function getWorkflowConsole(
     const blockExecutions = extractBlockExecutionsFromTraceSpans(traceSpans)
 
     // Try to find the final output from the last executed block
-    let finalOutput: any = undefined
+    let finalOutput: any
     if (blockExecutions.length > 0) {
       // Look for blocks that typically provide final output (sorted by end time)
       const sortedBlocks = [...blockExecutions].sort(
         (a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime()
       )
-      
+
       // Find the last successful block that has meaningful output
       const outputBlock = sortedBlocks.find(
-        (block) => block.status === 'success' && block.outputData && Object.keys(block.outputData).length > 0
+        (block) =>
+          block.status === 'success' && block.outputData && Object.keys(block.outputData).length > 0
       )
-      
+
       if (outputBlock) {
         finalOutput = outputBlock.outputData
       }

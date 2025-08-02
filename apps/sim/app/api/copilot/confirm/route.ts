@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
-import type { ToolState, NotificationStatus } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/lib/tools/types'
+import type { NotificationStatus } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/lib/tools/types'
 
 const logger = createLogger('CopilotConfirmAPI')
 

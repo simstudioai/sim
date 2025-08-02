@@ -1,9 +1,9 @@
 import React, { type HTMLAttributes, type ReactNode } from 'react'
+import { Copy } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
-import { Copy } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 export function LinkWithPreview({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -116,9 +116,7 @@ export default function CopilotMarkdownRenderer({
       return (
         <div className='my-6 rounded-md bg-gray-900 text-sm dark:bg-black'>
           <div className='flex items-center justify-between border-gray-700 border-b px-4 py-1.5 dark:border-gray-800'>
-            <span className='font-geist-sans text-gray-400 text-xs'>
-              {language}
-            </span>
+            <span className='font-geist-sans text-gray-400 text-xs'>{language}</span>
             <Button
               variant='ghost'
               size='sm'
@@ -233,4 +231,4 @@ export default function CopilotMarkdownRenderer({
       </ReactMarkdown>
     </div>
   )
-} 
+}

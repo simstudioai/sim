@@ -4,7 +4,7 @@
  */
 
 import { toolRegistry } from './registry'
-import type { ToolState, NotificationStatus } from './types'
+import type { NotificationStatus, ToolState } from './types'
 
 /**
  * Send a notification for a tool state change
@@ -17,19 +17,23 @@ import type { ToolState, NotificationStatus } from './types'
  */
 const STATE_MAPPINGS: Partial<Record<ToolState, NotificationStatus>> = {
   success: 'success',
-  errored: 'error', 
+  errored: 'error',
   accepted: 'accepted',
   rejected: 'rejected',
   background: 'background',
 }
 
 const SERVER_TOOL_MAPPINGS: Partial<Record<ToolState, NotificationStatus>> = {
-    accepted: 'accepted',
-    rejected: 'rejected',
-    background: 'background',
+  accepted: 'accepted',
+  rejected: 'rejected',
+  background: 'background',
 }
 
-export async function notifyServerTool(toolId: string, toolName: string, toolState: ToolState): Promise<void> {
+export async function notifyServerTool(
+  toolId: string,
+  toolName: string,
+  toolState: ToolState
+): Promise<void> {
   const notificationStatus = SERVER_TOOL_MAPPINGS[toolState]
   if (!notificationStatus) {
     throw new Error(`Invalid tool state: ${toolState}`)
@@ -37,7 +41,11 @@ export async function notifyServerTool(toolId: string, toolName: string, toolSta
   await notify(toolId, toolName, toolState)
 }
 
-export async function notify(toolId: string, toolName: string, toolState: ToolState): Promise<void> {
+export async function notify(
+  toolId: string,
+  toolName: string,
+  toolState: ToolState
+): Promise<void> {
   // toolState must be in STATE_MAPPINGS
   const notificationStatus = STATE_MAPPINGS[toolState]
   if (!notificationStatus) {
@@ -62,7 +70,7 @@ export async function notify(toolId: string, toolName: string, toolState: ToolSt
       status: notificationStatus,
       toolName,
       toolState,
-      stateMessage
-    })
+      stateMessage,
+    }),
   })
 }

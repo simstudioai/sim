@@ -1,41 +1,12 @@
 'use client'
 
 import React, { type FC, memo, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  Check,
-  CheckCircle,
-  Clipboard,
-  Code,
-  Copy,
-  Database,
-  Edit,
-  Eye,
-  FileText,
-  Globe,
-  Lightbulb,
-  Loader2,
-  Minus,
-  RotateCcw,
-  Search,
-  ThumbsDown,
-  ThumbsUp,
-  Wrench,
-  X,
-  XCircle,
-  Zap,
-} from 'lucide-react'
+import { Check, Clipboard, Copy, Loader2, RotateCcw, ThumbsDown, ThumbsUp, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import {
-  COPILOT_TOOL_DISPLAY_NAMES,
-  COPILOT_TOOL_ERROR_NAMES,
-  COPILOT_TOOL_PAST_TENSE,
-} from '@/stores/constants'
-import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
-
+import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotMessage } from '@/stores/copilot/types'
 import { InlineToolCall } from '../../lib/tools/inline-tool-call'
@@ -418,9 +389,7 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(
           return (
             <div className='my-6 rounded-md bg-gray-900 text-sm dark:bg-black'>
               <div className='flex items-center justify-between border-gray-700 border-b px-4 py-1.5 dark:border-gray-800'>
-                <span className='font-geist-sans text-gray-400 text-xs'>
-                  {language}
-                </span>
+                <span className='font-geist-sans text-gray-400 text-xs'>{language}</span>
                 <Button
                   variant='ghost'
                   size='sm'
@@ -494,9 +463,7 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(
           <thead className='bg-gray-100 text-left dark:bg-gray-800'>{children}</thead>
         ),
         tbody: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
-          <tbody className='divide-gray-200 divide-y dark:divide-gray-700'>
-            {children}
-          </tbody>
+          <tbody className='divide-y divide-gray-200 dark:divide-gray-700'>{children}</tbody>
         ),
         tr: ({ children }: React.HTMLAttributes<HTMLTableRowElement>) => (
           <tr className='border-gray-200 border-b transition-colors hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/60'>
@@ -595,7 +562,7 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(
                 className='rounded-[10px] px-3 py-2'
                 style={{ backgroundColor: 'rgba(128, 47, 255, 0.08)' }}
               >
-                <div className='whitespace-pre-wrap break-words font-normal text-foreground text-base leading-relaxed'>
+                <div className='whitespace-pre-wrap break-words font-normal text-base text-foreground leading-relaxed'>
                   <WordWrap text={message.content} />
                 </div>
               </div>

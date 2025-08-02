@@ -1,21 +1,18 @@
 /**
  * Tool Registry - Central management for client-side copilot tools
- * 
+ *
  * This registry manages tools that:
  * - Require user interrupts/confirmation (requiresInterrupt: true)
  * - Execute client-side logic
- * 
+ *
  * It also provides metadata for server-side tools for display purposes
  */
 
-import type { Tool, ToolMetadata } from './types'
-import { BaseTool } from './base-tool'
-
 // Import client tool implementations
 import { RunWorkflowTool } from './client-tools/run-workflow'
-
 // Import server tool definitions
 import { SERVER_TOOL_METADATA } from './server-tools/definitions'
+import type { Tool, ToolMetadata } from './types'
 
 /**
  * Tool Registry class that manages all available tools
@@ -80,12 +77,12 @@ export class ToolRegistry {
    */
   getToolIdsObject(): Record<string, string> {
     const ids: Record<string, string> = {}
-    
+
     this.tools.forEach((tool, id) => {
       const key = id.toUpperCase()
       ids[key] = id
     })
-    
+
     return ids
   }
 
@@ -98,7 +95,7 @@ export class ToolRegistry {
     if (tool) {
       return tool.metadata.requiresInterrupt ?? false
     }
-    
+
     // Check server tools
     const serverToolMetadata = SERVER_TOOL_METADATA[toolId as keyof typeof SERVER_TOOL_METADATA]
     return serverToolMetadata?.requiresInterrupt ?? false
@@ -118,9 +115,7 @@ export class ToolRegistry {
     // Register actual client tool implementations
     this.register(new RunWorkflowTool())
   }
-
-
 }
 
 // Export singleton instance
-export const toolRegistry = ToolRegistry.getInstance() 
+export const toolRegistry = ToolRegistry.getInstance()

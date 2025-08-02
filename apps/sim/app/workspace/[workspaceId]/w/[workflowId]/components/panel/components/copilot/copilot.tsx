@@ -1,8 +1,8 @@
 'use client'
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { LoadingAgent } from '@/components/ui/loading-agent'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { createLogger } from '@/lib/logs/console/logger'
 import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
@@ -29,6 +29,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const scannedChatRef = useRef<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const lastWorkflowIdRef = useRef<string | null>(null)
+  const hasMountedRef = useRef(false)
 
   const { activeWorkflowId } = useWorkflowRegistry()
 
@@ -51,18 +52,43 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     setMode,
     setInputValue,
     chatsLoadedForWorkflow,
+    setWorkflowId: setCopilotWorkflowId,
+    loadChats,
   } = useCopilotStore()
+
+  // Force fresh initialization on mount (handles hot reload)
+  useEffect(() => {
+    if (activeWorkflowId && !hasMountedRef.current) {
+      hasMountedRef.current = true
+      // Reset state to ensure fresh load, especially important for hot reload
+      setIsInitialized(false)
+      lastWorkflowIdRef.current = null
+
+      // Force reload chats for current workflow
+      setCopilotWorkflowId(activeWorkflowId)
+      loadChats(true) // Force refresh
+    }
+  }, [activeWorkflowId, setCopilotWorkflowId, loadChats])
 
   // Initialize the component - only on mount and genuine workflow changes
   useEffect(() => {
-    // If workflow actually changed, reset initialization
-    if (activeWorkflowId && activeWorkflowId !== lastWorkflowIdRef.current) {
+    // If workflow actually changed (not initial mount), reset initialization
+    if (
+      activeWorkflowId &&
+      activeWorkflowId !== lastWorkflowIdRef.current &&
+      hasMountedRef.current
+    ) {
       setIsInitialized(false)
       lastWorkflowIdRef.current = activeWorkflowId
     }
-    
+
     // Set as initialized once we have the workflow and chats are ready
-    if (activeWorkflowId && !isLoadingChats && chatsLoadedForWorkflow === activeWorkflowId && !isInitialized) {
+    if (
+      activeWorkflowId &&
+      !isLoadingChats &&
+      chatsLoadedForWorkflow === activeWorkflowId &&
+      !isInitialized
+    ) {
       setIsInitialized(true)
     }
   }, [activeWorkflowId, isLoadingChats, chatsLoadedForWorkflow, isInitialized])
@@ -186,7 +212,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
             {showCheckpoints ? (
               <CheckpointPanel />
             ) : (
-              <ScrollArea ref={scrollAreaRef} className='flex-1 overflow-hidden' hideScrollbar={true}>
+              <ScrollArea
+                ref={scrollAreaRef}
+                className='flex-1 overflow-hidden'
+                hideScrollbar={true}
+              >
                 <div className='space-y-1'>
                   {messages.length === 0 ? (
                     <div className='flex h-full items-center justify-center p-4'>

@@ -4,13 +4,9 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  COPILOT_TOOL_DISPLAY_NAMES,
-  COPILOT_TOOL_ERROR_NAMES,
-  COPILOT_TOOL_PAST_TENSE,
-} from '@/stores/constants'
-import { COPILOT_TOOL_IDS } from './constants'
 import { toolRegistry } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/lib/tools'
+import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
+import { COPILOT_TOOL_IDS } from './constants'
 import type { CopilotMessage, CopilotStore, WorkflowCheckpoint } from './types'
 
 const logger = createLogger('CopilotStore')
@@ -27,13 +23,13 @@ function toolSupportsReadyForReview(toolName: string): boolean {
   if (clientTool) {
     return clientTool.metadata.displayConfig.states.ready_for_review !== undefined
   }
-  
+
   // Check server tools
   const serverToolMetadata = toolRegistry.getServerToolMetadata(toolName)
   if (serverToolMetadata) {
     return serverToolMetadata.displayConfig.states.ready_for_review !== undefined
   }
-  
+
   return false
 }
 
@@ -225,7 +221,11 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
         const hasContent = msg.content && msg.content.trim().length > 0
         const hasCompletedTools = msg.toolCalls?.some(
           (tc) =>
-            tc.state === 'completed' || tc.state === 'accepted' || tc.state === 'rejected' || tc.state === 'ready_for_review' || tc.state === 'background'
+            tc.state === 'completed' ||
+            tc.state === 'accepted' ||
+            tc.state === 'rejected' ||
+            tc.state === 'ready_for_review' ||
+            tc.state === 'background'
         )
         return hasContent || hasCompletedTools
       }
@@ -248,33 +248,36 @@ function getToolDisplayName(toolName: string): string {
 function getToolDisplayNameByState(toolCall: any): string {
   const toolName = toolCall.name
   const state = toolCall.state
-  
+
   // Check if it's a client tool
   const clientTool = toolRegistry.getTool(toolName)
   if (clientTool) {
     // Use client tool's display name logic
     return clientTool.getDisplayName(toolCall)
   }
-  
+
   // For server tools, use server tool metadata
   const serverToolMetadata = toolRegistry.getServerToolMetadata(toolName)
   if (serverToolMetadata) {
     // Check if there's a dynamic display name function
     if (serverToolMetadata.displayConfig.getDynamicDisplayName) {
       const dynamicName = serverToolMetadata.displayConfig.getDynamicDisplayName(
-        state, 
+        state,
         toolCall.input || toolCall.parameters || {}
       )
       if (dynamicName) return dynamicName
     }
-    
+
     // Use state-specific display config
-    const stateConfig = serverToolMetadata.displayConfig.states[state as keyof typeof serverToolMetadata.displayConfig.states]
+    const stateConfig =
+      serverToolMetadata.displayConfig.states[
+        state as keyof typeof serverToolMetadata.displayConfig.states
+      ]
     if (stateConfig) {
       return stateConfig.displayName
     }
   }
-  
+
   // Fallback to tool name if no specific display logic found
   return toolName
 }
@@ -391,7 +394,9 @@ function handleToolFailure(toolCall: any, error: string): void {
   // Don't override terminal states for tools with ready_for_review and interrupt tools
   if (
     (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
-    (toolCall.state === 'accepted' || toolCall.state === 'rejected' || toolCall.state === 'background')
+    (toolCall.state === 'accepted' ||
+      toolCall.state === 'rejected' ||
+      toolCall.state === 'background')
   ) {
     // Tool is already in a terminal state, don't override it
     logger.info(
@@ -415,24 +420,37 @@ function handleToolFailure(toolCall: any, error: string): void {
 /**
  * Centralized function to set tool call state and handle side effects
  */
-function setToolCallState(toolCall: any, newState: string, options: {
-  result?: any,
-  error?: string,
-  preserveTerminalStates?: boolean
-} = {}): void {
+function setToolCallState(
+  toolCall: any,
+  newState: string,
+  options: {
+    result?: any
+    error?: string
+    preserveTerminalStates?: boolean
+  } = {}
+): void {
   const { result, error, preserveTerminalStates = true } = options
-  
+
   // Don't override terminal states for tools with ready_for_review and interrupt tools if preserveTerminalStates is true
-  if (preserveTerminalStates && 
-      (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
-      (toolCall.state === 'accepted' || toolCall.state === 'rejected' || toolCall.state === 'background')) {
-    logger.info('Tool call already in terminal state, preserving:', toolCall.id, toolCall.name, toolCall.state)
+  if (
+    preserveTerminalStates &&
+    (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
+    (toolCall.state === 'accepted' ||
+      toolCall.state === 'rejected' ||
+      toolCall.state === 'background')
+  ) {
+    logger.info(
+      'Tool call already in terminal state, preserving:',
+      toolCall.id,
+      toolCall.name,
+      toolCall.state
+    )
     return
   }
-  
+
   const oldState = toolCall.state
   toolCall.state = newState
-  
+
   // Handle state-specific logic
   switch (newState) {
     case 'completed':
@@ -442,13 +460,13 @@ function setToolCallState(toolCall: any, newState: string, options: {
       if (result !== undefined) {
         toolCall.result = result
       }
-      
+
       // Check if tool supports ready_for_review state instead of hard-coding tool names
       if (toolSupportsReadyForReview(toolCall.name)) {
         toolCall.state = 'ready_for_review'
       }
       break
-      
+
     case 'errored':
       toolCall.endTime = Date.now()
       toolCall.duration = toolCall.endTime - toolCall.startTime
@@ -456,34 +474,36 @@ function setToolCallState(toolCall: any, newState: string, options: {
         toolCall.error = error
       }
       break
-      
+
     case 'executing':
       // Tool is now executing
       break
-      
+
     case 'pending':
       // Tool is waiting for user confirmation
       break
-      
+
     case 'accepted':
       // User accepted the tool
       break
-      
+
     case 'rejected':
       // User rejected the tool
       break
-      
+
     case 'background':
       // Tool execution moved to background - this is a terminal state
       toolCall.endTime = Date.now()
       toolCall.duration = toolCall.endTime - toolCall.startTime
       break
   }
-  
+
   // Update display name based on new state
   toolCall.displayName = getToolDisplayNameByState(toolCall)
-  
-  logger.info(`Tool call state changed: ${toolCall.name} (${toolCall.id}) ${oldState} → ${newState}`)
+
+  logger.info(
+    `Tool call state changed: ${toolCall.name} (${toolCall.id}) ${oldState} → ${newState}`
+  )
 }
 
 /**
@@ -499,13 +519,13 @@ function createToolCall(id: string, name: string, input: any = {}): any {
     startTime: Date.now(),
     timestamp: Date.now(),
   }
-  
+
   // Use centralized state management to set initial state
   const requiresInterrupt = toolRequiresInterrupt(name)
   const initialState = requiresInterrupt ? 'pending' : 'executing'
-  
+
   setToolCallState(toolCall, initialState, { preserveTerminalStates: false })
-  
+
   return toolCall
 }
 
@@ -525,10 +545,7 @@ function finalizeToolCall(
     toolCall.result = result
 
     // For tools with ready_for_review and interrupt tools, check if they're already in a terminal state in the store
-    if (
-      toolSupportsReadyForReview(toolCall.name) ||
-      toolRequiresInterrupt(toolCall.name)
-    ) {
+    if (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) {
       // Get current state from store if get function is available
       if (get) {
         const state = get()
@@ -552,7 +569,9 @@ function finalizeToolCall(
             const blockToolCall = toolBlock?.toolCall
             if (
               blockToolCall &&
-              (blockToolCall.state === 'accepted' || blockToolCall.state === 'rejected' || blockToolCall.state === 'background')
+              (blockToolCall.state === 'accepted' ||
+                blockToolCall.state === 'rejected' ||
+                blockToolCall.state === 'background')
             ) {
               // Don't override terminal states, just update result and timing
               toolCall.state = blockToolCall.state
@@ -561,7 +580,9 @@ function finalizeToolCall(
             }
           } else if (
             currentToolCall &&
-            (currentToolCall.state === 'accepted' || currentToolCall.state === 'rejected' || currentToolCall.state === 'background')
+            (currentToolCall.state === 'accepted' ||
+              currentToolCall.state === 'rejected' ||
+              currentToolCall.state === 'background')
           ) {
             // Don't override terminal states, just update result and timing
             toolCall.state = currentToolCall.state
@@ -708,13 +729,13 @@ const sseHandlers: Record<string, SSEHandler> = {
       if (toolSupportsReadyForReview(toolCall.name)) {
         processWorkflowToolResult(toolCall, parsedResult, get)
       }
-      
+
       // COMMENTED OUT OLD LOGIC:
       // finalizeToolCall(toolCall, true, parsedResult, get)
     } else {
-      // NEW LOGIC: Use centralized state management  
+      // NEW LOGIC: Use centralized state management
       setToolCallState(toolCall, 'errored', { error: result || 'Tool execution failed' })
-      
+
       // COMMENTED OUT OLD LOGIC:
       // handleToolFailure(toolCall, result || 'Tool execution failed')
     }
@@ -820,22 +841,37 @@ const sseHandlers: Record<string, SSEHandler> = {
       // For interrupt tools, only allow transition from pending to executing
       // Block if tool is still in pending state (user hasn't accepted yet)
       if (toolRequiresInterrupt(toolCall.name) && toolCall.state === 'pending') {
-        logger.info('Tool requires interrupt and is still pending, ignoring execution event:', toolCall.name, toolCall.id)
+        logger.info(
+          'Tool requires interrupt and is still pending, ignoring execution event:',
+          toolCall.name,
+          toolCall.id
+        )
         return
       }
-      
+
       // If already executing, skip (happens when client sets executing immediately)
       if (toolCall.state === 'executing') {
         logger.info('Tool already in executing state, skipping:', toolCall.name, toolCall.id)
         return
       }
-      
+
       // Don't override terminal states
-      if (toolCall.state === 'rejected' || toolCall.state === 'background' || toolCall.state === 'completed' || toolCall.state === 'success' || toolCall.state === 'errored') {
-        logger.info('Tool is already in terminal state, ignoring execution event:', toolCall.name, toolCall.id, toolCall.state)
+      if (
+        toolCall.state === 'rejected' ||
+        toolCall.state === 'background' ||
+        toolCall.state === 'completed' ||
+        toolCall.state === 'success' ||
+        toolCall.state === 'errored'
+      ) {
+        logger.info(
+          'Tool is already in terminal state, ignoring execution event:',
+          toolCall.name,
+          toolCall.id,
+          toolCall.state
+        )
         return
       }
-      
+
       toolCall.state = 'executing'
 
       // Update both contentBlocks and toolCalls atomically before UI update
@@ -952,7 +988,7 @@ const sseHandlers: Record<string, SSEHandler> = {
     // Check for both executing tools AND pending tools (waiting for user interaction)
     const executingTools = context.toolCalls.filter((tc) => tc.state === 'executing')
     const pendingTools = context.toolCalls.filter((tc) => tc.state === 'pending')
-    
+
     if (executingTools.length === 0 && pendingTools.length === 0 && context.doneEventCount >= 2) {
       context.streamComplete = true
     }
@@ -1001,14 +1037,11 @@ const WORKFLOW_TOOL_IDS = new Set<string>([
 // Cache tools that support ready_for_review state for faster lookup
 function getToolsWithReadyForReview(): Set<string> {
   const toolsWithReadyForReview = new Set<string>()
-  
+
   // For now, just return the known workflow tools since we don't have getAllServerToolMetadata
   // This can be expanded when the registry provides that method
-  return new Set([
-    COPILOT_TOOL_IDS.BUILD_WORKFLOW,
-    COPILOT_TOOL_IDS.EDIT_WORKFLOW,
-  ])
-  
+  return new Set([COPILOT_TOOL_IDS.BUILD_WORKFLOW, COPILOT_TOOL_IDS.EDIT_WORKFLOW])
+
   /* TODO: Implement when getAllServerToolMetadata is available
   Object.keys(toolRegistry.getAllServerToolMetadata?.() || {}).forEach(toolId => {
     if (toolSupportsReadyForReview(toolId)) {
@@ -1050,7 +1083,9 @@ function preserveToolTerminalState(newToolCall: any, existingToolCall: any): any
   // Early return if no existing tool call or no terminal state
   if (
     !existingToolCall ||
-    (existingToolCall.state !== 'accepted' && existingToolCall.state !== 'rejected' && existingToolCall.state !== 'background')
+    (existingToolCall.state !== 'accepted' &&
+      existingToolCall.state !== 'rejected' &&
+      existingToolCall.state !== 'background')
   ) {
     return newToolCall
   }
@@ -1079,7 +1114,9 @@ function mergeToolCallsPreservingTerminalStates(
 ): any[] {
   if (
     !existingToolCalls.length ||
-    !newToolCalls.some((tc) => toolSupportsReadyForReview(tc.name) || toolRequiresInterrupt(tc.name))
+    !newToolCalls.some(
+      (tc) => toolSupportsReadyForReview(tc.name) || toolRequiresInterrupt(tc.name)
+    )
   ) {
     return newToolCalls
   }
@@ -1591,12 +1628,14 @@ export const useCopilotStore = create<CopilotStore>()(
             if (data.chats.length > 0) {
               const { currentChat } = get()
               // Check if current chat still exists in the loaded chats for this workflow
-              const currentChatStillExists = currentChat && 
-                data.chats.some((chat: CopilotChat) => chat.id === currentChat.id)
-              
+              const currentChatStillExists =
+                currentChat && data.chats.some((chat: CopilotChat) => chat.id === currentChat.id)
+
               if (currentChatStillExists) {
                 // Preserve the current chat but update it with latest data from DB
-                const updatedCurrentChat = data.chats.find((chat: CopilotChat) => chat.id === currentChat.id)
+                const updatedCurrentChat = data.chats.find(
+                  (chat: CopilotChat) => chat.id === currentChat.id
+                )
                 if (updatedCurrentChat) {
                   set({
                     currentChat: updatedCurrentChat,
@@ -1605,7 +1644,7 @@ export const useCopilotStore = create<CopilotStore>()(
                   logger.info(
                     `Preserved current chat selection: ${updatedCurrentChat.title || 'Untitled'} (${updatedCurrentChat.messages?.length || 0} messages)`
                   )
-                  
+
                   // Load checkpoints for the preserved chat
                   try {
                     await get().loadMessageCheckpoints(updatedCurrentChat.id)
@@ -1628,7 +1667,10 @@ export const useCopilotStore = create<CopilotStore>()(
                 try {
                   await get().loadMessageCheckpoints(mostRecentChat.id)
                 } catch (checkpointError) {
-                  logger.error('Failed to load checkpoints for auto-selected chat:', checkpointError)
+                  logger.error(
+                    'Failed to load checkpoints for auto-selected chat:',
+                    checkpointError
+                  )
                 }
               }
             } else {
@@ -1803,7 +1845,8 @@ export const useCopilotStore = create<CopilotStore>()(
                     error: 'Operation was interrupted by user action',
                     displayName: getToolDisplayNameByState({ ...toolCall, state: 'aborted' }),
                   }
-                } else if (toolCall.state === 'pending') {
+                }
+                if (toolCall.state === 'pending') {
                   // Pending tools become rejected/skipped
                   return {
                     ...toolCall,
@@ -1836,7 +1879,8 @@ export const useCopilotStore = create<CopilotStore>()(
                         }),
                       },
                     }
-                  } else if (block.toolCall.state === 'pending') {
+                  }
+                  if (block.toolCall.state === 'pending') {
                     // Pending tools become rejected/skipped
                     return {
                       ...block,
@@ -1858,9 +1902,10 @@ export const useCopilotStore = create<CopilotStore>()(
               }) || []
 
             const terminatedToolsCount = updatedToolCalls.filter(
-              (tc) => (tc.state === 'aborted' || tc.state === 'rejected') && 
-                      typeof tc.error === 'string' && 
-                      (tc.error.includes('interrupted') || tc.error.includes('cancelled'))
+              (tc) =>
+                (tc.state === 'aborted' || tc.state === 'rejected') &&
+                typeof tc.error === 'string' &&
+                (tc.error.includes('interrupted') || tc.error.includes('cancelled'))
             ).length
 
             // Check if the assistant message has any meaningful content
@@ -2021,11 +2066,11 @@ export const useCopilotStore = create<CopilotStore>()(
       // NEW: Set tool call state using centralized function
       setToolCallState: (toolCall: any, newState: string, options?: any) => {
         setToolCallState(toolCall, newState, options)
-        
+
         // Trigger UI update by updating messages
         const { messages } = get()
-        set((state) => ({ 
-          messages: [...state.messages] // Force re-render
+        set((state) => ({
+          messages: [...state.messages], // Force re-render
         }))
       },
 

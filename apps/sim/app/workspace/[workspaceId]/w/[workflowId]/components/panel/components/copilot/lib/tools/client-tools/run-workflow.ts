@@ -2,11 +2,16 @@
  * Run Workflow Tool
  */
 
-import { BaseTool } from '../base-tool'
-import type { CopilotToolCall, ToolExecuteResult, ToolMetadata, ToolExecutionOptions } from '../types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useExecutionStore } from '@/stores/execution/store'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { BaseTool } from '../base-tool'
+import type {
+  CopilotToolCall,
+  ToolExecuteResult,
+  ToolExecutionOptions,
+  ToolMetadata,
+} from '../types'
 
 interface RunWorkflowParams {
   workflowId?: string
@@ -23,37 +28,37 @@ export class RunWorkflowTool extends BaseTool {
       states: {
         pending: {
           displayName: 'Run workflow?',
-          icon: 'play'
+          icon: 'play',
         },
         executing: {
           displayName: 'Running workflow',
-          icon: 'spinner'
+          icon: 'spinner',
         },
         accepted: {
           displayName: 'Running workflow',
-          icon: 'spinner'
+          icon: 'spinner',
         },
         success: {
           displayName: 'Executed workflow',
-          icon: 'play'
+          icon: 'play',
         },
         rejected: {
           displayName: 'Skipped workflow execution',
-          icon: 'skip'
+          icon: 'skip',
         },
         errored: {
           displayName: 'Failed to execute workflow',
-          icon: 'error'
+          icon: 'error',
         },
         background: {
           displayName: 'Workflow execution moved to background',
-          icon: 'play'
+          icon: 'play',
         },
         aborted: {
           displayName: 'Aborted stream',
-          icon: 'abort'
-        }
-      }
+          icon: 'abort',
+        },
+      },
     },
     schema: {
       name: RunWorkflowTool.id,
@@ -63,50 +68,54 @@ export class RunWorkflowTool extends BaseTool {
         properties: {
           workflowId: {
             type: 'string',
-            description: 'The ID of the workflow to run'
+            description: 'The ID of the workflow to run',
           },
           description: {
             type: 'string',
-            description: 'Description of what the workflow does'
+            description: 'Description of what the workflow does',
           },
           workflow_input: {
             type: 'string',
-            description: 'Input text to pass to the workflow chat'
-          }
+            description: 'Input text to pass to the workflow chat',
+          },
         },
-        required: []
-      }
+        required: [],
+      },
     },
     requiresInterrupt: true,
     allowBackgroundExecution: true,
     stateMessages: {
       success: 'Workflow successfully executed',
-      background: 'User moved workflow exectuion to background. The workflow execution is not complete, but will continue to run in the background.',
+      background:
+        'User moved workflow exectuion to background. The workflow execution is not complete, but will continue to run in the background.',
       error: 'Error during workflow execution',
-      rejected: 'The user chose to skip the workflow execution'
-    }
+      rejected: 'The user chose to skip the workflow execution',
+    },
   }
 
   /**
    * Execute the tool - run the workflow
    * This includes showing a background prompt and handling background vs foreground execution
    */
-  async execute(toolCall: CopilotToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult> {
+  async execute(
+    toolCall: CopilotToolCall,
+    options?: ToolExecutionOptions
+  ): Promise<ToolExecuteResult> {
     try {
       // Parse parameters from either toolCall.parameters or toolCall.input
       const rawParams = toolCall.parameters || toolCall.input || {}
       const params = rawParams as RunWorkflowParams
-      
+
       console.log('Run workflow execute called with params:', params)
       console.log('Tool call object:', toolCall)
-      
+
       // Check if workflow is already executing
       const { isExecuting } = useExecutionStore.getState()
       if (isExecuting) {
         options?.onStateChange?.('errored')
         return {
           success: false,
-          error: 'The workflow is already in the middle of an execution. Try again later'
+          error: 'The workflow is already in the middle of an execution. Try again later',
         }
       }
 
@@ -116,14 +125,16 @@ export class RunWorkflowTool extends BaseTool {
         options?.onStateChange?.('errored')
         return {
           success: false,
-          error: 'No active workflow found'
+          error: 'No active workflow found',
         }
       }
 
       // Prepare workflow input - if workflow_input is provided, pass it to the execution
-      const workflowInput = params.workflow_input ? { 
-        input: params.workflow_input 
-      } : undefined
+      const workflowInput = params.workflow_input
+        ? {
+            input: params.workflow_input,
+          }
+        : undefined
 
       console.log('Executing workflow with input:', workflowInput)
 
@@ -132,78 +143,64 @@ export class RunWorkflowTool extends BaseTool {
       setIsExecuting(true)
 
       // Note: toolCall.state is already set to 'executing' by clientAcceptTool
-      
+
       // Use the standalone execution utility with full logging support
       // This works for both deployed and non-deployed workflows
       const result = await executeWorkflowWithFullLogging({
         workflowInput,
         executionId: toolCall.id, // Use tool call ID as execution ID
       })
-      
+
       // Reset execution state
       setIsExecuting(false)
-    
+
       console.log('Workflow execution result:', result)
 
       // Check if execution was successful
       if (result && (!('success' in result) || result.success !== false)) {
         // Notify server of success
-        await this.notify(
-          toolCall.id,
-          'success',
-          'Workflow execution completed successfully'
-        )
-        
+        await this.notify(toolCall.id, 'success', 'Workflow execution completed successfully')
+
         options?.onStateChange?.('success')
-        
+
         return {
           success: true,
           data: {
             workflowId: params.workflowId || activeWorkflowId,
             description: params.description,
-            message: 'Workflow execution finished successfully'
-          }
+            message: 'Workflow execution finished successfully',
+          },
         }
-      } else {
-        // Execution failed
-        const errorMessage = (result as any)?.error || 'Workflow execution failed'
-        
-        // Notify server of error
-        await this.notify(
-          toolCall.id,
-          'errored',
-          `Workflow execution failed: ${errorMessage}`
-        )
-        
-        options?.onStateChange?.('errored')
-        
-        return {
-          success: false,
-          error: errorMessage
-        }
+      }
+      // Execution failed
+      const errorMessage = (result as any)?.error || 'Workflow execution failed'
+
+      // Notify server of error
+      await this.notify(toolCall.id, 'errored', `Workflow execution failed: ${errorMessage}`)
+
+      options?.onStateChange?.('errored')
+
+      return {
+        success: false,
+        error: errorMessage,
       }
     } catch (error: any) {
       // Reset execution state in case of error
       const { setIsExecuting } = useExecutionStore.getState()
       setIsExecuting(false)
-      
+
       console.error('Error in RunWorkflowTool.execute:', error)
-      
+
       const errorMessage = error?.message || 'An unknown error occurred'
-      
-      await this.notify(
-        toolCall.id,
-        'errored',
-        `Workflow execution failed: ${errorMessage}`
-      )
-      
+
+      await this.notify(toolCall.id, 'errored', `Workflow execution failed: ${errorMessage}`)
+
       options?.onStateChange?.('errored')
-      
+
       return {
         success: false,
-        error: errorMessage
+        error: errorMessage,
       }
     }
   }
-
-} 
+}

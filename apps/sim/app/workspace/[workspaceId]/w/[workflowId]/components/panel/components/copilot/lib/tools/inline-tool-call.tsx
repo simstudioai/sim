@@ -5,15 +5,14 @@
  * Displays a tool call with its current state and optional confirmation UI
  */
 
-import React, { useState } from 'react'
-import { Loader2, Wrench } from 'lucide-react'
+import { useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { CopilotToolCall, ToolState } from '@/stores/copilot/types'
-import { toolRequiresInterrupt } from './utils'
-import { toolRegistry } from './registry'
-import { notifyServerTool } from './notification-utils'
 import { useCopilotStore } from '@/stores/copilot/store'
-import { renderToolStateIcon } from './utils'
+import type { CopilotToolCall } from '@/stores/copilot/types'
+import { notifyServerTool } from './notification-utils'
+import { toolRegistry } from './registry'
+import { renderToolStateIcon, toolRequiresInterrupt } from './utils'
 
 interface InlineToolCallProps {
   toolCall: CopilotToolCall
@@ -29,19 +28,18 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
 
 // Function to accept a server tool (interrupt required)
 async function serverAcceptTool(
-  toolCall: CopilotToolCall, 
+  toolCall: CopilotToolCall,
   setToolCallState: (toolCall: any, state: string, options?: any) => void
 ): Promise<void> {
   console.log('Server tool accepted:', toolCall.name, toolCall.id)
-  
+
   // Set state directly to executing (skip accepted state)
   setToolCallState(toolCall, 'executing')
-  
+
   try {
     // Notify server of acceptance - execution happens elsewhere via SSE
     await notifyServerTool(toolCall.id, toolCall.name, 'accepted')
     console.log('Server notified of tool acceptance')
-    
   } catch (error) {
     console.error('Failed to notify server of tool acceptance:', error)
     setToolCallState(toolCall, 'error', { error: 'Failed to notify server' })
@@ -56,13 +54,13 @@ async function clientAcceptTool(
   context?: Record<string, any>
 ): Promise<void> {
   console.log('Client tool accepted:', toolCall.name, toolCall.id)
-  
+
   console.log('Setting state to executing...')
   setToolCallState(toolCall, 'executing')
-  
+
   // Trigger UI update immediately with explicit state
   onStateChange?.('executing')
-  
+
   try {
     // Get the tool and execute it directly
     const tool = toolRegistry.getTool(toolCall.name)
@@ -71,15 +69,15 @@ async function clientAcceptTool(
         onStateChange: (state: any) => {
           setToolCallState(toolCall, state)
         },
-        context
+        context,
       })
     } else {
       throw new Error(`Tool not found: ${toolCall.name}`)
     }
   } catch (error) {
     console.error('Error executing client tool:', error)
-    setToolCallState(toolCall, 'errored', { 
-      error: error instanceof Error ? error.message : 'Tool execution failed' 
+    setToolCallState(toolCall, 'errored', {
+      error: error instanceof Error ? error.message : 'Tool execution failed',
     })
   }
 }
@@ -90,15 +88,14 @@ async function rejectTool(
   setToolCallState: (toolCall: any, state: string, options?: any) => void
 ): Promise<void> {
   console.log('Tool rejected:', toolCall.name, toolCall.id)
-  
+
   // NEW LOGIC: Use centralized state management
   setToolCallState(toolCall, 'rejected')
-  
+
   try {
     // Notify server for both client and server tools
     await notifyServerTool(toolCall.id, toolCall.name, 'rejected')
     console.log('Server notified of tool rejection')
-    
   } catch (error) {
     console.error('Failed to notify server of tool rejection:', error)
   }
@@ -108,55 +105,59 @@ async function rejectTool(
 function getToolDisplayNameByState(toolCall: CopilotToolCall): string {
   const toolName = toolCall.name
   const state = toolCall.state
-  
+
   // Check if it's a client tool
   const clientTool = toolRegistry.getTool(toolName)
   if (clientTool) {
     // Use client tool's display name logic
     return clientTool.getDisplayName(toolCall)
   }
-  
+
   // For server tools, use server tool metadata
   const serverToolMetadata = toolRegistry.getServerToolMetadata(toolName)
   if (serverToolMetadata) {
     // Check if there's a dynamic display name function
     if (serverToolMetadata.displayConfig.getDynamicDisplayName) {
       const dynamicName = serverToolMetadata.displayConfig.getDynamicDisplayName(
-        state, 
+        state,
         toolCall.input || toolCall.parameters || {}
       )
       if (dynamicName) return dynamicName
     }
-    
+
     // Use state-specific display config
     const stateConfig = serverToolMetadata.displayConfig.states[state]
     if (stateConfig) {
       return stateConfig.displayName
     }
   }
-  
+
   // Fallback to tool name if no specific display logic found
   return toolName
 }
 
 // Simple run/skip buttons component
-function RunSkipButtons({ toolCall, onStateChange, context }: { 
+function RunSkipButtons({
+  toolCall,
+  onStateChange,
+  context,
+}: {
   toolCall: CopilotToolCall
-  onStateChange?: (state: any) => void 
+  onStateChange?: (state: any) => void
   context?: Record<string, any>
 }) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [buttonsHidden, setButtonsHidden] = useState(false)
   const { setToolCallState } = useCopilotStore()
-  
+
   const handleRun = async () => {
     setIsProcessing(true)
     setButtonsHidden(true) // Hide run/skip buttons immediately
-    
+
     try {
       // Check if it's a client tool or server tool
       const clientTool = toolRegistry.getTool(toolCall.name)
-      
+
       if (clientTool) {
         // Client tool - execute immediately
         await clientAcceptTool(toolCall, setToolCallState, onStateChange, context)
@@ -165,7 +166,7 @@ function RunSkipButtons({ toolCall, onStateChange, context }: {
       } else {
         // Server tool
         await serverAcceptTool(toolCall, setToolCallState)
-        // Trigger re-render by calling onStateChange if provided  
+        // Trigger re-render by calling onStateChange if provided
         onStateChange?.(toolCall.state)
       }
     } catch (error) {
@@ -174,14 +175,14 @@ function RunSkipButtons({ toolCall, onStateChange, context }: {
       setIsProcessing(false)
     }
   }
-  
+
   const handleSkip = async () => {
     setIsProcessing(true)
     setButtonsHidden(true) // Hide run/skip buttons immediately
-    
+
     try {
       await rejectTool(toolCall, setToolCallState)
-      
+
       // Trigger re-render by calling onStateChange if provided
       onStateChange?.(toolCall.state)
     } catch (error) {
@@ -190,12 +191,12 @@ function RunSkipButtons({ toolCall, onStateChange, context }: {
       setIsProcessing(false)
     }
   }
-  
+
   // If buttons are hidden, show nothing
   if (buttonsHidden) {
     return null
   }
-  
+
   // Default run/skip buttons
   return (
     <div className='flex items-center gap-1.5'>
@@ -220,25 +221,21 @@ function RunSkipButtons({ toolCall, onStateChange, context }: {
   )
 }
 
-export function InlineToolCall({ 
-  toolCall,
-  onStateChange,
-  context 
-}: InlineToolCallProps) {
+export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolCallProps) {
   const [, forceUpdate] = useState({})
   const { setToolCallState } = useCopilotStore()
-  
+
   if (!toolCall) {
     return null
   }
 
   const showButtons = shouldShowRunSkipButtons(toolCall)
-  
+
   // Check if we should show background button (when in executing state)
   const clientTool = toolRegistry.getTool(toolCall.name)
   const allowsBackground = clientTool?.metadata?.allowBackgroundExecution || false
   const showBackgroundButton = allowsBackground && toolCall.state === 'executing' && !showButtons
-  
+
   const handleStateChange = (state: any) => {
     // Force component re-render
     forceUpdate({})
@@ -251,27 +248,27 @@ export function InlineToolCall({
   return (
     <div className='flex items-center justify-between gap-2 py-1'>
       <div className='flex items-center gap-2 text-muted-foreground'>
-        <div className='flex-shrink-0'>
-          {renderToolStateIcon(toolCall, 'h-3 w-3')}
-        </div>
+        <div className='flex-shrink-0'>{renderToolStateIcon(toolCall, 'h-3 w-3')}</div>
         <span className='text-base'>{displayName}</span>
       </div>
-      
-      {showButtons && <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} context={context} />}
-      
+
+      {showButtons && (
+        <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} context={context} />
+      )}
+
       {showBackgroundButton && (
         <div className='flex items-center gap-1.5'>
           <Button
             onClick={async () => {
               try {
                 console.log('Moving to background:', toolCall.id)
-                
+
                 // Set tool state to background
                 setToolCallState(toolCall, 'background')
-                
+
                 // Notify the backend about background state
                 await notifyServerTool(toolCall.id, toolCall.name, 'background')
-                
+
                 // Track that this tool was moved to background
                 if (context) {
                   if (!context.movedToBackgroundToolIds) {
@@ -279,7 +276,7 @@ export function InlineToolCall({
                   }
                   context.movedToBackgroundToolIds.add(toolCall.id)
                 }
-                
+
                 // Trigger re-render
                 onStateChange?.(toolCall.state)
               } catch (error) {
@@ -295,4 +292,4 @@ export function InlineToolCall({
       )}
     </div>
   )
-} 
+}

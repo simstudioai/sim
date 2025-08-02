@@ -11,18 +11,18 @@ export interface Citation {
 /**
  * Tool states that a tool can be in
  */
-export type ToolState = 
-  | 'pending'      // Waiting for user confirmation (shows Run/Skip buttons)
-  | 'executing'    // Currently executing
-  | 'completed'    // Successfully completed (legacy)
-  | 'success'      // Successfully completed
-  | 'accepted'     // User accepted but not yet executed
-  | 'applied'      // Applied/executed successfully
-  | 'rejected'     // User rejected/skipped
-  | 'errored'      // Failed with error
-  | 'background'   // Moved to background execution
+export type ToolState =
+  | 'pending' // Waiting for user confirmation (shows Run/Skip buttons)
+  | 'executing' // Currently executing
+  | 'completed' // Successfully completed (legacy)
+  | 'success' // Successfully completed
+  | 'accepted' // User accepted but not yet executed
+  | 'applied' // Applied/executed successfully
+  | 'rejected' // User rejected/skipped
+  | 'errored' // Failed with error
+  | 'background' // Moved to background execution
   | 'ready_for_review' // Ready for review (workflow tools)
-  | 'aborted'      // Operation aborted (e.g., due to page refresh during diff view)
+  | 'aborted' // Operation aborted (e.g., due to page refresh during diff view)
 
 /**
  * Tool call interface for copilot
@@ -33,7 +33,7 @@ export interface CopilotToolCall {
   name: string
   displayName?: string
   input?: Record<string, any>
-  parameters?: Record<string, any>  // Alias for input
+  parameters?: Record<string, any> // Alias for input
   state: ToolState
   startTime?: number
   endTime?: number

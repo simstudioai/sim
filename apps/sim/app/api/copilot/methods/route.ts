@@ -105,9 +105,15 @@ async function pollRedisForTool(
           message,
           duration: Date.now() - startTime,
           rawRedisValue: redisValue,
-          parsedAsJSON: redisValue ? (() => {
-            try { return JSON.parse(redisValue) } catch { return 'failed-to-parse' }
-          })() : null
+          parsedAsJSON: redisValue
+            ? (() => {
+                try {
+                  return JSON.parse(redisValue)
+                } catch {
+                  return 'failed-to-parse'
+                }
+              })()
+            : null,
         })
 
         // Special logging for set environment variables tool when Redis status is found
@@ -196,14 +202,24 @@ async function interruptHandler(
     }
 
     logger.warn('Unexpected tool call status', { toolCallId, status, message })
-    return { approved: false, rejected: false, error: true, message: `Unexpected tool call status: ${status}` }
+    return {
+      approved: false,
+      rejected: false,
+      error: true,
+      message: `Unexpected tool call status: ${status}`,
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     logger.error('Error in interrupt handler', {
       toolCallId,
       error: errorMessage,
     })
-    return { approved: false, rejected: false, error: true, message: `Interrupt handler error: ${errorMessage}` }
+    return {
+      approved: false,
+      rejected: false,
+      error: true,
+      message: `Interrupt handler error: ${errorMessage}`,
+    }
   }
 }
 
