@@ -268,6 +268,7 @@ async function handleBlockOperationTx(
           enabled: payload.enabled ?? true,
           horizontalHandles: payload.horizontalHandles ?? true,
           isWide: payload.isWide ?? false,
+          advancedMode: payload.advancedMode ?? false,
           height: payload.height || 0,
         }
 
@@ -617,6 +618,7 @@ async function handleBlockOperationTx(
           enabled: payload.enabled ?? true,
           horizontalHandles: payload.horizontalHandles ?? true,
           isWide: payload.isWide ?? false,
+          advancedMode: payload.advancedMode ?? false,
           height: payload.height || 0,
         }
 

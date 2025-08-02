@@ -283,6 +283,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           enabled: true,
           horizontalHandles: true,
           isWide: false,
+          advancedMode: false,
           height: 0,
           data: block.data || {},
         }
@@ -325,6 +326,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           enabled: true,
           horizontalHandles: true,
           isWide: false,
+          advancedMode: false,
           height: 0,
           data: block.data || {},
         }

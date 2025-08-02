@@ -28,6 +28,7 @@ const testWorkflowState = {
       enabled: true,
       horizontalHandles: true,
       isWide: false,
+      advancedMode: false,
       height: 90,
     },
     'loop-block-456': {
@@ -43,6 +44,7 @@ const testWorkflowState = {
       enabled: true,
       horizontalHandles: true,
       isWide: false,
+      advancedMode: false,
       height: 0,
       data: {
         width: 400,
@@ -74,6 +76,7 @@ const testWorkflowState = {
       enabled: true,
       horizontalHandles: true,
       isWide: false,
+      advancedMode: false,
       height: 144,
       data: {
         parentId: 'loop-block-456',

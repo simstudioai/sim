@@ -730,6 +730,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               enabled: true,
               horizontalHandles: true,
               isWide: false,
+              advancedMode: false,
               height: 0,
             }
 
@@ -1105,6 +1106,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             enabled: true,
             horizontalHandles: true,
             isWide: false,
+            advancedMode: false,
             height: 0,
           }
 
