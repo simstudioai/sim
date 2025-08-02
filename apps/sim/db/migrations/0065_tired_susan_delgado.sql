@@ -1,1 +1,0 @@
-DROP TABLE "copilot_checkpoints" CASCADE;
