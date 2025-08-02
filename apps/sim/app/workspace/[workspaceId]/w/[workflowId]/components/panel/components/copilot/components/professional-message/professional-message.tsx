@@ -24,14 +24,14 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+
 import { Button } from '@/components/ui/button'
 import {
   COPILOT_TOOL_DISPLAY_NAMES,
   COPILOT_TOOL_ERROR_NAMES,
   COPILOT_TOOL_PAST_TENSE,
 } from '@/stores/constants'
+import CopilotMarkdownRenderer from '../markdown-renderer'
 import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 
 import { useCopilotStore } from '@/stores/copilot/store'
@@ -71,11 +71,10 @@ StreamingIndicator.displayName = 'StreamingIndicator'
 interface SmoothStreamingTextProps {
   content: string
   isStreaming: boolean
-  markdownComponents: any
 }
 
 const SmoothStreamingText = memo(
-  ({ content, isStreaming, markdownComponents }: SmoothStreamingTextProps) => {
+  ({ content, isStreaming }: SmoothStreamingTextProps) => {
     const [displayedContent, setDisplayedContent] = useState('')
     const contentRef = useRef(content)
     const timeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -169,11 +168,7 @@ const SmoothStreamingText = memo(
 
     return (
       <div className='relative' style={{ minHeight: '1.25rem' }}>
-        <div className='whitespace-pre-wrap break-words text-foreground'>
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {displayedContent}
-          </ReactMarkdown>
-        </div>
+        <CopilotMarkdownRenderer content={displayedContent} />
       </div>
     )
   },
@@ -331,112 +326,7 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(
       return message.content.replace(/\n{3,}/g, '\n\n')
     }, [message.content])
 
-    // Custom components for react-markdown with improved styling - memoized to prevent re-renders
-    const markdownComponents = useMemo(
-      () => ({
-        code: ({ inline, className, children, ...props }: any) => {
-          const match = /language-(\w+)/.exec(className || '')
-          const language = match ? match[1] : ''
-
-          if (!inline && language) {
-            return (
-              <div className='group relative overflow-hidden rounded-lg border border-border bg-muted/30'>
-                <div className='flex items-center justify-between border-border/50 border-b bg-muted/50 px-3 py-1'>
-                  <span className='font-medium text-muted-foreground text-xs uppercase tracking-wide'>
-                    {language}
-                  </span>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    className='h-4 w-4 p-0 opacity-70 hover:opacity-100'
-                    onClick={() => navigator.clipboard.writeText(String(children))}
-                  >
-                    <Copy className='h-3 w-3' />
-                  </Button>
-                </div>
-                <div className='overflow-hidden'>
-                  <pre className='m-0 overflow-hidden whitespace-pre-wrap break-all p-2 font-mono text-sm leading-relaxed'>
-                    <code className='break-all font-mono text-sm'>
-                      {String(children).replace(/\n$/, '')}
-                    </code>
-                  </pre>
-                </div>
-              </div>
-            )
-          }
-
-          return (
-            <code
-              className='break-words rounded-md border bg-muted/80 px-1.5 py-0.5 font-mono text-sm'
-              {...props}
-            >
-              {children}
-            </code>
-          )
-        },
-        pre: ({ children }: any) => children,
-        h1: ({ children }: any) => (
-          <h1 className='mt-3 mb-2 font-bold text-base text-foreground leading-tight first:mt-0'>
-            {children}
-          </h1>
-        ),
-        h2: ({ children }: any) => (
-          <h2 className='mt-2 mb-1 font-semibold text-foreground text-sm leading-tight'>
-            {children}
-          </h2>
-        ),
-        h3: ({ children }: any) => (
-          <h3 className='mt-2 mb-1 font-semibold text-foreground text-sm leading-tight'>
-            {children}
-          </h3>
-        ),
-        p: ({ children }: any) => (
-          <p className='mb-[0.025rem] text-foreground leading-tight last:mb-0'>{children}</p>
-        ),
-        a: ({ href, children }: any) => (
-          <a
-            href={href}
-            target='_blank'
-            rel='noopener noreferrer'
-            className='font-medium text-blue-600 underline decoration-blue-600/30 underline-offset-2 transition-colors hover:text-blue-700 hover:decoration-blue-600/60 dark:text-blue-400 dark:hover:text-blue-300'
-          >
-            {children}
-          </a>
-        ),
-        ul: ({ children }: any) => (
-          <div className='-mt-1 mb-1 rounded-r-md border-muted-foreground/10 border-l-2 bg-muted/15 py-1 pl-3'>
-            <ul className='my-0 list-disc space-y-0 pl-4 leading-none'>{children}</ul>
-          </div>
-        ),
-        ol: ({ children }: any) => (
-          <div className='-mt-1 mb-1 rounded-r-md border-muted-foreground/10 border-l-2 bg-muted/15 py-1 pl-3'>
-            <ol className='my-0 list-decimal space-y-0 pl-4 leading-none'>{children}</ol>
-          </div>
-        ),
-        li: ({ children }: any) => (
-          <li className='my-0 py-0 text-foreground leading-none'>{children}</li>
-        ),
-        blockquote: ({ children }: any) => (
-          <blockquote className='border-muted-foreground/20 border-l-4 bg-muted/30 pl-3 text-muted-foreground italic leading-tight'>
-            {children}
-          </blockquote>
-        ),
-        table: ({ children }: any) => (
-          <div className='overflow-x-auto rounded-lg border'>
-            <table className='w-full text-sm'>{children}</table>
-          </div>
-        ),
-        th: ({ children }: any) => (
-          <th className='border-b bg-muted/50 px-2 text-left font-semibold text-sm leading-tight'>
-            {children}
-          </th>
-        ),
-        td: ({ children }: any) => (
-          <td className='border-muted/30 border-b px-2 text-sm leading-tight'>{children}</td>
-        ),
-      }),
-      []
-    )
+    // Remove markdownComponents as we'll use the new CopilotMarkdownRenderer
 
     // Memoize content blocks to avoid re-rendering unchanged blocks
     const memoizedContentBlocks = useMemo(() => {
@@ -466,21 +356,14 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(
                   : 'opacity 0.2s ease-in-out',
               }}
             >
-              <div className='overflow-wrap-anywhere relative whitespace-normal break-normal font-normal text-sm leading-tight'>
-                {shouldUseSmoothing ? (
-                  <SmoothStreamingText
-                    content={cleanBlockContent}
-                    isStreaming={isStreaming}
-                    markdownComponents={markdownComponents}
-                  />
-                ) : (
-                  <div className='whitespace-pre-wrap break-words text-foreground'>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                      {cleanBlockContent}
-                    </ReactMarkdown>
-                  </div>
-                )}
-              </div>
+              {shouldUseSmoothing ? (
+                <SmoothStreamingText
+                  content={cleanBlockContent}
+                  isStreaming={isStreaming}
+                />
+              ) : (
+                <CopilotMarkdownRenderer content={cleanBlockContent} />
+              )}
             </div>
           )
         }
@@ -508,7 +391,7 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(
                 className='rounded-[10px] px-3 py-2'
                 style={{ backgroundColor: 'rgba(128, 47, 255, 0.08)' }}
               >
-                <div className='whitespace-pre-wrap break-words font-normal text-foreground text-sm leading-tight'>
+                <div className='whitespace-pre-wrap break-words font-normal text-foreground text-base leading-relaxed'>
                   <WordWrap text={message.content} />
                 </div>
               </div>

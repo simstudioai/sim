@@ -299,7 +299,7 @@ export function InlineToolCall({
         <div className='flex-shrink-0'>
           {renderToolStateIcon(toolCall, 'h-3 w-3')}
         </div>
-        <span className='text-sm'>{displayName}</span>
+        <span className='text-base'>{displayName}</span>
       </div>
       
       {showButtons && <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} context={context} />}
