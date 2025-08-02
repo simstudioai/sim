@@ -70,7 +70,20 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       placeholder: 'Select a task',
       provider: 'microsoft-planner',
       condition: { field: 'operation', value: ['read_task'] },
+      mode: 'basic',
     },
+
+    // Advanced mode
+    {
+      id: 'taskId',
+      title: 'Manual Task ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter the task ID',
+      condition: { field: 'operation', value: ['read_task'] },
+      mode: 'advanced',
+    },
+
     {
       id: 'title',
       title: 'Task Title',

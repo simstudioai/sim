@@ -22,7 +22,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       options: [
         { label: 'Create Folder', id: 'create_folder' },
         { label: 'Upload File', id: 'upload' },
-        // { label: 'Get File Content', id: 'get_content' },
         { label: 'List Files', id: 'list' },
       ],
     },
@@ -223,7 +222,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     pageSize: { type: 'number', description: 'Results per page' },
   },
   outputs: {
-    file: 'json',
-    files: 'json',
+    file: { type: 'any', description: 'File metadata' },
+    files: { type: 'any', description: 'Files metadata' },
   },
 }
