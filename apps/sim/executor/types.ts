@@ -17,6 +17,17 @@ export interface FileReference {
 }
 
 /**
+ * User-facing file object with simplified interface
+ */
+export interface UserFile {
+  name: string
+  url: string
+  size: number
+  type: string
+  uploadedAt: string
+}
+
+/**
  * Standardized block output format that ensures compatibility with the execution engine.
  */
 export interface NormalizedBlockOutput {

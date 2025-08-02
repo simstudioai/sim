@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { ExecutionResult } from '@/executor/types'
+import { transformFilesForUserContext } from '@/executor/utils/file-transforms'
 
 const logger = createLogger('TraceSpans')
 
@@ -67,9 +68,9 @@ export function buildTraceSpans(result: ExecutionResult): {
       children: [],
       // Store the block ID for later use in identifying direct parent-child relationships
       blockId: log.blockId,
-      // Include block input/output data
-      input: log.input || {},
-      output: output,
+      // Include block input/output data (transformed for user context)
+      input: transformFilesForUserContext(log.input || {}),
+      output: transformFilesForUserContext(output),
     }
 
     // Add provider timing data if it exists

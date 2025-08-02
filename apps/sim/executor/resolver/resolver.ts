@@ -9,6 +9,21 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 const logger = createLogger('InputResolver')
 
 /**
+ * Helper function to resolve property access with FileReference mapping
+ */
+function resolvePropertyAccess(obj: any, property: string): any {
+  // Special handling for user-friendly file properties
+  if (obj.directUrl !== undefined && obj.key !== undefined) {
+    // This looks like a FileReference object, apply user-friendly property mapping
+    if (property === 'url') {
+      return obj.directUrl
+    }
+    return obj[property]
+  }
+  return obj[property]
+}
+
+/**
  * Resolves input values for blocks by handling references and variable substitution.
  */
 export class InputResolver {
@@ -530,8 +545,8 @@ export class InputResolver {
 
                 replacementValue = arrayValue[index]
               } else {
-                // Regular property access
-                replacementValue = replacementValue[part]
+                // Regular property access with FileReference mapping
+                replacementValue = resolvePropertyAccess(replacementValue, part)
               }
 
               if (replacementValue === undefined) {
@@ -738,8 +753,8 @@ export class InputResolver {
 
           replacementValue = arrayValue[index]
         } else {
-          // Regular property access
-          replacementValue = replacementValue[part]
+          // Regular property access with FileReference mapping
+          replacementValue = resolvePropertyAccess(replacementValue, part)
         }
 
         if (replacementValue === undefined) {

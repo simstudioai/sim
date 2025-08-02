@@ -28,6 +28,7 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { streamingResponseFormatProcessor } from '@/executor/utils'
+import { transformFilesForUserContext } from '@/executor/utils/file-transforms'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
@@ -797,6 +798,11 @@ export class Executor {
             ...finalInput, // Add input fields directly at top level
           }
 
+          // Add files if present (for all trigger types)
+          if (this.workflowInput?.files && Array.isArray(this.workflowInput.files)) {
+            blockOutput.files = this.workflowInput.files
+          }
+
           logger.info(`[Executor] Starting block output:`, JSON.stringify(blockOutput, null, 2))
 
           context.blockStates.set(initBlock.id, {
@@ -804,6 +810,10 @@ export class Executor {
             executed: true,
             executionTime: 0,
           })
+
+          // Create a block log for the starter block if it has files
+          // This ensures files are captured in trace spans and execution logs
+          this.createStartedBlockWithFilesLog(initBlock, blockOutput, context)
         } else {
           // Handle structured input (like API calls or chat messages)
           if (this.workflowInput && typeof this.workflowInput === 'object') {
@@ -1472,8 +1482,8 @@ export class Executor {
         // For streaming blocks, we'll add the console entry after stream processing
         if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
           addConsole({
-            input: blockLog.input,
-            output: blockLog.output,
+            input: transformFilesForUserContext(blockLog.input),
+            output: transformFilesForUserContext(blockLog.output),
             success: true,
             durationMs: blockLog.durationMs,
             startedAt: blockLog.startedAt,
@@ -1542,8 +1552,8 @@ export class Executor {
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
         addConsole({
-          input: blockLog.input,
-          output: blockLog.output,
+          input: transformFilesForUserContext(blockLog.input),
+          output: transformFilesForUserContext(blockLog.output),
           success: true,
           durationMs: blockLog.durationMs,
           startedAt: blockLog.startedAt,
@@ -1610,7 +1620,7 @@ export class Executor {
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
         addConsole({
-          input: blockLog.input,
+          input: transformFilesForUserContext(blockLog.input),
           output: {},
           success: false,
           error:
