@@ -43,7 +43,6 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/calendar': 'View and manage your calendar',
   'https://www.googleapis.com/auth/userinfo.email': 'View your email address',
   'https://www.googleapis.com/auth/userinfo.profile': 'View your basic profile info',
-  'https://www.googleapis.com/auth/spreadsheets': 'View and manage your Google Sheets',
   'read:page:confluence': 'Read Confluence pages',
   'write:page:confluence': 'Write Confluence pages',
   'read:me': 'Read your profile information',
