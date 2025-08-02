@@ -46,8 +46,8 @@ export class RunWorkflowTool extends BaseTool {
           icon: 'error'
         },
         background: {
-          displayName: 'Running workflow in background',
-          icon: 'spinner'
+          displayName: 'Workflow execution moved to background',
+          icon: 'play'
         },
         aborted: {
           displayName: 'Aborted stream',

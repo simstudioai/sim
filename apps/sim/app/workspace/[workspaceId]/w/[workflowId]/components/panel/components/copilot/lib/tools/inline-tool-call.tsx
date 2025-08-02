@@ -34,8 +34,8 @@ async function serverAcceptTool(
 ): Promise<void> {
   console.log('Server tool accepted:', toolCall.name, toolCall.id)
   
-  // NEW LOGIC: Use centralized state management
-  setToolCallState(toolCall, 'accepted')
+  // Set state directly to executing (skip accepted state)
+  setToolCallState(toolCall, 'executing')
   
   try {
     // Notify server of acceptance - execution happens elsewhere via SSE

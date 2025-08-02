@@ -225,7 +225,7 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
         const hasContent = msg.content && msg.content.trim().length > 0
         const hasCompletedTools = msg.toolCalls?.some(
           (tc) =>
-            tc.state === 'completed' || tc.state === 'accepted' || tc.state === 'rejected' || tc.state === 'ready_for_review'
+            tc.state === 'completed' || tc.state === 'accepted' || tc.state === 'rejected' || tc.state === 'ready_for_review' || tc.state === 'background'
         )
         return hasContent || hasCompletedTools
       }
@@ -391,7 +391,7 @@ function handleToolFailure(toolCall: any, error: string): void {
   // Don't override terminal states for tools with ready_for_review and interrupt tools
   if (
     (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
-    (toolCall.state === 'accepted' || toolCall.state === 'rejected')
+    (toolCall.state === 'accepted' || toolCall.state === 'rejected' || toolCall.state === 'background')
   ) {
     // Tool is already in a terminal state, don't override it
     logger.info(
@@ -425,7 +425,7 @@ function setToolCallState(toolCall: any, newState: string, options: {
   // Don't override terminal states for tools with ready_for_review and interrupt tools if preserveTerminalStates is true
   if (preserveTerminalStates && 
       (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
-      (toolCall.state === 'accepted' || toolCall.state === 'rejected')) {
+      (toolCall.state === 'accepted' || toolCall.state === 'rejected' || toolCall.state === 'background')) {
     logger.info('Tool call already in terminal state, preserving:', toolCall.id, toolCall.name, toolCall.state)
     return
   }
@@ -471,6 +471,12 @@ function setToolCallState(toolCall: any, newState: string, options: {
       
     case 'rejected':
       // User rejected the tool
+      break
+      
+    case 'background':
+      // Tool execution moved to background - this is a terminal state
+      toolCall.endTime = Date.now()
+      toolCall.duration = toolCall.endTime - toolCall.startTime
       break
   }
   
@@ -546,7 +552,7 @@ function finalizeToolCall(
             const blockToolCall = toolBlock?.toolCall
             if (
               blockToolCall &&
-              (blockToolCall.state === 'accepted' || blockToolCall.state === 'rejected')
+              (blockToolCall.state === 'accepted' || blockToolCall.state === 'rejected' || blockToolCall.state === 'background')
             ) {
               // Don't override terminal states, just update result and timing
               toolCall.state = blockToolCall.state
@@ -555,7 +561,7 @@ function finalizeToolCall(
             }
           } else if (
             currentToolCall &&
-            (currentToolCall.state === 'accepted' || currentToolCall.state === 'rejected')
+            (currentToolCall.state === 'accepted' || currentToolCall.state === 'rejected' || currentToolCall.state === 'background')
           ) {
             // Don't override terminal states, just update result and timing
             toolCall.state = currentToolCall.state
@@ -674,12 +680,6 @@ const sseHandlers: Record<string, SSEHandler> = {
 
     if (!toolCall) {
       logger.error('Tool call not found for result', { toolCallId })
-      return
-    }
-
-    // Don't process results for interrupt tools that are still pending
-    if (toolRequiresInterrupt(toolCall.name) && toolCall.state === 'pending') {
-      logger.warn('Tool requires interrupt but got result while pending, ignoring:', toolCall.name, toolCall.id)
       return
     }
 
@@ -817,9 +817,22 @@ const sseHandlers: Record<string, SSEHandler> = {
   tool_execution: (data, context, get, set) => {
     const toolCall = context.toolCalls.find((tc) => tc.id === data.toolCallId)
     if (toolCall) {
-      // Don't override pending state for tools that require interrupt
+      // For interrupt tools, only allow transition from pending to executing
+      // Block if tool is still in pending state (user hasn't accepted yet)
       if (toolRequiresInterrupt(toolCall.name) && toolCall.state === 'pending') {
-        logger.info('Tool requires interrupt, keeping pending state:', toolCall.name, toolCall.id)
+        logger.info('Tool requires interrupt and is still pending, ignoring execution event:', toolCall.name, toolCall.id)
+        return
+      }
+      
+      // If already executing, skip (happens when client sets executing immediately)
+      if (toolCall.state === 'executing') {
+        logger.info('Tool already in executing state, skipping:', toolCall.name, toolCall.id)
+        return
+      }
+      
+      // Don't override terminal states
+      if (toolCall.state === 'rejected' || toolCall.state === 'background' || toolCall.state === 'completed' || toolCall.state === 'success' || toolCall.state === 'errored') {
+        logger.info('Tool is already in terminal state, ignoring execution event:', toolCall.name, toolCall.id, toolCall.state)
         return
       }
       
@@ -1037,7 +1050,7 @@ function preserveToolTerminalState(newToolCall: any, existingToolCall: any): any
   // Early return if no existing tool call or no terminal state
   if (
     !existingToolCall ||
-    (existingToolCall.state !== 'accepted' && existingToolCall.state !== 'rejected')
+    (existingToolCall.state !== 'accepted' && existingToolCall.state !== 'rejected' && existingToolCall.state !== 'background')
   ) {
     return newToolCall
   }

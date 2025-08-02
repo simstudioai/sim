@@ -220,7 +220,6 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         pending: { displayName: 'Set environment variables', icon: 'edit' },
         executing: { displayName: 'Setting environment variables', icon: 'spinner' },
-        accepted: { displayName: 'Setting environment variables', icon: 'edit' },
         success: { displayName: 'Set environment variables', icon: 'settings' },
         rejected: { displayName: 'Skipped setting environment variables', icon: 'skip' },
         errored: { displayName: 'Failed to set environment variables', icon: 'error' },
