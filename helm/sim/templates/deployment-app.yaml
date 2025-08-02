@@ -38,10 +38,11 @@ spec:
         - name: migrations
           image: {{ include "sim.image" (dict "context" . "image" .Values.migrations.image) }}
           imagePullPolicy: {{ .Values.migrations.image.pullPolicy }}
-          command: ["bun", "run", "db:migrate"]
-          env:
-            - name: DATABASE_URL
-              value: {{ include "sim.databaseUrl" . | quote }}
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              export DATABASE_URL="{{ include "sim.databaseUrl" . }}"
+              bun run db:migrate
           {{- if .Values.postgresql.enabled }}
           envFrom:
             - secretRef:
