@@ -39,8 +39,8 @@ export const KnowledgeBlock: BlockConfig = {
       title: 'Search Query',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter your search query',
-      required: true,
+      placeholder: 'Enter your search query (optional when using tag filters)',
+      required: false,
       condition: { field: 'operation', value: 'search' },
     },
     {

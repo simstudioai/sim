@@ -66,15 +66,42 @@ class APIError extends Error {
   }
 }
 
-const VectorSearchSchema = z.object({
-  knowledgeBaseIds: z.union([
-    z.string().min(1, 'Knowledge base ID is required'),
-    z.array(z.string().min(1)).min(1, 'At least one knowledge base ID is required'),
-  ]),
-  query: z.string().min(1, 'Search query is required'),
-  topK: z.number().min(1).max(100).default(10),
-  filters: z.record(z.string()).optional(), // Allow dynamic filter keys (display names)
-})
+const VectorSearchSchema = z
+  .object({
+    knowledgeBaseIds: z.union([
+      z.string().min(1, 'Knowledge base ID is required'),
+      z.array(z.string().min(1)).min(1, 'At least one knowledge base ID is required'),
+    ]),
+    query: z
+      .string()
+      .optional()
+      .nullable()
+      .transform((val) => val || undefined),
+    topK: z
+      .number()
+      .min(1)
+      .max(100)
+      .optional()
+      .nullable()
+      .default(10)
+      .transform((val) => val ?? 10),
+    filters: z
+      .record(z.string())
+      .optional()
+      .nullable()
+      .transform((val) => val || undefined), // Allow dynamic filter keys (display names)
+  })
+  .refine(
+    (data) => {
+      // Ensure at least query or filters are provided
+      const hasQuery = data.query && data.query.trim().length > 0
+      const hasFilters = data.filters && Object.keys(data.filters).length > 0
+      return hasQuery || hasFilters
+    },
+    {
+      message: 'Please provide either a search query or tag filters to search your knowledge base',
+    }
+  )
 
 async function generateSearchEmbedding(query: string): Promise<number[]> {
   const openaiApiKey = env.OPENAI_API_KEY
@@ -145,6 +172,47 @@ function getQueryStrategy(kbCount: number, topK: number) {
   }
 }
 
+async function executeTagOnlyQueries(
+  knowledgeBaseIds: string[],
+  topK: number,
+  filters: Record<string, string>
+) {
+  const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
+
+  const queryPromises = knowledgeBaseIds.map(async (kbId) => {
+    const results = await db
+      .select({
+        id: embedding.id,
+        content: embedding.content,
+        documentId: embedding.documentId,
+        chunkIndex: embedding.chunkIndex,
+        tag1: embedding.tag1,
+        tag2: embedding.tag2,
+        tag3: embedding.tag3,
+        tag4: embedding.tag4,
+        tag5: embedding.tag5,
+        tag6: embedding.tag6,
+        tag7: embedding.tag7,
+        distance: sql<number>`0`.as('distance'), // No distance for tag-only searches
+        knowledgeBaseId: embedding.knowledgeBaseId,
+      })
+      .from(embedding)
+      .where(
+        and(
+          eq(embedding.knowledgeBaseId, kbId),
+          eq(embedding.enabled, true),
+          ...getTagFilters(filters, embedding)
+        )
+      )
+      .limit(parallelLimit)
+
+    return results
+  })
+
+  const parallelResults = await Promise.all(queryPromises)
+  return parallelResults.flat()
+}
+
 async function executeParallelQueries(
   knowledgeBaseIds: string[],
   queryVector: string,
@@ -188,6 +256,39 @@ async function executeParallelQueries(
 
   const parallelResults = await Promise.all(queryPromises)
   return parallelResults.flat()
+}
+
+async function executeSingleTagOnlyQuery(
+  knowledgeBaseIds: string[],
+  topK: number,
+  filters: Record<string, string>
+) {
+  logger.debug(`[executeSingleTagOnlyQuery] Called with filters:`, filters)
+  return await db
+    .select({
+      id: embedding.id,
+      content: embedding.content,
+      documentId: embedding.documentId,
+      chunkIndex: embedding.chunkIndex,
+      tag1: embedding.tag1,
+      tag2: embedding.tag2,
+      tag3: embedding.tag3,
+      tag4: embedding.tag4,
+      tag5: embedding.tag5,
+      tag6: embedding.tag6,
+      tag7: embedding.tag7,
+      distance: sql<number>`0`.as('distance'), // No distance for tag-only searches
+      knowledgeBaseId: embedding.knowledgeBaseId,
+    })
+    .from(embedding)
+    .where(
+      and(
+        inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
+        eq(embedding.enabled, true),
+        ...getTagFilters(filters, embedding)
+      )
+    )
+    .limit(topK)
 }
 
 async function executeSingleQuery(
@@ -317,8 +418,9 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Generate query embedding in parallel with access checks
-      const queryEmbedding = await generateSearchEmbedding(validatedData.query)
+      // Generate query embedding only if query is provided
+      const hasQuery = validatedData.query && validatedData.query.trim().length > 0
+      const queryEmbedding = hasQuery ? await generateSearchEmbedding(validatedData.query!) : null
 
       // Check if any requested knowledge bases were not accessible
       const inaccessibleKbIds = knowledgeBaseIds.filter((id) => !accessibleKbIds.includes(id))
@@ -330,46 +432,69 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Adaptive query strategy based on accessible KB count and parameters
-      const strategy = getQueryStrategy(accessibleKbIds.length, validatedData.topK)
-      const queryVector = JSON.stringify(queryEmbedding)
-
       let results: any[]
 
-      if (strategy.useParallel) {
-        // Execute parallel queries for better performance with many KBs
-        logger.debug(`[${requestId}] Executing parallel queries with filters:`, mappedFilters)
-        const parallelResults = await executeParallelQueries(
-          accessibleKbIds,
-          queryVector,
-          validatedData.topK,
-          strategy.distanceThreshold,
-          mappedFilters
-        )
-        results = mergeAndRankResults(parallelResults, validatedData.topK)
+      if (!hasQuery) {
+        // Tag-only search without vector similarity
+        logger.debug(`[${requestId}] Executing tag-only search with filters:`, mappedFilters)
+        if (accessibleKbIds.length > 4) {
+          // Use parallel approach for many KBs
+          const parallelResults = await executeTagOnlyQueries(
+            accessibleKbIds,
+            validatedData.topK,
+            mappedFilters
+          )
+          results = parallelResults.slice(0, validatedData.topK) // Simple limit for tag-only
+        } else {
+          // Use single query for fewer KBs
+          results = await executeSingleTagOnlyQuery(
+            accessibleKbIds,
+            validatedData.topK,
+            mappedFilters
+          )
+        }
       } else {
-        // Execute single optimized query for fewer KBs
-        logger.debug(`[${requestId}] Executing single query with filters:`, mappedFilters)
-        results = await executeSingleQuery(
-          accessibleKbIds,
-          queryVector,
-          validatedData.topK,
-          strategy.distanceThreshold,
-          mappedFilters
-        )
+        // Vector similarity search with query
+        const strategy = getQueryStrategy(accessibleKbIds.length, validatedData.topK)
+        const queryVector = JSON.stringify(queryEmbedding)
+
+        if (strategy.useParallel) {
+          // Execute parallel queries for better performance with many KBs
+          logger.debug(`[${requestId}] Executing parallel queries with filters:`, mappedFilters)
+          const parallelResults = await executeParallelQueries(
+            accessibleKbIds,
+            queryVector,
+            validatedData.topK,
+            strategy.distanceThreshold,
+            mappedFilters
+          )
+          results = mergeAndRankResults(parallelResults, validatedData.topK)
+        } else {
+          // Execute single optimized query for fewer KBs
+          logger.debug(`[${requestId}] Executing single query with filters:`, mappedFilters)
+          results = await executeSingleQuery(
+            accessibleKbIds,
+            queryVector,
+            validatedData.topK,
+            strategy.distanceThreshold,
+            mappedFilters
+          )
+        }
       }
 
       // Calculate cost for the embedding (with fallback if calculation fails)
       let cost = null
       let tokenCount = null
-      try {
-        tokenCount = estimateTokenCount(validatedData.query, 'openai')
-        cost = calculateCost('text-embedding-3-small', tokenCount.count, 0, false)
-      } catch (error) {
-        logger.warn(`[${requestId}] Failed to calculate cost for search query`, {
-          error: error instanceof Error ? error.message : 'Unknown error',
-        })
-        // Continue without cost information rather than failing the search
+      if (hasQuery) {
+        try {
+          tokenCount = estimateTokenCount(validatedData.query!, 'openai')
+          cost = calculateCost('text-embedding-3-small', tokenCount.count, 0, false)
+        } catch (error) {
+          logger.warn(`[${requestId}] Failed to calculate cost for search query`, {
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
+          // Continue without cost information rather than failing the search
+        }
       }
 
       // Fetch tag definitions for display name mapping (reuse the same fetch from filtering)
@@ -427,10 +552,10 @@ export async function POST(request: NextRequest) {
               documentId: result.documentId,
               chunkIndex: result.chunkIndex,
               tags, // Clean display name mapped tags
-              similarity: 1 - result.distance,
+              similarity: hasQuery ? 1 - result.distance : 1, // Perfect similarity for tag-only searches
             }
           }),
-          query: validatedData.query,
+          query: validatedData.query || '',
           knowledgeBaseIds: accessibleKbIds,
           knowledgeBaseId: accessibleKbIds[0],
           topK: validatedData.topK,
