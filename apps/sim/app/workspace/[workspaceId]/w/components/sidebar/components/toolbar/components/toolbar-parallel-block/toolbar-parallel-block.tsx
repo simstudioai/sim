@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/parallel-node/parallel-config'
 
 type ParallelToolbarItemProps = {
@@ -52,7 +52,7 @@ export default function ParallelToolbarItem({ disabled = false }: ParallelToolba
         'group flex h-8 items-center gap-[10px] rounded-[8px] p-2 transition-colors',
         disabled
           ? 'cursor-not-allowed opacity-60'
-          : 'cursor-pointer hover:bg-accent/50 active:cursor-grabbing'
+          : 'cursor-pointer hover:bg-muted active:cursor-grabbing'
       )}
     >
       <div

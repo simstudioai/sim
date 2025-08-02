@@ -640,11 +640,41 @@ export function SearchModal({
       const itemElement = document.querySelector(
         `[data-search-item="${selectedItem.type}-${selectedItem.data.id}"]`
       )
+
       if (itemElement) {
-        itemElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        // Special handling for edge items in blocks/tools sections (horizontal scrolling)
+        if (selectedItem.type === 'block' || selectedItem.type === 'tool') {
+          const boundaries = getSectionBoundaries()
+          const isFirstBlock =
+            selectedItem.type === 'block' && selectedIndex === (boundaries.Blocks?.start ?? -1)
+          const isLastBlock =
+            selectedItem.type === 'block' && selectedIndex === (boundaries.Blocks?.end ?? -1)
+          const isFirstTool =
+            selectedItem.type === 'tool' && selectedIndex === (boundaries.Tools?.start ?? -1)
+          const isLastTool =
+            selectedItem.type === 'tool' && selectedIndex === (boundaries.Tools?.end ?? -1)
+
+          if (isFirstBlock || isFirstTool) {
+            // Find the horizontal scroll container and scroll to left
+            const container = itemElement.closest('.scrollbar-none.flex.gap-2.overflow-x-auto')
+            if (container) {
+              ;(container as HTMLElement).scrollLeft = 0
+            }
+          } else if (isLastBlock || isLastTool) {
+            // Find the horizontal scroll container and scroll to right
+            const container = itemElement.closest('.scrollbar-none.flex.gap-2.overflow-x-auto')
+            if (container) {
+              const scrollContainer = container as HTMLElement
+              scrollContainer.scrollLeft = scrollContainer.scrollWidth - scrollContainer.clientWidth
+            }
+          }
+        }
+
+        // Default behavior for all items (ensure they're in view vertically)
+        itemElement.scrollIntoView({ block: 'nearest' })
       }
     }
-  }, [selectedIndex, navigatableItems])
+  }, [selectedIndex, navigatableItems, getSectionBoundaries])
 
   // Render skeleton cards for loading state
   const renderSkeletonCards = () => {

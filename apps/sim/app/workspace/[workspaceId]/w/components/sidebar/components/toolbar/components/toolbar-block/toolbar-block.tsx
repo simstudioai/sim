@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { BlockConfig } from '@/blocks/types'
 
 export type ToolbarBlockProps = {
@@ -43,7 +43,7 @@ export function ToolbarBlock({ config, disabled = false }: ToolbarBlockProps) {
         'group flex h-9 items-center gap-[10px] rounded-[8px] p-2 transition-colors',
         disabled
           ? 'cursor-not-allowed opacity-60'
-          : 'cursor-pointer hover:bg-accent/50 active:cursor-grabbing'
+          : 'cursor-pointer hover:bg-muted active:cursor-grabbing'
       )}
     >
       <div

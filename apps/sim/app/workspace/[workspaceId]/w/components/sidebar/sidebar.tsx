@@ -8,7 +8,7 @@ import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SearchModal } from '@/app/workspace/[workspaceId]/w/components/search-modal/search-modal'
 import {
   CreateMenu,
@@ -31,6 +31,109 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 const logger = createLogger('Sidebar')
 
 const SIDEBAR_GAP = 12 // 12px gap between components - easily editable
+
+/**
+ * Optimized auto-scroll hook for smooth drag operations
+ * Extracted outside component for better performance
+ */
+const useAutoScroll = (containerRef: React.RefObject<HTMLDivElement | null>) => {
+  const animationRef = useRef<number | null>(null)
+  const speedRef = useRef<number>(0)
+  const lastUpdateRef = useRef<number>(0)
+
+  const animateScroll = useCallback(() => {
+    const scrollContainer = containerRef.current?.querySelector(
+      '[data-radix-scroll-area-viewport]'
+    ) as HTMLElement
+    if (!scrollContainer || speedRef.current === 0) {
+      animationRef.current = null
+      return
+    }
+
+    const currentScrollTop = scrollContainer.scrollTop
+    const maxScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight
+
+    // Check bounds and stop if needed
+    if (
+      (speedRef.current < 0 && currentScrollTop <= 0) ||
+      (speedRef.current > 0 && currentScrollTop >= maxScrollTop)
+    ) {
+      speedRef.current = 0
+      animationRef.current = null
+      return
+    }
+
+    // Apply smooth scroll
+    scrollContainer.scrollTop = Math.max(
+      0,
+      Math.min(maxScrollTop, currentScrollTop + speedRef.current)
+    )
+    animationRef.current = requestAnimationFrame(animateScroll)
+  }, [containerRef])
+
+  const startScroll = useCallback(
+    (speed: number) => {
+      speedRef.current = speed
+      if (!animationRef.current) {
+        animationRef.current = requestAnimationFrame(animateScroll)
+      }
+    },
+    [animateScroll]
+  )
+
+  const stopScroll = useCallback(() => {
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current)
+      animationRef.current = null
+    }
+    speedRef.current = 0
+  }, [])
+
+  const handleDragOver = useCallback(
+    (e: DragEvent) => {
+      const now = performance.now()
+      // Throttle to ~16ms for 60fps
+      if (now - lastUpdateRef.current < 16) return
+      lastUpdateRef.current = now
+
+      const scrollContainer = containerRef.current
+      if (!scrollContainer) return
+
+      const rect = scrollContainer.getBoundingClientRect()
+      const mouseY = e.clientY
+
+      // Early exit if mouse is outside container
+      if (mouseY < rect.top || mouseY > rect.bottom) {
+        stopScroll()
+        return
+      }
+
+      const scrollZone = 50
+      const maxSpeed = 4
+      const distanceFromTop = mouseY - rect.top
+      const distanceFromBottom = rect.bottom - mouseY
+
+      let scrollSpeed = 0
+
+      if (distanceFromTop < scrollZone) {
+        const intensity = (scrollZone - distanceFromTop) / scrollZone
+        scrollSpeed = -maxSpeed * intensity ** 2
+      } else if (distanceFromBottom < scrollZone) {
+        const intensity = (scrollZone - distanceFromBottom) / scrollZone
+        scrollSpeed = maxSpeed * intensity ** 2
+      }
+
+      if (Math.abs(scrollSpeed) > 0.1) {
+        startScroll(scrollSpeed)
+      } else {
+        stopScroll()
+      }
+    },
+    [containerRef, startScroll, stopScroll]
+  )
+
+  return { handleDragOver, stopScroll }
+}
 
 // Heights for dynamic calculation (in px)
 const SIDEBAR_HEIGHTS = {
@@ -123,6 +226,9 @@ export function Sidebar() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isLeaving, setIsLeaving] = useState(false)
 
+  // Auto-scroll state for drag operations
+  const [isDragging, setIsDragging] = useState(false)
+
   // Update activeWorkspace ref when state changes
   activeWorkspaceRef.current = activeWorkspace
 
@@ -139,6 +245,31 @@ export function Sidebar() {
     const logsPageRegex = /^\/workspace\/[^/]+\/logs$/
     return logsPageRegex.test(pathname)
   }, [pathname])
+
+  // Use optimized auto-scroll hook
+  const { handleDragOver, stopScroll } = useAutoScroll(workflowScrollAreaRef)
+
+  // Consolidated drag event management with optimized cleanup
+  useEffect(() => {
+    if (!isDragging) return
+
+    const handleDragEnd = () => {
+      setIsDragging(false)
+      stopScroll()
+    }
+
+    const options = { passive: true } as const
+    document.addEventListener('dragover', handleDragOver, options)
+    document.addEventListener('dragend', handleDragEnd, options)
+    document.addEventListener('drop', handleDragEnd, options)
+
+    return () => {
+      document.removeEventListener('dragover', handleDragOver)
+      document.removeEventListener('dragend', handleDragEnd)
+      document.removeEventListener('drop', handleDragEnd)
+      stopScroll()
+    }
+  }, [isDragging, handleDragOver, stopScroll])
 
   /**
    * Refresh workspace list without validation logic - used for non-current workspace operations
@@ -722,6 +853,30 @@ export function Sidebar() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  // Optimized drag detection with memoized selectors
+  useEffect(() => {
+    const handleDragStart = (e: DragEvent) => {
+      const target = e.target as HTMLElement
+      const sidebarElement = workflowScrollAreaRef.current
+
+      // Early exit if not in sidebar
+      if (!sidebarElement?.contains(target)) return
+
+      // Efficient draggable check - check element first, then traverse up
+      if (target.draggable || target.closest('[data-workflow-id], [draggable="true"]')) {
+        setIsDragging(true)
+      }
+    }
+
+    const options = { capture: true, passive: true } as const
+    document.addEventListener('dragstart', handleDragStart, options)
+
+    return () => {
+      document.removeEventListener('dragstart', handleDragStart, options)
+      stopScroll() // Cleanup on unmount
+    }
+  }, [stopScroll])
+
   // Navigation items with their respective actions
   const navigationItems = [
     {
@@ -829,7 +984,6 @@ export function Sidebar() {
                 <FolderTree
                   regularWorkflows={regularWorkflows}
                   marketplaceWorkflows={tempWorkflows}
-                  isCollapsed={false}
                   isLoading={isLoading}
                   onCreateWorkflow={handleCreateWorkflow}
                 />
@@ -839,7 +993,6 @@ export function Sidebar() {
               <div className='absolute top-2 right-2'>
                 <CreateMenu
                   onCreateWorkflow={handleCreateWorkflow}
-                  isCollapsed={false}
                   isCreatingWorkflow={isCreatingWorkflow}
                 />
               </div>

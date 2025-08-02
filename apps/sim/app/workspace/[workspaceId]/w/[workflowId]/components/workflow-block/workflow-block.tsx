@@ -5,7 +5,7 @@ import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactf
 import { Badge, Button, Card, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, validateName } from '@/lib/utils'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/action-bar/action-bar'
 import { ConnectionBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/connection-blocks/connection-blocks'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/sub-block'

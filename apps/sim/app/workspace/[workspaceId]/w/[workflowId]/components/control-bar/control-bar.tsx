@@ -34,7 +34,7 @@ import {
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   DeploymentControls,
   ExportControls,
@@ -442,16 +442,18 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Workflow</AlertDialogTitle>
+            <AlertDialogTitle>Delete workflow?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this workflow? This action cannot be undone.
+              Deleting this workflow will permanently remove all associated blocks, executions, and
+              configuration.{' '}
+              <span className='text-red-500 dark:text-red-500'>This action cannot be undone.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className='flex'>
+            <AlertDialogCancel className='h-9 w-full rounded-[8px]'>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteWorkflow}
-              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+              className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
             >
               Delete
             </AlertDialogAction>

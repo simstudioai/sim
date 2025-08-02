@@ -20,7 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-selector/components/invite-modal/invite-modal'
 
 const logger = createLogger('WorkspaceSelector')
@@ -75,6 +75,7 @@ export function WorkspaceSelector({
   const [editingName, setEditingName] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
   const [deleteConfirmationName, setDeleteConfirmationName] = useState('')
+  const [leaveConfirmationName, setLeaveConfirmationName] = useState('')
 
   // Refs
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -259,7 +260,7 @@ export function WorkspaceSelector({
               onClick={(e) => handleWorkspaceClick(workspace, e)}
               className={cn(
                 'group flex h-8 cursor-pointer items-center rounded-[8px] p-2 text-left transition-colors',
-                activeWorkspace?.id === workspace.id ? 'bg-accent' : 'hover:bg-accent'
+                activeWorkspace?.id === workspace.id ? 'bg-muted' : 'hover:bg-muted'
               )}
               style={{ maxWidth: '206px' }}
             >
@@ -315,105 +316,130 @@ export function WorkspaceSelector({
                   </Button>
                 )}
 
-                {/* Delete/Leave buttons - show on hover when not editing */}
-                {!isEditing && isHovered && (
-                  <>
-                    {/* Leave Workspace - for non-admin users */}
-                    {workspace.permissions !== 'admin' && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant='ghost'
-                            size='icon'
-                            onClick={(e) => e.stopPropagation()}
-                            className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
-                          >
-                            <LogOut className='!h-3.5 !w-3.5' />
-                          </Button>
-                        </AlertDialogTrigger>
+                {/* Leave Workspace - for non-admin users */}
+                {workspace.permissions !== 'admin' && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        onClick={(e) => e.stopPropagation()}
+                        className={cn(
+                          'h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground',
+                          !isEditing && isHovered ? 'opacity-100' : 'pointer-events-none opacity-0'
+                        )}
+                      >
+                        <LogOut className='!h-3.5 !w-3.5' />
+                      </Button>
+                    </AlertDialogTrigger>
 
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Leave Workspace</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to leave "{workspace.name}"? You will lose
-                              access to all workflows and data in this workspace.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => confirmLeaveWorkspace(workspace)}
-                              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                              disabled={isLeaving}
-                            >
-                              {isLeaving ? 'Leaving...' : 'Leave'}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Leave workspace?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Leaving this workspace will remove your access to all associated
+                          workflows, logs, and knowledge bases.{' '}
+                          <span className='text-red-500 dark:text-red-500'>
+                            This action cannot be undone.
+                          </span>
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
 
-                    {/* Delete Workspace - for admin users */}
-                    {workspace.permissions === 'admin' && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant='ghost'
-                            size='icon'
-                            onClick={(e) => e.stopPropagation()}
-                            className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
-                          >
-                            <Trash2 className='!h-3.5 !w-3.5' />
-                          </Button>
-                        </AlertDialogTrigger>
+                      <div className='py-2'>
+                        <p className='mb-2 font-[360] text-sm'>
+                          Enter the workspace name <strong>{workspace.name}</strong> to confirm.
+                        </p>
+                        <Input
+                          value={leaveConfirmationName}
+                          onChange={(e) => setLeaveConfirmationName(e.target.value)}
+                          placeholder='Placeholder'
+                          className='h-9'
+                        />
+                      </div>
 
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Deleting this workspace will permanently remove all associated
-                              workflows, logs, and knowledge bases.{' '}
-                              <span className='text-red-500 dark:text-red-500'>
-                                This action cannot be undone.
-                              </span>
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
+                      <AlertDialogFooter className='flex'>
+                        <AlertDialogCancel
+                          className='h-9 w-full rounded-[8px]'
+                          onClick={() => setLeaveConfirmationName('')}
+                        >
+                          Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => {
+                            confirmLeaveWorkspace(workspace)
+                            setLeaveConfirmationName('')
+                          }}
+                          className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+                          disabled={isLeaving || leaveConfirmationName !== workspace.name}
+                        >
+                          {isLeaving ? 'Leaving...' : 'Leave'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
 
-                          <div className='py-2'>
-                            <p className='mb-2 font-[360] text-sm'>
-                              Enter the workspace name <strong>{workspace.name}</strong> to confirm.
-                            </p>
-                            <Input
-                              value={deleteConfirmationName}
-                              onChange={(e) => setDeleteConfirmationName(e.target.value)}
-                              placeholder='Placeholder'
-                              className='h-9'
-                            />
-                          </div>
+                {/* Delete Workspace - for admin users */}
+                {workspace.permissions === 'admin' && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        onClick={(e) => e.stopPropagation()}
+                        className={cn(
+                          'h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground',
+                          !isEditing && isHovered ? 'opacity-100' : 'pointer-events-none opacity-0'
+                        )}
+                      >
+                        <Trash2 className='!h-3.5 !w-3.5' />
+                      </Button>
+                    </AlertDialogTrigger>
 
-                          <AlertDialogFooter className='flex'>
-                            <AlertDialogCancel
-                              className='h-9 w-full rounded-[8px]'
-                              onClick={() => setDeleteConfirmationName('')}
-                            >
-                              Cancel
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => {
-                                confirmDeleteWorkspace(workspace)
-                                setDeleteConfirmationName('')
-                              }}
-                              className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
-                              disabled={isDeleting || deleteConfirmationName !== workspace.name}
-                            >
-                              {isDeleting ? 'Deleting...' : 'Delete'}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
-                  </>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Deleting this workspace will permanently remove all associated workflows,
+                          logs, and knowledge bases.{' '}
+                          <span className='text-red-500 dark:text-red-500'>
+                            This action cannot be undone.
+                          </span>
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+
+                      <div className='py-2'>
+                        <p className='mb-2 font-[360] text-sm'>
+                          Enter the workspace name <strong>{workspace.name}</strong> to confirm.
+                        </p>
+                        <Input
+                          value={deleteConfirmationName}
+                          onChange={(e) => setDeleteConfirmationName(e.target.value)}
+                          placeholder='Placeholder'
+                          className='h-9'
+                        />
+                      </div>
+
+                      <AlertDialogFooter className='flex'>
+                        <AlertDialogCancel
+                          className='h-9 w-full rounded-[8px]'
+                          onClick={() => setDeleteConfirmationName('')}
+                        >
+                          Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => {
+                            confirmDeleteWorkspace(workspace)
+                            setDeleteConfirmationName('')
+                          }}
+                          className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+                          disabled={isDeleting || deleteConfirmationName !== workspace.name}
+                        >
+                          {isDeleting ? 'Deleting...' : 'Delete'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 )}
               </div>
             </div>
