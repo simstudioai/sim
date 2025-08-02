@@ -2,6 +2,7 @@ import type React from 'react'
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
 import { Label, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
+import { cn } from '@/lib/utils'
 import {
   ChannelSelectorInput,
   CheckboxList,
@@ -30,7 +31,6 @@ import {
   ToolInput,
   WebhookConfig,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
-import { cn } from '@/lib/utils'
 import type { SubBlockConfig } from '@/blocks/types'
 import { DocumentTagEntry } from './components/document-tag-entry/document-tag-entry'
 import { KnowledgeTagFilters } from './components/knowledge-tag-filters/knowledge-tag-filters'
