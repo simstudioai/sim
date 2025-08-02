@@ -58,6 +58,7 @@ export const env = createEnv({
     FREESTYLE_API_KEY:                    z.string().min(1).optional(),         // Freestyle AI API key
     OLLAMA_URL:                           z.string().url().optional(),          // Ollama local LLM server URL
     ELEVENLABS_API_KEY:                   z.string().min(1).optional(),         // ElevenLabs API key for text-to-speech in deployed chat
+    SERPER_API_KEY:                       z.string().min(1).optional(),         // Serper API key for online search
 
     // Azure OpenAI Configuration
     AZURE_OPENAI_ENDPOINT:                z.string().url().optional(),          // Azure OpenAI service endpoint

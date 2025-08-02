@@ -1,3 +1,4 @@
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { executeTool } from '@/tools'
 import { BaseCopilotTool } from '../base'
@@ -49,7 +50,7 @@ async function onlineSearch(params: OnlineSearchParams): Promise<OnlineSearchRes
     type,
     gl,
     hl,
-    apiKey: process.env.SERPER_API_KEY || '',
+    apiKey: env.SERPER_API_KEY || '',
   }
 
   const result = await executeTool('serper_search', toolParams)

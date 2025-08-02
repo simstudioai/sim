@@ -1,3 +1,4 @@
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { BaseCopilotTool } from '../base'
 
@@ -44,7 +45,7 @@ async function setEnvironmentVariables(
   })
 
   // Forward the request to the existing environment variables endpoint
-  const envUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/environment/variables`
+  const envUrl = `${env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/environment/variables`
 
   const response = await fetch(envUrl, {
     method: 'PUT',

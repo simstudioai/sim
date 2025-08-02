@@ -5,10 +5,6 @@ import { db } from '@/db'
 import { workflow as workflowTable } from '@/db/schema'
 import { BaseCopilotTool } from '../base'
 
-// Sim Agent API configuration
-const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
-
 interface GetUserWorkflowParams {
   workflowId: string
   includeMetadata?: boolean
