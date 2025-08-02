@@ -27,12 +27,13 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
     },
     // Search operation inputs
     {
-      id: 'query',
+      id: 'searchQuery',
       title: 'Search Query',
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter search terms (e.g., "machine learning", "quantum physics")...',
       condition: { field: 'operation', value: 'arxiv_search' },
+      required: true,
     },
     {
       id: 'searchField',
@@ -93,6 +94,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
       layout: 'full',
       placeholder: 'Enter ArXiv paper ID (e.g., 1706.03762, cs.AI/0001001)',
       condition: { field: 'operation', value: 'arxiv_get_paper' },
+      required: true,
     },
     // Get Author Papers operation inputs
     {
@@ -102,6 +104,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
       layout: 'full',
       placeholder: 'Enter author name (e.g., "John Smith")...',
       condition: { field: 'operation', value: 'arxiv_get_author_papers' },
+      required: true,
     },
     {
       id: 'maxResults',
@@ -135,25 +138,25 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
+    operation: { type: 'string', description: 'Operation to perform' },
     // Search operation
-    query: { type: 'string', required: false },
-    searchField: { type: 'string', required: false },
-    maxResults: { type: 'number', required: false },
-    sortBy: { type: 'string', required: false },
-    sortOrder: { type: 'string', required: false },
+    searchQuery: { type: 'string', description: 'Search terms' },
+    searchField: { type: 'string', description: 'Field to search in' },
+    maxResults: { type: 'number', description: 'Maximum results to return' },
+    sortBy: { type: 'string', description: 'Sort results by' },
+    sortOrder: { type: 'string', description: 'Sort order direction' },
     // Get Paper Details operation
-    paperId: { type: 'string', required: false },
+    paperId: { type: 'string', description: 'ArXiv paper identifier' },
     // Get Author Papers operation
-    authorName: { type: 'string', required: false },
+    authorName: { type: 'string', description: 'Author name' },
   },
   outputs: {
     // Search output
-    papers: 'json',
-    totalResults: 'number',
+    papers: { type: 'json', description: 'Found papers data' },
+    totalResults: { type: 'number', description: 'Total results count' },
     // Get Paper Details output
-    paper: 'json',
+    paper: { type: 'json', description: 'Paper details' },
     // Get Author Papers output
-    authorPapers: 'json',
+    authorPapers: { type: 'json', description: 'Author papers list' },
   },
 }

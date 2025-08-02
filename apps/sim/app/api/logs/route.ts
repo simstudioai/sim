@@ -75,16 +75,40 @@ export async function GET(request: NextRequest) {
       const { searchParams } = new URL(request.url)
       const params = QueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
 
-      const workflowConditions = and(
-        eq(workflow.workspaceId, params.workspaceId),
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace')
-      )
-
-      const userWorkflows = await db
-        .select({ id: workflow.id, folderId: workflow.folderId })
-        .from(workflow)
-        .leftJoin(
+      const baseQuery = db
+        .select({
+          id: workflowExecutionLogs.id,
+          workflowId: workflowExecutionLogs.workflowId,
+          executionId: workflowExecutionLogs.executionId,
+          stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
+          level: workflowExecutionLogs.level,
+          message: workflowExecutionLogs.message,
+          trigger: workflowExecutionLogs.trigger,
+          startedAt: workflowExecutionLogs.startedAt,
+          endedAt: workflowExecutionLogs.endedAt,
+          totalDurationMs: workflowExecutionLogs.totalDurationMs,
+          blockCount: workflowExecutionLogs.blockCount,
+          successCount: workflowExecutionLogs.successCount,
+          errorCount: workflowExecutionLogs.errorCount,
+          skippedCount: workflowExecutionLogs.skippedCount,
+          totalCost: workflowExecutionLogs.totalCost,
+          totalInputCost: workflowExecutionLogs.totalInputCost,
+          totalOutputCost: workflowExecutionLogs.totalOutputCost,
+          totalTokens: workflowExecutionLogs.totalTokens,
+          metadata: workflowExecutionLogs.metadata,
+          createdAt: workflowExecutionLogs.createdAt,
+          workflowName: workflow.name,
+          workflowDescription: workflow.description,
+          workflowColor: workflow.color,
+          workflowFolderId: workflow.folderId,
+          workflowUserId: workflow.userId,
+          workflowWorkspaceId: workflow.workspaceId,
+          workflowCreatedAt: workflow.createdAt,
+          workflowUpdatedAt: workflow.updatedAt,
+        })
+        .from(workflowExecutionLogs)
+        .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+        .innerJoin(
           permissions,
           and(
             eq(permissions.entityType, 'workspace'),
@@ -92,16 +116,9 @@ export async function GET(request: NextRequest) {
             eq(permissions.userId, userId)
           )
         )
-        .where(workflowConditions)
 
-      const userWorkflowIds = userWorkflows.map((w) => w.id)
-
-      if (userWorkflowIds.length === 0) {
-        return NextResponse.json({ data: [], total: 0 }, { status: 200 })
-      }
-
-      // Build conditions for logs
-      let conditions: SQL | undefined = inArray(workflowExecutionLogs.workflowId, userWorkflowIds)
+      // Build conditions for the joined query
+      let conditions: SQL | undefined = eq(workflow.workspaceId, params.workspaceId)
 
       // Filter by level
       if (params.level && params.level !== 'all') {
@@ -111,27 +128,16 @@ export async function GET(request: NextRequest) {
       // Filter by specific workflow IDs
       if (params.workflowIds) {
         const workflowIds = params.workflowIds.split(',').filter(Boolean)
-        const filteredWorkflowIds = workflowIds.filter((id) => userWorkflowIds.includes(id))
-        if (filteredWorkflowIds.length > 0) {
-          conditions = and(
-            conditions,
-            inArray(workflowExecutionLogs.workflowId, filteredWorkflowIds)
-          )
+        if (workflowIds.length > 0) {
+          conditions = and(conditions, inArray(workflow.id, workflowIds))
         }
       }
 
       // Filter by folder IDs
       if (params.folderIds) {
         const folderIds = params.folderIds.split(',').filter(Boolean)
-        const workflowsInFolders = userWorkflows
-          .filter((w) => w.folderId && folderIds.includes(w.folderId))
-          .map((w) => w.id)
-
-        if (workflowsInFolders.length > 0) {
-          conditions = and(
-            conditions,
-            inArray(workflowExecutionLogs.workflowId, workflowsInFolders)
-          )
+        if (folderIds.length > 0) {
+          conditions = and(conditions, inArray(workflow.folderId, folderIds))
         }
       }
 
@@ -166,20 +172,29 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      // Execute the query
-      const logs = await db
-        .select()
-        .from(workflowExecutionLogs)
+      // Execute the query using the optimized join
+      const logs = await baseQuery
         .where(conditions)
         .orderBy(desc(workflowExecutionLogs.startedAt))
         .limit(params.limit)
         .offset(params.offset)
 
-      // Get total count for pagination
-      const countResult = await db
+      // Get total count for pagination using the same join structure
+      const countQuery = db
         .select({ count: sql<number>`count(*)` })
         .from(workflowExecutionLogs)
+        .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+        .innerJoin(
+          permissions,
+          and(
+            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityId, workflow.workspaceId),
+            eq(permissions.userId, userId)
+          )
+        )
         .where(conditions)
+
+      const countResult = await countQuery
 
       const count = countResult[0]?.count || 0
 
@@ -271,7 +286,7 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Transform to clean log format
+      // Transform to clean log format with workflow data included
       const enhancedLogs = logs.map((log) => {
         const blockExecutions = blockExecutionsByExecution[log.executionId] || []
 
@@ -298,6 +313,19 @@ export async function GET(request: NextRequest) {
                 models: (log.metadata as any)?.models || {},
               }
 
+        // Build workflow object from joined data
+        const workflow = {
+          id: log.workflowId,
+          name: log.workflowName,
+          description: log.workflowDescription,
+          color: log.workflowColor,
+          folderId: log.workflowFolderId,
+          userId: log.workflowUserId,
+          workspaceId: log.workflowWorkspaceId,
+          createdAt: log.workflowCreatedAt,
+          updatedAt: log.workflowUpdatedAt,
+        }
+
         return {
           id: log.id,
           workflowId: log.workflowId,
@@ -307,6 +335,7 @@ export async function GET(request: NextRequest) {
           duration: log.totalDurationMs ? `${log.totalDurationMs}ms` : null,
           trigger: log.trigger,
           createdAt: log.startedAt.toISOString(),
+          workflow: params.includeWorkflow ? workflow : undefined,
           metadata: {
             totalDuration: log.totalDurationMs,
             cost: costSummary,
@@ -322,30 +351,6 @@ export async function GET(request: NextRequest) {
           },
         }
       })
-
-      if (params.includeWorkflow) {
-        const workflowIds = [...new Set(logs.map((log) => log.workflowId))]
-        const workflowConditions = inArray(workflow.id, workflowIds)
-
-        const workflowData = await db.select().from(workflow).where(workflowConditions)
-        const workflowMap = new Map(workflowData.map((w) => [w.id, w]))
-
-        const logsWithWorkflow = enhancedLogs.map((log) => ({
-          ...log,
-          workflow: workflowMap.get(log.workflowId) || null,
-        }))
-
-        return NextResponse.json(
-          {
-            data: logsWithWorkflow,
-            total: Number(count),
-            page: Math.floor(params.offset / params.limit) + 1,
-            pageSize: params.limit,
-            totalPages: Math.ceil(Number(count) / params.limit),
-          },
-          { status: 200 }
-        )
-      }
 
       // Include block execution data if requested
       if (params.includeBlocks) {

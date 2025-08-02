@@ -61,10 +61,12 @@ Fetch posts from a subreddit with different sorting options
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `subreddit` | string |
-| `posts` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Subreddit name |
+| `posts` | json | Posts data |
+| `post` | json | Single post data |
+| `comments` | json | Comments data |
 
 ### `reddit_get_comments`
 
@@ -82,36 +84,13 @@ Fetch comments from a specific Reddit post
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `post` | string |
-| `title` | string |
-| `author` | string |
-| `selftext` | string |
-| `created_utc` | string |
-| `score` | string |
-| `permalink` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Subreddit name |
+| `posts` | json | Posts data |
+| `post` | json | Single post data |
+| `comments` | json | Comments data |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `subreddit` | string | subreddit output from the block |
-| `posts` | json | posts output from the block |
-| `post` | json | post output from the block |
-| `comments` | json | comments output from the block |
 
 
 ## Notes

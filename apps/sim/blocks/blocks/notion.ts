@@ -19,18 +19,15 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        // Read Operations
         { label: 'Read Page', id: 'notion_read' },
         { label: 'Read Database', id: 'notion_read_database' },
-        // Create Operations
         { label: 'Create Page', id: 'notion_create_page' },
         { label: 'Create Database', id: 'notion_create_database' },
-        // Write Operations
         { label: 'Append Content', id: 'notion_write' },
-        // Query & Search Operations
         { label: 'Query Database', id: 'notion_query_database' },
         { label: 'Search Workspace', id: 'notion_search' },
       ],
+      value: () => 'notion_read',
     },
     {
       id: 'credential',
@@ -41,6 +38,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       serviceId: 'notion',
       requiredScopes: ['workspace.content', 'workspace.name', 'page.read', 'page.write'],
       placeholder: 'Select Notion account',
+      required: true,
     },
     // Read/Write operation - Page ID
     {
@@ -53,6 +51,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         field: 'operation',
         value: 'notion_read',
       },
+      required: true,
     },
     {
       id: 'databaseId',
@@ -64,6 +63,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         field: 'operation',
         value: 'notion_read_database',
       },
+      required: true,
     },
     {
       id: 'pageId',
@@ -75,6 +75,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         field: 'operation',
         value: 'notion_write',
       },
+      required: true,
     },
     // Create operation fields
     {
@@ -84,6 +85,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       layout: 'full',
       placeholder: 'ID of parent page',
       condition: { field: 'operation', value: 'notion_create_page' },
+      required: true,
     },
     {
       id: 'title',
@@ -107,6 +109,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         field: 'operation',
         value: 'notion_write',
       },
+      required: true,
     },
     {
       id: 'content',
@@ -118,6 +121,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         field: 'operation',
         value: 'notion_create_page',
       },
+      required: true,
     },
     // Query Database Fields
     {
@@ -127,6 +131,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       layout: 'full',
       placeholder: 'Enter Notion database ID',
       condition: { field: 'operation', value: 'notion_query_database' },
+      required: true,
     },
     {
       id: 'filter',
@@ -135,6 +140,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       layout: 'full',
       placeholder: 'Enter filter conditions as JSON (optional)',
       condition: { field: 'operation', value: 'notion_query_database' },
+      required: true,
     },
     {
       id: 'sorts',
@@ -181,6 +187,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       layout: 'full',
       placeholder: 'ID of parent page where database will be created',
       condition: { field: 'operation', value: 'notion_create_database' },
+      required: true,
     },
     {
       id: 'title',
@@ -189,6 +196,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       layout: 'full',
       placeholder: 'Title for the new database',
       condition: { field: 'operation', value: 'notion_create_database' },
+      required: true,
     },
     {
       id: 'properties',
@@ -283,24 +291,24 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
-    pageId: { type: 'string', required: false },
-    content: { type: 'string', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Notion access token' },
+    pageId: { type: 'string', description: 'Page identifier' },
+    content: { type: 'string', description: 'Page content' },
     // Create page inputs
-    parentId: { type: 'string', required: false },
-    title: { type: 'string', required: false },
+    parentId: { type: 'string', description: 'Parent page identifier' },
+    title: { type: 'string', description: 'Page title' },
     // Query database inputs
-    databaseId: { type: 'string', required: false },
-    filter: { type: 'string', required: false },
-    sorts: { type: 'string', required: false },
-    pageSize: { type: 'number', required: false },
+    databaseId: { type: 'string', description: 'Database identifier' },
+    filter: { type: 'string', description: 'Filter criteria' },
+    sorts: { type: 'string', description: 'Sort criteria' },
+    pageSize: { type: 'number', description: 'Page size limit' },
     // Search inputs
-    query: { type: 'string', required: false },
-    filterType: { type: 'string', required: false },
+    query: { type: 'string', description: 'Search query' },
+    filterType: { type: 'string', description: 'Filter type' },
   },
   outputs: {
-    content: 'string',
-    metadata: 'any',
+    content: { type: 'string', description: 'Page content' },
+    metadata: { type: 'any', description: 'Page metadata' },
   },
 }

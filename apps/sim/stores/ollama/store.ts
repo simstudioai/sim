@@ -8,7 +8,6 @@ const logger = createLogger('OllamaStore')
 export const useOllamaStore = create<OllamaStore>((set) => ({
   models: [],
   setModels: (models) => {
-    logger.info('Updating Ollama models', { models })
     set({ models })
     // Update the providers when models change
     updateOllamaProviderModels(models)

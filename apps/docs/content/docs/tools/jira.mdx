@@ -65,14 +65,16 @@ Retrieve detailed information about a specific Jira issue
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `ts` | string |
-| `issueKey` | string |
-| `summary` | string |
-| `description` | string |
-| `created` | string |
-| `updated` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp |
+| `issueKey` | string | Issue key |
+| `summary` | string | Issue summary |
+| `description` | string | Issue description |
+| `created` | string | Creation date |
+| `updated` | string | Update date |
+| `success` | boolean | Operation success |
+| `url` | string | Issue URL |
 
 ### `jira_update`
 
@@ -95,12 +97,16 @@ Update a Jira issue
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `ts` | string |
-| `issueKey` | string |
-| `summary` | string |
-| `success` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp |
+| `issueKey` | string | Issue key |
+| `summary` | string | Issue summary |
+| `description` | string | Issue description |
+| `created` | string | Creation date |
+| `updated` | string | Update date |
+| `success` | boolean | Operation success |
+| `url` | string | Issue URL |
 
 ### `jira_write`
 
@@ -118,17 +124,20 @@ Write a Jira issue
 | `priority` | string | No | Priority for the issue |
 | `assignee` | string | No | Assignee for the issue |
 | `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
-| `issueType` | string | Yes | Type of issue to create \(e.g., Task, Story, Bug, Sub-task\) |
+| `issueType` | string | Yes | Type of issue to create \(e.g., Task, Story\) |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `ts` | string |
-| `issueKey` | string |
-| `summary` | string |
-| `success` | string |
-| `url` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp |
+| `issueKey` | string | Issue key |
+| `summary` | string | Issue summary |
+| `description` | string | Issue description |
+| `created` | string | Creation date |
+| `updated` | string | Update date |
+| `success` | boolean | Operation success |
+| `url` | string | Issue URL |
 
 ### `jira_bulk_read`
 
@@ -145,34 +154,17 @@ Retrieve multiple Jira issues in bulk
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `issues` | array |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp |
+| `issueKey` | string | Issue key |
+| `summary` | string | Issue summary |
+| `description` | string | Issue description |
+| `created` | string | Creation date |
+| `updated` | string | Update date |
+| `success` | boolean | Operation success |
+| `url` | string | Issue URL |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `ts` | string | ts output from the block |
-| `issueKey` | string | issueKey output from the block |
-| `summary` | string | summary output from the block |
-| `description` | string | description output from the block |
-| `created` | string | created output from the block |
-| `updated` | string | updated output from the block |
-| `success` | boolean | success output from the block |
-| `url` | string | url output from the block |
 
 
 ## Notes

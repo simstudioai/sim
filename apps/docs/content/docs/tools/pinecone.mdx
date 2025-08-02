@@ -65,12 +65,14 @@ Generate embeddings from text using Pinecone
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `data` | string |
-| `model` | string |
-| `vector_type` | string |
-| `usage` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | any | Search matches |
+| `upsertedCount` | any | Upserted count |
+| `data` | any | Response data |
+| `model` | any | Model information |
+| `vector_type` | any | Vector type |
+| `usage` | any | Usage statistics |
 
 ### `pinecone_upsert_text`
 
@@ -87,9 +89,14 @@ Insert or update text records in a Pinecone index
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `statusText` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | any | Search matches |
+| `upsertedCount` | any | Upserted count |
+| `data` | any | Response data |
+| `model` | any | Model information |
+| `vector_type` | any | Vector type |
+| `usage` | any | Usage statistics |
 
 ### `pinecone_search_text`
 
@@ -110,11 +117,14 @@ Search for similar text in a Pinecone index
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `matches` | string |
-| `score` | string |
-| `metadata` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | any | Search matches |
+| `upsertedCount` | any | Upserted count |
+| `data` | any | Response data |
+| `model` | any | Model information |
+| `vector_type` | any | Vector type |
+| `usage` | any | Usage statistics |
 
 ### `pinecone_search_vector`
 
@@ -135,12 +145,14 @@ Search for similar vectors in a Pinecone index
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `matches` | string |
-| `score` | string |
-| `values` | string |
-| `metadata` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | any | Search matches |
+| `upsertedCount` | any | Upserted count |
+| `data` | any | Response data |
+| `model` | any | Model information |
+| `vector_type` | any | Vector type |
+| `usage` | any | Usage statistics |
 
 ### `pinecone_fetch`
 
@@ -157,36 +169,15 @@ Fetch vectors by ID from a Pinecone index
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `matches` | string |
-| `values` | string |
-| `metadata` | string |
-| `score` | string |
-| `id` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | any | Search matches |
+| `upsertedCount` | any | Upserted count |
+| `data` | any | Response data |
+| `model` | any | Model information |
+| `vector_type` | any | Vector type |
+| `usage` | any | Usage statistics |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `matches` | any | matches output from the block |
-| `upsertedCount` | any | upsertedCount output from the block |
-| `data` | any | data output from the block |
-| `model` | any | model output from the block |
-| `vector_type` | any | vector_type output from the block |
-| `usage` | any | usage output from the block |
 
 
 ## Notes

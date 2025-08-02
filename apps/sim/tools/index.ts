@@ -1,7 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import type { OAuthTokenPayload, ToolConfig, ToolResponse } from '@/tools/types'
-import { formatRequestParams, getTool, getToolAsync, validateToolRequest } from '@/tools/utils'
+import {
+  formatRequestParams,
+  getTool,
+  getToolAsync,
+  validateRequiredParametersAfterMerge,
+} from '@/tools/utils'
 
 const logger = createLogger('Tools')
 
@@ -39,7 +44,7 @@ export async function executeTool(
     const contextParams = { ...params }
 
     // Validate the tool and its parameters
-    validateToolRequest(toolId, tool, contextParams)
+    validateRequiredParametersAfterMerge(toolId, tool, contextParams)
 
     // After validation, we know tool exists
     if (!tool) {
@@ -414,11 +419,17 @@ async function handleInternalRequest(
       }
 
       // Extract error message from nested error objects (common in API responses)
+      // Prioritize detailed validation messages over generic error field
       const errorMessage =
-        typeof errorData.error === 'object'
+        errorData.details?.[0]?.message ||
+        (typeof errorData.error === 'object'
           ? errorData.error.message || JSON.stringify(errorData.error)
-          : errorData.error || `Request failed with status ${response.status}`
+          : errorData.error) ||
+        `Request failed with status ${response.status}`
 
+      logger.error(`[${requestId}] Internal request error for ${toolId}:`, {
+        error: errorMessage,
+      })
       throw new Error(errorMessage)
     }
 

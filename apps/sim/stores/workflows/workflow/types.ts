@@ -161,7 +161,14 @@ export interface WorkflowActions {
     position: Position,
     data?: Record<string, any>,
     parentId?: string,
-    extent?: 'parent'
+    extent?: 'parent',
+    blockProperties?: {
+      enabled?: boolean
+      horizontalHandles?: boolean
+      isWide?: boolean
+      advancedMode?: boolean
+      height?: number
+    }
   ) => void
   updateBlockPosition: (id: string, position: Position) => void
   updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void
@@ -177,6 +184,7 @@ export interface WorkflowActions {
   updateBlockName: (id: string, name: string) => void
   toggleBlockWide: (id: string) => void
   setBlockWide: (id: string, isWide: boolean) => void
+  setBlockAdvancedMode: (id: string, advancedMode: boolean) => void
   updateBlockHeight: (id: string, height: number) => void
   triggerUpdate: () => void
   updateLoopCount: (loopId: string, count: number) => void

@@ -237,7 +237,6 @@ async function handleBlockOperationTx(
 
       logger.debug(`[SERVER] Adding block: ${payload.type} (${payload.id})`, {
         isSubflowType: isSubflowBlockType(payload.type),
-        payload,
       })
 
       // Extract parentId and extent from payload.data if they exist there, otherwise from payload directly
@@ -269,6 +268,7 @@ async function handleBlockOperationTx(
           enabled: payload.enabled ?? true,
           horizontalHandles: payload.horizontalHandles ?? true,
           isWide: payload.isWide ?? false,
+          advancedMode: payload.advancedMode ?? false,
           height: payload.height || 0,
         }
 
@@ -618,6 +618,7 @@ async function handleBlockOperationTx(
           enabled: payload.enabled ?? true,
           horizontalHandles: payload.horizontalHandles ?? true,
           isWide: payload.isWide ?? false,
+          advancedMode: payload.advancedMode ?? false,
           height: payload.height || 0,
         }
 

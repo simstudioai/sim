@@ -21,12 +21,13 @@ vi.mock('@/blocks/index', () => ({
 vi.mock('@/tools/utils', () => ({
   getTool: vi.fn(),
   getToolAsync: vi.fn(),
-  validateToolRequest: vi.fn(),
+  validateToolRequest: vi.fn(), // Keep for backward compatibility
   formatRequestParams: vi.fn(),
   transformTable: vi.fn(),
   createParamSchema: vi.fn(),
   getClientEnvVars: vi.fn(),
   createCustomToolRequestBody: vi.fn(),
+  validateRequiredParametersAfterMerge: vi.fn(),
 }))
 
 // Utils

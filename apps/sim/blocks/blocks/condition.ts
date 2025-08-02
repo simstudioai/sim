@@ -37,9 +37,9 @@ export const ConditionBlock: BlockConfig<ConditionBlockOutput> = {
   },
   inputs: {},
   outputs: {
-    content: 'string',
-    conditionResult: 'boolean',
-    selectedPath: 'json',
-    selectedConditionId: 'string',
+    content: { type: 'string', description: 'Condition evaluation content' },
+    conditionResult: { type: 'boolean', description: 'Condition result' },
+    selectedPath: { type: 'json', description: 'Selected execution path' },
+    selectedConditionId: { type: 'string', description: 'Selected condition identifier' },
   },
 }

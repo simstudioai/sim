@@ -376,7 +376,8 @@ export async function GET() {
               mergedStates,
               edges,
               loops,
-              parallels
+              parallels,
+              true // Enable validation during execution
             )
 
             const input = {

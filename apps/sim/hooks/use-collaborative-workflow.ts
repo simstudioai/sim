@@ -150,7 +150,7 @@ export function useCollaborativeWorkflow() {
               workflowStore.setBlockWide(payload.id, payload.isWide)
               break
             case 'update-advanced-mode':
-              workflowStore.toggleBlockAdvancedMode(payload.id)
+              workflowStore.setBlockAdvancedMode(payload.id, payload.advancedMode)
               break
             case 'toggle-handles': {
               const currentBlock = workflowStore.blocks[payload.id]
@@ -453,6 +453,7 @@ export function useCollaborativeWorkflow() {
           enabled: true,
           horizontalHandles: true,
           isWide: false,
+          advancedMode: false,
           height: 0,
           parentId,
           extent,
@@ -524,6 +525,7 @@ export function useCollaborativeWorkflow() {
         enabled: true,
         horizontalHandles: true,
         isWide: false,
+        advancedMode: false,
         height: 0, // Default height, will be set by the UI
         parentId,
         extent,
@@ -685,86 +687,6 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, workflowStore]
   )
 
-  const collaborativeDuplicateBlock = useCallback(
-    (sourceId: string) => {
-      const sourceBlock = workflowStore.blocks[sourceId]
-      if (!sourceBlock) return
-
-      // Generate new ID and calculate position
-      const newId = crypto.randomUUID()
-      const offsetPosition = {
-        x: sourceBlock.position.x + 250,
-        y: sourceBlock.position.y + 20,
-      }
-
-      const match = sourceBlock.name.match(/(.*?)(\d+)?$/)
-      const newName = match?.[2]
-        ? `${match[1]}${Number.parseInt(match[2]) + 1}`
-        : `${sourceBlock.name} 1`
-
-      // Create the complete block data for the socket operation
-      const duplicatedBlockData = {
-        sourceId,
-        id: newId,
-        type: sourceBlock.type,
-        name: newName,
-        position: offsetPosition,
-        data: sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
-        subBlocks: sourceBlock.subBlocks ? JSON.parse(JSON.stringify(sourceBlock.subBlocks)) : {},
-        outputs: sourceBlock.outputs ? JSON.parse(JSON.stringify(sourceBlock.outputs)) : {},
-        parentId: sourceBlock.data?.parentId || null,
-        extent: sourceBlock.data?.extent || null,
-        enabled: sourceBlock.enabled ?? true,
-        horizontalHandles: sourceBlock.horizontalHandles ?? true,
-        isWide: sourceBlock.isWide ?? false,
-        height: sourceBlock.height || 0,
-      }
-
-      workflowStore.addBlock(
-        newId,
-        sourceBlock.type,
-        newName,
-        offsetPosition,
-        sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
-        sourceBlock.data?.parentId,
-        sourceBlock.data?.extent
-      )
-
-      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-      if (activeWorkflowId) {
-        const subBlockValues =
-          useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[sourceId] || {}
-        useSubBlockStore.setState((state) => ({
-          workflowValues: {
-            ...state.workflowValues,
-            [activeWorkflowId]: {
-              ...state.workflowValues[activeWorkflowId],
-              [newId]: JSON.parse(JSON.stringify(subBlockValues)),
-            },
-          },
-        }))
-      }
-
-      executeQueuedOperation('duplicate', 'block', duplicatedBlockData, () => {
-        workflowStore.addBlock(
-          newId,
-          sourceBlock.type,
-          newName,
-          offsetPosition,
-          sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {}
-        )
-
-        const subBlockValues = subBlockStore.workflowValues[activeWorkflowId || '']?.[sourceId]
-        if (subBlockValues && activeWorkflowId) {
-          Object.entries(subBlockValues).forEach(([subblockId, value]) => {
-            subBlockStore.setValue(newId, subblockId, value)
-          })
-        }
-      })
-    },
-    [executeQueuedOperation, workflowStore, subBlockStore, activeWorkflowId]
-  )
-
   const collaborativeAddEdge = useCallback(
     (edge: Edge) => {
       executeQueuedOperation('add', 'edge', edge, () => workflowStore.addEdge(edge))
@@ -828,6 +750,145 @@ export function useCollaborativeWorkflow() {
       session?.user?.id,
       isShowingDiff,
     ]
+  )
+
+  // Immediate tag selection (uses queue but processes immediately, no debouncing)
+  const collaborativeSetTagSelection = useCallback(
+    (blockId: string, subblockId: string, value: any) => {
+      if (isApplyingRemoteChange.current) return
+
+      if (!currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
+        logger.debug('Skipping tag selection - not in active workflow', {
+          currentWorkflowId,
+          activeWorkflowId,
+          blockId,
+          subblockId,
+        })
+        return
+      }
+
+      // Apply locally first (immediate UI feedback)
+      subBlockStore.setValue(blockId, subblockId, value)
+
+      // Use the operation queue but with immediate processing (no debouncing)
+      const operationId = crypto.randomUUID()
+
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: 'subblock-update',
+          target: 'subblock',
+          payload: { blockId, subblockId, value },
+        },
+        workflowId: activeWorkflowId,
+        userId: session?.user?.id || 'unknown',
+        immediate: true,
+      })
+    },
+    [subBlockStore, addToQueue, currentWorkflowId, activeWorkflowId, session?.user?.id]
+  )
+
+  const collaborativeDuplicateBlock = useCallback(
+    (sourceId: string) => {
+      const sourceBlock = workflowStore.blocks[sourceId]
+      if (!sourceBlock) return
+
+      // Generate new ID and calculate position
+      const newId = crypto.randomUUID()
+      const offsetPosition = {
+        x: sourceBlock.position.x + 250,
+        y: sourceBlock.position.y + 20,
+      }
+
+      const match = sourceBlock.name.match(/(.*?)(\d+)?$/)
+      const newName = match?.[2]
+        ? `${match[1]}${Number.parseInt(match[2]) + 1}`
+        : `${sourceBlock.name} 1`
+
+      // Get subblock values from the store
+      const subBlockValues = subBlockStore.workflowValues[activeWorkflowId || '']?.[sourceId] || {}
+
+      // Merge subblock structure with actual values
+      const mergedSubBlocks = sourceBlock.subBlocks
+        ? JSON.parse(JSON.stringify(sourceBlock.subBlocks))
+        : {}
+      Object.entries(subBlockValues).forEach(([subblockId, value]) => {
+        if (mergedSubBlocks[subblockId]) {
+          mergedSubBlocks[subblockId].value = value
+        } else {
+          // Create subblock if it doesn't exist in structure
+          mergedSubBlocks[subblockId] = {
+            id: subblockId,
+            type: 'unknown',
+            value: value,
+          }
+        }
+      })
+
+      // Create the complete block data for the socket operation
+      const duplicatedBlockData = {
+        sourceId,
+        id: newId,
+        type: sourceBlock.type,
+        name: newName,
+        position: offsetPosition,
+        data: sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
+        subBlocks: mergedSubBlocks,
+        outputs: sourceBlock.outputs ? JSON.parse(JSON.stringify(sourceBlock.outputs)) : {},
+        parentId: sourceBlock.data?.parentId || null,
+        extent: sourceBlock.data?.extent || null,
+        enabled: sourceBlock.enabled ?? true,
+        horizontalHandles: sourceBlock.horizontalHandles ?? true,
+        isWide: sourceBlock.isWide ?? false,
+        advancedMode: sourceBlock.advancedMode ?? false,
+        height: sourceBlock.height || 0,
+      }
+
+      workflowStore.addBlock(
+        newId,
+        sourceBlock.type,
+        newName,
+        offsetPosition,
+        sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
+        sourceBlock.data?.parentId,
+        sourceBlock.data?.extent,
+        {
+          enabled: sourceBlock.enabled,
+          horizontalHandles: sourceBlock.horizontalHandles,
+          isWide: sourceBlock.isWide,
+          advancedMode: sourceBlock.advancedMode,
+          height: sourceBlock.height,
+        }
+      )
+
+      executeQueuedOperation('duplicate', 'block', duplicatedBlockData, () => {
+        workflowStore.addBlock(
+          newId,
+          sourceBlock.type,
+          newName,
+          offsetPosition,
+          sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
+          sourceBlock.data?.parentId,
+          sourceBlock.data?.extent,
+          {
+            enabled: sourceBlock.enabled,
+            horizontalHandles: sourceBlock.horizontalHandles,
+            isWide: sourceBlock.isWide,
+            advancedMode: sourceBlock.advancedMode,
+            height: sourceBlock.height,
+          }
+        )
+
+        // Apply subblock values locally for immediate UI feedback
+        // The server will persist these values as part of the block creation
+        if (activeWorkflowId && Object.keys(subBlockValues).length > 0) {
+          Object.entries(subBlockValues).forEach(([subblockId, value]) => {
+            subBlockStore.setValue(newId, subblockId, value)
+          })
+        }
+      })
+    },
+    [executeQueuedOperation, workflowStore, subBlockStore, activeWorkflowId]
   )
 
   const collaborativeUpdateLoopCount = useCallback(
@@ -1040,6 +1101,7 @@ export function useCollaborativeWorkflow() {
     collaborativeAddEdge,
     collaborativeRemoveEdge,
     collaborativeSetSubblockValue,
+    collaborativeSetTagSelection,
 
     // Collaborative loop/parallel operations
     collaborativeUpdateLoopCount,

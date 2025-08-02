@@ -1,38 +1,38 @@
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
-import { Label } from '@/components/ui/label'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
-import { getBlock } from '@/blocks/index'
+import { Label, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
+import {
+  ChannelSelectorInput,
+  CheckboxList,
+  Code,
+  ComboBox,
+  ConditionInput,
+  CredentialSelector,
+  DateInput,
+  DocumentSelector,
+  Dropdown,
+  EvalInput,
+  FileSelectorInput,
+  FileUpload,
+  FolderSelectorInput,
+  InputFormat,
+  KnowledgeBaseSelector,
+  LongInput,
+  ProjectSelectorInput,
+  ResponseFormat,
+  ScheduleConfig,
+  ShortInput,
+  SliderInput,
+  Switch,
+  Table,
+  TimeInput,
+  ToolInput,
+  WebhookConfig,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { ChannelSelectorInput } from './components/channel-selector/channel-selector-input'
-import { CheckboxList } from './components/checkbox-list'
-import { Code } from './components/code'
-import { ComboBox } from './components/combobox'
-import { ConditionInput } from './components/condition-input'
-import { CredentialSelector } from './components/credential-selector/credential-selector'
-import { DateInput } from './components/date-input'
-import { DocumentSelector } from './components/document-selector/document-selector'
-import { Dropdown } from './components/dropdown'
-import { EvalInput } from './components/eval-input'
-import { FileSelectorInput } from './components/file-selector/file-selector-input'
-import { FileUpload } from './components/file-upload'
-import { FolderSelectorInput } from './components/folder-selector/components/folder-selector-input'
-import { KnowledgeBaseSelector } from './components/knowledge-base-selector/knowledge-base-selector'
-import { LongInput } from './components/long-input'
-import { ProjectSelectorInput } from './components/project-selector/project-selector-input'
-import { ResponseFormat } from './components/response/response-format'
-import { ScheduleConfig } from './components/schedule/schedule-config'
-import { ShortInput } from './components/short-input'
-import { SliderInput } from './components/slider-input'
-import { InputFormat } from './components/starter/input-format'
-import { Switch } from './components/switch'
-import { Table } from './components/table'
-import { TimeInput } from './components/time-input'
-import { ToolInput } from './components/tool-input/tool-input'
-import { WebhookConfig } from './components/webhook/webhook'
+import { DocumentTagEntry } from './components/document-tag-entry/document-tag-entry'
+import { KnowledgeTagFilters } from './components/knowledge-tag-filters/knowledge-tag-filters'
 
 interface SubBlockProps {
   blockId: string
@@ -71,13 +71,7 @@ export function SubBlock({
   }
 
   const isFieldRequired = () => {
-    const blockType = useWorkflowStore.getState().blocks[blockId]?.type
-    if (!blockType) return false
-
-    const blockConfig = getBlock(blockType)
-    if (!blockConfig) return false
-
-    return blockConfig.inputs[config.id]?.required === true
+    return config.required === true
   }
 
   // Get preview value for this specific sub-block
@@ -188,6 +182,13 @@ export function SubBlock({
             previewValue={previewValue}
             disabled={isDisabled}
             onValidationChange={handleValidationChange}
+            wandConfig={
+              config.wandConfig || {
+                enabled: false,
+                prompt: '',
+                placeholder: '',
+              }
+            }
           />
         )
       case 'switch':
@@ -361,6 +362,29 @@ export function SubBlock({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
+          />
+        )
+      case 'knowledge-tag-filters':
+        return (
+          <KnowledgeTagFilters
+            blockId={blockId}
+            subBlock={config}
+            disabled={isDisabled}
+            isPreview={isPreview}
+            previewValue={previewValue}
+            isConnecting={isConnecting}
+          />
+        )
+
+      case 'document-tag-entry':
+        return (
+          <DocumentTagEntry
+            blockId={blockId}
+            subBlock={config}
+            disabled={isDisabled}
+            isPreview={isPreview}
+            previewValue={previewValue}
+            isConnecting={isConnecting}
           />
         )
       case 'document-selector':

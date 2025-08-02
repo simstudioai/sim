@@ -20,6 +20,7 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter your search query',
+      required: true,
     },
     {
       id: 'outputType',
@@ -30,6 +31,7 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
         { label: 'Answer', id: 'sourcedAnswer' },
         { label: 'Search', id: 'searchResults' },
       ],
+      value: () => 'sourcedAnswer',
     },
     {
       id: 'depth',
@@ -48,6 +50,7 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
       layout: 'full',
       placeholder: 'Enter your Linkup API key',
       password: true,
+      required: true,
     },
   ],
 
@@ -56,14 +59,14 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
   },
 
   inputs: {
-    q: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
-    depth: { type: 'string', required: true },
-    outputType: { type: 'string', required: true },
+    q: { type: 'string', description: 'Search query' },
+    apiKey: { type: 'string', description: 'Linkup API key' },
+    depth: { type: 'string', description: 'Search depth level' },
+    outputType: { type: 'string', description: 'Output format type' },
   },
 
   outputs: {
-    answer: 'string',
-    sources: 'json',
+    answer: { type: 'string', description: 'Generated answer' },
+    sources: { type: 'json', description: 'Source references' },
   },
 }

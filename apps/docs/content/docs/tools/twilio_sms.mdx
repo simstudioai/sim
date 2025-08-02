@@ -56,32 +56,13 @@ Send text messages to single or multiple recipients using the Twilio API.
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `success` | string |
-| `messageId` | string |
-| `status` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Send success status |
+| `messageId` | any | Message identifier |
+| `status` | any | Delivery status |
+| `error` | any | Error information |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `phoneNumbers` | string | Yes | Recipient Phone Numbers - Enter phone numbers with country code \(one per line, e.g., +1234567890\) |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `success` | boolean | success output from the block |
-| `messageId` | any | messageId output from the block |
-| `status` | any | status output from the block |
-| `error` | any | error output from the block |
 
 
 ## Notes

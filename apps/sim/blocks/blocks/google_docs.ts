@@ -24,6 +24,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
         { label: 'Write to Document', id: 'write' },
         { label: 'Create Document', id: 'create' },
       ],
+      value: () => 'read',
     },
     // Google Docs Credentials
     {
@@ -31,6 +32,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       title: 'Google Account',
       type: 'oauth-input',
       layout: 'full',
+      required: true,
       provider: 'google-docs',
       serviceId: 'google-docs',
       requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
@@ -68,6 +70,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       layout: 'full',
       placeholder: 'Enter title for the new document',
       condition: { field: 'operation', value: 'create' },
+      required: true,
     },
     // Folder selector (basic mode)
     {
@@ -101,6 +104,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       layout: 'full',
       placeholder: 'Enter document content',
       condition: { field: 'operation', value: 'write' },
+      required: true,
     },
     // Content Field for create operation
     {
@@ -144,18 +148,18 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
-    documentId: { type: 'string', required: false },
-    manualDocumentId: { type: 'string', required: false },
-    title: { type: 'string', required: false },
-    folderSelector: { type: 'string', required: false },
-    folderId: { type: 'string', required: false },
-    content: { type: 'string', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Google Docs access token' },
+    documentId: { type: 'string', description: 'Document identifier' },
+    manualDocumentId: { type: 'string', description: 'Manual document identifier' },
+    title: { type: 'string', description: 'Document title' },
+    folderSelector: { type: 'string', description: 'Selected folder' },
+    folderId: { type: 'string', description: 'Folder identifier' },
+    content: { type: 'string', description: 'Document content' },
   },
   outputs: {
-    content: 'string',
-    metadata: 'json',
-    updatedContent: 'boolean',
+    content: { type: 'string', description: 'Document content' },
+    metadata: { type: 'json', description: 'Document metadata' },
+    updatedContent: { type: 'boolean', description: 'Content update status' },
   },
 }

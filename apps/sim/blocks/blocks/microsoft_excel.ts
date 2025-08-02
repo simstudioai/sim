@@ -23,6 +23,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         { label: 'Write/Update Data', id: 'write' },
         { label: 'Add to Table', id: 'table_add' },
       ],
+      value: () => 'read',
     },
     {
       id: 'credential',
@@ -33,6 +34,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       serviceId: 'microsoft-excel',
       requiredScopes: [],
       placeholder: 'Select Microsoft account',
+      required: true,
     },
     {
       id: 'spreadsheetId',
@@ -69,6 +71,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       layout: 'full',
       placeholder: 'Name of the Excel table',
       condition: { field: 'operation', value: ['table_add'] },
+      required: true,
     },
     {
       id: 'values',
@@ -78,6 +81,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       placeholder:
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'write' },
+      required: true,
     },
     {
       id: 'valueInputOption',
@@ -98,6 +102,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       placeholder:
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'update' },
+      required: true,
     },
     {
       id: 'valueInputOption',
@@ -118,6 +123,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       placeholder:
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'table_add' },
+      required: true,
     },
   ],
   tools: {
@@ -181,23 +187,23 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
-    spreadsheetId: { type: 'string', required: false },
-    manualSpreadsheetId: { type: 'string', required: false },
-    range: { type: 'string', required: false },
-    tableName: { type: 'string', required: false },
-    values: { type: 'string', required: false },
-    valueInputOption: { type: 'string', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Microsoft Excel access token' },
+    spreadsheetId: { type: 'string', description: 'Spreadsheet identifier' },
+    manualSpreadsheetId: { type: 'string', description: 'Manual spreadsheet identifier' },
+    range: { type: 'string', description: 'Cell range' },
+    tableName: { type: 'string', description: 'Table name' },
+    values: { type: 'string', description: 'Cell values data' },
+    valueInputOption: { type: 'string', description: 'Value input option' },
   },
   outputs: {
-    data: 'json',
-    metadata: 'json',
-    updatedRange: 'string',
-    updatedRows: 'number',
-    updatedColumns: 'number',
-    updatedCells: 'number',
-    index: 'number',
-    values: 'json',
+    data: { type: 'json', description: 'Sheet data' },
+    metadata: { type: 'json', description: 'Operation metadata' },
+    updatedRange: { type: 'string', description: 'Updated range' },
+    updatedRows: { type: 'number', description: 'Updated rows count' },
+    updatedColumns: { type: 'number', description: 'Updated columns count' },
+    updatedCells: { type: 'number', description: 'Updated cells count' },
+    index: { type: 'number', description: 'Row index' },
+    values: { type: 'json', description: 'Table values' },
   },
 }

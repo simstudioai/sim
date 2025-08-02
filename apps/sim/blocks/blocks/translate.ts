@@ -31,6 +31,7 @@ export const TranslateBlock: BlockConfig = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter the text you want to translate',
+      required: true,
     },
     {
       id: 'targetLanguage',
@@ -38,6 +39,7 @@ export const TranslateBlock: BlockConfig = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter language (e.g. Spanish, French, etc.)',
+      required: true,
     },
     {
       id: 'model',
@@ -45,6 +47,7 @@ export const TranslateBlock: BlockConfig = {
       type: 'dropdown',
       layout: 'half',
       options: Object.keys(getBaseModelProviders()).map((key) => ({ label: key, id: key })),
+      required: true,
     },
     {
       id: 'apiKey',
@@ -54,6 +57,7 @@ export const TranslateBlock: BlockConfig = {
       placeholder: 'Enter your API key',
       password: true,
       connectionDroppable: false,
+      required: true,
     },
     {
       id: 'systemPrompt',
@@ -87,14 +91,14 @@ export const TranslateBlock: BlockConfig = {
     },
   },
   inputs: {
-    context: { type: 'string', required: true },
-    targetLanguage: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
-    systemPrompt: { type: 'string', required: true },
+    context: { type: 'string', description: 'Text to translate' },
+    targetLanguage: { type: 'string', description: 'Target language' },
+    apiKey: { type: 'string', description: 'Provider API key' },
+    systemPrompt: { type: 'string', description: 'Translation instructions' },
   },
   outputs: {
-    content: 'string',
-    model: 'string',
-    tokens: 'any',
+    content: { type: 'string', description: 'Translated text' },
+    model: { type: 'string', description: 'Model used' },
+    tokens: { type: 'any', description: 'Token usage' },
   },
 }

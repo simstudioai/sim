@@ -19,6 +19,7 @@ export const S3Block: BlockConfig<S3Response> = {
       layout: 'full',
       placeholder: 'Enter your AWS Access Key ID',
       password: true,
+      required: true,
     },
     {
       id: 'secretAccessKey',
@@ -27,6 +28,7 @@ export const S3Block: BlockConfig<S3Response> = {
       layout: 'full',
       placeholder: 'Enter your AWS Secret Access Key',
       password: true,
+      required: true,
     },
     {
       id: 's3Uri',
@@ -34,6 +36,7 @@ export const S3Block: BlockConfig<S3Response> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'e.g., https://bucket-name.s3.region.amazonaws.com/path/to/file',
+      required: true,
     },
   ],
   tools: {
@@ -91,12 +94,12 @@ export const S3Block: BlockConfig<S3Response> = {
     },
   },
   inputs: {
-    accessKeyId: { type: 'string', required: true },
-    secretAccessKey: { type: 'string', required: true },
-    s3Uri: { type: 'string', required: true },
+    accessKeyId: { type: 'string', description: 'AWS access key ID' },
+    secretAccessKey: { type: 'string', description: 'AWS secret access key' },
+    s3Uri: { type: 'string', description: 'S3 object URL' },
   },
   outputs: {
-    url: 'string',
-    metadata: 'json',
+    url: { type: 'string', description: 'Presigned URL' },
+    metadata: { type: 'json', description: 'Object metadata' },
   },
 }

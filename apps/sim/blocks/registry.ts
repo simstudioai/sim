@@ -26,6 +26,7 @@ import { GoogleDocsBlock } from '@/blocks/blocks/google_docs'
 import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
 import { GoogleSheetsBlock } from '@/blocks/blocks/google_sheets'
 import { HuggingFaceBlock } from '@/blocks/blocks/huggingface'
+import { HunterBlock } from '@/blocks/blocks/hunter'
 import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
 import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
@@ -95,6 +96,7 @@ export const registry: Record<string, BlockConfig> = {
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
   huggingface: HuggingFaceBlock,
+  hunter: HunterBlock,
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
   jira: JiraBlock,

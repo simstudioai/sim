@@ -159,7 +159,7 @@ function Footer() {
                     <DiscordIcon className='h-9 w-9 fill-[#9E91AA] hover:fill-[#bdaecb] md:h-10 md:w-10' />
                   </Link>
                   <Link
-                    href={'https://x.com/simstudioai'}
+                    href={'https://x.com/simdotai'}
                     target='_blank'
                     rel='noopener noreferrer'
                     className='text-2xl transition-all duration-500'
@@ -349,7 +349,7 @@ function Footer() {
                   <DiscordIcon className='h-9 w-9 fill-[#9E91AA] hover:fill-[#bdaecb] md:h-10 md:w-10' />
                 </Link>
                 <Link
-                  href={'https://x.com/simstudioai'}
+                  href={'https://x.com/simdotai'}
                   target='_blank'
                   rel='noopener noreferrer'
                   className='text-2xl transition-all duration-500'

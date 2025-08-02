@@ -442,6 +442,13 @@
       "when": 1753558819517,
       "tag": "0063_lame_sandman",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1754088313157,
+      "tag": "0064_elite_hedge_knight",
+      "breakpoints": true
     }
   ]
 }

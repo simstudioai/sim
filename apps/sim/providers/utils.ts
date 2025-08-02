@@ -107,7 +107,6 @@ Object.entries(providers).forEach(([id, provider]) => {
 export function updateOllamaProviderModels(models: string[]): void {
   updateOllamaModelsInDefinitions(models)
   providers.ollama.models = getProviderModelsFromDefinitions('ollama')
-  logger.info('Updated Ollama provider models', { models })
 }
 
 export function getBaseModelProviders(): Record<string, ProviderId> {

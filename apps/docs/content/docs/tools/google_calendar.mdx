@@ -117,9 +117,10 @@ Create a new event in Google Calendar
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Operation response content |
+| `metadata` | json | Event metadata |
 
 ### `google_calendar_list`
 
@@ -138,9 +139,10 @@ List events from Google Calendar
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Operation response content |
+| `metadata` | json | Event metadata |
 
 ### `google_calendar_get`
 
@@ -156,9 +158,10 @@ Get a specific event from Google Calendar
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Operation response content |
+| `metadata` | json | Event metadata |
 
 ### `google_calendar_quick_add`
 
@@ -176,9 +179,10 @@ Create events from natural language text
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Operation response content |
+| `metadata` | json | Event metadata |
 
 ### `google_calendar_invite`
 
@@ -197,39 +201,11 @@ Invite attendees to an existing Google Calendar event
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
-| `htmlLink` | string |
-| `status` | string |
-| `summary` | string |
-| `description` | string |
-| `location` | string |
-| `start` | string |
-| `end` | string |
-| `attendees` | string |
-| `creator` | string |
-| `organizer` | string |
-| `content` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Operation response content |
+| `metadata` | json | Event metadata |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `content` | string | content output from the block |
-| `metadata` | json | metadata output from the block |
 
 
 ## Notes

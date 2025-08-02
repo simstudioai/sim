@@ -55,9 +55,10 @@ Add a new memory to the database or append to existing memory with the same ID.
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `memories` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `memories` | any | Memory data |
+| `id` | string | Memory identifier |
 
 ### `memory_get`
 
@@ -71,10 +72,10 @@ Retrieve a specific memory by its ID
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `memories` | string |
-| `message` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `memories` | any | Memory data |
+| `id` | string | Memory identifier |
 
 ### `memory_get_all`
 
@@ -87,10 +88,10 @@ Retrieve all memories from the database
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `message` | string |
-| `memories` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `memories` | any | Memory data |
+| `id` | string | Memory identifier |
 
 ### `memory_delete`
 
@@ -104,28 +105,11 @@ Delete a specific memory by its ID
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `message` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `memories` | any | Memory data |
+| `id` | string | Memory identifier |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `memories` | any | memories output from the block |
-| `id` | string | id output from the block |
 
 
 ## Notes
