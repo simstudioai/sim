@@ -65,7 +65,6 @@ describe('Knowledge Search API Route', () => {
     where: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
-    // Add any other methods that might be called
     innerJoin: vi.fn().mockReturnThis(),
     leftJoin: vi.fn().mockReturnThis(),
     groupBy: vi.fn().mockReturnThis(),
