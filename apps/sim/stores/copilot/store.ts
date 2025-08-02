@@ -924,8 +924,11 @@ const sseHandlers: Record<string, SSEHandler> = {
     context.doneEventCount++
 
     // Only complete after all tools are done and we've received multiple done events
+    // Check for both executing tools AND pending tools (waiting for user interaction)
     const executingTools = context.toolCalls.filter((tc) => tc.state === 'executing')
-    if (executingTools.length === 0 && context.doneEventCount >= 2) {
+    const pendingTools = context.toolCalls.filter((tc) => tc.state === 'pending')
+    
+    if (executingTools.length === 0 && pendingTools.length === 0 && context.doneEventCount >= 2) {
       context.streamComplete = true
     }
   },

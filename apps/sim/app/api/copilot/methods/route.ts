@@ -7,8 +7,8 @@ import { createErrorResponse } from './utils'
 
 const logger = createLogger('CopilotMethodsAPI')
 
-// Tool call status types - should match NotificationStatus from frontend  
-type ToolCallStatus = 'pending' | 'accepted' | 'rejected' | 'error' | 'background'
+// Tool call status types - should match NotificationStatus from frontend
+type ToolCallStatus = 'pending' | 'accepted' | 'rejected' | 'error' | 'success' | 'background'
 
 /**
  * Add a tool call to Redis with 'pending' status
@@ -98,12 +98,16 @@ async function pollRedisForTool(
         status = redisValue as ToolCallStatus
       }
 
-      if (status === 'accepted' || status === 'rejected' || status === 'error') {
+      if (status !== 'pending') {
         logger.info('Tool call status resolved', {
           toolCallId,
           status,
           message,
           duration: Date.now() - startTime,
+          rawRedisValue: redisValue,
+          parsedAsJSON: redisValue ? (() => {
+            try { return JSON.parse(redisValue) } catch { return 'failed-to-parse' }
+          })() : null
         })
 
         // Special logging for set environment variables tool when Redis status is found
@@ -184,6 +188,11 @@ async function interruptHandler(
     if (status === 'background') {
       logger.info('Tool execution moved to background', { toolCallId, message })
       return { approved: false, rejected: false, message }
+    }
+
+    if (status === 'success') {
+      logger.info('Tool execution completed successfully', { toolCallId, message })
+      return { approved: true, rejected: false, message }
     }
 
     logger.warn('Unexpected tool call status', { toolCallId, status, message })

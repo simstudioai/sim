@@ -108,7 +108,7 @@ export abstract class BaseTool implements Tool {
   ): Promise<void> {
     // Map actions to states
     const actionToState: Record<string, ToolState> = {
-      run: 'accepted',
+      run: 'executing', // Changed from 'accepted' to 'executing'
       skip: 'rejected',
       background: 'background'
     }
@@ -120,11 +120,8 @@ export abstract class BaseTool implements Tool {
 
     // Special handling for run action
     if (action === 'run') {
-      // First notify acceptance
-      await this.notify(toolCall.id, 'accepted')
-      
-      // Then execute
-      await this.executeWithStateManagement(toolCall, options)
+      // Directly call execute method - no wrapper
+      await this.execute(toolCall, options)
     } else {
       // For skip/background, just notify
       const message = action === 'skip' 
@@ -132,59 +129,6 @@ export abstract class BaseTool implements Tool {
         : 'The user moved execution to the background'
       
       await this.notify(toolCall.id, newState, message)
-    }
-  }
-
-  /**
-   * Execute with proper state management
-   */
-  protected async executeWithStateManagement(
-    toolCall: CopilotToolCall,
-    options?: ToolExecutionOptions
-  ): Promise<void> {
-    // Update to executing state
-    options?.onStateChange?.('executing')
-    await this.notify(toolCall.id, 'executing')
-
-    try {
-      // Check pre-conditions if provided
-      if (options?.beforeExecute) {
-        const shouldContinue = await options.beforeExecute()
-        if (!shouldContinue) {
-          throw new Error('Pre-execution check failed')
-        }
-      }
-
-      // Execute the tool
-      const result = await this.execute(toolCall, options)
-
-      // Handle post-execution if provided
-      if (options?.afterExecute) {
-        await options.afterExecute(result)
-      }
-
-      // Determine final state
-      const finalState: ToolState = result.success ? 'success' : 'errored'
-      
-      // Update state and notify
-      options?.onStateChange?.(finalState)
-      await this.notify(
-        toolCall.id,
-        finalState,
-        this.getDisplayName({ ...toolCall, state: finalState })
-      )
-    } catch (error) {
-      console.error('Error during tool execution:', error)
-      
-      // Update to error state
-      options?.onStateChange?.('errored')
-      
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      await this.notify(
-        toolCall.id,
-        'errored',
-        `${this.getDisplayName({ ...toolCall, state: 'errored' })}: ${errorMessage}`
-      )
     }
   }
 } 

@@ -49,15 +49,37 @@ async function serverAcceptTool(
 }
 
 // Function to accept a client tool
-function clientAcceptTool(
+async function clientAcceptTool(
   toolCall: CopilotToolCall,
-  setToolCallState: (toolCall: any, state: string, options?: any) => void
-): void {
+  setToolCallState: (toolCall: any, state: string, options?: any) => void,
+  context?: Record<string, any>
+): Promise<void> {
   console.log('Client tool accepted:', toolCall.name, toolCall.id)
   
-  // NEW LOGIC: Use centralized state management
-  setToolCallState(toolCall, 'accepted')
-  // Tool execution happens elsewhere - this just updates UI state
+  console.log('Setting state to executing...')
+  setToolCallState(toolCall, 'executing')
+  
+  console.log('Returning early to test state change')
+  
+  try {
+    // Get the tool and execute it directly
+    const tool = toolRegistry.getTool(toolCall.name)
+    if (tool) {
+      await tool.execute(toolCall, {
+        onStateChange: (state: any) => {
+          setToolCallState(toolCall, state)
+        },
+        context
+      })
+    } else {
+      throw new Error(`Tool not found: ${toolCall.name}`)
+    }
+  } catch (error) {
+    console.error('Error executing client tool:', error)
+    setToolCallState(toolCall, 'errored', { 
+      error: error instanceof Error ? error.message : 'Tool execution failed' 
+    })
+  }
 }
 
 // Function to reject any tool
@@ -116,23 +138,36 @@ function getToolDisplayNameByState(toolCall: CopilotToolCall): string {
 }
 
 // Simple run/skip buttons component
-function RunSkipButtons({ toolCall, onStateChange }: { 
+function RunSkipButtons({ toolCall, onStateChange, context }: { 
   toolCall: CopilotToolCall
   onStateChange?: (state: any) => void 
+  context?: Record<string, any>
 }) {
   const [isProcessing, setIsProcessing] = useState(false)
+  const [showBackgroundButton, setShowBackgroundButton] = useState(false)
+  const [buttonsHidden, setButtonsHidden] = useState(false)
   const { setToolCallState } = useCopilotStore()
+  
+  // Check if this tool supports background execution
+  const clientTool = toolRegistry.getTool(toolCall.name)
+  const allowsBackground = clientTool?.metadata?.allowBackgroundExecution || false
   
   const handleRun = async () => {
     setIsProcessing(true)
+    setButtonsHidden(true) // Hide run/skip buttons immediately
     
     try {
       // Check if it's a client tool or server tool
       const clientTool = toolRegistry.getTool(toolCall.name)
       
       if (clientTool) {
-        // Client tool
-        clientAcceptTool(toolCall, setToolCallState)
+        // For client tools with background support, show background button during execution
+        if (allowsBackground) {
+          setShowBackgroundButton(true)
+        }
+        
+        // Client tool - execute immediately
+        await clientAcceptTool(toolCall, setToolCallState, context)
       } else {
         // Server tool
         await serverAcceptTool(toolCall, setToolCallState)
@@ -149,6 +184,7 @@ function RunSkipButtons({ toolCall, onStateChange }: {
   
   const handleSkip = async () => {
     setIsProcessing(true)
+    setButtonsHidden(true) // Hide run/skip buttons immediately
     
     try {
       await rejectTool(toolCall, setToolCallState)
@@ -162,6 +198,48 @@ function RunSkipButtons({ toolCall, onStateChange }: {
     }
   }
   
+  const handleMoveToBackground = async () => {
+    setIsProcessing(true)
+    
+    try {
+      // Move the tool execution to background
+      setToolCallState(toolCall, 'background')
+      
+      // Notify the backend about background state
+      await notifyServerTool(toolCall.id, toolCall.name, 'background')
+      
+      // Trigger re-render
+      onStateChange?.(toolCall.state)
+    } catch (error) {
+      console.error('Error moving to background:', error)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+  
+  // If showing background button, only show that
+  if (showBackgroundButton) {
+    return (
+      <div className='flex items-center gap-1.5'>
+        <Button
+          onClick={handleMoveToBackground}
+          disabled={isProcessing}
+          size='sm'
+          className='h-6 bg-blue-600 px-2 font-medium text-white text-xs hover:bg-blue-700 disabled:opacity-50'
+        >
+          {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
+          Move to Background
+        </Button>
+      </div>
+    )
+  }
+  
+  // If buttons are hidden, show nothing
+  if (buttonsHidden) {
+    return null
+  }
+  
+  // Default run/skip buttons
   return (
     <div className='flex items-center gap-1.5'>
       <Button
@@ -216,7 +294,7 @@ export function InlineToolCall({
         <span className='text-sm'>{displayName}</span>
       </div>
       
-      {showButtons && <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} />}
+      {showButtons && <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} context={context} />}
     </div>
   )
 } 

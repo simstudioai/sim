@@ -35,6 +35,13 @@ class NoOpTool extends BaseCopilotTool<NoOpParams, NoOpResult> {
       hasConfirmationMessage: !!params.confirmationMessage,
     })
 
+    // Log what we're about to return
+    logger.info('NoOp tool returning result', {
+      result,
+      resultType: typeof result,
+      resultKeys: Object.keys(result),
+    })
+
     return result
   }
 }

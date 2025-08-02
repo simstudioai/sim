@@ -50,6 +50,7 @@ export interface ToolMetadata {
   displayConfig: ToolDisplayConfig
   schema: ToolSchema
   requiresInterrupt: boolean
+  allowBackgroundExecution?: boolean
   stateMessages?: Partial<Record<NotificationStatus, string>>
 }
 
