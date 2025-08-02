@@ -16,7 +16,7 @@ import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useCurrentWorkflow } from './use-current-workflow'
 
 const logger = createLogger('useWorkflowExecution')
 
@@ -43,7 +43,7 @@ interface DebugValidationResult {
 }
 
 export function useWorkflowExecution() {
-  const { blocks, edges, loops, parallels } = useWorkflowStore()
+  const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId } = useWorkflowRegistry()
   const { toggleConsole } = useConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
@@ -323,32 +323,15 @@ export function useWorkflowExecution() {
 
               await Promise.all(streamReadingPromises)
 
-              // Handle both ExecutionResult and StreamingExecution types - process regardless of success status
-              if (result) {
-                // Handle both ExecutionResult and StreamingExecution types
-                const executionResult =
-                  result && typeof result === 'object' && 'execution' in result
-                    ? (result.execution as ExecutionResult)
-                    : (result as ExecutionResult)
-
-                if (!executionResult.metadata) {
-                  executionResult.metadata = { duration: 0, startTime: new Date().toISOString() }
+              if (result && 'success' in result) {
+                if (!result.metadata) {
+                  result.metadata = { duration: 0, startTime: new Date().toISOString() }
                 }
-                ;(executionResult.metadata as any).source = 'chat'
-
-                // Update streamed content and apply tokenization - process logs regardless of success status
-                if (executionResult.logs) {
-                  // Add newlines between different agent outputs for better readability
-                  const processedOutputs = new Set<string>()
-                  executionResult.logs.forEach((log: BlockLog) => {
+                ;(result.metadata as any).source = 'chat'
+                // Update streamed content and apply tokenization
+                if (result.logs) {
+                  result.logs.forEach((log: BlockLog) => {
                     if (streamedContent.has(log.blockId)) {
-                      const content = streamedContent.get(log.blockId)
-                      if (log.output && content) {
-                        const separator = processedOutputs.size > 0 ? '\n\n' : ''
-                        log.output.content = separator + content
-                        processedOutputs.add(log.blockId)
-                      }
-
                       // For console display, show the actual structured block output instead of formatted streaming content
                       // This ensures console logs match the block state structure
                       // Use replaceOutput to completely replace the output instead of merging
@@ -365,19 +348,14 @@ export function useWorkflowExecution() {
                   })
 
                   // Process all logs for streaming tokenization
-                  const processedCount = processStreamingBlockLogs(
-                    executionResult.logs,
-                    streamedContent
-                  )
+                  const processedCount = processStreamingBlockLogs(result.logs, streamedContent)
                   logger.info(`Processed ${processedCount} blocks for streaming tokenization`)
                 }
 
                 controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ event: 'final', data: executionResult })}\n\n`
-                  )
+                  encoder.encode(`data: ${JSON.stringify({ event: 'final', data: result })}\n\n`)
                 )
-                persistLogs(executionId, executionResult).catch((err) =>
+                persistLogs(executionId, result).catch((err) =>
                   logger.error('Error persisting logs:', err)
                 )
               }
@@ -433,10 +411,7 @@ export function useWorkflowExecution() {
     },
     [
       activeWorkflowId,
-      blocks,
-      edges,
-      loops,
-      parallels,
+      currentWorkflow,
       toggleConsole,
       getAllVariables,
       getVariablesByWorkflowId,
@@ -455,12 +430,62 @@ export function useWorkflowExecution() {
     onStream?: (se: StreamingExecution) => Promise<void>,
     executionId?: string
   ): Promise<ExecutionResult | StreamingExecution> => {
-    // Use the mergeSubblockState utility to get all block states
-    const mergedStates = mergeSubblockState(blocks)
+    // Use currentWorkflow but check if we're in diff mode
+    const {
+      blocks: workflowBlocks,
+      edges: workflowEdges,
+      loops: workflowLoops,
+      parallels: workflowParallels,
+    } = currentWorkflow
+
+    // Filter out blocks without type (these are layout-only blocks)
+    const validBlocks = Object.entries(workflowBlocks).reduce(
+      (acc, [blockId, block]) => {
+        if (block?.type) {
+          acc[blockId] = block
+        }
+        return acc
+      },
+      {} as typeof workflowBlocks
+    )
+
+    const isExecutingFromChat =
+      workflowInput && typeof workflowInput === 'object' && 'input' in workflowInput
+
+    logger.info('Executing workflow', {
+      isDiffMode: currentWorkflow.isDiffMode,
+      isExecutingFromChat,
+      totalBlocksCount: Object.keys(workflowBlocks).length,
+      validBlocksCount: Object.keys(validBlocks).length,
+      edgesCount: workflowEdges.length,
+    })
+
+    // Debug: Check for blocks with undefined types before merging
+    Object.entries(workflowBlocks).forEach(([blockId, block]) => {
+      if (!block || !block.type) {
+        logger.error('Found block with undefined type before merging:', { blockId, block })
+      }
+    })
+
+    // Merge subblock states from the appropriate store
+    const mergedStates = mergeSubblockState(validBlocks)
+
+    // Debug: Check for blocks with undefined types after merging
+    Object.entries(mergedStates).forEach(([blockId, block]) => {
+      if (!block || !block.type) {
+        logger.error('Found block with undefined type after merging:', { blockId, block })
+      }
+    })
 
     // Filter out trigger blocks for manual execution
     const filteredStates = Object.entries(mergedStates).reduce(
       (acc, [id, block]) => {
+        // Skip blocks with undefined type
+        if (!block || !block.type) {
+          logger.warn(`Skipping block with undefined type: ${id}`, block)
+          return acc
+        }
+
         const blockConfig = getBlock(block.type)
         const isTriggerBlock = blockConfig?.category === 'triggers'
 
@@ -513,7 +538,7 @@ export function useWorkflowExecution() {
       return blockConfig?.category === 'triggers'
     })
 
-    const filteredEdges = edges.filter(
+    const filteredEdges = workflowEdges.filter(
       (edge) => !triggerBlockIds.includes(edge.source) && !triggerBlockIds.includes(edge.target)
     )
 
@@ -521,18 +546,13 @@ export function useWorkflowExecution() {
     const workflow = new Serializer().serializeWorkflow(
       filteredStates,
       filteredEdges,
-      loops,
-      parallels,
-      true // Enable validation during execution
+      workflowLoops,
+      workflowParallels
     )
-
-    // Determine if this is a chat execution
-    const isChatExecution =
-      workflowInput && typeof workflowInput === 'object' && 'input' in workflowInput
 
     // If this is a chat execution, get the selected outputs
     let selectedOutputIds: string[] | undefined
-    if (isChatExecution && activeWorkflowId) {
+    if (isExecutingFromChat && activeWorkflowId) {
       // Get selected outputs from chat store
       const chatStore = await import('@/stores/panel/chat/store').then((mod) => mod.useChatStore)
       selectedOutputIds = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
@@ -546,7 +566,7 @@ export function useWorkflowExecution() {
       workflowInput,
       workflowVariables,
       contextExtensions: {
-        stream: isChatExecution,
+        stream: isExecutingFromChat,
         selectedOutputIds,
         edges: workflow.connections.map((conn) => ({
           source: conn.source,
@@ -609,54 +629,6 @@ export function useWorkflowExecution() {
     setIsExecuting(false)
     setIsDebugging(false)
     setActiveBlocks(new Set())
-
-    // Add the error to the console so users can see what went wrong
-    // This ensures serialization errors appear in the console just like execution errors
-    if (activeWorkflowId) {
-      const consoleStore = useConsoleStore.getState()
-
-      // Try to extract block information from the error message
-      // Serialization errors typically have format: "BlockName is missing required fields: FieldName"
-      let blockName = 'Workflow Execution'
-      let blockId = 'workflow-error'
-      let blockType = 'workflow'
-
-      const blockErrorMatch = errorMessage.match(/^(.+?)\s+is missing required fields/)
-      if (blockErrorMatch) {
-        const failedBlockName = blockErrorMatch[1]
-        blockName = failedBlockName
-
-        // Try to find the actual block in the current workflow to get its ID and type
-        const allBlocks = Object.values(blocks)
-        const failedBlock = allBlocks.find((block) => block.name === failedBlockName)
-        if (failedBlock) {
-          blockId = failedBlock.id
-          blockType = failedBlock.type
-        } else {
-          // Fallback: use the block name as ID if we can't find the actual block
-          blockId = failedBlockName.toLowerCase().replace(/\s+/g, '-')
-          blockType = 'unknown'
-        }
-      }
-
-      consoleStore.addConsole({
-        workflowId: activeWorkflowId,
-        blockId: blockId,
-        blockName: blockName,
-        blockType: blockType,
-        success: false,
-        error: errorMessage,
-        output: {},
-        startedAt: new Date().toISOString(),
-        endedAt: new Date().toISOString(),
-        durationMs: 0,
-      })
-
-      // Auto-open the console so users can see the error (only if it's not already open)
-      if (!consoleStore.isOpen) {
-        toggleConsole()
-      }
-    }
 
     let notificationMessage = 'Workflow execution failed'
     if (error?.request?.url) {

@@ -6,6 +6,8 @@ import type { ConsoleEntry, ConsoleStore } from '@/stores/panel/console/types'
 
 const MAX_ENTRIES = 50 // MAX across all workflows
 const MAX_IMAGE_DATA_SIZE = 1000 // Maximum size of image data to store (in characters)
+const MAX_ANY_DATA_SIZE = 5000 // Maximum size of any data to store (in characters)
+const MAX_TOTAL_ENTRY_SIZE = 50000 // Maximum size of entire entry to prevent localStorage overflow
 
 /**
  * Safely clone and update a NormalizedBlockOutput
@@ -31,15 +33,27 @@ const isLikelyBase64Data = (value: string): boolean => {
 }
 
 /**
- * Processes an object to handle large strings (like base64 image data)
- * for localStorage to prevent quota issues
+ * Processes an object to handle large strings and data for localStorage to prevent quota issues
  */
 const processSafeStorage = (obj: any): any => {
   if (!obj) return obj
 
+  if (typeof obj === 'string') {
+    if (obj.length > MAX_ANY_DATA_SIZE) {
+      return `[Large text truncated, original length: ${obj.length}]${obj.substring(0, 200)}...`
+    }
+    return obj
+  }
+
   if (typeof obj !== 'object') return obj
 
   if (Array.isArray(obj)) {
+    if (obj.length > 100) {
+      return [
+        `[Array truncated, original length: ${obj.length}]`,
+        ...obj.slice(0, 10).map((item) => processSafeStorage(item)),
+      ]
+    }
     return obj.map((item) => processSafeStorage(item))
   }
 
@@ -61,19 +75,21 @@ const processSafeStorage = (obj: any): any => {
       }
     } else if (typeof value === 'object' && value !== null) {
       result[key] = processSafeStorage(value)
-    } else if (
-      typeof value === 'string' &&
-      value.length > MAX_IMAGE_DATA_SIZE &&
-      isLikelyBase64Data(value)
-    ) {
-      if (value.startsWith('data:image')) {
-        const mimeEnd = value.indexOf(',')
-        result[key] =
-          mimeEnd > 0
-            ? `${value.substring(0, mimeEnd + 1)}[Large data removed, original length: ${value.length}]`
-            : `[Large data removed, original length: ${value.length}]`
+    } else if (typeof value === 'string' && value.length > MAX_ANY_DATA_SIZE) {
+      if (isLikelyBase64Data(value)) {
+        if (value.startsWith('data:image')) {
+          const mimeEnd = value.indexOf(',')
+          result[key] =
+            mimeEnd > 0
+              ? `${value.substring(0, mimeEnd + 1)}[Large data removed, original length: ${value.length}]`
+              : `[Large data removed, original length: ${value.length}]`
+        } else {
+          result[key] = `[Large data removed, original length: ${value.length}]`
+        }
       } else {
-        result[key] = `[Large data removed, original length: ${value.length}]`
+        // Truncate large text/JSON data
+        result[key] =
+          `[Large text truncated, original length: ${value.length}]${value.substring(0, 500)}...`
       }
     } else {
       result[key] = value
@@ -336,10 +352,28 @@ export const useConsoleStore = create<ConsoleStore>()(
       {
         name: 'console-store',
         partialize: (state) => {
-          const sanitizedEntries = state.entries.slice(0, MAX_ENTRIES).map((entry) => ({
-            ...entry,
-            output: processSafeStorage(entry.output),
-          }))
+          const sanitizedEntries = state.entries.slice(0, MAX_ENTRIES).map((entry) => {
+            const sanitizedEntry = {
+              ...entry,
+              input: processSafeStorage(entry.input),
+              output: processSafeStorage(entry.output),
+            }
+
+            // Check total entry size and truncate further if needed
+            const entryJson = JSON.stringify(sanitizedEntry)
+            if (entryJson.length > MAX_TOTAL_ENTRY_SIZE) {
+              return {
+                ...sanitizedEntry,
+                output: `[Entry too large for storage, original size: ${entryJson.length} chars]`,
+                input:
+                  typeof sanitizedEntry.input === 'string' && sanitizedEntry.input.length > 1000
+                    ? `[Input truncated]${sanitizedEntry.input.substring(0, 200)}...`
+                    : sanitizedEntry.input,
+              }
+            }
+
+            return sanitizedEntry
+          })
 
           return {
             isOpen: state.isOpen,

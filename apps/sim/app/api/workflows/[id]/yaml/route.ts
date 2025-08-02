@@ -1,21 +1,25 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { autoLayoutWorkflow } from '@/lib/autolayout/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
+import { simAgentClient } from '@/lib/sim-agent'
 import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/db-helpers'
-import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
 import { getUserId as getOAuthUserId } from '@/app/api/auth/oauth/utils'
 import { getBlock } from '@/blocks'
+import { getAllBlocks } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
 import { db } from '@/db'
-import { copilotCheckpoints, workflow as workflowTable } from '@/db/schema'
+import { workflowCheckpoints, workflow as workflowTable } from '@/db/schema'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { convertYamlToWorkflow, parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
+
+// Sim Agent API configuration
+const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
+const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
 
 export const dynamic = 'force-dynamic'
 
@@ -50,14 +54,56 @@ async function createWorkflowCheckpoint(
 
     if (currentWorkflowData) {
       // Generate YAML from current state
-      const currentYaml = generateWorkflowYaml(currentWorkflowData)
+      // Gather block registry and utilities for sim-agent
+      const allBlockConfigs = getAllBlocks()
+      const blockRegistry = allBlockConfigs.reduce(
+        (acc, block) => {
+          const blockType = block.type
+          acc[blockType] = {
+            ...block,
+            id: blockType,
+            subBlocks: block.subBlocks || [],
+            outputs: block.outputs || {},
+          } as any
+          return acc
+        },
+        {} as Record<string, BlockConfig>
+      )
 
-      // Create checkpoint
-      await db.insert(copilotCheckpoints).values({
+      const generateResponse = await fetch(`${SIM_AGENT_API_URL}/api/workflow/to-yaml`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
+        },
+        body: JSON.stringify({
+          workflowState: currentWorkflowData,
+          blockRegistry,
+          utilities: {
+            generateLoopBlocks: generateLoopBlocks.toString(),
+            generateParallelBlocks: generateParallelBlocks.toString(),
+            resolveOutputType: resolveOutputType.toString(),
+          },
+        }),
+      })
+
+      if (!generateResponse.ok) {
+        const errorText = await generateResponse.text()
+        throw new Error(`Failed to generate YAML: ${errorText}`)
+      }
+
+      const generateResult = await generateResponse.json()
+      if (!generateResult.success || !generateResult.yaml) {
+        throw new Error(generateResult.error || 'Failed to generate YAML')
+      }
+      const currentYaml = generateResult.yaml
+
+      // Create checkpoint using new workflow_checkpoints table
+      await db.insert(workflowCheckpoints).values({
         userId,
         workflowId,
         chatId,
-        yaml: currentYaml,
+        workflowState: currentWorkflowData, // Store JSON workflow state
       })
 
       logger.info(`[${requestId}] Checkpoint created successfully`)
@@ -221,31 +267,107 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       await createWorkflowCheckpoint(userId, workflowId, chatId, requestId)
     }
 
-    // Parse YAML content
-    const { data: yamlWorkflow, errors: parseErrors } = parseWorkflowYaml(yamlContent)
+    // Convert YAML to workflow state by calling sim-agent directly
+    // Gather block registry and utilities for sim-agent
+    const allBlockTypes = getAllBlocks()
+    const blockRegistry = allBlockTypes.reduce(
+      (acc, block) => {
+        const blockType = block.type
+        acc[blockType] = {
+          ...block,
+          id: blockType,
+          subBlocks: block.subBlocks || [],
+          outputs: block.outputs || {},
+        } as any
+        return acc
+      },
+      {} as Record<string, BlockConfig>
+    )
 
-    if (!yamlWorkflow || parseErrors.length > 0) {
-      logger.error(`[${requestId}] YAML parsing failed`, { parseErrors })
+    const conversionResponse = await fetch(`${SIM_AGENT_API_URL}/api/yaml/to-workflow`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
+      },
+      body: JSON.stringify({
+        yamlContent,
+        blockRegistry,
+        utilities: {
+          generateLoopBlocks: generateLoopBlocks.toString(),
+          generateParallelBlocks: generateParallelBlocks.toString(),
+          resolveOutputType: resolveOutputType.toString(),
+        },
+        options: {
+          generateNewIds: false, // We'll handle ID generation manually for now
+          preservePositions: true,
+        },
+      }),
+    })
+
+    if (!conversionResponse.ok) {
+      const errorText = await conversionResponse.text()
+      logger.error(`[${requestId}] Sim agent API error:`, {
+        status: conversionResponse.status,
+        error: errorText,
+      })
       return NextResponse.json({
         success: false,
-        message: 'Failed to parse YAML workflow',
-        errors: parseErrors,
+        message: 'Failed to convert YAML to workflow',
+        errors: [`Sim agent API error: ${conversionResponse.statusText}`],
         warnings: [],
       })
     }
 
-    // Convert YAML to workflow format
-    const { blocks, edges, errors: convertErrors, warnings } = convertYamlToWorkflow(yamlWorkflow)
+    const conversionResult = await conversionResponse.json()
 
-    if (convertErrors.length > 0) {
-      logger.error(`[${requestId}] YAML conversion failed`, { convertErrors })
+    if (!conversionResult.success || !conversionResult.workflowState) {
+      logger.error(`[${requestId}] YAML conversion failed`, {
+        errors: conversionResult.errors,
+        warnings: conversionResult.warnings,
+      })
       return NextResponse.json({
         success: false,
         message: 'Failed to convert YAML to workflow',
-        errors: convertErrors,
-        warnings,
+        errors: conversionResult.errors,
+        warnings: conversionResult.warnings || [],
       })
     }
+
+    const { workflowState } = conversionResult
+
+    // Ensure all blocks have required fields
+    Object.values(workflowState.blocks).forEach((block: any) => {
+      if (block.enabled === undefined) {
+        block.enabled = true
+      }
+      if (block.horizontalHandles === undefined) {
+        block.horizontalHandles = true
+      }
+      if (block.isWide === undefined) {
+        block.isWide = false
+      }
+      if (block.height === undefined) {
+        block.height = 0
+      }
+      if (!block.subBlocks) {
+        block.subBlocks = {}
+      }
+      if (!block.outputs) {
+        block.outputs = {}
+      }
+    })
+
+    const blocks = Object.values(workflowState.blocks) as Array<{
+      id: string
+      type: string
+      name: string
+      position: { x: number; y: number }
+      subBlocks?: Record<string, any>
+      data?: Record<string, any>
+    }>
+    const edges = workflowState.edges
+    const warnings = conversionResult.warnings || []
 
     // Create workflow state
     const newWorkflowState: any = {
@@ -301,17 +423,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           }
         })
 
-        // Also ensure we have subBlocks for any YAML inputs that might not be in the config
+        // Also ensure we have subBlocks for any existing subBlocks from conversion
         // This handles cases where hidden fields or dynamic configurations exist
-        Object.keys(block.inputs).forEach((inputKey) => {
-          if (!subBlocks[inputKey]) {
-            subBlocks[inputKey] = {
-              id: inputKey,
-              type: 'short-input', // Default type for dynamic inputs
-              value: null,
+        if (block.subBlocks) {
+          Object.keys(block.subBlocks).forEach((subBlockKey) => {
+            if (!subBlocks[subBlockKey]) {
+              subBlocks[subBlockKey] = {
+                id: subBlockKey,
+                type: block.subBlocks![subBlockKey].type || 'short-input',
+                value: block.subBlocks![subBlockKey].value || null,
+              }
             }
-          }
-        })
+          })
+        }
 
         // Set up outputs from block configuration
         const outputs = resolveOutputType(blockConfig.outputs)
@@ -337,16 +461,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    // Set input values as subblock values with block reference mapping
+    // Set subblock values with block reference mapping
     for (const block of blocks) {
       const newId = blockIdMapping.get(block.id)
       if (!newId || !newWorkflowState.blocks[newId]) continue
 
-      if (block.inputs && typeof block.inputs === 'object') {
-        Object.entries(block.inputs).forEach(([key, value]) => {
-          if (newWorkflowState.blocks[newId].subBlocks[key]) {
+      if (block.subBlocks && typeof block.subBlocks === 'object') {
+        Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
+          if (newWorkflowState.blocks[newId].subBlocks[key] && subBlock.value !== undefined) {
             // Update block references in values to use new mapped IDs
-            const processedValue = updateBlockReferences(value, blockIdMapping, requestId)
+            const processedValue = updateBlockReferences(subBlock.value, blockIdMapping, requestId)
             newWorkflowState.blocks[newId].subBlocks[key].value = processedValue
           }
         })
@@ -423,26 +547,66 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       try {
         logger.info(`[${requestId}] Applying autolayout`)
 
-        const layoutedBlocks = await autoLayoutWorkflow(
-          newWorkflowState.blocks,
-          newWorkflowState.edges,
-          {
-            strategy: 'smart',
-            direction: 'auto',
-            spacing: {
-              horizontal: 400,
-              vertical: 200,
-              layer: 600,
-            },
-            alignment: 'center',
-            padding: {
-              x: 200,
-              y: 200,
-            },
-          }
+        // Create workflow state for autolayout
+        const workflowStateForLayout = {
+          blocks: newWorkflowState.blocks,
+          edges: newWorkflowState.edges,
+          loops: newWorkflowState.loops || {},
+          parallels: newWorkflowState.parallels || {},
+        }
+
+        const autoLayoutOptions = {
+          strategy: 'smart' as const,
+          direction: 'auto' as const,
+          spacing: {
+            horizontal: 500,
+            vertical: 400,
+            layer: 700,
+          },
+          alignment: 'center' as const,
+          padding: {
+            x: 250,
+            y: 250,
+          },
+        }
+
+        // Gather block registry and utilities for sim-agent
+        const blocks = getAllBlocks()
+        const blockRegistry = blocks.reduce(
+          (acc, block) => {
+            const blockType = block.type
+            acc[blockType] = {
+              ...block,
+              id: blockType,
+              subBlocks: block.subBlocks || [],
+              outputs: block.outputs || {},
+            } as any
+            return acc
+          },
+          {} as Record<string, BlockConfig>
         )
 
-        newWorkflowState.blocks = layoutedBlocks
+        const autoLayoutResult = await simAgentClient.makeRequest('/api/yaml/autolayout', {
+          body: {
+            workflowState: workflowStateForLayout,
+            options: autoLayoutOptions,
+            blockRegistry,
+            utilities: {
+              generateLoopBlocks: generateLoopBlocks.toString(),
+              generateParallelBlocks: generateParallelBlocks.toString(),
+              resolveOutputType: resolveOutputType.toString(),
+            },
+          },
+        })
+
+        if (autoLayoutResult.success && autoLayoutResult.data?.workflowState) {
+          newWorkflowState.blocks = autoLayoutResult.data.workflowState.blocks
+        } else {
+          logger.warn(
+            `[${requestId}] Auto layout failed, using original positions:`,
+            autoLayoutResult.error
+          )
+        }
         logger.info(`[${requestId}] Autolayout completed successfully`)
       } catch (layoutError) {
         logger.warn(`[${requestId}] Autolayout failed, using original positions:`, layoutError)

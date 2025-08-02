@@ -1,10 +1,9 @@
-import { dump as yamlDump, load as yamlLoad } from 'js-yaml'
+import { dump as yamlDump } from 'js-yaml'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
-import type { EditorFormat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-text-editor/workflow-text-editor'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { EditorFormat } from './workflow-text-editor'
 
 const logger = createLogger('WorkflowExporter')
 
@@ -69,13 +68,36 @@ export function generateFullWorkflowData() {
 /**
  * Export workflow in the specified format
  */
-export function exportWorkflow(format: EditorFormat): string {
+export async function exportWorkflow(format: EditorFormat): Promise<string> {
   try {
     if (format === 'yaml') {
-      // Use the existing YAML generator for condensed format
+      // Use the YAML service for conversion
       const workflowState = useWorkflowStore.getState()
       const subBlockValues = getSubBlockValues()
-      return generateWorkflowYaml(workflowState, subBlockValues)
+
+      // Call the API route to generate YAML (server has access to API key)
+      const response = await fetch('/api/workflows/yaml/convert', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          workflowState,
+          subBlockValues,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.error || `Failed to generate YAML: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+
+      if (!result.success || !result.yaml) {
+        throw new Error(result.error || 'Failed to generate YAML')
+      }
+      return result.yaml
     }
     // Generate full JSON format
     const fullData = generateFullWorkflowData()
@@ -89,9 +111,11 @@ export function exportWorkflow(format: EditorFormat): string {
 /**
  * Parse workflow content based on format
  */
-export function parseWorkflowContent(content: string, format: EditorFormat): any {
+export async function parseWorkflowContent(content: string, format: EditorFormat): Promise<any> {
   if (format === 'yaml') {
-    return yamlLoad(content)
+    // For now, we'll parse YAML on the server when it's being saved
+    // The workflow-text-editor should handle the actual conversion
+    throw new Error('YAML parsing should be handled by the server when saving the workflow')
   }
   return JSON.parse(content)
 }

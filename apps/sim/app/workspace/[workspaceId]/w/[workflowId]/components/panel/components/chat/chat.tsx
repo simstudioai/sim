@@ -11,10 +11,8 @@ import {
   extractPathFromOutputId,
   parseOutputContentSafely,
 } from '@/lib/response-format'
-import {
-  ChatMessage,
-  OutputSelect,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components'
+import { ChatMessage } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components/chat-message/chat-message'
+import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components/output-select/output-select'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import type { BlockLog, ExecutionResult } from '@/executor/types'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -32,6 +30,7 @@ interface ChatProps {
 
 export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   const { activeWorkflowId } = useWorkflowRegistry()
+
   const {
     messages,
     addMessage,

@@ -8,7 +8,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions, hasAdminPermission } from '@/lib/permissions/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
-import { workflow } from '@/db/schema'
+import { apiKey as apiKeyTable, workflow } from '@/db/schema'
 
 const logger = createLogger('WorkflowByIdAPI')
 
@@ -47,13 +47,33 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // For internal calls, we'll skip user-specific access checks
       logger.info(`[${requestId}] Internal API call for workflow ${workflowId}`)
     } else {
-      // Get the session for regular user calls
+      // Try session auth first (for web UI)
       const session = await getSession()
-      if (!session?.user?.id) {
+      let authenticatedUserId: string | null = session?.user?.id || null
+
+      // If no session, check for API key auth
+      if (!authenticatedUserId) {
+        const apiKeyHeader = request.headers.get('x-api-key')
+        if (apiKeyHeader) {
+          // Verify API key
+          const [apiKeyRecord] = await db
+            .select({ userId: apiKeyTable.userId })
+            .from(apiKeyTable)
+            .where(eq(apiKeyTable.key, apiKeyHeader))
+            .limit(1)
+
+          if (apiKeyRecord) {
+            authenticatedUserId = apiKeyRecord.userId
+          }
+        }
+      }
+
+      if (!authenticatedUserId) {
         logger.warn(`[${requestId}] Unauthorized access attempt for workflow ${workflowId}`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
-      userId = session.user.id
+
+      userId = authenticatedUserId
     }
 
     // Fetch the workflow

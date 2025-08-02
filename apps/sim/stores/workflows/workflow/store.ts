@@ -208,20 +208,29 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => {
-        set((state) => ({
-          blocks: {
-            ...state.blocks,
-            [id]: {
-              ...state.blocks[id],
-              data: {
-                ...state.blocks[id].data,
-                width: dimensions.width,
-                height: dimensions.height,
+        set((state) => {
+          // Check if the block exists before trying to update it
+          const block = state.blocks[id]
+          if (!block) {
+            logger.warn(`Cannot update dimensions: Block ${id} not found in workflow store`)
+            return state // Return unchanged state
+          }
+
+          return {
+            blocks: {
+              ...state.blocks,
+              [id]: {
+                ...block,
+                data: {
+                  ...block.data,
+                  width: dimensions.width,
+                  height: dimensions.height,
+                },
               },
             },
-          },
-          edges: [...state.edges],
-        }))
+            edges: [...state.edges],
+          }
+        })
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
       },
@@ -465,6 +474,23 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       updateLastSaved: () => {
         set({ lastSaved: Date.now() })
         // Note: Socket.IO handles real-time sync automatically
+      },
+
+      // Add method to get current workflow state (eliminates duplication in diff store)
+      getWorkflowState: (): WorkflowState => {
+        const state = get()
+        return {
+          blocks: state.blocks,
+          edges: state.edges,
+          loops: state.loops,
+          parallels: state.parallels,
+          lastSaved: state.lastSaved,
+          isDeployed: state.isDeployed,
+          deployedAt: state.deployedAt,
+          deploymentStatuses: state.deploymentStatuses,
+          needsRedeployment: state.needsRedeployment,
+          hasActiveWebhook: state.hasActiveWebhook,
+        }
       },
 
       toggleBlockEnabled: (id: string) => {

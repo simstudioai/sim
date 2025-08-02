@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
   Background,
   ConnectionLineType,
+  type Edge,
   type EdgeTypes,
   type NodeTypes,
   ReactFlowProvider,
@@ -13,33 +14,34 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import { ControlBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/control-bar'
+import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/diff-controls'
+import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
+import { LoopNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/loop-node/loop-node'
+import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/panel'
+import { ParallelNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/parallel-node/parallel-node'
+import { getBlock } from '@/blocks'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
+import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
+import { useCopilotStore } from '@/stores/copilot/store'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useGeneralStore } from '@/stores/settings/general/store'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { WorkflowBlock } from './components/workflow-block/workflow-block'
+import { WorkflowEdge } from './components/workflow-edge/workflow-edge'
+import { useCurrentWorkflow } from './hooks'
 import {
-  ControlBar,
-  ErrorBoundary,
-  LoopNodeComponent,
-  Panel,
-  ParallelNodeComponent,
-  WorkflowBlock,
-  WorkflowEdge,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
-import {
-  applyAutoLayoutSmooth,
-  detectHandleOrientation,
   getNodeAbsolutePosition,
   getNodeDepth,
   getNodeHierarchy,
   isPointInLoopNode,
   resizeLoopNodes,
   updateNodeParent as updateNodeParentUtil,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
-import { getBlock } from '@/blocks'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
-import { useExecutionStore } from '@/stores/execution/store'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import { useGeneralStore } from '@/stores/settings/general/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+} from './utils'
 
 const logger = createLogger('Workflow')
 
@@ -87,15 +89,81 @@ const WorkflowContent = React.memo(() => {
   const { workflows, activeWorkflowId, isLoading, setActiveWorkflow, createWorkflow } =
     useWorkflowRegistry()
 
-  const {
-    blocks,
-    edges,
-    updateNodeDimensions,
-    updateBlockPosition: storeUpdateBlockPosition,
-  } = useWorkflowStore()
+  // Use the clean abstraction for current workflow state
+  const currentWorkflow = useCurrentWorkflow()
+
+  const { updateNodeDimensions, updateBlockPosition: storeUpdateBlockPosition } = useWorkflowStore()
+
+  // Get copilot cleanup function
+  const copilotCleanup = useCopilotStore((state) => state.cleanup)
+
+  // Handle copilot stream cleanup on page unload and component unmount
+  useStreamCleanup(copilotCleanup)
+
+  // Extract workflow data from the abstraction
+  const { blocks, edges, loops, parallels, isDiffMode } = currentWorkflow
+
+  // Get diff analysis for edge reconstruction
+  const { diffAnalysis, isShowingDiff, isDiffReady } = useWorkflowDiffStore()
+
+  // Reconstruct deleted edges when viewing original workflow
+  const edgesForDisplay = useMemo(() => {
+    // If we're not in diff mode and we have diff analysis with deleted edges,
+    // we need to reconstruct those deleted edges and add them to the display
+    // Only do this if diff is ready to prevent race conditions
+    if (!isShowingDiff && isDiffReady && diffAnalysis?.edge_diff?.deleted_edges) {
+      const reconstructedEdges: Edge[] = []
+
+      // Parse deleted edge identifiers to reconstruct edges
+      diffAnalysis.edge_diff.deleted_edges.forEach((edgeIdentifier) => {
+        // Edge identifier format: "sourceId-source-targetId-target"
+        // Parse this to extract the components
+        const match = edgeIdentifier.match(/^([^-]+)-source-([^-]+)-target$/)
+        if (match) {
+          const [, sourceId, targetId] = match
+
+          // Only reconstruct if both blocks still exist
+          if (blocks[sourceId] && blocks[targetId]) {
+            // Generate a unique edge ID
+            const edgeId = `deleted-edge-${sourceId}-${targetId}`
+
+            reconstructedEdges.push({
+              id: edgeId,
+              source: sourceId,
+              target: targetId,
+              sourceHandle: null, // Default handle
+              targetHandle: null, // Default handle
+              type: 'workflowEdge',
+            })
+          }
+        }
+      })
+
+      // Combine existing edges with reconstructed deleted edges
+      return [...edges, ...reconstructedEdges]
+    }
+
+    // Otherwise, just use the edges as-is
+    return edges
+  }, [edges, isShowingDiff, isDiffReady, diffAnalysis, blocks])
 
   // User permissions - get current user's specific permissions from context
   const userPermissions = useUserPermissionsContext()
+
+  // Create diff-aware permissions that disable editing when in diff mode
+  const effectivePermissions = useMemo(() => {
+    if (isDiffMode) {
+      // In diff mode, disable all editing regardless of user permissions
+      return {
+        ...userPermissions,
+        canEdit: false,
+        canAdmin: false,
+        // Keep canRead true so users can still view content
+        canRead: userPermissions.canRead,
+      }
+    }
+    return userPermissions
+  }, [userPermissions, isDiffMode])
 
   // Workspace permissions - get all users and their permissions for this workspace
   const { permissions: workspacePermissions, error: permissionsError } = useWorkspacePermissions(
@@ -215,73 +283,25 @@ const WorkflowContent = React.memo(() => {
     [getNodes]
   )
 
-  // Helper function to get orientation config
-  const getOrientationConfig = useCallback((orientation: string) => {
-    return orientation === 'vertical'
-      ? {
-          // Vertical handles: optimize for top-to-bottom flow
-          horizontalSpacing: 400,
-          verticalSpacing: 300,
-          startX: 200,
-          startY: 200,
-        }
-      : {
-          // Horizontal handles: optimize for left-to-right flow
-          horizontalSpacing: 600,
-          verticalSpacing: 200,
-          startX: 150,
-          startY: 300,
-        }
-  }, [])
-
-  // Auto-layout handler
-  const handleAutoLayout = useCallback(() => {
+  // Auto-layout handler - now uses frontend auto layout for immediate updates
+  const handleAutoLayout = useCallback(async () => {
     if (Object.keys(blocks).length === 0) return
 
-    // Detect the predominant handle orientation in the workflow
-    const detectedOrientation = detectHandleOrientation(blocks)
+    try {
+      // Use the shared auto layout utility for immediate frontend updates
+      const { applyAutoLayoutAndUpdateStore } = await import('./utils/auto-layout')
 
-    // Get spacing configuration based on handle orientation
-    const orientationConfig = getOrientationConfig(detectedOrientation)
+      const result = await applyAutoLayoutAndUpdateStore(activeWorkflowId!)
 
-    applyAutoLayoutSmooth(
-      blocks,
-      edges,
-      storeUpdateBlockPosition,
-      fitView,
-      resizeLoopNodesWrapper,
-      {
-        ...orientationConfig,
-        alignByLayer: true,
-        animationDuration: 500, // Smooth 500ms animation
-        handleOrientation: detectedOrientation, // Explicitly set the detected orientation
-        onComplete: (finalPositions) => {
-          // Emit collaborative updates for final positions after animation completes
-          finalPositions.forEach((position, blockId) => {
-            collaborativeUpdateBlockPosition(blockId, position)
-          })
-        },
+      if (result.success) {
+        logger.info('Auto layout completed successfully')
+      } else {
+        logger.error('Auto layout failed:', result.error)
       }
-    )
-
-    const orientationMessage =
-      detectedOrientation === 'vertical'
-        ? 'Auto-layout applied with vertical flow (top-to-bottom)'
-        : 'Auto-layout applied with horizontal flow (left-to-right)'
-
-    logger.info(orientationMessage, {
-      orientation: detectedOrientation,
-      blockCount: Object.keys(blocks).length,
-    })
-  }, [
-    blocks,
-    edges,
-    storeUpdateBlockPosition,
-    collaborativeUpdateBlockPosition,
-    fitView,
-    resizeLoopNodesWrapper,
-    getOrientationConfig,
-  ])
+    } catch (error) {
+      logger.error('Auto layout error:', error)
+    }
+  }, [activeWorkflowId, blocks])
 
   const debouncedAutoLayout = useCallback(() => {
     const debounceTimer = setTimeout(() => {
@@ -322,32 +342,6 @@ const WorkflowContent = React.memo(() => {
       if (cleanup) cleanup()
     }
   }, [debouncedAutoLayout])
-
-  useEffect(() => {
-    let cleanup: (() => void) | null = null
-
-    const handleAutoLayoutEvent = () => {
-      if (cleanup) cleanup()
-
-      // Call auto layout directly without debounce for copilot events
-      handleAutoLayout()
-
-      // Also set up debounced version as backup
-      cleanup = debouncedAutoLayout()
-    }
-
-    window.addEventListener('trigger-auto-layout', handleAutoLayoutEvent)
-
-    return () => {
-      window.removeEventListener('trigger-auto-layout', handleAutoLayoutEvent)
-      if (cleanup) cleanup()
-    }
-  }, [debouncedAutoLayout])
-
-  // Note: Workflow room joining is now handled automatically by socket connect event based on URL
-  // This eliminates the need for manual joining when active workflow changes
-
-  // Note: Workflow initialization now handled by Socket.IO system
 
   // Handle drops
   const findClosestOutput = useCallback(
@@ -403,7 +397,7 @@ const WorkflowContent = React.memo(() => {
   useEffect(() => {
     const handleAddBlockFromToolbar = (event: CustomEvent) => {
       // Check if user has permission to interact with blocks
-      if (!userPermissions.canEdit) {
+      if (!effectivePermissions.canEdit) {
         return
       }
 
@@ -526,7 +520,7 @@ const WorkflowContent = React.memo(() => {
     addEdge,
     findClosestOutput,
     determineSourceHandle,
-    userPermissions.canEdit,
+    effectivePermissions.canEdit,
   ])
 
   // Update the onDrop handler
@@ -1424,7 +1418,7 @@ const WorkflowContent = React.memo(() => {
   )
 
   // Transform edges to include improved selection state
-  const edgesWithSelection = edges.map((edge) => {
+  const edgesWithSelection = edgesForDisplay.map((edge) => {
     // Check if this edge connects nodes inside a loop
     const sourceNode = getNodes().find((n) => n.id === edge.source)
     const targetNode = getNodes().find((n) => n.id === edge.target)
@@ -1534,11 +1528,11 @@ const WorkflowContent = React.memo(() => {
           edges={edgesWithSelection}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onConnect={userPermissions.canEdit ? onConnect : undefined}
+          onConnect={effectivePermissions.canEdit ? onConnect : undefined}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          onDrop={userPermissions.canEdit ? onDrop : undefined}
-          onDragOver={userPermissions.canEdit ? onDragOver : undefined}
+          onDrop={effectivePermissions.canEdit ? onDrop : undefined}
+          onDragOver={effectivePermissions.canEdit ? onDragOver : undefined}
           fitView
           minZoom={0.1}
           maxZoom={1.3}
@@ -1558,22 +1552,22 @@ const WorkflowContent = React.memo(() => {
           onEdgeClick={onEdgeClick}
           elementsSelectable={true}
           selectNodesOnDrag={false}
-          nodesConnectable={userPermissions.canEdit}
-          nodesDraggable={userPermissions.canEdit}
+          nodesConnectable={effectivePermissions.canEdit}
+          nodesDraggable={effectivePermissions.canEdit}
           draggable={false}
           noWheelClassName='allow-scroll'
           edgesFocusable={true}
-          edgesUpdatable={userPermissions.canEdit}
+          edgesUpdatable={effectivePermissions.canEdit}
           className='workflow-container h-full'
-          onNodeDrag={userPermissions.canEdit ? onNodeDrag : undefined}
-          onNodeDragStop={userPermissions.canEdit ? onNodeDragStop : undefined}
-          onNodeDragStart={userPermissions.canEdit ? onNodeDragStart : undefined}
+          onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
+          onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
+          onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}
           snapToGrid={false}
           snapGrid={[20, 20]}
           elevateEdgesOnSelect={true}
           elevateNodesOnSelect={true}
-          autoPanOnConnect={userPermissions.canEdit}
-          autoPanOnNodeDrag={userPermissions.canEdit}
+          autoPanOnConnect={effectivePermissions.canEdit}
+          autoPanOnNodeDrag={effectivePermissions.canEdit}
         >
           <Background
             color='hsl(var(--workflow-dots))'
@@ -1582,6 +1576,9 @@ const WorkflowContent = React.memo(() => {
             style={{ backgroundColor: 'hsl(var(--workflow-background))' }}
           />
         </ReactFlow>
+
+        {/* Show DiffControls if diff is available (regardless of current view mode) */}
+        <DiffControls />
       </div>
     </div>
   )

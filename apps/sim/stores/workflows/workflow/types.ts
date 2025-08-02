@@ -202,6 +202,9 @@ export interface WorkflowActions {
 
   // Add the sync control methods to the WorkflowActions interface
   sync: SyncControl
+
+  // Add method to get current workflow state (eliminates duplication in diff store)
+  getWorkflowState: () => WorkflowState
 }
 
 export type WorkflowStore = WorkflowState & WorkflowActions

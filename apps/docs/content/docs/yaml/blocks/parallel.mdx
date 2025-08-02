@@ -59,9 +59,6 @@ properties:
           end:
             type: string
             description: Target block ID after all parallel instances complete (optional)
-      success:
-        type: string
-        description: Target block ID after all instances complete (alternative format)
       error:
         type: string
         description: Target block ID for error handling
@@ -76,13 +73,6 @@ connections:
   parallel:
     start: <string>                     # Target block ID to execute inside each parallel instance
     end: <string>                       # Target block ID after all instances complete (optional)
-  error: <string>                       # Target block ID for error handling (optional)
-```
-
-Alternative format (legacy):
-```yaml
-connections:
-  success: <string>                     # Target block ID after all instances complete
   error: <string>                       # Target block ID for error handling (optional)
 ```
 

@@ -22,6 +22,8 @@ export const env = createEnv({
     DISABLE_REGISTRATION:                 z.boolean().optional(),               // Flag to disable new user registration
     ENCRYPTION_KEY:                       z.string().min(32),                   // Key for encrypting sensitive data
     INTERNAL_API_SECRET:                  z.string().min(32),                   // Secret for internal API authentication
+    SIM_AGENT_API_KEY:                    z.string().min(1).optional(),         // Secret for internal sim agent API authentication
+    SIM_AGENT_API_URL:                    z.string().url().optional(),          // URL for internal sim agent API
 
     // Database & Storage
     POSTGRES_URL:                         z.string().url().optional(),          // Alternative PostgreSQL connection string

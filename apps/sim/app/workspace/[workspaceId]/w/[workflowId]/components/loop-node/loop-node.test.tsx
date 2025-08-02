@@ -48,9 +48,14 @@ vi.mock('@/components/ui/card', () => ({
   Card: ({ children, ...props }: any) => ({ children, ...props }),
 }))
 
-vi.mock('@/components/icons', () => ({
-  StartIcon: ({ className }: any) => ({ className }),
-}))
+vi.mock('@/components/icons', async (importOriginal) => {
+  const actual = (await importOriginal()) as any
+  return {
+    ...actual,
+    // Override specific icons if needed for testing
+    StartIcon: ({ className }: any) => ({ className }),
+  }
+})
 
 vi.mock('@/lib/utils', () => ({
   cn: (...classes: any[]) => classes.filter(Boolean).join(' '),

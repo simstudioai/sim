@@ -6,6 +6,7 @@ import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import { useSocket } from '@/contexts/socket-context'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -36,6 +37,7 @@ export function useCollaborativeWorkflow() {
   const workflowStore = useWorkflowStore()
   const subBlockStore = useSubBlockStore()
   const { data: session } = useSession()
+  const { isShowingDiff } = useWorkflowDiffStore()
 
   // Track if we're applying remote changes to avoid infinite loops
   const isApplyingRemoteChange = useRef(false)
@@ -377,6 +379,12 @@ export function useCollaborativeWorkflow() {
         return
       }
 
+      // Skip socket operations when in diff mode
+      if (isShowingDiff) {
+        logger.debug('Skipping socket operation in diff mode:', operation)
+        return
+      }
+
       const operationId = crypto.randomUUID()
 
       addToQueue({
@@ -392,18 +400,24 @@ export function useCollaborativeWorkflow() {
 
       localAction()
     },
-    [addToQueue, session?.user?.id]
+    [addToQueue, session?.user?.id, isShowingDiff]
   )
 
   const executeQueuedDebouncedOperation = useCallback(
     (operation: string, target: string, payload: any, localAction: () => void) => {
       if (isApplyingRemoteChange.current) return
 
+      // Skip socket operations when in diff mode
+      if (isShowingDiff) {
+        logger.debug('Skipping debounced socket operation in diff mode:', operation)
+        return
+      }
+
       localAction()
 
       emitWorkflowOperation(operation, target, payload)
     },
-    [emitWorkflowOperation]
+    [emitWorkflowOperation, isShowingDiff]
   )
 
   const collaborativeAddBlock = useCallback(
@@ -417,6 +431,12 @@ export function useCollaborativeWorkflow() {
       extent?: 'parent',
       autoConnectEdge?: Edge
     ) => {
+      // Skip socket operations when in diff mode
+      if (isShowingDiff) {
+        logger.debug('Skipping collaborative add block in diff mode')
+        return
+      }
+
       const blockConfig = getBlock(type)
 
       // Handle loop/parallel blocks that don't use BlockConfig
@@ -536,7 +556,7 @@ export function useCollaborativeWorkflow() {
         workflowStore.addEdge(autoConnectEdge)
       }
     },
-    [workflowStore, emitWorkflowOperation, addToQueue, session?.user?.id]
+    [workflowStore, emitWorkflowOperation, addToQueue, session?.user?.id, isShowingDiff]
   )
 
   const collaborativeRemoveBlock = useCallback(
@@ -687,6 +707,12 @@ export function useCollaborativeWorkflow() {
     (blockId: string, subblockId: string, value: any) => {
       if (isApplyingRemoteChange.current) return
 
+      // Skip socket operations when in diff mode
+      if (isShowingDiff) {
+        logger.debug('Skipping collaborative subblock update in diff mode')
+        return
+      }
+
       if (!currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
         logger.debug('Skipping subblock update - not in active workflow', {
           currentWorkflowId,
@@ -722,6 +748,7 @@ export function useCollaborativeWorkflow() {
       activeWorkflowId,
       addToQueue,
       session?.user?.id,
+      isShowingDiff,
     ]
   )
 

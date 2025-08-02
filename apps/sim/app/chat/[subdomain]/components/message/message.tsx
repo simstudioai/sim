@@ -3,10 +3,8 @@
 import { memo, useMemo, useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ToolCallCompletion, ToolCallExecution } from '@/components/ui/tool-call'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { parseMessageContent, stripToolCallIndicators } from '@/lib/tool-call-parser'
-import MarkdownRenderer from '@/app/chat/[subdomain]/components/message/components/markdown-renderer'
+import MarkdownRenderer from './components/markdown-renderer'
 
 export interface ChatMessage {
   id: string
@@ -33,21 +31,9 @@ export const ClientChatMessage = memo(
       return typeof message.content === 'object' && message.content !== null
     }, [message.content])
 
-    // Parse message content to separate text and tool calls (only for assistant messages)
-    const parsedContent = useMemo(() => {
-      if (message.type === 'assistant' && typeof message.content === 'string') {
-        return parseMessageContent(message.content)
-      }
-      return null
-    }, [message.type, message.content])
-
-    // Get clean text content without tool call indicators
-    const cleanTextContent = useMemo(() => {
-      if (message.type === 'assistant' && typeof message.content === 'string') {
-        return stripToolCallIndicators(message.content)
-      }
-      return message.content
-    }, [message.type, message.content])
+    // Since tool calls are now handled via SSE events and stored in message.toolCalls,
+    // we can use the content directly without parsing
+    const cleanTextContent = message.content
 
     // For user messages (on the right)
     if (message.type === 'user') {
@@ -75,57 +61,18 @@ export const ClientChatMessage = memo(
       <div className='px-4 pt-5 pb-2' data-message-id={message.id}>
         <div className='mx-auto max-w-3xl'>
           <div className='flex flex-col space-y-3'>
-            {/* Inline content rendering - tool calls and text in order */}
-            {parsedContent?.inlineContent && parsedContent.inlineContent.length > 0 ? (
-              <div className='space-y-2'>
-                {parsedContent.inlineContent.map((item, index) => {
-                  if (item.type === 'tool_call' && item.toolCall) {
-                    const toolCall = item.toolCall
-                    return (
-                      <div key={`${toolCall.id}-${index}`}>
-                        {toolCall.state === 'detecting' && (
-                          <div className='flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm dark:border-blue-800 dark:bg-blue-950'>
-                            <div className='h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent dark:border-blue-400' />
-                            <span className='text-blue-800 dark:text-blue-200'>
-                              Detecting {toolCall.displayName || toolCall.name}...
-                            </span>
-                          </div>
-                        )}
-                        {toolCall.state === 'executing' && (
-                          <ToolCallExecution toolCall={toolCall} isCompact={true} />
-                        )}
-                        {(toolCall.state === 'completed' || toolCall.state === 'error') && (
-                          <ToolCallCompletion toolCall={toolCall} isCompact={true} />
-                        )}
-                      </div>
-                    )
-                  }
-                  if (item.type === 'text' && item.content.trim()) {
-                    return (
-                      <div key={`text-${index}`}>
-                        <div className='break-words text-lg'>
-                          <EnhancedMarkdownRenderer content={item.content} />
-                        </div>
-                      </div>
-                    )
-                  }
-                  return null
-                })}
+            {/* Direct content rendering - tool calls are now handled via SSE events */}
+            <div>
+              <div className='break-words text-base'>
+                {isJsonObject ? (
+                  <pre className='text-gray-800 dark:text-gray-100'>
+                    {JSON.stringify(cleanTextContent, null, 2)}
+                  </pre>
+                ) : (
+                  <EnhancedMarkdownRenderer content={cleanTextContent as string} />
+                )}
               </div>
-            ) : (
-              /* Fallback for empty content or no inline content */
-              <div>
-                <div className='break-words text-lg'>
-                  {isJsonObject ? (
-                    <pre className='text-gray-800 dark:text-gray-100'>
-                      {JSON.stringify(cleanTextContent, null, 2)}
-                    </pre>
-                  ) : (
-                    <EnhancedMarkdownRenderer content={cleanTextContent as string} />
-                  )}
-                </div>
-              </div>
-            )}
+            </div>
             {message.type === 'assistant' && !isJsonObject && !message.isInitialMessage && (
               <div className='flex items-center justify-start space-x-2'>
                 {/* Copy Button - Only show when not streaming */}

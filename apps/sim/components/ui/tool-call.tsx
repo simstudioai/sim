@@ -5,7 +5,6 @@ import { CheckCircle, ChevronDown, ChevronRight, Loader2, Settings, XCircle } fr
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { getToolDisplayName } from '@/lib/tool-call-parser'
 import { cn } from '@/lib/utils'
 import type { ToolCallGroup, ToolCallState } from '@/types/tool-call'
 
@@ -96,6 +95,7 @@ export function ToolCallCompletion({ toolCall, isCompact = false }: ToolCallProp
   const [isExpanded, setIsExpanded] = useState(false)
   const isSuccess = toolCall.state === 'completed'
   const isError = toolCall.state === 'error'
+  const isAborted = toolCall.state === 'aborted'
 
   const formatDuration = (duration?: number) => {
     if (!duration) return ''
@@ -107,7 +107,8 @@ export function ToolCallCompletion({ toolCall, isCompact = false }: ToolCallProp
       className={cn(
         'min-w-0 rounded-lg border',
         isSuccess && 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950',
-        isError && 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950'
+        isError && 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950',
+        isAborted && 'border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950'
       )}
     >
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
@@ -117,7 +118,8 @@ export function ToolCallCompletion({ toolCall, isCompact = false }: ToolCallProp
             className={cn(
               'w-full min-w-0 justify-between px-3 py-4',
               isSuccess && 'hover:bg-green-100 dark:hover:bg-green-900',
-              isError && 'hover:bg-red-100 dark:hover:bg-red-900'
+              isError && 'hover:bg-red-100 dark:hover:bg-red-900',
+              isAborted && 'hover:bg-orange-100 dark:hover:bg-orange-900'
             )}
           >
             <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
@@ -125,14 +127,18 @@ export function ToolCallCompletion({ toolCall, isCompact = false }: ToolCallProp
                 <CheckCircle className='h-4 w-4 shrink-0 text-green-600 dark:text-green-400' />
               )}
               {isError && <XCircle className='h-4 w-4 shrink-0 text-red-600 dark:text-red-400' />}
+              {isAborted && (
+                <XCircle className='h-4 w-4 shrink-0 text-orange-600 dark:text-orange-400' />
+              )}
               <span
                 className={cn(
                   'min-w-0 truncate font-mono text-xs',
                   isSuccess && 'text-green-800 dark:text-green-200',
-                  isError && 'text-red-800 dark:text-red-200'
+                  isError && 'text-red-800 dark:text-red-200',
+                  isAborted && 'text-orange-800 dark:text-orange-200'
                 )}
               >
-                {getToolDisplayName(toolCall.name, true)}
+                {toolCall.displayName || toolCall.name}
               </span>
               {toolCall.duration && (
                 <Badge
@@ -140,7 +146,8 @@ export function ToolCallCompletion({ toolCall, isCompact = false }: ToolCallProp
                   className={cn(
                     'shrink-0 text-xs',
                     isSuccess && 'text-green-700 dark:text-green-300',
-                    isError && 'text-red-700 dark:text-red-300'
+                    isError && 'text-red-700 dark:text-red-300',
+                    isAborted && 'text-orange-700 dark:text-orange-300'
                   )}
                   style={{ fontSize: '0.625rem' }}
                 >

@@ -3,8 +3,12 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
+import { simAgentClient } from '@/lib/sim-agent'
+import { getAllBlocks } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
+import { resolveOutputType } from '@/blocks/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('ImportControls')
 
@@ -86,16 +90,44 @@ export const ImportControls = forwardRef<ImportControlsRef, ImportControlsProps>
 
       try {
         // First validate the YAML without importing
-        const { data: yamlWorkflow, errors: parseErrors } = parseWorkflowYaml(content)
+        // Gather block registry and utilities for sim-agent
+        const blocks = getAllBlocks()
+        const blockRegistry = blocks.reduce(
+          (acc, block) => {
+            const blockType = block.type
+            acc[blockType] = {
+              ...block,
+              id: blockType,
+              subBlocks: block.subBlocks || [],
+              outputs: block.outputs || {},
+            } as any
+            return acc
+          },
+          {} as Record<string, BlockConfig>
+        )
 
-        if (!yamlWorkflow || parseErrors.length > 0) {
+        const parseResult = await simAgentClient.makeRequest('/api/yaml/parse', {
+          body: {
+            yamlContent: content,
+            blockRegistry,
+            utilities: {
+              generateLoopBlocks: generateLoopBlocks.toString(),
+              generateParallelBlocks: generateParallelBlocks.toString(),
+              resolveOutputType: resolveOutputType.toString(),
+            },
+          },
+        })
+
+        if (!parseResult.success || !parseResult.data?.data) {
           setImportResult({
             success: false,
-            errors: parseErrors,
+            errors: parseResult.data?.errors || [parseResult.error || 'Failed to parse YAML'],
             warnings: [],
           })
           return
         }
+
+        const yamlWorkflow = parseResult.data.data
 
         // Create a new workflow
         const newWorkflowId = await createWorkflow({
