@@ -4,16 +4,9 @@
 
 import { BaseTool } from '../base-tool'
 import type { CopilotToolCall, ToolExecuteResult, ToolMetadata, ToolExecutionOptions } from '../types'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useExecutionStore } from '@/stores/execution/store'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { mergeSubblockState } from '@/stores/workflows/utils'
-import { Executor } from '@/executor'
-import { Serializer } from '@/serializer'
-import { getBlock } from '@/blocks'
+import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
 
 interface RunWorkflowParams {
   workflowId?: string
@@ -127,165 +120,31 @@ export class RunWorkflowTool extends BaseTool {
         }
       }
 
-      // Get current workflow state
-      const workflowState = useWorkflowStore.getState().getWorkflowState()
-      const { isShowingDiff, isDiffReady, diffWorkflow } = useWorkflowDiffStore.getState()
-      
-      // Determine which workflow to use - same logic as useCurrentWorkflow
-      const shouldUseDiff = isShowingDiff && isDiffReady && !!diffWorkflow
-      const currentWorkflow = shouldUseDiff ? diffWorkflow : workflowState
+      // Prepare workflow input - if workflow_input is provided, pass it to the execution
+      const workflowInput = params.workflow_input ? { 
+        input: params.workflow_input 
+      } : undefined
 
-      const {
-        blocks: workflowBlocks,
-        edges: workflowEdges,
-        loops: workflowLoops,
-        parallels: workflowParallels,
-      } = currentWorkflow
+      console.log('Executing workflow with input:', workflowInput)
 
-      // Filter out blocks without type (these are layout-only blocks)
-      const validBlocks = Object.entries(workflowBlocks).reduce(
-        (acc, [blockId, block]) => {
-          if (block?.type) {
-            acc[blockId] = block
-          }
-          return acc
-        },
-        {} as typeof workflowBlocks
-      )
-
-      // Prepare workflow input
-      const chatInput = params.workflow_input
-      const workflowInput = chatInput ? { input: chatInput } : undefined
-      const isExecutingFromChat = !!workflowInput
-
-      console.log('Executing workflow', {
-        isDiffMode: shouldUseDiff,
-        isExecutingFromChat,
-        totalBlocksCount: Object.keys(workflowBlocks).length,
-        validBlocksCount: Object.keys(validBlocks).length,
-        edgesCount: workflowEdges.length,
-      })
-
-      // Merge subblock states from the appropriate store
-      const mergedStates = mergeSubblockState(validBlocks)
-
-      // Filter out trigger blocks for manual execution
-      const filteredStates = Object.entries(mergedStates).reduce(
-        (acc, [id, block]) => {
-          // Skip blocks with undefined type
-          if (!block || !block.type) {
-            console.warn(`Skipping block with undefined type: ${id}`, block)
-            return acc
-          }
-
-          const blockConfig = getBlock(block.type)
-          const isTriggerBlock = blockConfig?.category === 'triggers'
-
-          // Skip trigger blocks during manual execution
-          if (!isTriggerBlock) {
-            acc[id] = block
-          }
-          return acc
-        },
-        {} as typeof mergedStates
-      )
-
-      const currentBlockStates = Object.entries(filteredStates).reduce(
-        (acc, [id, block]) => {
-          acc[id] = Object.entries(block.subBlocks).reduce(
-            (subAcc, [key, subBlock]) => {
-              subAcc[key] = subBlock.value
-              return subAcc
-            },
-            {} as Record<string, any>
-          )
-          return acc
-        },
-        {} as Record<string, Record<string, any>>
-      )
-
-      // Get environment variables
-      const { getAllVariables } = useEnvironmentStore.getState()
-      const { getVariablesByWorkflowId } = useVariablesStore.getState()
-      const envVars = getAllVariables()
-      const envVarValues = Object.entries(envVars).reduce(
-        (acc, [key, variable]: [string, any]) => {
-          acc[key] = variable.value
-          return acc
-        },
-        {} as Record<string, string>
-      )
-
-      // Get workflow variables
-      const workflowVars = getVariablesByWorkflowId(activeWorkflowId)
-      const workflowVariables = workflowVars.reduce(
-        (acc, variable) => {
-          acc[variable.id] = variable
-          return acc
-        },
-        {} as Record<string, any>
-      )
-
-      // Filter edges to exclude connections to/from trigger blocks
-      const triggerBlockIds = Object.keys(mergedStates).filter((id) => {
-        const blockConfig = getBlock(mergedStates[id].type)
-        return blockConfig?.category === 'triggers'
-      })
-
-      const filteredEdges = workflowEdges.filter(
-        (edge) => !triggerBlockIds.includes(edge.source) && !triggerBlockIds.includes(edge.target)
-      )
-
-      // Create serialized workflow with filtered blocks and edges
-      const workflow = new Serializer().serializeWorkflow(
-        filteredStates,
-        filteredEdges,
-        workflowLoops || {},
-        workflowParallels || {}
-      )
-
-      // If this is a chat execution, get the selected outputs
-      let selectedOutputIds: string[] | undefined
-      if (isExecutingFromChat) {
-        const { useChatStore } = await import('@/stores/panel/chat/store')
-        selectedOutputIds = useChatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
-      }
-
-      // Create executor options
-      const executorOptions = {
-        workflow,
-        currentBlockStates,
-        envVarValues,
-        workflowInput,
-        workflowVariables,
-        contextExtensions: {
-          stream: isExecutingFromChat,
-          selectedOutputIds,
-          edges: workflow.connections.map((conn) => ({
-            source: conn.source,
-            target: conn.target,
-          })),
-          executionId: toolCall.id,
-        },
-      }
-
-      // Create executor and execute
-      const executor = new Executor(executorOptions)
-      const { setExecutor, setIsExecuting } = useExecutionStore.getState()
-      
-      setExecutor(executor)
+      // Set execution state
+      const { setIsExecuting } = useExecutionStore.getState()
       setIsExecuting(true)
 
       // Start execution
-      console.log('Starting workflow execution...')
       options?.onStateChange?.('executing')
       
-      const result = await executor.execute(activeWorkflowId)
+      // Use the standalone execution utility with full logging support
+      // This works for both deployed and non-deployed workflows
+      const result = await executeWorkflowWithFullLogging({
+        workflowInput,
+        executionId: toolCall.id, // Use tool call ID as execution ID
+      })
       
-      console.log('Workflow execution result:', result)
-
-      // Handle execution completion
+      // Reset execution state
       setIsExecuting(false)
+    
+      console.log('Workflow execution result:', result)
 
       // Check if execution was successful
       if (result && (!('success' in result) || result.success !== false)) {
@@ -309,16 +168,14 @@ export class RunWorkflowTool extends BaseTool {
           }
         }
       } else {
-        // Execution failed - only notify if THIS tool wasn't moved to background
-        const errorMessage = result?.error || 'Workflow execution failed'
+        // Execution failed
+        const errorMessage = (result as any)?.error || 'Workflow execution failed'
         
-        if (!options?.context?.movedToBackgroundToolIds?.has(toolCall.id)) {
-          await this.notify(
-            toolCall.id,
-            'errored',
-            `Workflow execution failed: ${errorMessage}`
-          )
-        }
+        await this.notify(
+          toolCall.id,
+          'errored',
+          `Workflow execution failed: ${errorMessage}`
+        )
         
         options?.onStateChange?.('errored')
         
@@ -327,22 +184,20 @@ export class RunWorkflowTool extends BaseTool {
           error: errorMessage
         }
       }
-    } catch (error) {
-      console.error('Error in run workflow tool:', error)
-      
-      // Reset execution state
+    } catch (error: any) {
+      // Reset execution state in case of error
       const { setIsExecuting } = useExecutionStore.getState()
       setIsExecuting(false)
       
-      // Only notify if THIS tool wasn't moved to background
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      if (!options?.context?.movedToBackgroundToolIds?.has(toolCall.id)) {
-        await this.notify(
-          toolCall.id,
-          'errored',
-          `Workflow execution error: ${errorMessage}`
-        )
-      }
+      console.error('Error in RunWorkflowTool.execute:', error)
+      
+      const errorMessage = error?.message || 'An unknown error occurred'
+      
+      await this.notify(
+        toolCall.id,
+        'errored',
+        `Workflow execution failed: ${errorMessage}`
+      )
       
       options?.onStateChange?.('errored')
       
