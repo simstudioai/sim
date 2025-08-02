@@ -6,7 +6,7 @@ import { getCopilotModel } from '@/lib/copilot/config'
 import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { apiKey as apiKeyTable, copilotChats } from '@/db/schema'
+import { copilotChats } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
 
 const logger = createLogger('CopilotChatAPI')
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
   try {
     // Authenticate user
     const session = await getSession()
-    let authenticatedUserId: string | null = session?.user?.id || null
+    const authenticatedUserId: string | null = session?.user?.id || null
 
     if (!authenticatedUserId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
