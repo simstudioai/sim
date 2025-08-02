@@ -69,12 +69,10 @@ export function ToolConfirmation({
 
         try {
           await notifyServerTool(toolCall.id, toolCall.name, toolState)
-          console.log(`Server tool ${toolCall.id} ${action === 'run' ? 'accepted' : 'rejected'}`)
         } catch (error) {
           console.error(`Failed to notify server tool ${toolCall.id}:`, error)
           // Don't throw error for rejections - user explicitly chose to reject
           if (action === 'skip') {
-            console.log(`Tool ${toolCall.id} rejected by user (notification error ignored)`)
             return
           }
           throw error

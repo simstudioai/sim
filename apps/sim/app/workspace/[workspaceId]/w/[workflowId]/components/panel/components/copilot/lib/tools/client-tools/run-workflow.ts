@@ -106,9 +106,6 @@ export class RunWorkflowTool extends BaseTool {
       const rawParams = toolCall.parameters || toolCall.input || {}
       const params = rawParams as RunWorkflowParams
 
-      console.log('Run workflow execute called with params:', params)
-      console.log('Tool call object:', toolCall)
-
       // Check if workflow is already executing
       const { isExecuting } = useExecutionStore.getState()
       if (isExecuting) {
@@ -136,8 +133,6 @@ export class RunWorkflowTool extends BaseTool {
           }
         : undefined
 
-      console.log('Executing workflow with input:', workflowInput)
-
       // Set execution state
       const { setIsExecuting } = useExecutionStore.getState()
       setIsExecuting(true)
@@ -153,8 +148,6 @@ export class RunWorkflowTool extends BaseTool {
 
       // Reset execution state
       setIsExecuting(false)
-
-      console.log('Workflow execution result:', result)
 
       // Check if execution was successful
       if (result && (!('success' in result) || result.success !== false)) {
@@ -188,8 +181,6 @@ export class RunWorkflowTool extends BaseTool {
       // Reset execution state in case of error
       const { setIsExecuting } = useExecutionStore.getState()
       setIsExecuting(false)
-
-      console.error('Error in RunWorkflowTool.execute:', error)
 
       const errorMessage = error?.message || 'An unknown error occurred'
 

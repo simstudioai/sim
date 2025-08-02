@@ -31,15 +31,12 @@ async function serverAcceptTool(
   toolCall: CopilotToolCall,
   setToolCallState: (toolCall: any, state: string, options?: any) => void
 ): Promise<void> {
-  console.log('Server tool accepted:', toolCall.name, toolCall.id)
-
   // Set state directly to executing (skip accepted state)
   setToolCallState(toolCall, 'executing')
 
   try {
     // Notify server of acceptance - execution happens elsewhere via SSE
     await notifyServerTool(toolCall.id, toolCall.name, 'accepted')
-    console.log('Server notified of tool acceptance')
   } catch (error) {
     console.error('Failed to notify server of tool acceptance:', error)
     setToolCallState(toolCall, 'error', { error: 'Failed to notify server' })
@@ -53,9 +50,6 @@ async function clientAcceptTool(
   onStateChange?: (state: any) => void,
   context?: Record<string, any>
 ): Promise<void> {
-  console.log('Client tool accepted:', toolCall.name, toolCall.id)
-
-  console.log('Setting state to executing...')
   setToolCallState(toolCall, 'executing')
 
   // Trigger UI update immediately with explicit state
@@ -87,15 +81,12 @@ async function rejectTool(
   toolCall: CopilotToolCall,
   setToolCallState: (toolCall: any, state: string, options?: any) => void
 ): Promise<void> {
-  console.log('Tool rejected:', toolCall.name, toolCall.id)
-
   // NEW LOGIC: Use centralized state management
   setToolCallState(toolCall, 'rejected')
 
   try {
     // Notify server for both client and server tools
     await notifyServerTool(toolCall.id, toolCall.name, 'rejected')
-    console.log('Server notified of tool rejection')
   } catch (error) {
     console.error('Failed to notify server of tool rejection:', error)
   }
@@ -261,8 +252,6 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
           <Button
             onClick={async () => {
               try {
-                console.log('Moving to background:', toolCall.id)
-
                 // Set tool state to background
                 setToolCallState(toolCall, 'background')
 

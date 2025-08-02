@@ -50,7 +50,6 @@ export abstract class BaseTool implements Tool {
       }
 
       const result = await response.json()
-      console.log(`Tool ${toolCallId} state updated to ${state}:`, result)
       return { success: true, message: result.message }
     } catch (error) {
       console.error('Error confirming tool:', error)
