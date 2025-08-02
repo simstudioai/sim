@@ -23,10 +23,12 @@ import {
   Play,
   Search,
   Settings,
+  SquareTerminal,
   Terminal,
   TreePalm,
   Variable,
   Workflow,
+  Wrench,
   X,
   XCircle,
   Zap,
@@ -49,7 +51,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   error: XCircle,
   background: Eye,
   play: Play,
-  wrench: Zap, // Using Zap as wrench icon
+  wrench: Wrench, // Using Zap as wrench icon
   
   // Generic icons for tools
   search: Search,
@@ -64,6 +66,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   blocks: Blocks, // Blocks icon with missing corner
   info: Info,
   terminal: Terminal,
+  squareTerminal: SquareTerminal,
   tree: TreePalm,
   variable: Variable,
   template: FileText, // Using FileText for templates

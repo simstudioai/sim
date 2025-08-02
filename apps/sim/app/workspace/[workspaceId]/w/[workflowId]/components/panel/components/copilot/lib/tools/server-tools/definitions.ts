@@ -201,7 +201,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     displayConfig: {
       states: {
         executing: { displayName: 'Viewing environment variables', icon: 'spinner' },
-        success: { displayName: 'Found environment variables', icon: 'settings' },
+        success: { displayName: 'Found environment variables', icon: 'wrench' },
         rejected: { displayName: 'Skipped viewing environment variables', icon: 'skip' },
         errored: { displayName: 'Failed to get environment variables', icon: 'error' },
         aborted: { displayName: 'Environment variables viewing aborted', icon: 'x' },
@@ -220,10 +220,9 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         pending: { displayName: 'Set environment variables', icon: 'edit' },
         executing: { displayName: 'Setting environment variables', icon: 'spinner' },
-        success: { displayName: 'Set environment variables', icon: 'settings' },
+        success: { displayName: 'Set environment variables', icon: 'wrench' },
         rejected: { displayName: 'Skipped setting environment variables', icon: 'skip' },
         errored: { displayName: 'Failed to set environment variables', icon: 'error' },
-        background: { displayName: 'Setting environment variables in background', icon: 'background' },
         aborted: { displayName: 'Environment variables setting aborted', icon: 'x' },
       }
     },
@@ -252,7 +251,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     displayConfig: {
       states: {
         executing: { displayName: 'Reading workflow console', icon: 'spinner' },
-        success: { displayName: 'Read workflow console', icon: 'terminal' },
+        success: { displayName: 'Read workflow console', icon: 'squareTerminal' },
         rejected: { displayName: 'Skipped reading workflow console', icon: 'skip' },
         errored: { displayName: 'Failed to read workflow console', icon: 'error' },
         aborted: { displayName: 'Workflow console reading aborted', icon: 'x' },
