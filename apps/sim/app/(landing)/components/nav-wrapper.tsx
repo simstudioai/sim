@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { usePathname } from 'next/navigation'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 import GitHubStarsClient from '@/app/(landing)/components/github-stars-client'
@@ -43,39 +42,24 @@ export default function NavWrapper({ onOpenTypeformLink }: NavWrapperProps) {
 
   return (
     <>
-      <AnimatePresence mode='wait'>
-        {!isLoaded ? (
-          <motion.div
-            key='loading'
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.5 }}
-            exit={{ opacity: 0 }}
-            className='absolute top-1 right-0 left-0 z-30 px-4 py-8'
-          >
-            <div className='relative mx-auto flex max-w-7xl items-center justify-between'>
-              <div className='flex-1' />
-              <div className='flex flex-1 justify-end'>
-                <div className='h-[43px] w-[43px]' />
-              </div>
+      {!isLoaded ? (
+        <div className='absolute top-1 right-0 left-0 z-30 px-4 py-8'>
+          <div className='relative mx-auto flex max-w-7xl items-center justify-between'>
+            <div className='flex-1' />
+            <div className='flex flex-1 justify-end'>
+              <div className='h-[43px] w-[43px]' />
             </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            key='loaded'
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            <NavClient
-              initialIsMobile={initialIsMobile}
-              currentPath={pathname}
-              onContactClick={onOpenTypeformLink}
-            >
-              <GitHubStarsClient stars={starCount} />
-            </NavClient>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      ) : (
+        <NavClient
+          initialIsMobile={initialIsMobile}
+          currentPath={pathname}
+          onContactClick={onOpenTypeformLink}
+        >
+          <GitHubStarsClient stars={starCount} />
+        </NavClient>
+      )}
     </>
   )
 }
