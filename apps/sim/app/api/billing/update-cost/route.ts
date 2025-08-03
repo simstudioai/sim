@@ -1,14 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import crypto from 'crypto'
+import { eq, sql } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
+import { env } from '@/lib/env'
+import { isProd } from '@/lib/environment'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { userStats } from '@/db/schema'
-import { eq, sql } from 'drizzle-orm'
-import { env } from '@/lib/env'
 import { calculateCost } from '@/providers/utils'
-import { createLogger } from '@/lib/logs/console/logger'
-import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
-import { isProd } from '@/lib/environment'
 
 const logger = createLogger('billing-update-cost')
 
@@ -56,9 +56,9 @@ export async function POST(req: NextRequest) {
     if (!authResult.success) {
       logger.warn(`[${requestId}] Authentication failed: ${authResult.error}`)
       return NextResponse.json(
-        { 
-          success: false, 
-          error: authResult.error || 'Authentication failed' 
+        {
+          success: false,
+          error: authResult.error || 'Authentication failed',
         },
         { status: 401 }
       )
@@ -67,17 +67,17 @@ export async function POST(req: NextRequest) {
     // Parse and validate request body
     const body = await req.json()
     const validation = UpdateCostSchema.safeParse(body)
-    
+
     if (!validation.success) {
       logger.warn(`[${requestId}] Invalid request body`, {
         errors: validation.error.issues,
-        body
+        body,
       })
       return NextResponse.json(
         {
           success: false,
           error: 'Invalid request body',
-          details: validation.error.issues
+          details: validation.error.issues,
         },
         { status: 400 }
       )
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       userId,
       input,
       output,
-      model
+      model,
     })
 
     const finalPromptTokens = input
@@ -97,8 +97,14 @@ export async function POST(req: NextRequest) {
     const totalTokens = input + output
 
     // Calculate cost using COPILOT_COST_MULTIPLIER (only in production, like normal executions)
-    const copilotMultiplier = isProd ? (env.COPILOT_COST_MULTIPLIER || 1) : 1
-    const costResult = calculateCost(model, finalPromptTokens, finalCompletionTokens, false, copilotMultiplier)
+    const copilotMultiplier = isProd ? env.COPILOT_COST_MULTIPLIER || 1 : 1
+    const costResult = calculateCost(
+      model,
+      finalPromptTokens,
+      finalCompletionTokens,
+      false,
+      copilotMultiplier
+    )
 
     logger.info(`[${requestId}] Cost calculation result`, {
       userId,
@@ -107,7 +113,7 @@ export async function POST(req: NextRequest) {
       completionTokens: finalCompletionTokens,
       totalTokens: totalTokens,
       copilotMultiplier,
-      costResult
+      costResult,
     })
 
     // Follow the exact same logic as ExecutionLogger.updateUserStats but with direct userId
@@ -135,7 +141,7 @@ export async function POST(req: NextRequest) {
       logger.info(`[${requestId}] Created new user stats record`, {
         userId,
         totalCost: costToStore,
-        totalTokens
+        totalTokens,
       })
     } else {
       // Update existing user stats record (same logic as ExecutionLogger)
@@ -152,7 +158,7 @@ export async function POST(req: NextRequest) {
       logger.info(`[${requestId}] Updated user stats record`, {
         userId,
         addedCost: costToStore,
-        addedTokens: totalTokens
+        addedTokens: totalTokens,
       })
     }
 
@@ -162,7 +168,7 @@ export async function POST(req: NextRequest) {
       userId,
       duration,
       cost: costResult.total,
-      totalTokens
+      totalTokens,
     })
 
     return NextResponse.json({
@@ -181,30 +187,29 @@ export async function POST(req: NextRequest) {
         tokenBreakdown: {
           prompt: finalPromptTokens,
           completion: finalCompletionTokens,
-          total: totalTokens
+          total: totalTokens,
         },
         pricing: costResult.pricing,
         processedAt: new Date().toISOString(),
-        requestId
-      }
+        requestId,
+      },
     })
-
   } catch (error) {
     const duration = Date.now() - startTime
-    
+
     logger.error(`[${requestId}] Cost update failed`, {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      duration
+      duration,
     })
 
     return NextResponse.json(
       {
         success: false,
         error: 'Internal server error',
-        requestId
+        requestId,
       },
       { status: 500 }
     )
   }
-} 
+}
