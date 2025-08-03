@@ -14,6 +14,14 @@ export interface General {
   isConsoleExpandedByDefaultLoading: boolean
   isThemeLoading: boolean
   isTelemetryLoading: boolean
+
+  llmProvider: string
+  customOpenAI: {
+  baseURL: string
+  modelName: string
+  apiKey: string
+  }
+
 }
 
 export interface GeneralActions {
@@ -27,6 +35,14 @@ export interface GeneralActions {
   setTelemetryNotifiedUser: (notified: boolean) => void
   loadSettings: (force?: boolean) => Promise<void>
   updateSetting: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => Promise<void>
+
+  setLLMProvider: (provider: string) => void
+  setCustomOpenAI: (data: {
+  baseURL: string
+  modelName: string
+  apiKey: string
+  }) => void
+
 }
 
 export type GeneralStore = General & GeneralActions
