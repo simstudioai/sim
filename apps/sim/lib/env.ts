@@ -67,6 +67,7 @@ export const env = createEnv({
     // Monitoring & Analytics
     TELEMETRY_ENDPOINT:                   z.string().url().optional(),          // Custom telemetry/analytics endpoint
     COST_MULTIPLIER:                      z.number().optional(),                // Multiplier for cost calculations
+    COPILOT_COST_MULTIPLIER:              z.number().optional(),                // Multiplier for copilot cost calculations
     SENTRY_ORG:                           z.string().optional(),                // Sentry organization for error tracking
     SENTRY_PROJECT:                       z.string().optional(),                // Sentry project for error tracking
     SENTRY_AUTH_TOKEN:                    z.string().optional(),                // Sentry authentication token

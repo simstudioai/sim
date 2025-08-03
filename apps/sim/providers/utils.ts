@@ -429,13 +429,15 @@ export async function transformBlockTool(
  * @param promptTokens Number of prompt tokens used
  * @param completionTokens Number of completion tokens used
  * @param useCachedInput Whether to use cached input pricing (default: false)
+ * @param customMultiplier Optional custom multiplier to override the default cost multiplier
  * @returns Cost calculation results with input, output and total costs
  */
 export function calculateCost(
   model: string,
   promptTokens = 0,
   completionTokens = 0,
-  useCachedInput = false
+  useCachedInput = false,
+  customMultiplier?: number
 ) {
   // First check if it's an embedding model
   let pricing = getEmbeddingModelPricing(model)
@@ -472,7 +474,7 @@ export function calculateCost(
   const outputCost = completionTokens * (pricing.output / 1_000_000)
   const totalCost = inputCost + outputCost
 
-  const costMultiplier = getCostMultiplier()
+  const costMultiplier = customMultiplier ?? getCostMultiplier()
 
   const finalInputCost = inputCost * costMultiplier
   const finalOutputCost = outputCost * costMultiplier
