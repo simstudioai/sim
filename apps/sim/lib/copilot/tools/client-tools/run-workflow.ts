@@ -2,16 +2,16 @@
  * Run Workflow Tool
  */
 
-import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
-import { useExecutionStore } from '@/stores/execution/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { BaseTool } from '../base-tool'
+import { BaseTool } from '@/lib/copilot/tools/base-tool'
 import type {
   CopilotToolCall,
   ToolExecuteResult,
   ToolExecutionOptions,
   ToolMetadata,
-} from '../types'
+} from '@/lib/copilot/tools/types'
+import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface RunWorkflowParams {
   workflowId?: string

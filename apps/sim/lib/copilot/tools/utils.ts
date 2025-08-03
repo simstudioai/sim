@@ -34,8 +34,8 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react'
-import { toolRegistry } from './registry'
-import type { CopilotToolCall, ToolState } from './types'
+import { toolRegistry } from '@/lib/copilot/tools/registry'
+import type { CopilotToolCall, ToolState } from '@/lib/copilot/tools/types'
 
 /**
  * Map icon identifiers to Lucide icon components

@@ -4,14 +4,16 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import { LoadingAgent } from '@/components/ui/loading-agent'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { createLogger } from '@/lib/logs/console/logger'
+import {
+  CheckpointPanel,
+  CopilotMessage,
+  CopilotWelcome,
+  UserInput,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
 import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { CheckpointPanel } from './components/checkpoint-panel'
-import { ProfessionalInput } from './components/professional-input/professional-input'
-import { ProfessionalMessage } from './components/professional-message/professional-message'
-import { CopilotWelcome } from './components/welcome/welcome'
 
 const logger = createLogger('Copilot')
 
@@ -25,8 +27,7 @@ interface CopilotRef {
 
 export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
-  const [showCheckpoints, setShowCheckpoints] = useState(false)
-  const scannedChatRef = useRef<string | null>(null)
+  const [showCheckpoints] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   const lastWorkflowIdRef = useRef<string | null>(null)
   const hasMountedRef = useRef(false)
@@ -34,12 +35,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const { activeWorkflowId } = useWorkflowRegistry()
 
   // Use preview store to track seen previews
-  const { scanAndMarkExistingPreviews, isToolCallSeen, markToolCallAsSeen } = usePreviewStore()
+  const { isToolCallSeen, markToolCallAsSeen } = usePreviewStore()
 
   // Use the new copilot store
   const {
     messages,
-    isLoading,
     isLoadingChats,
     isSendingMessage,
     isAborting,
@@ -48,7 +48,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     sendMessage,
     abortMessage,
     createNewChat,
-    clearMessages,
     setMode,
     setInputValue,
     chatsLoadedForWorkflow,
@@ -187,14 +186,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     [isSendingMessage, activeWorkflowId, sendMessage]
   )
 
-  // Handle modal message sending
-  const handleModalSendMessage = useCallback(
-    async (message: string) => {
-      await handleSubmit(message)
-    },
-    [handleSubmit]
-  )
-
   return (
     <>
       <div className='flex h-full flex-col overflow-hidden'>
@@ -224,7 +215,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     </div>
                   ) : (
                     messages.map((message) => (
-                      <ProfessionalMessage
+                      <CopilotMessage
                         key={message.id}
                         message={message}
                         isStreaming={
@@ -239,7 +230,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
             {/* Input area with integrated mode selector */}
             {!showCheckpoints && (
-              <ProfessionalInput
+              <UserInput
                 onSubmit={handleSubmit}
                 onAbort={abortMessage}
                 disabled={!activeWorkflowId}

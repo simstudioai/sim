@@ -6,17 +6,16 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
+import { InlineToolCall } from '@/lib/copilot/tools/inline-tool-call'
 import { useCopilotStore } from '@/stores/copilot/store'
-import type { CopilotMessage } from '@/stores/copilot/types'
-import { InlineToolCall } from '../../lib/tools/inline-tool-call'
+import type { CopilotMessage as CopilotMessageType } from '@/stores/copilot/types'
 
-interface ProfessionalMessageProps {
-  message: CopilotMessage
+interface CopilotMessageProps {
+  message: CopilotMessageType
   isStreaming?: boolean
 }
 
-// Link component with preview (from CopilotMarkdownRenderer)
+// Link component with preview
 function LinkWithPreview({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Tooltip delayDuration={300}>
@@ -201,12 +200,7 @@ const WordWrap = ({ text }: { text: string }) => {
   )
 }
 
-// Helper function to get tool display name based on state
-function getToolDisplayName(toolName: string): string {
-  return COPILOT_TOOL_DISPLAY_NAMES[toolName] || toolName
-}
-
-const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(
+const CopilotMessage: FC<CopilotMessageProps> = memo(
   ({ message, isStreaming }) => {
     const isUser = message.role === 'user'
     const isAssistant = message.role === 'assistant'
@@ -293,10 +287,6 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(
       }
     }, [showDownvoteSuccess])
 
-    const formatTimestamp = (timestamp: string) => {
-      return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-
     // Get clean text content with double newline parsing
     const cleanTextContent = useMemo(() => {
       if (!message.content) return ''
@@ -357,7 +347,6 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(
         li: ({
           children,
           ordered,
-          ...props
         }: React.LiHTMLAttributes<HTMLLIElement> & { ordered?: boolean }) => (
           <li
             className='font-geist-sans text-gray-800 dark:text-gray-200'
@@ -369,7 +358,6 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(
 
         // Code blocks
         pre: ({ children }: React.HTMLAttributes<HTMLPreElement>) => {
-          let codeProps: React.HTMLAttributes<HTMLElement> = {}
           let codeContent: React.ReactNode = children
           let language = 'code'
 
@@ -381,7 +369,6 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(
               className?: string
               children?: React.ReactNode
             }>
-            codeProps = { className: childElement.props.className }
             codeContent = childElement.props.children
             language = childElement.props.className?.replace('language-', '') || 'code'
           }
@@ -789,6 +776,6 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(
   }
 )
 
-ProfessionalMessage.displayName = 'ProfessionalMessage'
+CopilotMessage.displayName = 'CopilotMessage'
 
-export { ProfessionalMessage }
+export { CopilotMessage }

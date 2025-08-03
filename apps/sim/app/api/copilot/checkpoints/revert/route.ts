@@ -1,7 +1,13 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
+import {
+  authenticateCopilotRequestSessionOnly,
+  createInternalServerErrorResponse,
+  createNotFoundResponse,
+  createRequestTracker,
+  createUnauthorizedResponse,
+} from '@/lib/copilot/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { workflowCheckpoints, workflow as workflowTable } from '@/db/schema'
@@ -17,33 +23,28 @@ const RevertCheckpointSchema = z.object({
  * Revert workflow to a specific checkpoint state
  */
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const tracker = createRequestTracker()
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+    if (!isAuthenticated || !userId) {
+      return createUnauthorizedResponse()
     }
 
     const body = await request.json()
     const { checkpointId } = RevertCheckpointSchema.parse(body)
 
-    logger.info(`[${requestId}] Reverting to checkpoint ${checkpointId}`)
+    logger.info(`[${tracker.requestId}] Reverting to checkpoint ${checkpointId}`)
 
     // Get the checkpoint and verify ownership
     const checkpoint = await db
       .select()
       .from(workflowCheckpoints)
-      .where(
-        and(
-          eq(workflowCheckpoints.id, checkpointId),
-          eq(workflowCheckpoints.userId, session.user.id)
-        )
-      )
+      .where(and(eq(workflowCheckpoints.id, checkpointId), eq(workflowCheckpoints.userId, userId)))
       .then((rows) => rows[0])
 
     if (!checkpoint) {
-      return NextResponse.json({ error: 'Checkpoint not found or access denied' }, { status: 404 })
+      return createNotFoundResponse('Checkpoint not found or access denied')
     }
 
     // Verify user still has access to the workflow
@@ -54,11 +55,11 @@ export async function POST(request: NextRequest) {
       .then((rows) => rows[0])
 
     if (!workflowData) {
-      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      return createNotFoundResponse('Workflow not found')
     }
 
-    if (workflowData.userId !== session.user.id) {
-      return NextResponse.json({ error: 'Access denied to workflow' }, { status: 403 })
+    if (workflowData.userId !== userId) {
+      return createUnauthorizedResponse()
     }
 
     // Apply the checkpoint state to the workflow using the existing state endpoint
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
         : {}),
     }
 
-    logger.info(`[${requestId}] Applying cleaned checkpoint state`, {
+    logger.info(`[${tracker.requestId}] Applying cleaned checkpoint state`, {
       blocksCount: Object.keys(cleanedState.blocks).length,
       edgesCount: cleanedState.edges.length,
       hasDeployedAt: !!cleanedState.deployedAt,
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
 
     if (!stateResponse.ok) {
       const errorData = await stateResponse.text()
-      logger.error(`[${requestId}] Failed to apply checkpoint state: ${errorData}`)
+      logger.error(`[${tracker.requestId}] Failed to apply checkpoint state: ${errorData}`)
       return NextResponse.json(
         { error: 'Failed to revert workflow to checkpoint' },
         { status: 500 }
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     const result = await stateResponse.json()
     logger.info(
-      `[${requestId}] Successfully reverted workflow ${checkpoint.workflowId} to checkpoint ${checkpointId}`
+      `[${tracker.requestId}] Successfully reverted workflow ${checkpoint.workflowId} to checkpoint ${checkpointId}`
     )
 
     return NextResponse.json({
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    logger.error(`[${requestId}] Error reverting to checkpoint:`, error)
-    return NextResponse.json({ error: 'Failed to revert to checkpoint' }, { status: 500 })
+    logger.error(`[${tracker.requestId}] Error reverting to checkpoint:`, error)
+    return createInternalServerErrorResponse('Failed to revert to checkpoint')
   }
 }

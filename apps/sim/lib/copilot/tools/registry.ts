@@ -8,11 +8,9 @@
  * It also provides metadata for server-side tools for display purposes
  */
 
-// Import client tool implementations
-import { RunWorkflowTool } from './client-tools/run-workflow'
-// Import server tool definitions
-import { SERVER_TOOL_METADATA } from './server-tools/definitions'
-import type { Tool, ToolMetadata } from './types'
+import { RunWorkflowTool } from '@/lib/copilot/tools/client-tools/run-workflow'
+import { SERVER_TOOL_METADATA } from '@/lib/copilot/tools/server-tools/definitions'
+import type { Tool, ToolMetadata } from '@/lib/copilot/tools/types'
 
 /**
  * Tool Registry class that manages all available tools

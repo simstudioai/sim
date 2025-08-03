@@ -1,7 +1,13 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
+import {
+  authenticateCopilotRequestSessionOnly,
+  createBadRequestResponse,
+  createInternalServerErrorResponse,
+  createRequestTracker,
+  createUnauthorizedResponse,
+} from '@/lib/copilot/auth'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
 import { env } from '@/lib/env'
@@ -116,16 +122,15 @@ async function generateChatTitleAsync(
  * Send messages to sim agent and handle chat persistence
  */
 export async function POST(req: NextRequest) {
-  const requestId = crypto.randomUUID()
-  const startTime = Date.now()
+  const tracker = createRequestTracker()
 
   try {
-    // Authenticate user
-    const session = await getSession()
-    const authenticatedUserId: string | null = session?.user?.id || null
+    // Authenticate user using consolidated helper
+    const { userId: authenticatedUserId, isAuthenticated } =
+      await authenticateCopilotRequestSessionOnly()
 
-    if (!authenticatedUserId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!isAuthenticated || !authenticatedUserId) {
+      return createUnauthorizedResponse()
     }
 
     const body = await req.json()
@@ -140,7 +145,7 @@ export async function POST(req: NextRequest) {
       implicitFeedback,
     } = ChatMessageSchema.parse(body)
 
-    logger.info(`[${requestId}] Processing copilot chat request`, {
+    logger.info(`[${tracker.requestId}] Processing copilot chat request`, {
       userId: authenticatedUserId,
       workflowId,
       chatId,
@@ -215,11 +220,11 @@ export async function POST(req: NextRequest) {
 
     // Start title generation in parallel if this is a new chat with first message
     if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
-      logger.info(`[${requestId}] Will start parallel title generation inside stream`)
+      logger.info(`[${tracker.requestId}] Will start parallel title generation inside stream`)
     }
 
     // Forward to sim agent API
-    logger.info(`[${requestId}] Sending request to sim agent API`, {
+    logger.info(`[${tracker.requestId}] Sending request to sim agent API`, {
       messageCount: messages.length,
       endpoint: `${SIM_AGENT_API_URL}/api/chat-completion-streaming`,
     })
@@ -242,7 +247,7 @@ export async function POST(req: NextRequest) {
 
     if (!simAgentResponse.ok) {
       const errorText = await simAgentResponse.text()
-      logger.error(`[${requestId}] Sim agent API error:`, {
+      logger.error(`[${tracker.requestId}] Sim agent API error:`, {
         status: simAgentResponse.status,
         error: errorText,
       })
@@ -254,7 +259,7 @@ export async function POST(req: NextRequest) {
 
     // If streaming is requested, forward the stream and update chat later
     if (stream && simAgentResponse.body) {
-      logger.info(`[${requestId}] Streaming response from sim agent`)
+      logger.info(`[${tracker.requestId}] Streaming response from sim agent`)
 
       // Create user message to save
       const userMessage = {
@@ -280,22 +285,24 @@ export async function POST(req: NextRequest) {
               chatId: actualChatId,
             })}\n\n`
             controller.enqueue(encoder.encode(chatIdEvent))
-            logger.debug(`[${requestId}] Sent initial chatId event to client`)
+            logger.debug(`[${tracker.requestId}] Sent initial chatId event to client`)
           }
 
           // Start title generation in parallel if needed
           if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
-            logger.info(`[${requestId}] Starting title generation with stream updates`, {
+            logger.info(`[${tracker.requestId}] Starting title generation with stream updates`, {
               chatId: actualChatId,
               hasTitle: !!currentChat?.title,
               conversationLength: conversationHistory.length,
               message: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
             })
-            generateChatTitleAsync(actualChatId, message, requestId, controller).catch((error) => {
-              logger.error(`[${requestId}] Title generation failed:`, error)
-            })
+            generateChatTitleAsync(actualChatId, message, tracker.requestId, controller).catch(
+              (error) => {
+                logger.error(`[${tracker.requestId}] Title generation failed:`, error)
+              }
+            )
           } else {
-            logger.debug(`[${requestId}] Skipping title generation`, {
+            logger.debug(`[${tracker.requestId}] Skipping title generation`, {
               chatId: actualChatId,
               hasTitle: !!currentChat?.title,
               conversationLength: conversationHistory.length,
@@ -317,7 +324,7 @@ export async function POST(req: NextRequest) {
             while (true) {
               const { done, value } = await reader.read()
               if (done) {
-                logger.info(`[${requestId}] Stream reading completed`)
+                logger.info(`[${tracker.requestId}] Stream reading completed`)
                 break
               }
 
@@ -327,7 +334,9 @@ export async function POST(req: NextRequest) {
                 controller.enqueue(value)
               } catch (error) {
                 // Client disconnected - stop reading from sim agent
-                logger.info(`[${requestId}] Client disconnected, stopping stream processing`)
+                logger.info(
+                  `[${tracker.requestId}] Client disconnected, stopping stream processing`
+                )
                 reader.cancel() // Stop reading from sim agent
                 break
               }
@@ -350,7 +359,7 @@ export async function POST(req: NextRequest) {
                     // Check if the JSON string is unusually large (potential streaming issue)
                     if (jsonStr.length > 50000) {
                       // 50KB limit
-                      logger.warn(`[${requestId}] Large SSE event detected`, {
+                      logger.warn(`[${tracker.requestId}] Large SSE event detected`, {
                         size: jsonStr.length,
                         preview: `${jsonStr.substring(0, 100)}...`,
                       })
@@ -368,7 +377,7 @@ export async function POST(req: NextRequest) {
 
                       case 'tool_call':
                         logger.info(
-                          `[${requestId}] Tool call ${event.data?.partial ? '(partial)' : '(complete)'}:`,
+                          `[${tracker.requestId}] Tool call ${event.data?.partial ? '(partial)' : '(complete)'}:`,
                           {
                             id: event.data?.id,
                             name: event.data?.name,
@@ -382,7 +391,7 @@ export async function POST(req: NextRequest) {
                         break
 
                       case 'tool_execution':
-                        logger.info(`[${requestId}] Tool execution started:`, {
+                        logger.info(`[${tracker.requestId}] Tool execution started:`, {
                           toolCallId: event.toolCallId,
                           toolName: event.toolName,
                           status: event.status,
@@ -390,7 +399,7 @@ export async function POST(req: NextRequest) {
                         break
 
                       case 'tool_result':
-                        logger.info(`[${requestId}] Tool result received:`, {
+                        logger.info(`[${tracker.requestId}] Tool result received:`, {
                           toolCallId: event.toolCallId,
                           toolName: event.toolName,
                           success: event.success,
@@ -400,7 +409,7 @@ export async function POST(req: NextRequest) {
                         break
 
                       case 'tool_error':
-                        logger.error(`[${requestId}] Tool error:`, {
+                        logger.error(`[${tracker.requestId}] Tool error:`, {
                           toolCallId: event.toolCallId,
                           toolName: event.toolName,
                           error: event.error,
@@ -411,20 +420,23 @@ export async function POST(req: NextRequest) {
                       case 'done':
                         if (isFirstDone) {
                           logger.info(
-                            `[${requestId}] Initial AI response complete, tool count: ${toolCalls.length}`
+                            `[${tracker.requestId}] Initial AI response complete, tool count: ${toolCalls.length}`
                           )
                           isFirstDone = false
                         } else {
-                          logger.info(`[${requestId}] Conversation round complete`)
+                          logger.info(`[${tracker.requestId}] Conversation round complete`)
                         }
                         break
 
                       case 'error':
-                        logger.error(`[${requestId}] Stream error event:`, event.error)
+                        logger.error(`[${tracker.requestId}] Stream error event:`, event.error)
                         break
 
                       default:
-                        logger.debug(`[${requestId}] Unknown event type: ${event.type}`, event)
+                        logger.debug(
+                          `[${tracker.requestId}] Unknown event type: ${event.type}`,
+                          event
+                        )
                     }
                   } catch (e) {
                     // Enhanced error handling for large payloads and parsing issues
@@ -433,7 +445,7 @@ export async function POST(req: NextRequest) {
 
                     if (isLargePayload) {
                       logger.error(
-                        `[${requestId}] Failed to parse large SSE event (${lineLength} chars)`,
+                        `[${tracker.requestId}] Failed to parse large SSE event (${lineLength} chars)`,
                         {
                           error: e,
                           preview: `${line.substring(0, 200)}...`,
@@ -442,20 +454,20 @@ export async function POST(req: NextRequest) {
                       )
                     } else {
                       logger.warn(
-                        `[${requestId}] Failed to parse SSE event: "${line.substring(0, 200)}..."`,
+                        `[${tracker.requestId}] Failed to parse SSE event: "${line.substring(0, 200)}..."`,
                         e
                       )
                     }
                   }
                 } else if (line.trim() && line !== 'data: [DONE]') {
-                  logger.debug(`[${requestId}] Non-SSE line from sim agent: "${line}"`)
+                  logger.debug(`[${tracker.requestId}] Non-SSE line from sim agent: "${line}"`)
                 }
               }
             }
 
             // Process any remaining buffer
             if (buffer.trim()) {
-              logger.debug(`[${requestId}] Processing remaining buffer: "${buffer}"`)
+              logger.debug(`[${tracker.requestId}] Processing remaining buffer: "${buffer}"`)
               if (buffer.startsWith('data: ')) {
                 try {
                   const event = JSON.parse(buffer.slice(6))
@@ -463,13 +475,13 @@ export async function POST(req: NextRequest) {
                     assistantContent += event.data
                   }
                 } catch (e) {
-                  logger.warn(`[${requestId}] Failed to parse final buffer: "${buffer}"`)
+                  logger.warn(`[${tracker.requestId}] Failed to parse final buffer: "${buffer}"`)
                 }
               }
             }
 
             // Log final streaming summary
-            logger.info(`[${requestId}] Streaming complete summary:`, {
+            logger.info(`[${tracker.requestId}] Streaming complete summary:`, {
               totalContentLength: assistantContent.length,
               toolCallsCount: toolCalls.length,
               hasContent: assistantContent.length > 0,
@@ -491,11 +503,11 @@ export async function POST(req: NextRequest) {
                 }
                 updatedMessages.push(assistantMessage)
                 logger.info(
-                  `[${requestId}] Saving assistant message with content (${assistantContent.length} chars) and ${toolCalls.length} tool calls`
+                  `[${tracker.requestId}] Saving assistant message with content (${assistantContent.length} chars) and ${toolCalls.length} tool calls`
                 )
               } else {
                 logger.info(
-                  `[${requestId}] No assistant content or tool calls to save (aborted before response)`
+                  `[${tracker.requestId}] No assistant content or tool calls to save (aborted before response)`
                 )
               }
 
@@ -508,14 +520,14 @@ export async function POST(req: NextRequest) {
                 })
                 .where(eq(copilotChats.id, actualChatId!))
 
-              logger.info(`[${requestId}] Updated chat ${actualChatId} with new messages`, {
+              logger.info(`[${tracker.requestId}] Updated chat ${actualChatId} with new messages`, {
                 messageCount: updatedMessages.length,
                 savedUserMessage: true,
                 savedAssistantMessage: assistantContent.trim().length > 0,
               })
             }
           } catch (error) {
-            logger.error(`[${requestId}] Error processing stream:`, error)
+            logger.error(`[${tracker.requestId}] Error processing stream:`, error)
             controller.error(error)
           } finally {
             controller.close()
@@ -532,8 +544,8 @@ export async function POST(req: NextRequest) {
         },
       })
 
-      logger.info(`[${requestId}] Returning streaming response to client`, {
-        duration: Date.now() - startTime,
+      logger.info(`[${tracker.requestId}] Returning streaming response to client`, {
+        duration: tracker.getDuration(),
         chatId: actualChatId,
         headers: {
           'Content-Type': 'text/event-stream',
@@ -547,7 +559,7 @@ export async function POST(req: NextRequest) {
 
     // For non-streaming responses
     const responseData = await simAgentResponse.json()
-    logger.info(`[${requestId}] Non-streaming response from sim agent:`, {
+    logger.info(`[${tracker.requestId}] Non-streaming response from sim agent:`, {
       hasContent: !!responseData.content,
       contentLength: responseData.content?.length || 0,
       model: responseData.model,
@@ -559,7 +571,7 @@ export async function POST(req: NextRequest) {
     // Log tool calls if present
     if (responseData.toolCalls?.length > 0) {
       responseData.toolCalls.forEach((toolCall: any) => {
-        logger.info(`[${requestId}] Tool call in response:`, {
+        logger.info(`[${tracker.requestId}] Tool call in response:`, {
           id: toolCall.id,
           name: toolCall.name,
           success: toolCall.success,
@@ -588,9 +600,9 @@ export async function POST(req: NextRequest) {
 
       // Start title generation in parallel if this is first message (non-streaming)
       if (actualChatId && !currentChat.title && conversationHistory.length === 0) {
-        logger.info(`[${requestId}] Starting title generation for non-streaming response`)
-        generateChatTitleAsync(actualChatId, message, requestId).catch((error) => {
-          logger.error(`[${requestId}] Title generation failed:`, error)
+        logger.info(`[${tracker.requestId}] Starting title generation for non-streaming response`)
+        generateChatTitleAsync(actualChatId, message, tracker.requestId).catch((error) => {
+          logger.error(`[${tracker.requestId}] Title generation failed:`, error)
         })
       }
 
@@ -604,8 +616,8 @@ export async function POST(req: NextRequest) {
         .where(eq(copilotChats.id, actualChatId!))
     }
 
-    logger.info(`[${requestId}] Returning non-streaming response`, {
-      duration: Date.now() - startTime,
+    logger.info(`[${tracker.requestId}] Returning non-streaming response`, {
+      duration: tracker.getDuration(),
       chatId: actualChatId,
       responseLength: responseData.content?.length || 0,
     })
@@ -615,16 +627,16 @@ export async function POST(req: NextRequest) {
       response: responseData,
       chatId: actualChatId,
       metadata: {
-        requestId,
+        requestId: tracker.requestId,
         message,
-        duration: Date.now() - startTime,
+        duration: tracker.getDuration(),
       },
     })
   } catch (error) {
-    const duration = Date.now() - startTime
+    const duration = tracker.getDuration()
 
     if (error instanceof z.ZodError) {
-      logger.error(`[${requestId}] Validation error:`, {
+      logger.error(`[${tracker.requestId}] Validation error:`, {
         duration,
         errors: error.errors,
       })
@@ -634,7 +646,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    logger.error(`[${requestId}] Error handling copilot chat:`, {
+    logger.error(`[${tracker.requestId}] Error handling copilot chat:`, {
       duration,
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
@@ -653,16 +665,15 @@ export async function GET(req: NextRequest) {
     const workflowId = searchParams.get('workflowId')
 
     if (!workflowId) {
-      return NextResponse.json({ error: 'workflowId is required' }, { status: 400 })
+      return createBadRequestResponse('workflowId is required')
     }
 
-    // Get authenticated user
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Get authenticated user using consolidated helper
+    const { userId: authenticatedUserId, isAuthenticated } =
+      await authenticateCopilotRequestSessionOnly()
+    if (!isAuthenticated || !authenticatedUserId) {
+      return createUnauthorizedResponse()
     }
-
-    const authenticatedUserId = session.user.id
 
     // Fetch chats for this user and workflow
     const chats = await db
@@ -700,6 +711,6 @@ export async function GET(req: NextRequest) {
     })
   } catch (error) {
     logger.error('Error fetching copilot chats:', error)
-    return NextResponse.json({ error: 'Failed to fetch chats' }, { status: 500 })
+    return createInternalServerErrorResponse('Failed to fetch chats')
   }
 }

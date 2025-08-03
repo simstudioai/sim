@@ -1,7 +1,13 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
+import {
+  authenticateCopilotRequestSessionOnly,
+  createInternalServerErrorResponse,
+  createNotFoundResponse,
+  createRequestTracker,
+  createUnauthorizedResponse,
+} from '@/lib/copilot/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { copilotChats } from '@/db/schema'
@@ -23,19 +29,19 @@ const UpdateMessagesSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const tracker = createRequestTracker()
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+    if (!isAuthenticated || !userId) {
+      return createUnauthorizedResponse()
     }
 
     const body = await req.json()
     const { chatId, messages } = UpdateMessagesSchema.parse(body)
 
-    logger.info(`[${requestId}] Updating chat messages`, {
-      userId: session.user.id,
+    logger.info(`[${tracker.requestId}] Updating chat messages`, {
+      userId,
       chatId,
       messageCount: messages.length,
     })
@@ -44,11 +50,11 @@ export async function POST(req: NextRequest) {
     const [chat] = await db
       .select()
       .from(copilotChats)
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
+      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
       .limit(1)
 
     if (!chat) {
-      return NextResponse.json({ error: 'Chat not found or unauthorized' }, { status: 404 })
+      return createNotFoundResponse('Chat not found or unauthorized')
     }
 
     // Update chat with new messages
@@ -60,7 +66,7 @@ export async function POST(req: NextRequest) {
       })
       .where(eq(copilotChats.id, chatId))
 
-    logger.info(`[${requestId}] Successfully updated chat messages`, {
+    logger.info(`[${tracker.requestId}] Successfully updated chat messages`, {
       chatId,
       newMessageCount: messages.length,
     })
@@ -70,7 +76,7 @@ export async function POST(req: NextRequest) {
       messageCount: messages.length,
     })
   } catch (error) {
-    logger.error(`[${requestId}] Error updating chat messages:`, error)
-    return NextResponse.json({ error: 'Failed to update chat messages' }, { status: 500 })
+    logger.error(`[${tracker.requestId}] Error updating chat messages:`, error)
+    return createInternalServerErrorResponse('Failed to update chat messages')
   }
 }
