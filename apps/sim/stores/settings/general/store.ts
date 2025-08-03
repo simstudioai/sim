@@ -31,6 +31,13 @@ export const useGeneralStore = create<GeneralStore>()(
           isConsoleExpandedByDefaultLoading: false,
           isThemeLoading: false,
           isTelemetryLoading: false,
+
+          llmProvider: 'openai',
+          customOpenAI: {
+          baseURL: '',
+          modelName: '',
+          apiKey: '',
+          },
         }
 
         // Optimistic update helper
@@ -70,6 +77,14 @@ export const useGeneralStore = create<GeneralStore>()(
               'isAutoConnectLoading',
               'isAutoConnectEnabled'
             )
+          },
+
+          setLLMProvider: (provider) => {
+            set({ llmProvider: provider })
+          },
+        
+          setCustomOpenAI: (data) => {
+            set({ customOpenAI: data })
           },
 
           toggleAutoPan: async () => {
@@ -117,6 +132,8 @@ export const useGeneralStore = create<GeneralStore>()(
             set({ telemetryNotifiedUser: notified })
             get().updateSetting('telemetryNotifiedUser', notified)
           },
+
+          
 
           // API Actions
           loadSettings: async (force = false) => {
