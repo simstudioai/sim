@@ -91,6 +91,7 @@ export const env = createEnv({
     S3_BUCKET_NAME:                       z.string().optional(),                // S3 bucket for general file storage
     S3_LOGS_BUCKET_NAME:                  z.string().optional(),                // S3 bucket for storing logs
     S3_KB_BUCKET_NAME:                    z.string().optional(),                // S3 bucket for knowledge base files
+    S3_CHAT_BUCKET_NAME:                  z.string().optional(),                // S3 bucket for chat logos
 
     // Cloud Storage - Azure Blob
     AZURE_ACCOUNT_NAME:                   z.string().optional(),                // Azure storage account name
@@ -98,6 +99,7 @@ export const env = createEnv({
     AZURE_CONNECTION_STRING:              z.string().optional(),                // Azure storage connection string
     AZURE_STORAGE_CONTAINER_NAME:         z.string().optional(),                // Azure container for general files
     AZURE_STORAGE_KB_CONTAINER_NAME:      z.string().optional(),                // Azure container for knowledge base files
+    AZURE_STORAGE_CHAT_CONTAINER_NAME:    z.string().optional(),                // Azure container for chat logos
 
     // Data Retention
     FREE_PLAN_LOG_RETENTION_DAYS:         z.string().optional(),                // Log retention days for free plan users

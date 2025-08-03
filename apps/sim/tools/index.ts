@@ -1,7 +1,12 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import type { OAuthTokenPayload, ToolConfig, ToolResponse } from '@/tools/types'
-import { formatRequestParams, getTool, getToolAsync, validateToolRequest } from '@/tools/utils'
+import {
+  formatRequestParams,
+  getTool,
+  getToolAsync,
+  validateRequiredParametersAfterMerge,
+} from '@/tools/utils'
 
 const logger = createLogger('Tools')
 
@@ -39,7 +44,7 @@ export async function executeTool(
     const contextParams = { ...params }
 
     // Validate the tool and its parameters
-    validateToolRequest(toolId, tool, contextParams)
+    validateRequiredParametersAfterMerge(toolId, tool, contextParams)
 
     // After validation, we know tool exists
     if (!tool) {

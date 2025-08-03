@@ -21,6 +21,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         { label: 'Read Issues', id: 'read' },
         { label: 'Create Issue', id: 'write' },
       ],
+      value: () => 'read',
     },
     {
       id: 'credential',
@@ -31,6 +32,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       serviceId: 'linear',
       requiredScopes: ['read', 'write'],
       placeholder: 'Select Linear account',
+      required: true,
     },
     {
       id: 'teamId',
@@ -76,6 +78,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       type: 'short-input',
       layout: 'full',
       condition: { field: 'operation', value: ['write'] },
+      required: true,
     },
     {
       id: 'description',
@@ -130,17 +133,17 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
-    teamId: { type: 'string', required: false },
-    projectId: { type: 'string', required: false },
-    manualTeamId: { type: 'string', required: false },
-    manualProjectId: { type: 'string', required: false },
-    title: { type: 'string', required: false },
-    description: { type: 'string', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Linear access token' },
+    teamId: { type: 'string', description: 'Linear team identifier' },
+    projectId: { type: 'string', description: 'Linear project identifier' },
+    manualTeamId: { type: 'string', description: 'Manual team identifier' },
+    manualProjectId: { type: 'string', description: 'Manual project identifier' },
+    title: { type: 'string', description: 'Issue title' },
+    description: { type: 'string', description: 'Issue description' },
   },
   outputs: {
-    issues: 'json',
-    issue: 'json',
+    issues: { type: 'json', description: 'Issues list' },
+    issue: { type: 'json', description: 'Single issue data' },
   },
 }

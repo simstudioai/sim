@@ -1,9 +1,9 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect } from 'vitest'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { convertLoopBlockToLoop } from '@/stores/workflows/workflow/utils'
 
 describe('convertLoopBlockToLoop', () => {
-  test('should parse JSON array string for forEach loops', () => {
+  it.concurrent('should parse JSON array string for forEach loops', () => {
     const blocks: Record<string, BlockState> = {
       loop1: {
         id: 'loop1',
@@ -29,7 +29,7 @@ describe('convertLoopBlockToLoop', () => {
     expect(result?.iterations).toBe(10)
   })
 
-  test('should parse JSON object string for forEach loops', () => {
+  it.concurrent('should parse JSON object string for forEach loops', () => {
     const blocks: Record<string, BlockState> = {
       loop1: {
         id: 'loop1',
@@ -54,7 +54,7 @@ describe('convertLoopBlockToLoop', () => {
     expect(result?.forEachItems).toEqual({ key1: 'value1', key2: 'value2' })
   })
 
-  test('should keep string as-is if not valid JSON', () => {
+  it.concurrent('should keep string as-is if not valid JSON', () => {
     const blocks: Record<string, BlockState> = {
       loop1: {
         id: 'loop1',
@@ -78,7 +78,7 @@ describe('convertLoopBlockToLoop', () => {
     expect(result?.forEachItems).toBe('<blockName.items>')
   })
 
-  test('should handle empty collection', () => {
+  it.concurrent('should handle empty collection', () => {
     const blocks: Record<string, BlockState> = {
       loop1: {
         id: 'loop1',
@@ -102,7 +102,7 @@ describe('convertLoopBlockToLoop', () => {
     expect(result?.forEachItems).toBe('')
   })
 
-  test('should handle for loops without collection parsing', () => {
+  it.concurrent('should handle for loops without collection parsing', () => {
     const blocks: Record<string, BlockState> = {
       loop1: {
         id: 'loop1',

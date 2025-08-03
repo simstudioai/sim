@@ -43,7 +43,6 @@ let emitWorkflowOperation:
 let emitSubblockUpdate:
   | ((blockId: string, subblockId: string, value: any, operationId?: string) => void)
   | null = null
-let currentWorkflowId: string | null = null
 
 export function registerEmitFunctions(
   workflowEmit: (operation: string, target: string, payload: any, operationId?: string) => void,
@@ -52,7 +51,6 @@ export function registerEmitFunctions(
 ) {
   emitWorkflowOperation = workflowEmit
   emitSubblockUpdate = subblockEmit
-  currentWorkflowId = workflowId
 }
 
 export const useOperationQueueStore = create<OperationQueueState>((set, get) => ({
@@ -102,7 +100,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
         }))
 
         get().processNextOperation()
-      }, 150) // 150ms debounce for subblock operations
+      }, 100) // 100ms debounce for subblock operations
 
       subblockDebounceTimeouts.set(debounceKey, timeoutId)
       return

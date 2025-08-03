@@ -61,22 +61,18 @@ Search the web using Exa AI. Returns relevant search results with titles, URLs, 
 | `query` | string | Yes | The search query to execute |
 | `numResults` | number | No | Number of results to return \(default: 10, max: 25\) |
 | `useAutoprompt` | boolean | No | Whether to use autoprompt to improve the query \(default: false\) |
-| `type` | string | No | Search type: neural, keyword, auto or magic \(default: auto\) |
+| `type` | string | No | Search type: neural, keyword, auto or fast \(default: auto\) |
 | `apiKey` | string | Yes | Exa AI API Key |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `results` | string |
-| `url` | string |
-| `publishedDate` | string |
-| `author` | string |
-| `summary` | string |
-| `favicon` | string |
-| `image` | string |
-| `text` | string |
-| `score` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `similarLinks` | json | Similar links found |
+| `answer` | string | Generated answer |
+| `citations` | json | Answer citations |
+| `research` | json | Research findings |
 
 ### `exa_get_contents`
 
@@ -93,12 +89,13 @@ Retrieve the contents of webpages using Exa AI. Returns the title, text content,
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `results` | string |
-| `title` | string |
-| `text` | string |
-| `summary` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `similarLinks` | json | Similar links found |
+| `answer` | string | Generated answer |
+| `citations` | json | Answer citations |
+| `research` | json | Research findings |
 
 ### `exa_find_similar_links`
 
@@ -115,12 +112,13 @@ Find webpages similar to a given URL using Exa AI. Returns a list of similar lin
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `similarLinks` | string |
-| `url` | string |
-| `text` | string |
-| `score` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `similarLinks` | json | Similar links found |
+| `answer` | string | Generated answer |
+| `citations` | json | Answer citations |
+| `research` | json | Research findings |
 
 ### `exa_answer`
 
@@ -136,13 +134,13 @@ Get an AI-generated answer to a question with citations from the web using Exa A
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `query` | string |
-| `answer` | string |
-| `citations` | string |
-| `url` | string |
-| `text` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `similarLinks` | json | Similar links found |
+| `answer` | string | Generated answer |
+| `citations` | json | Answer citations |
+| `research` | json | Research findings |
 
 ### `exa_research`
 
@@ -158,32 +156,14 @@ Perform comprehensive research using AI to generate detailed reports with citati
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `taskId` | string |
-| `research` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `similarLinks` | json | Similar links found |
+| `answer` | string | Generated answer |
+| `citations` | json | Answer citations |
+| `research` | json | Research findings |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `results` | json | results output from the block |
-| `similarLinks` | json | similarLinks output from the block |
-| `answer` | string | answer output from the block |
-| `citations` | json | citations output from the block |
-| `research` | json | research output from the block |
 
 
 ## Notes

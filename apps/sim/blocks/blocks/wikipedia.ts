@@ -34,6 +34,7 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
       layout: 'full',
       placeholder: 'Enter Wikipedia page title (e.g., "Python programming language")...',
       condition: { field: 'operation', value: 'wikipedia_summary' },
+      required: true,
     },
     // Search Pages operation inputs
     {
@@ -43,6 +44,7 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
       layout: 'full',
       placeholder: 'Enter search terms...',
       condition: { field: 'operation', value: 'wikipedia_search' },
+      required: true,
     },
     {
       id: 'searchLimit',
@@ -60,6 +62,7 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
       layout: 'full',
       placeholder: 'Enter Wikipedia page title...',
       condition: { field: 'operation', value: 'wikipedia_content' },
+      required: true,
     },
   ],
   tools: {
@@ -87,22 +90,22 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
+    operation: { type: 'string', description: 'Operation to perform' },
     // Page Summary & Content operations
-    pageTitle: { type: 'string', required: false },
+    pageTitle: { type: 'string', description: 'Wikipedia page title' },
     // Search operation
-    query: { type: 'string', required: false },
-    searchLimit: { type: 'number', required: false },
+    query: { type: 'string', description: 'Search query terms' },
+    searchLimit: { type: 'number', description: 'Maximum search results' },
   },
   outputs: {
     // Page Summary output
-    summary: 'json',
+    summary: { type: 'json', description: 'Page summary data' },
     // Search output
-    searchResults: 'json',
-    totalHits: 'number',
+    searchResults: { type: 'json', description: 'Search results data' },
+    totalHits: { type: 'number', description: 'Total search hits' },
     // Page Content output
-    content: 'json',
+    content: { type: 'json', description: 'Page content data' },
     // Random Page output
-    randomPage: 'json',
+    randomPage: { type: 'json', description: 'Random page data' },
   },
 }

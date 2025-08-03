@@ -22,9 +22,9 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       options: [
         { label: 'Create Folder', id: 'create_folder' },
         { label: 'Upload File', id: 'upload' },
-        // { label: 'Get File Content', id: 'get_content' },
         { label: 'List Files', id: 'list' },
       ],
+      value: () => 'create_folder',
     },
     // Google Drive Credentials
     {
@@ -32,6 +32,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Google Drive Account',
       type: 'oauth-input',
       layout: 'full',
+      required: true,
       provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
@@ -45,6 +46,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       layout: 'full',
       placeholder: 'Name of the file',
       condition: { field: 'operation', value: 'upload' },
+      required: true,
     },
     {
       id: 'content',
@@ -53,6 +55,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       layout: 'full',
       placeholder: 'Content to upload to the file',
       condition: { field: 'operation', value: 'upload' },
+      required: true,
     },
     {
       id: 'mimeType',
@@ -139,6 +142,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       layout: 'full',
       placeholder: 'Name for the new folder',
       condition: { field: 'operation', value: 'create_folder' },
+      required: true,
     },
     {
       id: 'folderSelector',
@@ -211,8 +215,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         switch (params.operation) {
           case 'upload':
             return 'google_drive_upload'
-          // case 'get_content':
-          //   return 'google_drive_get_content'
           case 'create_folder':
             return 'google_drive_create_folder'
           case 'list':
@@ -238,22 +240,20 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Google Drive access token' },
     // Upload and Create Folder operation inputs
-    fileName: { type: 'string', required: false },
-    content: { type: 'string', required: false },
-    mimeType: { type: 'string', required: false },
-    // Get Content operation inputs
-    // fileId: { type: 'string', required: false },
+    fileName: { type: 'string', description: 'File or folder name' },
+    content: { type: 'string', description: 'File content' },
+    mimeType: { type: 'string', description: 'File MIME type' },
     // List operation inputs
-    folderSelector: { type: 'string', required: false },
-    manualFolderId: { type: 'string', required: false },
-    query: { type: 'string', required: false },
-    pageSize: { type: 'number', required: false },
+    folderSelector: { type: 'string', description: 'Selected folder' },
+    manualFolderId: { type: 'string', description: 'Manual folder identifier' },
+    query: { type: 'string', description: 'Search query' },
+    pageSize: { type: 'number', description: 'Results per page' },
   },
   outputs: {
-    file: 'json',
-    files: 'json',
+    file: { type: 'json', description: 'File data' },
+    files: { type: 'json', description: 'Files list' },
   },
 }

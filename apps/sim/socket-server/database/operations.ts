@@ -237,7 +237,6 @@ async function handleBlockOperationTx(
 
       logger.debug(`[SERVER] Adding block: ${payload.type} (${payload.id})`, {
         isSubflowType: isSubflowBlockType(payload.type),
-        payload,
       })
 
       // Extract parentId and extent from payload.data if they exist there, otherwise from payload directly

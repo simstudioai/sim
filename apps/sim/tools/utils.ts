@@ -165,26 +165,49 @@ export async function executeRequest(
 }
 
 /**
- * Validates the tool and its parameters
+ * Formats a parameter name for user-friendly error messages
+ * Converts parameter names and descriptions to more readable format
  */
-export function validateToolRequest(
+function formatParameterNameForError(paramName: string): string {
+  // Split camelCase and snake_case/kebab-case into words, then capitalize first letter of each word
+  return paramName
+    .split(/(?=[A-Z])|[_-]/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
+/**
+ * Validates required parameters after LLM and user params have been merged
+ * This is the final validation before tool execution - ensures all required
+ * user-or-llm parameters are present after the merge process
+ */
+export function validateRequiredParametersAfterMerge(
   toolId: string,
   tool: ToolConfig | undefined,
-  params: Record<string, any>
+  params: Record<string, any>,
+  parameterNameMap?: Record<string, string>
 ): void {
   if (!tool) {
     throw new Error(`Tool not found: ${toolId}`)
   }
 
-  // Ensure all required parameters for tool call are provided
-  // Note: user-only parameters are not checked here as they're optional
+  // Validate all required user-or-llm parameters after merge
+  // user-only parameters should have been validated earlier during serialization
   for (const [paramName, paramConfig] of Object.entries(tool.params)) {
     if (
       (paramConfig as any).visibility === 'user-or-llm' &&
       paramConfig.required &&
-      !(paramName in params)
+      (!(paramName in params) ||
+        params[paramName] === null ||
+        params[paramName] === undefined ||
+        params[paramName] === '')
     ) {
-      throw new Error(`Parameter "${paramName}" is required for ${toolId} but was not provided`)
+      // Create a more user-friendly error message
+      const toolName = tool.name || toolId
+      const friendlyParamName =
+        parameterNameMap?.[paramName] || formatParameterNameForError(paramName)
+      throw new Error(`"${friendlyParamName}" is required for ${toolName}`)
     }
   }
 }

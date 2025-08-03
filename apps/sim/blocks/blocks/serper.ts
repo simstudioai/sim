@@ -19,6 +19,7 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter your search query...',
+      required: true,
     },
     {
       id: 'type',
@@ -31,6 +32,7 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
         { label: 'places', id: 'places' },
         { label: 'images', id: 'images' },
       ],
+      value: () => 'search',
     },
     {
       id: 'num',
@@ -80,20 +82,21 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
       layout: 'full',
       placeholder: 'Enter your Serper API key',
       password: true,
+      required: true,
     },
   ],
   tools: {
     access: ['serper_search'],
   },
   inputs: {
-    query: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
-    num: { type: 'number', required: false },
-    gl: { type: 'string', required: false },
-    hl: { type: 'string', required: false },
-    type: { type: 'string', required: false },
+    query: { type: 'string', description: 'Search query terms' },
+    apiKey: { type: 'string', description: 'Serper API key' },
+    num: { type: 'number', description: 'Number of results' },
+    gl: { type: 'string', description: 'Country code' },
+    hl: { type: 'string', description: 'Language code' },
+    type: { type: 'string', description: 'Search type' },
   },
   outputs: {
-    searchResults: 'json',
+    searchResults: { type: 'json', description: 'Search results data' },
   },
 }

@@ -29,7 +29,7 @@ const config = {
    * Endpoint URL where telemetry data is sent
    * Change this if you want to send telemetry to your own collector
    */
-  endpoint: env.TELEMETRY_ENDPOINT || 'https://telemetry.sim.ai/v1/traces',
+  endpoint: env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
 
   /**
    * Service name used to identify this instance

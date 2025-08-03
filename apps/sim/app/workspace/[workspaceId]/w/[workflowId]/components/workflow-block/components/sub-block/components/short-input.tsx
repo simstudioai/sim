@@ -352,6 +352,7 @@ export function ShortInput({
             : formatDisplayText(value?.toString() ?? '', true)}
         </div>
       </div>
+
       <EnvVarDropdown
         visible={showEnvVars}
         onSelect={handleEnvVarSelect}

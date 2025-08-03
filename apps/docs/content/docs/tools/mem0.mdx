@@ -64,9 +64,11 @@ Add memories to Mem0 for persistent storage and retrieval
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `memories` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ids` | any | Memory identifiers |
+| `memories` | any | Memory data |
+| `searchResults` | any | Search results |
 
 ### `mem0_search_memories`
 
@@ -83,10 +85,11 @@ Search for memories in Mem0 using semantic search
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `searchResults` | string |
-| `ids` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ids` | any | Memory identifiers |
+| `memories` | any | Memory data |
+| `searchResults` | any | Search results |
 
 ### `mem0_get_memories`
 
@@ -105,30 +108,12 @@ Retrieve memories from Mem0 by ID or filter criteria
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `memories` | string |
-| `ids` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ids` | any | Memory identifiers |
+| `memories` | any | Memory data |
+| `searchResults` | any | Search results |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `ids` | any | ids output from the block |
-| `memories` | any | memories output from the block |
-| `searchResults` | any | searchResults output from the block |
 
 
 ## Notes

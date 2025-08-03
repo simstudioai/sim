@@ -1236,9 +1236,40 @@ export class Executor {
 
       setActiveBlocks(activeBlockIds)
 
-      const results = await Promise.all(
+      const settledResults = await Promise.allSettled(
         blockIds.map((blockId) => this.executeBlock(blockId, context))
       )
+
+      // Extract successful results and collect any errors
+      const results: (NormalizedBlockOutput | StreamingExecution)[] = []
+      const errors: Error[] = []
+
+      settledResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          results.push(result.value)
+        } else {
+          errors.push(result.reason)
+          // For failed blocks, we still need to add a placeholder result
+          // so the results array matches the blockIds array length
+          results.push({
+            error: result.reason?.message || 'Block execution failed',
+            status: 500,
+          })
+        }
+      })
+
+      // If there were any errors, log them but don't throw immediately
+      // This allows successful blocks to complete their streaming
+      if (errors.length > 0) {
+        logger.warn(
+          `Layer execution completed with ${errors.length} failed blocks out of ${blockIds.length} total`
+        )
+
+        // Only throw if ALL blocks failed
+        if (errors.length === blockIds.length) {
+          throw errors[0] // Throw the first error if all blocks failed
+        }
+      }
 
       blockIds.forEach((blockId) => {
         context.executedBlocks.add(blockId)

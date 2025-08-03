@@ -29,6 +29,7 @@ const chatUpdateSchema = z.object({
     .object({
       primaryColor: z.string(),
       welcomeMessage: z.string(),
+      imageUrl: z.string().optional(),
     })
     .optional(),
   authType: z.enum(['public', 'password', 'email']).optional(),

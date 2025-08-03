@@ -29,11 +29,8 @@ import {
   ToolInput,
   WebhookConfig,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
-import { getBlock } from '@/blocks/index'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { DocumentTagEntry } from './components/document-tag-entry/document-tag-entry'
-import { KnowledgeTagFilter } from './components/knowledge-tag-filter/knowledge-tag-filter'
 import { KnowledgeTagFilters } from './components/knowledge-tag-filters/knowledge-tag-filters'
 
 interface SubBlockProps {
@@ -64,13 +61,7 @@ export function SubBlock({
   }
 
   const isFieldRequired = () => {
-    const blockType = useWorkflowStore.getState().blocks[blockId]?.type
-    if (!blockType) return false
-
-    const blockConfig = getBlock(blockType)
-    if (!blockConfig) return false
-
-    return blockConfig.inputs[config.id]?.required === true
+    return config.required === true
   }
 
   // Get preview value for this specific sub-block
@@ -181,6 +172,13 @@ export function SubBlock({
             previewValue={previewValue}
             disabled={isDisabled}
             onValidationChange={handleValidationChange}
+            wandConfig={
+              config.wandConfig || {
+                enabled: false,
+                prompt: '',
+                placeholder: '',
+              }
+            }
           />
         )
       case 'switch':
@@ -354,17 +352,6 @@ export function SubBlock({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
-          />
-        )
-      case 'knowledge-tag-filter':
-        return (
-          <KnowledgeTagFilter
-            blockId={blockId}
-            subBlock={config}
-            disabled={isDisabled}
-            isPreview={isPreview}
-            previewValue={previewValue}
-            isConnecting={isConnecting}
           />
         )
       case 'knowledge-tag-filters':

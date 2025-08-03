@@ -116,9 +116,15 @@ Read data from a Google Sheets spreadsheet
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `data` | json |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Sheet data |
+| `metadata` | json | Operation metadata |
+| `updatedRange` | string | Updated range |
+| `updatedRows` | number | Updated rows count |
+| `updatedColumns` | number | Updated columns count |
+| `updatedCells` | number | Updated cells count |
+| `tableRange` | string | Table range |
 
 ### `google_sheets_write`
 
@@ -137,15 +143,15 @@ Write data to a Google Sheets spreadsheet
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `updatedRange` | string |
-| `updatedRows` | string |
-| `updatedColumns` | string |
-| `updatedCells` | string |
-| `metadata` | string |
-| `spreadsheetId` | string |
-| `spreadsheetUrl` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Sheet data |
+| `metadata` | json | Operation metadata |
+| `updatedRange` | string | Updated range |
+| `updatedRows` | number | Updated rows count |
+| `updatedColumns` | number | Updated columns count |
+| `updatedCells` | number | Updated cells count |
+| `tableRange` | string | Table range |
 
 ### `google_sheets_update`
 
@@ -164,15 +170,15 @@ Update data in a Google Sheets spreadsheet
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `updatedRange` | string |
-| `updatedRows` | string |
-| `updatedColumns` | string |
-| `updatedCells` | string |
-| `metadata` | string |
-| `spreadsheetId` | string |
-| `spreadsheetUrl` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Sheet data |
+| `metadata` | json | Operation metadata |
+| `updatedRange` | string | Updated range |
+| `updatedRows` | number | Updated rows count |
+| `updatedColumns` | number | Updated columns count |
+| `updatedCells` | number | Updated cells count |
+| `tableRange` | string | Table range |
 
 ### `google_sheets_append`
 
@@ -192,33 +198,16 @@ Append data to the end of a Google Sheets spreadsheet
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `data` | json |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Sheet data |
+| `metadata` | json | Operation metadata |
+| `updatedRange` | string | Updated range |
+| `updatedRows` | number | Updated rows count |
+| `updatedColumns` | number | Updated columns count |
+| `updatedCells` | number | Updated cells count |
+| `tableRange` | string | Table range |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `data` | json | data output from the block |
-| `metadata` | json | metadata output from the block |
-| `updatedRange` | string | updatedRange output from the block |
-| `updatedRows` | number | updatedRows output from the block |
-| `updatedColumns` | number | updatedColumns output from the block |
-| `updatedCells` | number | updatedCells output from the block |
-| `tableRange` | string | tableRange output from the block |
 
 
 ## Notes

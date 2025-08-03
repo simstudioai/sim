@@ -32,6 +32,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       layout: 'half',
       placeholder: 'e.g., microsoft',
+      required: true,
     },
     {
       id: 'repo',
@@ -39,6 +40,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       type: 'short-input',
       layout: 'half',
       placeholder: 'e.g., vscode',
+      required: true,
     },
     {
       id: 'pullNumber',
@@ -47,6 +49,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       layout: 'half',
       placeholder: 'e.g., 123',
       condition: { field: 'operation', value: 'github_pr' },
+      required: true,
     },
     {
       id: 'body',
@@ -55,6 +58,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       layout: 'full',
       placeholder: 'Enter comment text',
       condition: { field: 'operation', value: 'github_comment' },
+      required: true,
     },
     {
       id: 'pullNumber',
@@ -63,6 +67,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       layout: 'half',
       placeholder: 'e.g., 123',
       condition: { field: 'operation', value: 'github_comment' },
+      required: true,
     },
     {
       id: 'branch',
@@ -79,6 +84,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       layout: 'full',
       placeholder: 'Enter GitHub Token',
       password: true,
+      required: true,
     },
     {
       id: 'commentType',
@@ -142,21 +148,21 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    owner: { type: 'string', required: true },
-    repo: { type: 'string', required: true },
-    pullNumber: { type: 'number', required: false },
-    body: { type: 'string', required: false },
-    apiKey: { type: 'string', required: true },
-    commentType: { type: 'string', required: false },
-    path: { type: 'string', required: false },
-    line: { type: 'number', required: false },
-    side: { type: 'string', required: false },
-    commitId: { type: 'string', required: false },
-    branch: { type: 'string', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    owner: { type: 'string', description: 'Repository owner' },
+    repo: { type: 'string', description: 'Repository name' },
+    pullNumber: { type: 'number', description: 'Pull request number' },
+    body: { type: 'string', description: 'Comment text' },
+    apiKey: { type: 'string', description: 'GitHub access token' },
+    commentType: { type: 'string', description: 'Comment type' },
+    path: { type: 'string', description: 'File path' },
+    line: { type: 'number', description: 'Line number' },
+    side: { type: 'string', description: 'Comment side' },
+    commitId: { type: 'string', description: 'Commit identifier' },
+    branch: { type: 'string', description: 'Branch name' },
   },
   outputs: {
-    content: 'string',
-    metadata: 'json',
+    content: { type: 'string', description: 'Response content' },
+    metadata: { type: 'json', description: 'Response metadata' },
   },
 }

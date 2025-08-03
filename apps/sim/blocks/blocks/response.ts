@@ -41,10 +41,33 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
       layout: 'full',
       placeholder: '{\n  "message": "Hello world",\n  "userId": "<variable.userId>"\n}',
       language: 'json',
-      generationType: 'json-object',
       condition: { field: 'dataMode', value: 'json' },
       description:
         'Data that will be sent as the response body on API calls. Use <variable.name> to reference workflow variables.',
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert JSON programmer.
+Generate ONLY the raw JSON object based on the user's request.
+The output MUST be a single, valid JSON object, starting with { and ending with }.
+
+Current response: {context}
+
+Do not include any explanations, markdown formatting, or other text outside the JSON object.
+
+You have access to the following variables you can use to generate the JSON body:
+- 'params' (object): Contains input parameters derived from the JSON schema. Access these directly using the parameter name wrapped in angle brackets, e.g., '<paramName>'. Do NOT use 'params.paramName'.
+- 'environmentVariables' (object): Contains environment variables. Reference these using the double curly brace syntax: '{{ENV_VAR_NAME}}'. Do NOT use 'environmentVariables.VAR_NAME' or env.
+
+Example:
+{
+  "name": "<block.agent.response.content>",
+  "age": <block.function.output.age>,
+  "success": true
+}`,
+        placeholder: 'Describe the API response structure you need...',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'status',
@@ -67,33 +90,28 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
   inputs: {
     dataMode: {
       type: 'string',
-      required: false,
-      description: 'Mode for defining response data structure',
+      description: 'Response data definition mode',
     },
     builderData: {
       type: 'json',
-      required: false,
-      description: 'The JSON data to send in the response body',
+      description: 'Structured response data',
     },
     data: {
       type: 'json',
-      required: false,
-      description: 'The JSON data to send in the response body',
+      description: 'JSON response body',
     },
     status: {
       type: 'number',
-      required: false,
-      description: 'HTTP status code (default: 200)',
+      description: 'HTTP status code',
     },
     headers: {
       type: 'json',
-      required: false,
-      description: 'Additional response headers',
+      description: 'Response headers',
     },
   },
   outputs: {
-    data: 'json',
-    status: 'number',
-    headers: 'json',
+    data: { type: 'json', description: 'Response data' },
+    status: { type: 'number', description: 'HTTP status code' },
+    headers: { type: 'json', description: 'Response headers' },
   },
 }

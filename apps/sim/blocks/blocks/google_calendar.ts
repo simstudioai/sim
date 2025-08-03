@@ -25,12 +25,14 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
         { label: 'Quick Add (Natural Language)', id: 'quick_add' },
         { label: 'Invite Attendees', id: 'invite' },
       ],
+      value: () => 'create',
     },
     {
       id: 'credential',
       title: 'Google Calendar Account',
       type: 'oauth-input',
       layout: 'full',
+      required: true,
       provider: 'google-calendar',
       serviceId: 'google-calendar',
       requiredScopes: ['https://www.googleapis.com/auth/calendar'],
@@ -66,6 +68,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       layout: 'full',
       placeholder: 'Meeting with team',
       condition: { field: 'operation', value: 'create' },
+      required: true,
     },
     {
       id: 'description',
@@ -90,6 +93,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       layout: 'half',
       placeholder: '2025-06-03T10:00:00-08:00',
       condition: { field: 'operation', value: 'create' },
+      required: true,
     },
     {
       id: 'endDateTime',
@@ -98,6 +102,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       layout: 'half',
       placeholder: '2025-06-03T11:00:00-08:00',
       condition: { field: 'operation', value: 'create' },
+      required: true,
     },
     {
       id: 'attendees',
@@ -134,6 +139,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       layout: 'full',
       placeholder: 'Event ID',
       condition: { field: 'operation', value: ['get', 'invite'] },
+      required: true,
     },
 
     // Invite Attendees Fields
@@ -165,6 +171,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       layout: 'full',
       placeholder: 'Meeting with John tomorrow at 3pm for 1 hour',
       condition: { field: 'operation', value: 'quick_add' },
+      required: true,
     },
     {
       id: 'attendees',
@@ -173,6 +180,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       layout: 'full',
       placeholder: 'john@example.com, jane@example.com',
       condition: { field: 'operation', value: 'quick_add' },
+      required: true,
     },
 
     // Notification setting (for create, quick_add, invite)
@@ -267,37 +275,37 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
-    calendarId: { type: 'string', required: false },
-    manualCalendarId: { type: 'string', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Google Calendar access token' },
+    calendarId: { type: 'string', description: 'Calendar identifier' },
+    manualCalendarId: { type: 'string', description: 'Manual calendar identifier' },
 
     // Create operation inputs
-    summary: { type: 'string', required: false },
-    description: { type: 'string', required: false },
-    location: { type: 'string', required: false },
-    startDateTime: { type: 'string', required: false },
-    endDateTime: { type: 'string', required: false },
-    attendees: { type: 'string', required: false },
+    summary: { type: 'string', description: 'Event title' },
+    description: { type: 'string', description: 'Event description' },
+    location: { type: 'string', description: 'Event location' },
+    startDateTime: { type: 'string', description: 'Event start time' },
+    endDateTime: { type: 'string', description: 'Event end time' },
+    attendees: { type: 'string', description: 'Attendee email list' },
 
     // List operation inputs
-    timeMin: { type: 'string', required: false },
-    timeMax: { type: 'string', required: false },
+    timeMin: { type: 'string', description: 'Start time filter' },
+    timeMax: { type: 'string', description: 'End time filter' },
 
     // Get/Invite operation inputs
-    eventId: { type: 'string', required: false },
+    eventId: { type: 'string', description: 'Event identifier' },
 
     // Quick add inputs
-    text: { type: 'string', required: false },
+    text: { type: 'string', description: 'Natural language event' },
 
     // Invite specific inputs
-    replaceExisting: { type: 'string', required: false },
+    replaceExisting: { type: 'string', description: 'Replace existing attendees' },
 
     // Common inputs
-    sendUpdates: { type: 'string', required: false },
+    sendUpdates: { type: 'string', description: 'Send email notifications' },
   },
   outputs: {
-    content: 'string',
-    metadata: 'json',
+    content: { type: 'string', description: 'Operation response content' },
+    metadata: { type: 'json', description: 'Event metadata' },
   },
 }

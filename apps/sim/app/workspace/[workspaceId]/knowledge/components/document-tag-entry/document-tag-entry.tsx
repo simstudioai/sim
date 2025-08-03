@@ -1,29 +1,32 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { ChevronDown, Plus, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
+  Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/ui'
 import { MAX_TAG_SLOTS, TAG_SLOTS, type TagSlot } from '@/lib/constants/knowledge'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/use-tag-definitions'
 
 export interface DocumentTag {
-  slot: TagSlot
+  slot: string
   displayName: string
   fieldType: string
   value: string
@@ -31,205 +34,197 @@ export interface DocumentTag {
 
 interface DocumentTagEntryProps {
   tags: DocumentTag[]
-  onTagsChange: (tags: DocumentTag[]) => void
+  onTagsChange: (newTags: DocumentTag[]) => void
   disabled?: boolean
-  knowledgeBaseId?: string | null
-  documentId?: string | null
-  onSave?: (tags: DocumentTag[]) => Promise<void>
+  knowledgeBaseId: string
+  documentId: string | null
+  onSave?: (tagsToSave: DocumentTag[]) => Promise<void>
 }
-
-// TAG_SLOTS is now imported from constants
 
 export function DocumentTagEntry({
   tags,
   onTagsChange,
   disabled = false,
-  knowledgeBaseId = null,
-  documentId = null,
+  knowledgeBaseId,
+  documentId,
   onSave,
 }: DocumentTagEntryProps) {
-  const { saveTagDefinitions } = useTagDefinitions(knowledgeBaseId, documentId)
-  const { tagDefinitions: kbTagDefinitions, fetchTagDefinitions: refreshTagDefinitions } =
-    useKnowledgeBaseTagDefinitions(knowledgeBaseId)
+  // Use different hooks based on whether we have a documentId
+  const documentTagHook = useTagDefinitions(knowledgeBaseId, documentId)
+  const kbTagHook = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
 
-  const [editingTag, setEditingTag] = useState<{
-    index: number
-    value: string
-    tagName: string
-    isNew: boolean
-  } | null>(null)
+  // Use the document-level hook since we have documentId
+  const { saveTagDefinitions } = documentTagHook
+  const { tagDefinitions: kbTagDefinitions, fetchTagDefinitions: refreshTagDefinitions } = kbTagHook
+
+  // Modal state for tag editing
+  const [editingTagIndex, setEditingTagIndex] = useState<number | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editForm, setEditForm] = useState({
+    displayName: '',
+    fieldType: 'text',
+    value: '',
+  })
 
   const getNextAvailableSlot = (): DocumentTag['slot'] => {
-    const usedSlots = new Set(tags.map((tag) => tag.slot))
+    // Check which slots are used at the KB level (tag definitions)
+    const usedSlots = new Set(kbTagDefinitions.map((def) => def.tagSlot))
     for (const slot of TAG_SLOTS) {
       if (!usedSlots.has(slot)) {
         return slot
       }
     }
-    return 'tag1' // fallback
-  }
-
-  const handleSaveDefinitions = async (tagsToSave?: DocumentTag[]) => {
-    if (!knowledgeBaseId || !documentId) return
-
-    const currentTags = tagsToSave || tags
-
-    // Create definitions for tags that have display names
-    const definitions: TagDefinitionInput[] = currentTags
-      .filter((tag) => tag?.displayName?.trim())
-      .map((tag) => ({
-        tagSlot: tag.slot as TagSlot,
-        displayName: tag.displayName.trim(),
-        fieldType: tag.fieldType || 'text',
-      }))
-
-    // Only save if we have valid definitions
-    if (definitions.length > 0) {
-      await saveTagDefinitions(definitions)
-    }
-  }
-
-  const handleCleanupUnusedTags = async () => {
-    if (!knowledgeBaseId || !documentId) return
-
-    try {
-      const response = await fetch(
-        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/tag-definitions?action=cleanup`,
-        {
-          method: 'DELETE',
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error(`Cleanup failed: ${response.statusText}`)
-      }
-
-      const result = await response.json()
-      console.log('Cleanup result:', result)
-    } catch (error) {
-      console.error('Failed to cleanup unused tags:', error)
-    }
-  }
-
-  // Get available tag names that aren't already used in this document
-  const availableTagNames = kbTagDefinitions
-    .map((tag) => tag.displayName)
-    .filter((tagName) => !tags.some((tag) => tag.displayName === tagName))
-
-  // Check if we can add more tags (KB has less than MAX_TAG_SLOTS tag definitions)
-  const canAddMoreTags = kbTagDefinitions.length < MAX_TAG_SLOTS
-
-  const handleSuggestionClick = (tagName: string) => {
-    setEditingTag({ index: -1, value: '', tagName, isNew: false })
-  }
-
-  const handleCreateNewTag = async (tagName: string, value: string, fieldType = 'text') => {
-    if (!tagName.trim() || !value.trim()) return
-
-    // Check if tag name already exists in current document
-    const tagNameLower = tagName.trim().toLowerCase()
-    const existingTag = tags.find((tag) => tag.displayName.toLowerCase() === tagNameLower)
-    if (existingTag) {
-      alert(`Tag "${tagName}" already exists. Please choose a different name.`)
-      return
-    }
-
-    const newTag: DocumentTag = {
-      slot: getNextAvailableSlot(),
-      displayName: tagName.trim(),
-      fieldType: fieldType,
-      value: value.trim(),
-    }
-
-    const updatedTags = [...tags, newTag]
-
-    // SIMPLE ATOMIC OPERATION - NO CLEANUP
-    try {
-      // 1. Save tag definition first
-      await handleSaveDefinitions(updatedTags)
-
-      // 2. Save document values
-      if (onSave) {
-        await onSave(updatedTags)
-      }
-
-      // 3. Update UI
-      onTagsChange(updatedTags)
-    } catch (error) {
-      console.error('Failed to save tag:', error)
-      alert(`Failed to save tag "${tagName}". Please try again.`)
-    }
-  }
-
-  const handleUpdateTag = async (index: number, newValue: string) => {
-    if (!newValue.trim()) return
-
-    const updatedTags = tags.map((tag, i) =>
-      i === index ? { ...tag, value: newValue.trim() } : tag
-    )
-
-    // SIMPLE ATOMIC OPERATION - NO CLEANUP
-    try {
-      // 1. Save document values
-      if (onSave) {
-        await onSave(updatedTags)
-      }
-      // 2. Save tag definitions
-      await handleSaveDefinitions(updatedTags)
-      // 3. Update UI
-      onTagsChange(updatedTags)
-    } catch (error) {
-      console.error('Failed to update tag:', error)
-    }
+    return TAG_SLOTS[0] // Fallback to first slot if all are used
   }
 
   const handleRemoveTag = async (index: number) => {
     const updatedTags = tags.filter((_, i) => i !== index)
+    onTagsChange(updatedTags)
 
-    console.log('Removing tag, updated tags:', updatedTags)
-
-    // FULLY SYNCHRONOUS - DO NOT UPDATE UI UNTIL ALL OPERATIONS COMPLETE
-    try {
-      // 1. Save the document tag values
-      console.log('Saving document values after tag removal...')
-      if (onSave) {
+    // Persist the changes if onSave is provided
+    if (onSave) {
+      try {
         await onSave(updatedTags)
+      } catch (error) {
+        // Handle error silently - the UI will show the optimistic update
+        // but the user can retry if needed
       }
-
-      // 2. Save the tag definitions
-      console.log('Saving tag definitions after tag removal...')
-      await handleSaveDefinitions(updatedTags)
-
-      // 3. Run cleanup to remove unused tag definitions
-      console.log('Running cleanup to remove unused tag definitions...')
-      await handleCleanupUnusedTags()
-
-      // 4. ONLY NOW update the UI
-      onTagsChange(updatedTags)
-
-      // 5. Refresh tag definitions for dropdown
-      await refreshTagDefinitions()
-    } catch (error) {
-      console.error('Failed to remove tag:', error)
     }
   }
 
+  // Open modal to edit tag
+  const openTagModal = (index: number) => {
+    const tag = tags[index]
+    setEditingTagIndex(index)
+    setEditForm({
+      displayName: tag.displayName,
+      fieldType: tag.fieldType,
+      value: tag.value,
+    })
+    setModalOpen(true)
+  }
+
+  // Open modal to create new tag
+  const openNewTagModal = () => {
+    setEditingTagIndex(null)
+    setEditForm({
+      displayName: '',
+      fieldType: 'text',
+      value: '',
+    })
+    setModalOpen(true)
+  }
+
+  // Save tag from modal
+  const saveTagFromModal = async () => {
+    if (!editForm.displayName.trim()) return
+
+    try {
+      // Calculate slot once at the beginning
+      const targetSlot =
+        editingTagIndex !== null ? tags[editingTagIndex].slot : getNextAvailableSlot()
+
+      if (editingTagIndex !== null) {
+        // Editing existing tag - use existing slot
+        const updatedTags = [...tags]
+        updatedTags[editingTagIndex] = {
+          ...updatedTags[editingTagIndex],
+          displayName: editForm.displayName,
+          fieldType: editForm.fieldType,
+          value: editForm.value,
+        }
+        onTagsChange(updatedTags)
+      } else {
+        // Creating new tag - use calculated slot
+        const newTag: DocumentTag = {
+          slot: targetSlot,
+          displayName: editForm.displayName,
+          fieldType: editForm.fieldType,
+          value: editForm.value,
+        }
+        const newTags = [...tags, newTag]
+        onTagsChange(newTags)
+      }
+
+      // Auto-save tag definition if it's a new name
+      const existingDefinition = kbTagDefinitions.find(
+        (def) => def.displayName.toLowerCase() === editForm.displayName.toLowerCase()
+      )
+
+      if (!existingDefinition) {
+        // Use the same slot for both tag and definition
+        const newDefinition: TagDefinitionInput = {
+          displayName: editForm.displayName,
+          fieldType: editForm.fieldType,
+          tagSlot: targetSlot as TagSlot,
+        }
+
+        if (saveTagDefinitions) {
+          await saveTagDefinitions([newDefinition])
+        } else {
+          throw new Error('Cannot save tag definitions without a document ID')
+        }
+        await refreshTagDefinitions()
+      }
+
+      // Save the actual document tags if onSave is provided
+      if (onSave) {
+        const updatedTags =
+          editingTagIndex !== null
+            ? tags.map((tag, index) =>
+                index === editingTagIndex
+                  ? {
+                      ...tag,
+                      displayName: editForm.displayName,
+                      fieldType: editForm.fieldType,
+                      value: editForm.value,
+                    }
+                  : tag
+              )
+            : [
+                ...tags,
+                {
+                  slot: targetSlot,
+                  displayName: editForm.displayName,
+                  fieldType: editForm.fieldType,
+                  value: editForm.value,
+                },
+              ]
+        await onSave(updatedTags)
+      }
+
+      setModalOpen(false)
+    } catch (error) {}
+  }
+
+  // Filter available tag definitions (exclude already used ones)
+  const availableDefinitions = kbTagDefinitions.filter(
+    (def) => !tags.some((tag) => tag.displayName.toLowerCase() === def.displayName.toLowerCase())
+  )
+
   return (
-    <div className='space-y-3'>
-      {/* Existing Tags as Chips */}
+    <div className='space-y-4'>
+      <div className='flex items-center justify-between'>
+        <h3 className='font-medium text-sm'>Document Tags</h3>
+      </div>
+
+      {/* Tags as Badges */}
       <div className='flex flex-wrap gap-2'>
         {tags.map((tag, index) => (
-          <div
-            key={`${tag.slot}-${index}`}
-            className='inline-flex cursor-pointer items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-sm transition-colors hover:bg-gray-200'
-            onClick={() =>
-              setEditingTag({ index, value: tag.value, tagName: tag.displayName, isNew: false })
-            }
+          <Badge
+            key={index}
+            variant='outline'
+            className='cursor-pointer gap-2 px-3 py-1.5 text-sm transition-colors hover:bg-accent'
+            onClick={() => openTagModal(index)}
           >
-            <span className='font-medium'>{tag.displayName}:</span>
-            <span className='text-muted-foreground'>{tag.value}</span>
+            <span className='font-medium'>{tag.displayName || 'Unnamed Tag'}</span>
+            {tag.value && (
+              <>
+                <span className='text-muted-foreground'>:</span>
+                <span className='text-muted-foreground'>{tag.value}</span>
+              </>
+            )}
             <Button
-              type='button'
               variant='ghost'
               size='sm'
               onClick={(e) => {
@@ -241,179 +236,89 @@ export function DocumentTagEntry({
             >
               <X className='h-3 w-3' />
             </Button>
-          </div>
+          </Badge>
         ))}
+
+        {/* Add Tag Button */}
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={openNewTagModal}
+          disabled={disabled || tags.length >= MAX_TAG_SLOTS}
+          className='gap-1 border-dashed text-muted-foreground hover:text-foreground'
+        >
+          <Plus className='h-4 w-4' />
+          Add Tag
+        </Button>
       </div>
 
-      {/* Add Tag Dropdown Selector */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type='button'
-            variant='outline'
-            size='sm'
-            disabled={disabled || (!canAddMoreTags && availableTagNames.length === 0)}
-            className='gap-1 text-muted-foreground hover:text-foreground'
-          >
-            <Plus className='h-4 w-4' />
-            <span>Add Tag</span>
-            <ChevronDown className='h-3 w-3' />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='start' className='w-48'>
-          {/* Existing tag names */}
-          {availableTagNames.length > 0 && (
-            <>
-              {availableTagNames.map((tagName) => {
-                const tagDefinition = kbTagDefinitions.find((def) => def.displayName === tagName)
-                return (
-                  <DropdownMenuItem
-                    key={tagName}
-                    onClick={() => handleSuggestionClick(tagName)}
-                    className='flex items-center justify-between'
-                  >
-                    <span>{tagName}</span>
-                    <span className='text-muted-foreground text-xs'>
-                      {tagDefinition?.fieldType || 'text'}
-                    </span>
-                  </DropdownMenuItem>
-                )
-              })}
-              <div className='my-1 h-px bg-border' />
-            </>
-          )}
-
-          {/* Create new tag option or disabled message */}
-          {canAddMoreTags ? (
-            <DropdownMenuItem
-              onClick={() => {
-                setEditingTag({ index: -1, value: '', tagName: '', isNew: true })
-              }}
-              className='flex items-center gap-2 text-blue-600'
-            >
-              <Plus className='h-4 w-4' />
-              <span>Create new tag</span>
-            </DropdownMenuItem>
-          ) : (
-            <div className='px-2 py-1.5 text-muted-foreground text-sm'>
-              All {MAX_TAG_SLOTS} tag slots used in this knowledge base
-            </div>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      {/* Edit Tag Value Modal */}
-      {editingTag !== null && (
-        <EditTagModal
-          tagName={editingTag.tagName}
-          initialValue={editingTag.value}
-          isNew={editingTag.isNew}
-          existingType={
-            editingTag.isNew
-              ? undefined
-              : kbTagDefinitions.find((t) => t.displayName === editingTag.tagName)?.fieldType
-          }
-          onSave={(value, type, newTagName) => {
-            if (editingTag.index === -1) {
-              // Creating new tag - use newTagName if provided, otherwise fall back to editingTag.tagName
-              const tagName = newTagName || editingTag.tagName
-              handleCreateNewTag(tagName, value, type)
-            } else {
-              // Updating existing tag
-              handleUpdateTag(editingTag.index, value)
-            }
-            setEditingTag(null)
-          }}
-          onCancel={() => {
-            setEditingTag(null)
-          }}
-        />
-      )}
-
-      {/* Tag count display */}
-      {kbTagDefinitions.length > 0 && (
-        <div className='text-muted-foreground text-xs'>
-          {kbTagDefinitions.length} of {MAX_TAG_SLOTS} tag slots used in this knowledge base
+      {tags.length === 0 && (
+        <div className='rounded-md border border-dashed p-4 text-center'>
+          <p className='text-muted-foreground text-sm'>
+            No tags added yet. Click "Add Tag" to get started.
+          </p>
         </div>
       )}
-    </div>
-  )
-}
 
-// Simple modal for editing tag values
-interface EditTagModalProps {
-  tagName: string
-  initialValue: string
-  isNew: boolean
-  existingType?: string
-  onSave: (value: string, type?: string, newTagName?: string) => void
-  onCancel: () => void
-}
+      <div className='text-muted-foreground text-xs'>
+        {kbTagDefinitions.length} of {MAX_TAG_SLOTS} tag slots used
+      </div>
 
-function EditTagModal({
-  tagName,
-  initialValue,
-  isNew,
-  existingType,
-  onSave,
-  onCancel,
-}: EditTagModalProps) {
-  const [value, setValue] = useState(initialValue)
-  const [fieldType, setFieldType] = useState(existingType || 'text')
-  const [newTagName, setNewTagName] = useState(tagName)
-  const inputRef = useRef<HTMLInputElement>(null)
+      {/* Tag Edit Modal */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>{editingTagIndex !== null ? 'Edit Tag' : 'Add New Tag'}</DialogTitle>
+          </DialogHeader>
 
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (value.trim() && (isNew ? newTagName.trim() : true)) {
-      onSave(value.trim(), fieldType, isNew ? newTagName.trim() : undefined)
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      onCancel()
-    }
-  }
-
-  return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50'>
-      <div className='mx-4 w-96 max-w-sm rounded-lg bg-white p-4'>
-        <div className='mb-3 flex items-start justify-between'>
-          <h3 className='font-medium text-sm'>
-            {isNew ? 'Create new tag' : `Edit "${tagName}" value`}
-          </h3>
-          {/* Type Badge in Top Right */}
-          {!isNew && existingType && (
-            <span className='rounded bg-gray-100 px-2 py-1 font-medium text-gray-500 text-xs'>
-              {existingType.toUpperCase()}
-            </span>
-          )}
-        </div>
-        <form onSubmit={handleSubmit} className='space-y-3'>
-          {/* Tag Name Input for New Tags */}
-          {isNew && (
-            <div>
-              <Label className='font-medium text-muted-foreground text-xs'>Tag Name</Label>
-              <Input
-                value={newTagName}
-                onChange={(e) => setNewTagName(e.target.value)}
-                placeholder='Enter tag name'
-                className='mt-1 text-sm'
-              />
+          <div className='space-y-4'>
+            {/* Tag Name */}
+            <div className='space-y-2'>
+              <Label htmlFor='tag-name'>Tag Name</Label>
+              <div className='flex gap-2'>
+                <Input
+                  id='tag-name'
+                  value={editForm.displayName}
+                  onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
+                  placeholder='Enter tag name'
+                  className='flex-1'
+                />
+                {availableDefinitions.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant='outline' size='sm'>
+                        <ChevronDown className='h-4 w-4' />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='end'>
+                      {availableDefinitions.map((def) => (
+                        <DropdownMenuItem
+                          key={def.id}
+                          onClick={() =>
+                            setEditForm({
+                              ...editForm,
+                              displayName: def.displayName,
+                              fieldType: def.fieldType,
+                            })
+                          }
+                        >
+                          {def.displayName}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
             </div>
-          )}
 
-          {/* Type Selection for New Tags */}
-          {isNew && (
-            <div>
-              <Label className='font-medium text-muted-foreground text-xs'>Type</Label>
-              <Select value={fieldType} onValueChange={setFieldType}>
-                <SelectTrigger className='mt-1 text-sm'>
+            {/* Tag Type */}
+            <div className='space-y-2'>
+              <Label htmlFor='tag-type'>Type</Label>
+              <Select
+                value={editForm.fieldType}
+                onValueChange={(value) => setEditForm({ ...editForm, fieldType: value })}
+              >
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -421,35 +326,29 @@ function EditTagModal({
                 </SelectContent>
               </Select>
             </div>
-          )}
 
-          {/* Value Input */}
-          <div>
-            <Label className='font-medium text-muted-foreground text-xs'>Value</Label>
-            <Input
-              ref={inputRef}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder='Enter tag value'
-              className='mt-1 text-sm'
-            />
+            {/* Tag Value */}
+            <div className='space-y-2'>
+              <Label htmlFor='tag-value'>Value</Label>
+              <Input
+                id='tag-value'
+                value={editForm.value}
+                onChange={(e) => setEditForm({ ...editForm, value: e.target.value })}
+                placeholder='Enter tag value'
+              />
+            </div>
           </div>
 
-          <div className='flex justify-end gap-2'>
-            <Button type='button' variant='outline' size='sm' onClick={onCancel}>
+          <div className='flex justify-end gap-2 pt-4'>
+            <Button variant='outline' onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
-            <Button
-              type='submit'
-              size='sm'
-              disabled={!value.trim() || (isNew && !newTagName.trim())}
-            >
-              {isNew ? 'Create' : 'Save'}
+            <Button onClick={saveTagFromModal} disabled={!editForm.displayName.trim()}>
+              {editingTagIndex !== null ? 'Save Changes' : 'Add Tag'}
             </Button>
           </div>
-        </form>
-      </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

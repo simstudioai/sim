@@ -19,6 +19,7 @@ export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter Clay webhook URL',
+      required: true,
     },
     {
       id: 'data',
@@ -26,6 +27,7 @@ export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter your JSON data to populate your Clay table',
+      required: true,
       description: `JSON vs. Plain Text:
 JSON: Best for populating multiple columns.
 Plain Text: Best for populating a table in free-form style.
@@ -39,17 +41,18 @@ Plain Text: Best for populating a table in free-form style.
       placeholder: 'Enter your Clay Auth token',
       password: true,
       connectionDroppable: false,
+      required: true,
     },
   ],
   tools: {
     access: ['clay_populate'],
   },
   inputs: {
-    authToken: { type: 'string', required: true },
-    webhookURL: { type: 'string', required: true },
-    data: { type: 'json', required: true },
+    authToken: { type: 'string', description: 'Clay authentication token' },
+    webhookURL: { type: 'string', description: 'Clay webhook URL' },
+    data: { type: 'json', description: 'Data to populate' },
   },
   outputs: {
-    data: 'any',
+    data: { type: 'any', description: 'Response data' },
   },
 }

@@ -2,16 +2,44 @@ import path from 'path'
 import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/env'
-import { isDev, isProd } from './lib/environment'
+import { isDev, isHosted, isProd } from './lib/environment'
 import { getMainCSPPolicy, getWorkflowExecutionCSPPolicy } from './lib/security/csp'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
   images: {
-    domains: [
-      'avatars.githubusercontent.com',
-      'oaidalleapiprodscus.blob.core.windows.net',
-      'api.stability.ai',
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'avatars.githubusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'api.stability.ai',
+      },
+      // Azure Blob Storage
+      {
+        protocol: 'https',
+        hostname: '*.blob.core.windows.net',
+      },
+      // AWS S3 - various regions and bucket configurations
+      {
+        protocol: 'https',
+        hostname: '*.s3.amazonaws.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.s3.*.amazonaws.com',
+      },
+      // Custom domain for file storage if configured
+      ...(env.NEXT_PUBLIC_BLOB_BASE_URL
+        ? [
+            {
+              protocol: 'https' as const,
+              hostname: new URL(env.NEXT_PUBLIC_BLOB_BASE_URL).hostname,
+            },
+          ]
+        : []),
     ],
   },
   typescript: {
@@ -133,9 +161,10 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      // Apply security headers to all routes
+      // Apply security headers to routes not handled by middleware runtime CSP
+      // Middleware handles: /, /workspace/*, /chat/*
       {
-        source: '/:path*',
+        source: '/((?!workspace|chat$).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
@@ -154,6 +183,11 @@ const nextConfig: NextConfig = {
     ]
   },
   async redirects() {
+    // Only enable domain redirects for the hosted version
+    if (!isHosted) {
+      return []
+    }
+
     return [
       {
         source: '/((?!api|_next|_vercel|favicon|static|.*\\..*).*)',

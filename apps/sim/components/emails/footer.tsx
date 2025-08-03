@@ -25,7 +25,7 @@ export const EmailFooter = ({
               <table cellPadding={0} cellSpacing={0} style={{ border: 0 }}>
                 <tr>
                   <td align='center' style={{ padding: '0 8px' }}>
-                    <Link href='https://x.com/simstudioai' rel='noopener noreferrer'>
+                    <Link href='https://x.com/simdotai' rel='noopener noreferrer'>
                       <Img src={getAssetUrl('static/x-icon.png')} width='24' height='24' alt='X' />
                     </Link>
                   </td>

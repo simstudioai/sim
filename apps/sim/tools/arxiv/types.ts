@@ -3,7 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 
 // Search tool types
 export interface ArxivSearchParams {
-  query: string
+  searchQuery: string
   searchField?: 'all' | 'ti' | 'au' | 'abs' | 'co' | 'jr' | 'cat' | 'rn'
   maxResults?: number
   sortBy?: 'relevance' | 'lastUpdatedDate' | 'submittedDate'

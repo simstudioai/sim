@@ -24,6 +24,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
         { label: 'Search', id: 'search' },
         { label: 'Fetch', id: 'fetch' },
       ],
+      value: () => 'upsert',
     },
     // Upsert fields
     {
@@ -33,15 +34,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       layout: 'full',
       placeholder: 'http://localhost:6333',
       condition: { field: 'operation', value: 'upsert' },
-    },
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Your Qdrant API key (optional)',
-      password: true,
-      condition: { field: 'operation', value: 'upsert' },
+      required: true,
     },
     {
       id: 'collection',
@@ -50,6 +43,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       layout: 'full',
       placeholder: 'my-collection',
       condition: { field: 'operation', value: 'upsert' },
+      required: true,
     },
     {
       id: 'points',
@@ -58,6 +52,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       layout: 'full',
       placeholder: '[{"id": 1, "vector": [0.1, 0.2], "payload": {"category": "a"}}]',
       condition: { field: 'operation', value: 'upsert' },
+      required: true,
     },
     // Search fields
     {
@@ -67,15 +62,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       layout: 'full',
       placeholder: 'http://localhost:6333',
       condition: { field: 'operation', value: 'search' },
-    },
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Your Qdrant API key (optional)',
-      password: true,
-      condition: { field: 'operation', value: 'search' },
+      required: true,
     },
     {
       id: 'collection',
@@ -84,6 +71,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       layout: 'full',
       placeholder: 'my-collection',
       condition: { field: 'operation', value: 'search' },
+      required: true,
     },
     {
       id: 'vector',
@@ -92,6 +80,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       layout: 'full',
       placeholder: '[0.1, 0.2]',
       condition: { field: 'operation', value: 'search' },
+      required: true,
     },
     {
       id: 'limit',
@@ -131,15 +120,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       layout: 'full',
       placeholder: 'http://localhost:6333',
       condition: { field: 'operation', value: 'fetch' },
-    },
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Your Qdrant API key (optional)',
-      password: true,
-      condition: { field: 'operation', value: 'fetch' },
+      required: true,
     },
     {
       id: 'collection',
@@ -148,6 +129,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       layout: 'full',
       placeholder: 'my-collection',
       condition: { field: 'operation', value: 'fetch' },
+      required: true,
     },
     {
       id: 'ids',
@@ -156,6 +138,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       layout: 'full',
       placeholder: '["370446a3-310f-58db-8ce7-31db947c6c1e"]',
       condition: { field: 'operation', value: 'fetch' },
+      required: true,
     },
     {
       id: 'with_payload',
@@ -170,6 +153,15 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       type: 'switch',
       layout: 'full',
       condition: { field: 'operation', value: 'fetch' },
+    },
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Your Qdrant API key (optional)',
+      password: true,
+      required: true,
     },
   ],
 
@@ -192,23 +184,23 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
   },
 
   inputs: {
-    operation: { type: 'string', required: true },
-    url: { type: 'string', required: true },
-    apiKey: { type: 'string', required: false },
-    collection: { type: 'string', required: true },
-    points: { type: 'json', required: false },
-    vector: { type: 'json', required: false },
-    limit: { type: 'number', required: false },
-    filter: { type: 'json', required: false },
-    ids: { type: 'json', required: false },
-    with_payload: { type: 'boolean', required: false },
-    with_vector: { type: 'boolean', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    url: { type: 'string', description: 'Qdrant server URL' },
+    apiKey: { type: 'string', description: 'Qdrant API key' },
+    collection: { type: 'string', description: 'Collection name' },
+    points: { type: 'json', description: 'Points to upsert' },
+    vector: { type: 'json', description: 'Query vector' },
+    limit: { type: 'number', description: 'Result limit' },
+    filter: { type: 'json', description: 'Search filter' },
+    ids: { type: 'json', description: 'Point identifiers' },
+    with_payload: { type: 'boolean', description: 'Include payload' },
+    with_vector: { type: 'boolean', description: 'Include vectors' },
   },
 
   outputs: {
-    matches: 'any',
-    upsertedCount: 'any',
-    data: 'any',
-    status: 'any',
+    matches: { type: 'any', description: 'Search matches' },
+    upsertedCount: { type: 'any', description: 'Upserted count' },
+    data: { type: 'any', description: 'Response data' },
+    status: { type: 'any', description: 'Operation status' },
   },
 }

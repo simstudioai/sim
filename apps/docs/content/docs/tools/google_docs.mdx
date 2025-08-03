@@ -100,10 +100,11 @@ Read content from a Google Docs document
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
-| `metadata` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Document content |
+| `metadata` | json | Document metadata |
+| `updatedContent` | boolean | Content update status |
 
 ### `google_docs_write`
 
@@ -119,10 +120,11 @@ Write or update content in a Google Docs document
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `updatedContent` | string |
-| `metadata` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Document content |
+| `metadata` | json | Document metadata |
+| `updatedContent` | boolean | Content update status |
 
 ### `google_docs_create`
 
@@ -140,29 +142,12 @@ Create a new Google Docs document
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Document content |
+| `metadata` | json | Document metadata |
+| `updatedContent` | boolean | Content update status |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `content` | string | content output from the block |
-| `metadata` | json | metadata output from the block |
-| `updatedContent` | boolean | updatedContent output from the block |
 
 
 ## Notes

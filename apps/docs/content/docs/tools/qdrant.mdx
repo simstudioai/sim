@@ -124,10 +124,12 @@ Insert or update points in a Qdrant collection
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `status` | string |
-| `data` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | any | Search matches |
+| `upsertedCount` | any | Upserted count |
+| `data` | any | Response data |
+| `status` | any | Operation status |
 
 ### `qdrant_search_vector`
 
@@ -148,10 +150,12 @@ Search for similar vectors in a Qdrant collection
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `data` | string |
-| `status` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | any | Search matches |
+| `upsertedCount` | any | Upserted count |
+| `data` | any | Response data |
+| `status` | any | Operation status |
 
 ### `qdrant_fetch_points`
 
@@ -170,31 +174,13 @@ Fetch points by ID from a Qdrant collection
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `data` | string |
-| `status` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | any | Search matches |
+| `upsertedCount` | any | Upserted count |
+| `data` | any | Response data |
+| `status` | any | Operation status |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `matches` | any | matches output from the block |
-| `upsertedCount` | any | upsertedCount output from the block |
-| `data` | any | data output from the block |
-| `status` | any | status output from the block |
 
 
 ## Notes

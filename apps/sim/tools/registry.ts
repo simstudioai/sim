@@ -55,6 +55,14 @@ import {
 } from '@/tools/google_sheets'
 import { requestTool as httpRequest } from '@/tools/http'
 import { huggingfaceChatTool } from '@/tools/huggingface'
+import {
+  hunterCompaniesFindTool,
+  hunterDiscoverTool,
+  hunterDomainSearchTool,
+  hunterEmailCountTool,
+  hunterEmailFinderTool,
+  hunterEmailVerifierTool,
+} from '@/tools/hunter'
 import { readUrlTool } from '@/tools/jina'
 import { jiraBulkRetrieveTool, jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from '@/tools/jira'
 import {
@@ -279,4 +287,10 @@ export const tools: Record<string, ToolConfig> = {
   qdrant_fetch_points: qdrantFetchTool,
   qdrant_search_vector: qdrantSearchTool,
   qdrant_upsert_points: qdrantUpsertTool,
+  hunter_discover: hunterDiscoverTool,
+  hunter_domain_search: hunterDomainSearchTool,
+  hunter_email_finder: hunterEmailFinderTool,
+  hunter_email_verifier: hunterEmailVerifierTool,
+  hunter_companies_find: hunterCompaniesFindTool,
+  hunter_email_count: hunterEmailCountTool,
 }

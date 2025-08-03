@@ -24,6 +24,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         { label: 'Get Memories', id: 'get' },
       ],
       placeholder: 'Select an operation',
+      value: () => 'add',
     },
     {
       id: 'userId',
@@ -32,6 +33,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       layout: 'full',
       placeholder: 'Enter user identifier',
       value: () => 'userid', // Default to the working user ID from curl example
+      required: true,
     },
     {
       id: 'messages',
@@ -44,6 +46,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         field: 'operation',
         value: 'add',
       },
+      required: true,
     },
     {
       id: 'query',
@@ -55,6 +58,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         field: 'operation',
         value: 'search',
       },
+      required: true,
     },
     {
       id: 'memoryId',
@@ -96,6 +100,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       layout: 'full',
       placeholder: 'Enter your Mem0 API key',
       password: true,
+      required: true,
     },
     {
       id: 'limit',
@@ -278,20 +283,20 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
-    userId: { type: 'string', required: true },
-    version: { type: 'string', required: false },
-    messages: { type: 'json', required: false },
-    query: { type: 'string', required: false },
-    memoryId: { type: 'string', required: false },
-    startDate: { type: 'string', required: false },
-    endDate: { type: 'string', required: false },
-    limit: { type: 'number', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    apiKey: { type: 'string', description: 'Mem0 API key' },
+    userId: { type: 'string', description: 'User identifier' },
+    version: { type: 'string', description: 'API version' },
+    messages: { type: 'json', description: 'Message data array' },
+    query: { type: 'string', description: 'Search query' },
+    memoryId: { type: 'string', description: 'Memory identifier' },
+    startDate: { type: 'string', description: 'Start date filter' },
+    endDate: { type: 'string', description: 'End date filter' },
+    limit: { type: 'number', description: 'Result limit' },
   },
   outputs: {
-    ids: 'any',
-    memories: 'any',
-    searchResults: 'any',
+    ids: { type: 'any', description: 'Memory identifiers' },
+    memories: { type: 'any', description: 'Memory data' },
+    searchResults: { type: 'any', description: 'Search results' },
   },
 }
