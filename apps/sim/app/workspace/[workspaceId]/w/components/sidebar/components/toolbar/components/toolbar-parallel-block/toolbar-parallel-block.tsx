@@ -56,7 +56,7 @@ export default function ParallelToolbarItem({ disabled = false }: ParallelToolba
       )}
     >
       <div
-        className='relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-[8px]'
+        className='relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-[6px]'
         style={{ backgroundColor: ParallelTool.bgColor }}
       >
         <ParallelTool.icon

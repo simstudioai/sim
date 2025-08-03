@@ -905,7 +905,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
           <AlertDialogTitle>Invite members to {workspaceName || 'Workspace'}</AlertDialogTitle>
         </AlertDialogHeader>
 
-        <form onSubmit={handleSubmit} className='mt-4'>
+        <form onSubmit={handleSubmit} className='mt-5'>
           <div className='space-y-2'>
             <label htmlFor='emails' className='font-medium text-sm'>
               Email Addresses
@@ -946,7 +946,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                 }
                 className={cn(
                   'h-6 min-w-[180px] flex-1 border-none focus-visible:ring-0 focus-visible:ring-offset-0',
-                  emails.length > 0 || invalidEmails.length > 0 ? 'pl-1' : 'pl-0'
+                  emails.length > 0 || invalidEmails.length > 0 ? 'pl-1' : 'pl-1'
                 )}
                 autoFocus={userPerms.canAdmin}
                 disabled={isSubmitting || !userPerms.canAdmin}

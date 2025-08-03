@@ -1136,9 +1136,8 @@ const NavigationItem = ({ item }: NavigationItemProps) => {
             {content}
           </a>
         </TooltipTrigger>
-        <TooltipContent side='top' className='flex flex-col items-center gap-1'>
-          <span>{item.tooltip}</span>
-          {item.shortcut && <span className='text-muted-foreground text-xs'>{item.shortcut}</span>}
+        <TooltipContent side='top' command={item.shortcut}>
+          {item.tooltip}
         </TooltipContent>
       </Tooltip>
     )
@@ -1147,9 +1146,8 @@ const NavigationItem = ({ item }: NavigationItemProps) => {
   return (
     <Tooltip>
       <TooltipTrigger asChild>{content}</TooltipTrigger>
-      <TooltipContent side='top' className='flex flex-col items-center gap-1'>
-        <span>{item.tooltip}</span>
-        {item.shortcut && <span className='text-muted-foreground text-xs'>{item.shortcut}</span>}
+      <TooltipContent side='top' command={item.shortcut}>
+        {item.tooltip}
       </TooltipContent>
     </Tooltip>
   )

@@ -47,7 +47,7 @@ export function ToolbarBlock({ config, disabled = false }: ToolbarBlockProps) {
       )}
     >
       <div
-        className='relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+        className='relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-[6px]'
         style={{ backgroundColor: config.bgColor }}
       >
         <config.icon
