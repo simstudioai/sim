@@ -110,7 +110,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
         {/* Workspace Name - Display only */}
         <div className='flex min-w-0 flex-1 items-center pl-1'>
           <span
-            className='truncate font-[460] text-sm leading-none'
+            className='truncate font-medium text-sm leading-none'
             style={{
               minHeight: '1rem',
               lineHeight: '1rem',

@@ -273,7 +273,7 @@ export function WorkspaceSelector({
                     onKeyDown={handleKeyDown}
                     onBlur={handleInputBlur}
                     className={cn(
-                      'min-w-0 flex-1 border-0 bg-transparent p-0 font-[460] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
+                      'min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
                       activeWorkspace?.id === workspace.id
                         ? 'text-foreground'
                         : 'text-muted-foreground group-hover:text-foreground'
@@ -289,7 +289,7 @@ export function WorkspaceSelector({
                 ) : (
                   <span
                     className={cn(
-                      'min-w-0 flex-1 select-none truncate pr-1 font-[460] text-sm',
+                      'min-w-0 flex-1 select-none truncate pr-1 font-medium text-sm',
                       activeWorkspace?.id === workspace.id
                         ? 'text-foreground'
                         : 'text-muted-foreground group-hover:text-foreground'
@@ -410,13 +410,14 @@ export function WorkspaceSelector({
 
                       <div className='py-2'>
                         <p className='mb-2 font-[360] text-sm'>
-                          Enter the workspace name <strong>{workspace.name}</strong> to confirm.
+                          Enter the workspace name{' '}
+                          <span className='font-semibold'>{workspace.name}</span> to confirm.
                         </p>
                         <Input
                           value={deleteConfirmationName}
                           onChange={(e) => setDeleteConfirmationName(e.target.value)}
                           placeholder='Placeholder'
-                          className='h-9'
+                          className='h-9 rounded-[8px]'
                         />
                       </div>
 
@@ -463,7 +464,7 @@ export function WorkspaceSelector({
           {/* Bottom Actions */}
           <div className='mt-2 flex items-center gap-2 border-t pt-2'>
             {/* Send Invite - Hide in development */}
-            {!isDev && (
+            {isDev && (
               <Button
                 variant='secondary'
                 onClick={userPermissions.canAdmin ? () => setShowInviteMembers(true) : undefined}
@@ -496,7 +497,11 @@ export function WorkspaceSelector({
       </div>
 
       {/* Invite Modal */}
-      <InviteModal open={showInviteMembers} onOpenChange={setShowInviteMembers} />
+      <InviteModal
+        open={showInviteMembers}
+        onOpenChange={setShowInviteMembers}
+        workspaceName={activeWorkspace?.name}
+      />
     </>
   )
 }

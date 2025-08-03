@@ -58,7 +58,7 @@ export function ToolbarBlock({ config, disabled = false }: ToolbarBlockProps) {
           )}
         />
       </div>
-      <span className='font-[460] text-sm leading-none'>{config.name}</span>
+      <span className='font-medium text-sm leading-none'>{config.name}</span>
     </div>
   )
 

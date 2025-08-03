@@ -171,7 +171,7 @@ export function WorkflowItem({
     <div className='mb-1'>
       <div
         className={clsx(
-          'group flex h-8 cursor-pointer items-center rounded-[8px] px-2 py-2 font-[460] font-sans text-sm transition-colors',
+          'group flex h-8 cursor-pointer items-center rounded-[8px] px-2 py-2 font-medium font-sans text-sm transition-colors',
           active && !isDragOver ? 'bg-muted' : 'hover:bg-muted',
           isSelected && selectedWorkflows.size > 1 && !active && !isDragOver ? 'bg-muted' : '',
           isDragging ? 'opacity-50' : '',
@@ -217,7 +217,7 @@ export function WorkflowItem({
               onKeyDown={handleKeyDown}
               onBlur={handleInputBlur}
               className={clsx(
-                'min-w-0 flex-1 border-0 bg-transparent p-0 font-[460] font-sans text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
+                'min-w-0 flex-1 border-0 bg-transparent p-0 font-medium font-sans text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
                 active && !isDragOver
                   ? 'text-foreground'
                   : 'text-muted-foreground group-hover:text-foreground'
@@ -235,7 +235,7 @@ export function WorkflowItem({
               <TooltipTrigger asChild>
                 <span
                   className={clsx(
-                    'min-w-0 flex-1 select-none truncate pr-1 font-[460] font-sans text-sm',
+                    'min-w-0 flex-1 select-none truncate pr-1 font-medium font-sans text-sm',
                     active && !isDragOver
                       ? 'text-foreground'
                       : 'text-muted-foreground group-hover:text-foreground'
@@ -255,7 +255,7 @@ export function WorkflowItem({
           ) : (
             <span
               className={clsx(
-                'min-w-0 flex-1 select-none truncate pr-1 font-[460] font-sans text-sm',
+                'min-w-0 flex-1 select-none truncate pr-1 font-medium font-sans text-sm',
                 active && !isDragOver
                   ? 'text-foreground'
                   : 'text-muted-foreground group-hover:text-foreground'

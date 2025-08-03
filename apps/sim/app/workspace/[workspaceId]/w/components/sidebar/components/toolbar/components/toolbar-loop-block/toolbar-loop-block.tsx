@@ -66,7 +66,7 @@ export default function LoopToolbarItem({ disabled = false }: LoopToolbarItemPro
           )}
         />
       </div>
-      <span className='font-[460] text-sm leading-none'>{LoopTool.name}</span>
+      <span className='font-medium text-sm leading-none'>{LoopTool.name}</span>
     </div>
   )
 

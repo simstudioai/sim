@@ -66,7 +66,7 @@ export default function ParallelToolbarItem({ disabled = false }: ParallelToolba
           )}
         />
       </div>
-      <span className='font-[460] text-sm leading-none'>{ParallelTool.name}</span>
+      <span className='font-medium text-sm leading-none'>{ParallelTool.name}</span>
     </div>
   )
 

@@ -255,7 +255,7 @@ export function FolderItem({
       <div className='mb-1' onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
         <div
           className={clsx(
-            'group flex h-8 cursor-pointer items-center rounded-[8px] px-2 py-2 font-[460] font-sans text-sm transition-colors hover:bg-muted',
+            'group flex h-8 cursor-pointer items-center rounded-[8px] px-2 py-2 font-medium font-sans text-sm transition-colors hover:bg-muted',
             isDragging ? 'opacity-50' : '',
             isFirstItem ? 'mr-[36px]' : ''
           )}
@@ -285,7 +285,7 @@ export function FolderItem({
               onKeyDown={handleKeyDown}
               onBlur={handleInputBlur}
               className={clsx(
-                'min-w-0 flex-1 border-0 bg-transparent p-0 font-[460] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
+                'min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
                 'text-muted-foreground group-hover:text-foreground'
               )}
               maxLength={50}
@@ -299,7 +299,7 @@ export function FolderItem({
           ) : (
             <span
               className={clsx(
-                'min-w-0 flex-1 select-none truncate pr-1 font-[460] text-sm',
+                'min-w-0 flex-1 select-none truncate pr-1 font-medium text-sm',
                 'text-muted-foreground group-hover:text-foreground'
               )}
             >
