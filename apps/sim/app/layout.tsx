@@ -7,6 +7,15 @@ import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getAssetUrl } from '@/lib/utils'
 import { TelemetryConsentDialog } from '@/app/telemetry-consent-dialog'
+import { GeistSans } from 'geist/font/sans'
+import { GeistMono } from 'geist/font/mono'
+import { Inter } from 'next/font/google'
+
+const inter = Inter({ 
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+})
 import '@/app/globals.css'
 
 import { ZoomPrevention } from '@/app/zoom-prevention'
@@ -234,7 +243,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           />
         )}
       </head>
-      <body suppressHydrationWarning>
+      <body suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable} ${inter.variable}`}>
         <ZoomPrevention />
         <TelemetryConsentDialog />
         {children}

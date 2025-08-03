@@ -28,12 +28,12 @@ export function OrbitingCircles({
   return (
     <>
       {path && (
-        <svg
+          <svg
           xmlns='http://www.w3.org/2000/svg'
           version='1.1'
-          className='pointer-events-none absolute inset-0 size-full'
+          className='pointer-events-none absolute inset-0 size-full z-0'
         >
-          <circle className='stroke-1 stroke-white/10' cx='50%' cy='50%' r={radius} fill='none' />
+          <circle className='stroke-1 stroke-border' cx='50%' cy='50%' r={radius} fill='none' />
         </svg>
       )}
       {React.Children.map(children, (child, index) => {
