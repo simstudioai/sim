@@ -14,6 +14,7 @@ import {
 import {
   deleteFromS3,
   downloadFromS3,
+  getPresignedUrlWithConfig,
   getPresignedUrl as getS3PresignedUrl,
   uploadToS3,
 } from '@/lib/uploads/s3/s3-client'
@@ -39,31 +40,50 @@ export async function uploadExecutionFile(
   contentType: string
 ): Promise<FileReference> {
   logger.info(`Uploading execution file: ${fileName} for execution ${context.executionId}`)
+  console.log(`File upload context:`, {
+    workspaceId: context.workspaceId,
+    workflowId: context.workflowId,
+    executionId: context.executionId,
+    fileName,
+    bufferSize: fileBuffer.length,
+  })
 
   // Generate execution-scoped storage key
   const storageKey = generateExecutionFileKey(context, fileName)
   const fileId = generateFileId()
+  console.log(`Generated storage key: ${storageKey}, fileId: ${fileId}`)
 
   try {
     let fileInfo: any
     let directUrl: string | undefined
 
     if (USE_S3_STORAGE) {
-      // Upload to S3 execution files bucket
-      fileInfo = await uploadToS3(fileBuffer, storageKey, contentType, {
-        bucket: S3_EXECUTION_FILES_CONFIG.bucket,
-        region: S3_EXECUTION_FILES_CONFIG.region,
-      })
+      // Upload to S3 execution files bucket with exact key (no timestamp prefix)
+      console.log(
+        `Uploading to S3 with key: ${storageKey}, bucket: ${S3_EXECUTION_FILES_CONFIG.bucket}`
+      )
+      fileInfo = await uploadToS3(
+        fileBuffer,
+        storageKey, // Use storageKey as fileName
+        contentType,
+        {
+          bucket: S3_EXECUTION_FILES_CONFIG.bucket,
+          region: S3_EXECUTION_FILES_CONFIG.region,
+        },
+        undefined, // size (will use buffer length)
+        true // skipTimestampPrefix = true
+      )
+      console.log(`S3 upload completed:`, fileInfo)
 
       // Generate presigned URL for external services (24 hours)
       try {
-        directUrl = await getS3PresignedUrl(
-          storageKey,
-          24 * 60 * 60, // 24 hours
+        directUrl = await getPresignedUrlWithConfig(
+          storageKey, // Use the exact storage key (no timestamp prefix)
           {
             bucket: S3_EXECUTION_FILES_CONFIG.bucket,
             region: S3_EXECUTION_FILES_CONFIG.region,
-          }
+          },
+          24 * 60 * 60 // 24 hours
         )
       } catch (error) {
         logger.warn(`Failed to generate S3 presigned URL for ${fileName}:`, error)
@@ -103,7 +123,7 @@ export async function uploadExecutionFile(
       type: contentType,
       path: `/api/files/execution/${context.executionId}/${fileId}`,
       directUrl,
-      key: storageKey,
+      key: storageKey, // Use the exact storage key (no timestamp prefix)
       uploadedAt: new Date().toISOString(),
       expiresAt: getFileExpirationDate(),
     }

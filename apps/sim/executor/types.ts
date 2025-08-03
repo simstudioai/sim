@@ -109,6 +109,8 @@ export interface BlockState {
  */
 export interface ExecutionContext {
   workflowId: string // Unique identifier for this workflow execution
+  workspaceId?: string // Workspace ID for file storage scoping
+  executionId?: string // Unique execution ID for file storage scoping
   blockStates: Map<string, BlockState>
   blockLogs: BlockLog[] // Chronological log of block executions
   metadata: ExecutionMetadata // Timing metadata for the execution

@@ -42,9 +42,17 @@ export function transformFilesForUserContext(obj: any): any {
     }
   }
 
+  // Transform attachments array if present (for Gmail and other tools)
+  if (transformed.attachments && Array.isArray(transformed.attachments)) {
+    // Check if this looks like a FileReference array
+    if (transformed.attachments.length > 0 && transformed.attachments[0]?.directUrl !== undefined) {
+      transformed.attachments = fileReferencesToUserFiles(transformed.attachments)
+    }
+  }
+
   // Recursively transform nested objects
   for (const key in transformed) {
-    if (Object.hasOwn(transformed, key) && key !== 'files') {
+    if (Object.hasOwn(transformed, key) && key !== 'files' && key !== 'attachments') {
       transformed[key] = transformFilesForUserContext(transformed[key])
     }
   }

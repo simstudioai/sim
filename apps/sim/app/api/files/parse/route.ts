@@ -7,7 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console/logger'
 import { downloadFile, isUsingCloudStorage } from '@/lib/uploads'
-import { UPLOAD_DIR } from '@/lib/uploads/setup'
+import { UPLOAD_DIR_SERVER } from '@/lib/uploads/setup.server'
 import '@/lib/uploads/setup.server'
 
 export const dynamic = 'force-dynamic'
@@ -337,7 +337,7 @@ async function handleLocalFile(filePath: string, fileType?: string): Promise<Par
   try {
     // Extract filename from path
     const filename = filePath.split('/').pop() || filePath
-    const fullPath = path.join(UPLOAD_DIR, filename)
+    const fullPath = path.join(UPLOAD_DIR_SERVER, filename)
 
     logger.info('Processing local file:', fullPath)
 

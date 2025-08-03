@@ -33,6 +33,7 @@ interface ExecutorOptions {
     edges?: Array<{ source: string; target: string }>
     onStream?: (streamingExecution: StreamingExecution) => Promise<void>
     executionId?: string
+    workspaceId?: string
   }
 }
 
@@ -44,7 +45,7 @@ interface DebugValidationResult {
 
 export function useWorkflowExecution() {
   const { blocks, edges, loops, parallels } = useWorkflowStore()
-  const { activeWorkflowId } = useWorkflowRegistry()
+  const { activeWorkflowId, workflows } = useWorkflowRegistry()
   const { toggleConsole } = useConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
   const { isDebugModeEnabled } = useGeneralStore()
@@ -593,6 +594,9 @@ export function useWorkflowExecution() {
       selectedOutputIds = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
     }
 
+    // Get workspaceId from workflow metadata
+    const workspaceId = activeWorkflowId ? workflows[activeWorkflowId]?.workspaceId : undefined
+
     // Create executor options
     const executorOptions: ExecutorOptions = {
       workflow,
@@ -609,6 +613,7 @@ export function useWorkflowExecution() {
         })),
         onStream,
         executionId,
+        workspaceId,
       },
     }
 

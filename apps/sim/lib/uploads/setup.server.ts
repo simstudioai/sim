@@ -1,13 +1,42 @@
+import { existsSync } from 'fs'
+import { mkdir } from 'fs/promises'
+import path, { join } from 'path'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  ensureUploadsDirectory,
-  getStorageProvider,
-  USE_BLOB_STORAGE,
-  USE_S3_STORAGE,
-} from '@/lib/uploads/setup'
+import { getStorageProvider, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/setup'
 
 const logger = createLogger('UploadsSetup')
+
+// Server-only upload directory path
+const PROJECT_ROOT = path.resolve(process.cwd())
+export const UPLOAD_DIR_SERVER = join(PROJECT_ROOT, 'uploads')
+
+/**
+ * Server-only function to ensure uploads directory exists
+ */
+export async function ensureUploadsDirectory() {
+  if (USE_S3_STORAGE) {
+    logger.info('Using S3 storage, skipping local uploads directory creation')
+    return true
+  }
+
+  if (USE_BLOB_STORAGE) {
+    logger.info('Using Azure Blob storage, skipping local uploads directory creation')
+    return true
+  }
+
+  try {
+    if (!existsSync(UPLOAD_DIR_SERVER)) {
+      await mkdir(UPLOAD_DIR_SERVER, { recursive: true })
+    } else {
+      logger.info(`Uploads directory already exists at ${UPLOAD_DIR_SERVER}`)
+    }
+    return true
+  } catch (error) {
+    logger.error('Failed to create uploads directory:', error)
+    return false
+  }
+}
 
 // Immediately invoke on server startup
 if (typeof process !== 'undefined') {

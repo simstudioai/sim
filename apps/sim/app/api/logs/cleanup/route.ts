@@ -6,7 +6,7 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { deleteFile, isUsingCloudStorage } from '@/lib/uploads'
-import { getS3Client } from '@/lib/uploads/s3/s3-client'
+// Dynamic import for S3 client to avoid client-side bundling
 import { db } from '@/db'
 import { subscription, user, workflow, workflowExecutionLogs } from '@/db/schema'
 
@@ -139,6 +139,7 @@ export async function GET(request: NextRequest) {
         })
 
         try {
+          const { getS3Client } = await import('@/lib/uploads/s3/s3-client')
           await getS3Client().send(
             new PutObjectCommand({
               Bucket: S3_CONFIG.bucket,

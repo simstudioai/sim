@@ -1,14 +1,7 @@
-import { existsSync } from 'fs'
-import { mkdir } from 'fs/promises'
-import path, { join } from 'path'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console/logger'
 
-const logger = createLogger('UploadsSetup')
-
-const PROJECT_ROOT = path.resolve(process.cwd())
-
-export const UPLOAD_DIR = join(PROJECT_ROOT, 'uploads')
+// Client-safe configuration - no Node.js modules
+export const UPLOAD_DIR = typeof process !== 'undefined' ? '/uploads' : '/uploads'
 
 // Check if S3 is configured (has required credentials)
 const hasS3Config = !!(env.S3_BUCKET_NAME && env.AWS_REGION)
@@ -72,28 +65,10 @@ export const BLOB_CHAT_CONFIG = {
   containerName: env.AZURE_STORAGE_CHAT_CONTAINER_NAME || '',
 }
 
-export async function ensureUploadsDirectory() {
-  if (USE_S3_STORAGE) {
-    logger.info('Using S3 storage, skipping local uploads directory creation')
-    return true
-  }
-
-  if (USE_BLOB_STORAGE) {
-    logger.info('Using Azure Blob storage, skipping local uploads directory creation')
-    return true
-  }
-
-  try {
-    if (!existsSync(UPLOAD_DIR)) {
-      await mkdir(UPLOAD_DIR, { recursive: true })
-    } else {
-      logger.info(`Uploads directory already exists at ${UPLOAD_DIR}`)
-    }
-    return true
-  } catch (error) {
-    logger.error('Failed to create uploads directory:', error)
-    return false
-  }
+// Server-only function moved to setup.server.ts
+// This is kept here for backward compatibility but should not be used directly
+export function ensureUploadsDirectory() {
+  throw new Error('ensureUploadsDirectory moved to setup.server.ts - import from there instead')
 }
 
 /**

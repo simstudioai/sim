@@ -100,6 +100,7 @@ export async function uploadToS3(
  * @param contentType MIME type of the file
  * @param customConfig Custom S3 configuration (bucket and region)
  * @param size File size in bytes (optional, will use buffer length if not provided)
+ * @param skipTimestampPrefix Skip adding timestamp prefix to filename (default: false)
  * @returns Object with file information
  */
 export async function uploadToS3(
@@ -107,7 +108,8 @@ export async function uploadToS3(
   fileName: string,
   contentType: string,
   customConfig: CustomS3Config,
-  size?: number
+  size?: number,
+  skipTimestampPrefix?: boolean
 ): Promise<FileInfo>
 
 export async function uploadToS3(
@@ -115,26 +117,29 @@ export async function uploadToS3(
   fileName: string,
   contentType: string,
   configOrSize?: CustomS3Config | number,
-  size?: number
+  size?: number,
+  skipTimestampPrefix?: boolean
 ): Promise<FileInfo> {
   // Handle overloaded parameters
   let config: CustomS3Config
   let fileSize: number
+  let shouldSkipTimestamp: boolean
 
   if (typeof configOrSize === 'object') {
     // Custom config provided
     config = configOrSize
     fileSize = size ?? file.length
+    shouldSkipTimestamp = skipTimestampPrefix ?? false
   } else {
     // Use default config
     config = { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
     fileSize = configOrSize ?? file.length
+    shouldSkipTimestamp = size === undefined ? false : (skipTimestampPrefix ?? false)
   }
 
-  // Create a unique filename with timestamp to prevent collisions
-  // Use a simple timestamp without directory structure
+  // Create filename - optionally skip timestamp prefix
   const safeFileName = fileName.replace(/\s+/g, '-') // Replace spaces with hyphens
-  const uniqueKey = `${Date.now()}-${safeFileName}`
+  const uniqueKey = shouldSkipTimestamp ? safeFileName : `${Date.now()}-${safeFileName}`
 
   // Sanitize filename for S3 metadata (only allow ASCII printable characters)
   const sanitizedOriginalName = fileName

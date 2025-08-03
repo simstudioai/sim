@@ -4,8 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
-import { getBlobServiceClient } from '@/lib/uploads/blob/blob-client'
-import { getS3Client, sanitizeFilenameForMetadata } from '@/lib/uploads/s3/s3-client'
+// Dynamic imports for storage clients to avoid client-side bundling
 import {
   BLOB_CHAT_CONFIG,
   BLOB_CONFIG,
@@ -144,6 +143,7 @@ async function handleS3PresignedUrl(
     const prefix = uploadType === 'knowledge-base' ? 'kb/' : uploadType === 'chat' ? 'chat/' : ''
     const uniqueKey = `${prefix}${Date.now()}-${uuidv4()}-${safeFileName}`
 
+    const { sanitizeFilenameForMetadata } = await import('@/lib/uploads/s3/s3-client')
     const sanitizedOriginalName = sanitizeFilenameForMetadata(fileName)
 
     const metadata: Record<string, string> = {
@@ -166,6 +166,7 @@ async function handleS3PresignedUrl(
 
     let presignedUrl: string
     try {
+      const { getS3Client } = await import('@/lib/uploads/s3/s3-client')
       presignedUrl = await getSignedUrl(getS3Client(), command, { expiresIn: 3600 })
     } catch (s3Error) {
       logger.error('Failed to generate S3 presigned URL:', s3Error)
@@ -232,6 +233,7 @@ async function handleBlobPresignedUrl(
     const prefix = uploadType === 'knowledge-base' ? 'kb/' : uploadType === 'chat' ? 'chat/' : ''
     const uniqueKey = `${prefix}${Date.now()}-${uuidv4()}-${safeFileName}`
 
+    const { getBlobServiceClient } = await import('@/lib/uploads/blob/blob-client')
     const blobServiceClient = getBlobServiceClient()
     const containerClient = blobServiceClient.getContainerClient(config.containerName)
     const blockBlobClient = containerClient.getBlockBlobClient(uniqueKey)

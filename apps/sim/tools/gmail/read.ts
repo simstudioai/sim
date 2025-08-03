@@ -12,7 +12,16 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
   oauth: {
     required: true,
     provider: 'google-email',
-    additionalScopes: ['https://www.googleapis.com/auth/gmail.labels'],
+    additionalScopes: [
+      'https://www.googleapis.com/auth/gmail.labels',
+      'https://www.googleapis.com/auth/gmail.readonly',
+    ],
+  },
+
+  outputs: {
+    content: { type: 'string' },
+    metadata: { type: 'json' },
+    attachments: { type: 'file[]' },
   },
 
   params: {
@@ -45,6 +54,12 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
       required: false,
       visibility: 'user-only',
       description: 'Maximum number of messages to retrieve (default: 1, max: 10)',
+    },
+    includeAttachments: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Download and include email attachments',
     },
   },
 
@@ -107,7 +122,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
 
       // If we're fetching a single message directly (by ID)
       if (params?.messageId) {
-        return processMessage(data)
+        return await processMessage(data, params)
       }
 
       // If we're listing messages, we need to fetch each message's details
@@ -149,7 +164,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
             }
 
             const message = await messageResponse.json()
-            return processMessage(message)
+            return await processMessage(message, params)
           } catch (error: any) {
             console.error('Error fetching message details:', error)
             return {
@@ -255,7 +270,10 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
 }
 
 // Helper function to process a Gmail message
-function processMessage(message: GmailMessage): GmailToolResponse {
+async function processMessage(
+  message: GmailMessage,
+  params?: GmailReadParams
+): Promise<GmailToolResponse> {
   // Check if message and payload exist
   if (!message || !message.payload) {
     return {
@@ -280,7 +298,28 @@ function processMessage(message: GmailMessage): GmailToolResponse {
   // Extract the message body
   const body = extractMessageBody(message.payload)
 
-  return {
+  // Check for attachments
+  const attachmentInfo = extractAttachmentInfo(message.payload)
+  const hasAttachments = attachmentInfo.length > 0
+
+  // Download attachments if requested
+  let attachments: Array<{ name: string; data: Buffer; mimeType: string; size: number }> | undefined
+  if (params?.includeAttachments && hasAttachments && params.accessToken) {
+    console.log(`Gmail: Downloading ${attachmentInfo.length} attachments for message ${message.id}`)
+    try {
+      attachments = await downloadAttachments(message.id, attachmentInfo, params.accessToken)
+      console.log(`Gmail: Successfully downloaded ${attachments.length} attachments`)
+    } catch (error) {
+      console.error('Gmail: Error downloading attachments:', error)
+      // Continue without attachments rather than failing the entire request
+    }
+  } else {
+    console.log(
+      `Gmail: Skipping attachments - includeAttachments: ${params?.includeAttachments}, hasAttachments: ${hasAttachments}, hasToken: ${!!params?.accessToken}`
+    )
+  }
+
+  const result: GmailToolResponse = {
     success: true,
     output: {
       content: body || 'No content found in email',
@@ -292,9 +331,15 @@ function processMessage(message: GmailMessage): GmailToolResponse {
         to,
         subject,
         date,
+        hasAttachments,
+        attachmentCount: attachmentInfo.length,
       },
+      // Always include attachments array (empty if none downloaded)
+      attachments: attachments || [],
     },
   }
+
+  return result
 }
 
 // Helper function to process a message for summary (without full content)
@@ -381,4 +426,98 @@ function extractMessageBody(payload: any): string {
 
   // If we couldn't find any text content, return empty string
   return ''
+}
+
+// Helper function to extract attachment information from message payload
+function extractAttachmentInfo(
+  payload: any
+): Array<{ attachmentId: string; filename: string; mimeType: string; size: number }> {
+  const attachments: Array<{
+    attachmentId: string
+    filename: string
+    mimeType: string
+    size: number
+  }> = []
+
+  function processPayloadPart(part: any) {
+    // Check if this part has an attachment
+    if (part.body?.attachmentId && part.filename) {
+      attachments.push({
+        attachmentId: part.body.attachmentId,
+        filename: part.filename,
+        mimeType: part.mimeType || 'application/octet-stream',
+        size: part.body.size || 0,
+      })
+    }
+
+    // Recursively process nested parts
+    if (part.parts && Array.isArray(part.parts)) {
+      part.parts.forEach(processPayloadPart)
+    }
+  }
+
+  // Process the main payload
+  processPayloadPart(payload)
+
+  return attachments
+}
+
+// Helper function to download attachments from Gmail API
+async function downloadAttachments(
+  messageId: string,
+  attachmentInfo: Array<{ attachmentId: string; filename: string; mimeType: string; size: number }>,
+  accessToken: string
+): Promise<Array<{ name: string; data: Buffer; mimeType: string; size: number }>> {
+  const downloadedAttachments: Array<{
+    name: string
+    data: Buffer
+    mimeType: string
+    size: number
+  }> = []
+
+  for (const attachment of attachmentInfo) {
+    try {
+      // Download attachment from Gmail API
+      const attachmentResponse = await fetch(
+        `${GMAIL_API_BASE}/messages/${messageId}/attachments/${attachment.attachmentId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      )
+
+      if (!attachmentResponse.ok) {
+        console.error(
+          `Failed to download attachment ${attachment.filename}:`,
+          attachmentResponse.statusText
+        )
+        continue
+      }
+
+      const attachmentData = (await attachmentResponse.json()) as { data: string; size: number }
+
+      // Decode base64url data to buffer
+      // Gmail API returns data in base64url format (URL-safe base64)
+      const base64Data = attachmentData.data.replace(/-/g, '+').replace(/_/g, '/')
+      const buffer = Buffer.from(base64Data, 'base64')
+
+      console.log(
+        `Gmail: Processed attachment ${attachment.filename} - buffer length: ${buffer.length}`
+      )
+
+      downloadedAttachments.push({
+        name: attachment.filename,
+        data: buffer,
+        mimeType: attachment.mimeType,
+        size: attachment.size,
+      })
+    } catch (error) {
+      console.error(`Error downloading attachment ${attachment.filename}:`, error)
+      // Continue with other attachments
+    }
+  }
+
+  return downloadedAttachments
 }

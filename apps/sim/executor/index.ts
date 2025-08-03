@@ -88,6 +88,7 @@ export class Executor {
             edges?: Array<{ source: string; target: string }>
             onStream?: (streamingExecution: StreamingExecution) => Promise<void>
             executionId?: string
+            workspaceId?: string
           }
         },
     private initialBlockStates: Record<string, BlockOutput> = {},
@@ -676,6 +677,8 @@ export class Executor {
   ): ExecutionContext {
     const context: ExecutionContext = {
       workflowId,
+      workspaceId: this.contextExtensions.workspaceId,
+      executionId: this.contextExtensions.executionId,
       blockStates: new Map(),
       blockLogs: [],
       metadata: {

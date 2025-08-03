@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getPresignedUrl, isUsingCloudStorage, uploadFile } from '@/lib/uploads'
-import { UPLOAD_DIR } from '@/lib/uploads/setup'
+import { UPLOAD_DIR_SERVER } from '@/lib/uploads/setup.server'
 import '@/lib/uploads/setup.server'
 import {
   createErrorResponse,
@@ -104,7 +104,9 @@ export async function POST(request: NextRequest) {
       } else {
         // Upload to local file system with execution-scoped path
         const localPath =
-          workflowId && executionId ? join(UPLOAD_DIR, workflowId, executionId) : UPLOAD_DIR
+          workflowId && executionId
+            ? join(UPLOAD_DIR_SERVER, workflowId, executionId)
+            : UPLOAD_DIR_SERVER
 
         // Ensure directory exists
         const { mkdir } = await import('fs/promises')
