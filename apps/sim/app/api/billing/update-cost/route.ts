@@ -2,7 +2,6 @@ import crypto from 'crypto'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { env } from '@/lib/env'
 import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -117,7 +116,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Follow the exact same logic as ExecutionLogger.updateUserStats but with direct userId
-    const costToStore = BASE_EXECUTION_CHARGE + costResult.total // No additional multiplier needed since calculateCost already applied it
+    const costToStore = costResult.total // No additional multiplier needed since calculateCost already applied it
 
     // Check if user stats record exists (same as ExecutionLogger)
     const userStatsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
@@ -128,7 +127,7 @@ export async function POST(req: NextRequest) {
         id: crypto.randomUUID(),
         userId: userId,
         totalManualExecutions: 0,
-        totalApiCalls: 1, // Count this as an API call
+        totalApiCalls: 0,
         totalWebhookTriggers: 0,
         totalScheduledExecutions: 0,
         totalChatExecutions: 0,
