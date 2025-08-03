@@ -195,7 +195,7 @@ describe('Copilot Confirm API Route', () => {
       const responseData = await response.json()
       expect(responseData).toEqual({
         success: true,
-        message: 'Tool call tool-call-789 has been accepteded',
+        message: 'Tool call tool-call-789 has been accepted',
         toolCallId: 'tool-call-789',
         status: 'accepted',
       })
@@ -219,7 +219,7 @@ describe('Copilot Confirm API Route', () => {
       const responseData = await response.json()
       expect(responseData).toEqual({
         success: true,
-        message: 'Tool call tool-call-101 has been rejecteded',
+        message: 'Tool call tool-call-101 has been rejected',
         toolCallId: 'tool-call-101',
         status: 'rejected',
       })

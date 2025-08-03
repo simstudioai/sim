@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: message || `Tool call ${toolCallId} has been ${status.toLowerCase()}ed`,
+      message: message || `Tool call ${toolCallId} has been ${status.toLowerCase()}`,
       toolCallId,
       status,
     })
