@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
         totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
         totalCost: sql`total_cost + ${costToStore}`,
         currentPeriodCost: sql`current_period_cost + ${costToStore}`,
-        totalApiCalls: sql`total_api_calls + 1`, // Increment API calls
+        totalApiCalls: sql`total_api_calls`,
         lastActive: new Date(),
       }
 
