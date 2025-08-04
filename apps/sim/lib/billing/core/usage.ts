@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { calculateDefaultUsageLimit, canEditUsageLimit } from '@/lib/billing/subscriptions/utils'
 import type { BillingData, UsageData, UsageLimitInfo } from '@/lib/billing/types'
@@ -29,7 +30,7 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
       await initializeUserUsageLimit(userId)
       return {
         currentUsage: 0,
-        limit: 5,
+        limit: DEFAULT_FREE_CREDITS,
         percentUsed: 0,
         isWarning: false,
         isExceeded: false,
@@ -98,7 +99,7 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
     let minimumLimit: number
     if (!subscription || subscription.status !== 'active') {
       // Free plan users
-      minimumLimit = 5
+      minimumLimit = DEFAULT_FREE_CREDITS
     } else if (subscription.plan === 'pro') {
       // Pro plan users: $20 minimum
       minimumLimit = 20
@@ -131,9 +132,9 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
     if (userStatsRecord.length === 0) {
       await initializeUserUsageLimit(userId)
       return {
-        currentLimit: 5,
+        currentLimit: DEFAULT_FREE_CREDITS,
         canEdit: false,
-        minimumLimit: 5,
+        minimumLimit: DEFAULT_FREE_CREDITS,
         plan: 'free',
         setBy: null,
         updatedAt: null,
@@ -171,16 +172,16 @@ export async function initializeUserUsageLimit(userId: string): Promise<void> {
       return // User already has usage stats, don't override
     }
 
-    // Create initial usage stats with default $5 limit
+    // Create initial usage stats with default free credits limit
     await db.insert(userStats).values({
       id: crypto.randomUUID(),
       userId,
-      currentUsageLimit: '5', // Default $5 for new users
+      currentUsageLimit: DEFAULT_FREE_CREDITS.toString(), // Default free credits for new users
       usageLimitUpdatedAt: new Date(),
       billingPeriodStart: new Date(), // Start billing period immediately
     })
 
-    logger.info('Initialized usage limit for new user', { userId, limit: 5 })
+    logger.info('Initialized usage limit for new user', { userId, limit: DEFAULT_FREE_CREDITS })
   } catch (error) {
     logger.error('Failed to initialize usage limit', { userId, error })
     throw error
@@ -233,7 +234,7 @@ export async function updateUserUsageLimit(
 
     if (!subscription || subscription.status !== 'active') {
       // Free plan users (shouldn't reach here due to canEditUsageLimit check above)
-      minimumLimit = 5
+      minimumLimit = DEFAULT_FREE_CREDITS
     } else if (subscription.plan === 'pro') {
       // Pro plan users: $20 minimum
       minimumLimit = 20
@@ -311,7 +312,7 @@ export async function getUserUsageLimit(userId: string): Promise<number> {
     if (userStatsQuery.length === 0) {
       // User doesn't have stats yet, initialize and return default
       await initializeUserUsageLimit(userId)
-      return 5 // Default free plan limit
+      return DEFAULT_FREE_CREDITS // Default free plan limit
     }
 
     return Number.parseFloat(userStatsQuery[0].currentUsageLimit)
@@ -380,16 +381,16 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
 
     // Only update if subscription is free plan or if current limit is below new minimum
     if (!subscription || subscription.status !== 'active') {
-      // User downgraded to free plan - cap at $5
+      // User downgraded to free plan - cap at default free credits
       await db
         .update(userStats)
         .set({
-          currentUsageLimit: '5',
+          currentUsageLimit: DEFAULT_FREE_CREDITS.toString(),
           usageLimitUpdatedAt: new Date(),
         })
         .where(eq(userStats.userId, userId))
 
-      logger.info('Synced usage limit to free plan', { userId, limit: 5 })
+      logger.info('Synced usage limit to free plan', { userId, limit: DEFAULT_FREE_CREDITS })
     } else if (currentLimit < defaultLimit) {
       // User upgraded and current limit is below new minimum - raise to minimum
       await db
@@ -451,7 +452,7 @@ export async function getTeamUsageLimits(organizationId: string): Promise<
       userId: memberData.userId,
       userName: memberData.userName,
       userEmail: memberData.userEmail,
-      currentLimit: Number.parseFloat(memberData.currentLimit || '5'),
+      currentLimit: Number.parseFloat(memberData.currentLimit || DEFAULT_FREE_CREDITS.toString()),
       currentUsage: Number.parseFloat(memberData.currentPeriodCost || '0'),
       totalCost: Number.parseFloat(memberData.totalCost || '0'),
       lastActive: memberData.lastActive,

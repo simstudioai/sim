@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import {
   resetOrganizationBillingPeriod,
   resetUserBillingPeriod,
@@ -917,7 +918,7 @@ function getDefaultBillingSummary(type: 'individual' | 'organization') {
     currentUsage: 0,
     overageAmount: 0,
     totalProjected: 0,
-    usageLimit: 5,
+    usageLimit: DEFAULT_FREE_CREDITS,
     percentUsed: 0,
     isWarning: false,
     isExceeded: false,
@@ -935,7 +936,7 @@ function getDefaultBillingSummary(type: 'individual' | 'organization') {
     // Usage details
     usage: {
       current: 0,
-      limit: 5,
+      limit: DEFAULT_FREE_CREDITS,
       percentUsed: 0,
       isWarning: false,
       isExceeded: false,

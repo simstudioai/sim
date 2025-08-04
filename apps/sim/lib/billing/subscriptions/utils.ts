@@ -1,3 +1,4 @@
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { env } from '@/lib/env'
 
 export function checkEnterprisePlan(subscription: any): boolean {
@@ -20,7 +21,7 @@ export function checkTeamPlan(subscription: any): boolean {
  */
 export function calculateDefaultUsageLimit(subscription: any): number {
   if (!subscription || subscription.status !== 'active') {
-    return env.FREE_TIER_COST_LIMIT || 0
+    return env.FREE_TIER_COST_LIMIT || DEFAULT_FREE_CREDITS
   }
 
   const seats = subscription.seats || 1
@@ -45,7 +46,7 @@ export function calculateDefaultUsageLimit(subscription: any): number {
     return seats * (env.ENTERPRISE_TIER_COST_LIMIT || 0)
   }
 
-  return env.FREE_TIER_COST_LIMIT || 0
+  return env.FREE_TIER_COST_LIMIT || DEFAULT_FREE_CREDITS
 }
 
 /**

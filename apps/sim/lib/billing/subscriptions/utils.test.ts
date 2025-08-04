@@ -3,7 +3,7 @@ import { calculateDefaultUsageLimit, checkEnterprisePlan } from '@/lib/billing/s
 
 vi.mock('@/lib/env', () => ({
   env: {
-    FREE_TIER_COST_LIMIT: 5,
+    FREE_TIER_COST_LIMIT: 10,
     PRO_TIER_COST_LIMIT: 20,
     TEAM_TIER_COST_LIMIT: 40,
     ENTERPRISE_TIER_COST_LIMIT: 200,
@@ -27,15 +27,15 @@ describe('Subscription Utilities', () => {
 
   describe('calculateDefaultUsageLimit', () => {
     it.concurrent('returns free-tier limit when subscription is null', () => {
-      expect(calculateDefaultUsageLimit(null)).toBe(5)
+      expect(calculateDefaultUsageLimit(null)).toBe(10)
     })
 
     it.concurrent('returns free-tier limit when subscription is undefined', () => {
-      expect(calculateDefaultUsageLimit(undefined)).toBe(5)
+      expect(calculateDefaultUsageLimit(undefined)).toBe(10)
     })
 
     it.concurrent('returns free-tier limit when subscription is not active', () => {
-      expect(calculateDefaultUsageLimit({ plan: 'pro', status: 'canceled', seats: 1 })).toBe(5)
+      expect(calculateDefaultUsageLimit({ plan: 'pro', status: 'canceled', seats: 1 })).toBe(10)
     })
 
     it.concurrent('returns pro limit for active pro plan', () => {
