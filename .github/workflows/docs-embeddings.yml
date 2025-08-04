@@ -40,7 +40,7 @@ jobs:
       - name: Report results
         if: always()
         run: |
-          if [ ${{ job.status }} == 'success' ]; then
+          if [ "${{ job.status }}" == "success" ]; then
             echo "✅ Successfully processed docs embeddings for ${{ github.ref_name }} branch"
           else
             echo "❌ Failed to process docs embeddings for ${{ github.ref_name }} branch"
