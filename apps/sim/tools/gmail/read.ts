@@ -166,7 +166,6 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
             const message = await messageResponse.json()
             return await processMessage(message, params)
           } catch (error: any) {
-            console.error('Error fetching message details:', error)
             return {
               success: true,
               output: {
@@ -222,7 +221,6 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
               },
             }
           } catch (error: any) {
-            console.error('Error fetching multiple message details:', error)
             return {
               success: true,
               output: {
@@ -250,7 +248,6 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
         },
       }
     } catch (error) {
-      console.error('Error in transformResponse:', error)
       throw error
     }
   },
@@ -305,18 +302,11 @@ async function processMessage(
   // Download attachments if requested
   let attachments: Array<{ name: string; data: Buffer; mimeType: string; size: number }> | undefined
   if (params?.includeAttachments && hasAttachments && params.accessToken) {
-    console.log(`Gmail: Downloading ${attachmentInfo.length} attachments for message ${message.id}`)
     try {
       attachments = await downloadAttachments(message.id, attachmentInfo, params.accessToken)
-      console.log(`Gmail: Successfully downloaded ${attachments.length} attachments`)
     } catch (error) {
-      console.error('Gmail: Error downloading attachments:', error)
       // Continue without attachments rather than failing the entire request
     }
-  } else {
-    console.log(
-      `Gmail: Skipping attachments - includeAttachments: ${params?.includeAttachments}, hasAttachments: ${hasAttachments}, hasToken: ${!!params?.accessToken}`
-    )
   }
 
   const result: GmailToolResponse = {
@@ -489,10 +479,6 @@ async function downloadAttachments(
       )
 
       if (!attachmentResponse.ok) {
-        console.error(
-          `Failed to download attachment ${attachment.filename}:`,
-          attachmentResponse.statusText
-        )
         continue
       }
 
@@ -503,10 +489,6 @@ async function downloadAttachments(
       const base64Data = attachmentData.data.replace(/-/g, '+').replace(/_/g, '/')
       const buffer = Buffer.from(base64Data, 'base64')
 
-      console.log(
-        `Gmail: Processed attachment ${attachment.filename} - buffer length: ${buffer.length}`
-      )
-
       downloadedAttachments.push({
         name: attachment.filename,
         data: buffer,
@@ -514,7 +496,6 @@ async function downloadAttachments(
         size: attachment.size,
       })
     } catch (error) {
-      console.error(`Error downloading attachment ${attachment.filename}:`, error)
       // Continue with other attachments
     }
   }

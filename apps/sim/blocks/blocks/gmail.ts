@@ -203,7 +203,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     content: { type: 'string', description: 'Response content' },
     metadata: { type: 'json', description: 'Email metadata' },
     attachments: {
-      type: 'file[]',
+      type: 'json',
       description: 'Email attachments (when includeAttachments is enabled)',
     },
   },
