@@ -22,6 +22,7 @@ import {
 import { getBaseURL } from '@/lib/auth-client'
 import { env, isTruthy } from '@/lib/env'
 import { isProd } from '@/lib/environment'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'
@@ -1080,7 +1081,7 @@ export const auth = betterAuth({
                   name: 'free',
                   priceId: env.STRIPE_FREE_PRICE_ID || '',
                   limits: {
-                    cost: env.FREE_TIER_COST_LIMIT ?? 5,
+                    cost: env.FREE_TIER_COST_LIMIT ?? DEFAULT_FREE_CREDITS,
                     sharingEnabled: 0,
                     multiplayerEnabled: 0,
                     workspaceCollaborationEnabled: 0,

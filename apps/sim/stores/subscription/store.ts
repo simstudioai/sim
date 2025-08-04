@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import type {
   BillingStatus,
   SubscriptionData,
@@ -22,7 +23,7 @@ const defaultFeatures: SubscriptionFeatures = {
 
 const defaultUsage: UsageData = {
   current: 0,
-  limit: 5,
+  limit: DEFAULT_FREE_CREDITS,
   percentUsed: 0,
   isWarning: false,
   isExceeded: false,

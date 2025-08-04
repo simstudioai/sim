@@ -6,6 +6,7 @@ import {
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { member, organization, subscription, user, userStats } from '@/db/schema'
@@ -917,7 +918,7 @@ function getDefaultBillingSummary(type: 'individual' | 'organization') {
     currentUsage: 0,
     overageAmount: 0,
     totalProjected: 0,
-    usageLimit: 5,
+    usageLimit: DEFAULT_FREE_CREDITS,
     percentUsed: 0,
     isWarning: false,
     isExceeded: false,
@@ -935,7 +936,7 @@ function getDefaultBillingSummary(type: 'individual' | 'organization') {
     // Usage details
     usage: {
       current: 0,
-      limit: 5,
+      limit: DEFAULT_FREE_CREDITS,
       percentUsed: 0,
       isWarning: false,
       isExceeded: false,

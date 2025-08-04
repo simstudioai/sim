@@ -11,6 +11,7 @@ import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { member, subscription, userStats } from '@/db/schema'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 
 const logger = createLogger('SubscriptionCore')
 
@@ -156,7 +157,7 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
     const subscription = await getHighestPrioritySubscription(userId)
 
     // Calculate usage limit
-    let limit = 5 // Default free tier limit
+    let limit = DEFAULT_FREE_CREDITS // Default free tier limit
     if (subscription) {
       limit = calculateDefaultUsageLimit(subscription)
       logger.info('Using subscription-based limit', {
@@ -338,7 +339,7 @@ export async function getUserSubscriptionState(userId: string): Promise<UserSubs
     // Check cost limit using already-fetched user stats
     let hasExceededLimit = false
     if (isProd && statsRecords.length > 0) {
-      let limit = 5 // Default free tier limit
+      let limit = DEFAULT_FREE_CREDITS // Default free tier limit
       if (subscription) {
         limit = calculateDefaultUsageLimit(subscription)
       }
