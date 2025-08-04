@@ -732,7 +732,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       // Use the error field first, then fall back to result field, then default message
       const errorMessage = error || result || 'Tool execution failed'
       const targetState = failedDependency === true ? 'rejected' : 'errored'
-      
+
       setToolCallState(toolCall, targetState, { error: errorMessage })
 
       // COMMENTED OUT OLD LOGIC:

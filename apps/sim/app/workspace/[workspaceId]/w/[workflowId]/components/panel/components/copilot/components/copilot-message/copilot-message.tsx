@@ -7,8 +7,8 @@ import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { InlineToolCall } from '@/lib/copilot/tools/inline-tool-call'
-import { useCopilotStore } from '@/stores/copilot/store'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
+import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotMessage as CopilotMessageType } from '@/stores/copilot/types'
 
 interface CopilotMessageProps {
@@ -239,10 +239,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     // Helper function to get the full assistant response content
     const getFullAssistantContent = (message: CopilotMessageType) => {
       // First try the direct content
-      if (message.content && message.content.trim()) {
+      if (message.content?.trim()) {
         return message.content
       }
-      
+
       // If no direct content, build from content blocks
       if (message.contentBlocks && message.contentBlocks.length > 0) {
         return message.contentBlocks
@@ -250,7 +250,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           .map((block) => block.content)
           .join('')
       }
-      
+
       return message.content || ''
     }
 
@@ -258,7 +258,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     const getLastUserQuery = () => {
       const messageIndex = messages.findIndex((msg) => msg.id === message.id)
       if (messageIndex === -1) return null
-      
+
       // Look backwards from this message to find the last user message
       for (let i = messageIndex - 1; i >= 0; i--) {
         if (messages[i].role === 'user') {
@@ -275,7 +275,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         ...(message.toolCalls || []),
         ...(message.contentBlocks || [])
           .filter((block) => block.type === 'tool_call')
-          .map((block) => (block as any).toolCall)
+          .map((block) => (block as any).toolCall),
       ]
 
       // Find workflow tools (build_workflow or edit_workflow)
@@ -293,19 +293,19 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           toolCall.input?.data?.yamlContent
 
         if (yamlContent && typeof yamlContent === 'string' && yamlContent.trim()) {
-          console.log('Found workflow YAML in tool call:', { 
-            toolCallId: toolCall.id, 
+          console.log('Found workflow YAML in tool call:', {
+            toolCallId: toolCall.id,
             toolName: toolCall.name,
-            yamlLength: yamlContent.length 
+            yamlLength: yamlContent.length,
           })
           return yamlContent
         }
       }
 
       // Step 2: Check copilot store's preview YAML (set when workflow tools execute)
-      if (currentChat?.previewYaml && currentChat.previewYaml.trim()) {
-        console.log('Found workflow YAML in copilot store preview:', { 
-          yamlLength: currentChat.previewYaml.length 
+      if (currentChat?.previewYaml?.trim()) {
+        console.log('Found workflow YAML in copilot store preview:', {
+          yamlLength: currentChat.previewYaml.length,
         })
         return currentChat.previewYaml
       }
@@ -314,11 +314,11 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       for (const toolCall of workflowTools) {
         if (toolCall.id) {
           const preview = getPreviewByToolCall(toolCall.id)
-          if (preview && preview.yamlContent && preview.yamlContent.trim()) {
-            console.log('Found workflow YAML in preview store:', { 
+          if (preview?.yamlContent?.trim()) {
+            console.log('Found workflow YAML in preview store:', {
               toolCallId: toolCall.id,
               previewId: preview.id,
-              yamlLength: preview.yamlContent.length 
+              yamlLength: preview.yamlContent.length,
             })
             return preview.yamlContent
           }
@@ -329,10 +329,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       // try to get the latest pending preview for this workflow (fallback)
       if (workflowTools.length > 0 && workflowId) {
         const latestPreview = getLatestPendingPreview(workflowId, currentChat?.id)
-        if (latestPreview && latestPreview.yamlContent && latestPreview.yamlContent.trim()) {
-          console.log('Found workflow YAML in latest pending preview:', { 
+        if (latestPreview?.yamlContent?.trim()) {
+          console.log('Found workflow YAML in latest pending preview:', {
             previewId: latestPreview.id,
-            yamlLength: latestPreview.yamlContent.length 
+            yamlLength: latestPreview.yamlContent.length,
           })
           return latestPreview.yamlContent
         }
@@ -398,7 +398,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       // Reset downvote if it was active
       setShowDownvoteSuccess(false)
       setShowUpvoteSuccess(true)
-      
+
       // Submit positive feedback
       await submitFeedback(true)
     }
@@ -407,7 +407,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       // Reset upvote if it was active
       setShowUpvoteSuccess(false)
       setShowDownvoteSuccess(true)
-      
+
       // Submit negative feedback
       await submitFeedback(false)
     }

@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createInternalServerErrorResponse,
-  createUnauthorizedResponse,
   createRequestTracker,
+  createUnauthorizedResponse,
 } from '@/lib/copilot/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
@@ -39,7 +39,8 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { userQuery, agentResponse, isPositiveFeedback, feedback, workflowYaml } = FeedbackSchema.parse(body)
+    const { userQuery, agentResponse, isPositiveFeedback, feedback, workflowYaml } =
+      FeedbackSchema.parse(body)
 
     logger.info(`[${tracker.requestId}] Processing copilot feedback submission`, {
       userId: authenticatedUserId,
@@ -87,7 +88,9 @@ export async function POST(req: NextRequest) {
         duration,
         errors: error.errors,
       })
-      return createBadRequestResponse(`Invalid request data: ${error.errors.map(e => e.message).join(', ')}`)
+      return createBadRequestResponse(
+        `Invalid request data: ${error.errors.map((e) => e.message).join(', ')}`
+      )
     }
 
     logger.error(`[${tracker.requestId}] Error submitting copilot feedback:`, {
@@ -143,4 +146,4 @@ export async function GET(req: NextRequest) {
     logger.error(`[${tracker.requestId}] Error retrieving copilot feedback:`, error)
     return createInternalServerErrorResponse('Failed to retrieve feedback')
   }
-} 
+}

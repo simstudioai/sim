@@ -1153,7 +1153,7 @@ export const copilotFeedback = pgTable(
   (table) => ({
     // Query patterns
     isPositiveIdx: index('copilot_feedback_is_positive_idx').on(table.isPositive),
-    
+
     // Ordering indexes
     createdAtIdx: index('copilot_feedback_created_at_idx').on(table.createdAt),
   })
