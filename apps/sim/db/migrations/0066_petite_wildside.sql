@@ -4,6 +4,7 @@ CREATE TABLE "copilot_feedback" (
 	"agent_response" text NOT NULL,
 	"is_positive" boolean NOT NULL,
 	"feedback" text,
+	"workflow_yaml" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );

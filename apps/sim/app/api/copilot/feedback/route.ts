@@ -19,6 +19,7 @@ const FeedbackSchema = z.object({
   agentResponse: z.string().min(1, 'Agent response is required'),
   isPositiveFeedback: z.boolean(),
   feedback: z.string().optional(),
+  workflowYaml: z.string().optional(), // Optional workflow YAML when edit/build workflow tools were used
 })
 
 /**
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { userQuery, agentResponse, isPositiveFeedback, feedback } = FeedbackSchema.parse(body)
+    const { userQuery, agentResponse, isPositiveFeedback, feedback, workflowYaml } = FeedbackSchema.parse(body)
 
     logger.info(`[${tracker.requestId}] Processing copilot feedback submission`, {
       userId: authenticatedUserId,
@@ -46,6 +47,8 @@ export async function POST(req: NextRequest) {
       userQueryLength: userQuery.length,
       agentResponseLength: agentResponse.length,
       hasFeedback: !!feedback,
+      hasWorkflowYaml: !!workflowYaml,
+      workflowYamlLength: workflowYaml?.length || 0,
     })
 
     // Insert feedback into the database
@@ -56,6 +59,7 @@ export async function POST(req: NextRequest) {
         agentResponse,
         isPositive: isPositiveFeedback,
         feedback: feedback || null,
+        workflowYaml: workflowYaml || null,
       })
       .returning()
 
@@ -120,6 +124,7 @@ export async function GET(req: NextRequest) {
         agentResponse: copilotFeedback.agentResponse,
         isPositive: copilotFeedback.isPositive,
         feedback: copilotFeedback.feedback,
+        workflowYaml: copilotFeedback.workflowYaml,
         createdAt: copilotFeedback.createdAt,
       })
       .from(copilotFeedback)

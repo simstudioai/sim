@@ -1146,6 +1146,7 @@ export const copilotFeedback = pgTable(
     agentResponse: text('agent_response').notNull(),
     isPositive: boolean('is_positive').notNull(),
     feedback: text('feedback'), // Optional feedback text
+    workflowYaml: text('workflow_yaml'), // Optional workflow YAML if edit/build workflow was triggered
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

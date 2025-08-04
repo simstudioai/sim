@@ -378,7 +378,7 @@ function processWorkflowToolResult(toolCall: any, result: any, get: () => Copilo
 /**
  * Helper function to handle tool execution failure
  */
-function handleToolFailure(toolCall: any, error: string): void {
+function handleToolFailure(toolCall: any, error: string, failedDependency?: boolean): void {
   // Don't override terminal states for tools with ready_for_review and interrupt tools
   if (
     (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
@@ -396,8 +396,8 @@ function handleToolFailure(toolCall: any, error: string): void {
     return
   }
 
-  // Check if error message is exactly 'skipped' to set 'rejected' state instead of 'errored'
-  toolCall.state = error === 'skipped' ? 'rejected' : 'errored'
+  // Check if failedDependency is true to set 'rejected' state instead of 'errored'
+  toolCall.state = failedDependency === true ? 'rejected' : 'errored'
   toolCall.error = error
 
   // Update displayName to match the error state
@@ -681,7 +681,17 @@ const sseHandlers: Record<string, SSEHandler> = {
 
   // Handle tool result events - simplified
   tool_result: (data, context, get, set) => {
-    const { toolCallId, result, success, error } = data
+    const { toolCallId, result, success, error, failedDependency } = data
+
+    // Console log the tool result for debugging
+    console.log('🔧 Tool Result:', {
+      toolCallId,
+      success,
+      result: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
+      error,
+      failedDependency,
+      timestamp: new Date().toISOString()
+    })
 
     if (!toolCallId) return
 
@@ -697,6 +707,14 @@ const sseHandlers: Record<string, SSEHandler> = {
       logger.error('Tool call not found for result', { toolCallId })
       return
     }
+
+    // Console log the tool call details
+    console.log('🔧 Tool Call Found:', {
+      id: toolCall.id,
+      name: toolCall.name,
+      currentState: toolCall.state,
+      input: toolCall.input
+    })
 
     // Ensure tool call is in context for updates
     if (!context.toolCalls.find((tc) => tc.id === toolCallId)) {
@@ -716,6 +734,12 @@ const sseHandlers: Record<string, SSEHandler> = {
             })()
           : result
 
+      console.log('✅ Tool Success - Setting state to success:', {
+        toolCallId,
+        toolName: toolCall.name,
+        parsedResult: typeof parsedResult === 'string' ? parsedResult : JSON.stringify(parsedResult, null, 2)
+      })
+
       // NEW LOGIC: Use centralized state management
       setToolCallState(toolCall, 'success', { result: parsedResult })
 
@@ -723,11 +747,30 @@ const sseHandlers: Record<string, SSEHandler> = {
       if (toolSupportsReadyForReview(toolCall.name)) {
         processWorkflowToolResult(toolCall, parsedResult, get)
       }
+
+      // COMMENTED OUT OLD LOGIC:
+      // finalizeToolCall(toolCall, true, parsedResult, get)
     } else {
+      // NEW LOGIC: Use centralized state management
+      // Check if failedDependency is true to set 'rejected' state instead of 'errored'
+      // Use the error field first, then fall back to result field, then default message
       const errorMessage = error || result || 'Tool execution failed'
-      const targetState = errorMessage === 'skipped' ? 'rejected' : 'errored'
+      const targetState = failedDependency === true ? 'rejected' : 'errored'
+      
+      console.log(`❌ Tool ${targetState === 'rejected' ? 'Skipped (Failed Dependency)' : 'Failed'} - Setting state to ${targetState}:`, {
+        toolCallId,
+        toolName: toolCall.name,
+        errorMessage,
+        targetState,
+        failedDependency,
+        errorField: error,
+        resultField: result
+      })
 
       setToolCallState(toolCall, targetState, { error: errorMessage })
+
+      // COMMENTED OUT OLD LOGIC:
+      // handleToolFailure(toolCall, result || 'Tool execution failed')
     }
 
     // Update both contentBlocks and toolCalls atomically before UI update
@@ -990,7 +1033,15 @@ const sseHandlers: Record<string, SSEHandler> = {
   tool_error: (data, context, get, set) => {
     const toolCall = context.toolCalls.find((tc) => tc.id === data.toolCallId)
     if (toolCall) {
-      handleToolFailure(toolCall, data.error)
+      // Check if failedDependency is available in the data
+      const failedDependency = data.failedDependency
+      console.log('🔧 Tool Error:', {
+        toolCallId: data.toolCallId,
+        error: data.error,
+        failedDependency,
+        timestamp: new Date().toISOString()
+      })
+      handleToolFailure(toolCall, data.error, failedDependency)
       updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
       updateStreamingMessage(set, context)
     }

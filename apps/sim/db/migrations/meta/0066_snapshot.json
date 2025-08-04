@@ -1,5 +1,5 @@
 {
-  "id": "ad388369-d0f5-44c6-a47b-68a56cd1de50",
+  "id": "365979a5-fdfd-4f2b-b902-4bdc89267380",
   "prevId": "7956fd41-d650-4165-b63a-8632f5e5ad87",
   "version": "7",
   "dialect": "postgresql",
@@ -553,6 +553,12 @@
         },
         "feedback": {
           "name": "feedback",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "workflow_yaml": {
+          "name": "workflow_yaml",
           "type": "text",
           "primaryKey": false,
           "notNull": false

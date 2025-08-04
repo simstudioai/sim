@@ -167,12 +167,13 @@ export class RunWorkflowTool extends BaseTool {
       }
       // Execution failed
       const errorMessage = (result as any)?.error || 'Workflow execution failed'
+      const failedDependency = (result as any)?.failedDependency
 
-      // Check if error message is exactly 'skipped' to notify 'rejected' instead of 'errored'
-      const targetState = errorMessage === 'skipped' ? 'rejected' : 'errored'
+      // Check if failedDependency is true to notify 'rejected' instead of 'errored'
+      const targetState = failedDependency === true ? 'rejected' : 'errored'
       const message =
         targetState === 'rejected'
-          ? `Workflow execution skipped: ${errorMessage}`
+          ? `Workflow execution skipped (failed dependency): ${errorMessage}`
           : `Workflow execution failed: ${errorMessage}`
       await this.notify(toolCall.id, targetState, message)
 
@@ -188,9 +189,10 @@ export class RunWorkflowTool extends BaseTool {
       setIsExecuting(false)
 
       const errorMessage = error?.message || 'An unknown error occurred'
+      const failedDependency = error?.failedDependency
 
-      // Check if error message is exactly 'skipped' to notify 'rejected' instead of 'errored'
-      const targetState = errorMessage === 'skipped' ? 'rejected' : 'errored'
+      // Check if failedDependency is true to notify 'rejected' instead of 'errored'
+      const targetState = failedDependency === true ? 'rejected' : 'errored'
       await this.notify(toolCall.id, targetState, `Workflow execution failed: ${errorMessage}`)
 
       options?.onStateChange?.(targetState)
