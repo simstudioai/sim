@@ -3,8 +3,8 @@
  * Handles notifications and state messages for tools
  */
 
-import { toolRegistry } from './registry'
-import type { NotificationStatus, ToolState } from './types'
+import { toolRegistry } from '@/lib/copilot/tools/registry'
+import type { NotificationStatus, ToolState } from '@/lib/copilot/tools/types'
 
 /**
  * Send a notification for a tool state change

@@ -3,7 +3,7 @@
  * These tools execute on the server and their results are displayed in the UI
  */
 
-import type { ToolMetadata } from '../types'
+import type { ToolMetadata } from '@/lib/copilot/tools/types'
 
 // Tool IDs for server tools
 export const SERVER_TOOL_IDS = {

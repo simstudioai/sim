@@ -1,9 +1,15 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
+import {
+  authenticateCopilotRequestSessionOnly,
+  createBadRequestResponse,
+  createInternalServerErrorResponse,
+  createRequestTracker,
+  createUnauthorizedResponse,
+  type NotificationStatus,
+} from '@/lib/copilot/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
-import type { NotificationStatus } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/lib/tools/types'
 
 const logger = createLogger('CopilotConfirmAPI')
 
@@ -98,22 +104,21 @@ async function updateToolCallStatus(
  * Update tool call status (Accept/Reject)
  */
 export async function POST(req: NextRequest) {
-  const requestId = crypto.randomUUID()
-  const startTime = Date.now()
+  const tracker = createRequestTracker()
 
   try {
-    // Authenticate user (same pattern as copilot chat)
-    const session = await getSession()
-    const authenticatedUserId: string | null = session?.user?.id || null
+    // Authenticate user using consolidated helper
+    const { userId: authenticatedUserId, isAuthenticated } =
+      await authenticateCopilotRequestSessionOnly()
 
-    if (!authenticatedUserId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!isAuthenticated) {
+      return createUnauthorizedResponse()
     }
 
     const body = await req.json()
     const { toolCallId, status, message } = ConfirmationSchema.parse(body)
 
-    logger.info(`[${requestId}] Tool call confirmation request`, {
+    logger.info(`[${tracker.requestId}] Tool call confirmation request`, {
       userId: authenticatedUserId,
       toolCallId,
       status,
@@ -124,21 +129,18 @@ export async function POST(req: NextRequest) {
     const updated = await updateToolCallStatus(toolCallId, status, message)
 
     if (!updated) {
-      logger.error(`[${requestId}] Failed to update tool call status`, {
+      logger.error(`[${tracker.requestId}] Failed to update tool call status`, {
         userId: authenticatedUserId,
         toolCallId,
         status,
         internalStatus: status,
         message,
       })
-      return NextResponse.json(
-        { success: false, error: 'Failed to update tool call status or tool call not found' },
-        { status: 400 }
-      )
+      return createBadRequestResponse('Failed to update tool call status or tool call not found')
     }
 
-    const duration = Date.now() - startTime
-    logger.info(`[${requestId}] Tool call confirmation completed`, {
+    const duration = tracker.getDuration()
+    logger.info(`[${tracker.requestId}] Tool call confirmation completed`, {
       userId: authenticatedUserId,
       toolCallId,
       status,
@@ -148,36 +150,31 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: message || `Tool call ${toolCallId} has been ${status.toLowerCase()}ed`,
+      message: message || `Tool call ${toolCallId} has been ${status.toLowerCase()}`,
       toolCallId,
       status,
     })
   } catch (error) {
-    const duration = Date.now() - startTime
+    const duration = tracker.getDuration()
 
     if (error instanceof z.ZodError) {
-      logger.error(`[${requestId}] Request validation error:`, {
+      logger.error(`[${tracker.requestId}] Request validation error:`, {
         duration,
         errors: error.errors,
       })
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Invalid request data: ${error.errors.map((e) => e.message).join(', ')}`,
-        },
-        { status: 400 }
+      return createBadRequestResponse(
+        `Invalid request data: ${error.errors.map((e) => e.message).join(', ')}`
       )
     }
 
-    logger.error(`[${requestId}] Unexpected error:`, {
+    logger.error(`[${tracker.requestId}] Unexpected error:`, {
       duration,
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
     })
 
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
+    return createInternalServerErrorResponse(
+      error instanceof Error ? error.message : 'Internal server error'
     )
   }
 }

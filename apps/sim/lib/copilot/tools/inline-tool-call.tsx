@@ -8,11 +8,11 @@
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { notifyServerTool } from '@/lib/copilot/tools/notification-utils'
+import { toolRegistry } from '@/lib/copilot/tools/registry'
+import { renderToolStateIcon, toolRequiresInterrupt } from '@/lib/copilot/tools/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotToolCall } from '@/stores/copilot/types'
-import { notifyServerTool } from './notification-utils'
-import { toolRegistry } from './registry'
-import { renderToolStateIcon, toolRequiresInterrupt } from './utils'
 
 interface InlineToolCallProps {
   toolCall: CopilotToolCall

@@ -10,7 +10,7 @@ import type {
   ToolExecutionOptions,
   ToolMetadata,
   ToolState,
-} from './types'
+} from '@/lib/copilot/tools/types'
 
 export abstract class BaseTool implements Tool {
   // Static property for tool ID - must be overridden by each tool

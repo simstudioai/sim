@@ -1,7 +1,13 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
+import {
+  authenticateCopilotRequestSessionOnly,
+  createBadRequestResponse,
+  createInternalServerErrorResponse,
+  createRequestTracker,
+  createUnauthorizedResponse,
+} from '@/lib/copilot/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { copilotChats, workflowCheckpoints } from '@/db/schema'
@@ -20,19 +26,19 @@ const CreateCheckpointSchema = z.object({
  * Create a new checkpoint with JSON workflow state
  */
 export async function POST(req: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const tracker = createRequestTracker()
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+    if (!isAuthenticated || !userId) {
+      return createUnauthorizedResponse()
     }
 
     const body = await req.json()
     const { workflowId, chatId, messageId, workflowState } = CreateCheckpointSchema.parse(body)
 
-    logger.info(`[${requestId}] Creating workflow checkpoint`, {
-      userId: session.user.id,
+    logger.info(`[${tracker.requestId}] Creating workflow checkpoint`, {
+      userId,
       workflowId,
       chatId,
       messageId,
@@ -46,11 +52,11 @@ export async function POST(req: NextRequest) {
     const [chat] = await db
       .select()
       .from(copilotChats)
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
+      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
       .limit(1)
 
     if (!chat) {
-      return NextResponse.json({ error: 'Chat not found or unauthorized' }, { status: 404 })
+      return createBadRequestResponse('Chat not found or unauthorized')
     }
 
     // Parse the workflow state to validate it's valid JSON
@@ -58,14 +64,14 @@ export async function POST(req: NextRequest) {
     try {
       parsedWorkflowState = JSON.parse(workflowState)
     } catch (error) {
-      return NextResponse.json({ error: 'Invalid workflow state JSON' }, { status: 400 })
+      return createBadRequestResponse('Invalid workflow state JSON')
     }
 
     // Create checkpoint with JSON workflow state
     const [checkpoint] = await db
       .insert(workflowCheckpoints)
       .values({
-        userId: session.user.id,
+        userId,
         workflowId,
         chatId,
         messageId,
@@ -73,7 +79,7 @@ export async function POST(req: NextRequest) {
       })
       .returning()
 
-    logger.info(`[${requestId}] Workflow checkpoint created successfully`, {
+    logger.info(`[${tracker.requestId}] Workflow checkpoint created successfully`, {
       checkpointId: checkpoint.id,
       savedData: {
         checkpointId: checkpoint.id,
@@ -98,8 +104,8 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (error) {
-    logger.error(`[${requestId}] Failed to create workflow checkpoint:`, error)
-    return NextResponse.json({ error: 'Failed to create checkpoint' }, { status: 500 })
+    logger.error(`[${tracker.requestId}] Failed to create workflow checkpoint:`, error)
+    return createInternalServerErrorResponse('Failed to create checkpoint')
   }
 }
 
@@ -108,23 +114,23 @@ export async function POST(req: NextRequest) {
  * Retrieve workflow checkpoints for a chat
  */
 export async function GET(req: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const tracker = createRequestTracker()
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+    if (!isAuthenticated || !userId) {
+      return createUnauthorizedResponse()
     }
 
     const { searchParams } = new URL(req.url)
     const chatId = searchParams.get('chatId')
 
     if (!chatId) {
-      return NextResponse.json({ error: 'chatId is required' }, { status: 400 })
+      return createBadRequestResponse('chatId is required')
     }
 
-    logger.info(`[${requestId}] Fetching workflow checkpoints for chat`, {
-      userId: session.user.id,
+    logger.info(`[${tracker.requestId}] Fetching workflow checkpoints for chat`, {
+      userId,
       chatId,
     })
 
@@ -140,19 +146,17 @@ export async function GET(req: NextRequest) {
         updatedAt: workflowCheckpoints.updatedAt,
       })
       .from(workflowCheckpoints)
-      .where(
-        and(eq(workflowCheckpoints.chatId, chatId), eq(workflowCheckpoints.userId, session.user.id))
-      )
+      .where(and(eq(workflowCheckpoints.chatId, chatId), eq(workflowCheckpoints.userId, userId)))
       .orderBy(desc(workflowCheckpoints.createdAt))
 
-    logger.info(`[${requestId}] Retrieved ${checkpoints.length} workflow checkpoints`)
+    logger.info(`[${tracker.requestId}] Retrieved ${checkpoints.length} workflow checkpoints`)
 
     return NextResponse.json({
       success: true,
       checkpoints,
     })
   } catch (error) {
-    logger.error(`[${requestId}] Failed to fetch workflow checkpoints:`, error)
-    return NextResponse.json({ error: 'Failed to fetch checkpoints' }, { status: 500 })
+    logger.error(`[${tracker.requestId}] Failed to fetch workflow checkpoints:`, error)
+    return createInternalServerErrorResponse('Failed to fetch checkpoints')
   }
 }

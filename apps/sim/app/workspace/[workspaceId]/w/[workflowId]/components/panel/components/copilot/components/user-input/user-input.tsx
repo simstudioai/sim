@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
-interface ProfessionalInputProps {
+interface UserInputProps {
   onSubmit: (message: string) => void
   onAbort?: () => void
   disabled?: boolean
@@ -20,7 +20,7 @@ interface ProfessionalInputProps {
   onChange?: (value: string) => void // Callback when value changes
 }
 
-const ProfessionalInput: FC<ProfessionalInputProps> = ({
+const UserInput: FC<UserInputProps> = ({
   onSubmit,
   onAbort,
   disabled = false,
@@ -167,4 +167,4 @@ const ProfessionalInput: FC<ProfessionalInputProps> = ({
   )
 }
 
-export { ProfessionalInput }
+export { UserInput }

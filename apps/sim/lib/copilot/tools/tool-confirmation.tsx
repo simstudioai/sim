@@ -8,10 +8,10 @@
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { notifyServerTool } from './notification-utils'
-import { toolRegistry } from './registry'
-import type { CopilotToolCall } from './types'
-import { executeToolWithStateManagement } from './utils'
+import { notifyServerTool } from '@/lib/copilot/tools/notification-utils'
+import { toolRegistry } from '@/lib/copilot/tools/registry'
+import type { CopilotToolCall } from '@/lib/copilot/tools/types'
+import { executeToolWithStateManagement } from '@/lib/copilot/tools/utils'
 
 interface ToolConfirmationProps {
   toolCall: CopilotToolCall

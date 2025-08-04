@@ -1,15 +1,13 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { copilotToolRegistry } from '@/lib/copilot/tools/server-tools/registry'
+import type { NotificationStatus } from '@/lib/copilot/types'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
-import { copilotToolRegistry } from '../tools/registry'
-import { createErrorResponse } from './utils'
+import { createErrorResponse } from '@/app/api/copilot/methods/utils'
 
 const logger = createLogger('CopilotMethodsAPI')
-
-// Tool call status types - should match NotificationStatus from frontend
-type ToolCallStatus = 'pending' | 'accepted' | 'rejected' | 'error' | 'success' | 'background'
 
 /**
  * Add a tool call to Redis with 'pending' status
@@ -28,7 +26,7 @@ async function addToolToRedis(toolCallId: string): Promise<void> {
 
   try {
     const key = `tool_call:${toolCallId}`
-    const status: ToolCallStatus = 'pending'
+    const status: NotificationStatus = 'pending'
 
     // Store as JSON object for consistency with confirm API
     const toolCallData = {
@@ -59,7 +57,7 @@ async function addToolToRedis(toolCallId: string): Promise<void> {
  */
 async function pollRedisForTool(
   toolCallId: string
-): Promise<{ status: ToolCallStatus; message?: string } | null> {
+): Promise<{ status: NotificationStatus; message?: string } | null> {
   const redis = getRedisClient()
   if (!redis) {
     logger.warn('pollRedisForTool: Redis client not available')
@@ -86,17 +84,17 @@ async function pollRedisForTool(
         continue
       }
 
-      let status: ToolCallStatus | null = null
+      let status: NotificationStatus | null = null
       let message: string | undefined
 
       // Try to parse as JSON (new format), fallback to string (old format)
       try {
         const parsedData = JSON.parse(redisValue)
-        status = parsedData.status as ToolCallStatus
+        status = parsedData.status as NotificationStatus
         message = parsedData.message || undefined
       } catch {
         // Fallback to old format (direct status string)
-        status = redisValue as ToolCallStatus
+        status = redisValue as NotificationStatus
       }
 
       if (status !== 'pending') {
