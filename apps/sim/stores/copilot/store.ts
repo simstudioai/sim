@@ -683,16 +683,6 @@ const sseHandlers: Record<string, SSEHandler> = {
   tool_result: (data, context, get, set) => {
     const { toolCallId, result, success, error, failedDependency } = data
 
-    // Console log the tool result for debugging
-    console.log('🔧 Tool Result:', {
-      toolCallId,
-      success,
-      result: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
-      error,
-      failedDependency,
-      timestamp: new Date().toISOString()
-    })
-
     if (!toolCallId) return
 
     // Find tool call in context
@@ -707,14 +697,6 @@ const sseHandlers: Record<string, SSEHandler> = {
       logger.error('Tool call not found for result', { toolCallId })
       return
     }
-
-    // Console log the tool call details
-    console.log('🔧 Tool Call Found:', {
-      id: toolCall.id,
-      name: toolCall.name,
-      currentState: toolCall.state,
-      input: toolCall.input
-    })
 
     // Ensure tool call is in context for updates
     if (!context.toolCalls.find((tc) => tc.id === toolCallId)) {
@@ -734,12 +716,6 @@ const sseHandlers: Record<string, SSEHandler> = {
             })()
           : result
 
-      console.log('✅ Tool Success - Setting state to success:', {
-        toolCallId,
-        toolName: toolCall.name,
-        parsedResult: typeof parsedResult === 'string' ? parsedResult : JSON.stringify(parsedResult, null, 2)
-      })
-
       // NEW LOGIC: Use centralized state management
       setToolCallState(toolCall, 'success', { result: parsedResult })
 
@@ -757,16 +733,6 @@ const sseHandlers: Record<string, SSEHandler> = {
       const errorMessage = error || result || 'Tool execution failed'
       const targetState = failedDependency === true ? 'rejected' : 'errored'
       
-      console.log(`❌ Tool ${targetState === 'rejected' ? 'Skipped (Failed Dependency)' : 'Failed'} - Setting state to ${targetState}:`, {
-        toolCallId,
-        toolName: toolCall.name,
-        errorMessage,
-        targetState,
-        failedDependency,
-        errorField: error,
-        resultField: result
-      })
-
       setToolCallState(toolCall, targetState, { error: errorMessage })
 
       // COMMENTED OUT OLD LOGIC:
@@ -1035,12 +1001,6 @@ const sseHandlers: Record<string, SSEHandler> = {
     if (toolCall) {
       // Check if failedDependency is available in the data
       const failedDependency = data.failedDependency
-      console.log('🔧 Tool Error:', {
-        toolCallId: data.toolCallId,
-        error: data.error,
-        failedDependency,
-        timestamp: new Date().toISOString()
-      })
       handleToolFailure(toolCall, data.error, failedDependency)
       updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
       updateStreamingMessage(set, context)
@@ -1053,36 +1013,11 @@ const sseHandlers: Record<string, SSEHandler> = {
   },
 }
 
-// Cache workflow tool IDs for diff-related functionality (keep for diff store integration)
-const WORKFLOW_TOOL_IDS = new Set<string>([
-  COPILOT_TOOL_IDS.BUILD_WORKFLOW,
-  COPILOT_TOOL_IDS.EDIT_WORKFLOW,
-])
-
 // Cache tools that support ready_for_review state for faster lookup
 function getToolsWithReadyForReview(): Set<string> {
   const toolsWithReadyForReview = new Set<string>()
 
-  // For now, just return the known workflow tools since we don't have getAllServerToolMetadata
-  // This can be expanded when the registry provides that method
   return new Set([COPILOT_TOOL_IDS.BUILD_WORKFLOW, COPILOT_TOOL_IDS.EDIT_WORKFLOW])
-
-  /* TODO: Implement when getAllServerToolMetadata is available
-  Object.keys(toolRegistry.getAllServerToolMetadata?.() || {}).forEach(toolId => {
-    if (toolSupportsReadyForReview(toolId)) {
-      toolsWithReadyForReview.add(toolId)
-    }
-  })
-  
-  // Check all client tools
-  toolRegistry.getAllTools().forEach(tool => {
-    if (toolSupportsReadyForReview(tool.metadata.id)) {
-      toolsWithReadyForReview.add(tool.metadata.id)
-    }
-  })
-  
-  return toolsWithReadyForReview
-  */
 }
 
 // Cache for ready_for_review tools
