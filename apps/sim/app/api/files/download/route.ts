@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getPresignedUrl, isUsingCloudStorage } from '@/lib/uploads'
+import { getPresignedUrl, getPresignedUrlWithConfig, isUsingCloudStorage } from '@/lib/uploads'
+import { BLOB_EXECUTION_FILES_CONFIG, S3_EXECUTION_FILES_CONFIG } from '@/lib/uploads/setup'
 import { createErrorResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('FileDownload')
@@ -10,10 +11,10 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { key, name } = body
+    const { key, name, storageProvider, bucketName } = body
 
     if (!key) {
-      return createErrorResponse('File key is required', 400)
+      return createErrorResponse(new Error('File key is required'), 400)
     }
 
     logger.info(`Generating download URL for file: ${name || key}`)
@@ -21,7 +22,39 @@ export async function POST(request: NextRequest) {
     if (isUsingCloudStorage()) {
       // Generate a fresh 5-minute presigned URL for cloud storage
       try {
-        const downloadUrl = await getPresignedUrl(key, 5 * 60) // 5 minutes
+        let downloadUrl: string
+
+        // Use storage provider info if available (execution files)
+        if (storageProvider && (storageProvider === 's3' || storageProvider === 'blob')) {
+          logger.info(`Using specified storage provider '${storageProvider}' for file: ${key}`)
+
+          if (storageProvider === 's3') {
+            downloadUrl = await getPresignedUrlWithConfig(
+              key,
+              {
+                bucket: bucketName || S3_EXECUTION_FILES_CONFIG.bucket,
+                region: S3_EXECUTION_FILES_CONFIG.region,
+              },
+              5 * 60 // 5 minutes
+            )
+          } else {
+            // blob
+            downloadUrl = await getPresignedUrlWithConfig(
+              key,
+              {
+                accountName: BLOB_EXECUTION_FILES_CONFIG.accountName,
+                accountKey: BLOB_EXECUTION_FILES_CONFIG.accountKey,
+                connectionString: BLOB_EXECUTION_FILES_CONFIG.connectionString,
+                containerName: bucketName || BLOB_EXECUTION_FILES_CONFIG.containerName,
+              },
+              5 * 60 // 5 minutes
+            )
+          }
+        } else {
+          // Use default storage (regular uploads)
+          logger.info(`Using default storage for file: ${key}`)
+          downloadUrl = await getPresignedUrl(key, 5 * 60) // 5 minutes
+        }
 
         return NextResponse.json({
           downloadUrl,
@@ -30,7 +63,10 @@ export async function POST(request: NextRequest) {
         })
       } catch (error) {
         logger.error(`Failed to generate presigned URL for ${key}:`, error)
-        return createErrorResponse('Failed to generate download URL', 500)
+        return createErrorResponse(
+          error instanceof Error ? error : new Error('Failed to generate download URL'),
+          500
+        )
       }
     } else {
       // For local storage, return the direct path
@@ -44,6 +80,9 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     logger.error('Error in file download endpoint:', error)
-    return createErrorResponse('Internal server error', 500)
+    return createErrorResponse(
+      error instanceof Error ? error : new Error('Internal server error'),
+      500
+    )
   }
 }

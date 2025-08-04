@@ -8,14 +8,13 @@ import { createLogger } from '@/lib/logs/console/logger'
 import {
   deleteFromBlob,
   downloadFromBlob,
-  getPresignedUrl as getBlobPresignedUrl,
+  getPresignedUrlWithConfig as getBlobPresignedUrlWithConfig,
   uploadToBlob,
 } from '@/lib/uploads/blob/blob-client'
 import {
   deleteFromS3,
   downloadFromS3,
   getPresignedUrlWithConfig,
-  getPresignedUrl as getS3PresignedUrl,
   uploadToS3,
 } from '@/lib/uploads/s3/s3-client'
 import {
@@ -78,7 +77,7 @@ export async function uploadExecutionFile(
       // Generate presigned URL for external services (24 hours)
       try {
         directUrl = await getPresignedUrlWithConfig(
-          storageKey, // Use the exact storage key (no timestamp prefix)
+          fileInfo.key, // Use the actual uploaded key
           {
             bucket: S3_EXECUTION_FILES_CONFIG.bucket,
             region: S3_EXECUTION_FILES_CONFIG.region,
@@ -99,15 +98,15 @@ export async function uploadExecutionFile(
 
       // Generate presigned URL for external services (24 hours)
       try {
-        directUrl = await getBlobPresignedUrl(
-          storageKey,
-          24 * 60 * 60, // 24 hours
+        directUrl = await getBlobPresignedUrlWithConfig(
+          fileInfo.key, // Use the actual uploaded key
           {
             accountName: BLOB_EXECUTION_FILES_CONFIG.accountName,
             accountKey: BLOB_EXECUTION_FILES_CONFIG.accountKey,
             connectionString: BLOB_EXECUTION_FILES_CONFIG.connectionString,
             containerName: BLOB_EXECUTION_FILES_CONFIG.containerName,
-          }
+          },
+          24 * 60 * 60 // 24 hours
         )
       } catch (error) {
         logger.warn(`Failed to generate Blob presigned URL for ${fileName}:`, error)
@@ -123,9 +122,15 @@ export async function uploadExecutionFile(
       type: contentType,
       path: `/api/files/execution/${context.executionId}/${fileId}`,
       directUrl,
-      key: storageKey, // Use the exact storage key (no timestamp prefix)
+      key: fileInfo.key, // Use the actual uploaded key from S3/Blob
       uploadedAt: new Date().toISOString(),
       expiresAt: getFileExpirationDate(),
+      storageProvider: USE_S3_STORAGE ? 's3' : USE_BLOB_STORAGE ? 'blob' : 'local',
+      bucketName: USE_S3_STORAGE
+        ? S3_EXECUTION_FILES_CONFIG.bucket
+        : USE_BLOB_STORAGE
+          ? BLOB_EXECUTION_FILES_CONFIG.containerName
+          : undefined,
     }
 
     logger.info(`Successfully uploaded execution file: ${fileName} (${fileBuffer.length} bytes)`)
@@ -187,24 +192,24 @@ export async function generateExecutionFileDownloadUrl(
     let downloadUrl: string
 
     if (USE_S3_STORAGE) {
-      downloadUrl = await getS3PresignedUrl(
+      downloadUrl = await getPresignedUrlWithConfig(
         fileReference.key,
-        5 * 60, // 5 minutes
         {
           bucket: S3_EXECUTION_FILES_CONFIG.bucket,
           region: S3_EXECUTION_FILES_CONFIG.region,
-        }
+        },
+        5 * 60 // 5 minutes
       )
     } else if (USE_BLOB_STORAGE) {
-      downloadUrl = await getBlobPresignedUrl(
+      downloadUrl = await getBlobPresignedUrlWithConfig(
         fileReference.key,
-        5 * 60, // 5 minutes
         {
           accountName: BLOB_EXECUTION_FILES_CONFIG.accountName,
           accountKey: BLOB_EXECUTION_FILES_CONFIG.accountKey,
           connectionString: BLOB_EXECUTION_FILES_CONFIG.connectionString,
           containerName: BLOB_EXECUTION_FILES_CONFIG.containerName,
-        }
+        },
+        5 * 60 // 5 minutes
       )
     } else {
       throw new Error('No cloud storage configured for execution files')

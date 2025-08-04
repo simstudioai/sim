@@ -15,6 +15,8 @@ interface FileDownloadProps {
     type: string
     key: string
     directUrl?: string
+    storageProvider?: 's3' | 'blob' | 'local'
+    bucketName?: string
   }
   className?: string
 }
@@ -39,6 +41,8 @@ export function FileDownload({ file, className }: FileDownloadProps) {
         body: JSON.stringify({
           key: file.key,
           name: file.name,
+          storageProvider: file.storageProvider,
+          bucketName: file.bucketName,
         }),
       })
 

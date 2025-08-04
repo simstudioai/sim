@@ -141,12 +141,6 @@ export async function uploadToS3(
   const safeFileName = fileName.replace(/\s+/g, '-') // Replace spaces with hyphens
   const uniqueKey = shouldSkipTimestamp ? safeFileName : `${Date.now()}-${safeFileName}`
 
-  // Sanitize filename for S3 metadata (only allow ASCII printable characters)
-  const sanitizedOriginalName = fileName
-    .replace(/[^\x20-\x7E]/g, '') // Remove non-ASCII characters
-    .replace(/["\\]/g, '') // Remove quotes and backslashes
-    .trim()
-
   const s3Client = getS3Client()
 
   // Upload the file to S3
@@ -216,9 +210,21 @@ export async function getPresignedUrlWithConfig(
  * @param key S3 object key
  * @returns File buffer
  */
-export async function downloadFromS3(key: string) {
+export async function downloadFromS3(key: string): Promise<Buffer>
+
+/**
+ * Download a file from S3 with custom bucket configuration
+ * @param key S3 object key
+ * @param customConfig Custom S3 configuration
+ * @returns File buffer
+ */
+export async function downloadFromS3(key: string, customConfig: CustomS3Config): Promise<Buffer>
+
+export async function downloadFromS3(key: string, customConfig?: CustomS3Config): Promise<Buffer> {
+  const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
+
   const command = new GetObjectCommand({
-    Bucket: S3_CONFIG.bucket,
+    Bucket: config.bucket,
     Key: key,
   })
 
@@ -238,10 +244,21 @@ export async function downloadFromS3(key: string) {
  * Delete a file from S3
  * @param key S3 object key
  */
-export async function deleteFromS3(key: string) {
+export async function deleteFromS3(key: string): Promise<void>
+
+/**
+ * Delete a file from S3 with custom bucket configuration
+ * @param key S3 object key
+ * @param customConfig Custom S3 configuration
+ */
+export async function deleteFromS3(key: string, customConfig: CustomS3Config): Promise<void>
+
+export async function deleteFromS3(key: string, customConfig?: CustomS3Config): Promise<void> {
+  const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
+
   await getS3Client().send(
     new DeleteObjectCommand({
-      Bucket: S3_CONFIG.bucket,
+      Bucket: config.bucket,
       Key: key,
     })
   )

@@ -14,6 +14,8 @@ export interface FileReference {
   key: string // Storage key: workspace_id/workflow_id/execution_id/filename
   uploadedAt: string
   expiresAt: string
+  storageProvider?: 's3' | 'blob' | 'local' // Storage provider for downloads
+  bucketName?: string // Bucket/container name for custom storage
 }
 
 /**

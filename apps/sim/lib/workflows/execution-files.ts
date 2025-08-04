@@ -66,6 +66,8 @@ export function metadataToFileReference(metadata: ExecutionFileMetadata): FileRe
     key: metadata.fileKey,
     uploadedAt: metadata.uploadedAt,
     expiresAt: metadata.expiresAt,
+    storageProvider: metadata.storageProvider,
+    bucketName: metadata.bucketName,
   }
 }
 
