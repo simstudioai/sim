@@ -64,4 +64,9 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
     messageId: { type: 'any', description: 'Message identifier' },
     error: { type: 'any', description: 'Error information' },
   },
+  // New: Trigger capabilities
+  triggers: {
+    enabled: true,
+    available: ['whatsapp_webhook'],
+  },
 }

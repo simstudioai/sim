@@ -98,7 +98,15 @@ export function useCollaborativeWorkflow() {
                 payload.position,
                 payload.data,
                 payload.parentId,
-                payload.extent
+                payload.extent,
+                {
+                  enabled: payload.enabled,
+                  horizontalHandles: payload.horizontalHandles,
+                  isWide: payload.isWide,
+                  advancedMode: payload.advancedMode,
+                  triggerMode: payload.triggerMode ?? false,
+                  height: payload.height,
+                }
               )
               if (payload.autoConnectEdge) {
                 workflowStore.addEdge(payload.autoConnectEdge)
@@ -152,6 +160,9 @@ export function useCollaborativeWorkflow() {
             case 'update-advanced-mode':
               workflowStore.setBlockAdvancedMode(payload.id, payload.advancedMode)
               break
+            case 'update-trigger-mode':
+              workflowStore.setBlockTriggerMode(payload.id, payload.triggerMode)
+              break
             case 'toggle-handles': {
               const currentBlock = workflowStore.blocks[payload.id]
               if (currentBlock && currentBlock.horizontalHandles !== payload.horizontalHandles) {
@@ -167,7 +178,15 @@ export function useCollaborativeWorkflow() {
                 payload.position,
                 payload.data,
                 payload.parentId,
-                payload.extent
+                payload.extent,
+                {
+                  enabled: payload.enabled,
+                  horizontalHandles: payload.horizontalHandles,
+                  isWide: payload.isWide,
+                  advancedMode: payload.advancedMode,
+                  triggerMode: payload.triggerMode ?? false,
+                  height: payload.height,
+                }
               )
               // Handle auto-connect edge if present
               if (payload.autoConnectEdge) {
@@ -462,7 +481,9 @@ export function useCollaborativeWorkflow() {
 
         // Skip if applying remote changes
         if (isApplyingRemoteChange.current) {
-          workflowStore.addBlock(id, type, name, position, data, parentId, extent)
+          workflowStore.addBlock(id, type, name, position, data, parentId, extent, {
+            triggerMode: false,
+          })
           if (autoConnectEdge) {
             workflowStore.addEdge(autoConnectEdge)
           }
@@ -485,7 +506,9 @@ export function useCollaborativeWorkflow() {
         })
 
         // Apply locally first (immediate UI feedback)
-        workflowStore.addBlock(id, type, name, position, data, parentId, extent)
+        workflowStore.addBlock(id, type, name, position, data, parentId, extent, {
+          triggerMode: false,
+        })
         if (autoConnectEdge) {
           workflowStore.addEdge(autoConnectEdge)
         }
@@ -526,6 +549,7 @@ export function useCollaborativeWorkflow() {
         horizontalHandles: true,
         isWide: false,
         advancedMode: false,
+        triggerMode: false,
         height: 0, // Default height, will be set by the UI
         parentId,
         extent,
@@ -551,7 +575,9 @@ export function useCollaborativeWorkflow() {
       })
 
       // Apply locally
-      workflowStore.addBlock(id, type, name, position, data, parentId, extent)
+      workflowStore.addBlock(id, type, name, position, data, parentId, extent, {
+        triggerMode: false,
+      })
       if (autoConnectEdge) {
         workflowStore.addEdge(autoConnectEdge)
       }
@@ -665,6 +691,23 @@ export function useCollaborativeWorkflow() {
         'block',
         { id, advancedMode: newAdvancedMode },
         () => workflowStore.toggleBlockAdvancedMode(id)
+      )
+    },
+    [executeQueuedOperation, workflowStore]
+  )
+
+  const collaborativeToggleBlockTriggerMode = useCallback(
+    (id: string) => {
+      const currentBlock = workflowStore.blocks[id]
+      if (!currentBlock) return
+
+      const newTriggerMode = !currentBlock.triggerMode
+
+      executeQueuedOperation(
+        'update-trigger-mode',
+        'block',
+        { id, triggerMode: newTriggerMode },
+        () => workflowStore.toggleBlockTriggerMode(id)
       )
     },
     [executeQueuedOperation, workflowStore]
@@ -841,6 +884,7 @@ export function useCollaborativeWorkflow() {
         horizontalHandles: sourceBlock.horizontalHandles ?? true,
         isWide: sourceBlock.isWide ?? false,
         advancedMode: sourceBlock.advancedMode ?? false,
+        triggerMode: false, // Always duplicate as normal mode to avoid webhook conflicts
         height: sourceBlock.height || 0,
       }
 
@@ -857,6 +901,7 @@ export function useCollaborativeWorkflow() {
           horizontalHandles: sourceBlock.horizontalHandles,
           isWide: sourceBlock.isWide,
           advancedMode: sourceBlock.advancedMode,
+          triggerMode: false, // Always duplicate as normal mode
           height: sourceBlock.height,
         }
       )
@@ -875,6 +920,7 @@ export function useCollaborativeWorkflow() {
             horizontalHandles: sourceBlock.horizontalHandles,
             isWide: sourceBlock.isWide,
             advancedMode: sourceBlock.advancedMode,
+            triggerMode: false, // Always duplicate as normal mode
             height: sourceBlock.height,
           }
         )
@@ -1096,6 +1142,7 @@ export function useCollaborativeWorkflow() {
     collaborativeUpdateParentId,
     collaborativeToggleBlockWide,
     collaborativeToggleBlockAdvancedMode,
+    collaborativeToggleBlockTriggerMode,
     collaborativeToggleBlockHandles,
     collaborativeDuplicateBlock,
     collaborativeAddEdge,

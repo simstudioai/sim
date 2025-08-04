@@ -1,0 +1,1 @@
+export { gmailWebhookTrigger } from './webhook'

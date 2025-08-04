@@ -130,6 +130,7 @@ export async function POST(req: NextRequest) {
           horizontalHandles: true,
           isWide: false,
           advancedMode: false,
+          triggerMode: false,
           height: 95,
         },
       },
@@ -178,6 +179,7 @@ export async function POST(req: NextRequest) {
         horizontalHandles: true,
         isWide: false,
         advancedMode: false,
+        triggerMode: false,
         height: '95',
         subBlocks: {
           startWorkflow: {

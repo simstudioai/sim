@@ -1,0 +1,47 @@
+// Import trigger definitions
+
+import { airtableWebhookTrigger } from './airtable'
+import { discordWebhookTrigger } from './discord'
+import { githubWebhookTrigger } from './github'
+import { gmailWebhookTrigger } from './gmail'
+import { microsoftTeamsWebhookTrigger } from './microsoftteams'
+import { slackWebhookTrigger } from './slack'
+import { telegramWebhookTrigger } from './telegram'
+import type { TriggerConfig, TriggerRegistry } from './types'
+import { whatsappWebhookTrigger } from './whatsapp'
+
+// Central registry of all available triggers
+export const TRIGGER_REGISTRY: TriggerRegistry = {
+  slack_webhook: slackWebhookTrigger,
+  airtable_webhook: airtableWebhookTrigger,
+  discord_webhook: discordWebhookTrigger,
+  github_webhook: githubWebhookTrigger,
+  gmail_webhook: gmailWebhookTrigger,
+  microsoftteams_webhook: microsoftTeamsWebhookTrigger,
+  telegram_webhook: telegramWebhookTrigger,
+  whatsapp_webhook: whatsappWebhookTrigger,
+}
+
+// Utility functions for working with triggers
+export function getTrigger(triggerId: string): TriggerConfig | undefined {
+  return TRIGGER_REGISTRY[triggerId]
+}
+
+export function getTriggersByProvider(provider: string): TriggerConfig[] {
+  return Object.values(TRIGGER_REGISTRY).filter((trigger) => trigger.provider === provider)
+}
+
+export function getAllTriggers(): TriggerConfig[] {
+  return Object.values(TRIGGER_REGISTRY)
+}
+
+export function getTriggerIds(): string[] {
+  return Object.keys(TRIGGER_REGISTRY)
+}
+
+export function isTriggerValid(triggerId: string): boolean {
+  return triggerId in TRIGGER_REGISTRY
+}
+
+// Export types for use elsewhere
+export type { TriggerConfig, TriggerRegistry } from './types'

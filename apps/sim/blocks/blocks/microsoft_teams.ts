@@ -224,5 +224,21 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     content: { type: 'string', description: 'Message content' },
     metadata: { type: 'json', description: 'Message metadata' },
     updatedContent: { type: 'boolean', description: 'Content update status' },
+    // Trigger outputs
+    type: { type: 'string', description: 'Type of Teams message' },
+    id: { type: 'string', description: 'Unique message identifier' },
+    timestamp: { type: 'string', description: 'Message timestamp' },
+    localTimestamp: { type: 'string', description: 'Local timestamp of the message' },
+    serviceUrl: { type: 'string', description: 'Microsoft Teams service URL' },
+    channelId: { type: 'string', description: 'Teams channel ID where the event occurred' },
+    from_id: { type: 'string', description: 'User ID who sent the message' },
+    from_name: { type: 'string', description: 'Username who sent the message' },
+    conversation_id: { type: 'string', description: 'Conversation/thread ID' },
+    text: { type: 'string', description: 'Message text content' },
+  },
+  // New: Trigger capabilities
+  triggers: {
+    enabled: true,
+    available: ['microsoftteams_webhook'],
   },
 }

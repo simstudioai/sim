@@ -5,9 +5,9 @@ import type { TelegramMessageResponse } from '@/tools/telegram/types'
 export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
   type: 'telegram',
   name: 'Telegram',
-  description: 'Send a message through Telegram',
+  description: 'Send messages through Telegram or trigger workflows from Telegram events',
   longDescription:
-    'Send messages to any Telegram channel using your Bot API key. Integrate automated notifications and alerts into your workflow to keep your team informed.',
+    'Send messages to any Telegram channel using your Bot API key or trigger workflows from Telegram bot messages. Integrate automated notifications and alerts into your workflow to keep your team informed.',
   docsLink: 'https://docs.sim.ai/tools/telegram',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -48,6 +48,16 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
       placeholder: 'Enter the message to send',
       required: true,
     },
+    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
+    {
+      id: 'triggerConfig',
+      title: 'Trigger Configuration',
+      type: 'trigger-config',
+      layout: 'full',
+      triggerProvider: 'telegram',
+      availableTriggers: ['telegram_webhook'],
+      hidden: false, // Will be filtered by trigger mode logic
+    },
   ],
   tools: {
     access: ['telegram_message'],
@@ -60,5 +70,29 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
   outputs: {
     ok: { type: 'boolean', description: 'Success status' },
     result: { type: 'json', description: 'Message result' },
+    // Trigger outputs
+    update_id: { type: 'number', description: 'Unique identifier for the update' },
+    message_id: { type: 'number', description: 'Unique message identifier' },
+    from_id: { type: 'number', description: 'User ID who sent the message' },
+    from_username: { type: 'string', description: 'Username of the sender' },
+    from_first_name: { type: 'string', description: 'First name of the sender' },
+    from_last_name: { type: 'string', description: 'Last name of the sender' },
+    chat_id: { type: 'number', description: 'Unique identifier for the chat' },
+    chat_type: {
+      type: 'string',
+      description: 'Type of chat (private, group, supergroup, channel)',
+    },
+    chat_title: { type: 'string', description: 'Title of the chat (for groups and channels)' },
+    text: { type: 'string', description: 'Message text content' },
+    date: { type: 'number', description: 'Date the message was sent (Unix timestamp)' },
+    entities: {
+      type: 'json',
+      description: 'Special entities in the message (mentions, hashtags, etc.)',
+    },
+  },
+  // New: Trigger capabilities
+  triggers: {
+    enabled: true,
+    available: ['telegram_webhook'],
   },
 }

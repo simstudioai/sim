@@ -1,5 +1,6 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import { cn } from '@/lib/utils'
@@ -10,6 +11,7 @@ import type { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { getTriggersByProvider } from '@/triggers'
 
 interface BlockTagGroup {
   blockName: string
@@ -88,6 +90,19 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 }) => {
   // Component state
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [hoveredNested, setHoveredNested] = useState<{ tag: string; index: number } | null>(null)
+  const [hideTimeout, setHideTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [inSubmenu, setInSubmenu] = useState(false)
+  const [submenuIndex, setSubmenuIndex] = useState(0)
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hideTimeout) {
+        clearTimeout(hideTimeout)
+      }
+    }
+  }, [hideTimeout])
 
   // Store hooks for workflow data
   const blocks = useWorkflowStore((state) => state.blocks)
@@ -243,9 +258,26 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockTags = [normalizedBlockName]
         }
       } else {
-        // Use default block outputs
-        const outputPaths = generateOutputPaths(blockConfig.outputs || {})
-        blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+        // Check if block is in trigger mode and has trigger outputs
+        if (sourceBlock?.triggerMode && blockConfig.triggers?.enabled) {
+          // Get trigger outputs for this block's provider
+          const triggers = getTriggersByProvider(sourceBlock.type) // Use block type as provider
+          const firstTrigger = triggers[0] // Use first available trigger for this provider
+
+          if (firstTrigger?.outputs) {
+            // Use trigger outputs instead of block outputs
+            const outputPaths = generateOutputPaths(firstTrigger.outputs)
+            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          } else {
+            // Fallback to default block outputs if no trigger outputs
+            const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          }
+        } else {
+          // Use default block outputs
+          const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+          blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+        }
       }
 
       const blockTagGroups: BlockTagGroup[] = [
@@ -522,9 +554,27 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockTags = [normalizedBlockName]
         }
       } else {
-        // Use default block outputs
-        const outputPaths = generateOutputPaths(blockConfig.outputs || {})
-        blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+        // Check if block is in trigger mode and has trigger outputs
+        const blockState = blocks[accessibleBlockId]
+        if (blockState?.triggerMode && blockConfig.triggers?.enabled) {
+          // Get trigger outputs for this block's provider
+          const triggers = getTriggersByProvider(blockState.type) // Use block type as provider
+          const firstTrigger = triggers[0] // Use first available trigger for this provider
+
+          if (firstTrigger?.outputs) {
+            // Use trigger outputs instead of block outputs
+            const outputPaths = generateOutputPaths(firstTrigger.outputs)
+            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          } else {
+            // Fallback to default block outputs if no trigger outputs
+            const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          }
+        } else {
+          // Use default block outputs
+          const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+          blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+        }
       }
 
       blockTagGroups.push({
@@ -597,11 +647,96 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     }
   }, [filteredTags, blockTagGroups, searchTerm])
 
-  // Create ordered tags for keyboard navigation
+  // Create nested structure for tags with dot notation
+  const nestedBlockTagGroups = useMemo(() => {
+    return filteredBlockTagGroups.map((group) => {
+      const nestedTags: Array<{
+        key: string
+        display: string
+        fullTag?: string
+        children?: Array<{ key: string; display: string; fullTag: string }>
+      }> = []
+
+      // Group tags by their parent path
+      const groupedTags: Record<
+        string,
+        Array<{ key: string; display: string; fullTag: string }>
+      > = {}
+      const directTags: Array<{ key: string; display: string; fullTag: string }> = []
+
+      group.tags.forEach((tag) => {
+        const tagParts = tag.split('.')
+        if (tagParts.length >= 3) {
+          // e.g., "gmail1.email.id" -> blockName: "gmail1", parent: "email", child: "id"
+          const parent = tagParts[1] // "email"
+          const child = tagParts.slice(2).join('.') // "id" or "nested.property"
+
+          if (!groupedTags[parent]) {
+            groupedTags[parent] = []
+          }
+          groupedTags[parent].push({
+            key: `${parent}.${child}`,
+            display: child,
+            fullTag: tag,
+          })
+        } else {
+          // Direct tags without nested structure
+          const path = tagParts.slice(1).join('.')
+          directTags.push({
+            key: path || group.blockName,
+            display: path || group.blockName,
+            fullTag: tag,
+          })
+        }
+      })
+
+      // Add grouped tags (with children)
+      Object.entries(groupedTags).forEach(([parent, children]) => {
+        nestedTags.push({
+          key: parent,
+          display: parent,
+          children: children,
+        })
+      })
+
+      // Add direct tags
+      directTags.forEach((directTag) => {
+        nestedTags.push(directTag)
+      })
+
+      return {
+        ...group,
+        nestedTags,
+      }
+    })
+  }, [filteredBlockTagGroups])
+
+  // Create ordered tags for keyboard navigation that matches the visual structure
   const orderedTags = useMemo(() => {
-    const allBlockTags = filteredBlockTagGroups.flatMap((group) => group.tags)
-    return [...variableTags, ...allBlockTags]
-  }, [variableTags, filteredBlockTagGroups])
+    const visualTags: string[] = []
+
+    // Add variable tags first
+    visualTags.push(...variableTags)
+
+    // Add nested block tags in visual order
+    nestedBlockTagGroups.forEach((group) => {
+      group.nestedTags.forEach((nestedTag) => {
+        if (nestedTag.children && nestedTag.children.length > 0) {
+          // For parent items with children, use the first child's fullTag as a representative
+          // This allows keyboard navigation to land on the parent item
+          const firstChild = nestedTag.children[0]
+          if (firstChild.fullTag) {
+            visualTags.push(firstChild.fullTag)
+          }
+        } else if (nestedTag.fullTag) {
+          // For direct items without children
+          visualTags.push(nestedTag.fullTag)
+        }
+      })
+    })
+
+    return visualTags
+  }, [variableTags, nestedBlockTagGroups])
 
   // Create efficient tag index lookup map
   const tagIndexMap = useMemo(() => {
@@ -686,41 +821,209 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const handleKeyboardEvent = (e: KeyboardEvent) => {
         if (!orderedTags.length) return
 
-        switch (e.key) {
-          case 'ArrowDown':
-            e.preventDefault()
-            e.stopPropagation()
-            setSelectedIndex((prev) => Math.min(prev + 1, orderedTags.length - 1))
-            break
-          case 'ArrowUp':
-            e.preventDefault()
-            e.stopPropagation()
-            setSelectedIndex((prev) => Math.max(prev - 1, 0))
-            break
-          case 'Enter':
-            e.preventDefault()
-            e.stopPropagation()
-            if (selectedIndex >= 0 && selectedIndex < orderedTags.length) {
-              const selectedTag = orderedTags[selectedIndex]
-              // Find which block group this tag belongs to
-              const belongsToGroup = filteredBlockTagGroups.find((group) =>
-                group.tags.includes(selectedTag)
-              )
-              handleTagSelect(selectedTag, belongsToGroup)
-            }
-            break
-          case 'Escape':
-            e.preventDefault()
-            e.stopPropagation()
-            onClose?.()
-            break
+        if (inSubmenu) {
+          // Handle keyboard navigation within submenu
+          const currentHovered = hoveredNested
+          if (!currentHovered) {
+            setInSubmenu(false)
+            return
+          }
+
+          // Find the current nested group and its children
+          const currentGroup = nestedBlockTagGroups.find((group) => {
+            return group.nestedTags.some(
+              (tag, index) =>
+                `${group.blockId}-${tag.key}` === currentHovered.tag &&
+                index === currentHovered.index
+            )
+          })
+
+          const currentNestedTag = currentGroup?.nestedTags.find(
+            (tag, index) =>
+              `${currentGroup.blockId}-${tag.key}` === currentHovered.tag &&
+              index === currentHovered.index
+          )
+
+          const children = currentNestedTag?.children || []
+
+          switch (e.key) {
+            case 'ArrowDown':
+              e.preventDefault()
+              e.stopPropagation()
+              setSubmenuIndex((prev) => Math.min(prev + 1, children.length - 1))
+              break
+            case 'ArrowUp':
+              e.preventDefault()
+              e.stopPropagation()
+              setSubmenuIndex((prev) => Math.max(prev - 1, 0))
+              break
+            case 'ArrowLeft':
+              e.preventDefault()
+              e.stopPropagation()
+              setInSubmenu(false)
+              setHoveredNested(null)
+              setSubmenuIndex(0)
+              break
+            case 'Enter':
+              e.preventDefault()
+              e.stopPropagation()
+              if (submenuIndex >= 0 && submenuIndex < children.length) {
+                const selectedChild = children[submenuIndex]
+                handleTagSelect(selectedChild.fullTag, currentGroup)
+              }
+              break
+            case 'Escape':
+              e.preventDefault()
+              e.stopPropagation()
+              setInSubmenu(false)
+              setHoveredNested(null)
+              setSubmenuIndex(0)
+              break
+          }
+        } else {
+          // Handle keyboard navigation in main menu
+          switch (e.key) {
+            case 'ArrowDown':
+              e.preventDefault()
+              e.stopPropagation()
+              setSelectedIndex((prev) => {
+                const newIndex = Math.min(prev + 1, orderedTags.length - 1)
+                // Check if the new selected item is a parent with children and show hover
+                const newSelectedTag = orderedTags[newIndex]
+                let foundParent = false
+                for (const group of nestedBlockTagGroups) {
+                  for (
+                    let nestedTagIndex = 0;
+                    nestedTagIndex < group.nestedTags.length;
+                    nestedTagIndex++
+                  ) {
+                    const nestedTag = group.nestedTags[nestedTagIndex]
+                    if (nestedTag.children && nestedTag.children.length > 0) {
+                      const firstChild = nestedTag.children[0]
+                      if (firstChild.fullTag === newSelectedTag) {
+                        setHoveredNested({
+                          tag: `${group.blockId}-${nestedTag.key}`,
+                          index: nestedTagIndex,
+                        })
+                        foundParent = true
+                        break
+                      }
+                    }
+                  }
+                  if (foundParent) break
+                }
+                // Clear hover if not a parent item
+                if (!foundParent) {
+                  setHoveredNested(null)
+                }
+                return newIndex
+              })
+              break
+            case 'ArrowUp':
+              e.preventDefault()
+              e.stopPropagation()
+              setSelectedIndex((prev) => {
+                const newIndex = Math.max(prev - 1, 0)
+                // Check if the new selected item is a parent with children and show hover
+                const newSelectedTag = orderedTags[newIndex]
+                let foundParent = false
+                for (const group of nestedBlockTagGroups) {
+                  for (
+                    let nestedTagIndex = 0;
+                    nestedTagIndex < group.nestedTags.length;
+                    nestedTagIndex++
+                  ) {
+                    const nestedTag = group.nestedTags[nestedTagIndex]
+                    if (nestedTag.children && nestedTag.children.length > 0) {
+                      const firstChild = nestedTag.children[0]
+                      if (firstChild.fullTag === newSelectedTag) {
+                        setHoveredNested({
+                          tag: `${group.blockId}-${nestedTag.key}`,
+                          index: nestedTagIndex,
+                        })
+                        foundParent = true
+                        break
+                      }
+                    }
+                  }
+                  if (foundParent) break
+                }
+                // Clear hover if not a parent item
+                if (!foundParent) {
+                  setHoveredNested(null)
+                }
+                return newIndex
+              })
+              break
+            case 'ArrowRight':
+              e.preventDefault()
+              e.stopPropagation()
+              // Check if current item has children
+              if (selectedIndex >= 0 && selectedIndex < orderedTags.length) {
+                const selectedTag = orderedTags[selectedIndex]
+                // Find which nested group this belongs to by checking if the selected tag
+                // is the first child of a parent with multiple children
+                for (const group of nestedBlockTagGroups) {
+                  for (
+                    let nestedTagIndex = 0;
+                    nestedTagIndex < group.nestedTags.length;
+                    nestedTagIndex++
+                  ) {
+                    const nestedTag = group.nestedTags[nestedTagIndex]
+                    if (nestedTag.children && nestedTag.children.length > 0) {
+                      // Check if the selected tag is the first child (representative) of this parent
+                      const firstChild = nestedTag.children[0]
+                      if (firstChild.fullTag === selectedTag) {
+                        // Enter submenu
+                        setInSubmenu(true)
+                        setSubmenuIndex(0)
+                        setHoveredNested({
+                          tag: `${group.blockId}-${nestedTag.key}`,
+                          index: nestedTagIndex,
+                        })
+                        return
+                      }
+                    }
+                  }
+                }
+              }
+              break
+            case 'Enter':
+              e.preventDefault()
+              e.stopPropagation()
+              if (selectedIndex >= 0 && selectedIndex < orderedTags.length) {
+                const selectedTag = orderedTags[selectedIndex]
+                // Find which block group this tag belongs to
+                const belongsToGroup = filteredBlockTagGroups.find((group) =>
+                  group.tags.includes(selectedTag)
+                )
+                handleTagSelect(selectedTag, belongsToGroup)
+              }
+              break
+            case 'Escape':
+              e.preventDefault()
+              e.stopPropagation()
+              onClose?.()
+              break
+          }
         }
       }
 
       window.addEventListener('keydown', handleKeyboardEvent, true)
       return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
     }
-  }, [visible, selectedIndex, orderedTags, filteredBlockTagGroups, handleTagSelect, onClose])
+  }, [
+    visible,
+    selectedIndex,
+    orderedTags,
+    filteredBlockTagGroups,
+    nestedBlockTagGroups,
+    handleTagSelect,
+    onClose,
+    inSubmenu,
+    submenuIndex,
+    hoveredNested,
+  ])
 
   // Early return if dropdown should not be visible
   if (!visible || tags.length === 0 || orderedTags.length === 0) return null
@@ -728,7 +1031,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   return (
     <div
       className={cn(
-        'absolute z-[9999] mt-1 w-full overflow-hidden rounded-md border bg-popover shadow-md',
+        'absolute z-[9999] mt-1 w-full overflow-visible rounded-md border bg-popover shadow-md',
         className
       )}
       style={style}
@@ -793,11 +1096,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               </>
             )}
 
-            {/* Block sections */}
-            {filteredBlockTagGroups.length > 0 && (
+            {/* Block sections with nested structure */}
+            {nestedBlockTagGroups.length > 0 && (
               <>
                 {variableTags.length > 0 && <div className='my-0' />}
-                {filteredBlockTagGroups.map((group) => {
+                {nestedBlockTagGroups.map((group) => {
                   // Get block color from configuration
                   const blockConfig = getBlock(group.blockType)
                   let blockColor = blockConfig?.bgColor || '#2F55FF'
@@ -810,83 +1113,233 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   }
 
                   return (
-                    <div key={group.blockId}>
+                    <div key={group.blockId} className='relative'>
                       <div className='border-t px-2 pt-1.5 pb-0.5 font-medium text-muted-foreground text-xs first:border-t-0'>
                         {group.blockName}
                       </div>
                       <div>
-                        {group.tags.map((tag: string) => {
-                          const tagIndex = tagIndexMap.get(tag) ?? -1
+                        {group.nestedTags.map((nestedTag, index) => {
+                          const tagIndex = nestedTag.fullTag
+                            ? (tagIndexMap.get(nestedTag.fullTag) ?? -1)
+                            : -1
+                          const hasChildren = nestedTag.children && nestedTag.children.length > 0
+                          const isHovered =
+                            hoveredNested?.tag === `${group.blockId}-${nestedTag.key}` &&
+                            hoveredNested?.index === index
 
-                          // Handle display text based on tag type
-                          let displayText: string
+                          // Handle display text and icon
+                          const displayText = nestedTag.display
                           let tagDescription = ''
                           let tagIcon = group.blockName.charAt(0).toUpperCase()
 
                           if (
                             (group.blockType === 'loop' || group.blockType === 'parallel') &&
-                            !tag.includes('.')
+                            !nestedTag.key.includes('.')
                           ) {
                             // Contextual tags like 'index', 'currentItem', 'items'
-                            displayText = tag
-                            if (tag === 'index') {
+                            if (nestedTag.key === 'index') {
                               tagIcon = '#'
                               tagDescription = 'Index'
-                            } else if (tag === 'currentItem') {
+                            } else if (nestedTag.key === 'currentItem') {
                               tagIcon = 'i'
                               tagDescription = 'Current item'
-                            } else if (tag === 'items') {
+                            } else if (nestedTag.key === 'items') {
                               tagIcon = 'I'
                               tagDescription = 'All items'
                             }
-                          } else {
-                            // Regular block output tags like 'blockname.field' or 'blockname.results'
-                            const tagParts = tag.split('.')
-                            const path = tagParts.slice(1).join('.')
-                            displayText = path || group.blockName
-                            if (path === 'results') {
-                              tagDescription = 'Results array'
-                            }
+                          } else if (nestedTag.key === 'results') {
+                            tagDescription = 'Results array'
                           }
 
+                          // Check if this item is keyboard selected (for parent items with children)
+                          const isKeyboardSelected = (() => {
+                            if (
+                              hasChildren &&
+                              selectedIndex >= 0 &&
+                              selectedIndex < orderedTags.length
+                            ) {
+                              const selectedTag = orderedTags[selectedIndex]
+                              // Check if the selected tag is the first child of this parent
+                              const firstChild = nestedTag.children?.[0]
+                              return firstChild?.fullTag === selectedTag
+                            }
+                            return tagIndex === selectedIndex && tagIndex >= 0
+                          })()
+
                           return (
-                            <button
-                              key={tag}
-                              className={cn(
-                                'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
-                                'hover:bg-accent hover:text-accent-foreground',
-                                'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                                tagIndex === selectedIndex &&
-                                  tagIndex >= 0 &&
-                                  'bg-accent text-accent-foreground'
-                              )}
-                              onMouseEnter={() => setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)}
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                handleTagSelect(tag, group)
-                              }}
-                              onClick={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                handleTagSelect(tag, group)
-                              }}
+                            <div
+                              key={`${group.blockId}-${nestedTag.key}-${index}`}
+                              className='relative'
                             >
-                              <div
-                                className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded'
-                                style={{ backgroundColor: blockColor }}
+                              <button
+                                className={cn(
+                                  'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
+                                  'hover:bg-accent hover:text-accent-foreground',
+                                  'focus:bg-accent focus:text-accent-foreground focus:outline-none',
+                                  isKeyboardSelected && 'bg-accent text-accent-foreground'
+                                )}
+                                onMouseEnter={() => {
+                                  // Sync keyboard selection with mouse hover
+                                  if (
+                                    hasChildren &&
+                                    selectedIndex >= 0 &&
+                                    selectedIndex < orderedTags.length
+                                  ) {
+                                    const selectedTag = orderedTags[selectedIndex]
+                                    const firstChild = nestedTag.children?.[0]
+                                    if (firstChild?.fullTag === selectedTag) {
+                                      // Already selected via keyboard, just show hover
+                                      setHoveredNested({
+                                        tag: `${group.blockId}-${nestedTag.key}`,
+                                        index,
+                                      })
+                                    } else if (tagIndex >= 0) {
+                                      setSelectedIndex(tagIndex)
+                                    }
+                                  } else if (tagIndex >= 0) {
+                                    setSelectedIndex(tagIndex)
+                                  }
+
+                                  if (hasChildren) {
+                                    // Clear any pending hide timeout
+                                    if (hideTimeout) {
+                                      clearTimeout(hideTimeout)
+                                      setHideTimeout(null)
+                                    }
+                                    setHoveredNested({
+                                      tag: `${group.blockId}-${nestedTag.key}`,
+                                      index,
+                                    })
+                                  }
+                                }}
+                                onMouseLeave={() => {
+                                  if (hasChildren) {
+                                    // Small delay to allow moving to submenu
+                                    const timeout = setTimeout(() => {
+                                      setHoveredNested(null)
+                                      setHideTimeout(null)
+                                    }, 150)
+                                    setHideTimeout(timeout)
+                                  }
+                                }}
+                                onMouseDown={(e) => {
+                                  if (nestedTag.fullTag) {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    handleTagSelect(nestedTag.fullTag, group)
+                                  } else if (hasChildren) {
+                                    // Prevent default but don't select for parent items
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                  }
+                                }}
+                                onClick={(e) => {
+                                  if (nestedTag.fullTag) {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    handleTagSelect(nestedTag.fullTag, group)
+                                  } else if (hasChildren) {
+                                    // Prevent default but don't select for parent items
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                  }
+                                }}
+                                disabled={false}
                               >
-                                <span className='h-3 w-3 font-bold text-white text-xs'>
-                                  {tagIcon}
-                                </span>
-                              </div>
-                              <span className='flex-1 truncate'>{displayText}</span>
-                              {tagDescription && (
-                                <span className='ml-auto text-muted-foreground text-xs'>
-                                  {tagDescription}
-                                </span>
+                                <div
+                                  className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded'
+                                  style={{ backgroundColor: blockColor }}
+                                >
+                                  <span className='h-3 w-3 font-bold text-white text-xs'>
+                                    {tagIcon}
+                                  </span>
+                                </div>
+                                <span className='flex-1 truncate'>{displayText}</span>
+                                {hasChildren && (
+                                  <ChevronRight className='h-4 w-4 text-muted-foreground' />
+                                )}
+                                {tagDescription && !hasChildren && (
+                                  <span className='ml-auto text-muted-foreground text-xs'>
+                                    {tagDescription}
+                                  </span>
+                                )}
+                              </button>
+
+                              {/* Nested submenu */}
+                              {hasChildren && isHovered && (
+                                <div
+                                  className='absolute top-0 left-full z-[10000] ml-1 min-w-[200px] max-w-[300px] rounded-md border border-border bg-background shadow-lg'
+                                  onMouseEnter={() => {
+                                    // Clear any pending hide timeout
+                                    if (hideTimeout) {
+                                      clearTimeout(hideTimeout)
+                                      setHideTimeout(null)
+                                    }
+                                    setHoveredNested({
+                                      tag: `${group.blockId}-${nestedTag.key}`,
+                                      index,
+                                    })
+                                  }}
+                                  onMouseLeave={() => {
+                                    // Set timeout to hide submenu when leaving
+                                    const timeout = setTimeout(() => {
+                                      setHoveredNested(null)
+                                      setHideTimeout(null)
+                                    }, 150)
+                                    setHideTimeout(timeout)
+                                  }}
+                                >
+                                  <div className='py-1'>
+                                    {nestedTag.children!.map((child, childIndex) => {
+                                      const childTagIndex = tagIndexMap.get(child.fullTag) ?? -1
+                                      const isKeyboardSelected =
+                                        inSubmenu && isHovered && submenuIndex === childIndex
+                                      return (
+                                        <button
+                                          key={child.key}
+                                          className={cn(
+                                            'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
+                                            'hover:bg-accent hover:text-accent-foreground',
+                                            'focus:bg-accent focus:text-accent-foreground focus:outline-none',
+                                            'transition-colors duration-150',
+                                            isKeyboardSelected && 'bg-accent text-accent-foreground'
+                                          )}
+                                          onMouseEnter={() => {
+                                            if (childTagIndex >= 0) {
+                                              setSelectedIndex(childTagIndex)
+                                            }
+                                            // Sync keyboard selection with mouse hover
+                                            setSubmenuIndex(childIndex)
+                                          }}
+                                          onMouseDown={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            handleTagSelect(child.fullTag, group)
+                                            setHoveredNested(null)
+                                          }}
+                                          onClick={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            handleTagSelect(child.fullTag, group)
+                                            setHoveredNested(null)
+                                          }}
+                                        >
+                                          <div
+                                            className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded'
+                                            style={{ backgroundColor: blockColor }}
+                                          >
+                                            <span className='h-3 w-3 font-bold text-white text-xs'>
+                                              {group.blockName.charAt(0).toUpperCase()}
+                                            </span>
+                                          </div>
+                                          <span className='flex-1 truncate'>{child.display}</span>
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
                               )}
-                            </button>
+                            </div>
                           )
                         })}
                       </div>

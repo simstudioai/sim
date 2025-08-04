@@ -1,0 +1,1 @@
+export { airtableWebhookTrigger } from './webhook'
