@@ -408,7 +408,8 @@ function handleToolFailure(toolCall: any, error: string): void {
     return
   }
 
-  toolCall.state = 'errored'
+  // Check if error message is exactly 'skipped' to set 'rejected' state instead of 'errored'
+  toolCall.state = error === 'skipped' ? 'rejected' : 'errored'
   toolCall.error = error
 
   // Update displayName to match the error state
@@ -488,7 +489,12 @@ function setToolCallState(
       break
 
     case 'rejected':
-      // User rejected the tool
+      // User rejected the tool or tool was skipped
+      toolCall.endTime = Date.now()
+      toolCall.duration = toolCall.endTime - toolCall.startTime
+      if (error) {
+        toolCall.error = error
+      }
       break
 
     case 'background':
@@ -687,7 +693,16 @@ const sseHandlers: Record<string, SSEHandler> = {
 
   // Handle tool result events - simplified
   tool_result: (data, context, get, set) => {
-    const { toolCallId, result, success } = data
+    const { toolCallId, result, success, error } = data
+
+    // Console log the tool result for debugging
+    console.log('🔧 Tool Result:', {
+      toolCallId,
+      success,
+      result: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
+      error,
+      timestamp: new Date().toISOString()
+    })
 
     if (!toolCallId) return
 
@@ -703,6 +718,14 @@ const sseHandlers: Record<string, SSEHandler> = {
       logger.error('Tool call not found for result', { toolCallId })
       return
     }
+
+    // Console log the tool call details
+    console.log('🔧 Tool Call Found:', {
+      id: toolCall.id,
+      name: toolCall.name,
+      currentState: toolCall.state,
+      input: toolCall.input
+    })
 
     // Ensure tool call is in context for updates
     if (!context.toolCalls.find((tc) => tc.id === toolCallId)) {
@@ -722,6 +745,12 @@ const sseHandlers: Record<string, SSEHandler> = {
             })()
           : result
 
+      console.log('✅ Tool Success - Setting state to success:', {
+        toolCallId,
+        toolName: toolCall.name,
+        parsedResult: typeof parsedResult === 'string' ? parsedResult : JSON.stringify(parsedResult, null, 2)
+      })
+
       // NEW LOGIC: Use centralized state management
       setToolCallState(toolCall, 'success', { result: parsedResult })
 
@@ -734,7 +763,22 @@ const sseHandlers: Record<string, SSEHandler> = {
       // finalizeToolCall(toolCall, true, parsedResult, get)
     } else {
       // NEW LOGIC: Use centralized state management
-      setToolCallState(toolCall, 'errored', { error: result || 'Tool execution failed' })
+      // Check if error message is exactly 'skipped' to set 'rejected' state instead of 'errored'
+      // Use the error field first, then fall back to result field, then default message
+      const errorMessage = error || result || 'Tool execution failed'
+      const targetState = errorMessage === 'skipped' ? 'rejected' : 'errored'
+      
+      console.log(`❌ Tool ${targetState === 'rejected' ? 'Skipped' : 'Failed'} - Setting state to ${targetState}:`, {
+        toolCallId,
+        toolName: toolCall.name,
+        errorMessage,
+        targetState,
+        wasSkipped: errorMessage === 'skipped',
+        errorField: error,
+        resultField: result
+      })
+
+      setToolCallState(toolCall, targetState, { error: errorMessage })
 
       // COMMENTED OUT OLD LOGIC:
       // handleToolFailure(toolCall, result || 'Tool execution failed')
