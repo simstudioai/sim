@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console/logger'
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
+import { createLogger } from '@/lib/logs/console/logger'
 import type {
   BillingStatus,
   SubscriptionData,

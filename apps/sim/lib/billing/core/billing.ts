@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import {
   resetOrganizationBillingPeriod,
   resetUserBillingPeriod,
@@ -6,7 +7,6 @@ import {
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
-import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { member, organization, subscription, user, userStats } from '@/db/schema'

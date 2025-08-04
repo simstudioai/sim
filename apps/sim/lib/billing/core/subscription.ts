@@ -1,5 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { client } from '@/lib/auth-client'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import {
   calculateDefaultUsageLimit,
   checkEnterprisePlan,
@@ -11,7 +12,6 @@ import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { member, subscription, userStats } from '@/db/schema'
-import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 
 const logger = createLogger('SubscriptionCore')
 

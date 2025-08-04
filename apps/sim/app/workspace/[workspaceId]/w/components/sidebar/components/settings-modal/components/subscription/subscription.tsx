@@ -12,8 +12,8 @@ import {
   Skeleton,
 } from '@/components/ui'
 import { useSession, useSubscription } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console/logger'
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
+import { createLogger } from '@/lib/logs/console/logger'
 import {
   BillingSummary,
   CancelSubscription,
@@ -228,7 +228,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                   subscription.isEnterprise ||
                   (subscription.isTeam && isTeamAdmin)
                 }
-                                        minimumLimit={usageLimitData?.minimumLimit ?? DEFAULT_FREE_CREDITS}
+                minimumLimit={usageLimitData?.minimumLimit ?? DEFAULT_FREE_CREDITS}
               />
             )}
           </div>

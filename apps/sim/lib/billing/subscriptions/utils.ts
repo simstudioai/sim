@@ -1,5 +1,5 @@
-import { env } from '@/lib/env'
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
+import { env } from '@/lib/env'
 
 export function checkEnterprisePlan(subscription: any): boolean {
   return subscription?.plan === 'enterprise' && subscription?.status === 'active'

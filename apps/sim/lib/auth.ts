@@ -20,9 +20,9 @@ import {
   renderPasswordResetEmail,
 } from '@/components/emails/render-email'
 import { getBaseURL } from '@/lib/auth-client'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { env, isTruthy } from '@/lib/env'
 import { isProd } from '@/lib/environment'
-import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'

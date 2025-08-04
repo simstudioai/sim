@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import type { SubscriptionFeatures } from '@/lib/billing/types'
 import { createLogger } from '@/lib/logs/console/logger'
-import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 
 const logger = createLogger('useSubscriptionState')
 
@@ -215,9 +215,9 @@ export function useUsageLimit() {
   }
 
   return {
-          currentLimit: data?.currentLimit ?? DEFAULT_FREE_CREDITS,
+    currentLimit: data?.currentLimit ?? DEFAULT_FREE_CREDITS,
     canEdit: data?.canEdit ?? false,
-          minimumLimit: data?.minimumLimit ?? DEFAULT_FREE_CREDITS,
+    minimumLimit: data?.minimumLimit ?? DEFAULT_FREE_CREDITS,
     plan: data?.plan ?? 'free',
     setBy: data?.setBy,
     updatedAt: data?.updatedAt ? new Date(data.updatedAt) : null,
