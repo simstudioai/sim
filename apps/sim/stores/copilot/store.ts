@@ -288,8 +288,6 @@ function getToolDisplayNameByState(toolCall: any): string {
  * don't go through createToolCall()
  */
 function ensureToolCallDisplayNames(messages: CopilotMessage[]): CopilotMessage[] {
-  console.log('[DEBUG] ensureToolCallDisplayNames called, processing', messages.length, 'messages')
-
   return messages.map((message: CopilotMessage) => {
     if (message.role === 'assistant' && (message.toolCalls || message.contentBlocks)) {
       // Check for workflow tools before recalculating
@@ -307,11 +305,6 @@ function ensureToolCallDisplayNames(messages: CopilotMessage[]): CopilotMessage[
         )
 
       if (hasWorkflowTools) {
-        console.log(
-          '[DEBUG] ensureToolCallDisplayNames found workflow tools in message:',
-          message.id
-        )
-
         // Log current states before recalculation
         const workflowToolStates = message.contentBlocks
           ?.filter(
@@ -325,11 +318,6 @@ function ensureToolCallDisplayNames(messages: CopilotMessage[]): CopilotMessage[
             state: (b as any).toolCall.state,
             displayName: (b as any).toolCall.displayName,
           }))
-
-        console.log(
-          '[DEBUG] Current workflow tool states before recalculation:',
-          workflowToolStates
-        )
       }
 
       return {
@@ -408,7 +396,8 @@ function handleToolFailure(toolCall: any, error: string): void {
     return
   }
 
-  toolCall.state = 'errored'
+  // Check if error message is exactly 'skipped' to set 'rejected' state instead of 'errored'
+  toolCall.state = error === 'skipped' ? 'rejected' : 'errored'
   toolCall.error = error
 
   // Update displayName to match the error state
@@ -488,7 +477,12 @@ function setToolCallState(
       break
 
     case 'rejected':
-      // User rejected the tool
+      // User rejected the tool or tool was skipped
+      toolCall.endTime = Date.now()
+      toolCall.duration = toolCall.endTime - toolCall.startTime
+      if (error) {
+        toolCall.error = error
+      }
       break
 
     case 'background':
@@ -687,7 +681,7 @@ const sseHandlers: Record<string, SSEHandler> = {
 
   // Handle tool result events - simplified
   tool_result: (data, context, get, set) => {
-    const { toolCallId, result, success } = data
+    const { toolCallId, result, success, error } = data
 
     if (!toolCallId) return
 
@@ -729,15 +723,11 @@ const sseHandlers: Record<string, SSEHandler> = {
       if (toolSupportsReadyForReview(toolCall.name)) {
         processWorkflowToolResult(toolCall, parsedResult, get)
       }
-
-      // COMMENTED OUT OLD LOGIC:
-      // finalizeToolCall(toolCall, true, parsedResult, get)
     } else {
-      // NEW LOGIC: Use centralized state management
-      setToolCallState(toolCall, 'errored', { error: result || 'Tool execution failed' })
+      const errorMessage = error || result || 'Tool execution failed'
+      const targetState = errorMessage === 'skipped' ? 'rejected' : 'errored'
 
-      // COMMENTED OUT OLD LOGIC:
-      // handleToolFailure(toolCall, result || 'Tool execution failed')
+      setToolCallState(toolCall, targetState, { error: errorMessage })
     }
 
     // Update both contentBlocks and toolCalls atomically before UI update
@@ -792,23 +782,12 @@ const sseHandlers: Record<string, SSEHandler> = {
     const toolData = data.data
     if (!toolData) return
 
-    // Log the raw tool data from LLM stream
-    if (toolData.name === 'run_workflow') {
-      console.log('🔍 LLM tool call data:', JSON.stringify(toolData, null, 2))
-      console.log('🔍 LLM arguments field:', JSON.stringify(toolData.arguments, null, 2))
-    }
-
     // Check if tool call already exists
     const existingToolCall = context.toolCalls.find((tc) => tc.id === toolData.id)
 
     if (existingToolCall) {
       // Update existing tool call with new arguments (for partial -> complete transition)
       existingToolCall.input = toolData.arguments || {}
-
-      // Log the updated tool call
-      if (toolData.name === 'run_workflow') {
-        console.log('🔍 Updated existing tool call:', JSON.stringify(existingToolCall, null, 2))
-      }
 
       // Update the content block as well
       updateContentBlockToolCall(context.contentBlocks, toolData.id, existingToolCall)
@@ -817,11 +796,6 @@ const sseHandlers: Record<string, SSEHandler> = {
     }
 
     const toolCall = createToolCall(toolData.id, toolData.name, toolData.arguments)
-
-    // Log the created tool call
-    if (toolData.name === 'run_workflow') {
-      console.log('🔍 Created tool call:', JSON.stringify(toolCall, null, 2))
-    }
 
     context.toolCalls.push(toolCall)
 
