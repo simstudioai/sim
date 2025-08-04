@@ -54,7 +54,8 @@ export class FileToolProcessor {
           }
         } catch (error) {
           logger.error(`Error processing file output '${outputKey}':`, error)
-          throw new Error(`Failed to process file output '${outputKey}': ${error.message}`)
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          throw new Error(`Failed to process file output '${outputKey}': ${errorMessage}`)
         }
       }
     }
@@ -71,19 +72,6 @@ export class FileToolProcessor {
     outputKey: string
   ): Promise<FileReference> {
     logger.info(`Processing file data for output '${outputKey}': ${fileData.name}`)
-    console.log(`File data structure:`, {
-      name: fileData.name,
-      mimeType: fileData.mimeType,
-      size: fileData.size,
-      dataType: typeof fileData.data,
-      isBuffer: Buffer.isBuffer(fileData.data),
-      hasUrl: !!fileData.url,
-      dataStructure:
-        fileData.data && typeof fileData.data === 'object'
-          ? Object.keys(fileData.data)
-          : 'primitive',
-    })
-
     try {
       // Convert various formats to Buffer
       let buffer: Buffer
@@ -94,11 +82,16 @@ export class FileToolProcessor {
       } else if (
         fileData.data &&
         typeof fileData.data === 'object' &&
-        fileData.data.type === 'Buffer' &&
-        Array.isArray(fileData.data.data)
+        'type' in fileData.data &&
+        'data' in fileData.data
       ) {
         // Handle serialized Buffer objects (from JSON serialization)
-        buffer = Buffer.from(fileData.data.data)
+        const serializedBuffer = fileData.data as { type: string; data: number[] }
+        if (serializedBuffer.type === 'Buffer' && Array.isArray(serializedBuffer.data)) {
+          buffer = Buffer.from(serializedBuffer.data)
+        } else {
+          throw new Error(`Invalid serialized buffer format for ${fileData.name}`)
+        }
         logger.info(
           `Converted serialized Buffer to Buffer for ${fileData.name} (${buffer.length} bytes)`
         )
@@ -140,7 +133,11 @@ export class FileToolProcessor {
 
       // Store in execution filesystem
       const fileReference = await uploadExecutionFile(
-        context,
+        {
+          workspaceId: context.workspaceId || '',
+          workflowId: context.workflowId,
+          executionId: context.executionId || '',
+        },
         buffer,
         fileData.name,
         fileData.mimeType

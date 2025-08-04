@@ -502,16 +502,16 @@ export function Sidebar({
                           key={file.id || index}
                           className='flex items-center justify-between rounded-md border bg-muted/30 p-2'
                         >
-                          <div className='flex-1 min-w-0'>
-                            <div className='text-sm font-medium truncate' title={file.name}>
+                          <div className='min-w-0 flex-1'>
+                            <div className='truncate font-medium text-sm' title={file.name}>
                               {file.name}
                             </div>
-                            <div className='text-xs text-muted-foreground'>
+                            <div className='text-muted-foreground text-xs'>
                               {file.size ? `${Math.round(file.size / 1024)}KB` : 'Unknown size'}
                               {file.type && ` • ${file.type.split('/')[0]}`}
                             </div>
                           </div>
-                          <div className='flex items-center gap-1 ml-2'>
+                          <div className='ml-2 flex items-center gap-1'>
                             <FileDownload file={file} />
                           </div>
                         </div>

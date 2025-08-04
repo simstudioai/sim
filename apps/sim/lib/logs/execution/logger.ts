@@ -433,13 +433,29 @@ export class ExecutionLogger implements IExecutionLoggerService {
       // Check if this object has files property
       if (Array.isArray(obj.files)) {
         for (const file of obj.files) {
-          if (file && file.name && file.key) {
-            // Use key as unique identifier if id is not available
+          if (file?.name && file.key) {
             const fileId = file.id || file.key
             if (!seenFileIds.has(fileId)) {
               seenFileIds.add(fileId)
               files.push({
-                id: fileId, // Ensure we have an id field
+                id: fileId,
+                ...file,
+                source, // Track which block/source created this file
+              })
+            }
+          }
+        }
+      }
+
+      // Check if this object has attachments property (for Gmail and other tools)
+      if (Array.isArray(obj.attachments)) {
+        for (const file of obj.attachments) {
+          if (file?.name && file.key) {
+            const fileId = file.id || file.key
+            if (!seenFileIds.has(fileId)) {
+              seenFileIds.add(fileId)
+              files.push({
+                id: fileId,
                 ...file,
                 source, // Track which block/source created this file
               })
@@ -454,7 +470,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         if (!seenFileIds.has(fileId)) {
           seenFileIds.add(fileId)
           files.push({
-            id: fileId, // Ensure we have an id field
+            id: fileId,
             ...obj,
             source,
           })

@@ -10,6 +10,10 @@ export function fileReferenceToUserFile(fileRef: FileReference): UserFile {
     size: fileRef.size,
     type: fileRef.type,
     uploadedAt: fileRef.uploadedAt,
+    key: fileRef.key,
+    id: fileRef.id,
+    storageProvider: fileRef.storageProvider,
+    bucketName: fileRef.bucketName,
   }
 }
 

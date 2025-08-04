@@ -27,6 +27,12 @@ export interface UserFile {
   size: number
   type: string
   uploadedAt: string
+  // Preserve key and id for download functionality
+  key: string
+  id: string
+  // Preserve storage properties for download functionality
+  storageProvider?: 's3' | 'blob' | 'local'
+  bucketName?: string
 }
 
 /**

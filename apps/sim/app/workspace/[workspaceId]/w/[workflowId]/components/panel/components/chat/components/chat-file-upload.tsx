@@ -134,7 +134,7 @@ export function ChatFileUpload({
     const k = 1024
     const sizes = ['B', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Number.parseFloat((bytes / k ** i).toFixed(1)) + ' ' + sizes[i]
+    return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
   }
 
   return (
@@ -145,7 +145,7 @@ export function ChatFileUpload({
           type='button'
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || files.length >= maxFiles}
-          className='flex items-center gap-1 px-2 py-1 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+          className='flex items-center gap-1 rounded-md px-2 py-1 text-gray-600 text-sm transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50'
           title={files.length >= maxFiles ? `Maximum ${maxFiles} files` : 'Attach files'}
         >
           <Paperclip className='h-4 w-4' />
@@ -163,7 +163,7 @@ export function ChatFileUpload({
         />
 
         {files.length > 0 && (
-          <span className='text-xs text-gray-500'>
+          <span className='text-gray-500 text-xs'>
             {files.length}/{maxFiles} files
           </span>
         )}
@@ -175,17 +175,17 @@ export function ChatFileUpload({
           {files.map((file) => (
             <div
               key={file.id}
-              className='flex items-center gap-2 px-2 py-1 bg-gray-50 rounded-md text-sm'
+              className='flex items-center gap-2 rounded-md bg-gray-50 px-2 py-1 text-sm'
             >
               {getFileIcon(file.type)}
               <span className='flex-1 truncate' title={file.name}>
                 {file.name}
               </span>
-              <span className='text-xs text-gray-500'>{formatFileSize(file.size)}</span>
+              <span className='text-gray-500 text-xs'>{formatFileSize(file.size)}</span>
               <button
                 type='button'
                 onClick={() => handleRemoveFile(file.id)}
-                className='p-0.5 text-gray-400 hover:text-red-500 transition-colors'
+                className='p-0.5 text-gray-400 transition-colors hover:text-red-500'
                 title='Remove file'
               >
                 <X className='h-3 w-3' />
@@ -198,13 +198,13 @@ export function ChatFileUpload({
       {/* Drag and Drop Area (when dragging) */}
       {isDragOver && (
         <div
-          className='fixed inset-0 bg-blue-500/10 border-2 border-dashed border-blue-500 flex items-center justify-center z-50'
+          className='fixed inset-0 z-50 flex items-center justify-center border-2 border-blue-500 border-dashed bg-blue-500/10'
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          <div className='bg-white p-4 rounded-lg shadow-lg'>
-            <p className='text-blue-600 font-medium'>Drop files here to attach</p>
+          <div className='rounded-lg bg-white p-4 shadow-lg'>
+            <p className='font-medium text-blue-600'>Drop files here to attach</p>
           </div>
         </div>
       )}
