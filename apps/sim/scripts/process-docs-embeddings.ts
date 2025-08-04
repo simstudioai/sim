@@ -53,7 +53,26 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
       clearExisting: config.clearExisting,
     })
 
-    // Clear existing embeddings if requested
+    // Initialize the docs chunker
+    const chunker = new DocsChunker({
+      chunkSize: config.chunkSize,
+      minChunkSize: config.minChunkSize,
+      overlap: config.overlap,
+      baseUrl: config.baseUrl,
+    })
+
+    // Process all .mdx files first (compute embeddings before clearing)
+    logger.info(`📚 Processing docs from: ${config.docsPath}`)
+    const chunks = await chunker.chunkAllDocs(config.docsPath)
+
+    if (chunks.length === 0) {
+      logger.warn('⚠️ No chunks generated from docs')
+      return { success: false, processedChunks: 0, failedChunks: 0 }
+    }
+
+    logger.info(`📊 Generated ${chunks.length} chunks with embeddings`)
+
+    // Clear existing embeddings if requested (after computing new ones to minimize downtime)
     if (config.clearExisting) {
       logger.info('🗑️ Clearing existing docs embeddings...')
       try {
@@ -64,25 +83,6 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
         throw new Error('Failed to clear existing embeddings')
       }
     }
-
-    // Initialize the docs chunker
-    const chunker = new DocsChunker({
-      chunkSize: config.chunkSize,
-      minChunkSize: config.minChunkSize,
-      overlap: config.overlap,
-      baseUrl: config.baseUrl,
-    })
-
-    // Process all .mdx files
-    logger.info(`📚 Processing docs from: ${config.docsPath}`)
-    const chunks = await chunker.chunkAllDocs(config.docsPath)
-
-    if (chunks.length === 0) {
-      logger.warn('⚠️ No chunks generated from docs')
-      return { success: false, processedChunks: 0, failedChunks: 0 }
-    }
-
-    logger.info(`📊 Generated ${chunks.length} chunks with embeddings`)
 
     // Save chunks to database in batches for better performance
     const batchSize = 10
