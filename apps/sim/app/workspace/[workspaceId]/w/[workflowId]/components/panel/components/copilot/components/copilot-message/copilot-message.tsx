@@ -214,6 +214,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       messageCheckpoints: allMessageCheckpoints,
       revertToCheckpoint,
       isRevertingCheckpoint,
+      currentChat,
+      messages,
     } = useCopilotStore()
 
     // Get checkpoints for this message if it's a user message
@@ -226,16 +228,93 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       setShowCopySuccess(true)
     }
 
-    const handleUpvote = () => {
+    // Helper function to get the full assistant response content
+    const getFullAssistantContent = (message: CopilotMessageType) => {
+      // First try the direct content
+      if (message.content && message.content.trim()) {
+        return message.content
+      }
+      
+      // If no direct content, build from content blocks
+      if (message.contentBlocks && message.contentBlocks.length > 0) {
+        return message.contentBlocks
+          .filter((block) => block.type === 'text')
+          .map((block) => block.content)
+          .join('')
+      }
+      
+      return message.content || ''
+    }
+
+    // Helper function to find the last user query before this assistant message
+    const getLastUserQuery = () => {
+      const messageIndex = messages.findIndex((msg) => msg.id === message.id)
+      if (messageIndex === -1) return null
+      
+      // Look backwards from this message to find the last user message
+      for (let i = messageIndex - 1; i >= 0; i--) {
+        if (messages[i].role === 'user') {
+          return messages[i].content
+        }
+      }
+      return null
+    }
+
+    // Function to submit feedback
+    const submitFeedback = async (isPositive: boolean) => {
+      const userQuery = getLastUserQuery()
+      if (!userQuery) {
+        console.error('No user query found for feedback submission')
+        return
+      }
+
+      const agentResponse = getFullAssistantContent(message)
+      if (!agentResponse.trim()) {
+        console.error('No agent response content available for feedback submission')
+        return
+      }
+
+      try {
+        const response = await fetch('/api/copilot/feedback', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userQuery,
+            agentResponse,
+            isPositiveFeedback: isPositive,
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to submit feedback: ${response.statusText}`)
+        }
+
+        const result = await response.json()
+        console.log('Feedback submitted successfully:', result)
+      } catch (error) {
+        console.error('Error submitting feedback:', error)
+        // Could show a toast or error message to user here
+      }
+    }
+
+    const handleUpvote = async () => {
       // Reset downvote if it was active
       setShowDownvoteSuccess(false)
       setShowUpvoteSuccess(true)
+      
+      // Submit positive feedback
+      await submitFeedback(true)
     }
 
-    const handleDownvote = () => {
+    const handleDownvote = async () => {
       // Reset upvote if it was active
       setShowUpvoteSuccess(false)
       setShowDownvoteSuccess(true)
+      
+      // Submit negative feedback
+      await submitFeedback(false)
     }
 
     const handleRevertToCheckpoint = () => {

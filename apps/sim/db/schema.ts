@@ -1137,3 +1137,23 @@ export const templateStars = pgTable(
     ),
   })
 )
+
+export const copilotFeedback = pgTable(
+  'copilot_feedback',
+  {
+    feedbackId: uuid('feedback_id').primaryKey().defaultRandom(),
+    userQuery: text('user_query').notNull(),
+    agentResponse: text('agent_response').notNull(),
+    isPositive: boolean('is_positive').notNull(),
+    feedback: text('feedback'), // Optional feedback text
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Query patterns
+    isPositiveIdx: index('copilot_feedback_is_positive_idx').on(table.isPositive),
+    
+    // Ordering indexes
+    createdAtIdx: index('copilot_feedback_created_at_idx').on(table.createdAt),
+  })
+)

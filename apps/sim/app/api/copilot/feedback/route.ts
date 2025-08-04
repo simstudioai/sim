@@ -1,0 +1,141 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import {
+  authenticateCopilotRequestSessionOnly,
+  createBadRequestResponse,
+  createInternalServerErrorResponse,
+  createUnauthorizedResponse,
+  createRequestTracker,
+} from '@/lib/copilot/auth'
+import { createLogger } from '@/lib/logs/console/logger'
+import { db } from '@/db'
+import { copilotFeedback } from '@/db/schema'
+
+const logger = createLogger('CopilotFeedbackAPI')
+
+// Schema for feedback submission
+const FeedbackSchema = z.object({
+  userQuery: z.string().min(1, 'User query is required'),
+  agentResponse: z.string().min(1, 'Agent response is required'),
+  isPositiveFeedback: z.boolean(),
+  feedback: z.string().optional(),
+})
+
+/**
+ * POST /api/copilot/feedback
+ * Submit feedback for a copilot interaction
+ */
+export async function POST(req: NextRequest) {
+  const tracker = createRequestTracker()
+
+  try {
+    // Authenticate user using the same pattern as other copilot routes
+    const { userId: authenticatedUserId, isAuthenticated } =
+      await authenticateCopilotRequestSessionOnly()
+
+    if (!isAuthenticated || !authenticatedUserId) {
+      return createUnauthorizedResponse()
+    }
+
+    const body = await req.json()
+    const { userQuery, agentResponse, isPositiveFeedback, feedback } = FeedbackSchema.parse(body)
+
+    logger.info(`[${tracker.requestId}] Processing copilot feedback submission`, {
+      userId: authenticatedUserId,
+      isPositiveFeedback,
+      userQueryLength: userQuery.length,
+      agentResponseLength: agentResponse.length,
+      hasFeedback: !!feedback,
+    })
+
+    // Insert feedback into the database
+    const [feedbackRecord] = await db
+      .insert(copilotFeedback)
+      .values({
+        userQuery,
+        agentResponse,
+        isPositive: isPositiveFeedback,
+        feedback: feedback || null,
+      })
+      .returning()
+
+    logger.info(`[${tracker.requestId}] Successfully saved copilot feedback`, {
+      feedbackId: feedbackRecord.feedbackId,
+      userId: authenticatedUserId,
+      isPositive: isPositiveFeedback,
+      duration: tracker.getDuration(),
+    })
+
+    return NextResponse.json({
+      success: true,
+      feedbackId: feedbackRecord.feedbackId,
+      message: 'Feedback submitted successfully',
+      metadata: {
+        requestId: tracker.requestId,
+        duration: tracker.getDuration(),
+      },
+    })
+  } catch (error) {
+    const duration = tracker.getDuration()
+
+    if (error instanceof z.ZodError) {
+      logger.error(`[${tracker.requestId}] Validation error:`, {
+        duration,
+        errors: error.errors,
+      })
+      return createBadRequestResponse(`Invalid request data: ${error.errors.map(e => e.message).join(', ')}`)
+    }
+
+    logger.error(`[${tracker.requestId}] Error submitting copilot feedback:`, {
+      duration,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+
+    return createInternalServerErrorResponse('Failed to submit feedback')
+  }
+}
+
+/**
+ * GET /api/copilot/feedback
+ * Get all feedback records (for analytics)
+ */
+export async function GET(req: NextRequest) {
+  const tracker = createRequestTracker()
+
+  try {
+    // Authenticate user
+    const { userId: authenticatedUserId, isAuthenticated } =
+      await authenticateCopilotRequestSessionOnly()
+
+    if (!isAuthenticated || !authenticatedUserId) {
+      return createUnauthorizedResponse()
+    }
+
+    // Get all feedback records
+    const feedbackRecords = await db
+      .select({
+        feedbackId: copilotFeedback.feedbackId,
+        userQuery: copilotFeedback.userQuery,
+        agentResponse: copilotFeedback.agentResponse,
+        isPositive: copilotFeedback.isPositive,
+        feedback: copilotFeedback.feedback,
+        createdAt: copilotFeedback.createdAt,
+      })
+      .from(copilotFeedback)
+
+    logger.info(`[${tracker.requestId}] Retrieved ${feedbackRecords.length} feedback records`)
+
+    return NextResponse.json({
+      success: true,
+      feedback: feedbackRecords,
+      metadata: {
+        requestId: tracker.requestId,
+        duration: tracker.getDuration(),
+      },
+    })
+  } catch (error) {
+    logger.error(`[${tracker.requestId}] Error retrieving copilot feedback:`, error)
+    return createInternalServerErrorResponse('Failed to retrieve feedback')
+  }
+} 
