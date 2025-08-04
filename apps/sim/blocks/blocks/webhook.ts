@@ -79,6 +79,21 @@ export const WebhookBlock: BlockConfig = {
       value: () => 'generic',
     },
     {
+      id: 'gmailCredential',
+      title: 'Gmail Account',
+      type: 'oauth-input',
+      layout: 'full',
+      provider: 'google-email',
+      serviceId: 'gmail',
+      requiredScopes: [
+        'https://www.googleapis.com/auth/gmail.modify',
+        'https://www.googleapis.com/auth/gmail.labels',
+      ],
+      placeholder: 'Select Gmail account',
+      condition: { field: 'webhookProvider', value: 'gmail' },
+      required: true,
+    },
+    {
       id: 'webhookConfig',
       title: 'Webhook Configuration',
       type: 'webhook-config',
