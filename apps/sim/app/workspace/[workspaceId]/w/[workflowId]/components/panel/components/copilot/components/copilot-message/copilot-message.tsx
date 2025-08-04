@@ -391,7 +391,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 </Button>
               </div>
               <div className='overflow-x-auto'>
-                <pre className='p-4 font-mono text-gray-100 text-sm leading-relaxed whitespace-pre'>
+                <pre className='whitespace-pre p-4 font-mono text-gray-100 text-sm leading-relaxed'>
                   {codeContent}
                 </pre>
               </div>
