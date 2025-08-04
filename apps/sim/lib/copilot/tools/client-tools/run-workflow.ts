@@ -170,7 +170,8 @@ export class RunWorkflowTool extends BaseTool {
 
       // Check if error message is exactly 'skipped' to notify 'rejected' instead of 'errored'
       const targetState = errorMessage === 'skipped' ? 'rejected' : 'errored'
-      await this.notify(toolCall.id, targetState, `Workflow execution failed: ${errorMessage}`)
+      const message = targetState === 'rejected' ? `Workflow execution skipped: ${errorMessage}` : `Workflow execution failed: ${errorMessage}`
+      await this.notify(toolCall.id, targetState, message)
 
       options?.onStateChange?.(targetState)
 
