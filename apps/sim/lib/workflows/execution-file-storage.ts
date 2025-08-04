@@ -23,7 +23,7 @@ import {
   USE_BLOB_STORAGE,
   USE_S3_STORAGE,
 } from '@/lib/uploads/setup'
-import type { FileReference } from '@/executor/types'
+import type { UserFile } from '@/executor/types'
 import type { ExecutionContext } from './execution-files'
 import { generateExecutionFileKey, generateFileId, getFileExpirationDate } from './execution-files'
 
@@ -37,7 +37,7 @@ export async function uploadExecutionFile(
   fileBuffer: Buffer,
   fileName: string,
   contentType: string
-): Promise<FileReference> {
+): Promise<UserFile> {
   logger.info(`Uploading execution file: ${fileName} for execution ${context.executionId}`)
   console.log(`File upload context:`, {
     workspaceId: context.workspaceId,
@@ -115,13 +115,12 @@ export async function uploadExecutionFile(
       throw new Error('No cloud storage configured for execution files')
     }
 
-    const fileReference: FileReference = {
+    const userFile: UserFile = {
       id: fileId,
       name: fileName,
       size: fileBuffer.length,
       type: contentType,
-      path: `/api/files/execution/${context.executionId}/${fileId}`,
-      directUrl,
+      url: directUrl || `/api/files/serve/${fileInfo.key}`, // Use directUrl as url, fallback to serve path
       key: fileInfo.key, // Use the actual uploaded key from S3/Blob
       uploadedAt: new Date().toISOString(),
       expiresAt: getFileExpirationDate(),
@@ -134,7 +133,7 @@ export async function uploadExecutionFile(
     }
 
     logger.info(`Successfully uploaded execution file: ${fileName} (${fileBuffer.length} bytes)`)
-    return fileReference
+    return userFile
   } catch (error) {
     logger.error(`Failed to upload execution file ${fileName}:`, error)
     throw new Error(
@@ -146,19 +145,19 @@ export async function uploadExecutionFile(
 /**
  * Download a file from execution-scoped storage
  */
-export async function downloadExecutionFile(fileReference: FileReference): Promise<Buffer> {
-  logger.info(`Downloading execution file: ${fileReference.name}`)
+export async function downloadExecutionFile(userFile: UserFile): Promise<Buffer> {
+  logger.info(`Downloading execution file: ${userFile.name}`)
 
   try {
     let fileBuffer: Buffer
 
     if (USE_S3_STORAGE) {
-      fileBuffer = await downloadFromS3(fileReference.key, {
+      fileBuffer = await downloadFromS3(userFile.key, {
         bucket: S3_EXECUTION_FILES_CONFIG.bucket,
         region: S3_EXECUTION_FILES_CONFIG.region,
       })
     } else if (USE_BLOB_STORAGE) {
-      fileBuffer = await downloadFromBlob(fileReference.key, {
+      fileBuffer = await downloadFromBlob(userFile.key, {
         accountName: BLOB_EXECUTION_FILES_CONFIG.accountName,
         accountKey: BLOB_EXECUTION_FILES_CONFIG.accountKey,
         connectionString: BLOB_EXECUTION_FILES_CONFIG.connectionString,
@@ -169,11 +168,11 @@ export async function downloadExecutionFile(fileReference: FileReference): Promi
     }
 
     logger.info(
-      `Successfully downloaded execution file: ${fileReference.name} (${fileBuffer.length} bytes)`
+      `Successfully downloaded execution file: ${userFile.name} (${fileBuffer.length} bytes)`
     )
     return fileBuffer
   } catch (error) {
-    logger.error(`Failed to download execution file ${fileReference.name}:`, error)
+    logger.error(`Failed to download execution file ${userFile.name}:`, error)
     throw new Error(
       `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
@@ -183,17 +182,15 @@ export async function downloadExecutionFile(fileReference: FileReference): Promi
 /**
  * Generate a short-lived presigned URL for file download (5 minutes)
  */
-export async function generateExecutionFileDownloadUrl(
-  fileReference: FileReference
-): Promise<string> {
-  logger.info(`Generating download URL for execution file: ${fileReference.name}`)
+export async function generateExecutionFileDownloadUrl(userFile: UserFile): Promise<string> {
+  logger.info(`Generating download URL for execution file: ${userFile.name}`)
 
   try {
     let downloadUrl: string
 
     if (USE_S3_STORAGE) {
       downloadUrl = await getPresignedUrlWithConfig(
-        fileReference.key,
+        userFile.key,
         {
           bucket: S3_EXECUTION_FILES_CONFIG.bucket,
           region: S3_EXECUTION_FILES_CONFIG.region,
@@ -202,7 +199,7 @@ export async function generateExecutionFileDownloadUrl(
       )
     } else if (USE_BLOB_STORAGE) {
       downloadUrl = await getBlobPresignedUrlWithConfig(
-        fileReference.key,
+        userFile.key,
         {
           accountName: BLOB_EXECUTION_FILES_CONFIG.accountName,
           accountKey: BLOB_EXECUTION_FILES_CONFIG.accountKey,
@@ -215,10 +212,10 @@ export async function generateExecutionFileDownloadUrl(
       throw new Error('No cloud storage configured for execution files')
     }
 
-    logger.info(`Generated download URL for execution file: ${fileReference.name}`)
+    logger.info(`Generated download URL for execution file: ${userFile.name}`)
     return downloadUrl
   } catch (error) {
-    logger.error(`Failed to generate download URL for ${fileReference.name}:`, error)
+    logger.error(`Failed to generate download URL for ${userFile.name}:`, error)
     throw new Error(
       `Failed to generate download URL: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
@@ -228,17 +225,17 @@ export async function generateExecutionFileDownloadUrl(
 /**
  * Delete a file from execution-scoped storage
  */
-export async function deleteExecutionFile(fileReference: FileReference): Promise<void> {
-  logger.info(`Deleting execution file: ${fileReference.name}`)
+export async function deleteExecutionFile(userFile: UserFile): Promise<void> {
+  logger.info(`Deleting execution file: ${userFile.name}`)
 
   try {
     if (USE_S3_STORAGE) {
-      await deleteFromS3(fileReference.key, {
+      await deleteFromS3(userFile.key, {
         bucket: S3_EXECUTION_FILES_CONFIG.bucket,
         region: S3_EXECUTION_FILES_CONFIG.region,
       })
     } else if (USE_BLOB_STORAGE) {
-      await deleteFromBlob(fileReference.key, {
+      await deleteFromBlob(userFile.key, {
         accountName: BLOB_EXECUTION_FILES_CONFIG.accountName,
         accountKey: BLOB_EXECUTION_FILES_CONFIG.accountKey,
         connectionString: BLOB_EXECUTION_FILES_CONFIG.connectionString,
@@ -248,9 +245,9 @@ export async function deleteExecutionFile(fileReference: FileReference): Promise
       throw new Error('No cloud storage configured for execution files')
     }
 
-    logger.info(`Successfully deleted execution file: ${fileReference.name}`)
+    logger.info(`Successfully deleted execution file: ${userFile.name}`)
   } catch (error) {
-    logger.error(`Failed to delete execution file ${fileReference.name}:`, error)
+    logger.error(`Failed to delete execution file ${userFile.name}:`, error)
     throw new Error(
       `Failed to delete file: ${error instanceof Error ? error.message : 'Unknown error'}`
     )

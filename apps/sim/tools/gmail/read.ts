@@ -113,43 +113,77 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
   },
 
   transformResponse: async (response: Response, params?: GmailReadParams) => {
-    try {
-      const data = await response.json()
+    const data = await response.json()
 
-      if (!response.ok) {
-        throw new Error(data.error?.message || 'Failed to read email')
+    if (!response.ok) {
+      throw new Error(data.error?.message || 'Failed to read email')
+    }
+
+    // If we're fetching a single message directly (by ID)
+    if (params?.messageId) {
+      return await processMessage(data, params)
+    }
+
+    // If we're listing messages, we need to fetch each message's details
+    if (data.messages && Array.isArray(data.messages)) {
+      // Return a message if no emails found
+      if (data.messages.length === 0) {
+        return {
+          success: true,
+          output: {
+            content: 'No messages found in the selected folder.',
+            metadata: {
+              results: [], // Use SearchMetadata format
+            },
+          },
+        }
       }
 
-      // If we're fetching a single message directly (by ID)
-      if (params?.messageId) {
-        return await processMessage(data, params)
-      }
+      // For agentic workflows, we'll fetch the first message by default
+      // If maxResults > 1, we'll return a summary of messages found
+      const maxResults = params?.maxResults ? Math.min(params.maxResults, 10) : 1
 
-      // If we're listing messages, we need to fetch each message's details
-      if (data.messages && Array.isArray(data.messages)) {
-        // Return a message if no emails found
-        if (data.messages.length === 0) {
+      if (maxResults === 1) {
+        try {
+          // Get the first message details
+          const messageId = data.messages[0].id
+          const messageResponse = await fetch(
+            `${GMAIL_API_BASE}/messages/${messageId}?format=full`,
+            {
+              headers: {
+                Authorization: `Bearer ${params?.accessToken || ''}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          )
+
+          if (!messageResponse.ok) {
+            const errorData = await messageResponse.json()
+            throw new Error(errorData.error?.message || 'Failed to fetch message details')
+          }
+
+          const message = await messageResponse.json()
+          return await processMessage(message, params)
+        } catch (error: any) {
           return {
             success: true,
             output: {
-              content: 'No messages found in the selected folder.',
+              content: `Found messages but couldn't retrieve details: ${error.message || 'Unknown error'}`,
               metadata: {
-                results: [], // Use SearchMetadata format
+                results: data.messages.map((msg: any) => ({
+                  id: msg.id,
+                  threadId: msg.threadId,
+                })),
               },
             },
           }
         }
-
-        // For agentic workflows, we'll fetch the first message by default
-        // If maxResults > 1, we'll return a summary of messages found
-        const maxResults = params?.maxResults ? Math.min(params.maxResults, 10) : 1
-
-        if (maxResults === 1) {
-          try {
-            // Get the first message details
-            const messageId = data.messages[0].id
+      } else {
+        // If maxResults > 1, fetch details for all messages
+        try {
+          const messagePromises = data.messages.slice(0, maxResults).map(async (msg: any) => {
             const messageResponse = await fetch(
-              `${GMAIL_API_BASE}/messages/${messageId}?format=full`,
+              `${GMAIL_API_BASE}/messages/${msg.id}?format=full`,
               {
                 headers: {
                   Authorization: `Bearer ${params?.accessToken || ''}`,
@@ -159,96 +193,58 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
             )
 
             if (!messageResponse.ok) {
-              const errorData = await messageResponse.json()
-              throw new Error(errorData.error?.message || 'Failed to fetch message details')
+              throw new Error(`Failed to fetch details for message ${msg.id}`)
             }
 
-            const message = await messageResponse.json()
-            return await processMessage(message, params)
-          } catch (error: any) {
-            return {
-              success: true,
-              output: {
-                content: `Found messages but couldn't retrieve details: ${error.message || 'Unknown error'}`,
-                metadata: {
-                  results: data.messages.map((msg: any) => ({
-                    id: msg.id,
-                    threadId: msg.threadId,
-                  })),
-                },
+            return await messageResponse.json()
+          })
+
+          const messages = await Promise.all(messagePromises)
+
+          // Process all messages and create a summary
+          const processedMessages = messages.map(processMessageForSummary)
+
+          return {
+            success: true,
+            output: {
+              content: createMessagesSummary(processedMessages),
+              metadata: {
+                results: processedMessages.map((msg) => ({
+                  id: msg.id,
+                  threadId: msg.threadId,
+                  subject: msg.subject,
+                  from: msg.from,
+                  date: msg.date,
+                })),
               },
-            }
+            },
           }
-        } else {
-          // If maxResults > 1, fetch details for all messages
-          try {
-            const messagePromises = data.messages.slice(0, maxResults).map(async (msg: any) => {
-              const messageResponse = await fetch(
-                `${GMAIL_API_BASE}/messages/${msg.id}?format=full`,
-                {
-                  headers: {
-                    Authorization: `Bearer ${params?.accessToken || ''}`,
-                    'Content-Type': 'application/json',
-                  },
-                }
-              )
-
-              if (!messageResponse.ok) {
-                throw new Error(`Failed to fetch details for message ${msg.id}`)
-              }
-
-              return await messageResponse.json()
-            })
-
-            const messages = await Promise.all(messagePromises)
-
-            // Process all messages and create a summary
-            const processedMessages = messages.map(processMessageForSummary)
-
-            return {
-              success: true,
-              output: {
-                content: createMessagesSummary(processedMessages),
-                metadata: {
-                  results: processedMessages.map((msg) => ({
-                    id: msg.id,
-                    threadId: msg.threadId,
-                    subject: msg.subject,
-                    from: msg.from,
-                    date: msg.date,
-                  })),
-                },
+        } catch (error: any) {
+          return {
+            success: true,
+            output: {
+              content: `Found ${data.messages.length} messages but couldn't retrieve all details: ${error.message || 'Unknown error'}`,
+              metadata: {
+                results: data.messages.map((msg: any) => ({
+                  id: msg.id,
+                  threadId: msg.threadId,
+                })),
               },
-            }
-          } catch (error: any) {
-            return {
-              success: true,
-              output: {
-                content: `Found ${data.messages.length} messages but couldn't retrieve all details: ${error.message || 'Unknown error'}`,
-                metadata: {
-                  results: data.messages.map((msg: any) => ({
-                    id: msg.id,
-                    threadId: msg.threadId,
-                  })),
-                },
-              },
-            }
+            },
           }
         }
       }
+    }
 
-      // Fallback for unexpected response format
-      return {
-        success: true,
-        output: {
-          content: 'Unexpected response format from Gmail API',
-          metadata: {
-            results: [],
-          },
+    // Fallback for unexpected response format
+    return {
+      success: true,
+      output: {
+        content: 'Unexpected response format from Gmail API',
+        metadata: {
+          results: [],
         },
-      }
-    } catch (error) {
-      throw error
+      },
     }
   },
 

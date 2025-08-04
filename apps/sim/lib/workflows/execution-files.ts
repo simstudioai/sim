@@ -4,7 +4,7 @@
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
-import type { FileReference } from '@/executor/types'
+import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionFiles')
 
@@ -53,16 +53,15 @@ export function generateExecutionPrefix(context: ExecutionContext): string {
 }
 
 /**
- * Convert ExecutionFileMetadata to FileReference for block outputs
+ * Convert ExecutionFileMetadata to UserFile for block outputs
  */
-export function metadataToFileReference(metadata: ExecutionFileMetadata): FileReference {
+export function metadataToUserFile(metadata: ExecutionFileMetadata): UserFile {
   return {
     id: metadata.id,
     name: metadata.fileName,
     size: metadata.fileSize,
     type: metadata.fileType,
-    path: `/api/files/serve/${metadata.fileKey}`,
-    directUrl: metadata.directUrl,
+    url: metadata.directUrl || `/api/files/serve/${metadata.fileKey}`, // Use directUrl as url, fallback to serve path
     key: metadata.fileKey,
     uploadedAt: metadata.uploadedAt,
     expiresAt: metadata.expiresAt,
@@ -72,24 +71,24 @@ export function metadataToFileReference(metadata: ExecutionFileMetadata): FileRe
 }
 
 /**
- * Convert FileReference to ExecutionFileMetadata for storage
+ * Convert UserFile to ExecutionFileMetadata for storage
  */
-export function fileReferenceToMetadata(
-  fileRef: FileReference,
+export function userFileToMetadata(
+  userFile: UserFile,
   storageProvider: 's3' | 'blob' | 'local' = 's3',
   bucketName?: string
 ): ExecutionFileMetadata {
   return {
-    id: fileRef.id,
-    fileKey: fileRef.key,
-    fileName: fileRef.name,
-    fileSize: fileRef.size,
-    fileType: fileRef.type,
+    id: userFile.id,
+    fileKey: userFile.key,
+    fileName: userFile.name,
+    fileSize: userFile.size,
+    fileType: userFile.type,
     storageProvider,
     bucketName,
-    directUrl: fileRef.directUrl,
-    uploadedAt: fileRef.uploadedAt,
-    expiresAt: fileRef.expiresAt,
+    directUrl: userFile.url, // UserFile.url maps to ExecutionFileMetadata.directUrl
+    uploadedAt: userFile.uploadedAt,
+    expiresAt: userFile.expiresAt,
   }
 }
 
@@ -101,10 +100,10 @@ export function generateFileId(): string {
 }
 
 /**
- * Check if a file reference is expired
+ * Check if a user file is expired
  */
-export function isFileExpired(fileRef: FileReference): boolean {
-  return new Date(fileRef.expiresAt) < new Date()
+export function isFileExpired(userFile: UserFile): boolean {
+  return new Date(userFile.expiresAt) < new Date()
 }
 
 /**

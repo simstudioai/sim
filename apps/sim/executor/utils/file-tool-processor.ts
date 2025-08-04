@@ -1,16 +1,16 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { uploadExecutionFile } from '@/lib/workflows/execution-file-storage'
-import type { ExecutionContext, FileReference } from '@/executor/types'
+import type { ExecutionContext, UserFile } from '@/executor/types'
 import type { ToolConfig, ToolFileData } from '@/tools/types'
 
 const logger = createLogger('FileToolProcessor')
 
 /**
- * Processes tool outputs and converts file-typed outputs to FileReference objects
+ * Processes tool outputs and converts file-typed outputs to UserFile objects
  */
 export class FileToolProcessor {
   /**
-   * Process tool outputs and convert file-typed outputs to FileReference objects
+   * Process tool outputs and convert file-typed outputs to UserFile objects
    */
   static async processToolOutputs(
     toolOutput: any,
@@ -64,13 +64,13 @@ export class FileToolProcessor {
   }
 
   /**
-   * Convert various file data formats to FileReference by storing in execution filesystem
+   * Convert various file data formats to UserFile by storing in execution filesystem
    */
   private static async processFileData(
     fileData: ToolFileData,
     context: ExecutionContext,
     outputKey: string
-  ): Promise<FileReference> {
+  ): Promise<UserFile> {
     logger.info(`Processing file data for output '${outputKey}': ${fileData.name}`)
     try {
       // Convert various formats to Buffer
@@ -132,7 +132,7 @@ export class FileToolProcessor {
       }
 
       // Store in execution filesystem
-      const fileReference = await uploadExecutionFile(
+      const userFile = await uploadExecutionFile(
         {
           workspaceId: context.workspaceId || '',
           workflowId: context.workflowId,
@@ -144,9 +144,9 @@ export class FileToolProcessor {
       )
 
       logger.info(
-        `Successfully stored file '${fileData.name}' in execution filesystem with key: ${fileReference.key}`
+        `Successfully stored file '${fileData.name}' in execution filesystem with key: ${userFile.key}`
       )
-      return fileReference
+      return userFile
     } catch (error) {
       logger.error(`Error processing file data for '${fileData.name}':`, error)
       throw error

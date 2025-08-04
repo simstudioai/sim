@@ -40,21 +40,22 @@ export async function GET(
       return NextResponse.json({ error: 'File has expired' }, { status: 410 })
     }
 
-    // Convert metadata to FileReference format
-    const fileReference = {
+    // Convert metadata to UserFile format
+    const userFile = {
       id: file.id,
       name: file.fileName,
       size: file.fileSize,
       type: file.fileType,
-      path: `/api/files/execution/${executionId}/${fileId}`,
-      directUrl: file.directUrl,
+      url: file.directUrl || `/api/files/serve/${file.fileKey}`, // Use directUrl as url, fallback to serve path
       key: file.fileKey,
       uploadedAt: file.uploadedAt,
       expiresAt: file.expiresAt,
+      storageProvider: file.storageProvider,
+      bucketName: file.bucketName,
     }
 
     // Generate a new short-lived presigned URL (5 minutes)
-    const downloadUrl = await generateExecutionFileDownloadUrl(fileReference)
+    const downloadUrl = await generateExecutionFileDownloadUrl(userFile)
 
     logger.info(`Generated download URL for file ${file.fileName} (execution: ${executionId})`)
 

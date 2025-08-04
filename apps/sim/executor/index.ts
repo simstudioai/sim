@@ -28,7 +28,6 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { streamingResponseFormatProcessor } from '@/executor/utils'
-import { transformFilesForUserContext } from '@/executor/utils/file-transforms'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
@@ -1485,8 +1484,8 @@ export class Executor {
         // For streaming blocks, we'll add the console entry after stream processing
         if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
           addConsole({
-            input: transformFilesForUserContext(blockLog.input),
-            output: transformFilesForUserContext(blockLog.output),
+            input: blockLog.input,
+            output: blockLog.output,
             success: true,
             durationMs: blockLog.durationMs,
             startedAt: blockLog.startedAt,
@@ -1555,8 +1554,8 @@ export class Executor {
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
         addConsole({
-          input: transformFilesForUserContext(blockLog.input),
-          output: transformFilesForUserContext(blockLog.output),
+          input: blockLog.input,
+          output: blockLog.output,
           success: true,
           durationMs: blockLog.durationMs,
           startedAt: blockLog.startedAt,
@@ -1623,7 +1622,7 @@ export class Executor {
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
         addConsole({
-          input: transformFilesForUserContext(blockLog.input),
+          input: blockLog.input,
           output: {},
           success: false,
           error:

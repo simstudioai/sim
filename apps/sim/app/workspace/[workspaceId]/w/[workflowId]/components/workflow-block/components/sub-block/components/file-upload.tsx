@@ -24,9 +24,11 @@ interface FileUploadProps {
 
 interface UploadedFile {
   name: string
-  path: string
+  url: string // Changed from path to url to match UserFile
   size: number
   type: string
+  // Keep path for backward compatibility
+  path?: string
 }
 
 interface UploadingFile {
@@ -224,9 +226,10 @@ export function FileUpload({
 
             uploadedFiles.push({
               name: file.name,
-              path: data.path,
+              url: data.directUrl || data.path, // Use directUrl as url, fallback to path for backward compatibility
               size: file.size,
               type: file.type,
+              path: data.path, // Keep for backward compatibility
             })
           }
         } catch (error) {
@@ -276,17 +279,17 @@ export function FileUpload({
       if (multiple) {
         // For multiple files: Append to existing files if any
         const existingFiles = Array.isArray(value) ? value : value ? [value] : []
-        // Create a map to identify duplicates by path
+        // Create a map to identify duplicates by url
         const uniqueFiles = new Map()
 
         // Add existing files to the map
         existingFiles.forEach((file) => {
-          uniqueFiles.set(file.path, file)
+          uniqueFiles.set(file.url || file.path, file) // Use url, fallback to path for backward compatibility
         })
 
-        // Add new files to the map (will overwrite if same path)
+        // Add new files to the map (will overwrite if same url)
         uploadedFiles.forEach((file) => {
-          uniqueFiles.set(file.path, file)
+          uniqueFiles.set(file.url, file)
         })
 
         // Convert map values back to array
@@ -327,7 +330,7 @@ export function FileUpload({
     }
 
     // Mark this file as being deleted
-    setDeletingFiles((prev) => ({ ...prev, [file.path]: true }))
+    setDeletingFiles((prev) => ({ ...prev, [file.url || file.path || '']: true }))
 
     try {
       // Call API to delete the file from server
@@ -336,7 +339,7 @@ export function FileUpload({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ filePath: file.path }),
+        body: JSON.stringify({ filePath: file.path || file.url }), // Use path for deletion, fallback to url
       })
 
       if (!response.ok) {
@@ -349,7 +352,7 @@ export function FileUpload({
       if (multiple) {
         // For multiple files: Remove the specific file
         const filesArray = Array.isArray(value) ? value : value ? [value] : []
-        const updatedFiles = filesArray.filter((f) => f.path !== file.path)
+        const updatedFiles = filesArray.filter((f) => (f.url || f.path) !== (file.url || file.path))
         setStoreValue(updatedFiles.length > 0 ? updatedFiles : null)
       } else {
         // For single file: Clear the value
@@ -366,7 +369,7 @@ export function FileUpload({
       // Remove file from the deleting state
       setDeletingFiles((prev) => {
         const updated = { ...prev }
-        delete updated[file.path]
+        delete updated[file.url || file.path || '']
         return updated
       })
     }
@@ -387,7 +390,7 @@ export function FileUpload({
     // Mark all files as deleting
     const deletingStatus: Record<string, boolean> = {}
     filesToDelete.forEach((file) => {
-      deletingStatus[file.path] = true
+      deletingStatus[file.url || file.path || ''] = true
     })
     setDeletingFiles(deletingStatus)
 
@@ -413,7 +416,7 @@ export function FileUpload({
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ filePath: file.path }),
+          body: JSON.stringify({ filePath: file.path || file.url }),
         })
 
         if (response.ok) {
@@ -448,11 +451,12 @@ export function FileUpload({
 
   // Helper to render a single file item
   const renderFileItem = (file: UploadedFile) => {
-    const isDeleting = deletingFiles[file.path]
+    const fileKey = file.url || file.path || ''
+    const isDeleting = deletingFiles[fileKey]
 
     return (
       <div
-        key={file.path}
+        key={fileKey}
         className='flex items-center justify-between rounded border border-border bg-background px-3 py-2'
       >
         <div className='flex-1 truncate pr-2'>

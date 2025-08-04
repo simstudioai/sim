@@ -2,23 +2,6 @@ import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 /**
- * File reference for binary data transfer between blocks
- */
-export interface FileReference {
-  id: string
-  name: string
-  size: number
-  type: string // MIME type
-  path: string // API path: /api/files/serve/...
-  directUrl?: string // Cloud storage URL for external services
-  key: string // Storage key: workspace_id/workflow_id/execution_id/filename
-  uploadedAt: string
-  expiresAt: string
-  storageProvider?: 's3' | 'blob' | 'local' // Storage provider for downloads
-  bucketName?: string // Bucket/container name for custom storage
-}
-
-/**
  * User-facing file object with simplified interface
  */
 export interface UserFile {
@@ -33,6 +16,8 @@ export interface UserFile {
   // Preserve storage properties for download functionality
   storageProvider?: 's3' | 'blob' | 'local'
   bucketName?: string
+  // Add expiration support for cleanup and validation
+  expiresAt: string
 }
 
 /**
@@ -53,7 +38,7 @@ export interface NormalizedBlockOutput {
     count: number
   }
   // File fields
-  files?: FileReference[] // Binary files/attachments from this block
+  files?: UserFile[] // Binary files/attachments from this block
   // Path selection fields
   selectedPath?: {
     blockId: string
