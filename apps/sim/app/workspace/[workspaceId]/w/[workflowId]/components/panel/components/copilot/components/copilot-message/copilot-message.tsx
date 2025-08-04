@@ -145,8 +145,8 @@ const SmoothStreamingText = memo(
     }, [content, isStreaming])
 
     return (
-      <div className='relative' style={{ minHeight: '1.25rem' }}>
-        <div className='space-y-4 break-words font-geist-sans text-[#0D0D0D] text-base leading-relaxed dark:text-gray-100'>
+      <div className='relative max-w-full overflow-hidden' style={{ minHeight: '1.25rem' }}>
+        <div className='max-w-full space-y-4 break-words font-geist-sans text-[#0D0D0D] text-base leading-relaxed dark:text-gray-100'>
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {displayedContent}
           </ReactMarkdown>
@@ -374,7 +374,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           }
 
           return (
-            <div className='my-6 rounded-md bg-gray-900 text-sm dark:bg-black'>
+            <div className='my-6 w-0 min-w-full rounded-md bg-gray-900 text-sm dark:bg-black'>
               <div className='flex items-center justify-between border-gray-700 border-b px-4 py-1.5 dark:border-gray-800'>
                 <span className='font-geist-sans text-gray-400 text-xs'>{language}</span>
                 <Button
@@ -390,9 +390,11 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                   <Copy className='h-3 w-3 text-gray-400' />
                 </Button>
               </div>
-              <pre className='overflow-x-auto p-4 font-mono text-gray-100 text-sm leading-relaxed'>
-                {codeContent}
-              </pre>
+              <div className='overflow-x-auto'>
+                <pre className='whitespace-pre p-4 font-mono text-gray-100 text-sm leading-relaxed'>
+                  {codeContent}
+                </pre>
+              </div>
             </div>
           )
         },
@@ -440,7 +442,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
         // Tables
         table: ({ children }: React.TableHTMLAttributes<HTMLTableElement>) => (
-          <div className='my-4 w-full overflow-x-auto'>
+          <div className='my-4 max-w-full overflow-x-auto'>
             <table className='min-w-full table-auto border border-gray-300 font-geist-sans text-sm dark:border-gray-700'>
               {children}
             </table>
@@ -500,7 +502,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           return (
             <div
               key={`text-${index}-${block.timestamp || index}`}
-              className='w-full transition-opacity duration-200 ease-in-out'
+              className='w-full max-w-full overflow-hidden transition-opacity duration-200 ease-in-out'
               style={{
                 opacity: cleanBlockContent.length > 0 ? 1 : 0.7,
                 transform: shouldUseSmoothing ? 'translateY(0)' : undefined,
@@ -516,7 +518,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                   markdownComponents={markdownComponents}
                 />
               ) : (
-                <div className='space-y-4 break-words font-geist-sans text-[#0D0D0D] text-base leading-relaxed dark:text-gray-100'>
+                <div className='max-w-full space-y-4 break-words font-geist-sans text-[#0D0D0D] text-base leading-relaxed dark:text-gray-100'>
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                     {cleanBlockContent}
                   </ReactMarkdown>
@@ -600,8 +602,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     if (isAssistant) {
       return (
-        <div className='w-full py-2 pl-[2px]'>
-          <div className='space-y-2 transition-all duration-200 ease-in-out'>
+        <div className='w-full max-w-full overflow-hidden py-2 pl-[2px]'>
+          <div className='max-w-full space-y-2 transition-all duration-200 ease-in-out'>
             {/* Content blocks in chronological order */}
             {memoizedContentBlocks}
 

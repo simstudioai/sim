@@ -208,7 +208,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                 className='flex-1 overflow-hidden'
                 hideScrollbar={true}
               >
-                <div className='space-y-1'>
+                <div className='w-full max-w-full space-y-1 overflow-hidden'>
                   {messages.length === 0 ? (
                     <div className='flex h-full items-center justify-center p-4'>
                       <CopilotWelcome onQuestionClick={handleSubmit} mode={mode} />
