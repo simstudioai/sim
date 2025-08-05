@@ -6,6 +6,7 @@ import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import { useSocket } from '@/contexts/socket-context'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -36,6 +37,7 @@ export function useCollaborativeWorkflow() {
   const workflowStore = useWorkflowStore()
   const subBlockStore = useSubBlockStore()
   const { data: session } = useSession()
+  const { isShowingDiff } = useWorkflowDiffStore()
 
   // Track if we're applying remote changes to avoid infinite loops
   const isApplyingRemoteChange = useRef(false)
@@ -148,7 +150,7 @@ export function useCollaborativeWorkflow() {
               workflowStore.setBlockWide(payload.id, payload.isWide)
               break
             case 'update-advanced-mode':
-              workflowStore.toggleBlockAdvancedMode(payload.id)
+              workflowStore.setBlockAdvancedMode(payload.id, payload.advancedMode)
               break
             case 'toggle-handles': {
               const currentBlock = workflowStore.blocks[payload.id]
@@ -377,6 +379,12 @@ export function useCollaborativeWorkflow() {
         return
       }
 
+      // Skip socket operations when in diff mode
+      if (isShowingDiff) {
+        logger.debug('Skipping socket operation in diff mode:', operation)
+        return
+      }
+
       const operationId = crypto.randomUUID()
 
       addToQueue({
@@ -392,18 +400,24 @@ export function useCollaborativeWorkflow() {
 
       localAction()
     },
-    [addToQueue, session?.user?.id]
+    [addToQueue, session?.user?.id, isShowingDiff]
   )
 
   const executeQueuedDebouncedOperation = useCallback(
     (operation: string, target: string, payload: any, localAction: () => void) => {
       if (isApplyingRemoteChange.current) return
 
+      // Skip socket operations when in diff mode
+      if (isShowingDiff) {
+        logger.debug('Skipping debounced socket operation in diff mode:', operation)
+        return
+      }
+
       localAction()
 
       emitWorkflowOperation(operation, target, payload)
     },
-    [emitWorkflowOperation]
+    [emitWorkflowOperation, isShowingDiff]
   )
 
   const collaborativeAddBlock = useCallback(
@@ -417,6 +431,12 @@ export function useCollaborativeWorkflow() {
       extent?: 'parent',
       autoConnectEdge?: Edge
     ) => {
+      // Skip socket operations when in diff mode
+      if (isShowingDiff) {
+        logger.debug('Skipping collaborative add block in diff mode')
+        return
+      }
+
       const blockConfig = getBlock(type)
 
       // Handle loop/parallel blocks that don't use BlockConfig
@@ -433,6 +453,7 @@ export function useCollaborativeWorkflow() {
           enabled: true,
           horizontalHandles: true,
           isWide: false,
+          advancedMode: false,
           height: 0,
           parentId,
           extent,
@@ -504,6 +525,7 @@ export function useCollaborativeWorkflow() {
         enabled: true,
         horizontalHandles: true,
         isWide: false,
+        advancedMode: false,
         height: 0, // Default height, will be set by the UI
         parentId,
         extent,
@@ -534,7 +556,7 @@ export function useCollaborativeWorkflow() {
         workflowStore.addEdge(autoConnectEdge)
       }
     },
-    [workflowStore, emitWorkflowOperation, addToQueue, session?.user?.id]
+    [workflowStore, emitWorkflowOperation, addToQueue, session?.user?.id, isShowingDiff]
   )
 
   const collaborativeRemoveBlock = useCallback(
@@ -685,6 +707,12 @@ export function useCollaborativeWorkflow() {
     (blockId: string, subblockId: string, value: any) => {
       if (isApplyingRemoteChange.current) return
 
+      // Skip socket operations when in diff mode
+      if (isShowingDiff) {
+        logger.debug('Skipping collaborative subblock update in diff mode')
+        return
+      }
+
       if (!currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
         logger.debug('Skipping subblock update - not in active workflow', {
           currentWorkflowId,
@@ -720,7 +748,44 @@ export function useCollaborativeWorkflow() {
       activeWorkflowId,
       addToQueue,
       session?.user?.id,
+      isShowingDiff,
     ]
+  )
+
+  // Immediate tag selection (uses queue but processes immediately, no debouncing)
+  const collaborativeSetTagSelection = useCallback(
+    (blockId: string, subblockId: string, value: any) => {
+      if (isApplyingRemoteChange.current) return
+
+      if (!currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
+        logger.debug('Skipping tag selection - not in active workflow', {
+          currentWorkflowId,
+          activeWorkflowId,
+          blockId,
+          subblockId,
+        })
+        return
+      }
+
+      // Apply locally first (immediate UI feedback)
+      subBlockStore.setValue(blockId, subblockId, value)
+
+      // Use the operation queue but with immediate processing (no debouncing)
+      const operationId = crypto.randomUUID()
+
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: 'subblock-update',
+          target: 'subblock',
+          payload: { blockId, subblockId, value },
+        },
+        workflowId: activeWorkflowId,
+        userId: session?.user?.id || 'unknown',
+        immediate: true,
+      })
+    },
+    [subBlockStore, addToQueue, currentWorkflowId, activeWorkflowId, session?.user?.id]
   )
 
   const collaborativeDuplicateBlock = useCallback(
@@ -775,6 +840,7 @@ export function useCollaborativeWorkflow() {
         enabled: sourceBlock.enabled ?? true,
         horizontalHandles: sourceBlock.horizontalHandles ?? true,
         isWide: sourceBlock.isWide ?? false,
+        advancedMode: sourceBlock.advancedMode ?? false,
         height: sourceBlock.height || 0,
       }
 
@@ -785,7 +851,14 @@ export function useCollaborativeWorkflow() {
         offsetPosition,
         sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
         sourceBlock.data?.parentId,
-        sourceBlock.data?.extent
+        sourceBlock.data?.extent,
+        {
+          enabled: sourceBlock.enabled,
+          horizontalHandles: sourceBlock.horizontalHandles,
+          isWide: sourceBlock.isWide,
+          advancedMode: sourceBlock.advancedMode,
+          height: sourceBlock.height,
+        }
       )
 
       executeQueuedOperation('duplicate', 'block', duplicatedBlockData, () => {
@@ -794,7 +867,16 @@ export function useCollaborativeWorkflow() {
           sourceBlock.type,
           newName,
           offsetPosition,
-          sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {}
+          sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
+          sourceBlock.data?.parentId,
+          sourceBlock.data?.extent,
+          {
+            enabled: sourceBlock.enabled,
+            horizontalHandles: sourceBlock.horizontalHandles,
+            isWide: sourceBlock.isWide,
+            advancedMode: sourceBlock.advancedMode,
+            height: sourceBlock.height,
+          }
         )
 
         // Apply subblock values locally for immediate UI feedback
@@ -1019,6 +1101,7 @@ export function useCollaborativeWorkflow() {
     collaborativeAddEdge,
     collaborativeRemoveEdge,
     collaborativeSetSubblockValue,
+    collaborativeSetTagSelection,
 
     // Collaborative loop/parallel operations
     collaborativeUpdateLoopCount,

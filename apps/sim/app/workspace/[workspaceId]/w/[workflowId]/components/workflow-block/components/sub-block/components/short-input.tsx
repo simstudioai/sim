@@ -8,6 +8,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useTagSelection } from '@/hooks/use-tag-selection'
 
 const logger = createLogger('ShortInput')
 
@@ -56,6 +57,8 @@ export function ShortInput({
   const inputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
+
+  const emitTagSelection = useTagSelection(blockId, subBlockId)
 
   // Get ReactFlow instance for zoom control
   const reactFlowInstance = useReactFlow()
@@ -288,8 +291,7 @@ export function ShortInput({
     if (onChange) {
       onChange(newValue)
     } else if (!isPreview) {
-      // Only update store when not in preview mode
-      setStoreValue(newValue)
+      emitTagSelection(newValue)
     }
   }
 

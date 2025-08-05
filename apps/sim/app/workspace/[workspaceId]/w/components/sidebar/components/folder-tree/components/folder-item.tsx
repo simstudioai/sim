@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { Folder, FolderOpen } from 'lucide-react'
+import { Folder, FolderOpen, Pencil, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   AlertDialog,
@@ -14,9 +14,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
-import { FolderContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
 
 const logger = createLogger('FolderItem')
@@ -51,13 +52,14 @@ export function FolderItem({
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(folder.name)
   const [isRenaming, setIsRenaming] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
+
   const dragStartedRef = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const isExpanded = expandedFolders.has(folder.id)
-  const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const pendingStateRef = useRef<boolean | null>(null)
+  const userPermissions = useUserPermissionsContext()
 
   // Update editValue when folder name changes
   useEffect(() => {
@@ -74,25 +76,8 @@ export function FolderItem({
 
   const handleToggleExpanded = useCallback(() => {
     if (isEditing) return // Don't toggle when editing
-
-    const newExpandedState = !isExpanded
     toggleExpanded(folder.id)
-    pendingStateRef.current = newExpandedState
-
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current)
-    }
-
-    updateTimeoutRef.current = setTimeout(() => {
-      if (pendingStateRef.current === newExpandedState) {
-        updateFolderAPI(folder.id, { isExpanded: newExpandedState })
-          .catch(console.error)
-          .finally(() => {
-            pendingStateRef.current = null
-          })
-      }
-    }, 300)
-  }, [folder.id, isExpanded, toggleExpanded, updateFolderAPI, isEditing])
+  }, [folder.id, toggleExpanded, isEditing])
 
   const handleDragStart = (e: React.DragEvent) => {
     if (isEditing) return
@@ -128,14 +113,6 @@ export function FolderItem({
     }
     handleToggleExpanded()
   }
-
-  useEffect(() => {
-    return () => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current)
-      }
-    }
-  }, [])
 
   const handleStartEdit = () => {
     setIsEditing(true)
@@ -210,7 +187,7 @@ export function FolderItem({
           <TooltipTrigger asChild>
             <div
               className={clsx(
-                'group mx-auto mb-1 flex h-9 w-9 cursor-pointer items-center justify-center',
+                'group mx-auto mb-1 flex h-8 w-8 cursor-pointer items-center justify-center',
                 isDragging ? 'opacity-50' : ''
               )}
               onDragOver={onDragOver}
@@ -223,14 +200,15 @@ export function FolderItem({
             >
               <div
                 className={clsx(
-                  'flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-accent/50',
-                  dragOver ? 'ring-2 ring-blue-500' : ''
+                  'relative flex h-[14px] w-[14px] items-center justify-center rounded transition-colors hover:bg-muted',
+                  dragOver &&
+                    'before:pointer-events-none before:absolute before:inset-0 before:rounded before:bg-muted/20 before:ring-2 before:ring-muted-foreground/60'
                 )}
               >
                 {isExpanded ? (
-                  <FolderOpen className='h-3 w-3 text-foreground/70 dark:text-foreground/60' />
+                  <FolderOpen className='h-[14px] w-[14px] text-foreground/70 group-hover:text-foreground dark:text-foreground/60' />
                 ) : (
-                  <Folder className='h-3 w-3 text-foreground/70 dark:text-foreground/60' />
+                  <Folder className='h-[14px] w-[14px] text-foreground/70 group-hover:text-foreground dark:text-foreground/60' />
                 )}
               </div>
             </div>
@@ -244,26 +222,26 @@ export function FolderItem({
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle className='break-words'>
-                Are you sure you want to delete "
-                <span className='inline-block max-w-[200px] truncate align-bottom font-semibold'>
-                  {folder.name}
-                </span>
-                "?
-              </AlertDialogTitle>
+              <AlertDialogTitle>Delete folder?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete the folder and all its contents, including subfolders
-                and workflows. This action cannot be undone.
+                Deleting this folder will permanently remove all associated workflows, logs, and
+                knowledge bases.{' '}
+                <span className='text-red-500 dark:text-red-500'>
+                  This action cannot be undone.
+                </span>
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+
+            <AlertDialogFooter className='flex'>
+              <AlertDialogCancel className='h-9 w-full rounded-[8px]' disabled={isDeleting}>
+                Cancel
+              </AlertDialogCancel>
               <AlertDialogAction
                 onClick={confirmDelete}
                 disabled={isDeleting}
-                className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
               >
-                {isDeleting ? 'Deleting...' : 'Delete Forever'}
+                {isDeleting ? 'Deleting...' : 'Delete'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -274,26 +252,28 @@ export function FolderItem({
 
   return (
     <>
-      <div className='group mb-1' onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+      <div className='mb-1' onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
         <div
           className={clsx(
-            'flex h-9 cursor-pointer items-center rounded-lg px-2 py-2 text-sm transition-colors hover:bg-accent/50',
+            'group flex h-8 cursor-pointer items-center rounded-[8px] px-2 py-2 font-medium font-sans text-sm transition-colors hover:bg-muted',
             isDragging ? 'opacity-50' : '',
-            isFirstItem ? 'mr-[44px]' : ''
+            isFirstItem ? 'mr-[36px]' : ''
           )}
           style={{
-            maxWidth: isFirstItem ? `${164 - level * 20}px` : `${206 - level * 20}px`,
+            maxWidth: isFirstItem ? `${166 - level * 20}px` : `${206 - level * 20}px`,
           }}
           onClick={handleClick}
           draggable={!isEditing}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
         >
-          <div className='mr-2 flex h-4 w-4 flex-shrink-0 items-center justify-center'>
+          <div className='mr-2 flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center'>
             {isExpanded ? (
-              <FolderOpen className='h-4 w-4 text-foreground/70 dark:text-foreground/60' />
+              <FolderOpen className='h-[14px] w-[14px] text-foreground/70 group-hover:text-foreground dark:text-foreground/60' />
             ) : (
-              <Folder className='h-4 w-4 text-foreground/70 dark:text-foreground/60' />
+              <Folder className='h-[14px] w-[14px] text-foreground/70 group-hover:text-foreground dark:text-foreground/60' />
             )}
           </div>
 
@@ -304,7 +284,10 @@ export function FolderItem({
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={handleInputBlur}
-              className='min-w-0 flex-1 border-0 bg-transparent p-0 text-muted-foreground text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+              className={clsx(
+                'min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
+                'text-muted-foreground group-hover:text-foreground'
+              )}
               maxLength={50}
               disabled={isRenaming}
               onClick={(e) => e.stopPropagation()} // Prevent folder toggle when clicking input
@@ -314,21 +297,45 @@ export function FolderItem({
               spellCheck='false'
             />
           ) : (
-            <span className='min-w-0 flex-1 select-none truncate text-muted-foreground'>
+            <span
+              className={clsx(
+                'min-w-0 flex-1 select-none truncate pr-1 font-medium text-sm',
+                'text-muted-foreground group-hover:text-foreground'
+              )}
+            >
               {folder.name}
             </span>
           )}
 
-          {!isEditing && (
-            <div className='flex items-center justify-center' onClick={(e) => e.stopPropagation()}>
-              <FolderContextMenu
-                folderId={folder.id}
-                folderName={folder.name}
-                onCreateWorkflow={onCreateWorkflow}
-                onDelete={handleDelete}
-                onStartEdit={handleStartEdit}
-                level={level}
-              />
+          {!isEditing && isHovered && userPermissions.canEdit && (
+            <div
+              className='flex items-center justify-center gap-1'
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleStartEdit()
+                }}
+              >
+                <Pencil className='!h-3.5 !w-3.5' />
+                <span className='sr-only'>Rename folder</span>
+              </Button>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDelete()
+                }}
+              >
+                <Trash2 className='!h-3.5 !w-3.5' />
+                <span className='sr-only'>Delete folder</span>
+              </Button>
             </div>
           )}
         </div>
@@ -338,26 +345,24 @@ export function FolderItem({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className='break-words'>
-              Are you sure you want to delete "
-              <span className='inline-block max-w-[200px] truncate align-bottom font-semibold'>
-                {folder.name}
-              </span>
-              "?
-            </AlertDialogTitle>
+            <AlertDialogTitle>Delete folder?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the folder and all its contents, including subfolders and
-              workflows. This action cannot be undone.
+              Deleting this folder will permanently remove all associated workflows, logs, and
+              knowledge bases.{' '}
+              <span className='text-red-500 dark:text-red-500'>This action cannot be undone.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+
+          <AlertDialogFooter className='flex'>
+            <AlertDialogCancel className='h-9 w-full rounded-[8px]' disabled={isDeleting}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
               disabled={isDeleting}
-              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+              className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
             >
-              {isDeleting ? 'Deleting...' : 'Delete Forever'}
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

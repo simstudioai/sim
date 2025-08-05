@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
+import { useTagSelection } from '@/hooks/use-tag-selection'
 
 interface DocumentTagRow {
   id: string
@@ -46,6 +47,8 @@ export function DocumentTagEntry({
 
   // Use KB tag definitions hook to get available tags
   const { tagDefinitions, isLoading } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
+
+  const emitTagSelection = useTagSelection(blockId, subBlock.id)
 
   // State for dropdown visibility - one for each row
   const [dropdownStates, setDropdownStates] = useState<Record<number, boolean>>({})
@@ -128,6 +131,41 @@ export function DocumentTagEntry({
     setStoreValue(jsonString)
   }
 
+  // Shared helper function for updating rows and generating JSON
+  const updateRowsAndGenerateJson = (rowIndex: number, column: string, value: string) => {
+    const updatedRows = [...rows].map((row, idx) => {
+      if (idx === rowIndex) {
+        const newCells = { ...row.cells, [column]: value }
+
+        // Auto-select type when existing tag is selected
+        if (column === 'tagName' && value) {
+          const tagDef = tagDefinitions.find(
+            (def) => def.displayName.toLowerCase() === value.toLowerCase()
+          )
+          if (tagDef) {
+            newCells.type = tagDef.fieldType
+          }
+        }
+
+        return {
+          ...row,
+          cells: newCells,
+        }
+      }
+      return row
+    })
+
+    // Store all rows including empty ones - don't auto-remove
+    const dataToStore = updatedRows.map((row) => ({
+      id: row.id,
+      tagName: row.cells.tagName || '',
+      fieldType: row.cells.type || 'text',
+      value: row.cells.value || '',
+    }))
+
+    return dataToStore.length > 0 ? JSON.stringify(dataToStore) : ''
+  }
+
   const handleCellChange = (rowIndex: number, column: string, value: string) => {
     if (isPreview || disabled) return
 
@@ -155,40 +193,15 @@ export function DocumentTagEntry({
       }
     }
 
-    const updatedRows = [...rows].map((row, idx) => {
-      if (idx === rowIndex) {
-        const newCells = { ...row.cells, [column]: value }
-
-        // Auto-select type when existing tag is selected
-        if (column === 'tagName' && value) {
-          const tagDef = tagDefinitions.find(
-            (def) => def.displayName.toLowerCase() === value.toLowerCase()
-          )
-          if (tagDef) {
-            newCells.type = tagDef.fieldType
-          }
-        }
-
-        return {
-          ...row,
-          cells: newCells,
-        }
-      }
-      return row
-    })
-
-    // No auto-add rows - user will manually add them with plus button
-
-    // Store all rows including empty ones - don't auto-remove
-    const dataToStore = updatedRows.map((row) => ({
-      id: row.id,
-      tagName: row.cells.tagName || '',
-      fieldType: row.cells.type || 'text',
-      value: row.cells.value || '',
-    }))
-
-    const jsonString = dataToStore.length > 0 ? JSON.stringify(dataToStore) : ''
+    const jsonString = updateRowsAndGenerateJson(rowIndex, column, value)
     setStoreValue(jsonString)
+  }
+
+  const handleTagDropdownSelection = (rowIndex: number, column: string, value: string) => {
+    if (isPreview || disabled) return
+
+    const jsonString = updateRowsAndGenerateJson(rowIndex, column, value)
+    emitTagSelection(jsonString)
   }
 
   const handleAddRow = () => {
@@ -520,7 +533,8 @@ export function DocumentTagEntry({
         <TagDropdown
           visible={activeTagDropdown.showTags}
           onSelect={(newValue) => {
-            handleCellChange(activeTagDropdown.rowIndex, 'value', newValue)
+            // Use immediate emission for tag dropdown selections
+            handleTagDropdownSelection(activeTagDropdown.rowIndex, 'value', newValue)
             setActiveTagDropdown(null)
           }}
           blockId={blockId}

@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -87,7 +88,7 @@ export async function getOrganizationBillingData(
     // Process member data
     const members: MemberUsageData[] = membersWithUsage.map((memberRecord) => {
       const currentUsage = Number(memberRecord.currentPeriodCost || 0)
-      const usageLimit = Number(memberRecord.currentUsageLimit || 5)
+      const usageLimit = Number(memberRecord.currentUsageLimit || DEFAULT_FREE_CREDITS)
       const percentUsed = usageLimit > 0 ? (currentUsage / usageLimit) * 100 : 0
 
       return {
@@ -197,13 +198,14 @@ export async function updateMemberUsageLimit(
 
     // Validate minimum limit based on plan
     const planLimits = {
-      free: 5,
+      free: DEFAULT_FREE_CREDITS,
       pro: 20,
       team: 40,
       enterprise: 100, // Default, can be overridden by metadata
     }
 
-    let minimumLimit = planLimits[subscription.plan as keyof typeof planLimits] || 5
+    let minimumLimit =
+      planLimits[subscription.plan as keyof typeof planLimits] || DEFAULT_FREE_CREDITS
 
     // For enterprise, check metadata for custom limits
     if (subscription.plan === 'enterprise' && subscription.metadata) {

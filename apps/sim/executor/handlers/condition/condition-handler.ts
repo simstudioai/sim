@@ -103,14 +103,15 @@ export class ConditionBlockHandler implements BlockHandler {
       }
 
       // 2. Resolve references WITHIN the specific condition's value string
-      let resolvedConditionValue = condition.value
+      const conditionValueString = String(condition.value || '')
+      let resolvedConditionValue = conditionValueString
       try {
         // Use full resolution pipeline: variables -> block references -> env vars
-        const resolvedVars = this.resolver.resolveVariableReferences(condition.value, block)
+        const resolvedVars = this.resolver.resolveVariableReferences(conditionValueString, block)
         const resolvedRefs = this.resolver.resolveBlockReferences(resolvedVars, context, block)
         resolvedConditionValue = this.resolver.resolveEnvVariables(resolvedRefs, true)
         logger.info(
-          `Resolved condition "${condition.title}" (${condition.id}): from "${condition.value}" to "${resolvedConditionValue}"`
+          `Resolved condition "${condition.title}" (${condition.id}): from "${conditionValueString}" to "${resolvedConditionValue}"`
         )
       } catch (resolveError: any) {
         logger.error(`Failed to resolve references in condition: ${resolveError.message}`, {

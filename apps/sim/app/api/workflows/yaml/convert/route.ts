@@ -1,8 +1,15 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
+import { simAgentClient } from '@/lib/sim-agent'
+import { getAllBlocks } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
+import { resolveOutputType } from '@/blocks/utils'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowYamlAPI')
+
+// Get API key at module level like working routes
+const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
 
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
@@ -20,16 +27,54 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate YAML using the shared utility
-    const yamlContent = generateWorkflowYaml(workflowState, subBlockValues)
+    // Gather block registry and utilities for sim-agent
+    const blocks = getAllBlocks()
+    const blockRegistry = blocks.reduce(
+      (acc, block) => {
+        const blockType = block.type
+        acc[blockType] = {
+          ...block,
+          id: blockType,
+          subBlocks: block.subBlocks || [],
+          outputs: block.outputs || {},
+        } as any
+        return acc
+      },
+      {} as Record<string, BlockConfig>
+    )
+
+    // Call sim-agent directly
+    const result = await simAgentClient.makeRequest('/api/workflow/to-yaml', {
+      body: {
+        workflowState,
+        subBlockValues,
+        blockRegistry,
+        utilities: {
+          generateLoopBlocks: generateLoopBlocks.toString(),
+          generateParallelBlocks: generateParallelBlocks.toString(),
+          resolveOutputType: resolveOutputType.toString(),
+        },
+      },
+      apiKey: SIM_AGENT_API_KEY,
+    })
+
+    if (!result.success || !result.data?.yaml) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: result.error || 'Failed to generate YAML',
+        },
+        { status: result.status || 500 }
+      )
+    }
 
     logger.info(`[${requestId}] Successfully generated YAML`, {
-      yamlLength: yamlContent.length,
+      yamlLength: result.data.yaml.length,
     })
 
     return NextResponse.json({
       success: true,
-      yaml: yamlContent,
+      yaml: result.data.yaml,
     })
   } catch (error) {
     logger.error(`[${requestId}] YAML generation failed`, error)

@@ -22,6 +22,8 @@ export const env = createEnv({
     DISABLE_REGISTRATION:                 z.boolean().optional(),               // Flag to disable new user registration
     ENCRYPTION_KEY:                       z.string().min(32),                   // Key for encrypting sensitive data
     INTERNAL_API_SECRET:                  z.string().min(32),                   // Secret for internal API authentication
+    SIM_AGENT_API_KEY:                    z.string().min(1).optional(),         // Secret for internal sim agent API authentication
+    SIM_AGENT_API_URL:                    z.string().url().optional(),          // URL for internal sim agent API
 
     // Database & Storage
     POSTGRES_URL:                         z.string().url().optional(),          // Alternative PostgreSQL connection string
@@ -56,6 +58,7 @@ export const env = createEnv({
     FREESTYLE_API_KEY:                    z.string().min(1).optional(),         // Freestyle AI API key
     OLLAMA_URL:                           z.string().url().optional(),          // Ollama local LLM server URL
     ELEVENLABS_API_KEY:                   z.string().min(1).optional(),         // ElevenLabs API key for text-to-speech in deployed chat
+    SERPER_API_KEY:                       z.string().min(1).optional(),         // Serper API key for online search
 
     // Azure OpenAI Configuration
     AZURE_OPENAI_ENDPOINT:                z.string().url().optional(),          // Azure OpenAI service endpoint
@@ -64,6 +67,7 @@ export const env = createEnv({
     // Monitoring & Analytics
     TELEMETRY_ENDPOINT:                   z.string().url().optional(),          // Custom telemetry/analytics endpoint
     COST_MULTIPLIER:                      z.number().optional(),                // Multiplier for cost calculations
+    COPILOT_COST_MULTIPLIER:              z.number().optional(),                // Multiplier for copilot cost calculations
     SENTRY_ORG:                           z.string().optional(),                // Sentry organization for error tracking
     SENTRY_PROJECT:                       z.string().optional(),                // Sentry project for error tracking
     SENTRY_AUTH_TOKEN:                    z.string().optional(),                // Sentry authentication token

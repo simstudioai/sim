@@ -148,9 +148,11 @@ export interface ProviderRequest {
   local_execution?: boolean
   workflowId?: string // Optional workflow ID for authentication context
   chatId?: string // Optional chat ID for checkpoint context
+  userId?: string // Optional user ID for tool execution context
   stream?: boolean
   streamToolCalls?: boolean // Whether to stream tool call responses back to user (default: false)
   environmentVariables?: Record<string, string> // Environment variables for tool execution
+  isCopilotRequest?: boolean // Flag to indicate this request is from the copilot system
   // Azure OpenAI specific parameters
   azureEndpoint?: string
   azureApiVersion?: string

@@ -9,7 +9,7 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
   oauth: {
     required: true,
     provider: 'google-sheets',
-    additionalScopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    additionalScopes: [],
   },
   params: {
     accessToken: {

@@ -47,7 +47,7 @@ const PermissionSelector = React.memo<PermissionSelectorProps>(
               'relative px-3 py-1.5 font-medium text-sm transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
               disabled && 'cursor-not-allowed opacity-50',
               value === option.value
-                ? 'z-10 bg-primary text-primary-foreground shadow-sm'
+                ? 'z-10 bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:z-20 hover:bg-muted/50 hover:text-foreground',
               index > 0 && 'border-input border-l'
             )}

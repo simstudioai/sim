@@ -12,10 +12,9 @@ interface WorkflowItemProps {
   workflow: WorkflowMetadata
   active: boolean
   isMarketplace?: boolean
-  isCollapsed?: boolean
 }
 
-function WorkflowItem({ workflow, active, isMarketplace, isCollapsed }: WorkflowItemProps) {
+function WorkflowItem({ workflow, active, isMarketplace }: WorkflowItemProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -24,23 +23,17 @@ function WorkflowItem({ workflow, active, isMarketplace, isCollapsed }: Workflow
       href={`/workspace/${workspaceId}/w/${workflow.id}`}
       className={clsx(
         'flex items-center rounded-md px-2 py-1.5 font-medium text-sm',
-        active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50',
-        isCollapsed && 'mx-auto h-8 w-8 justify-center'
+        active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50'
       )}
     >
       <div
-        className={clsx(
-          'flex-shrink-0 rounded',
-          isCollapsed ? 'h-[14px] w-[14px]' : 'mr-2 h-[14px] w-[14px]'
-        )}
+        className='mr-2 h-[14px] w-[14px] flex-shrink-0 rounded'
         style={{ backgroundColor: workflow.color }}
       />
-      {!isCollapsed && (
-        <span className='truncate'>
-          {workflow.name}
-          {isMarketplace && ' (Preview)'}
-        </span>
-      )}
+      <span className='truncate'>
+        {workflow.name}
+        {isMarketplace && ' (Preview)'}
+      </span>
     </Link>
   )
 }
@@ -48,14 +41,12 @@ function WorkflowItem({ workflow, active, isMarketplace, isCollapsed }: Workflow
 interface WorkflowListProps {
   regularWorkflows: WorkflowMetadata[]
   marketplaceWorkflows: WorkflowMetadata[]
-  isCollapsed?: boolean
   isLoading?: boolean
 }
 
 export function WorkflowList({
   regularWorkflows,
   marketplaceWorkflows,
-  isCollapsed = false,
   isLoading = false,
 }: WorkflowListProps) {
   const pathname = usePathname()
@@ -70,21 +61,13 @@ export function WorkflowList({
       .map((_, i) => (
         <div
           key={`skeleton-${i}`}
-          className={`mb-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 ${
-            isCollapsed ? 'justify-center' : ''
-          }`}
+          className='mb-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5'
         >
-          {isCollapsed ? (
-            <Skeleton className='h-[14px] w-[14px] rounded-md' />
-          ) : (
-            <>
-              <Skeleton className='h-[14px] w-[14px] rounded-md' />
-              <Skeleton className='h-4 w-20' />
-            </>
-          )}
+          <Skeleton className='h-[14px] w-[14px] rounded-md' />
+          <Skeleton className='h-4 w-20' />
         </div>
       ))
-  }, [isCollapsed])
+  }, [])
 
   // Only show empty state when not loading and user is logged in
   const showEmptyState =
@@ -106,34 +89,26 @@ export function WorkflowList({
               key={workflow.id}
               workflow={workflow}
               active={pathname === `/workspace/${workspaceId}/w/${workflow.id}`}
-              isCollapsed={isCollapsed}
             />
           ))}
 
           {/* Marketplace Temp Workflows (if any) */}
           {marketplaceWorkflows.length > 0 && (
             <div className='mt-2 border-border/30 border-t pt-2'>
-              <h3
-                className={`mb-1 px-2 font-medium text-muted-foreground text-xs ${
-                  isCollapsed ? 'text-center' : ''
-                }`}
-              >
-                {isCollapsed ? '' : 'Marketplace'}
-              </h3>
+              <h3 className='mb-1 px-2 font-medium text-muted-foreground text-xs'>Marketplace</h3>
               {marketplaceWorkflows.map((workflow) => (
                 <WorkflowItem
                   key={workflow.id}
                   workflow={workflow}
                   active={pathname === `/workspace/${workspaceId}/w/${workflow.id}`}
                   isMarketplace
-                  isCollapsed={isCollapsed}
                 />
               ))}
             </div>
           )}
 
           {/* Empty state */}
-          {showEmptyState && !isCollapsed && (
+          {showEmptyState && (
             <div className='px-2 py-1.5 text-muted-foreground text-xs'>
               No workflows in {workspaceId ? 'this workspace' : 'your account'}. Create one to get
               started.

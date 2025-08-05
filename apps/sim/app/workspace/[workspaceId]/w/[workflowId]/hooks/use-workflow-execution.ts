@@ -16,7 +16,7 @@ import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useCurrentWorkflow } from './use-current-workflow'
 
 const logger = createLogger('useWorkflowExecution')
 
@@ -43,7 +43,7 @@ interface DebugValidationResult {
 }
 
 export function useWorkflowExecution() {
-  const { blocks, edges, loops, parallels } = useWorkflowStore()
+  const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId } = useWorkflowRegistry()
   const { toggleConsole } = useConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
@@ -433,10 +433,7 @@ export function useWorkflowExecution() {
     },
     [
       activeWorkflowId,
-      blocks,
-      edges,
-      loops,
-      parallels,
+      currentWorkflow,
       toggleConsole,
       getAllVariables,
       getVariablesByWorkflowId,
@@ -455,12 +452,62 @@ export function useWorkflowExecution() {
     onStream?: (se: StreamingExecution) => Promise<void>,
     executionId?: string
   ): Promise<ExecutionResult | StreamingExecution> => {
-    // Use the mergeSubblockState utility to get all block states
-    const mergedStates = mergeSubblockState(blocks)
+    // Use currentWorkflow but check if we're in diff mode
+    const {
+      blocks: workflowBlocks,
+      edges: workflowEdges,
+      loops: workflowLoops,
+      parallels: workflowParallels,
+    } = currentWorkflow
+
+    // Filter out blocks without type (these are layout-only blocks)
+    const validBlocks = Object.entries(workflowBlocks).reduce(
+      (acc, [blockId, block]) => {
+        if (block?.type) {
+          acc[blockId] = block
+        }
+        return acc
+      },
+      {} as typeof workflowBlocks
+    )
+
+    const isExecutingFromChat =
+      workflowInput && typeof workflowInput === 'object' && 'input' in workflowInput
+
+    logger.info('Executing workflow', {
+      isDiffMode: currentWorkflow.isDiffMode,
+      isExecutingFromChat,
+      totalBlocksCount: Object.keys(workflowBlocks).length,
+      validBlocksCount: Object.keys(validBlocks).length,
+      edgesCount: workflowEdges.length,
+    })
+
+    // Debug: Check for blocks with undefined types before merging
+    Object.entries(workflowBlocks).forEach(([blockId, block]) => {
+      if (!block || !block.type) {
+        logger.error('Found block with undefined type before merging:', { blockId, block })
+      }
+    })
+
+    // Merge subblock states from the appropriate store
+    const mergedStates = mergeSubblockState(validBlocks)
+
+    // Debug: Check for blocks with undefined types after merging
+    Object.entries(mergedStates).forEach(([blockId, block]) => {
+      if (!block || !block.type) {
+        logger.error('Found block with undefined type after merging:', { blockId, block })
+      }
+    })
 
     // Filter out trigger blocks for manual execution
     const filteredStates = Object.entries(mergedStates).reduce(
       (acc, [id, block]) => {
+        // Skip blocks with undefined type
+        if (!block || !block.type) {
+          logger.warn(`Skipping block with undefined type: ${id}`, block)
+          return acc
+        }
+
         const blockConfig = getBlock(block.type)
         const isTriggerBlock = blockConfig?.category === 'triggers'
 
@@ -513,7 +560,7 @@ export function useWorkflowExecution() {
       return blockConfig?.category === 'triggers'
     })
 
-    const filteredEdges = edges.filter(
+    const filteredEdges = workflowEdges.filter(
       (edge) => !triggerBlockIds.includes(edge.source) && !triggerBlockIds.includes(edge.target)
     )
 
@@ -521,18 +568,13 @@ export function useWorkflowExecution() {
     const workflow = new Serializer().serializeWorkflow(
       filteredStates,
       filteredEdges,
-      loops,
-      parallels,
-      true // Enable validation during execution
+      workflowLoops,
+      workflowParallels
     )
-
-    // Determine if this is a chat execution
-    const isChatExecution =
-      workflowInput && typeof workflowInput === 'object' && 'input' in workflowInput
 
     // If this is a chat execution, get the selected outputs
     let selectedOutputIds: string[] | undefined
-    if (isChatExecution && activeWorkflowId) {
+    if (isExecutingFromChat && activeWorkflowId) {
       // Get selected outputs from chat store
       const chatStore = await import('@/stores/panel/chat/store').then((mod) => mod.useChatStore)
       selectedOutputIds = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
@@ -546,7 +588,7 @@ export function useWorkflowExecution() {
       workflowInput,
       workflowVariables,
       contextExtensions: {
-        stream: isChatExecution,
+        stream: isExecutingFromChat,
         selectedOutputIds,
         edges: workflow.connections.map((conn) => ({
           source: conn.source,

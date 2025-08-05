@@ -7,6 +7,7 @@ import {
   GithubIcon,
   GmailIcon,
   MicrosoftTeamsIcon,
+  OutlookIcon,
   SlackIcon,
   StripeIcon,
   TelegramIcon,
@@ -14,7 +15,6 @@ import {
 } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console/logger'
-import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/tool-credential-selector'
 import { WebhookModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -73,6 +73,15 @@ export interface GmailConfig {
   maxEmailsPerPoll?: number
 }
 
+export interface OutlookConfig {
+  credentialId?: string
+  folderIds?: string[]
+  folderFilterBehavior?: 'INCLUDE' | 'EXCLUDE'
+  markAsRead?: boolean
+  includeRawEmail?: boolean
+  maxEmailsPerPoll?: number
+}
+
 // Define Airtable-specific configuration type
 export interface AirtableWebhookConfig {
   baseId: string
@@ -101,6 +110,7 @@ export type ProviderConfig =
   | AirtableWebhookConfig
   | TelegramConfig
   | GmailConfig
+  | OutlookConfig
   | MicrosoftTeamsConfig
   | Record<string, never>
 
@@ -156,6 +166,44 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
         label: 'Include Raw Email Data',
         defaultValue: false,
         description: 'Include the complete, unprocessed email data from Gmail.',
+      },
+      maxEmailsPerPoll: {
+        type: 'string',
+        label: 'Max Emails Per Poll',
+        defaultValue: '10',
+        description: 'Maximum number of emails to process in each check.',
+      },
+      pollingInterval: {
+        type: 'string',
+        label: 'Polling Interval (minutes)',
+        defaultValue: '5',
+        description: 'How often to check for new emails.',
+      },
+    },
+  },
+  outlook: {
+    id: 'outlook',
+    name: 'Outlook',
+    icon: (props) => <OutlookIcon {...props} />,
+    configFields: {
+      folderFilterBehavior: {
+        type: 'select',
+        label: 'Folder Filter Behavior',
+        options: ['INCLUDE', 'EXCLUDE'],
+        defaultValue: 'INCLUDE',
+        description: 'Whether to include or exclude emails from specified folders.',
+      },
+      markAsRead: {
+        type: 'boolean',
+        label: 'Mark as Read',
+        defaultValue: false,
+        description: 'Automatically mark processed emails as read.',
+      },
+      includeRawEmail: {
+        type: 'boolean',
+        label: 'Include Raw Email Data',
+        defaultValue: false,
+        description: 'Include the complete, unprocessed email data from Outlook.',
       },
       maxEmailsPerPoll: {
         type: 'string',
@@ -331,7 +379,6 @@ export function WebhookConfig({
   const params = useParams()
   const workflowId = params.workflowId as string
   const [isLoading, setIsLoading] = useState(false)
-  const [gmailCredentialId, setGmailCredentialId] = useState<string>('')
 
   // No need to manage webhook status separately - it's determined by having provider + path
 
@@ -340,6 +387,15 @@ export function WebhookConfig({
 
   // Store the webhook path
   const [storeWebhookPath, setWebhookPath] = useSubBlockValue(blockId, 'webhookPath')
+
+  // Store Gmail credential from the dedicated subblock
+  const [storeGmailCredential, setGmailCredential] = useSubBlockValue(blockId, 'gmailCredential')
+
+  // Store Outlook credential from the dedicated subblock
+  const [storeOutlookCredential, setOutlookCredential] = useSubBlockValue(
+    blockId,
+    'outlookCredential'
+  )
 
   // Don't auto-generate webhook paths - only create them when user actually configures a webhook
   // This prevents the "Active Webhook" badge from showing on unconfigured blocks
@@ -351,6 +407,8 @@ export function WebhookConfig({
   const webhookProvider = propValue?.webhookProvider ?? storeWebhookProvider
   const webhookPath = propValue?.webhookPath ?? storeWebhookPath
   const providerConfig = propValue?.providerConfig ?? storeProviderConfig
+  const gmailCredentialId = storeGmailCredential || ''
+  const outlookCredentialId = storeOutlookCredential || ''
 
   // Store the actual provider from the database
   const [actualProvider, setActualProvider] = useState<string | null>(null)
@@ -444,7 +502,8 @@ export function WebhookConfig({
 
       // Clear component state
       setError(null)
-      setGmailCredentialId('')
+      setGmailCredential('')
+      setOutlookCredential('')
 
       // Note: Store will be cleared AFTER successful database deletion
       // This ensures store and database stay perfectly in sync
@@ -565,6 +624,11 @@ export function WebhookConfig({
         finalConfig = {
           ...config,
           credentialId: gmailCredentialId,
+        }
+      } else if (webhookProvider === 'outlook' && outlookCredentialId) {
+        finalConfig = {
+          ...config,
+          credentialId: outlookCredentialId,
         }
       }
 
@@ -695,30 +759,11 @@ export function WebhookConfig({
   // Check if the webhook is connected for the selected provider
   const isWebhookConnected = webhookId && webhookProvider === actualProvider
 
-  const handleCredentialChange = (credentialId: string) => {
-    if (isPreview || disabled) return
-    setGmailCredentialId(credentialId)
-  }
-
-  // For Gmail, we need to show the credential selector
+  // For Gmail, show configure button when credential is available and webhook not connected
   if (webhookProvider === 'gmail' && !isWebhookConnected) {
     return (
       <div className='w-full'>
         {error && <div className='mb-2 text-red-500 text-sm dark:text-red-400'>{error}</div>}
-
-        <div className='mb-3'>
-          <ToolCredentialSelector
-            value={gmailCredentialId}
-            onChange={handleCredentialChange}
-            provider='google-email'
-            requiredScopes={[
-              'https://www.googleapis.com/auth/gmail.modify',
-              'https://www.googleapis.com/auth/gmail.labels',
-            ]}
-            label='Select Gmail account'
-            disabled={isConnecting || isSaving || isDeleting || isPreview || disabled}
-          />
-        </div>
 
         {gmailCredentialId && (
           <Button
@@ -728,6 +773,51 @@ export function WebhookConfig({
             onClick={handleOpenModal}
             disabled={
               isConnecting || isSaving || isDeleting || !gmailCredentialId || isPreview || disabled
+            }
+          >
+            {isLoading ? (
+              <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+            ) : (
+              <ExternalLink className='mr-2 h-4 w-4' />
+            )}
+            Configure Webhook
+          </Button>
+        )}
+
+        {isModalOpen && (
+          <WebhookModal
+            isOpen={isModalOpen}
+            onClose={handleCloseModal}
+            webhookPath={webhookPath || ''}
+            webhookProvider={webhookProvider || 'generic'}
+            onSave={handleSaveWebhook}
+            onDelete={handleDeleteWebhook}
+            webhookId={webhookId || undefined}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // For Outlook, show configure button when credential is available and webhook not connected
+  if (webhookProvider === 'outlook' && !isWebhookConnected) {
+    return (
+      <div className='w-full'>
+        {error && <div className='mb-2 text-red-500 text-sm dark:text-red-400'>{error}</div>}
+
+        {outlookCredentialId && (
+          <Button
+            variant='outline'
+            size='sm'
+            className='flex h-10 w-full items-center bg-background font-normal text-sm'
+            onClick={handleOpenModal}
+            disabled={
+              isConnecting ||
+              isSaving ||
+              isDeleting ||
+              !outlookCredentialId ||
+              isPreview ||
+              disabled
             }
           >
             {isLoading ? (

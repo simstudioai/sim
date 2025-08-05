@@ -7,13 +7,10 @@ import { BookOpen, Building2, LibraryBig, ScrollText, Search, Shapes, Workflow }
 import { useParams, useRouter } from 'next/navigation'
 import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import {
-  TemplateCard,
-  TemplateCardSkeleton,
-} from '@/app/workspace/[workspaceId]/templates/components/template-card'
-import { getKeyboardShortcutText } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
+import { cn } from '@/lib/utils'
 import { getAllBlocks } from '@/blocks'
-import { useSearchNavigation } from './hooks/use-search-navigation'
+import { TemplateCard, TemplateCardSkeleton } from '../../../templates/components/template-card'
+import { getKeyboardShortcutText } from '../../hooks/use-keyboard-shortcuts'
 
 export interface SearchModalProps {
   open: boolean
@@ -57,6 +54,8 @@ export interface WorkspaceItem {
 export interface BlockItem {
   id: string
   name: string
+  description: string
+  longDescription?: string
   icon: React.ComponentType<any>
   bgColor: string
   type: string
@@ -65,6 +64,7 @@ export interface BlockItem {
 export interface ToolItem {
   id: string
   name: string
+  description: string
   icon: React.ComponentType<any>
   bgColor: string
   type: string
@@ -119,6 +119,7 @@ export function SearchModal({
     setLocalTemplates(templates)
   }, [templates])
 
+  // Get all available blocks - only when on workflow page
   const blocks = useMemo(() => {
     if (!isOnWorkflowPage) return []
 
@@ -134,6 +135,8 @@ export function SearchModal({
         (block): BlockItem => ({
           id: block.type,
           name: block.name,
+          description: block.description || '',
+          longDescription: block.longDescription,
           icon: block.icon,
           bgColor: block.bgColor || '#6B7280',
           type: block.type,
@@ -152,6 +155,7 @@ export function SearchModal({
         (block): ToolItem => ({
           id: block.type,
           name: block.name,
+          description: block.description || '',
           icon: block.icon,
           bgColor: block.bgColor || '#6B7280',
           type: block.type,
@@ -186,7 +190,7 @@ export function SearchModal({
         id: 'docs',
         name: 'Docs',
         icon: BookOpen,
-        href: 'https://docs.sim.ai/',
+        href: 'https://docs.simstudio.ai/',
       },
     ],
     [workspaceId]
@@ -259,17 +263,67 @@ export function SearchModal({
     return docs.filter((doc) => doc.name.toLowerCase().includes(query))
   }, [docs, searchQuery])
 
-  const navigationSections = useMemo((): NavigationSection[] => {
-    const sections: NavigationSection[] = []
+  // Create flattened list of navigatable items for keyboard navigation
+  const navigatableItems = useMemo(() => {
+    const items: Array<{
+      type: 'workspace' | 'workflow' | 'page' | 'doc' | 'block' | 'tool'
+      data: any
+      section: string
+    }> = []
 
-    if (filteredBlocks.length > 0) {
-      sections.push({
-        id: 'blocks',
-        name: 'Blocks',
-        type: 'grid',
-        items: filteredBlocks,
-        gridCols: 4, // 4 items per row
-      })
+    // Add blocks first (highest priority)
+    filteredBlocks.forEach((block) => {
+      items.push({ type: 'block', data: block, section: 'Blocks' })
+    })
+
+    // Add tools second
+    filteredTools.forEach((tool) => {
+      items.push({ type: 'tool', data: tool, section: 'Tools' })
+    })
+
+    // Skip templates for now
+
+    // Add workspaces
+    filteredWorkspaces.forEach((workspace) => {
+      items.push({ type: 'workspace', data: workspace, section: 'Workspaces' })
+    })
+
+    // Add workflows
+    filteredWorkflows.forEach((workflow) => {
+      items.push({ type: 'workflow', data: workflow, section: 'Workflows' })
+    })
+
+    // Add pages
+    filteredPages.forEach((page) => {
+      items.push({ type: 'page', data: page, section: 'Pages' })
+    })
+
+    // Add docs
+    filteredDocs.forEach((doc) => {
+      items.push({ type: 'doc', data: doc, section: 'Docs' })
+    })
+
+    return items
+  }, [
+    filteredBlocks,
+    filteredTools,
+    filteredWorkspaces,
+    filteredWorkflows,
+    filteredPages,
+    filteredDocs,
+  ])
+
+  // Reset selected index when items change or modal opens
+  useEffect(() => {
+    setSelectedIndex(0)
+  }, [navigatableItems, open])
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && open) {
+        onOpenChange(false)
+      }
     }
 
     if (filteredTools.length > 0) {
@@ -382,6 +436,10 @@ export function SearchModal({
       onOpenChange(false)
     } else if (section.id === 'list') {
       switch (item.type) {
+        case 'block':
+        case 'tool':
+          handleBlockClick(item.data.type)
+          break
         case 'workspace':
           if (item.data.isCurrent) {
             onOpenChange(false)
@@ -403,36 +461,124 @@ export function SearchModal({
           handleDocsClick(item.data.href)
           break
       }
-    }
-  }, [
-    getCurrentItem,
-    handleBlockClick,
-    handleNavigationClick,
-    handlePageClick,
-    handleDocsClick,
-    onOpenChange,
-  ])
+    },
+    [handleBlockClick, handleNavigationClick, handlePageClick, handleDocsClick, onOpenChange]
+  )
+
+  // Get section boundaries for navigation
+  const getSectionBoundaries = useCallback(() => {
+    const boundaries: { [key: string]: { start: number; end: number } } = {}
+    let currentIndex = 0
+
+    const sections = ['Blocks', 'Tools', 'Workspaces', 'Workflows', 'Pages', 'Docs']
+
+    sections.forEach((section) => {
+      const sectionItems = navigatableItems.filter((item) => item.section === section)
+      if (sectionItems.length > 0) {
+        boundaries[section] = {
+          start: currentIndex,
+          end: currentIndex + sectionItems.length - 1,
+        }
+        currentIndex += sectionItems.length
+      }
+    })
+
+    return boundaries
+  }, [navigatableItems])
+
+  // Get current section from selected index
+  const getCurrentSection = useCallback(
+    (index: number) => {
+      const boundaries = getSectionBoundaries()
+      for (const [section, boundary] of Object.entries(boundaries)) {
+        if (index >= boundary.start && index <= boundary.end) {
+          return section
+        }
+      }
+      return null
+    },
+    [getSectionBoundaries]
+  )
 
   useEffect(() => {
     if (!open) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      const boundaries = getSectionBoundaries()
+      const currentSection = getCurrentSection(selectedIndex)
+
+      // Check if we're in blocks or tools sections (special navigation)
+      const isInBlocksOrTools = currentSection === 'Blocks' || currentSection === 'Tools'
+
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
-          navigate('down')
+          if (isInBlocksOrTools) {
+            // Jump to next section for blocks/tools
+            if (currentSection) {
+              const sections = Object.keys(boundaries)
+              const currentSectionIndex = sections.indexOf(currentSection)
+              if (currentSectionIndex < sections.length - 1) {
+                const nextSection = sections[currentSectionIndex + 1]
+                setSelectedIndex(boundaries[nextSection].start)
+              }
+            }
+          } else {
+            // Regular navigation within section for other sections
+            setSelectedIndex((prev) => Math.min(prev + 1, navigatableItems.length - 1))
+          }
           break
         case 'ArrowUp':
           e.preventDefault()
-          navigate('up')
+          if (isInBlocksOrTools) {
+            // Jump to previous section for blocks/tools
+            if (currentSection) {
+              const sections = Object.keys(boundaries)
+              const currentSectionIndex = sections.indexOf(currentSection)
+              if (currentSectionIndex > 0) {
+                const prevSection = sections[currentSectionIndex - 1]
+                setSelectedIndex(boundaries[prevSection].start)
+              }
+            }
+          } else {
+            // Check if moving up would go into blocks or tools section
+            const newIndex = Math.max(selectedIndex - 1, 0)
+            const newSection = getCurrentSection(newIndex)
+
+            if (newSection === 'Blocks' || newSection === 'Tools') {
+              // Jump to start of the blocks/tools section
+              setSelectedIndex(boundaries[newSection].start)
+            } else {
+              // Regular navigation for other sections
+              setSelectedIndex(newIndex)
+            }
+          }
           break
         case 'ArrowRight':
           e.preventDefault()
-          navigate('right')
+          if (isInBlocksOrTools) {
+            // Navigate within current section for blocks/tools
+            if (currentSection && boundaries[currentSection]) {
+              const { end } = boundaries[currentSection]
+              setSelectedIndex((prev) => Math.min(prev + 1, end))
+            }
+          } else {
+            // For other sections, right arrow does nothing or same as down
+            setSelectedIndex((prev) => Math.min(prev + 1, navigatableItems.length - 1))
+          }
           break
         case 'ArrowLeft':
           e.preventDefault()
-          navigate('left')
+          if (isInBlocksOrTools) {
+            // Navigate within current section for blocks/tools
+            if (currentSection && boundaries[currentSection]) {
+              const { start } = boundaries[currentSection]
+              setSelectedIndex((prev) => Math.max(prev - 1, start))
+            }
+          } else {
+            // For other sections, left arrow does nothing or same as up
+            setSelectedIndex((prev) => Math.max(prev - 1, 0))
+          }
           break
         case 'Enter':
           e.preventDefault()
@@ -446,7 +592,15 @@ export function SearchModal({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open, navigate, handleItemSelection, onOpenChange])
+  }, [
+    open,
+    selectedIndex,
+    navigatableItems,
+    onOpenChange,
+    handleItemSelection,
+    getSectionBoundaries,
+    getCurrentSection,
+  ])
 
   const handleStarChange = useCallback(
     (templateId: string, isStarred: boolean, newStarCount: number) => {
@@ -459,13 +613,48 @@ export function SearchModal({
     []
   )
 
-  const isItemSelected = useCallback(
-    (sectionId: string, itemIndex: number) => {
-      const current = getCurrentItem()
-      return current?.section.id === sectionId && current.position.itemIndex === itemIndex
-    },
-    [getCurrentItem]
-  )
+  // Scroll selected item into view
+  useEffect(() => {
+    if (selectedIndex >= 0 && navigatableItems.length > 0) {
+      const selectedItem = navigatableItems[selectedIndex]
+      const itemElement = document.querySelector(
+        `[data-search-item="${selectedItem.type}-${selectedItem.data.id}"]`
+      )
+
+      if (itemElement) {
+        // Special handling for edge items in blocks/tools sections (horizontal scrolling)
+        if (selectedItem.type === 'block' || selectedItem.type === 'tool') {
+          const boundaries = getSectionBoundaries()
+          const isFirstBlock =
+            selectedItem.type === 'block' && selectedIndex === (boundaries.Blocks?.start ?? -1)
+          const isLastBlock =
+            selectedItem.type === 'block' && selectedIndex === (boundaries.Blocks?.end ?? -1)
+          const isFirstTool =
+            selectedItem.type === 'tool' && selectedIndex === (boundaries.Tools?.start ?? -1)
+          const isLastTool =
+            selectedItem.type === 'tool' && selectedIndex === (boundaries.Tools?.end ?? -1)
+
+          if (isFirstBlock || isFirstTool) {
+            // Find the horizontal scroll container and scroll to left
+            const container = itemElement.closest('.scrollbar-none.flex.gap-2.overflow-x-auto')
+            if (container) {
+              ;(container as HTMLElement).scrollLeft = 0
+            }
+          } else if (isLastBlock || isLastTool) {
+            // Find the horizontal scroll container and scroll to right
+            const container = itemElement.closest('.scrollbar-none.flex.gap-2.overflow-x-auto')
+            if (container) {
+              const scrollContainer = container as HTMLElement
+              scrollContainer.scrollLeft = scrollContainer.scrollWidth - scrollContainer.clientWidth
+            }
+          }
+        }
+
+        // Default behavior for all items (ensure they're in view vertically)
+        itemElement.scrollIntoView({ block: 'nearest' })
+      }
+    }
+  }, [selectedIndex, navigatableItems, getSectionBoundaries])
 
   const renderSkeletonCards = () => {
     return Array.from({ length: 8 }).map((_, index) => (
@@ -480,9 +669,9 @@ export function SearchModal({
       <DialogPortal>
         <DialogOverlay
           className='bg-white/50 dark:bg-black/50'
-          style={{ backdropFilter: 'blur(4.8px)' }}
+          style={{ backdropFilter: 'blur(1.5px)' }}
         />
-        <DialogPrimitive.Content className='data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed top-[50%] left-[50%] z-50 flex h-[580px] w-[700px] translate-x-[-50%] translate-y-[-50%] flex-col gap-0 overflow-hidden rounded-xl border border-border bg-background p-0 shadow-lg duration-200 focus:outline-none focus-visible:outline-none data-[state=closed]:animate-out data-[state=open]:animate-in'>
+        <DialogPrimitive.Content className='data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed top-[50%] left-[50%] z-50 flex h-[580px] w-[700px] translate-x-[-50%] translate-y-[-50%] flex-col gap-0 overflow-hidden rounded-[8px] border border-border bg-background p-0 focus:outline-none focus-visible:outline-none data-[state=closed]:animate-out data-[state=open]:animate-in'>
           <VisuallyHidden.Root>
             <DialogTitle>Search</DialogTitle>
           </VisuallyHidden.Root>
@@ -494,7 +683,7 @@ export function SearchModal({
               placeholder='Search anything'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className='!font-[300] !text-lg placeholder:!text-lg border-0 bg-transparent font-sans text-muted-foreground leading-10 tracking-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='!font-[300] !text-lg placeholder:!text-lg border-0 bg-transparent font-sans text-muted-foreground leading-10 tracking-normal placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
               autoFocus
             />
           </div>
@@ -512,39 +701,38 @@ export function SearchModal({
                     Blocks
                   </h3>
                   <div
-                    ref={(el) => {
-                      if (el) scrollRefs.current.set('blocks', el)
-                    }}
-                    className='scrollbar-none overflow-x-auto pr-6 pb-1 pl-6'
+                    className='scrollbar-none flex gap-2 overflow-x-auto px-6 pb-1'
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                   >
-                    <div
-                      className='grid auto-cols-max grid-flow-col gap-2'
-                      style={{ gridTemplateRows: 'repeat(2, minmax(0, 1fr))' }}
-                    >
-                      {filteredBlocks.map((block, index) => (
-                        <button
-                          key={block.id}
-                          onClick={() => handleBlockClick(block.type)}
-                          data-nav-item={`blocks-${index}`}
-                          className={`flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl p-2 transition-all duration-200 ${
-                            isItemSelected('blocks', index)
-                              ? 'bg-accent'
-                              : 'bg-secondary hover:bg-secondary/80'
-                          }`}
-                        >
+                    {filteredBlocks.map((block) => (
+                      <button
+                        key={block.id}
+                        onClick={() => handleBlockClick(block.type)}
+                        data-search-item={`block-${block.id}`}
+                        className={`flex h-auto w-[180px] flex-shrink-0 cursor-pointer flex-col items-start gap-2 rounded-[8px] border p-3 transition-all duration-200 ${
+                          isItemSelected(block, 'block')
+                            ? 'border-border bg-secondary/80'
+                            : 'border-border/40 bg-background/60 hover:border-border hover:bg-secondary/80'
+                        }`}
+                      >
+                        <div className='flex items-center gap-2'>
                           <div
-                            className='flex h-5 w-5 items-center justify-center rounded-md'
+                            className='flex h-5 w-5 items-center justify-center rounded-[4px]'
                             style={{ backgroundColor: block.bgColor }}
                           >
-                            <block.icon className='h-4 w-4 text-white' />
+                            <block.icon className='!h-3.5 !w-3.5 text-white' />
                           </div>
-                          <span className='font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                          <span className='font-medium font-sans text-foreground text-sm leading-none tracking-normal'>
                             {block.name}
                           </span>
-                        </button>
-                      ))}
-                    </div>
+                        </div>
+                        {(block.longDescription || block.description) && (
+                          <p className='line-clamp-2 text-left text-muted-foreground text-xs'>
+                            {block.longDescription || block.description}
+                          </p>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -556,39 +744,38 @@ export function SearchModal({
                     Tools
                   </h3>
                   <div
-                    ref={(el) => {
-                      if (el) scrollRefs.current.set('tools', el)
-                    }}
-                    className='scrollbar-none overflow-x-auto pr-6 pb-1 pl-6'
+                    className='scrollbar-none flex gap-2 overflow-x-auto px-6 pb-1'
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                   >
-                    <div
-                      className='grid auto-cols-max grid-flow-col gap-2'
-                      style={{ gridTemplateRows: 'repeat(2, minmax(0, 1fr))' }}
-                    >
-                      {filteredTools.map((tool, index) => (
-                        <button
-                          key={tool.id}
-                          onClick={() => handleBlockClick(tool.type)}
-                          data-nav-item={`tools-${index}`}
-                          className={`flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl p-2 transition-all duration-200 ${
-                            isItemSelected('tools', index)
-                              ? 'bg-accent'
-                              : 'bg-secondary hover:bg-secondary/80'
-                          }`}
-                        >
+                    {filteredTools.map((tool) => (
+                      <button
+                        key={tool.id}
+                        onClick={() => handleBlockClick(tool.type)}
+                        data-search-item={`tool-${tool.id}`}
+                        className={`flex h-auto w-[180px] flex-shrink-0 cursor-pointer flex-col items-start gap-2 rounded-[8px] border p-3 transition-all duration-200 ${
+                          isItemSelected(tool, 'tool')
+                            ? 'border-border bg-secondary/80'
+                            : 'border-border/40 bg-background/60 hover:border-border hover:bg-secondary/80'
+                        }`}
+                      >
+                        <div className='flex items-center gap-2'>
                           <div
-                            className='flex h-5 w-5 items-center justify-center rounded-md'
+                            className='flex h-5 w-5 items-center justify-center rounded-[4px]'
                             style={{ backgroundColor: tool.bgColor }}
                           >
-                            <tool.icon className='h-4 w-4 text-white' />
+                            <tool.icon className='!h-3.5 !w-3.5 text-white' />
                           </div>
-                          <span className='font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                          <span className='font-medium font-sans text-foreground text-sm leading-none tracking-normal'>
                             {tool.name}
                           </span>
-                        </button>
-                      ))}
-                    </div>
+                        </div>
+                        {tool.description && (
+                          <p className='line-clamp-2 text-left text-muted-foreground text-xs'>
+                            {tool.description}
+                          </p>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -636,168 +823,134 @@ export function SearchModal({
                 </div>
               )}
 
-              {/* List sections (Workspaces, Workflows, Pages, Docs) */}
-              {navigationSections.find((s) => s.id === 'list') && (
-                <div
-                  ref={(el) => {
-                    if (el) scrollRefs.current.set('list', el)
-                  }}
-                >
-                  {/* Workspaces */}
-                  {filteredWorkspaces.length > 0 && (
-                    <div className='mb-6'>
-                      <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                        Workspaces
-                      </h3>
-                      <div className='space-y-1 px-6'>
-                        {filteredWorkspaces.map((workspace, workspaceIndex) => {
-                          const globalIndex = workspaceIndex
-                          return (
-                            <button
-                              key={workspace.id}
-                              onClick={() =>
-                                workspace.isCurrent
-                                  ? onOpenChange(false)
-                                  : handleNavigationClick(workspace.href)
-                              }
-                              data-nav-item={`list-${globalIndex}`}
-                              className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
-                                isItemSelected('list', globalIndex)
-                                  ? 'bg-accent text-accent-foreground'
-                                  : 'hover:bg-accent/60 focus:bg-accent/60'
-                              }`}
-                            >
-                              <div className='flex h-5 w-5 items-center justify-center'>
-                                <Building2 className='h-4 w-4 text-muted-foreground' />
-                              </div>
-                              <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                                {workspace.name}
-                                {workspace.isCurrent && ' (current)'}
-                              </span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
+              {/* Workspaces Section */}
+              {filteredWorkspaces.length > 0 && (
+                <div>
+                  <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                    Workspaces
+                  </h3>
+                  <div className='space-y-1 px-6'>
+                    {filteredWorkspaces.map((workspace) => (
+                      <button
+                        key={workspace.id}
+                        onClick={() =>
+                          workspace.isCurrent
+                            ? onOpenChange(false)
+                            : handleNavigationClick(workspace.href)
+                        }
+                        data-search-item={`workspace-${workspace.id}`}
+                        className={`flex h-10 w-full items-center gap-3 rounded-[8px] px-3 py-2 transition-colors focus:outline-none ${
+                          isItemSelected(workspace, 'workspace')
+                            ? 'bg-accent text-accent-foreground'
+                            : 'hover:bg-accent/60 focus:bg-accent/60'
+                        }`}
+                      >
+                        <div className='flex h-5 w-5 items-center justify-center'>
+                          <Building2 className='h-4 w-4 text-muted-foreground' />
+                        </div>
+                        <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                          {workspace.name}
+                          {workspace.isCurrent && ' (current)'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                  {/* Workflows */}
-                  {filteredWorkflows.length > 0 && (
-                    <div className='mb-6'>
-                      <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                        Workflows
-                      </h3>
-                      <div className='space-y-1 px-6'>
-                        {filteredWorkflows.map((workflow, workflowIndex) => {
-                          const globalIndex = filteredWorkspaces.length + workflowIndex
-                          return (
-                            <button
-                              key={workflow.id}
-                              onClick={() =>
-                                workflow.isCurrent
-                                  ? onOpenChange(false)
-                                  : handleNavigationClick(workflow.href)
-                              }
-                              data-nav-item={`list-${globalIndex}`}
-                              className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
-                                isItemSelected('list', globalIndex)
-                                  ? 'bg-accent text-accent-foreground'
-                                  : 'hover:bg-accent/60 focus:bg-accent/60'
-                              }`}
-                            >
-                              <div className='flex h-5 w-5 items-center justify-center'>
-                                <Workflow className='h-4 w-4 text-muted-foreground' />
-                              </div>
-                              <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                                {workflow.name}
-                                {workflow.isCurrent && ' (current)'}
-                              </span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
+              {/* Workflows Section */}
+              {filteredWorkflows.length > 0 && (
+                <div>
+                  <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                    Workflows
+                  </h3>
+                  <div className='space-y-1 px-6'>
+                    {filteredWorkflows.map((workflow) => (
+                      <button
+                        key={workflow.id}
+                        onClick={() =>
+                          workflow.isCurrent
+                            ? onOpenChange(false)
+                            : handleNavigationClick(workflow.href)
+                        }
+                        data-search-item={`workflow-${workflow.id}`}
+                        className={`flex h-10 w-full items-center gap-3 rounded-[8px] px-3 py-2 transition-colors focus:outline-none ${
+                          isItemSelected(workflow, 'workflow')
+                            ? 'bg-accent text-accent-foreground'
+                            : 'hover:bg-accent/60 focus:bg-accent/60'
+                        }`}
+                      >
+                        <div className='flex h-5 w-5 items-center justify-center'>
+                          <Workflow className='h-4 w-4 text-muted-foreground' />
+                        </div>
+                        <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                          {workflow.name}
+                          {workflow.isCurrent && ' (current)'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                  {/* Pages */}
-                  {filteredPages.length > 0 && (
-                    <div className='mb-6'>
-                      <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                        Pages
-                      </h3>
-                      <div className='space-y-1 px-6'>
-                        {filteredPages.map((page, pageIndex) => {
-                          const globalIndex =
-                            filteredWorkspaces.length + filteredWorkflows.length + pageIndex
-                          return (
-                            <button
-                              key={page.id}
-                              onClick={() => handlePageClick(page.href)}
-                              data-nav-item={`list-${globalIndex}`}
-                              className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
-                                isItemSelected('list', globalIndex)
-                                  ? 'bg-accent text-accent-foreground'
-                                  : 'hover:bg-accent/60 focus:bg-accent/60'
-                              }`}
-                            >
-                              <div className='flex h-5 w-5 items-center justify-center'>
-                                <page.icon className='h-4 w-4 text-muted-foreground' />
-                              </div>
-                              <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                                {page.name}
-                              </span>
-                              {page.shortcut && (
-                                <kbd className='flex h-6 w-10 items-center justify-center rounded-[5px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[#454545]'>
-                                  <span className='flex items-center justify-center gap-[1px] pt-[1px]'>
-                                    <span className='text-lg'>⌘</span>
-                                    <span className='pb-[4px] text-lg'>⇧</span>
-                                    <span className='text-xs'>{page.shortcut.slice(-1)}</span>
-                                  </span>
-                                </kbd>
-                              )}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
+              {/* Pages Section */}
+              {filteredPages.length > 0 && (
+                <div>
+                  <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                    Pages
+                  </h3>
+                  <div className='space-y-1 px-6'>
+                    {filteredPages.map((page) => (
+                      <button
+                        key={page.id}
+                        onClick={() => handlePageClick(page.href)}
+                        data-search-item={`page-${page.id}`}
+                        className={`flex h-10 w-full items-center gap-3 rounded-[8px] px-3 py-2 transition-colors focus:outline-none ${
+                          isItemSelected(page, 'page')
+                            ? 'bg-accent text-accent-foreground'
+                            : 'hover:bg-accent/60 focus:bg-accent/60'
+                        }`}
+                      >
+                        <div className='flex h-5 w-5 items-center justify-center'>
+                          <page.icon className='h-4 w-4 text-muted-foreground' />
+                        </div>
+                        <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                          {page.name}
+                        </span>
+                        {page.shortcut && <KeyboardShortcut shortcut={page.shortcut} />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                  {/* Docs */}
-                  {filteredDocs.length > 0 && (
-                    <div>
-                      <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                        Docs
-                      </h3>
-                      <div className='space-y-1 px-6'>
-                        {filteredDocs.map((doc, docIndex) => {
-                          const globalIndex =
-                            filteredWorkspaces.length +
-                            filteredWorkflows.length +
-                            filteredPages.length +
-                            docIndex
-                          return (
-                            <button
-                              key={doc.id}
-                              onClick={() => handleDocsClick(doc.href)}
-                              data-nav-item={`list-${globalIndex}`}
-                              className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
-                                isItemSelected('list', globalIndex)
-                                  ? 'bg-accent text-accent-foreground'
-                                  : 'hover:bg-accent/60 focus:bg-accent/60'
-                              }`}
-                            >
-                              <div className='flex h-5 w-5 items-center justify-center'>
-                                <doc.icon className='h-4 w-4 text-muted-foreground' />
-                              </div>
-                              <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                                {doc.name}
-                              </span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
+              {/* Docs Section */}
+              {filteredDocs.length > 0 && (
+                <div>
+                  <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                    Docs
+                  </h3>
+                  <div className='space-y-1 px-6'>
+                    {filteredDocs.map((doc) => (
+                      <button
+                        key={doc.id}
+                        onClick={() => handleDocsClick(doc.href)}
+                        data-search-item={`doc-${doc.id}`}
+                        className={`flex h-10 w-full items-center gap-3 rounded-[8px] px-3 py-2 transition-colors focus:outline-none ${
+                          isItemSelected(doc, 'doc')
+                            ? 'bg-accent text-accent-foreground'
+                            : 'hover:bg-accent/60 focus:bg-accent/60'
+                        }`}
+                      >
+                        <div className='flex h-5 w-5 items-center justify-center'>
+                          <doc.icon className='h-4 w-4 text-muted-foreground' />
+                        </div>
+                        <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                          {doc.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -820,5 +973,48 @@ export function SearchModal({
         </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>
+  )
+}
+
+// Keyboard Shortcut Component
+interface KeyboardShortcutProps {
+  shortcut: string
+  className?: string
+}
+
+const KeyboardShortcut = ({ shortcut, className }: KeyboardShortcutProps) => {
+  const parts = shortcut.split('+')
+
+  // Helper function to determine if a part is a symbol that should be larger
+  const isSymbol = (part: string) => {
+    return ['⌘', '⇧', '⌥', '⌃'].includes(part)
+  }
+
+  // Helper function to determine if a part is the shift symbol that needs special positioning
+  const isShiftSymbol = (part: string) => {
+    return part === '⇧'
+  }
+
+  return (
+    <kbd
+      className={cn(
+        'flex h-6 w-9 items-center justify-center rounded-[5px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[#454545]',
+        className
+      )}
+    >
+      <span className='flex items-center justify-center gap-[1px] pt-[1px]'>
+        {parts.map((part, index) => (
+          <span
+            key={index}
+            className={cn(
+              isSymbol(part) ? 'text-[17px]' : 'text-xs',
+              isShiftSymbol(part) && 'pb-[4px]'
+            )}
+          >
+            {part}
+          </span>
+        ))}
+      </span>
+    </kbd>
   )
 }

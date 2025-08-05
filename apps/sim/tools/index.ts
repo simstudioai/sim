@@ -419,11 +419,17 @@ async function handleInternalRequest(
       }
 
       // Extract error message from nested error objects (common in API responses)
+      // Prioritize detailed validation messages over generic error field
       const errorMessage =
-        typeof errorData.error === 'object'
+        errorData.details?.[0]?.message ||
+        (typeof errorData.error === 'object'
           ? errorData.error.message || JSON.stringify(errorData.error)
-          : errorData.error || `Request failed with status ${response.status}`
+          : errorData.error) ||
+        `Request failed with status ${response.status}`
 
+      logger.error(`[${requestId}] Internal request error for ${toolId}:`, {
+        error: errorMessage,
+      })
       throw new Error(errorMessage)
     }
 

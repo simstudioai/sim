@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react'
 import { LibraryBig, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 import {
   BaseOverview,
   CreateModal,
@@ -14,6 +13,7 @@ import {
   PrimaryButton,
   SearchInput,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 

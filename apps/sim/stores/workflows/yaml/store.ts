@@ -1,9 +1,8 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useSubBlockStore } from '../subblock/store'
+import { useWorkflowStore } from '../workflow/store'
 
 const logger = createLogger('WorkflowYamlStore')
 
@@ -13,7 +12,7 @@ interface WorkflowYamlState {
 }
 
 interface WorkflowYamlActions {
-  generateYaml: () => void
+  generateYaml: () => Promise<void>
   getYaml: () => string
   refreshYaml: () => void
 }
@@ -115,18 +114,41 @@ export const useWorkflowYamlStore = create<WorkflowYamlStore>()(
       yaml: '',
       lastGenerated: undefined,
 
-      generateYaml: () => {
+      generateYaml: async () => {
         // Initialize subscriptions on first use
         initializeSubscriptions()
 
         const workflowState = useWorkflowStore.getState()
         const subBlockValues = getSubBlockValues()
-        const yaml = generateWorkflowYaml(workflowState, subBlockValues)
 
-        set({
-          yaml,
-          lastGenerated: Date.now(),
+        // Call the API route to generate YAML (server has access to API key)
+        const response = await fetch('/api/workflows/yaml/convert', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            workflowState,
+            subBlockValues,
+          }),
         })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null)
+          logger.error('Failed to generate YAML:', errorData?.error || response.statusText)
+          return
+        }
+
+        const result = await response.json()
+
+        if (result.success && result.yaml) {
+          set({
+            yaml: result.yaml,
+            lastGenerated: Date.now(),
+          })
+        } else {
+          logger.error('Failed to generate YAML:', result.error)
+        }
       },
 
       getYaml: () => {

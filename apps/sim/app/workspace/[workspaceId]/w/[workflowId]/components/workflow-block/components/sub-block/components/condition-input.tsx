@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
+import { useTagSelection } from '@/hooks/use-tag-selection'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('ConditionInput')
@@ -52,6 +53,9 @@ export function ConditionInput({
   disabled = false,
 }: ConditionInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+
+  const emitTagSelection = useTagSelection(blockId, subBlockId)
+
   const containerRef = useRef<HTMLDivElement>(null)
   const [visualLineHeights, setVisualLineHeights] = useState<{
     [key: string]: number[]
@@ -400,6 +404,64 @@ export function ConditionInput({
     )
   }
 
+  const handleTagSelectImmediate = (blockId: string, newValue: string) => {
+    if (isPreview || disabled) return
+
+    setConditionalBlocks((blocks) =>
+      blocks.map((block) =>
+        block.id === blockId
+          ? {
+              ...block,
+              value: newValue,
+              showTags: false,
+              activeSourceBlockId: null,
+            }
+          : block
+      )
+    )
+
+    const updatedBlocks = conditionalBlocks.map((block) =>
+      block.id === blockId
+        ? {
+            ...block,
+            value: newValue,
+            showTags: false,
+            activeSourceBlockId: null,
+          }
+        : block
+    )
+    emitTagSelection(JSON.stringify(updatedBlocks))
+  }
+
+  const handleEnvVarSelectImmediate = (blockId: string, newValue: string) => {
+    if (isPreview || disabled) return
+
+    setConditionalBlocks((blocks) =>
+      blocks.map((block) =>
+        block.id === blockId
+          ? {
+              ...block,
+              value: newValue,
+              showEnvVars: false,
+              searchTerm: '',
+            }
+          : block
+      )
+    )
+
+    const updatedBlocks = conditionalBlocks.map((block) =>
+      block.id === blockId
+        ? {
+            ...block,
+            value: newValue,
+            showEnvVars: false,
+            searchTerm: '',
+          }
+        : block
+    )
+    emitTagSelection(JSON.stringify(updatedBlocks))
+  }
+
   // Update block titles based on position
   const updateBlockTitles = (blocks: ConditionalBlock[]): ConditionalBlock[] => {
     return blocks.map((block, index) => ({
@@ -706,7 +768,7 @@ export function ConditionInput({
                 {block.showEnvVars && (
                   <EnvVarDropdown
                     visible={block.showEnvVars}
-                    onSelect={(newValue) => handleEnvVarSelect(block.id, newValue)}
+                    onSelect={(newValue) => handleEnvVarSelectImmediate(block.id, newValue)}
                     searchTerm={block.searchTerm}
                     inputValue={block.value}
                     cursorPosition={block.cursorPosition}
@@ -723,7 +785,7 @@ export function ConditionInput({
                 {block.showTags && (
                   <TagDropdown
                     visible={block.showTags}
-                    onSelect={(newValue) => handleTagSelect(block.id, newValue)}
+                    onSelect={(newValue) => handleTagSelectImmediate(block.id, newValue)}
                     blockId={blockId}
                     activeSourceBlockId={block.activeSourceBlockId}
                     inputValue={block.value}
