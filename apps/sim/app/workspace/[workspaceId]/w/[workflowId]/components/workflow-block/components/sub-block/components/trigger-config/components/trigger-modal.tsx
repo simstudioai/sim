@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Trash2 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -8,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -15,7 +17,6 @@ import type { TriggerConfig } from '@/triggers/types'
 import { CredentialSelector } from '../../credential-selector/credential-selector'
 import { TriggerConfigSection } from './trigger-config-section'
 import { TriggerInstructions } from './trigger-instructions'
-import { TriggerTestResult } from './trigger-test-result'
 
 const logger = createLogger('TriggerModal')
 
@@ -44,14 +45,12 @@ export function TriggerModal({
 }: TriggerModalProps) {
   const [config, setConfig] = useState<Record<string, any>>(initialConfig)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Track if config has changed from initial values
+  const hasConfigChanged = useMemo(() => {
+    return JSON.stringify(config) !== JSON.stringify(initialConfig)
+  }, [config, initialConfig])
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isTesting, setIsTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{
-    success: boolean
-    message?: string
-    data?: any
-  } | null>(null)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [webhookUrl, setWebhookUrl] = useState('')
   const [generatedPath, setGeneratedPath] = useState('')
   const [hasCredentials, setHasCredentials] = useState(false)
@@ -59,6 +58,26 @@ export function TriggerModal({
   const [dynamicOptions, setDynamicOptions] = useState<
     Record<string, Array<{ id: string; name: string }>>
   >({})
+
+  // Initialize config with default values from trigger definition
+  useEffect(() => {
+    const defaultConfig: Record<string, any> = {}
+
+    // Apply default values from trigger definition
+    Object.entries(triggerDef.configFields).forEach(([fieldId, field]) => {
+      if (field.defaultValue !== undefined && !(fieldId in initialConfig)) {
+        defaultConfig[fieldId] = field.defaultValue
+      }
+    })
+
+    // Merge with initial config, prioritizing initial config values
+    const mergedConfig = { ...defaultConfig, ...initialConfig }
+
+    // Only update if there are actually default values to apply
+    if (Object.keys(defaultConfig).length > 0) {
+      setConfig(mergedConfig)
+    }
+  }, [triggerDef.configFields, initialConfig])
 
   // Monitor credential selection
   useEffect(() => {
@@ -145,12 +164,6 @@ export function TriggerModal({
     }
   }, [triggerPath, triggerDef.provider, triggerDef.requiresCredentials, triggerDef.webhook])
 
-  // Track changes
-  useEffect(() => {
-    const hasChanges = JSON.stringify(config) !== JSON.stringify(initialConfig)
-    setHasUnsavedChanges(hasChanges)
-  }, [config, initialConfig])
-
   const handleConfigChange = (fieldId: string, value: any) => {
     setConfig((prev) => ({
       ...prev,
@@ -166,12 +179,15 @@ export function TriggerModal({
       // Use the existing trigger path or the generated one
       const path = triggerPath || generatedPath
 
-      if (!path) {
+      // For credential-based triggers that don't use webhooks (like Gmail), path is optional
+      const requiresPath = triggerDef.webhook !== undefined
+
+      if (requiresPath && !path) {
         logger.error('No webhook path available for saving trigger')
         return
       }
 
-      const success = await onSave(path, config)
+      const success = await onSave(path || '', config)
       if (success) {
         onClose()
       }
@@ -198,41 +214,6 @@ export function TriggerModal({
     }
   }
 
-  const handleTest = async () => {
-    setIsTesting(true)
-    try {
-      // Generate test webhook call
-      const testPayload = triggerDef.samplePayload
-
-      const response = await fetch(webhookUrl, {
-        method: triggerDef.webhook?.method || 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...triggerDef.webhook?.headers,
-        },
-        body: JSON.stringify(testPayload),
-      })
-
-      const success = response.ok
-      const message = success
-        ? 'Test webhook sent successfully'
-        : `Test failed: ${response.statusText}`
-
-      setTestResult({
-        success,
-        message,
-        data: testPayload,
-      })
-    } catch (error: any) {
-      setTestResult({
-        success: false,
-        message: `Test failed: ${error.message}`,
-      })
-    } finally {
-      setIsTesting(false)
-    }
-  }
-
   const isConfigValid = () => {
     // Check if credentials are required and available
     if (triggerDef.requiresCredentials && !hasCredentials) {
@@ -256,9 +237,28 @@ export function TriggerModal({
       >
         <DialogHeader className='border-b px-6 py-4'>
           <div className='flex items-center justify-between'>
-            <DialogTitle className='font-medium text-lg'>
-              {triggerDef.name} Configuration
-            </DialogTitle>
+            <div className='flex items-center gap-3'>
+              <DialogTitle className='font-medium text-lg'>
+                {triggerDef.name} Configuration
+              </DialogTitle>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant='outline'
+                    className='flex items-center gap-1 border-green-200 bg-green-50 font-normal text-green-600 text-xs hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400'
+                  >
+                    <div className='relative mr-0.5 flex items-center justify-center'>
+                      <div className='absolute h-3 w-3 rounded-full bg-green-500/20' />
+                      <div className='relative h-2 w-2 rounded-full bg-green-500' />
+                    </div>
+                    Active Trigger
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent side='bottom' className='max-w-[300px] p-4'>
+                  <p className='text-sm'>{triggerDef.name}</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         </DialogHeader>
 
@@ -293,8 +293,6 @@ export function TriggerModal({
               dynamicOptions={dynamicOptions}
             />
 
-            <TriggerTestResult testResult={testResult} />
-
             <TriggerInstructions
               instructions={triggerDef.instructions}
               webhookUrl={webhookUrl}
@@ -326,27 +324,15 @@ export function TriggerModal({
               )}
             </div>
             <div className='flex gap-2'>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={handleTest}
-                disabled={isTesting || isSaving || isDeleting || !isConfigValid() || !webhookUrl}
-                className='h-10'
-              >
-                {isTesting && (
-                  <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
-                )}
-                {isTesting ? 'Testing...' : 'Test Webhook'}
-              </Button>
               <Button variant='outline' onClick={onClose} size='default' className='h-10'>
                 Cancel
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving || !isConfigValid()}
+                disabled={isSaving || !isConfigValid() || !hasConfigChanged}
                 className={cn(
                   'h-10',
-                  isConfigValid() ? 'bg-primary hover:bg-primary/90' : '',
+                  isConfigValid() && hasConfigChanged ? 'bg-primary hover:bg-primary/90' : '',
                   isSaving &&
                     'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20'
                 )}

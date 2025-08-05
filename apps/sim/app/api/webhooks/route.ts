@@ -87,12 +87,28 @@ export async function POST(request: NextRequest) {
     const { workflowId, path, provider, providerConfig, blockId } = body
 
     // Validate input
-    if (!workflowId || !path) {
+    if (!workflowId) {
       logger.warn(`[${requestId}] Missing required fields for webhook creation`, {
         hasWorkflowId: !!workflowId,
         hasPath: !!path,
       })
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    // For credential-based providers like Gmail, generate a dummy path if none provided
+    // since they don't use actual webhook URLs but still need database entries
+    let finalPath = path
+    if (!path || path.trim() === '') {
+      if (provider === 'gmail') {
+        finalPath = `gmail-${crypto.randomUUID()}`
+        logger.info(`[${requestId}] Generated dummy path for Gmail trigger: ${finalPath}`)
+      } else {
+        logger.warn(`[${requestId}] Missing path for webhook creation`, {
+          hasWorkflowId: !!workflowId,
+          hasPath: !!path,
+        })
+        return NextResponse.json({ error: 'Missing required path' }, { status: 400 })
+      }
     }
 
     // Check if the workflow exists and user has permission to modify it
@@ -144,29 +160,38 @@ export async function POST(request: NextRequest) {
     const existingWebhooks = await db
       .select({ id: webhook.id, workflowId: webhook.workflowId })
       .from(webhook)
-      .where(eq(webhook.path, path))
+      .where(eq(webhook.path, finalPath))
       .limit(1)
 
     let savedWebhook: any = null // Variable to hold the result of save/update
 
     // If a webhook with the same path exists but belongs to a different workflow, return an error
     if (existingWebhooks.length > 0 && existingWebhooks[0].workflowId !== workflowId) {
-      logger.warn(`[${requestId}] Webhook path conflict: ${path}`)
+      logger.warn(`[${requestId}] Webhook path conflict: ${finalPath}`)
       return NextResponse.json(
         { error: 'Webhook path already exists.', code: 'PATH_EXISTS' },
         { status: 409 }
       )
     }
 
+    // For Gmail webhooks, add userId to providerConfig so the polling service can get OAuth tokens
+    let finalProviderConfig = providerConfig
+    if (provider === 'gmail') {
+      finalProviderConfig = {
+        ...providerConfig,
+        userId, // Add userId for Gmail polling service
+      }
+    }
+
     // If a webhook with the same path and workflowId exists, update it
     if (existingWebhooks.length > 0 && existingWebhooks[0].workflowId === workflowId) {
-      logger.info(`[${requestId}] Updating existing webhook for path: ${path}`)
+      logger.info(`[${requestId}] Updating existing webhook for path: ${finalPath}`)
       const updatedResult = await db
         .update(webhook)
         .set({
           blockId,
           provider,
-          providerConfig,
+          providerConfig: finalProviderConfig,
           isActive: true,
           updatedAt: new Date(),
         })
@@ -183,9 +208,9 @@ export async function POST(request: NextRequest) {
           id: webhookId,
           workflowId,
           blockId,
-          path,
+          path: finalPath,
           provider,
-          providerConfig,
+          providerConfig: finalProviderConfig,
           isActive: true,
           createdAt: new Date(),
           updatedAt: new Date(),

@@ -318,12 +318,10 @@ export function SubBlock({
         return (
           <TriggerConfig
             blockId={blockId}
-            subBlockId={config.id}
             isConnecting={isConnecting}
             isPreview={isPreview}
             value={triggerValue}
             disabled={isDisabled}
-            triggerProvider={config.triggerProvider}
             availableTriggers={config.availableTriggers}
           />
         )

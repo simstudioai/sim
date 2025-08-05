@@ -12,7 +12,6 @@ const logger = createLogger('TriggerConfig')
 
 interface TriggerConfigProps {
   blockId: string
-  subBlockId?: string
   isConnecting: boolean
   isPreview?: boolean
   value?: {
@@ -21,18 +20,15 @@ interface TriggerConfigProps {
     triggerConfig?: Record<string, any>
   }
   disabled?: boolean
-  triggerProvider?: string
   availableTriggers?: string[]
 }
 
 export function TriggerConfig({
   blockId,
-  subBlockId,
   isConnecting,
   isPreview = false,
   value: propValue,
   disabled = false,
-  triggerProvider,
   availableTriggers = [],
 }: TriggerConfigProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -55,12 +51,9 @@ export function TriggerConfig({
   const triggerPath = propValue?.triggerPath ?? storeTriggerPath
   const triggerConfig = propValue?.triggerConfig ?? storeTriggerConfig
 
-  // Get the trigger definition - if no specific trigger is selected, use the first available one
-  const triggerDef = selectedTriggerId
-    ? getTrigger(selectedTriggerId)
-    : availableTriggers[0]
-      ? getTrigger(availableTriggers[0])
-      : null
+  // Consolidate trigger ID logic
+  const effectiveTriggerId = selectedTriggerId || availableTriggers[0]
+  const triggerDef = effectiveTriggerId ? getTrigger(effectiveTriggerId) : null
 
   // Set the trigger ID to the first available one if none is set
   useEffect(() => {
@@ -122,11 +115,10 @@ export function TriggerConfig({
       }
     }
 
-    const effectiveTriggerId = selectedTriggerId || availableTriggers[0]
     if (effectiveTriggerId) {
       checkWebhook()
     }
-  }, [workflowId, blockId, isPreview, selectedTriggerId, availableTriggers])
+  }, [workflowId, blockId, isPreview, effectiveTriggerId])
 
   const handleOpenModal = () => {
     if (isPreview || disabled) return
@@ -139,12 +131,17 @@ export function TriggerConfig({
   }
 
   const handleSaveTrigger = async (path: string, config: Record<string, any>) => {
-    const effectiveTriggerId = selectedTriggerId || availableTriggers[0]
     if (isPreview || disabled || !effectiveTriggerId) return false
 
     try {
       setIsSaving(true)
       setError(null)
+
+      // Get trigger definition to check if it requires webhooks
+      const triggerDef = getTrigger(effectiveTriggerId)
+      if (!triggerDef) {
+        throw new Error('Trigger definition not found')
+      }
 
       // Set the trigger path and config in the block state
       if (path && path !== triggerPath) {
@@ -156,7 +153,49 @@ export function TriggerConfig({
       // Map trigger ID to webhook provider name
       const webhookProvider = effectiveTriggerId.replace('_webhook', '') // e.g., 'slack_webhook' -> 'slack'
 
-      // Save as webhook using existing webhook API
+      // For credential-based triggers (like Gmail), create webhook entry for polling service but no webhook URL
+      if (triggerDef.requiresCredentials && !triggerDef.webhook) {
+        // Gmail polling service requires a webhook database entry to find the configuration
+        const response = await fetch('/api/webhooks', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            workflowId,
+            blockId,
+            path: '', // Empty path - API will generate dummy path for Gmail
+            provider: webhookProvider,
+            providerConfig: config,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(
+            typeof errorData.error === 'object'
+              ? errorData.error.message || JSON.stringify(errorData.error)
+              : errorData.error || 'Failed to save credential-based trigger'
+          )
+        }
+
+        const data = await response.json()
+        const savedWebhookId = data.webhook.id
+        setTriggerId(savedWebhookId)
+
+        logger.info('Credential-based trigger saved successfully', {
+          webhookId: savedWebhookId,
+          triggerDefId: effectiveTriggerId,
+          provider: webhookProvider,
+          blockId,
+        })
+
+        // Update the actual trigger after saving
+        setActualTriggerId(webhookProvider)
+        return true
+      }
+
+      // Save as webhook using existing webhook API (for webhook-based triggers)
       const response = await fetch('/api/webhooks', {
         method: 'POST',
         headers: {
@@ -186,7 +225,7 @@ export function TriggerConfig({
 
       logger.info('Trigger saved successfully as webhook', {
         webhookId: savedWebhookId,
-        triggerDefId: selectedTriggerId,
+        triggerDefId: effectiveTriggerId,
         provider: webhookProvider,
         path,
         blockId,
@@ -212,7 +251,7 @@ export function TriggerConfig({
       setIsDeleting(true)
       setError(null)
 
-      // Delete webhook using existing webhook API
+      // Delete webhook using existing webhook API (works for both webhook and credential-based triggers)
       const response = await fetch(`/api/webhooks/${triggerId}`, {
         method: 'DELETE',
       })
@@ -247,6 +286,20 @@ export function TriggerConfig({
       setTriggerId(null)
       setActualTriggerId(null)
 
+      // Also clear store values using the setters to ensure UI updates
+      setTriggerPath('')
+      setTriggerConfig({})
+      setStoredTriggerId('')
+
+      logger.info('Trigger deleted successfully', {
+        blockId,
+        triggerType:
+          triggerDef?.requiresCredentials && !triggerDef.webhook
+            ? 'credential-based'
+            : 'webhook-based',
+        hadWebhookId: Boolean(triggerId),
+      })
+
       handleCloseModal()
 
       return true
@@ -259,18 +312,8 @@ export function TriggerConfig({
     }
   }
 
-  // Get trigger icon and name
-  const getTriggerInfo = () => {
-    if (!triggerDef) return null
-
-    return {
-      name: triggerDef.name,
-      icon: null, // We'll add icons later
-    }
-  }
-
-  // Check if the trigger is connected (similar to webhook logic)
-  const effectiveTriggerId = selectedTriggerId || availableTriggers[0]
+  // Check if the trigger is connected
+  // Both webhook and credential-based triggers now have webhook database entries
   const isTriggerConnected = Boolean(triggerId && actualTriggerId)
 
   // Debug logging to help with troubleshooting
@@ -281,8 +324,27 @@ export function TriggerConfig({
       triggerPath,
       isTriggerConnected,
       effectiveTriggerId,
+      triggerConfig,
+      triggerConfigKeys: triggerConfig ? Object.keys(triggerConfig) : [],
+      isCredentialBased: triggerDef?.requiresCredentials && !triggerDef.webhook,
+      storeValues: {
+        storeTriggerId,
+        storeTriggerPath,
+        storeTriggerConfig,
+      },
     })
-  }, [triggerId, actualTriggerId, triggerPath, isTriggerConnected, effectiveTriggerId])
+  }, [
+    triggerId,
+    actualTriggerId,
+    triggerPath,
+    isTriggerConnected,
+    effectiveTriggerId,
+    triggerConfig,
+    triggerDef,
+    storeTriggerId,
+    storeTriggerPath,
+    storeTriggerConfig,
+  ])
 
   return (
     <div className='w-full'>
@@ -299,9 +361,7 @@ export function TriggerConfig({
                 {triggerDef?.icon && (
                   <triggerDef.icon className='mr-2 h-4 w-4 text-[#611f69] dark:text-[#e01e5a]' />
                 )}
-                <span className='font-normal text-sm'>
-                  {getTriggerInfo()?.name || 'Active Trigger'}
-                </span>
+                <span className='font-normal text-sm'>{triggerDef?.name || 'Active Trigger'}</span>
               </div>
             </div>
           </div>
@@ -313,7 +373,7 @@ export function TriggerConfig({
           className='flex h-10 w-full items-center bg-background font-normal text-sm'
           onClick={handleOpenModal}
           disabled={
-            isConnecting || isSaving || isDeleting || isPreview || disabled || !selectedTriggerId
+            isConnecting || isSaving || isDeleting || isPreview || disabled || !effectiveTriggerId
           }
         >
           {isLoading ? (

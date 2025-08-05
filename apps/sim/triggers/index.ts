@@ -6,6 +6,7 @@ import { githubWebhookTrigger } from './github'
 import { gmailWebhookTrigger } from './gmail'
 import { microsoftTeamsWebhookTrigger } from './microsoftteams'
 import { slackWebhookTrigger } from './slack'
+import { stripeWebhookTrigger } from './stripe/webhook'
 import { telegramWebhookTrigger } from './telegram'
 import type { TriggerConfig, TriggerRegistry } from './types'
 import { whatsappWebhookTrigger } from './whatsapp'
@@ -18,6 +19,7 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   github_webhook: githubWebhookTrigger,
   gmail_webhook: gmailWebhookTrigger,
   microsoftteams_webhook: microsoftTeamsWebhookTrigger,
+  stripe_webhook: stripeWebhookTrigger,
   telegram_webhook: telegramWebhookTrigger,
   whatsapp_webhook: whatsappWebhookTrigger,
 }
