@@ -214,6 +214,7 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
         ...(msg.toolCalls && msg.toolCalls.length > 0 && { toolCalls: msg.toolCalls }),
         ...(msg.contentBlocks &&
           msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks }),
+        ...(msg.fileAttachments && msg.fileAttachments.length > 0 && { fileAttachments: msg.fileAttachments }),
       }
     })
     .filter((msg) => {
