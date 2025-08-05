@@ -447,12 +447,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'groq',
     name: 'Groq',
     description: "Groq's LLM models with high-performance inference",
-    defaultModel: 'openai/gpt-oss-120b',
+    defaultModel: 'groq/openai/gpt-oss-120b',
     modelPatterns: [/^groq/],
     icon: GroqIcon,
     models: [
       {
-        id: 'openai/gpt-oss-120b',
+        id: 'groq/openai/gpt-oss-120b',
         pricing: {
           input: 0.15,
           cachedInput: 0.075,
@@ -460,11 +460,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-05',
         },
         capabilities: {
-          toolUsageControl: true,
+          toolUsageControl: false,
         },
       },
       {
-        id: 'openai/gpt-oss-20b',
+        id: 'groq/openai/gpt-oss-20b',
         pricing: {
           input: 0.01,
           cachedInput: 0.005,
@@ -472,11 +472,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-05',
         },
         capabilities: {
-          toolUsageControl: true,
+          toolUsageControl: false,
         },
       },
       {
-        id: 'gemma2-9b-it',
+        id: 'groq/gemma2-9b-it',
         pricing: {
           input: 0.04,
           cachedInput: 0.02,
@@ -484,11 +484,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-05',
         },
         capabilities: {
-          toolUsageControl: true,
+          toolUsageControl: false,
         },
       },
       {
-        id: 'llama-3.1-8b-instant',
+        id: 'groq/llama-3.1-8b-instant',
         pricing: {
           input: 0.05,
           cachedInput: 0.025,
@@ -496,11 +496,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-05',
         },
         capabilities: {
-          toolUsageControl: true,
+          toolUsageControl: false,
         },
       },
       {
-        id: 'llama-3.3-70b-versatile',
+        id: 'groq/llama-3.3-70b-versatile',
         pricing: {
           input: 0.35,
           cachedInput: 0.175,
@@ -508,11 +508,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-05',
         },
         capabilities: {
-          toolUsageControl: true,
+          toolUsageControl: false,
         },
       },
       {
-        id: 'meta-llama/llama-guard-4-12b',
+        id: 'groq/meta-llama/llama-guard-4-12b',
         pricing: {
           input: 0.2,
           cachedInput: 0.1,
@@ -524,7 +524,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
       },
       {
-        id: 'deepseek-r1-distill-llama-70b',
+        id: 'groq/deepseek-r1-distill-llama-70b',
         pricing: {
           input: 0.58,
           cachedInput: 0.29,
@@ -532,11 +532,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-05',
         },
         capabilities: {
-          toolUsageControl: true,
+          toolUsageControl: false,
         },
       },
       {
-        id: 'meta-llama/llama-4-maverick-17b-128e-instruct',
+        id: 'groq/meta-llama/llama-4-maverick-17b-128e-instruct',
         pricing: {
           input: 0.2,
           cachedInput: 0.1,
@@ -544,7 +544,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-05',
         },
         capabilities: {
-          toolUsageControl: true,
+          toolUsageControl: false,
         },
       },
     ],
