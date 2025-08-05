@@ -36,7 +36,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       required: true,
       provider: 'google-sheets',
       serviceId: 'google-sheets',
-      requiredScopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      requiredScopes: [],
       placeholder: 'Select Google account',
     },
     // Spreadsheet Selector

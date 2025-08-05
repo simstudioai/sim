@@ -161,6 +161,7 @@ async function createWorkspace(userId: string, name: string) {
             enabled: true,
             horizontalHandles: true,
             isWide: false,
+            advancedMode: false,
             height: 95,
           },
         },
@@ -206,6 +207,7 @@ async function createWorkspace(userId: string, name: string) {
         enabled: true,
         horizontalHandles: true,
         isWide: false,
+        advancedMode: false,
         height: '95',
         subBlocks: {
           startWorkflow: {

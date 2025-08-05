@@ -1,5 +1,5 @@
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/consts'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
@@ -104,8 +104,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
     }
 
     try {
-      const baseUrl = env.NEXT_PUBLIC_APP_URL || ''
-      const url = new URL('/api/providers', baseUrl)
+      const url = new URL('/api/providers', getBaseUrl())
 
       // Make sure we force JSON output in the request
       const providerRequest = {

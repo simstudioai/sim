@@ -3,6 +3,7 @@ import { isEqual } from 'lodash'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { getProviderFromModel } from '@/providers/utils'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -60,6 +61,13 @@ export function useSubBlockValue<T = any>(
     useCallback((state) => state.getValue(blockId, subBlockId), [blockId, subBlockId])
   )
 
+  // Check if we're in diff mode and get diff value if available
+  const { isShowingDiff, diffWorkflow } = useWorkflowDiffStore()
+  const diffValue =
+    isShowingDiff && diffWorkflow
+      ? (diffWorkflow.blocks?.[blockId]?.subBlocks?.[subBlockId]?.value ?? null)
+      : null
+
   // Check if this is an API key field that could be auto-filled
   const isApiKey =
     subBlockId === 'apiKey' || (subBlockId?.toLowerCase().includes('apikey') ?? false)
@@ -100,6 +108,12 @@ export function useSubBlockValue<T = any>(
   // Hook to set a value in the subblock store
   const setValue = useCallback(
     (newValue: T) => {
+      // Don't allow updates when in diff mode (readonly preview)
+      if (isShowingDiff) {
+        logger.debug('Ignoring setValue in diff mode', { blockId, subBlockId })
+        return
+      }
+
       // Use deep comparison to avoid unnecessary updates for complex objects
       if (!isEqual(valueRef.current, newValue)) {
         valueRef.current = newValue
@@ -175,23 +189,32 @@ export function useSubBlockValue<T = any>(
       modelValue,
       isStreaming,
       emitValue,
+      isShowingDiff,
     ]
   )
 
+  // Determine the effective value: diff value takes precedence if in diff mode
+  const effectiveValue =
+    isShowingDiff && diffValue !== null
+      ? diffValue
+      : storeValue !== undefined
+        ? storeValue
+        : initialValue
+
   // Initialize valueRef on first render
   useEffect(() => {
-    valueRef.current = storeValue !== undefined ? storeValue : initialValue
+    valueRef.current = effectiveValue
   }, [])
 
-  // Update the ref if the store value changes
+  // Update the ref if the effective value changes
   // This ensures we're always working with the latest value
   useEffect(() => {
     // Use deep comparison for objects to prevent unnecessary updates
-    if (!isEqual(valueRef.current, storeValue)) {
-      valueRef.current = storeValue !== undefined ? storeValue : initialValue
+    if (!isEqual(valueRef.current, effectiveValue)) {
+      valueRef.current = effectiveValue
     }
-  }, [storeValue, initialValue])
+  }, [effectiveValue])
 
   // Return appropriate tuple based on whether options were provided
-  return [storeValue !== undefined ? storeValue : initialValue, setValue] as const
+  return [effectiveValue, setValue] as const
 }

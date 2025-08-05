@@ -14,6 +14,8 @@ import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/comp
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { GenerationType } from '@/blocks/types'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useTagSelection } from '@/hooks/use-tag-selection'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('Code')
@@ -95,7 +97,11 @@ export function Code({
   const collapsedStateKey = `${subBlockId}_collapsed`
   const isCollapsed =
     (useSubBlockStore((state) => state.getValue(blockId, collapsedStateKey)) as boolean) ?? false
-  const setCollapsedValue = useSubBlockStore((state) => state.setValue)
+
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
+  const setCollapsedValue = (blockId: string, subblockId: string, value: any) => {
+    collaborativeSetSubblockValue(blockId, subblockId, value)
+  }
 
   const showCollapseButton =
     (subBlockId === 'responseFormat' || subBlockId === 'code') && code.split('\n').length > 5
@@ -163,6 +169,8 @@ export function Code({
       logger.debug('AI streaming ended, value persisted', { blockId, subBlockId })
     },
   })
+
+  const emitTagSelection = useTagSelection(blockId, subBlockId)
 
   // Use preview value when in preview mode, otherwise use store value or prop value
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
@@ -306,7 +314,7 @@ export function Code({
   const handleTagSelect = (newValue: string) => {
     if (!isPreview) {
       setCode(newValue)
-      setStoreValue(newValue)
+      emitTagSelection(newValue)
     }
     setShowTags(false)
     setActiveSourceBlockId(null)
@@ -319,7 +327,7 @@ export function Code({
   const handleEnvVarSelect = (newValue: string) => {
     if (!isPreview) {
       setCode(newValue)
-      setStoreValue(newValue)
+      emitTagSelection(newValue)
     }
     setShowEnvVars(false)
 

@@ -117,10 +117,23 @@ Each cloud platform example includes optimized configurations:
 
 ### AWS (EKS)
 - **Storage**: EBS GP3 volumes for optimal performance
+- **EBS CSI Driver**: Required for persistent storage (install as EKS add-on)
 - **Node Selectors**: Instance type targeting (`t3.large`, `r5.large`, `g4dn.xlarge`)
 - **GPU Support**: GPU-optimized instances (G4, P3 families)
 - **Ingress**: Application Load Balancer (ALB) with AWS Certificate Manager
 - **IAM**: Service Account annotations for IAM roles
+
+**Prerequisites for AWS:**
+```bash
+# Install EBS CSI driver add-on
+aws eks create-addon --cluster-name your-cluster --addon-name aws-ebs-csi-driver
+
+# Create IAM role for EBS CSI driver (if using IRSA)
+aws iam create-role --role-name AmazonEKS_EBS_CSI_DriverRole \
+  --assume-role-policy-document file://ebs-csi-trust-policy.json
+aws iam attach-role-policy --role-name AmazonEKS_EBS_CSI_DriverRole \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+```
 
 ### GCP (GKE)
 - **Storage**: Persistent Disk with standard and premium options

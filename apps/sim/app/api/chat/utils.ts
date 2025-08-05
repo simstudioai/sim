@@ -10,10 +10,11 @@ import { hasAdminPermission } from '@/lib/permissions/utils'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { decryptSecret } from '@/lib/utils'
+import { getBlock } from '@/blocks'
 import { db } from '@/db'
 import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
-import type { BlockLog } from '@/executor/types'
+import type { BlockLog, ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -423,7 +424,22 @@ export async function executeWorkflowForChat(
 
   // Prepare for execution, similar to use-workflow-execution.ts
   const mergedStates = mergeSubblockState(blocks)
-  const currentBlockStates = Object.entries(mergedStates).reduce(
+
+  const filteredStates = Object.entries(mergedStates).reduce(
+    (acc, [id, block]) => {
+      const blockConfig = getBlock(block.type)
+      const isTriggerBlock = blockConfig?.category === 'triggers'
+
+      // Skip trigger blocks during chat execution
+      if (!isTriggerBlock) {
+        acc[id] = block
+      }
+      return acc
+    },
+    {} as typeof mergedStates
+  )
+
+  const currentBlockStates = Object.entries(filteredStates).reduce(
     (acc, [id, block]) => {
       acc[id] = Object.entries(block.subBlocks).reduce(
         (subAcc, [key, subBlock]) => {
@@ -465,10 +481,20 @@ export async function executeWorkflowForChat(
     logger.warn(`[${requestId}] Could not parse workflow variables:`, error)
   }
 
-  // Create serialized workflow
+  // Filter edges to exclude connections to/from trigger blocks (same as manual execution)
+  const triggerBlockIds = Object.keys(mergedStates).filter((id) => {
+    const blockConfig = getBlock(mergedStates[id].type)
+    return blockConfig?.category === 'triggers'
+  })
+
+  const filteredEdges = edges.filter(
+    (edge) => !triggerBlockIds.includes(edge.source) && !triggerBlockIds.includes(edge.target)
+  )
+
+  // Create serialized workflow with filtered blocks and edges
   const serializedWorkflow = new Serializer().serializeWorkflow(
-    mergedStates,
-    edges,
+    filteredStates,
+    filteredEdges,
     loops,
     parallels,
     true // Enable validation during execution
@@ -523,6 +549,7 @@ export async function executeWorkflowForChat(
     async start(controller) {
       const encoder = new TextEncoder()
       const streamedContent = new Map<string, string>()
+      const streamedBlocks = new Set<string>() // Track which blocks have started streaming
 
       const onStream = async (streamingExecution: any): Promise<void> => {
         if (!streamingExecution.stream) return
@@ -531,6 +558,15 @@ export async function executeWorkflowForChat(
         const reader = streamingExecution.stream.getReader()
         if (blockId) {
           streamedContent.set(blockId, '')
+
+          // Add separator if this is not the first block to stream
+          if (streamedBlocks.size > 0) {
+            // Send separator before the new block starts
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ blockId, chunk: '\n\n' })}\n\n`)
+            )
+          }
+          streamedBlocks.add(blockId)
         }
         try {
           while (true) {
@@ -562,7 +598,7 @@ export async function executeWorkflowForChat(
         contextExtensions: {
           stream: true,
           selectedOutputIds: selectedOutputIds.length > 0 ? selectedOutputIds : outputBlockIds,
-          edges: edges.map((e: any) => ({
+          edges: filteredEdges.map((e: any) => ({
             source: e.source,
             target: e.target,
           })),
@@ -589,25 +625,117 @@ export async function executeWorkflowForChat(
         throw error
       }
 
-      if (result && 'success' in result) {
-        // Update streamed content and apply tokenization
-        if (result.logs) {
-          result.logs.forEach((log: BlockLog) => {
-            if (streamedContent.has(log.blockId)) {
-              const content = streamedContent.get(log.blockId)
-              if (log.output) {
-                log.output.content = content
-              }
-            }
-          })
+      // Handle both ExecutionResult and StreamingExecution types
+      const executionResult =
+        result && typeof result === 'object' && 'execution' in result
+          ? (result.execution as ExecutionResult)
+          : (result as ExecutionResult)
 
-          // Process all logs for streaming tokenization
-          const processedCount = processStreamingBlockLogs(result.logs, streamedContent)
-          logger.info(`[CHAT-API] Processed ${processedCount} blocks for streaming tokenization`)
+      if (executionResult?.logs) {
+        // Update streamed content and apply tokenization - process regardless of overall success
+        // This ensures partial successes (some agents succeed, some fail) still return results
+
+        // Add newlines between different agent outputs for better readability
+        const processedOutputs = new Set<string>()
+        executionResult.logs.forEach((log: BlockLog) => {
+          if (streamedContent.has(log.blockId)) {
+            const content = streamedContent.get(log.blockId)
+            if (log.output && content) {
+              // Add newline separation between different outputs (but not before the first one)
+              const separator = processedOutputs.size > 0 ? '\n\n' : ''
+              log.output.content = separator + content
+              processedOutputs.add(log.blockId)
+            }
+          }
+        })
+
+        // Also process non-streamed outputs from selected blocks (like function blocks)
+        // This uses the same logic as the chat panel to ensure identical behavior
+        const nonStreamingLogs = executionResult.logs.filter(
+          (log: BlockLog) => !streamedContent.has(log.blockId)
+        )
+
+        // Extract the exact same functions used by the chat panel
+        const extractBlockIdFromOutputId = (outputId: string): string => {
+          return outputId.includes('_') ? outputId.split('_')[0] : outputId.split('.')[0]
         }
 
-        const { traceSpans, totalDuration } = buildTraceSpans(result)
-        const enrichedResult = { ...result, traceSpans, totalDuration }
+        const extractPathFromOutputId = (outputId: string, blockId: string): string => {
+          return outputId.substring(blockId.length + 1)
+        }
+
+        const parseOutputContentSafely = (output: any): any => {
+          if (!output?.content) {
+            return output
+          }
+
+          if (typeof output.content === 'string') {
+            try {
+              return JSON.parse(output.content)
+            } catch (e) {
+              // Fallback to original structure if parsing fails
+              return output
+            }
+          }
+
+          return output
+        }
+
+        // Filter outputs that have matching logs (exactly like chat panel)
+        const outputsToRender = selectedOutputIds.filter((outputId) => {
+          const blockIdForOutput = extractBlockIdFromOutputId(outputId)
+          return nonStreamingLogs.some((log) => log.blockId === blockIdForOutput)
+        })
+
+        // Process each selected output (exactly like chat panel)
+        for (const outputId of outputsToRender) {
+          const blockIdForOutput = extractBlockIdFromOutputId(outputId)
+          const path = extractPathFromOutputId(outputId, blockIdForOutput)
+          const log = nonStreamingLogs.find((l) => l.blockId === blockIdForOutput)
+
+          if (log) {
+            let outputValue: any = log.output
+
+            if (path) {
+              // Parse JSON content safely (exactly like chat panel)
+              outputValue = parseOutputContentSafely(outputValue)
+
+              const pathParts = path.split('.')
+              for (const part of pathParts) {
+                if (outputValue && typeof outputValue === 'object' && part in outputValue) {
+                  outputValue = outputValue[part]
+                } else {
+                  outputValue = undefined
+                  break
+                }
+              }
+            }
+
+            if (outputValue !== undefined) {
+              // Add newline separation between different outputs
+              const separator = processedOutputs.size > 0 ? '\n\n' : ''
+
+              // Format the output exactly like the chat panel
+              const formattedOutput =
+                typeof outputValue === 'string' ? outputValue : JSON.stringify(outputValue, null, 2)
+
+              // Update the log content
+              if (!log.output.content) {
+                log.output.content = separator + formattedOutput
+              } else {
+                log.output.content = separator + formattedOutput
+              }
+              processedOutputs.add(log.blockId)
+            }
+          }
+        }
+
+        // Process all logs for streaming tokenization
+        const processedCount = processStreamingBlockLogs(executionResult.logs, streamedContent)
+        logger.info(`Processed ${processedCount} blocks for streaming tokenization`)
+
+        const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
+        const enrichedResult = { ...executionResult, traceSpans, totalDuration }
         if (conversationId) {
           if (!enrichedResult.metadata) {
             enrichedResult.metadata = {
@@ -620,7 +748,7 @@ export async function executeWorkflowForChat(
         const executionId = uuidv4()
         logger.debug(`Generated execution ID for deployed chat: ${executionId}`)
 
-        if (result.success) {
+        if (executionResult.success) {
           try {
             await db
               .update(userStats)
@@ -643,12 +771,12 @@ export async function executeWorkflowForChat(
       }
 
       // Complete logging session (for both success and failure)
-      if (result && 'success' in result) {
-        const { traceSpans } = buildTraceSpans(result)
+      if (executionResult?.logs) {
+        const { traceSpans } = buildTraceSpans(executionResult)
         await loggingSession.safeComplete({
           endedAt: new Date().toISOString(),
-          totalDurationMs: result.metadata?.duration || 0,
-          finalOutput: result.output,
+          totalDurationMs: executionResult.metadata?.duration || 0,
+          finalOutput: executionResult.output,
           traceSpans,
         })
       }

@@ -14,7 +14,6 @@ import {
 } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console/logger'
-import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/tool-credential-selector'
 import { WebhookModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -331,7 +330,6 @@ export function WebhookConfig({
   const params = useParams()
   const workflowId = params.workflowId as string
   const [isLoading, setIsLoading] = useState(false)
-  const [gmailCredentialId, setGmailCredentialId] = useState<string>('')
 
   // No need to manage webhook status separately - it's determined by having provider + path
 
@@ -340,6 +338,9 @@ export function WebhookConfig({
 
   // Store the webhook path
   const [storeWebhookPath, setWebhookPath] = useSubBlockValue(blockId, 'webhookPath')
+
+  // Store Gmail credential from the dedicated subblock
+  const [storeGmailCredential, setGmailCredential] = useSubBlockValue(blockId, 'gmailCredential')
 
   // Don't auto-generate webhook paths - only create them when user actually configures a webhook
   // This prevents the "Active Webhook" badge from showing on unconfigured blocks
@@ -351,6 +352,7 @@ export function WebhookConfig({
   const webhookProvider = propValue?.webhookProvider ?? storeWebhookProvider
   const webhookPath = propValue?.webhookPath ?? storeWebhookPath
   const providerConfig = propValue?.providerConfig ?? storeProviderConfig
+  const gmailCredentialId = storeGmailCredential || ''
 
   // Store the actual provider from the database
   const [actualProvider, setActualProvider] = useState<string | null>(null)
@@ -444,7 +446,7 @@ export function WebhookConfig({
 
       // Clear component state
       setError(null)
-      setGmailCredentialId('')
+      setGmailCredential('')
 
       // Note: Store will be cleared AFTER successful database deletion
       // This ensures store and database stay perfectly in sync
@@ -695,30 +697,11 @@ export function WebhookConfig({
   // Check if the webhook is connected for the selected provider
   const isWebhookConnected = webhookId && webhookProvider === actualProvider
 
-  const handleCredentialChange = (credentialId: string) => {
-    if (isPreview || disabled) return
-    setGmailCredentialId(credentialId)
-  }
-
-  // For Gmail, we need to show the credential selector
+  // For Gmail, show configure button when credential is available and webhook not connected
   if (webhookProvider === 'gmail' && !isWebhookConnected) {
     return (
       <div className='w-full'>
         {error && <div className='mb-2 text-red-500 text-sm dark:text-red-400'>{error}</div>}
-
-        <div className='mb-3'>
-          <ToolCredentialSelector
-            value={gmailCredentialId}
-            onChange={handleCredentialChange}
-            provider='google-email'
-            requiredScopes={[
-              'https://www.googleapis.com/auth/gmail.modify',
-              'https://www.googleapis.com/auth/gmail.labels',
-            ]}
-            label='Select Gmail account'
-            disabled={isConnecting || isSaving || isDeleting || isPreview || disabled}
-          />
-        </div>
 
         {gmailCredentialId && (
           <Button

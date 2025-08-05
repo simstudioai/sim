@@ -200,10 +200,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockTags = schemaFields.map((field) => `${normalizedBlockName}.${field.name}`)
         } else {
           // Fallback to default if schema extraction failed
-          const outputPaths = generateOutputPaths(blockConfig.outputs)
+          const outputPaths = generateOutputPaths(blockConfig.outputs || {})
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
-      } else if (Object.keys(blockConfig.outputs).length === 0) {
+      } else if (!blockConfig.outputs || Object.keys(blockConfig.outputs).length === 0) {
         // Handle blocks with no outputs (like starter) - check for custom input fields
         if (sourceBlock.type === 'starter') {
           // Check what start workflow mode is selected
@@ -240,7 +240,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         }
       } else {
         // Use default block outputs
-        const outputPaths = generateOutputPaths(blockConfig.outputs)
+        const outputPaths = generateOutputPaths(blockConfig.outputs || {})
         blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
       }
 
@@ -475,10 +475,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockTags = schemaFields.map((field) => `${normalizedBlockName}.${field.name}`)
         } else {
           // Fallback to default if schema extraction failed
-          const outputPaths = generateOutputPaths(blockConfig.outputs)
+          const outputPaths = generateOutputPaths(blockConfig.outputs || {})
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
-      } else if (Object.keys(blockConfig.outputs).length === 0) {
+      } else if (!blockConfig.outputs || Object.keys(blockConfig.outputs).length === 0) {
         // Handle blocks with no outputs (like starter) - check for custom input fields
         if (accessibleBlock.type === 'starter') {
           // Check what start workflow mode is selected
@@ -515,7 +515,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         }
       } else {
         // Use default block outputs
-        const outputPaths = generateOutputPaths(blockConfig.outputs)
+        const outputPaths = generateOutputPaths(blockConfig.outputs || {})
         blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
       }
 
