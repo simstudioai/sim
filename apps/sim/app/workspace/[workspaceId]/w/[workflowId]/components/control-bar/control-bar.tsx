@@ -32,6 +32,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
+import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -998,10 +999,11 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   return (
     <div className='fixed top-4 right-4 z-20 flex items-center gap-1'>
       {renderDisconnectionNotice()}
-      {renderToggleButton()}
-      {isExpanded && <ExportControls />}
-      {isExpanded && renderAutoLayoutButton()}
-      {isExpanded && renderDuplicateButton()}
+      {!isDev && renderToggleButton()}
+      {isExpanded && !isDev && <ExportControls />}
+      {isExpanded && !isDev && renderAutoLayoutButton()}
+      {!isDev && isExpanded && renderDuplicateButton()}
+      {isDev && renderDuplicateButton()}
       {renderDeleteButton()}
       {!isDebugging && renderDebugModeToggle()}
       {renderPublishButton()}
