@@ -1752,6 +1752,7 @@ export const useCopilotStore = create<CopilotStore>()(
             mode,
             createNewChat: !currentChat,
             stream,
+            fileAttachments: options.fileAttachments,
             abortSignal: abortController.signal,
           })
 

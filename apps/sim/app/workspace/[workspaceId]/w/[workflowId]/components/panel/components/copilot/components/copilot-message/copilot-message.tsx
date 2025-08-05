@@ -1,7 +1,7 @@
 'use client'
 
 import { type FC, memo, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Clipboard, Loader2, RotateCcw, ThumbsDown, ThumbsUp, X } from 'lucide-react'
+import { Check, Clipboard, FileText, Image, Loader2, RotateCcw, ThumbsDown, ThumbsUp, X } from 'lucide-react'
 import { InlineToolCall } from '@/lib/copilot/tools/inline-tool-call'
 import { createLogger } from '@/lib/logs/console/logger'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
@@ -37,6 +37,47 @@ const StreamingIndicator = memo(() => (
 ))
 
 StreamingIndicator.displayName = 'StreamingIndicator'
+
+// File attachment display component
+interface FileAttachmentDisplayProps {
+  fileAttachments: any[]
+}
+
+const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayProps) => {
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+  }
+
+  const getFileIcon = (mediaType: string) => {
+    if (mediaType.startsWith('image/')) {
+      return <Image className='h-4 w-4' />
+    }
+    return <FileText className='h-4 w-4' />
+  }
+
+  return (
+    <div className='mt-2 space-y-1'>
+      {fileAttachments.map((file) => (
+        <div
+          key={file.id}
+          className='flex items-center gap-2 rounded-md bg-muted/50 px-2 py-1 text-xs'
+        >
+          {getFileIcon(file.media_type)}
+          <span className='flex-1 truncate'>{file.filename}</span>
+          <span className='text-muted-foreground'>
+            {formatFileSize(file.size)}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+})
+
+FileAttachmentDisplay.displayName = 'FileAttachmentDisplay'
 
 // Smooth streaming text component with typewriter effect
 interface SmoothStreamingTextProps {
@@ -490,6 +531,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 <div className='whitespace-pre-wrap break-words font-normal text-base text-foreground leading-relaxed'>
                   <WordWrap text={message.content} />
                 </div>
+                {message.fileAttachments && message.fileAttachments.length > 0 && (
+                  <FileAttachmentDisplay fileAttachments={message.fileAttachments} />
+                )}
               </div>
               {hasCheckpoints && (
                 <div className='mt-1 flex justify-end'>

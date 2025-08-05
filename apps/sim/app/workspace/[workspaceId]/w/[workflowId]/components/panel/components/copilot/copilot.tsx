@@ -251,12 +251,12 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
   // Handle message submission
   const handleSubmit = useCallback(
-    async (query: string) => {
+    async (query: string, fileAttachments?: any[]) => {
       if (!query || isSendingMessage || !activeWorkflowId) return
 
       try {
-        await sendMessage(query, { stream: true })
-        logger.info('Sent message:', query)
+        await sendMessage(query, { stream: true, fileAttachments })
+        logger.info('Sent message:', query, fileAttachments ? `with ${fileAttachments.length} attachments` : '')
       } catch (error) {
         logger.error('Failed to send message:', error)
       }

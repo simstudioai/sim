@@ -230,6 +230,30 @@ export async function downloadFromS3(key: string) {
 }
 
 /**
+ * Download a file from S3 with custom bucket configuration
+ * @param key S3 object key
+ * @param customConfig Custom S3 configuration
+ * @returns File buffer
+ */
+export async function downloadFromS3WithConfig(key: string, customConfig: CustomS3Config) {
+  const command = new GetObjectCommand({
+    Bucket: customConfig.bucket,
+    Key: key,
+  })
+
+  const response = await getS3Client().send(command)
+  const stream = response.Body as any
+
+  // Convert stream to buffer
+  return new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = []
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk))
+    stream.on('end', () => resolve(Buffer.concat(chunks)))
+    stream.on('error', reject)
+  })
+}
+
+/**
  * Delete a file from S3
  * @param key S3 object key
  */

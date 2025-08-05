@@ -15,8 +15,26 @@ import { cn } from '@/lib/utils'
 import { useSession } from '@/lib/auth-client'
 import { useCopilotStore } from '@/stores/copilot/store'
 
+interface MessageFileAttachment {
+  id: string
+  s3_key: string
+  filename: string
+  media_type: string
+  size: number
+}
+
+interface AttachedFile {
+  id: string
+  name: string
+  size: number
+  type: string
+  path: string
+  key?: string // Add key field to store the actual S3 key
+  uploading: boolean
+}
+
 interface UserInputProps {
-  onSubmit: (message: string) => void
+  onSubmit: (message: string, fileAttachments?: MessageFileAttachment[]) => void
   onAbort?: () => void
   disabled?: boolean
   isLoading?: boolean
@@ -27,15 +45,6 @@ interface UserInputProps {
   onModeChange?: (mode: 'ask' | 'agent') => void
   value?: string // Controlled value from outside
   onChange?: (value: string) => void // Callback when value changes
-}
-
-interface AttachedFile {
-  id: string
-  name: string
-  size: number
-  type: string
-  path: string
-  uploading?: boolean
 }
 
 interface UserInputRef {
@@ -96,13 +105,26 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       const trimmedMessage = message.trim()
       if (!trimmedMessage || disabled || isLoading) return
 
-      onSubmit(trimmedMessage)
-      // Clear the message after submit
+      // Convert attached files to the format expected by the API
+      const fileAttachments = attachedFiles
+        .filter(f => !f.uploading && f.key) // Only include successfully uploaded files with keys
+        .map(f => ({
+          id: f.id,
+          s3_key: f.key!, // Use the actual S3 key stored from the upload response
+          filename: f.name,
+          media_type: f.type,
+          size: f.size,
+        }))
+
+      onSubmit(trimmedMessage, fileAttachments)
+      
+      // Clear the message and files after submit
       if (controlledValue !== undefined) {
         onControlledChange?.('')
       } else {
         setInternalMessage('')
       }
+      setAttachedFiles([])
     }
 
     const handleAbort = () => {
@@ -137,10 +159,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
       const file = files[0]
       const userId = session?.user?.id
-      const chatId = currentChat?.id
 
-      if (!userId || !chatId) {
-        console.error('User ID or Chat ID not available for file upload')
+      if (!userId) {
+        console.error('User ID not available for file upload')
         return
       }
 
@@ -168,7 +189,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             contentType: file.type,
             fileSize: file.size,
             userId,
-            chatId,
           }),
         })
 
@@ -203,6 +223,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               ? {
                   ...f,
                   path: presignedData.fileInfo.path,
+                  key: presignedData.fileInfo.key, // Store the actual S3 key
                   uploading: false,
                 }
               : f

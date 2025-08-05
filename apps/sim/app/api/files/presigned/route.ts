@@ -96,9 +96,6 @@ export async function POST(request: NextRequest) {
       if (!userId?.trim()) {
         throw new ValidationError('userId is required for copilot uploads')
       }
-      if (!chatId?.trim()) {
-        throw new ValidationError('chatId is required for copilot uploads')
-      }
     }
 
     if (!isUsingCloudStorage()) {
@@ -112,9 +109,9 @@ export async function POST(request: NextRequest) {
 
     switch (storageProvider) {
       case 's3':
-        return await handleS3PresignedUrl(fileName, contentType, fileSize, uploadType, userId, chatId)
+        return await handleS3PresignedUrl(fileName, contentType, fileSize, uploadType, userId)
       case 'blob':
-        return await handleBlobPresignedUrl(fileName, contentType, fileSize, uploadType, userId, chatId)
+        return await handleBlobPresignedUrl(fileName, contentType, fileSize, uploadType, userId)
       default:
         throw new StorageConfigError(`Unknown storage provider: ${storageProvider}`)
     }
@@ -143,8 +140,7 @@ async function handleS3PresignedUrl(
   contentType: string,
   fileSize: number,
   uploadType: UploadType,
-  userId?: string,
-  chatId?: string
+  userId?: string
 ) {
   try {
     const config =
@@ -168,7 +164,7 @@ async function handleS3PresignedUrl(
     } else if (uploadType === 'chat') {
       prefix = 'chat/'
     } else if (uploadType === 'copilot') {
-      prefix = `${userId}/${chatId}/`
+      prefix = `${userId}/`  // Simplified to just userId, removed chatId
     }
     
     const uniqueKey = `${prefix}${uuidv4()}-${safeFileName}`
@@ -187,7 +183,6 @@ async function handleS3PresignedUrl(
     } else if (uploadType === 'copilot') {
       metadata.purpose = 'copilot'
       metadata.userId = userId || ''
-      metadata.chatId = chatId || ''
     }
 
     const command = new PutObjectCommand({
@@ -244,8 +239,7 @@ async function handleBlobPresignedUrl(
   contentType: string,
   fileSize: number,
   uploadType: UploadType,
-  userId?: string,
-  chatId?: string
+  userId?: string
 ) {
   try {
     const config =
@@ -273,7 +267,7 @@ async function handleBlobPresignedUrl(
     } else if (uploadType === 'chat') {
       prefix = 'chat/'
     } else if (uploadType === 'copilot') {
-      prefix = `${userId}/${chatId}/`
+      prefix = `${userId}/`  // Simplified to just userId, removed chatId
     }
     
     const uniqueKey = `${prefix}${uuidv4()}-${safeFileName}`
@@ -331,7 +325,7 @@ async function handleBlobPresignedUrl(
     } else if (uploadType === 'copilot') {
       uploadHeaders['x-ms-meta-purpose'] = 'copilot'
       uploadHeaders['x-ms-meta-userid'] = encodeURIComponent(userId || '')
-      uploadHeaders['x-ms-meta-chatid'] = encodeURIComponent(chatId || '')
+      // Removed chatId - no longer needed
     }
 
     return NextResponse.json({
