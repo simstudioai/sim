@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, Plus, X } from 'lucide-react'
+import { ChevronDown, Info, Plus, X } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -20,9 +20,14 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from '@/components/ui'
-import { MAX_TAG_SLOTS, TAG_SLOTS, type TagSlot } from '@/lib/constants/knowledge'
+import { MAX_TAG_SLOTS, type TagSlot } from '@/lib/constants/knowledge'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
+import { useNextAvailableSlot } from '@/hooks/use-next-available-slot'
 import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/use-tag-definitions'
 
 export interface DocumentTag {
@@ -52,6 +57,7 @@ export function DocumentTagEntry({
   // Use different hooks based on whether we have a documentId
   const documentTagHook = useTagDefinitions(knowledgeBaseId, documentId)
   const kbTagHook = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
+  const { getNextAvailableSlot: getServerNextSlot } = useNextAvailableSlot(knowledgeBaseId)
 
   // Use the document-level hook since we have documentId
   const { saveTagDefinitions } = documentTagHook
@@ -65,17 +71,6 @@ export function DocumentTagEntry({
     fieldType: 'text',
     value: '',
   })
-
-  const getNextAvailableSlot = (): DocumentTag['slot'] => {
-    // Check which slots are used at the KB level (tag definitions)
-    const usedSlots = new Set(kbTagDefinitions.map((def) => def.tagSlot))
-    for (const slot of TAG_SLOTS) {
-      if (!usedSlots.has(slot)) {
-        return slot
-      }
-    }
-    return TAG_SLOTS[0] // Fallback to first slot if all are used
-  }
 
   const handleRemoveTag = async (index: number) => {
     const updatedTags = tags.filter((_, i) => i !== index)
@@ -117,15 +112,36 @@ export function DocumentTagEntry({
 
   // Save tag from modal
   const saveTagFromModal = async () => {
-    if (!editForm.displayName.trim()) return
+    if (!editForm.displayName.trim() || !editForm.value.trim()) return
 
     try {
-      // Calculate slot once at the beginning
-      const targetSlot =
-        editingTagIndex !== null ? tags[editingTagIndex].slot : getNextAvailableSlot()
+      let targetSlot: string
 
       if (editingTagIndex !== null) {
-        // Editing existing tag - use existing slot
+        // EDIT MODE: Editing existing tag - use existing slot
+        targetSlot = tags[editingTagIndex].slot
+      } else {
+        // CREATE MODE: Check if using existing definition or creating new one
+        const existingDefinition = kbTagDefinitions.find(
+          (def) => def.displayName.toLowerCase() === editForm.displayName.toLowerCase()
+        )
+
+        if (existingDefinition) {
+          // Using existing definition - use its slot
+          targetSlot = existingDefinition.tagSlot
+        } else {
+          // Creating new definition - get next available slot from server
+          const serverSlot = await getServerNextSlot(editForm.fieldType)
+          if (!serverSlot) {
+            throw new Error(`No available slots for new tag of type '${editForm.fieldType}'`)
+          }
+          targetSlot = serverSlot
+        }
+      }
+
+      // Update the tags array
+      if (editingTagIndex !== null) {
+        // Editing existing tag
         const updatedTags = [...tags]
         updatedTags[editingTagIndex] = {
           ...updatedTags[editingTagIndex],
@@ -135,7 +151,7 @@ export function DocumentTagEntry({
         }
         onTagsChange(updatedTags)
       } else {
-        // Creating new tag - use calculated slot
+        // Creating new tag
         const newTag: DocumentTag = {
           slot: targetSlot,
           displayName: editForm.displayName,
@@ -146,25 +162,60 @@ export function DocumentTagEntry({
         onTagsChange(newTags)
       }
 
-      // Auto-save tag definition if it's a new name
-      const existingDefinition = kbTagDefinitions.find(
-        (def) => def.displayName.toLowerCase() === editForm.displayName.toLowerCase()
-      )
+      // Handle tag definition creation/update based on edit mode
+      if (editingTagIndex !== null) {
+        // EDIT MODE: Always update existing definition, never create new slots
+        const currentTag = tags[editingTagIndex]
+        const currentDefinition = kbTagDefinitions.find(
+          (def) => def.displayName.toLowerCase() === currentTag.displayName.toLowerCase()
+        )
 
-      if (!existingDefinition) {
-        // Use the same slot for both tag and definition
-        const newDefinition: TagDefinitionInput = {
-          displayName: editForm.displayName,
-          fieldType: editForm.fieldType,
-          tagSlot: targetSlot as TagSlot,
-        }
+        if (currentDefinition) {
+          const updatedDefinition: TagDefinitionInput = {
+            displayName: editForm.displayName,
+            fieldType: currentDefinition.fieldType, // Keep existing field type (can't change in edit mode)
+            tagSlot: currentDefinition.tagSlot, // Keep existing slot
+            _originalDisplayName: currentTag.displayName, // Tell server which definition to update
+          }
 
-        if (saveTagDefinitions) {
-          await saveTagDefinitions([newDefinition])
-        } else {
-          throw new Error('Cannot save tag definitions without a document ID')
+          if (saveTagDefinitions) {
+            await saveTagDefinitions([updatedDefinition])
+          } else {
+            throw new Error('Cannot save tag definitions without a document ID')
+          }
+          await refreshTagDefinitions()
+
+          // Update the document tag's display name
+          const updatedTags = [...tags]
+          updatedTags[editingTagIndex] = {
+            ...currentTag,
+            displayName: editForm.displayName,
+            fieldType: currentDefinition.fieldType,
+          }
+          onTagsChange(updatedTags)
         }
-        await refreshTagDefinitions()
+      } else {
+        // CREATE MODE: Adding new tag
+        const existingDefinition = kbTagDefinitions.find(
+          (def) => def.displayName.toLowerCase() === editForm.displayName.toLowerCase()
+        )
+
+        if (!existingDefinition) {
+          // Create new definition
+          const newDefinition: TagDefinitionInput = {
+            displayName: editForm.displayName,
+            fieldType: editForm.fieldType,
+            tagSlot: targetSlot as TagSlot,
+          }
+
+          if (saveTagDefinitions) {
+            await saveTagDefinitions([newDefinition])
+          } else {
+            throw new Error('Cannot save tag definitions without a document ID')
+          }
+          await refreshTagDefinitions()
+        }
+        // If existingDefinition exists, use it (no server update needed)
       }
 
       // Save the actual document tags if onSave is provided
@@ -194,13 +245,24 @@ export function DocumentTagEntry({
       }
 
       setModalOpen(false)
-    } catch (error) {}
+    } catch (error) {
+      console.error('Error saving tag:', error)
+    }
   }
 
-  // Filter available tag definitions (exclude already used ones)
-  const availableDefinitions = kbTagDefinitions.filter(
-    (def) => !tags.some((tag) => tag.displayName.toLowerCase() === def.displayName.toLowerCase())
-  )
+  // Filter available tag definitions based on context
+  const availableDefinitions = kbTagDefinitions.filter((def) => {
+    if (editingTagIndex !== null) {
+      // When editing, exclude only other used tag names (not the current one being edited)
+      return !tags.some(
+        (tag, index) =>
+          index !== editingTagIndex &&
+          tag.displayName.toLowerCase() === def.displayName.toLowerCase()
+      )
+    }
+    // When creating new, exclude all already used tag names
+    return !tags.some((tag) => tag.displayName.toLowerCase() === def.displayName.toLowerCase())
+  })
 
   return (
     <div className='space-y-4'>
@@ -244,7 +306,7 @@ export function DocumentTagEntry({
           variant='outline'
           size='sm'
           onClick={openNewTagModal}
-          disabled={disabled || tags.length >= MAX_TAG_SLOTS}
+          disabled={disabled}
           className='gap-1 border-dashed text-muted-foreground hover:text-foreground'
         >
           <Plus className='h-4 w-4' />
@@ -274,7 +336,24 @@ export function DocumentTagEntry({
           <div className='space-y-4'>
             {/* Tag Name */}
             <div className='space-y-2'>
-              <Label htmlFor='tag-name'>Tag Name</Label>
+              <div className='flex items-center gap-2'>
+                <Label htmlFor='tag-name'>Tag Name</Label>
+                {editingTagIndex !== null && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className='h-4 w-4 cursor-help text-muted-foreground' />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className='text-sm'>
+                          Changing this tag name will update it for all documents in this knowledge
+                          base
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
               <div className='flex gap-2'>
                 <Input
                   id='tag-name'
@@ -283,7 +362,7 @@ export function DocumentTagEntry({
                   placeholder='Enter tag name'
                   className='flex-1'
                 />
-                {availableDefinitions.length > 0 && (
+                {editingTagIndex === null && availableDefinitions.length > 0 && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant='outline' size='sm'>
@@ -317,6 +396,7 @@ export function DocumentTagEntry({
               <Select
                 value={editForm.fieldType}
                 onValueChange={(value) => setEditForm({ ...editForm, fieldType: value })}
+                disabled={editingTagIndex !== null} // Disable in edit mode
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -339,12 +419,60 @@ export function DocumentTagEntry({
             </div>
           </div>
 
+          {/* Show warning when at max slots in create mode */}
+          {editingTagIndex === null && kbTagDefinitions.length >= MAX_TAG_SLOTS && (
+            <div className='rounded-md border border-amber-200 bg-amber-50 p-3'>
+              <div className='flex items-center gap-2 text-amber-800 text-sm'>
+                <span className='font-medium'>Maximum tag definitions reached</span>
+              </div>
+              <p className='mt-1 text-amber-700 text-xs'>
+                You can still use existing tag definitions from the dropdown, but cannot create new
+                ones.
+              </p>
+            </div>
+          )}
+
           <div className='flex justify-end gap-2 pt-4'>
             <Button variant='outline' onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={saveTagFromModal} disabled={!editForm.displayName.trim()}>
-              {editingTagIndex !== null ? 'Save Changes' : 'Add Tag'}
+            <Button
+              onClick={saveTagFromModal}
+              disabled={(() => {
+                if (!editForm.displayName.trim()) return true
+
+                // In edit mode, always allow
+                if (editingTagIndex !== null) return false
+
+                // In create mode, check if we're creating a new definition at max slots
+                const existingDefinition = kbTagDefinitions.find(
+                  (def) => def.displayName.toLowerCase() === editForm.displayName.toLowerCase()
+                )
+
+                // If using existing definition, allow
+                if (existingDefinition) return false
+
+                // If creating new definition and at max slots, disable
+                return kbTagDefinitions.length >= MAX_TAG_SLOTS
+              })()}
+            >
+              {(() => {
+                if (editingTagIndex !== null) {
+                  return 'Save Changes'
+                }
+
+                const existingDefinition = kbTagDefinitions.find(
+                  (def) => def.displayName.toLowerCase() === editForm.displayName.toLowerCase()
+                )
+
+                if (existingDefinition) {
+                  return 'Use Existing Tag'
+                }
+                if (kbTagDefinitions.length >= MAX_TAG_SLOTS) {
+                  return 'Max Tags Reached'
+                }
+                return 'Create New Tag'
+              })()}
             </Button>
           </div>
         </DialogContent>

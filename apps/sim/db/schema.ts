@@ -822,6 +822,11 @@ export const knowledgeBaseTagDefinitions = pgTable(
       table.knowledgeBaseId,
       table.tagSlot
     ),
+    // Ensure unique display name per knowledge base
+    kbDisplayNameIdx: uniqueIndex('kb_tag_definitions_kb_display_name_idx').on(
+      table.knowledgeBaseId,
+      table.displayName
+    ),
     // Index for querying by knowledge base
     kbIdIdx: index('kb_tag_definitions_kb_id_idx').on(table.knowledgeBaseId),
   })
