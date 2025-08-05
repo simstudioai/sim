@@ -16,7 +16,6 @@ const logger = createLogger('FolderTree')
 interface FolderSectionProps {
   folder: FolderTreeNode
   level: number
-  isCollapsed: boolean
   onCreateWorkflow: (folderId?: string) => void
   workflowsByFolder: Record<string, WorkflowMetadata[]>
   expandedFolders: Set<string>
@@ -32,10 +31,45 @@ interface FolderSectionProps {
   isFirstItem?: boolean
 }
 
+// Helper function to count visible items, excluding content of the last expanded folder
+const countVisibleItemsForLine = (
+  folder: FolderTreeNode,
+  workflowsByFolder: Record<string, WorkflowMetadata[]>,
+  expandedFolders: Set<string>
+): number => {
+  if (!expandedFolders.has(folder.id)) {
+    return 0 // Folder is collapsed, no visible children
+  }
+
+  let count = 0
+  const workflowsInFolder = workflowsByFolder[folder.id] || []
+
+  // Count workflows in this folder
+  count += workflowsInFolder.length
+
+  // Count child folders
+  folder.children.forEach((childFolder, index) => {
+    const isLastChildFolder = index === folder.children.length - 1
+    // In the rendering order: workflows come first, then folders
+    // So if this is the last child folder, it's the absolute last item
+    const isAbsoluteLastItem = isLastChildFolder
+
+    count += 1 // The folder itself
+
+    // Only include expanded content if this is NOT the absolute last item
+    if (!isAbsoluteLastItem) {
+      count += countVisibleItemsForLine(childFolder, workflowsByFolder, expandedFolders)
+    }
+    // If this IS the last folder and it's expanded, we don't count its content
+    // because the line should stop at this folder's connection point
+  })
+
+  return count
+}
+
 function FolderSection({
   folder,
   level,
-  isCollapsed,
   onCreateWorkflow,
   workflowsByFolder,
   expandedFolders,
@@ -61,30 +95,24 @@ function FolderSection({
   const hasChildren = workflowsInFolder.length > 0 || folder.children.length > 0
   const isExpanded = expandedFolders.has(folder.id)
 
+  // Calculate the height for the vertical connecting line
+  const visibleItemsCount = countVisibleItemsForLine(folder, workflowsByFolder, expandedFolders)
+  const lineHeight = visibleItemsCount > 0 ? (visibleItemsCount - 1) * 36 + 24 : 0
+
   return (
     <div
       className={clsx(
-        isDragOver
-          ? isInvalidDrop
-            ? 'rounded-md bg-red-500/10 dark:bg-red-400/10'
-            : 'rounded-md bg-blue-500/10 dark:bg-blue-400/10'
-          : ''
+        'relative',
+        isDragOver &&
+          (isInvalidDrop
+            ? 'before:pointer-events-none before:absolute before:inset-0 before:rounded-[8px] before:border before:border-destructive/50 before:bg-destructive/15'
+            : 'before:pointer-events-none before:absolute before:inset-0 before:rounded-[8px] before:border before:border-muted-foreground/50 before:bg-muted/20')
       )}
-      style={
-        isDragOver
-          ? {
-              boxShadow: isInvalidDrop
-                ? 'inset 0 0 0 1px rgb(239 68 68 / 0.5)'
-                : 'inset 0 0 0 1px rgb(59 130 246 / 0.5)',
-            }
-          : {}
-      }
     >
       {/* Render folder */}
-      <div style={{ paddingLeft: isCollapsed ? '0px' : `${level * 20}px` }}>
+      <div style={{ paddingLeft: `${level * 20}px` }}>
         <FolderItem
           folder={folder}
-          isCollapsed={isCollapsed}
           onCreateWorkflow={onCreateWorkflow}
           dragOver={isDragOver}
           onDragOver={handleDragOver}
@@ -99,14 +127,14 @@ function FolderSection({
       {isExpanded && hasChildren && (
         <div className='relative'>
           {/* Vertical line from folder icon to children */}
-          {!isCollapsed && (workflowsInFolder.length > 0 || folder.children.length > 0) && (
+          {(workflowsInFolder.length > 0 || folder.children.length > 0) && (
             <div
               className='pointer-events-none absolute'
               style={{
                 left: `${level * 20 + 16}px`,
                 top: '-9px',
                 width: '1px',
-                height: `${(workflowsInFolder.length + folder.children.length - 1) * 40 + 24}px`,
+                height: `${lineHeight}px`,
                 background: 'hsl(var(--muted-foreground) / 0.3)',
                 zIndex: 1,
               }}
@@ -119,41 +147,36 @@ function FolderSection({
               {workflowsInFolder.map((workflow, index) => (
                 <div key={workflow.id} className='relative'>
                   {/* Curved corner */}
-                  {!isCollapsed && (
-                    <div
-                      className='pointer-events-none absolute'
-                      style={{
-                        left: `${level * 20 + 16}px`,
-                        top: '15px',
-                        width: '4px',
-                        height: '4px',
-                        borderLeft: '1px solid hsl(var(--muted-foreground) / 0.3)',
-                        borderBottom: '1px solid hsl(var(--muted-foreground) / 0.3)',
-                        borderBottomLeftRadius: '4px',
-                        zIndex: 1,
-                      }}
-                    />
-                  )}
+                  <div
+                    className='pointer-events-none absolute'
+                    style={{
+                      left: `${level * 20 + 16}px`,
+                      top: '15px',
+                      width: '4px',
+                      height: '4px',
+                      borderLeft: '1px solid hsl(var(--muted-foreground) / 0.3)',
+                      borderBottom: '1px solid hsl(var(--muted-foreground) / 0.3)',
+                      borderBottomLeftRadius: '4px',
+                      zIndex: 1,
+                    }}
+                  />
                   {/* Horizontal line to workflow */}
-                  {!isCollapsed && (
-                    <div
-                      className='pointer-events-none absolute'
-                      style={{
-                        left: `${level * 20 + 20}px`,
-                        top: '18px',
-                        width: '7px',
-                        height: '1px',
-                        background: 'hsl(var(--muted-foreground) / 0.3)',
-                        zIndex: 1,
-                      }}
-                    />
-                  )}
+                  <div
+                    className='pointer-events-none absolute'
+                    style={{
+                      left: `${level * 20 + 20}px`,
+                      top: '18px',
+                      width: '7px',
+                      height: '1px',
+                      background: 'hsl(var(--muted-foreground) / 0.3)',
+                      zIndex: 1,
+                    }}
+                  />
                   {/* Workflow container with proper indentation */}
-                  <div style={{ paddingLeft: isCollapsed ? '0px' : `${(level + 1) * 20 + 8}px` }}>
+                  <div style={{ paddingLeft: `${(level + 1) * 20 + 8}px` }}>
                     <WorkflowItem
                       workflow={workflow}
                       active={pathname === `/workspace/${workspaceId}/w/${workflow.id}`}
-                      isCollapsed={isCollapsed}
                       level={level}
                       isDragOver={isAnyDragOver}
                     />
@@ -169,41 +192,36 @@ function FolderSection({
               {folder.children.map((childFolder, index) => (
                 <div key={childFolder.id} className='relative'>
                   {/* Curved corner */}
-                  {!isCollapsed && (
-                    <div
-                      className='pointer-events-none absolute'
-                      style={{
-                        left: `${level * 20 + 16}px`,
-                        top: '15px',
-                        width: '4px',
-                        height: '4px',
-                        borderLeft: '1px solid hsl(var(--muted-foreground) / 0.3)',
-                        borderBottom: '1px solid hsl(var(--muted-foreground) / 0.3)',
-                        borderBottomLeftRadius: '4px',
-                        zIndex: 1,
-                      }}
-                    />
-                  )}
+                  <div
+                    className='pointer-events-none absolute'
+                    style={{
+                      left: `${level * 20 + 16}px`,
+                      top: '15px',
+                      width: '4px',
+                      height: '4px',
+                      borderLeft: '1px solid hsl(var(--muted-foreground) / 0.3)',
+                      borderBottom: '1px solid hsl(var(--muted-foreground) / 0.3)',
+                      borderBottomLeftRadius: '4px',
+                      zIndex: 1,
+                    }}
+                  />
                   {/* Horizontal line to child folder */}
-                  {!isCollapsed && (
-                    <div
-                      className='pointer-events-none absolute'
-                      style={{
-                        left: `${level * 20 + 20}px`,
-                        top: '18px',
-                        width: '5px',
-                        height: '1px',
-                        background: 'hsl(var(--muted-foreground) / 0.3)',
-                        zIndex: 1,
-                      }}
-                    />
-                  )}
-                  <div style={{ paddingLeft: isCollapsed ? '0px' : '8px' }}>
+                  <div
+                    className='pointer-events-none absolute'
+                    style={{
+                      left: `${level * 20 + 20}px`,
+                      top: '18px',
+                      width: '5px',
+                      height: '1px',
+                      background: 'hsl(var(--muted-foreground) / 0.3)',
+                      zIndex: 1,
+                    }}
+                  />
+                  <div style={{ paddingLeft: '8px' }}>
                     <FolderSection
                       key={childFolder.id}
                       folder={childFolder}
                       level={level + 1}
-                      isCollapsed={isCollapsed}
                       onCreateWorkflow={onCreateWorkflow}
                       workflowsByFolder={workflowsByFolder}
                       expandedFolders={expandedFolders}
@@ -254,10 +272,13 @@ function useDragHandlers(
         targetFolderId === draggedFolderId ||
         draggedFolderPath.some((ancestor) => ancestor.id === targetFolderId)
 
-      // Check for deep nesting (target folder already has a parent)
-      const wouldBeDeepNesting = targetFolderPath.length >= 1
+      // Check for deep nesting - prevent triple nesting (folder -> folder -> folder)
+      // targetFolderPath includes the target folder itself, so:
+      // - length 1: root folder (allow drop - creates 2 levels: target -> dropped)
+      // - length 2: nested folder (prevent drop - would create 3 levels: grandparent -> target -> dropped)
+      const wouldBeTripleNested = targetFolderPath.length >= 2
 
-      setIsInvalidDrop(isCircular || wouldBeDeepNesting)
+      setIsInvalidDrop(isCircular || wouldBeTripleNested)
     } else {
       setIsInvalidDrop(false)
     }
@@ -295,7 +316,7 @@ function useDragHandlers(
     const folderIdData = e.dataTransfer.getData('folder-id')
     if (folderIdData) {
       try {
-        // Check if the target folder would create more than 2 levels of nesting
+        // Check if the target folder would create triple nesting
         const folderStore = useFolderStore.getState()
         const targetFolderPath = targetFolderId ? folderStore.getFolderPath(targetFolderId) : []
 
@@ -315,13 +336,19 @@ function useDragHandlers(
           return
         }
 
-        // If target folder is already at level 1 (has 1 parent), we can't nest another folder
-        if (targetFolderPath.length >= 1) {
-          logger.info('Cannot nest folder: Maximum 2 levels of nesting allowed. Drop prevented.')
+        // Prevent triple nesting: folder -> folder -> folder
+        // targetFolderPath includes the target folder itself, so:
+        // - length 0: dropping into root (creates 1 level)
+        // - length 1: dropping into root folder (creates 2 levels: target -> dropped) - allowed
+        // - length 2+: dropping into nested folder (creates 3+ levels) - prevent
+        if (targetFolderPath.length >= 2) {
+          logger.info(
+            'Cannot nest folder: Maximum 2 levels of nesting allowed (folder -> folder). Triple nesting prevented.'
+          )
           return // Prevent the drop entirely
         }
 
-        // Target folder is at root level, safe to nest
+        // Safe to nest - either dropping into root or into a root-level folder
         await updateFolder(folderIdData, { parentId: targetFolderId })
         logger.info(`Moved folder to ${targetFolderId ? `folder ${targetFolderId}` : 'root'}`)
       } catch (error) {
@@ -342,7 +369,6 @@ function useDragHandlers(
 interface FolderTreeProps {
   regularWorkflows: WorkflowMetadata[]
   marketplaceWorkflows: WorkflowMetadata[]
-  isCollapsed?: boolean
   isLoading?: boolean
   onCreateWorkflow: (folderId?: string) => void
 }
@@ -350,7 +376,6 @@ interface FolderTreeProps {
 export function FolderTree({
   regularWorkflows,
   marketplaceWorkflows,
-  isCollapsed = false,
   isLoading = false,
   onCreateWorkflow,
 }: FolderTreeProps) {
@@ -402,7 +427,9 @@ export function FolderTree({
 
       for (const node of nodes) {
         if (currentLevel >= 2) {
-          // This folder is at level 2+ (too deep), add it to cleanup list
+          // This folder is at level 2+ (triple nested), add it to cleanup list
+          // Level 0: root folders, Level 1: nested in root folders (allowed)
+          // Level 2+: triple nested (not allowed)
           deepFolders.push(node)
         } else {
           // Recursively check children
@@ -471,7 +498,6 @@ export function FolderTree({
         key={folder.id}
         folder={folder}
         level={level}
-        isCollapsed={isCollapsed}
         onCreateWorkflow={onCreateWorkflow}
         workflowsByFolder={workflowsByFolder}
         expandedFolders={expandedFolders}
@@ -490,22 +516,10 @@ export function FolderTree({
 
   // Render skeleton loading state
   const renderSkeletonLoading = () => {
-    if (isCollapsed) {
-      return (
-        <div className='space-y-1 py-2'>
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className='mx-auto mb-1 flex h-9 w-9 items-center justify-center'>
-              <Skeleton className='h-4 w-4 rounded' />
-            </div>
-          ))}
-        </div>
-      )
-    }
-
     return (
       <div className='space-y-1 py-2'>
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className='flex h-9 items-center rounded-lg px-2 py-2'>
+          <div key={i} className='flex h-8 items-center rounded-lg px-2 py-2'>
             <Skeleton className='mr-2 h-4 w-4 rounded' />
             <Skeleton className='h-4 max-w-32 flex-1' />
           </div>
@@ -519,59 +533,49 @@ export function FolderTree({
   }
 
   return (
-    <div className='space-y-1 py-2'>
+    <div className='flex h-full flex-col pt-2 pb-[6px]'>
       {/* Folder tree */}
-      {renderFolderTree(folderTree, 0, false)}
+      <div className='space-y-1'>{renderFolderTree(folderTree, 0, false)}</div>
 
-      {/* Root level workflows (no folder) */}
+      {/* Root level workflows and drop zone - fills remaining space */}
       <div
         className={clsx(
-          'space-y-1',
-          rootDragOver
-            ? rootInvalidDrop
-              ? 'rounded-md bg-red-500/10 dark:bg-red-400/10'
-              : 'rounded-md bg-blue-500/10 dark:bg-blue-400/10'
-            : '',
-          // Always provide minimal drop zone when root is empty, but keep it subtle
-          rootWorkflows.length === 0 ? 'min-h-2 py-1' : ''
+          'relative flex-1',
+          rootDragOver &&
+            (rootInvalidDrop
+              ? 'before:pointer-events-none before:absolute before:inset-0 before:rounded-[8px] before:border before:border-destructive/50 before:bg-destructive/15'
+              : 'before:pointer-events-none before:absolute before:inset-0 before:rounded-[8px] before:border before:border-muted-foreground/50 before:bg-muted/20'),
+          // Ensure minimum height for drag target when empty
+          rootWorkflows.length === 0 ? 'min-h-8' : ''
         )}
-        style={
-          rootDragOver
-            ? {
-                boxShadow: rootInvalidDrop
-                  ? 'inset 0 0 0 1px rgb(239 68 68 / 0.5)'
-                  : 'inset 0 0 0 1px rgb(59 130 246 / 0.5)',
-              }
-            : {}
-        }
         onDragOver={handleRootDragOver}
         onDragLeave={handleRootDragLeave}
         onDrop={handleRootDrop}
       >
-        {rootWorkflows.map((workflow, index) => (
-          <WorkflowItem
-            key={workflow.id}
-            workflow={workflow}
-            active={pathname === `/workspace/${workspaceId}/w/${workflow.id}`}
-            isCollapsed={isCollapsed}
-            level={-1}
-            isDragOver={rootDragOver}
-            isFirstItem={folderTree.length === 0 && index === 0}
-          />
-        ))}
-      </div>
+        <div className='space-y-1'>
+          {rootWorkflows.map((workflow, index) => (
+            <WorkflowItem
+              key={workflow.id}
+              workflow={workflow}
+              active={pathname === `/workspace/${workspaceId}/w/${workflow.id}`}
+              level={-1}
+              isDragOver={rootDragOver}
+              isFirstItem={folderTree.length === 0 && index === 0}
+            />
+          ))}
 
-      {/* Empty state */}
-      {!showLoading &&
-        regularWorkflows.length === 0 &&
-        marketplaceWorkflows.length === 0 &&
-        folderTree.length === 0 &&
-        !isCollapsed && (
-          <div className='break-words px-2 py-1.5 pr-12 text-muted-foreground text-xs'>
-            No workflows or folders in {workspaceId ? 'this workspace' : 'your account'}. Create one
-            to get started.
-          </div>
-        )}
+          {/* Empty state */}
+          {!showLoading &&
+            regularWorkflows.length === 0 &&
+            marketplaceWorkflows.length === 0 &&
+            folderTree.length === 0 && (
+              <div className='break-words px-2 py-1.5 pr-12 text-muted-foreground text-xs'>
+                No workflows or folders in {workspaceId ? 'this workspace' : 'your account'}. Create
+                one to get started.
+              </div>
+            )}
+        </div>
+      </div>
     </div>
   )
 }

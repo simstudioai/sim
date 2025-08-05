@@ -101,13 +101,13 @@ export function Toolbar({ userPermissions, isWorkspaceSelectorVisible = false }:
     <div className='flex h-full flex-col'>
       {/* Search */}
       <div className='flex-shrink-0 p-2'>
-        <div className='flex h-9 items-center gap-2 rounded-[10px] border bg-background pr-2 pl-3'>
+        <div className='flex h-9 items-center gap-2 rounded-[8px] border bg-background pr-2 pl-3'>
           <Search className='h-4 w-4 text-muted-foreground' strokeWidth={2} />
           <Input
             placeholder='Search blocks...'
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className='h-6 flex-1 border-0 bg-transparent px-0 font-normal text-muted-foreground text-sm leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='h-6 flex-1 border-0 bg-transparent px-0 text-muted-foreground text-sm leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
             autoComplete='off'
             autoCorrect='off'
             autoCapitalize='off'
@@ -117,7 +117,7 @@ export function Toolbar({ userPermissions, isWorkspaceSelectorVisible = false }:
       </div>
 
       {/* Content */}
-      <ScrollArea className='flex-1 px-2' hideScrollbar={true}>
+      <ScrollArea className='flex-1 px-2 pb-[0.26px]' hideScrollbar={true}>
         <div className='space-y-1 pb-2'>
           {/* Regular Blocks Section */}
           {regularBlocks.map((block) => (

@@ -1,5 +1,4 @@
-export { CreateMenu } from './create-menu'
-export { FolderContextMenu } from './folder-context-menu/folder-context-menu'
+export { CreateMenu } from './create-menu/create-menu'
 export { FolderTree } from './folder-tree/folder-tree'
 export { HelpModal } from './help-modal/help-modal'
 export { LogsFilters } from './logs-filters/logs-filters'

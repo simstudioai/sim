@@ -8,7 +8,7 @@ import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SearchModal } from '@/app/workspace/[workspaceId]/w/components/search-modal/search-modal'
 import {
   CreateMenu,
@@ -32,6 +32,109 @@ const logger = createLogger('Sidebar')
 
 const SIDEBAR_GAP = 12 // 12px gap between components - easily editable
 
+/**
+ * Optimized auto-scroll hook for smooth drag operations
+ * Extracted outside component for better performance
+ */
+const useAutoScroll = (containerRef: React.RefObject<HTMLDivElement | null>) => {
+  const animationRef = useRef<number | null>(null)
+  const speedRef = useRef<number>(0)
+  const lastUpdateRef = useRef<number>(0)
+
+  const animateScroll = useCallback(() => {
+    const scrollContainer = containerRef.current?.querySelector(
+      '[data-radix-scroll-area-viewport]'
+    ) as HTMLElement
+    if (!scrollContainer || speedRef.current === 0) {
+      animationRef.current = null
+      return
+    }
+
+    const currentScrollTop = scrollContainer.scrollTop
+    const maxScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight
+
+    // Check bounds and stop if needed
+    if (
+      (speedRef.current < 0 && currentScrollTop <= 0) ||
+      (speedRef.current > 0 && currentScrollTop >= maxScrollTop)
+    ) {
+      speedRef.current = 0
+      animationRef.current = null
+      return
+    }
+
+    // Apply smooth scroll
+    scrollContainer.scrollTop = Math.max(
+      0,
+      Math.min(maxScrollTop, currentScrollTop + speedRef.current)
+    )
+    animationRef.current = requestAnimationFrame(animateScroll)
+  }, [containerRef])
+
+  const startScroll = useCallback(
+    (speed: number) => {
+      speedRef.current = speed
+      if (!animationRef.current) {
+        animationRef.current = requestAnimationFrame(animateScroll)
+      }
+    },
+    [animateScroll]
+  )
+
+  const stopScroll = useCallback(() => {
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current)
+      animationRef.current = null
+    }
+    speedRef.current = 0
+  }, [])
+
+  const handleDragOver = useCallback(
+    (e: DragEvent) => {
+      const now = performance.now()
+      // Throttle to ~16ms for 60fps
+      if (now - lastUpdateRef.current < 16) return
+      lastUpdateRef.current = now
+
+      const scrollContainer = containerRef.current
+      if (!scrollContainer) return
+
+      const rect = scrollContainer.getBoundingClientRect()
+      const mouseY = e.clientY
+
+      // Early exit if mouse is outside container
+      if (mouseY < rect.top || mouseY > rect.bottom) {
+        stopScroll()
+        return
+      }
+
+      const scrollZone = 50
+      const maxSpeed = 4
+      const distanceFromTop = mouseY - rect.top
+      const distanceFromBottom = rect.bottom - mouseY
+
+      let scrollSpeed = 0
+
+      if (distanceFromTop < scrollZone) {
+        const intensity = (scrollZone - distanceFromTop) / scrollZone
+        scrollSpeed = -maxSpeed * intensity ** 2
+      } else if (distanceFromBottom < scrollZone) {
+        const intensity = (scrollZone - distanceFromBottom) / scrollZone
+        scrollSpeed = maxSpeed * intensity ** 2
+      }
+
+      if (Math.abs(scrollSpeed) > 0.1) {
+        startScroll(scrollSpeed)
+      } else {
+        stopScroll()
+      }
+    },
+    [containerRef, startScroll, stopScroll]
+  )
+
+  return { handleDragOver, stopScroll }
+}
+
 // Heights for dynamic calculation (in px)
 const SIDEBAR_HEIGHTS = {
   CONTAINER_PADDING: 32, // p-4 = 16px top + 16px bottom (bottom provides control bar spacing match)
@@ -39,7 +142,7 @@ const SIDEBAR_HEIGHTS = {
   SEARCH: 48, // h-12
   WORKFLOW_SELECTOR: 212, // h-[212px]
   NAVIGATION: 48, // h-12 buttons
-  WORKSPACE_SELECTOR: 183, // accurate height: p-2(16) + h-[116px](116) + mt-2(8) + border-t(1) + pt-2(8) + h-8(32) = 181px
+  WORKSPACE_SELECTOR: 171, // optimized height: p-2(16) + h-[104px](104) + mt-2(8) + border-t(1) + pt-2(8) + h-8(32) = 169px
 }
 
 /**
@@ -123,6 +226,9 @@ export function Sidebar() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isLeaving, setIsLeaving] = useState(false)
 
+  // Auto-scroll state for drag operations
+  const [isDragging, setIsDragging] = useState(false)
+
   // Update activeWorkspace ref when state changes
   activeWorkspaceRef.current = activeWorkspace
 
@@ -139,6 +245,31 @@ export function Sidebar() {
     const logsPageRegex = /^\/workspace\/[^/]+\/logs$/
     return logsPageRegex.test(pathname)
   }, [pathname])
+
+  // Use optimized auto-scroll hook
+  const { handleDragOver, stopScroll } = useAutoScroll(workflowScrollAreaRef)
+
+  // Consolidated drag event management with optimized cleanup
+  useEffect(() => {
+    if (!isDragging) return
+
+    const handleDragEnd = () => {
+      setIsDragging(false)
+      stopScroll()
+    }
+
+    const options = { passive: true } as const
+    document.addEventListener('dragover', handleDragOver, options)
+    document.addEventListener('dragend', handleDragEnd, options)
+    document.addEventListener('drop', handleDragEnd, options)
+
+    return () => {
+      document.removeEventListener('dragover', handleDragOver)
+      document.removeEventListener('dragend', handleDragEnd)
+      document.removeEventListener('drop', handleDragEnd)
+      stopScroll()
+    }
+  }, [isDragging, handleDragOver, stopScroll])
 
   /**
    * Refresh workspace list without validation logic - used for non-current workspace operations
@@ -722,6 +853,30 @@ export function Sidebar() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  // Optimized drag detection with memoized selectors
+  useEffect(() => {
+    const handleDragStart = (e: DragEvent) => {
+      const target = e.target as HTMLElement
+      const sidebarElement = workflowScrollAreaRef.current
+
+      // Early exit if not in sidebar
+      if (!sidebarElement?.contains(target)) return
+
+      // Efficient draggable check - check element first, then traverse up
+      if (target.draggable || target.closest('[data-workflow-id], [draggable="true"]')) {
+        setIsDragging(true)
+      }
+    }
+
+    const options = { capture: true, passive: true } as const
+    document.addEventListener('dragstart', handleDragStart, options)
+
+    return () => {
+      document.removeEventListener('dragstart', handleDragStart, options)
+      stopScroll() // Cleanup on unmount
+    }
+  }, [stopScroll])
+
   // Navigation items with their respective actions
   const navigationItems = [
     {
@@ -777,14 +932,13 @@ export function Sidebar() {
               onToggleSidebar={toggleSidebarCollapsed}
               activeWorkspace={activeWorkspace}
               isWorkspacesLoading={isWorkspacesLoading}
-              updateWorkspaceName={updateWorkspaceName}
             />
           </div>
 
-          {/* 2. Workspace Selector - Conditionally rendered */}
+          {/* 2. Workspace Selector */}
           <div
             className={`pointer-events-auto flex-shrink-0 ${
-              !isWorkspaceSelectorVisible || isSidebarCollapsed ? 'hidden' : ''
+              !isWorkspaceSelectorVisible ? 'hidden' : ''
             }`}
           >
             <WorkspaceSelector
@@ -796,6 +950,7 @@ export function Sidebar() {
               onCreateWorkspace={handleCreateWorkspace}
               onDeleteWorkspace={confirmDeleteWorkspace}
               onLeaveWorkspace={handleLeaveWorkspace}
+              updateWorkspaceName={updateWorkspaceName}
               isDeleting={isDeleting}
               isLeaving={isLeaving}
               isCreating={isCreatingWorkspace}
@@ -808,24 +963,19 @@ export function Sidebar() {
           >
             <button
               onClick={() => setShowSearchModal(true)}
-              className='flex h-12 w-full cursor-pointer items-center gap-2 rounded-[14px] border bg-card pr-[10px] pl-3 shadow-xs transition-colors hover:bg-muted/50'
+              className='flex h-12 w-full cursor-pointer items-center gap-2 rounded-[10px] border bg-background pr-[10px] pl-3 shadow-xs transition-colors hover:bg-muted/50'
             >
               <Search className='h-4 w-4 text-muted-foreground' strokeWidth={2} />
               <span className='flex h-8 flex-1 items-center px-0 text-muted-foreground text-sm leading-none'>
                 Search anything
               </span>
-              <kbd className='flex h-6 w-8 items-center justify-center rounded-[5px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[#454545]'>
-                <span className='flex items-center justify-center gap-[1px] pt-[1px]'>
-                  <span className='text-lg'>⌘</span>
-                  <span className='text-xs'>K</span>
-                </span>
-              </kbd>
+              <KeyboardShortcut shortcut={getKeyboardShortcutText('K', true)} />
             </button>
           </div>
 
           {/* 4. Workflow Selector */}
           <div
-            className={`pointer-events-auto relative h-[212px] flex-shrink-0 rounded-[14px] border bg-card shadow-xs ${
+            className={`pointer-events-auto relative h-[212px] flex-shrink-0 rounded-[10px] border bg-background shadow-xs ${
               isSidebarCollapsed ? 'hidden' : ''
             }`}
           >
@@ -834,7 +984,6 @@ export function Sidebar() {
                 <FolderTree
                   regularWorkflows={regularWorkflows}
                   marketplaceWorkflows={tempWorkflows}
-                  isCollapsed={false}
                   isLoading={isLoading}
                   onCreateWorkflow={handleCreateWorkflow}
                 />
@@ -844,7 +993,6 @@ export function Sidebar() {
               <div className='absolute top-2 right-2'>
                 <CreateMenu
                   onCreateWorkflow={handleCreateWorkflow}
-                  isCollapsed={false}
                   isCreatingWorkflow={isCreatingWorkflow}
                 />
               </div>
@@ -855,7 +1003,7 @@ export function Sidebar() {
 
       {/* Floating Toolbar - Only on workflow pages */}
       <div
-        className={`pointer-events-auto fixed left-4 z-50 w-56 rounded-[14px] border bg-card shadow-xs ${
+        className={`pointer-events-auto fixed left-4 z-50 w-56 rounded-[10px] border bg-background shadow-xs ${
           !isOnWorkflowPage || isSidebarCollapsed ? 'hidden' : ''
         }`}
         style={{
@@ -871,7 +1019,7 @@ export function Sidebar() {
 
       {/* Floating Logs Filters - Only on logs page */}
       <div
-        className={`pointer-events-auto fixed left-4 z-50 w-56 rounded-[14px] border bg-card shadow-xs ${
+        className={`pointer-events-auto fixed left-4 z-50 w-56 rounded-[10px] border bg-background shadow-xs ${
           !isOnLogsPage || isSidebarCollapsed ? 'hidden' : ''
         }`}
         style={{
@@ -911,6 +1059,38 @@ export function Sidebar() {
   )
 }
 
+// Keyboard Shortcut Component
+interface KeyboardShortcutProps {
+  shortcut: string
+  className?: string
+}
+
+const KeyboardShortcut = ({ shortcut, className }: KeyboardShortcutProps) => {
+  const parts = shortcut.split('+')
+
+  // Helper function to determine if a part is a symbol that should be larger
+  const isSymbol = (part: string) => {
+    return ['⌘', '⇧', '⌥', '⌃'].includes(part)
+  }
+
+  return (
+    <kbd
+      className={cn(
+        'flex h-6 w-8 items-center justify-center rounded-[5px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[#454545]',
+        className
+      )}
+    >
+      <span className='flex items-center justify-center gap-[1px] pt-[1px]'>
+        {parts.map((part, index) => (
+          <span key={index} className={cn(isSymbol(part) ? 'text-[17px]' : 'text-xs')}>
+            {part}
+          </span>
+        ))}
+      </span>
+    </kbd>
+  )
+}
+
 // Navigation Item Component
 interface NavigationItemProps {
   item: {
@@ -938,7 +1118,7 @@ const NavigationItem = ({ item }: NavigationItemProps) => {
       variant='outline'
       onClick={item.onClick}
       className={cn(
-        'h-[42px] w-[42px] rounded-[11px] border bg-card text-card-foreground shadow-xs transition-all duration-200',
+        'h-[42px] w-[42px] rounded-[10px] border bg-background text-foreground shadow-xs transition-all duration-200',
         isGrayHover && 'hover:bg-secondary',
         !isGrayHover && 'hover:border-[#701FFC] hover:bg-[#701FFC] hover:text-white',
         item.active && 'border-[#701FFC] bg-[#701FFC] text-white'
@@ -956,9 +1136,8 @@ const NavigationItem = ({ item }: NavigationItemProps) => {
             {content}
           </a>
         </TooltipTrigger>
-        <TooltipContent side='top' className='flex flex-col items-center gap-1'>
-          <span>{item.tooltip}</span>
-          {item.shortcut && <span className='text-muted-foreground text-xs'>{item.shortcut}</span>}
+        <TooltipContent side='top' command={item.shortcut}>
+          {item.tooltip}
         </TooltipContent>
       </Tooltip>
     )
@@ -967,9 +1146,8 @@ const NavigationItem = ({ item }: NavigationItemProps) => {
   return (
     <Tooltip>
       <TooltipTrigger asChild>{content}</TooltipTrigger>
-      <TooltipContent side='top' className='flex flex-col items-center gap-1'>
-        <span>{item.tooltip}</span>
-        {item.shortcut && <span className='text-muted-foreground text-xs'>{item.shortcut}</span>}
+      <TooltipContent side='top' command={item.shortcut}>
+        {item.tooltip}
       </TooltipContent>
     </Tooltip>
   )
