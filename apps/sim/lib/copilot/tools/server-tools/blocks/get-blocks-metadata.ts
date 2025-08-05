@@ -29,6 +29,93 @@ class GetBlocksMetadataTool extends BaseCopilotTool<GetBlocksMetadataParams, Blo
 // Export the tool instance
 export const getBlocksMetadataTool = new GetBlocksMetadataTool()
 
+/**
+ * Safely resolve subblock options, handling both static arrays and functions
+ */
+function resolveSubBlockOptions(options: any): any[] {
+  try {
+    if (typeof options === 'function') {
+      const resolved = options()
+      return Array.isArray(resolved) ? resolved : []
+    }
+    return Array.isArray(options) ? options : []
+  } catch (error) {
+    logger.warn('Failed to resolve subblock options:', error)
+    return []
+  }
+}
+
+/**
+ * Process subBlocks configuration to include all UI metadata
+ */
+function processSubBlocks(subBlocks: any[]): any[] {
+  if (!Array.isArray(subBlocks)) {
+    return []
+  }
+
+  return subBlocks.map((subBlock) => {
+    const processedSubBlock: any = {
+      id: subBlock.id,
+      title: subBlock.title,
+      type: subBlock.type,
+      layout: subBlock.layout,
+      mode: subBlock.mode,
+      required: subBlock.required,
+      placeholder: subBlock.placeholder,
+      description: subBlock.description,
+      hidden: subBlock.hidden,
+      condition: subBlock.condition,
+      // Slider specific
+      min: subBlock.min,
+      max: subBlock.max,
+      step: subBlock.step,
+      integer: subBlock.integer,
+      // Input specific
+      rows: subBlock.rows,
+      password: subBlock.password,
+      multiSelect: subBlock.multiSelect,
+      // Code specific
+      language: subBlock.language,
+      generationType: subBlock.generationType,
+      // OAuth specific
+      provider: subBlock.provider,
+      serviceId: subBlock.serviceId,
+      requiredScopes: subBlock.requiredScopes,
+      // File specific
+      mimeType: subBlock.mimeType,
+      acceptedTypes: subBlock.acceptedTypes,
+      multiple: subBlock.multiple,
+      maxSize: subBlock.maxSize,
+      // Other properties
+      connectionDroppable: subBlock.connectionDroppable,
+      columns: subBlock.columns,
+      value: typeof subBlock.value === 'function' ? 'function' : undefined, // Don't serialize functions
+      wandConfig: subBlock.wandConfig,
+    }
+
+    // Resolve options if present
+    if (subBlock.options) {
+      try {
+        const resolvedOptions = resolveSubBlockOptions(subBlock.options)
+        processedSubBlock.options = resolvedOptions.map((option) => ({
+          label: option.label,
+          id: option.id,
+          // Note: Icons are React components, so we'll just indicate if they exist
+          hasIcon: !!option.icon,
+        }))
+      } catch (error) {
+        logger.warn(`Failed to resolve options for subBlock ${subBlock.id}:`, error)
+        processedSubBlock.options = []
+      }
+    }
+
+    // Remove undefined properties to keep the response clean
+    return Object.fromEntries(
+      Object.entries(processedSubBlock).filter(([_, value]) => value !== undefined)
+    )
+  })
+}
+
 // Implementation function
 export async function getBlocksMetadata(
   params: GetBlocksMetadataParams
@@ -80,9 +167,23 @@ export async function getBlocksMetadata(
           id: blockId,
           name: blockConfig.name || blockId,
           description: blockConfig.description || '',
+          longDescription: blockConfig.longDescription,
+          category: blockConfig.category,
+          bgColor: blockConfig.bgColor,
           inputs: blockConfig.inputs || {},
           outputs: blockConfig.outputs || {},
           tools: blockConfig.tools?.access || [],
+          hideFromToolbar: blockConfig.hideFromToolbar,
+        }
+
+        // Process and include subBlocks configuration
+        if (blockConfig.subBlocks && Array.isArray(blockConfig.subBlocks)) {
+          logger.info(`Processing ${blockConfig.subBlocks.length} subBlocks for ${blockId}`)
+          metadata.subBlocks = processSubBlocks(blockConfig.subBlocks)
+          logger.info(`✓ Processed subBlocks for ${blockId}:`, metadata.subBlocks.length)
+        } else {
+          logger.info(`No subBlocks found for ${blockId}`)
+          metadata.subBlocks = []
         }
       }
 
@@ -146,6 +247,7 @@ export async function getBlocksMetadata(
 
       logger.info(`Final metadata keys for ${blockId}:`, Object.keys(metadata))
       logger.info(`Has YAML documentation: ${!!metadata.yamlDocumentation}`)
+      logger.info(`Has subBlocks: ${!!metadata.subBlocks && metadata.subBlocks.length > 0}`)
 
       result[blockId] = metadata
     }
@@ -214,6 +316,43 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
       totalIterations: 'number',
     },
     tools: { access: [] },
+    subBlocks: [
+      {
+        id: 'loopType',
+        title: 'Loop Type',
+        type: 'dropdown',
+        required: true,
+        options: [
+          { label: 'For Loop (count)', id: 'for' },
+          { label: 'For Each (collection)', id: 'forEach' },
+        ],
+      },
+      {
+        id: 'iterations',
+        title: 'Iterations',
+        type: 'slider',
+        min: 1,
+        max: 1000,
+        integer: true,
+        condition: { field: 'loopType', value: 'for' },
+      },
+      {
+        id: 'collection',
+        title: 'Collection',
+        type: 'short-input',
+        placeholder: 'Array or object to iterate over...',
+        condition: { field: 'loopType', value: 'forEach' },
+      },
+      {
+        id: 'maxConcurrency',
+        title: 'Max Concurrency',
+        type: 'slider',
+        min: 1,
+        max: 10,
+        integer: true,
+        default: 1,
+      },
+    ],
   },
   parallel: {
     type: 'parallel',
@@ -232,5 +371,42 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
       totalBranches: 'number',
     },
     tools: { access: [] },
+    subBlocks: [
+      {
+        id: 'parallelType',
+        title: 'Parallel Type',
+        type: 'dropdown',
+        required: true,
+        options: [
+          { label: 'Count (number)', id: 'count' },
+          { label: 'Collection (array)', id: 'collection' },
+        ],
+      },
+      {
+        id: 'count',
+        title: 'Count',
+        type: 'slider',
+        min: 1,
+        max: 100,
+        integer: true,
+        condition: { field: 'parallelType', value: 'count' },
+      },
+      {
+        id: 'collection',
+        title: 'Collection',
+        type: 'short-input',
+        placeholder: 'Array to process in parallel...',
+        condition: { field: 'parallelType', value: 'collection' },
+      },
+      {
+        id: 'maxConcurrency',
+        title: 'Max Concurrency',
+        type: 'slider',
+        min: 1,
+        max: 50,
+        integer: true,
+        default: 10,
+      },
+    ],
   },
 }
