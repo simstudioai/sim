@@ -6,7 +6,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { db } from '@/db'
 import { environment as environmentTable, userStats } from '@/db/schema'
@@ -60,16 +60,10 @@ export const workflowExecution = task({
         )
       }
 
-      // Load workflow data from normalized tables
-      const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
-      if (!normalizedData) {
-        logger.error(`[${requestId}] Workflow not found in normalized tables: ${workflowId}`)
-        throw new Error(`Workflow ${workflowId} data not found in normalized tables`)
-      }
+      // Load workflow data from deployed state (this task is only used for API executions right now)
+      const workflowData = await loadDeployedWorkflowState(workflowId)
 
-      logger.info(`[${requestId}] Workflow loaded successfully: ${workflowId}`)
-
-      const { blocks, edges, loops, parallels } = normalizedData
+      const { blocks, edges, loops, parallels } = workflowData
 
       // Merge subblock states (server-safe version doesn't need workflowId)
       const mergedStates = mergeSubblockState(blocks, {})

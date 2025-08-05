@@ -87,7 +87,7 @@ describe('Workflow Execution API Route', () => {
     }))
 
     vi.doMock('@/lib/workflows/db-helpers', () => ({
-      loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
+      loadDeployedWorkflowState: vi.fn().mockResolvedValue({
         blocks: {
           'starter-id': {
             id: 'starter-id',
@@ -121,7 +121,7 @@ describe('Workflow Execution API Route', () => {
         ],
         loops: {},
         parallels: {},
-        isFromNormalizedTables: true,
+        isFromNormalizedTables: false, // Changed to false since it's from deployed state
       }),
     }))
 
@@ -516,7 +516,7 @@ describe('Workflow Execution API Route', () => {
     }))
 
     vi.doMock('@/lib/workflows/db-helpers', () => ({
-      loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
+      loadDeployedWorkflowState: vi.fn().mockResolvedValue({
         blocks: {
           'starter-id': {
             id: 'starter-id',
@@ -550,7 +550,7 @@ describe('Workflow Execution API Route', () => {
         ],
         loops: {},
         parallels: {},
-        isFromNormalizedTables: true,
+        isFromNormalizedTables: false, // Changed to false since it's from deployed state
       }),
     }))
 
