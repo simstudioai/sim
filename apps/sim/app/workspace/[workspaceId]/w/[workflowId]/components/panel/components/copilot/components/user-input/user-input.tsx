@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ArrowUp, Loader2, MessageCircle, Package, Paperclip, X } from 'lucide-react'
+import { ArrowUp, FileText, Image, Loader2, MessageCircle, Package, Paperclip, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
@@ -31,6 +31,7 @@ interface AttachedFile {
   path: string
   key?: string // Add key field to store the actual S3 key
   uploading: boolean
+  previewUrl?: string // For local preview of images before upload
 }
 
 interface UserInputProps {
@@ -101,6 +102,17 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }, [message])
 
+    // Cleanup preview URLs on unmount
+    useEffect(() => {
+      return () => {
+        attachedFiles.forEach(f => {
+          if (f.previewUrl) {
+            URL.revokeObjectURL(f.previewUrl)
+          }
+        })
+      }
+    }, [])
+
     const handleSubmit = () => {
       const trimmedMessage = message.trim()
       if (!trimmedMessage || disabled || isLoading) return
@@ -117,6 +129,13 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         }))
 
       onSubmit(trimmedMessage, fileAttachments)
+      
+      // Clean up preview URLs before clearing
+      attachedFiles.forEach(f => {
+        if (f.previewUrl) {
+          URL.revokeObjectURL(f.previewUrl)
+        }
+      })
       
       // Clear the message and files after submit
       if (controlledValue !== undefined) {
@@ -165,6 +184,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         return
       }
 
+      // Create a preview URL for images
+      let previewUrl: string | undefined
+      if (file.type.startsWith('image/')) {
+        previewUrl = URL.createObjectURL(file)
+      }
+
       // Create a temporary file entry with uploading state
       const tempFile: AttachedFile = {
         id: crypto.randomUUID(),
@@ -173,6 +198,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         type: file.type,
         path: '',
         uploading: true,
+        previewUrl,
       }
 
       setAttachedFiles(prev => [...prev, tempFile])
@@ -242,7 +268,23 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
 
     const removeFile = (fileId: string) => {
+      // Clean up preview URL if it exists
+      const file = attachedFiles.find(f => f.id === fileId)
+      if (file?.previewUrl) {
+        URL.revokeObjectURL(file.previewUrl)
+      }
       setAttachedFiles(prev => prev.filter(f => f.id !== fileId))
+    }
+
+    const handleFileClick = (file: AttachedFile) => {
+      // If file has been uploaded and has an S3 key, open the S3 URL
+      if (file.key) {
+        const serveUrl = `/api/files/serve/s3/${encodeURIComponent(file.key)}?bucket=copilot`
+        window.open(serveUrl, '_blank')
+      } else if (file.previewUrl) {
+        // If file hasn't been uploaded yet but has a preview URL, open that
+        window.open(file.previewUrl, '_blank')
+      }
     }
 
     const formatFileSize = (bytes: number) => {
@@ -251,6 +293,23 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       const sizes = ['Bytes', 'KB', 'MB', 'GB']
       const i = Math.floor(Math.log(bytes) / Math.log(k))
       return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+    }
+
+    const isImageFile = (type: string) => {
+      return type.startsWith('image/')
+    }
+
+    const getFileIcon = (mediaType: string) => {
+      if (mediaType.startsWith('image/')) {
+        return <Image className='h-5 w-5 text-muted-foreground' />
+      }
+      if (mediaType.includes('pdf')) {
+        return <FileText className='h-5 w-5 text-red-500' />
+      }
+      if (mediaType.includes('text') || mediaType.includes('json') || mediaType.includes('xml')) {
+        return <FileText className='h-5 w-5 text-blue-500' />
+      }
+      return <FileText className='h-5 w-5 text-muted-foreground' />
     }
 
     const canSubmit = message.trim().length > 0 && !disabled && !isLoading
@@ -273,31 +332,61 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     return (
       <div className={cn('relative flex-none pb-4', className)}>
         <div className='rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] p-2 shadow-xs dark:border-[#414141] dark:bg-[#202020]'>
-          {/* Attached Files Display */}
+          {/* Attached Files Display with Thumbnails */}
           {attachedFiles.length > 0 && (
-            <div className='mb-2 space-y-1'>
+            <div className='mb-2 flex flex-wrap gap-1.5'>
               {attachedFiles.map((file) => (
                 <div
                   key={file.id}
-                  className='flex items-center gap-2 rounded-md bg-secondary/50 px-2 py-1 text-xs'
+                  className='group relative w-16 h-16 rounded-md border border-border/50 bg-muted/20 hover:bg-muted/40 cursor-pointer transition-all overflow-hidden'
+                  title={`${file.name} (${formatFileSize(file.size)})`}
+                  onClick={() => handleFileClick(file)}
                 >
-                  <Paperclip className='h-3 w-3 text-muted-foreground' />
-                  <span className='flex-1 truncate'>{file.name}</span>
-                  <span className='text-muted-foreground'>
-                    {formatFileSize(file.size)}
-                  </span>
-                  {file.uploading ? (
-                    <Loader2 className='h-3 w-3 animate-spin text-muted-foreground' />
+                  {isImageFile(file.type) && file.previewUrl ? (
+                    // For images, show actual thumbnail
+                    <img 
+                      src={file.previewUrl}
+                      alt={file.name}
+                      className='w-full h-full object-cover'
+                    />
+                  ) : isImageFile(file.type) && file.key ? (
+                    // For uploaded images without preview URL, use S3 URL
+                    <img 
+                      src={`/api/files/serve/s3/${encodeURIComponent(file.key)}?bucket=copilot`}
+                      alt={file.name}
+                      className='w-full h-full object-cover'
+                    />
                   ) : (
+                    // For other files, show icon centered
+                    <div className='flex items-center justify-center w-full h-full bg-background/50'>
+                      {getFileIcon(file.type)}
+                    </div>
+                  )}
+                  
+                  {/* Loading overlay */}
+                  {file.uploading && (
+                    <div className='absolute inset-0 bg-black/50 flex items-center justify-center'>
+                      <Loader2 className='h-4 w-4 animate-spin text-white' />
+                    </div>
+                  )}
+                  
+                  {/* Remove button */}
+                  {!file.uploading && (
                     <Button
                       variant='ghost'
                       size='icon'
-                      onClick={() => removeFile(file.id)}
-                      className='h-4 w-4 hover:bg-destructive hover:text-destructive-foreground'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        removeFile(file.id)
+                      }}
+                      className='absolute top-0.5 right-0.5 h-5 w-5 bg-black/50 hover:bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity'
                     >
                       <X className='h-3 w-3' />
                     </Button>
                   )}
+                  
+                  {/* Hover overlay effect */}
+                  <div className='absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none' />
                 </div>
               ))}
             </div>

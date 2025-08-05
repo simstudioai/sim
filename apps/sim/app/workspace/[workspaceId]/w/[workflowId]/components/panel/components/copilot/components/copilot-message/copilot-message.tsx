@@ -45,18 +45,24 @@ interface FileAttachmentDisplayProps {
 
 const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayProps) => {
   const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes'
+    if (bytes === 0) return '0 B'
     const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const sizes = ['B', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+    return Math.round(bytes / Math.pow(k, i) * 10) / 10 + ' ' + sizes[i]
   }
 
   const getFileIcon = (mediaType: string) => {
     if (mediaType.startsWith('image/')) {
-      return <Image className='h-4 w-4' />
+      return <Image className='h-5 w-5 text-muted-foreground' />
     }
-    return <FileText className='h-4 w-4' />
+    if (mediaType.includes('pdf')) {
+      return <FileText className='h-5 w-5 text-red-500' />
+    }
+    if (mediaType.includes('text') || mediaType.includes('json') || mediaType.includes('xml')) {
+      return <FileText className='h-5 w-5 text-blue-500' />
+    }
+    return <FileText className='h-5 w-5 text-muted-foreground' />
   }
 
   const handleFileClick = (file: any) => {
@@ -67,25 +73,50 @@ const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayPr
     window.open(serveUrl, '_blank')
   }
 
+  const isImageFile = (mediaType: string) => {
+    return mediaType.startsWith('image/')
+  }
+
   return (
-    <div className='mt-2 space-y-1'>
+    <>
       {fileAttachments.map((file) => (
         <div
           key={file.id}
-          className='flex items-center gap-2 rounded-md bg-muted/50 px-2 py-1 text-xs cursor-pointer hover:bg-muted/70 transition-colors'
+          className='group relative w-16 h-16 rounded-md border border-border/50 bg-muted/20 hover:bg-muted/40 cursor-pointer transition-all overflow-hidden'
           onClick={() => handleFileClick(file)}
-          title={`Click to view ${file.filename}`}
+          title={`${file.filename} (${formatFileSize(file.size)})`}
         >
-          {getFileIcon(file.media_type)}
-          <span className='flex-1 truncate text-primary underline decoration-dotted underline-offset-2'>
-            {file.filename}
-          </span>
-          <span className='text-muted-foreground'>
-            {formatFileSize(file.size)}
-          </span>
+          {isImageFile(file.media_type) ? (
+            // For images, show actual thumbnail
+            <img 
+              src={`/api/files/serve/s3/${encodeURIComponent(file.s3_key)}?bucket=copilot`}
+              alt={file.filename}
+              className='w-full h-full object-cover'
+              onError={(e) => {
+                // If image fails to load, replace with icon
+                const target = e.target as HTMLImageElement
+                target.style.display = 'none'
+                const parent = target.parentElement
+                if (parent) {
+                  const iconContainer = document.createElement('div')
+                  iconContainer.className = 'flex items-center justify-center w-full h-full bg-background/50'
+                  iconContainer.innerHTML = '<svg class="h-5 w-5 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>'
+                  parent.appendChild(iconContainer)
+                }
+              }}
+            />
+          ) : (
+            // For other files, show icon centered
+            <div className='flex items-center justify-center w-full h-full bg-background/50'>
+              {getFileIcon(file.media_type)}
+            </div>
+          )}
+          
+          {/* Hover overlay effect */}
+          <div className='absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none' />
         </div>
       ))}
-    </div>
+    </>
   )
 })
 
@@ -534,8 +565,18 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     if (isUser) {
       return (
         <div className='w-full py-2'>
+          {/* File attachments displayed above the message, completely separate from message box width */}
+          {message.fileAttachments && message.fileAttachments.length > 0 && (
+            <div className='flex justify-end mb-1'>
+              <div className='flex flex-wrap gap-1.5'>
+                <FileAttachmentDisplay fileAttachments={message.fileAttachments} />
+              </div>
+            </div>
+          )}
+          
           <div className='flex justify-end'>
             <div className='max-w-[80%]'>
+              {/* Message content in purple box */}
               <div
                 className='rounded-[10px] px-3 py-2'
                 style={{ backgroundColor: 'rgba(128, 47, 255, 0.08)' }}
@@ -543,10 +584,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 <div className='whitespace-pre-wrap break-words font-normal text-base text-foreground leading-relaxed'>
                   <WordWrap text={message.content} />
                 </div>
-                {message.fileAttachments && message.fileAttachments.length > 0 && (
-                  <FileAttachmentDisplay fileAttachments={message.fileAttachments} />
-                )}
               </div>
+              
+              {/* Checkpoints below message */}
               {hasCheckpoints && (
                 <div className='mt-1 flex justify-end'>
                   {showRestoreConfirmation ? (
