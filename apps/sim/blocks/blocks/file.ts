@@ -1,30 +1,9 @@
 import { DocumentIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '@/blocks/types'
+import type { BlockConfig, SubBlockLayout, SubBlockType } from '@/blocks/types'
 import type { FileParserOutput } from '@/tools/file/types'
 
 const logger = createLogger('FileBlock')
-
-const inputMethodBlock: SubBlockConfig = {
-  id: 'inputMethod',
-  title: 'Select Input Method',
-  type: 'dropdown' as SubBlockType,
-  layout: 'full' as SubBlockLayout,
-  options: [
-    { id: 'url', label: 'File URL' },
-    { id: 'upload', label: 'Upload Files' },
-  ],
-}
-
-const fileUploadBlock: SubBlockConfig = {
-  id: 'file',
-  title: 'Upload Files',
-  type: 'file-upload' as SubBlockType,
-  layout: 'full' as SubBlockLayout,
-  acceptedTypes: '.pdf,.csv,.docx',
-  multiple: true,
-  maxSize: 100, // 100MB max via direct upload
-}
 
 export const FileBlock: BlockConfig<FileParserOutput> = {
   type: 'file',
@@ -36,7 +15,16 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   bgColor: '#40916C',
   icon: DocumentIcon,
   subBlocks: [
-    inputMethodBlock,
+    {
+      id: 'inputMethod',
+      title: 'Select Input Method',
+      type: 'dropdown' as SubBlockType,
+      layout: 'full' as SubBlockLayout,
+      options: [
+        { id: 'url', label: 'File URL' },
+        { id: 'upload', label: 'Upload Files' },
+      ],
+    },
     {
       id: 'filePath',
       title: 'File URL',
@@ -50,8 +38,17 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
     },
 
     {
-      ...fileUploadBlock,
-      condition: { field: 'inputMethod', value: 'upload' },
+      id: 'file',
+      title: 'Upload Files',
+      type: 'file-upload' as SubBlockType,
+      layout: 'full' as SubBlockLayout,
+      acceptedTypes: '.pdf,.csv,.docx',
+      multiple: true,
+      condition: {
+        field: 'inputMethod',
+        value: 'upload',
+      },
+      maxSize: 100, // 100MB max via direct upload
     },
   ],
   tools: {

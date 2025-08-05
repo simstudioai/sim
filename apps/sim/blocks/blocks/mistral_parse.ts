@@ -1,30 +1,6 @@
 import { MistralIcon } from '@/components/icons'
-import type { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '@/blocks/types'
+import type { BlockConfig, SubBlockLayout, SubBlockType } from '@/blocks/types'
 import type { MistralParserOutput } from '@/tools/mistral/types'
-
-const inputMethodBlock: SubBlockConfig = {
-  id: 'inputMethod',
-  title: 'Select Input Method',
-  type: 'dropdown' as SubBlockType,
-  layout: 'full' as SubBlockLayout,
-  options: [
-    { id: 'url', label: 'PDF Document URL' },
-    { id: 'upload', label: 'Upload PDF Document' },
-  ],
-}
-
-const fileUploadBlock: SubBlockConfig = {
-  id: 'fileUpload',
-  title: 'Upload PDF',
-  type: 'file-upload' as SubBlockType,
-  layout: 'full' as SubBlockLayout,
-  acceptedTypes: 'application/pdf',
-  condition: {
-    field: 'inputMethod',
-    value: 'upload',
-  },
-  maxSize: 50, // 50MB max via direct upload
-}
 
 export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   type: 'mistral_parse',
@@ -37,7 +13,16 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   icon: MistralIcon,
   subBlocks: [
     // Show input method selection
-    inputMethodBlock,
+    {
+      id: 'inputMethod',
+      title: 'Select Input Method',
+      type: 'dropdown' as SubBlockType,
+      layout: 'full' as SubBlockLayout,
+      options: [
+        { id: 'url', label: 'PDF Document URL' },
+        { id: 'upload', label: 'Upload PDF Document' },
+      ],
+    },
 
     // URL input - conditional on inputMethod
     {
@@ -53,7 +38,18 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
     },
 
     // File upload option
-    fileUploadBlock,
+    {
+      id: 'fileUpload',
+      title: 'Upload PDF',
+      type: 'file-upload' as SubBlockType,
+      layout: 'full' as SubBlockLayout,
+      acceptedTypes: 'application/pdf',
+      condition: {
+        field: 'inputMethod',
+        value: 'upload',
+      },
+      maxSize: 50, // 50MB max via direct upload
+    },
 
     {
       id: 'resultType',
