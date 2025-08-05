@@ -91,18 +91,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   // Component state
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [hoveredNested, setHoveredNested] = useState<{ tag: string; index: number } | null>(null)
-  const [hideTimeout, setHideTimeout] = useState<NodeJS.Timeout | null>(null)
   const [inSubmenu, setInSubmenu] = useState(false)
   const [submenuIndex, setSubmenuIndex] = useState(0)
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (hideTimeout) {
-        clearTimeout(hideTimeout)
-      }
-    }
-  }, [hideTimeout])
+  const [parentHovered, setParentHovered] = useState<string | null>(null)
+  const [submenuHovered, setSubmenuHovered] = useState(false)
 
   // Store hooks for workflow data
   const blocks = useWorkflowStore((state) => state.blocks)
@@ -1066,13 +1058,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         onMouseEnter={() => {
                           setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)
                           // Clear nested hover when hovering over regular items
-                          if (hoveredNested) {
-                            if (hideTimeout) {
-                              clearTimeout(hideTimeout)
-                              setHideTimeout(null)
-                            }
-                            setHoveredNested(null)
-                          }
+                          setHoveredNested(null)
                         }}
                         onMouseDown={(e) => {
                           e.preventDefault()
@@ -1189,51 +1175,27 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                   isKeyboardSelected && 'bg-accent text-accent-foreground'
                                 )}
                                 onMouseEnter={() => {
-                                  // Sync keyboard selection with mouse hover
-                                  if (
-                                    hasChildren &&
-                                    selectedIndex >= 0 &&
-                                    selectedIndex < orderedTags.length
-                                  ) {
-                                    const selectedTag = orderedTags[selectedIndex]
-                                    const firstChild = nestedTag.children?.[0]
-                                    if (firstChild?.fullTag === selectedTag) {
-                                      // Already selected via keyboard, just show hover
-                                      setHoveredNested({
-                                        tag: `${group.blockId}-${nestedTag.key}`,
-                                        index,
-                                      })
-                                    } else if (tagIndex >= 0) {
-                                      setSelectedIndex(tagIndex)
-                                    }
-                                  } else if (tagIndex >= 0) {
+                                  if (tagIndex >= 0) {
                                     setSelectedIndex(tagIndex)
                                   }
 
                                   if (hasChildren) {
-                                    // Clear any pending hide timeout
-                                    if (hideTimeout) {
-                                      clearTimeout(hideTimeout)
-                                      setHideTimeout(null)
-                                    }
+                                    const parentKey = `${group.blockId}-${nestedTag.key}`
+                                    setParentHovered(parentKey)
                                     setHoveredNested({
-                                      tag: `${group.blockId}-${nestedTag.key}`,
+                                      tag: parentKey,
                                       index,
                                     })
                                   }
                                 }}
                                 onMouseLeave={() => {
                                   if (hasChildren) {
-                                    // Clear any existing timeout first
-                                    if (hideTimeout) {
-                                      clearTimeout(hideTimeout)
-                                    }
-                                    // Longer delay to allow smooth movement to submenu
-                                    const timeout = setTimeout(() => {
+                                    const parentKey = `${group.blockId}-${nestedTag.key}`
+                                    setParentHovered(null)
+                                    // Only hide submenu if not hovering over submenu
+                                    if (!submenuHovered) {
                                       setHoveredNested(null)
-                                      setHideTimeout(null)
-                                    }, 300)
-                                    setHideTimeout(timeout)
+                                    }
                                   }
                                 }}
                                 onMouseDown={(e) => {
@@ -1284,50 +1246,46 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                 <div
                                   className='absolute top-0 left-full z-[10000] ml-0.5 min-w-[200px] max-w-[300px] rounded-md border border-border bg-background shadow-lg'
                                   onMouseEnter={() => {
-                                    // Clear any pending hide timeout
-                                    if (hideTimeout) {
-                                      clearTimeout(hideTimeout)
-                                      setHideTimeout(null)
-                                    }
+                                    setSubmenuHovered(true)
+                                    const parentKey = `${group.blockId}-${nestedTag.key}`
                                     setHoveredNested({
-                                      tag: `${group.blockId}-${nestedTag.key}`,
+                                      tag: parentKey,
                                       index,
                                     })
+                                    // Initialize submenu index to -1 to avoid highlighting multiple items
+                                    setSubmenuIndex(-1)
                                   }}
                                   onMouseLeave={() => {
-                                    // Clear any existing timeout first
-                                    if (hideTimeout) {
-                                      clearTimeout(hideTimeout)
-                                    }
-                                    // Set timeout to hide submenu when leaving
-                                    const timeout = setTimeout(() => {
+                                    setSubmenuHovered(false)
+                                    // Only hide if parent is also not hovered
+                                    const parentKey = `${group.blockId}-${nestedTag.key}`
+                                    if (parentHovered !== parentKey) {
                                       setHoveredNested(null)
-                                      setHideTimeout(null)
-                                    }, 300)
-                                    setHideTimeout(timeout)
+                                    }
                                   }}
                                 >
                                   <div className='py-1'>
                                     {nestedTag.children!.map((child, childIndex) => {
                                       const childTagIndex = tagIndexMap.get(child.fullTag) ?? -1
+                                      // Simple highlighting: either keyboard OR mouse, not both
                                       const isKeyboardSelected =
-                                        inSubmenu && isHovered && submenuIndex === childIndex
+                                        inSubmenu && submenuIndex === childIndex
+                                      const isSelected = isKeyboardSelected
                                       return (
                                         <button
                                           key={child.key}
                                           className={cn(
                                             'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
-                                            'hover:bg-accent hover:text-accent-foreground',
                                             'focus:bg-accent focus:text-accent-foreground focus:outline-none',
                                             'transition-colors duration-150',
-                                            isKeyboardSelected && 'bg-accent text-accent-foreground'
+                                            isSelected
+                                              ? 'bg-accent text-accent-foreground'
+                                              : 'hover:bg-accent hover:text-accent-foreground'
                                           )}
                                           onMouseEnter={() => {
-                                            if (childTagIndex >= 0) {
-                                              setSelectedIndex(childTagIndex)
-                                            }
-                                            // Sync keyboard selection with mouse hover
+                                            // Sync submenu selection with mouse hover
                                             setSubmenuIndex(childIndex)
+                                            setInSubmenu(true)
                                           }}
                                           onMouseDown={(e) => {
                                             e.preventDefault()
