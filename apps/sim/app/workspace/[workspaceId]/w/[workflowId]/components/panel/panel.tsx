@@ -90,7 +90,12 @@ export function Panel() {
         // Load chats for the current workflow - let the store handle caching
         if (activeWorkflowId) {
           await loadChats(forceRefresh)
-          validateCurrentChat()
+
+          // Only validate current chat if we're not actively streaming
+          // This prevents clearing the current conversation during a stream
+          if (!isSendingMessage) {
+            validateCurrentChat()
+          }
 
           // Mark this workflow as loaded for the legacy ref
           lastLoadedWorkflowRef.current = activeWorkflowId
@@ -106,6 +111,7 @@ export function Panel() {
       loadChats,
       validateCurrentChat,
       isLoadingChats,
+      isSendingMessage,
     ]
   )
 
@@ -121,9 +127,10 @@ export function Panel() {
       // Open dropdown immediately for better UX
       setIsHistoryDropdownOpen(open)
 
-      // If opening, ensure data is loaded but don't force refresh unless needed
-      if (open && activeWorkflowId) {
-        // Only load if we don't have fresh chats for this workflow
+      // If opening and there's an active stream, don't do any data loading at all
+      // Just show what's already loaded to avoid any interference
+      if (open && activeWorkflowId && !isSendingMessage) {
+        // Only load if we don't have fresh chats for this workflow AND we're not streaming
         if (!areChatsFresh(activeWorkflowId)) {
           // Don't await - let it load in background while dropdown is already open
           ensureCopilotDataLoaded(false).catch((error) => {
@@ -131,8 +138,13 @@ export function Panel() {
           })
         }
       }
+
+      // If streaming, just log that we're showing cached data
+      if (open && isSendingMessage) {
+        console.log('Chat history opened during stream - showing cached data only')
+      }
     },
-    [ensureCopilotDataLoaded, activeWorkflowId, areChatsFresh]
+    [ensureCopilotDataLoaded, activeWorkflowId, areChatsFresh, isSendingMessage]
   )
 
   // Group chats by day
@@ -412,7 +424,11 @@ export function Panel() {
                                   <div
                                     key={chat.id}
                                     onClick={() => {
-                                      selectChat(chat)
+                                      // Only call selectChat if it's a different chat
+                                      // This prevents aborting streams when clicking the currently active chat
+                                      if (currentChat?.id !== chat.id) {
+                                        selectChat(chat)
+                                      }
                                       setIsHistoryDropdownOpen(false)
                                     }}
                                     className={`group mx-1 flex h-8 cursor-pointer items-center rounded-lg px-2 py-1.5 text-left transition-colors ${

@@ -1597,13 +1597,30 @@ export const useCopilotStore = create<CopilotStore>()(
                   (chat: CopilotChat) => chat.id === currentChat.id
                 )
                 if (updatedCurrentChat) {
-                  set({
-                    currentChat: updatedCurrentChat,
-                    messages: ensureToolCallDisplayNames(updatedCurrentChat.messages || []),
-                  })
-                  logger.info(
-                    `Preserved current chat selection: ${updatedCurrentChat.title || 'Untitled'} (${updatedCurrentChat.messages?.length || 0} messages)`
-                  )
+                  const { isSendingMessage } = get()
+
+                  // If we're currently streaming, preserve the current messages state
+                  // to avoid overwriting streaming content with stale database state
+                  if (isSendingMessage) {
+                    set({
+                      currentChat: {
+                        ...updatedCurrentChat,
+                        messages: get().messages, // Preserve current streaming messages
+                      },
+                    })
+                    logger.info(
+                      `Preserved current chat and streaming messages during active stream: ${updatedCurrentChat.title || 'Untitled'}`
+                    )
+                  } else {
+                    // Safe to update messages when not streaming
+                    set({
+                      currentChat: updatedCurrentChat,
+                      messages: ensureToolCallDisplayNames(updatedCurrentChat.messages || []),
+                    })
+                    logger.info(
+                      `Updated current chat with latest database state: ${updatedCurrentChat.title || 'Untitled'} (${updatedCurrentChat.messages?.length || 0} messages)`
+                    )
+                  }
 
                   // Load checkpoints for the preserved chat
                   try {
@@ -1614,22 +1631,31 @@ export const useCopilotStore = create<CopilotStore>()(
                 }
               } else {
                 // Only auto-select most recent chat if no current chat or current chat is stale
-                const mostRecentChat = data.chats[0]
-                set({
-                  currentChat: mostRecentChat,
-                  messages: ensureToolCallDisplayNames(mostRecentChat.messages || []),
-                })
-                logger.info(
-                  `Auto-selected most recent chat for workflow ${workflowId}: ${mostRecentChat.title || 'Untitled'}`
-                )
+                // But don't auto-select during streaming to avoid disrupting the conversation
+                const { isSendingMessage } = get()
 
-                // Load checkpoints for the auto-selected chat
-                try {
-                  await get().loadMessageCheckpoints(mostRecentChat.id)
-                } catch (checkpointError) {
-                  logger.error(
-                    'Failed to load checkpoints for auto-selected chat:',
-                    checkpointError
+                if (!isSendingMessage) {
+                  const mostRecentChat = data.chats[0]
+                  set({
+                    currentChat: mostRecentChat,
+                    messages: ensureToolCallDisplayNames(mostRecentChat.messages || []),
+                  })
+                  logger.info(
+                    `Auto-selected most recent chat for workflow ${workflowId}: ${mostRecentChat.title || 'Untitled'}`
+                  )
+
+                  // Load checkpoints for the auto-selected chat
+                  try {
+                    await get().loadMessageCheckpoints(mostRecentChat.id)
+                  } catch (checkpointError) {
+                    logger.error(
+                      'Failed to load checkpoints for auto-selected chat:',
+                      checkpointError
+                    )
+                  }
+                } else {
+                  logger.info(
+                    `Skipped auto-selecting chat during active stream for workflow ${workflowId}`
                   )
                 }
               }
