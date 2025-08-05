@@ -27,6 +27,7 @@ import { openaiProvider } from '@/providers/openai'
 import type { ProviderConfig, ProviderId, ProviderToolConfig } from '@/providers/types'
 import { xAIProvider } from '@/providers/xai'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { useOllamaStore } from '@/stores/ollama/store'
 
 const logger = createLogger('ProviderUtils')
 
@@ -547,6 +548,12 @@ export function getHostedModels(): string[] {
 export function getApiKey(provider: string, model: string, userProvidedKey?: string): string {
   // If user provided a key, use it as a fallback
   const hasUserKey = !!userProvidedKey
+
+  // Ollama models don't require API keys - they run locally
+  const isOllamaModel = provider === 'ollama' || useOllamaStore.getState().models.includes(model)
+  if (isOllamaModel) {
+    return 'empty' // Ollama uses 'empty' as a placeholder API key
+  }
 
   // Use server key rotation for all OpenAI models and Anthropic's Claude models on the hosted platform
   const isOpenAIModel = provider === 'openai'
