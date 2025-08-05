@@ -15,6 +15,7 @@ const logger = createLogger('CopilotFeedbackAPI')
 
 // Schema for feedback submission
 const FeedbackSchema = z.object({
+  chatId: z.string().uuid('Chat ID must be a valid UUID'),
   userQuery: z.string().min(1, 'User query is required'),
   agentResponse: z.string().min(1, 'Agent response is required'),
   isPositiveFeedback: z.boolean(),
@@ -39,11 +40,12 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { userQuery, agentResponse, isPositiveFeedback, feedback, workflowYaml } =
+    const { chatId, userQuery, agentResponse, isPositiveFeedback, feedback, workflowYaml } =
       FeedbackSchema.parse(body)
 
     logger.info(`[${tracker.requestId}] Processing copilot feedback submission`, {
       userId: authenticatedUserId,
+      chatId,
       isPositiveFeedback,
       userQueryLength: userQuery.length,
       agentResponseLength: agentResponse.length,
@@ -56,6 +58,8 @@ export async function POST(req: NextRequest) {
     const [feedbackRecord] = await db
       .insert(copilotFeedback)
       .values({
+        userId: authenticatedUserId,
+        chatId,
         userQuery,
         agentResponse,
         isPositive: isPositiveFeedback,
@@ -123,6 +127,8 @@ export async function GET(req: NextRequest) {
     const feedbackRecords = await db
       .select({
         feedbackId: copilotFeedback.feedbackId,
+        userId: copilotFeedback.userId,
+        chatId: copilotFeedback.chatId,
         userQuery: copilotFeedback.userQuery,
         agentResponse: copilotFeedback.agentResponse,
         isPositive: copilotFeedback.isPositive,

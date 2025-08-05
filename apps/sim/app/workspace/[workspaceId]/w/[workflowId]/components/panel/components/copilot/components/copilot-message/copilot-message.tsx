@@ -343,6 +343,12 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     // Function to submit feedback
     const submitFeedback = async (isPositive: boolean) => {
+      // Ensure we have a chat ID
+      if (!currentChat?.id) {
+        console.error('No current chat ID available for feedback submission')
+        return
+      }
+
       const userQuery = getLastUserQuery()
       if (!userQuery) {
         console.error('No user query found for feedback submission')
@@ -360,6 +366,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
       try {
         const requestBody: any = {
+          chatId: currentChat.id,
           userQuery,
           agentResponse,
           isPositiveFeedback: isPositive,
