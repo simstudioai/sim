@@ -12,7 +12,7 @@ import { getAllBlocks } from '@/blocks'
 import { TemplateCard, TemplateCardSkeleton } from '../../../templates/components/template-card'
 import { getKeyboardShortcutText } from '../../hooks/use-keyboard-shortcuts'
 
-export interface SearchModalProps {
+interface SearchModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   templates?: TemplateData[]
@@ -22,7 +22,7 @@ export interface SearchModalProps {
   isOnWorkflowPage?: boolean
 }
 
-export interface TemplateData {
+interface TemplateData {
   id: string
   title: string
   description: string
@@ -37,21 +37,21 @@ export interface TemplateData {
   isStarred?: boolean
 }
 
-export interface WorkflowItem {
+interface WorkflowItem {
   id: string
   name: string
   href: string
   isCurrent?: boolean
 }
 
-export interface WorkspaceItem {
+interface WorkspaceItem {
   id: string
   name: string
   href: string
   isCurrent?: boolean
 }
 
-export interface BlockItem {
+interface BlockItem {
   id: string
   name: string
   description: string
@@ -61,7 +61,7 @@ export interface BlockItem {
   type: string
 }
 
-export interface ToolItem {
+interface ToolItem {
   id: string
   name: string
   description: string
@@ -70,7 +70,7 @@ export interface ToolItem {
   type: string
 }
 
-export interface PageItem {
+interface PageItem {
   id: string
   name: string
   icon: React.ComponentType<any>
@@ -78,25 +78,12 @@ export interface PageItem {
   shortcut?: string
 }
 
-export interface DocItem {
+interface DocItem {
   id: string
   name: string
   icon: React.ComponentType<any>
   href: string
   type: 'main' | 'block' | 'tool'
-}
-
-export interface NavigationPosition {
-  sectionIndex: number
-  itemIndex: number
-}
-
-export interface NavigationSection {
-  id: string
-  name: string
-  type: 'grid' | 'list'
-  items: any[]
-  gridCols?: number // How many columns per row for grid sections
 }
 
 export function SearchModal({
@@ -109,12 +96,15 @@ export function SearchModal({
   isOnWorkflowPage = false,
 }: SearchModalProps) {
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedIndex, setSelectedIndex] = useState(0)
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
 
+  // Local state for templates to handle star changes
   const [localTemplates, setLocalTemplates] = useState<TemplateData[]>(templates)
 
+  // Update local templates when props change
   useEffect(() => {
     setLocalTemplates(templates)
   }, [templates])
@@ -145,6 +135,7 @@ export function SearchModal({
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [isOnWorkflowPage])
 
+  // Get all available tools - only when on workflow page
   const tools = useMemo(() => {
     if (!isOnWorkflowPage) return []
 
@@ -164,6 +155,7 @@ export function SearchModal({
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [isOnWorkflowPage])
 
+  // Define pages
   const pages = useMemo(
     (): PageItem[] => [
       {
@@ -196,10 +188,12 @@ export function SearchModal({
     [workspaceId]
   )
 
+  // Define docs
   const docs = useMemo((): DocItem[] => {
     const allBlocks = getAllBlocks()
     const docsItems: DocItem[] = []
 
+    // Add individual block/tool docs
     allBlocks.forEach((block) => {
       if (block.docsLink) {
         docsItems.push({
@@ -215,6 +209,7 @@ export function SearchModal({
     return docsItems.sort((a, b) => a.name.localeCompare(b.name))
   }, [])
 
+  // Filter all items based on search query
   const filteredBlocks = useMemo(() => {
     if (!searchQuery.trim()) return blocks
     const query = searchQuery.toLowerCase()
@@ -326,65 +321,27 @@ export function SearchModal({
       }
     }
 
-    if (filteredTools.length > 0) {
-      sections.push({
-        id: 'tools',
-        name: 'Tools',
-        type: 'grid',
-        items: filteredTools,
-        gridCols: 4, // 4 items per row
-      })
+    if (open) {
+      document.addEventListener('keydown', handleKeyDown)
+      return () => document.removeEventListener('keydown', handleKeyDown)
     }
+  }, [open, onOpenChange])
 
-    if (filteredTemplates.length > 0) {
-      sections.push({
-        id: 'templates',
-        name: 'Templates',
-        type: 'grid',
-        items: filteredTemplates,
-        gridCols: 2, // 2 templates per row
-      })
-    }
-
-    const listItems = [
-      ...filteredWorkspaces.map((item) => ({ type: 'workspace', data: item })),
-      ...filteredWorkflows.map((item) => ({ type: 'workflow', data: item })),
-      ...filteredPages.map((item) => ({ type: 'page', data: item })),
-      ...filteredDocs.map((item) => ({ type: 'doc', data: item })),
-    ]
-
-    if (listItems.length > 0) {
-      sections.push({
-        id: 'list',
-        name: 'Navigation',
-        type: 'list',
-        items: listItems,
-      })
-    }
-
-    return sections
-  }, [
-    filteredBlocks,
-    filteredTools,
-    filteredTemplates,
-    filteredWorkspaces,
-    filteredWorkflows,
-    filteredPages,
-    filteredDocs,
-  ])
-
-  const { navigate, getCurrentItem, scrollRefs } = useSearchNavigation(navigationSections, open)
-
+  // Clear search when modal closes
   useEffect(() => {
     if (!open) {
       setSearchQuery('')
     }
   }, [open])
 
+  // Handle block/tool click (same as toolbar interaction)
   const handleBlockClick = useCallback(
     (blockType: string) => {
+      // Dispatch a custom event to be caught by the workflow component
       const event = new CustomEvent('add-block-from-toolbar', {
-        detail: { type: blockType },
+        detail: {
+          type: blockType,
+        },
       })
       window.dispatchEvent(event)
       onOpenChange(false)
@@ -392,8 +349,10 @@ export function SearchModal({
     [onOpenChange]
   )
 
+  // Handle page navigation
   const handlePageClick = useCallback(
     (href: string) => {
+      // External links open in new tab
       if (href.startsWith('http')) {
         window.open(href, '_blank', 'noopener,noreferrer')
       } else {
@@ -404,6 +363,7 @@ export function SearchModal({
     [router, onOpenChange]
   )
 
+  // Handle workflow/workspace navigation (same as page navigation)
   const handleNavigationClick = useCallback(
     (href: string) => {
       router.push(href)
@@ -412,8 +372,10 @@ export function SearchModal({
     [router, onOpenChange]
   )
 
+  // Handle docs navigation
   const handleDocsClick = useCallback(
     (href: string) => {
+      // External links open in new tab
       if (href.startsWith('http')) {
         window.open(href, '_blank', 'noopener,noreferrer')
       } else {
@@ -424,17 +386,72 @@ export function SearchModal({
     [router, onOpenChange]
   )
 
-  const handleItemSelection = useCallback(() => {
-    const current = getCurrentItem()
-    if (!current) return
+  // Handle page navigation shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle shortcuts when modal is open
+      if (!open) return
 
-    const { section, item } = current
+      const isMac =
+        typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0
+      const isModifierPressed = isMac ? e.metaKey : e.ctrlKey
 
-    if (section.id === 'blocks' || section.id === 'tools') {
-      handleBlockClick(item.type)
-    } else if (section.id === 'templates') {
-      onOpenChange(false)
-    } else if (section.id === 'list') {
+      // Check if this is one of our specific shortcuts
+      const isOurShortcut =
+        isModifierPressed &&
+        e.shiftKey &&
+        (e.key.toLowerCase() === 'l' || e.key.toLowerCase() === 'k')
+
+      // Don't trigger other shortcuts if user is typing in the search input
+      // But allow our specific shortcuts to pass through
+      if (!isOurShortcut) {
+        const activeElement = document.activeElement
+        const isEditableElement =
+          activeElement instanceof HTMLInputElement ||
+          activeElement instanceof HTMLTextAreaElement ||
+          activeElement?.hasAttribute('contenteditable')
+
+        if (isEditableElement) return
+      }
+
+      if (isModifierPressed && e.shiftKey) {
+        // Command+Shift+L - Navigate to Logs
+        if (e.key.toLowerCase() === 'l') {
+          e.preventDefault()
+          handlePageClick(`/workspace/${workspaceId}/logs`)
+        }
+        // Command+Shift+K - Navigate to Knowledge
+        else if (e.key.toLowerCase() === 'k') {
+          e.preventDefault()
+          handlePageClick(`/workspace/${workspaceId}/knowledge`)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, handlePageClick, workspaceId])
+
+  // Handle template usage callback (closes modal after template is used)
+  const handleTemplateUsed = useCallback(() => {
+    onOpenChange(false)
+  }, [onOpenChange])
+
+  // Handle star change callback from template card
+  const handleStarChange = useCallback(
+    (templateId: string, isStarred: boolean, newStarCount: number) => {
+      setLocalTemplates((prevTemplates) =>
+        prevTemplates.map((template) =>
+          template.id === templateId ? { ...template, isStarred, stars: newStarCount } : template
+        )
+      )
+    },
+    []
+  )
+
+  // Handle item selection based on type
+  const handleItemSelection = useCallback(
+    (item: (typeof navigatableItems)[0]) => {
       switch (item.type) {
         case 'block':
         case 'tool':
@@ -500,6 +517,7 @@ export function SearchModal({
     [getSectionBoundaries]
   )
 
+  // Handle keyboard navigation
   useEffect(() => {
     if (!open) return
 
@@ -582,7 +600,10 @@ export function SearchModal({
           break
         case 'Enter':
           e.preventDefault()
-          handleItemSelection()
+          if (navigatableItems.length > 0 && selectedIndex < navigatableItems.length) {
+            const selectedItem = navigatableItems[selectedIndex]
+            handleItemSelection(selectedItem)
+          }
           break
         case 'Escape':
           onOpenChange(false)
@@ -602,15 +623,14 @@ export function SearchModal({
     getCurrentSection,
   ])
 
-  const handleStarChange = useCallback(
-    (templateId: string, isStarred: boolean, newStarCount: number) => {
-      setLocalTemplates((prevTemplates) =>
-        prevTemplates.map((template) =>
-          template.id === templateId ? { ...template, isStarred, stars: newStarCount } : template
-        )
-      )
+  // Helper function to check if an item is selected
+  const isItemSelected = useCallback(
+    (item: any, itemType: string) => {
+      if (navigatableItems.length === 0 || selectedIndex >= navigatableItems.length) return false
+      const selectedItem = navigatableItems[selectedIndex]
+      return selectedItem.type === itemType && selectedItem.data.id === item.id
     },
-    []
+    [navigatableItems, selectedIndex]
   )
 
   // Scroll selected item into view
@@ -656,6 +676,7 @@ export function SearchModal({
     }
   }, [selectedIndex, navigatableItems, getSectionBoundaries])
 
+  // Render skeleton cards for loading state
   const renderSkeletonCards = () => {
     return Array.from({ length: 8 }).map((_, index) => (
       <div key={`skeleton-${index}`} className='w-80 flex-shrink-0'>
@@ -675,7 +696,6 @@ export function SearchModal({
           <VisuallyHidden.Root>
             <DialogTitle>Search</DialogTitle>
           </VisuallyHidden.Root>
-
           {/* Header with search input */}
           <div className='flex items-center border-b px-6 py-2'>
             <Search className='h-5 w-5 font-sans text-muted-foreground text-xl' />
@@ -787,22 +807,13 @@ export function SearchModal({
                     Templates
                   </h3>
                   <div
-                    ref={(el) => {
-                      if (el) scrollRefs.current.set('templates', el)
-                    }}
                     className='scrollbar-none flex gap-4 overflow-x-auto pr-6 pb-1 pl-6'
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                   >
                     {loading
                       ? renderSkeletonCards()
-                      : filteredTemplates.map((template, index) => (
-                          <div
-                            key={template.id}
-                            data-nav-item={`templates-${index}`}
-                            className={`w-80 flex-shrink-0 rounded-lg transition-all duration-200 ${
-                              isItemSelected('templates', index) ? 'bg-accent' : ''
-                            }`}
-                          >
+                      : filteredTemplates.map((template) => (
+                          <div key={template.id} className='w-80 flex-shrink-0'>
                             <TemplateCard
                               id={template.id}
                               title={template.title}
@@ -814,7 +825,7 @@ export function SearchModal({
                               iconColor={template.iconColor}
                               state={template.state}
                               isStarred={template.isStarred}
-                              onTemplateUsed={() => onOpenChange(false)}
+                              onTemplateUsed={handleTemplateUsed}
                               onStarChange={handleStarChange}
                             />
                           </div>
