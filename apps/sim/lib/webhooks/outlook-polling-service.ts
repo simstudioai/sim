@@ -121,8 +121,8 @@ export async function pollOutlookWebhooks() {
 
         if (!userId) {
           logger.error(`[${requestId}] No user ID found for webhook ${webhookId}`)
-          console.log(
-            `❌ POLLING DEBUG: No userId found in providerConfig for webhook ${webhookId}`
+          logger.debug(
+            `[${requestId}] No userId found in providerConfig for webhook ${webhookId}`
           )
           return { success: false, webhookId, error: 'No user ID' }
         }
