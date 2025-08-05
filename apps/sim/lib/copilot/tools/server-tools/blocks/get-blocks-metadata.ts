@@ -89,7 +89,7 @@ function processSubBlocks(subBlocks: any[]): any[] {
       // Other properties
       connectionDroppable: subBlock.connectionDroppable,
       columns: subBlock.columns,
-      value: subBlock.value ? 'function' : undefined, // Don't serialize functions
+      value: typeof subBlock.value === 'function' ? 'function' : undefined, // Don't serialize functions
       wandConfig: subBlock.wandConfig,
     }
 
