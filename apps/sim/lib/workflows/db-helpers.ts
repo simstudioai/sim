@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
-import type { LoopConfig, WorkflowState } from '@/stores/workflows/workflow/types'
+import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDBHelpers')
@@ -12,7 +12,49 @@ export interface NormalizedWorkflowData {
   edges: any[]
   loops: Record<string, any>
   parallels: Record<string, any>
-  isFromNormalizedTables: true // Flag to indicate this came from new tables
+  isFromNormalizedTables: boolean // Flag to indicate source (true = normalized tables, false = deployed state)
+}
+
+/**
+ * Load deployed workflow state for execution
+ * Returns deployed state if available, otherwise throws error
+ */
+export async function loadDeployedWorkflowState(
+  workflowId: string
+): Promise<NormalizedWorkflowData> {
+  try {
+    // First check if workflow is deployed and get deployed state
+    const [workflowResult] = await db
+      .select({
+        isDeployed: workflow.isDeployed,
+        deployedState: workflow.deployedState,
+      })
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .limit(1)
+
+    if (!workflowResult) {
+      throw new Error(`Workflow ${workflowId} not found`)
+    }
+
+    if (!workflowResult.isDeployed || !workflowResult.deployedState) {
+      throw new Error(`Workflow ${workflowId} is not deployed or has no deployed state`)
+    }
+
+    const deployedState = workflowResult.deployedState as any
+
+    // Convert deployed state to normalized format
+    return {
+      blocks: deployedState.blocks || {},
+      edges: deployedState.edges || [],
+      loops: deployedState.loops || {},
+      parallels: deployedState.parallels || {},
+      isFromNormalizedTables: false, // Flag to indicate this came from deployed state
+    }
+  } catch (error) {
+    logger.error(`Error loading deployed workflow state ${workflowId}:`, error)
+    throw error
+  }
 }
 
 /**
@@ -88,7 +130,6 @@ export async function loadWorkflowFromNormalizedTables(
       const config = subflow.config || {}
 
       if (subflow.type === SUBFLOW_TYPES.LOOP) {
-        const loopConfig = config as LoopConfig
         loops[subflow.id] = {
           id: subflow.id,
           ...config,
@@ -126,7 +167,7 @@ export async function saveWorkflowToNormalizedTables(
 ): Promise<{ success: boolean; jsonBlob?: any; error?: string }> {
   try {
     // Start a transaction
-    const result = await db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
       // Clear existing data for this workflow
       await Promise.all([
         tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
