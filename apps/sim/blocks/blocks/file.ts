@@ -1,68 +1,54 @@
 import { DocumentIcon } from '@/components/icons'
-import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '@/blocks/types'
+import type { BlockConfig, SubBlockLayout, SubBlockType } from '@/blocks/types'
 import type { FileParserOutput } from '@/tools/file/types'
 
 const logger = createLogger('FileBlock')
-
-const shouldEnableURLInput = isProd
-
-const inputMethodBlock: SubBlockConfig = {
-  id: 'inputMethod',
-  title: 'Select Input Method',
-  type: 'dropdown' as SubBlockType,
-  layout: 'full' as SubBlockLayout,
-  options: [
-    { id: 'url', label: 'File URL' },
-    { id: 'upload', label: 'Upload Files' },
-  ],
-}
-
-const fileUploadBlock: SubBlockConfig = {
-  id: 'file',
-  title: 'Upload Files',
-  type: 'file-upload' as SubBlockType,
-  layout: 'full' as SubBlockLayout,
-  acceptedTypes: '.pdf,.csv,.docx',
-  multiple: true,
-  maxSize: 100, // 100MB max via direct upload
-}
 
 export const FileBlock: BlockConfig<FileParserOutput> = {
   type: 'file',
   name: 'File',
   description: 'Read and parse multiple files',
-  longDescription: `Upload and extract contents from structured file formats including PDFs, CSV spreadsheets, and Word documents (DOCX). ${
-    shouldEnableURLInput
-      ? 'You can either provide a URL to a file or upload files directly. '
-      : 'Upload files directly. '
-  }Specialized parsers extract text and metadata from each format. You can upload multiple files at once and access them individually or as a combined document.`,
+  longDescription: `Upload and extract contents from structured file formats including PDFs, CSV spreadsheets, and Word documents (DOCX). You can either provide a URL to a file or upload files directly. Specialized parsers extract text and metadata from each format. You can upload multiple files at once and access them individually or as a combined document.`,
   docsLink: 'https://docs.sim.ai/tools/file',
   category: 'tools',
   bgColor: '#40916C',
   icon: DocumentIcon,
   subBlocks: [
-    ...(shouldEnableURLInput ? [inputMethodBlock] : []),
+    {
+      id: 'inputMethod',
+      title: 'Select Input Method',
+      type: 'dropdown' as SubBlockType,
+      layout: 'full' as SubBlockLayout,
+      options: [
+        { id: 'url', label: 'File URL' },
+        { id: 'upload', label: 'Upload Files' },
+      ],
+    },
     {
       id: 'filePath',
       title: 'File URL',
       type: 'short-input' as SubBlockType,
       layout: 'full' as SubBlockLayout,
       placeholder: 'Enter URL to a file (https://example.com/document.pdf)',
-      ...(shouldEnableURLInput
-        ? {
-            condition: {
-              field: 'inputMethod',
-              value: 'url',
-            },
-          }
-        : {}),
+      condition: {
+        field: 'inputMethod',
+        value: 'url',
+      },
     },
 
     {
-      ...fileUploadBlock,
-      ...(shouldEnableURLInput ? { condition: { field: 'inputMethod', value: 'upload' } } : {}),
+      id: 'file',
+      title: 'Upload Files',
+      type: 'file-upload' as SubBlockType,
+      layout: 'full' as SubBlockLayout,
+      acceptedTypes: '.pdf,.csv,.docx',
+      multiple: true,
+      condition: {
+        field: 'inputMethod',
+        value: 'upload',
+      },
+      maxSize: 100, // 100MB max via direct upload
     },
   ],
   tools: {
@@ -70,8 +56,8 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
     config: {
       tool: () => 'file_parser',
       params: (params) => {
-        // Determine input method based on whether URL input is enabled
-        const inputMethod = shouldEnableURLInput ? params.inputMethod || 'url' : 'upload'
+        // Determine input method - default to 'url' if not specified
+        const inputMethod = params.inputMethod || 'url'
 
         if (inputMethod === 'url') {
           if (!params.filePath || params.filePath.trim() === '') {
@@ -87,7 +73,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
           }
         }
 
-        // Handle file upload input (always possible, default if URL input disabled)
+        // Handle file upload input
         if (inputMethod === 'upload') {
           // Handle case where 'file' is an array (multiple files)
           if (params.file && Array.isArray(params.file) && params.file.length > 0) {
@@ -109,7 +95,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
 
           // If no files, return error
           logger.error('No files provided for upload method')
-          throw new Error('Please upload a file') // Changed error message slightly
+          throw new Error('Please upload a file')
         }
 
         // This part should ideally not be reached if logic above is correct
@@ -119,15 +105,9 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
     },
   },
   inputs: {
-    // Conditionally require inputMethod and filePath only if URL input is enabled
-    ...(shouldEnableURLInput
-      ? {
-          inputMethod: { type: 'string', description: 'Input method selection' }, // Not strictly required as it defaults
-          filePath: { type: 'string', description: 'File URL path' }, // Required only if inputMethod is 'url' (validated in params)
-        }
-      : {}),
+    inputMethod: { type: 'string', description: 'Input method selection' },
+    filePath: { type: 'string', description: 'File URL path' },
     fileType: { type: 'string', description: 'File type' },
-    // File input is always potentially needed, but only required if method is 'upload' (validated in params)
     file: { type: 'json', description: 'Uploaded file data' },
   },
   outputs: {
