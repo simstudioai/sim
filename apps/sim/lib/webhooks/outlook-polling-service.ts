@@ -112,11 +112,12 @@ export async function pollOutlookWebhooks() {
         const metadata = webhookData.providerConfig as any
         const userId = metadata?.userId
 
-        console.log(
-          `🔍 POLLING DEBUG: Webhook ${webhookId} providerConfig:`,
+        // Debug: Webhook metadata extraction
+        logger.debug(
+          `[${requestId}] Webhook ${webhookId} providerConfig:`,
           JSON.stringify(metadata, null, 2)
         )
-        console.log(`🔍 POLLING DEBUG: Extracted userId:`, userId)
+        logger.debug(`[${requestId}] Extracted userId:`, userId)
 
         if (!userId) {
           logger.error(`[${requestId}] No user ID found for webhook ${webhookId}`)
