@@ -61,8 +61,10 @@ export function ToolConfirmation({
         })
       } else {
         // For server tools, use the notification system
-        const toolState = action === 'run' ? 'accepted' : 'rejected'
-        const uiState = action === 'run' ? 'accepted' : 'rejected'
+        const toolState =
+          action === 'run' ? 'accepted' : action === 'background' ? 'background' : 'rejected'
+        const uiState =
+          action === 'run' ? 'accepted' : action === 'background' ? 'background' : 'rejected'
 
         // Update UI state
         onStateChange(uiState)

@@ -78,6 +78,19 @@ async function updateToolCallStatus(
       message: message || null,
       timestamp: new Date().toISOString(),
     }
+
+    // Log what we're about to update in Redis
+    logger.info('About to update Redis with tool call data', {
+      toolCallId,
+      key,
+      toolCallData,
+      serializedData: JSON.stringify(toolCallData),
+      providedStatus: status,
+      providedMessage: message,
+      messageIsUndefined: message === undefined,
+      messageIsNull: message === null,
+    })
+
     await redis.set(key, JSON.stringify(toolCallData), 'EX', 86400) // Keep 24 hour expiry
 
     logger.info('Tool call status updated in Redis', {
