@@ -332,64 +332,21 @@ export async function POST(req: NextRequest) {
       endpoint: `${SIM_AGENT_API_URL}/api/chat-completion-streaming`,
     })
 
-    // Prepare the request payload
-    const simAgentPayload = {
-      messages,
-      workflowId,
-      userId: authenticatedUserId,
-      stream: stream,
-      streamToolCalls: true,
-      mode: mode,
-      ...(session?.user?.name && { userName: session.user.name }),
-    }
-
-    // Log the complete request payload (with truncated message content for readability)
-    logger.info(`[${tracker.requestId}] Full sim agent request payload:`, {
-      ...simAgentPayload,
-      messages: messages.map((msg, index) => ({
-        role: msg.role,
-        contentType: Array.isArray(msg.content) ? 'array' : 'string',
-        contentLength: Array.isArray(msg.content) 
-          ? msg.content.length 
-          : typeof msg.content === 'string' 
-            ? msg.content.length 
-            : 0,
-        contentPreview: Array.isArray(msg.content)
-          ? msg.content.map(item => ({
-              type: item.type,
-              ...(item.type === 'text' && { 
-                textLength: item.text?.length || 0, 
-                textPreview: item.text?.substring(0, 100) + (item.text?.length > 100 ? '...' : '') 
-              }),
-              ...(item.type === 'image' && { 
-                mediaType: item.source?.media_type,
-                sourceType: item.source?.type,
-                hasBase64Data: !!item.source?.data,
-                base64DataLength: item.source?.data?.length || 0,
-                base64Preview: item.source?.data ? item.source.data.substring(0, 50) + '...' : 'NO DATA'
-              }),
-              ...(item.type === 'document' && { 
-                mediaType: item.source?.media_type,
-                sourceType: item.source?.type,
-                hasBase64Data: !!item.source?.data,
-                base64DataLength: item.source?.data?.length || 0,
-                base64Preview: item.source?.data ? item.source.data.substring(0, 50) + '...' : 'NO DATA'
-              }),
-            }))
-          : typeof msg.content === 'string'
-            ? msg.content.substring(0, 200) + (msg.content.length > 200 ? '...' : '')
-            : 'non-string content',
-        messageIndex: index,
-      })),
-    })
-
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
       },
-      body: JSON.stringify(simAgentPayload),
+      body: JSON.stringify({
+        messages,
+        workflowId,
+        userId: authenticatedUserId,
+        stream: stream,
+        streamToolCalls: true,
+        mode: mode,
+        ...(session?.user?.name && { userName: session.user.name }),
+      }),
     })
 
     if (!simAgentResponse.ok) {
