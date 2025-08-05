@@ -178,10 +178,20 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
 
     viewport.addEventListener('scroll', handleScroll, { passive: true })
 
+    // Also listen for scrollend event if available (for smooth scrolling)
+    if ('onscrollend' in viewport) {
+      viewport.addEventListener('scrollend', handleScroll, { passive: true })
+    }
+
     // Initial scroll state check with small delay to ensure DOM is ready
     setTimeout(handleScroll, 100)
 
-    return () => viewport.removeEventListener('scroll', handleScroll)
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll)
+      if ('onscrollend' in viewport) {
+        viewport.removeEventListener('scrollend', handleScroll)
+      }
+    }
   }, [handleScroll])
 
   // Auto-scroll to bottom when new messages are added, but only if user is near bottom
@@ -190,14 +200,12 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     if (workflowMessages.length === 0) return
 
     const lastMessage = workflowMessages[workflowMessages.length - 1]
-    const isNewUserMessage = lastMessage?.role === 'user'
+    const isNewUserMessage = lastMessage?.type === 'user'
 
     // Always scroll for new user messages, or only if near bottom for assistant messages
     if ((isNewUserMessage || isNearBottom) && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
-      // Reset to near bottom state when we auto-scroll
-      setIsNearBottom(true)
-      setShowScrollButton(false)
+      // Let the scroll event handler update the state naturally after animation completes
     }
   }, [workflowMessages, isNearBottom])
 

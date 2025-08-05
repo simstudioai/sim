@@ -12,6 +12,7 @@ import {
   CopilotWelcome,
   UserInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
+import type { UserInputRef } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
 import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
@@ -29,6 +30,7 @@ interface CopilotRef {
 
 export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const userInputRef = useRef<UserInputRef>(null)
   const [showCheckpoints] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   const lastWorkflowIdRef = useRef<string | null>(null)
@@ -147,10 +149,20 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
     viewport.addEventListener('scroll', handleScroll, { passive: true })
 
+    // Also listen for scrollend event if available (for smooth scrolling)
+    if ('onscrollend' in viewport) {
+      viewport.addEventListener('scrollend', handleScroll, { passive: true })
+    }
+
     // Initial scroll state check with small delay to ensure DOM is ready
     setTimeout(handleScroll, 100)
 
-    return () => viewport.removeEventListener('scroll', handleScroll)
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll)
+      if ('onscrollend' in viewport) {
+        viewport.removeEventListener('scrollend', handleScroll)
+      }
+    }
   }, [handleScroll])
 
   // Smart auto-scroll: only scroll if user is near bottom or for user messages
@@ -166,10 +178,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
         '[data-radix-scroll-area-viewport]'
       )
       if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight
-        // Reset to near bottom state when we auto-scroll
-        setIsNearBottom(true)
-        setShowScrollButton(false)
+        scrollContainer.scrollTo({
+          top: scrollContainer.scrollHeight,
+          behavior: 'smooth',
+        })
+        // Let the scroll event handler update the state naturally after animation completes
       }
     }
   }, [messages, isNearBottom])
@@ -220,6 +233,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     // Preview clearing is now handled automatically by the copilot store
     createNewChat()
     logger.info('Started new chat')
+
+    // Focus the input after creating new chat
+    setTimeout(() => {
+      userInputRef.current?.focus()
+    }, 100) // Small delay to ensure DOM updates are complete
   }, [createNewChat])
 
   // Expose functions to parent
@@ -304,6 +322,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
             {/* Input area with integrated mode selector */}
             {!showCheckpoints && (
               <UserInput
+                ref={userInputRef}
                 onSubmit={handleSubmit}
                 onAbort={abortMessage}
                 disabled={!activeWorkflowId}
