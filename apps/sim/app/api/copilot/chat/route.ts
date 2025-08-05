@@ -244,7 +244,7 @@ export async function POST(req: NextRequest) {
         stream: stream,
         streamToolCalls: true,
         mode: mode,
-        ...(createNewChat && session?.user?.name && { userName: session.user.name }),
+        ...(session?.user?.name && { userName: session.user.name }),
       }),
     })
 
