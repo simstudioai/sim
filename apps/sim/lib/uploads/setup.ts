@@ -60,6 +60,18 @@ export const BLOB_CHAT_CONFIG = {
   containerName: env.AZURE_STORAGE_CHAT_CONTAINER_NAME || '',
 }
 
+export const S3_COPILOT_CONFIG = {
+  bucket: env.S3_COPILOT_BUCKET_NAME || '',
+  region: env.AWS_REGION || '',
+}
+
+export const BLOB_COPILOT_CONFIG = {
+  accountName: env.AZURE_ACCOUNT_NAME || '',
+  accountKey: env.AZURE_ACCOUNT_KEY || '',
+  connectionString: env.AZURE_CONNECTION_STRING || '',
+  containerName: env.AZURE_STORAGE_COPILOT_CONTAINER_NAME || '',
+}
+
 export async function ensureUploadsDirectory() {
   if (USE_S3_STORAGE) {
     logger.info('Using S3 storage, skipping local uploads directory creation')
