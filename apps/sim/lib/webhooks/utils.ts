@@ -1060,3 +1060,69 @@ export async function configureGmailPolling(
     return false
   }
 }
+
+/**
+ * Configure Outlook polling for a webhook
+ */
+export async function configureOutlookPolling(
+  userId: string,
+  webhookData: any,
+  requestId: string
+): Promise<boolean> {
+  const logger = createLogger('OutlookWebhookSetup')
+  logger.info(`[${requestId}] Setting up Outlook polling for webhook ${webhookData.id}`)
+  logger.info(`[${requestId}] Setting up Outlook polling for webhook ${webhookData.id}`)
+
+  try {
+    const accessToken = await getOAuthToken(userId, 'outlook')
+    if (!accessToken) {
+      logger.error(`[${requestId}] Failed to retrieve Outlook access token for user ${userId}`)
+      return false
+    }
+
+    const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
+
+    const maxEmailsPerPoll =
+      typeof providerConfig.maxEmailsPerPoll === 'string'
+        ? Number.parseInt(providerConfig.maxEmailsPerPoll, 10) || 25
+        : providerConfig.maxEmailsPerPoll || 25
+
+    const pollingInterval =
+      typeof providerConfig.pollingInterval === 'string'
+        ? Number.parseInt(providerConfig.pollingInterval, 10) || 5
+        : providerConfig.pollingInterval || 5
+
+    const now = new Date()
+
+    await db
+      .update(webhook)
+      .set({
+        providerConfig: {
+          ...providerConfig,
+          userId, // Store user ID for OAuth access during polling
+          maxEmailsPerPoll,
+          pollingInterval,
+          markAsRead: providerConfig.markAsRead || false,
+          includeRawEmail: providerConfig.includeRawEmail || false,
+          folderIds: providerConfig.folderIds || ['inbox'],
+          folderFilterBehavior: providerConfig.folderFilterBehavior || 'INCLUDE',
+          lastCheckedTimestamp: now.toISOString(),
+          setupCompleted: true,
+        },
+        updatedAt: now,
+      })
+      .where(eq(webhook.id, webhookData.id))
+
+    logger.info(
+      `[${requestId}] Successfully configured Outlook polling for webhook ${webhookData.id}`
+    )
+    return true
+  } catch (error: any) {
+    logger.error(`[${requestId}] Failed to configure Outlook polling`, {
+      webhookId: webhookData.id,
+      error: error.message,
+      stack: error.stack,
+    })
+    return false
+  }
+}

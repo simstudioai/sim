@@ -5,6 +5,7 @@ export {
   GithubConfig,
   GmailConfig,
   MicrosoftTeamsConfig,
+  OutlookConfig,
   SlackConfig,
   StripeConfig,
   TelegramConfig,

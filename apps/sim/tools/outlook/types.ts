@@ -5,6 +5,11 @@ export interface OutlookSendParams {
   to: string
   subject: string
   body: string
+  // Thread support parameters
+  replyToMessageId?: string
+  conversationId?: string
+  cc?: string
+  bcc?: string
 }
 
 export interface OutlookSendResponse extends ToolResponse {
