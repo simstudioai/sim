@@ -59,15 +59,27 @@ const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayPr
     return <FileText className='h-4 w-4' />
   }
 
+  const handleFileClick = (file: any) => {
+    // Construct the serve URL for the file with bucket type parameter
+    const serveUrl = `/api/files/serve/s3/${encodeURIComponent(file.s3_key)}?bucket=copilot`
+    
+    // Open the file in a new tab
+    window.open(serveUrl, '_blank')
+  }
+
   return (
     <div className='mt-2 space-y-1'>
       {fileAttachments.map((file) => (
         <div
           key={file.id}
-          className='flex items-center gap-2 rounded-md bg-muted/50 px-2 py-1 text-xs'
+          className='flex items-center gap-2 rounded-md bg-muted/50 px-2 py-1 text-xs cursor-pointer hover:bg-muted/70 transition-colors'
+          onClick={() => handleFileClick(file)}
+          title={`Click to view ${file.filename}`}
         >
           {getFileIcon(file.media_type)}
-          <span className='flex-1 truncate'>{file.filename}</span>
+          <span className='flex-1 truncate text-primary underline decoration-dotted underline-offset-2'>
+            {file.filename}
+          </span>
           <span className='text-muted-foreground'>
             {formatFileSize(file.size)}
           </span>
