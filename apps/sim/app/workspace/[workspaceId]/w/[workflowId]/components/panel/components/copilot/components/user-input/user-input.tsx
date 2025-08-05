@@ -71,6 +71,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
   ) => {
     const [internalMessage, setInternalMessage] = useState('')
     const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
+    // Drag and drop state
+    const [isDragging, setIsDragging] = useState(false)
+    const [dragCounter, setDragCounter] = useState(0)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     
@@ -112,6 +115,139 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         })
       }
     }, [])
+
+    // Drag and drop handlers
+    const handleDragEnter = (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setDragCounter((prev) => {
+        const newCount = prev + 1
+        if (newCount === 1) {
+          setIsDragging(true)
+        }
+        return newCount
+      })
+    }
+
+    const handleDragLeave = (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setDragCounter((prev) => {
+        const newCount = prev - 1
+        if (newCount === 0) {
+          setIsDragging(false)
+        }
+        return newCount
+      })
+    }
+
+    const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      // Add visual feedback for valid drop zone
+      e.dataTransfer.dropEffect = 'copy'
+    }
+
+    const handleDrop = async (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDragging(false)
+      setDragCounter(0)
+
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        await processFiles(e.dataTransfer.files)
+      }
+    }
+
+    // Process dropped or selected files
+    const processFiles = async (fileList: FileList) => {
+      const userId = session?.user?.id
+
+      if (!userId) {
+        console.error('User ID not available for file upload')
+        return
+      }
+
+      // Process files one by one
+      for (const file of Array.from(fileList)) {
+        // Create a preview URL for images
+        let previewUrl: string | undefined
+        if (file.type.startsWith('image/')) {
+          previewUrl = URL.createObjectURL(file)
+        }
+
+        // Create a temporary file entry with uploading state
+        const tempFile: AttachedFile = {
+          id: crypto.randomUUID(),
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          path: '',
+          uploading: true,
+          previewUrl,
+        }
+
+        setAttachedFiles(prev => [...prev, tempFile])
+
+        try {
+          // Request presigned URL
+          const presignedResponse = await fetch('/api/files/presigned?type=copilot', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              fileName: file.name,
+              contentType: file.type,
+              fileSize: file.size,
+              userId,
+            }),
+          })
+
+          if (!presignedResponse.ok) {
+            throw new Error('Failed to get presigned URL')
+          }
+
+          const presignedData = await presignedResponse.json()
+
+          // Upload file to S3
+          console.log('Uploading to S3:', presignedData.presignedUrl)
+          const uploadResponse = await fetch(presignedData.presignedUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': file.type,
+            },
+            body: file,
+          })
+
+          console.log('S3 Upload response status:', uploadResponse.status)
+          
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text()
+            console.error('S3 Upload failed:', errorText)
+            throw new Error(`Failed to upload file: ${uploadResponse.status} ${errorText}`)
+          }
+
+          // Update file entry with success
+          setAttachedFiles(prev =>
+            prev.map(f =>
+              f.id === tempFile.id
+                ? {
+                    ...f,
+                    path: presignedData.fileInfo.path,
+                    key: presignedData.fileInfo.key, // Store the actual S3 key
+                    uploading: false,
+                  }
+                : f
+            )
+          )
+        } catch (error) {
+          console.error('File upload failed:', error)
+          // Remove failed upload
+          setAttachedFiles(prev => prev.filter(f => f.id !== tempFile.id))
+        }
+      }
+    }
 
     const handleSubmit = () => {
       const trimmedMessage = message.trim()
@@ -176,90 +312,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       const files = e.target.files
       if (!files || files.length === 0) return
 
-      const file = files[0]
-      const userId = session?.user?.id
-
-      if (!userId) {
-        console.error('User ID not available for file upload')
-        return
-      }
-
-      // Create a preview URL for images
-      let previewUrl: string | undefined
-      if (file.type.startsWith('image/')) {
-        previewUrl = URL.createObjectURL(file)
-      }
-
-      // Create a temporary file entry with uploading state
-      const tempFile: AttachedFile = {
-        id: crypto.randomUUID(),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        path: '',
-        uploading: true,
-        previewUrl,
-      }
-
-      setAttachedFiles(prev => [...prev, tempFile])
-
-      try {
-        // Request presigned URL
-        const presignedResponse = await fetch('/api/files/presigned?type=copilot', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            fileName: file.name,
-            contentType: file.type,
-            fileSize: file.size,
-            userId,
-          }),
-        })
-
-        if (!presignedResponse.ok) {
-          throw new Error('Failed to get presigned URL')
-        }
-
-        const presignedData = await presignedResponse.json()
-
-        // Upload file to S3
-        console.log('Uploading to S3:', presignedData.presignedUrl)
-        const uploadResponse = await fetch(presignedData.presignedUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': file.type,
-          },
-          body: file,
-        })
-
-        console.log('S3 Upload response status:', uploadResponse.status)
-        
-        if (!uploadResponse.ok) {
-          const errorText = await uploadResponse.text()
-          console.error('S3 Upload failed:', errorText)
-          throw new Error(`Failed to upload file: ${uploadResponse.status} ${errorText}`)
-        }
-
-        // Update file entry with success
-        setAttachedFiles(prev =>
-          prev.map(f =>
-            f.id === tempFile.id
-              ? {
-                  ...f,
-                  path: presignedData.fileInfo.path,
-                  key: presignedData.fileInfo.key, // Store the actual S3 key
-                  uploading: false,
-                }
-              : f
-          )
-        )
-      } catch (error) {
-        console.error('File upload failed:', error)
-        // Remove failed upload
-        setAttachedFiles(prev => prev.filter(f => f.id !== tempFile.id))
-      }
+      await processFiles(files)
 
       // Clear the input
       if (fileInputRef.current) {
@@ -331,7 +384,16 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     return (
       <div className={cn('relative flex-none pb-4', className)}>
-        <div className='rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] p-2 shadow-xs dark:border-[#414141] dark:bg-[#202020]'>
+        <div 
+          className={cn(
+            'rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] p-2 shadow-xs dark:border-[#414141] dark:bg-[#202020] transition-all duration-200',
+            isDragging && 'border-[#802FFF] bg-purple-50/50 dark:bg-purple-950/20 dark:border-[#802FFF]'
+          )}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
           {/* Attached Files Display with Thumbnails */}
           {attachedFiles.length > 0 && (
             <div className='mb-2 flex flex-wrap gap-1.5'>
@@ -398,7 +460,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             value={message}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder={placeholder}
+            placeholder={isDragging ? 'Drop files here...' : placeholder}
             disabled={disabled}
             rows={1}
             className='mb-2 min-h-[32px] w-full resize-none overflow-hidden border-0 bg-transparent px-[2px] py-1 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
@@ -472,6 +534,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             onChange={handleFileChange}
             className='hidden'
             accept='.pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.gif,.svg'
+            multiple
           />
         </div>
       </div>
@@ -483,3 +546,4 @@ UserInput.displayName = 'UserInput'
 
 export { UserInput }
 export type { UserInputRef }
+
