@@ -70,7 +70,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentWorkflow.getBlockById(id)
 
-  const isEnabled = currentBlock?.enabled ?? true
+  // In preview mode, use the blockState provided; otherwise use current workflow state
+  const isEnabled = data.isPreview
+    ? (data.blockState?.enabled ?? true)
+    : (currentBlock?.enabled ?? true)
 
   // Get diff status from the block itself (set by diff engine)
   const diffStatus =
