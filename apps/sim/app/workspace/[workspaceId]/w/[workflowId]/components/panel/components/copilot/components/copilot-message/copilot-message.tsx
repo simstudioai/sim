@@ -3,10 +3,13 @@
 import { type FC, memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Clipboard, Loader2, RotateCcw, ThumbsDown, ThumbsUp, X } from 'lucide-react'
 import { InlineToolCall } from '@/lib/copilot/tools/inline-tool-call'
+import { createLogger } from '@/lib/logs/console/logger'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotMessage as CopilotMessageType } from '@/stores/copilot/types'
 import CopilotMarkdownRenderer from './components/markdown-renderer'
+
+const logger = createLogger('CopilotMessage')
 
 interface CopilotMessageProps {
   message: CopilotMessageType
@@ -299,19 +302,19 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     const submitFeedback = async (isPositive: boolean) => {
       // Ensure we have a chat ID
       if (!currentChat?.id) {
-        console.error('No current chat ID available for feedback submission')
+        logger.error('No current chat ID available for feedback submission')
         return
       }
 
       const userQuery = getLastUserQuery()
       if (!userQuery) {
-        console.error('No user query found for feedback submission')
+        logger.error('No user query found for feedback submission')
         return
       }
 
       const agentResponse = getFullAssistantContent(message)
       if (!agentResponse.trim()) {
-        console.error('No agent response content available for feedback submission')
+        logger.error('No agent response content available for feedback submission')
         return
       }
 
@@ -345,7 +348,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
         const result = await response.json()
       } catch (error) {
-        console.error('Error submitting feedback:', error)
+        logger.error('Error submitting feedback:', error)
       }
     }
 
@@ -379,7 +382,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           await revertToCheckpoint(latestCheckpoint.id)
           setShowRestoreConfirmation(false)
         } catch (error) {
-          console.error('Failed to revert to checkpoint:', error)
+          logger.error('Failed to revert to checkpoint:', error)
           setShowRestoreConfirmation(false)
         }
       }
