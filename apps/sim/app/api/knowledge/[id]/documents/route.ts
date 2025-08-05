@@ -3,7 +3,7 @@ import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { TAG_SLOTS } from '@/lib/constants/knowledge'
+import { getSlotsForFieldType } from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import {
@@ -23,6 +23,48 @@ const PROCESSING_CONFIG = {
   delayBetweenDocuments: 500,
 }
 
+// Helper function to get the next available slot for a knowledge base and field type
+async function getNextAvailableSlot(
+  knowledgeBaseId: string,
+  fieldType: string,
+  existingBySlot?: Map<string, any>
+): Promise<string | null> {
+  let usedSlots: Set<string>
+
+  if (existingBySlot) {
+    // Use provided map if available (for performance in batch operations)
+    // Filter by field type
+    usedSlots = new Set(
+      Array.from(existingBySlot.entries())
+        .filter(([_, def]) => def.fieldType === fieldType)
+        .map(([slot, _]) => slot)
+    )
+  } else {
+    // Query database for existing tag definitions of the same field type
+    const existingDefinitions = await db
+      .select({ tagSlot: knowledgeBaseTagDefinitions.tagSlot })
+      .from(knowledgeBaseTagDefinitions)
+      .where(
+        and(
+          eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId),
+          eq(knowledgeBaseTagDefinitions.fieldType, fieldType)
+        )
+      )
+
+    usedSlots = new Set(existingDefinitions.map((def) => def.tagSlot))
+  }
+
+  // Find the first available slot for this field type
+  const availableSlots = getSlotsForFieldType(fieldType)
+  for (const slot of availableSlots) {
+    if (!usedSlots.has(slot)) {
+      return slot
+    }
+  }
+
+  return null // No available slots for this field type
+}
+
 // Helper function to process structured document tags
 async function processDocumentTags(
   knowledgeBaseId: string,
@@ -31,8 +73,9 @@ async function processDocumentTags(
 ): Promise<Record<string, string | null>> {
   const result: Record<string, string | null> = {}
 
-  // Initialize all tag slots to null
-  TAG_SLOTS.forEach((slot) => {
+  // Initialize all text tag slots to null (only text type is supported currently)
+  const textSlots = getSlotsForFieldType('text')
+  textSlots.forEach((slot) => {
     result[slot] = null
   })
 
@@ -55,7 +98,7 @@ async function processDocumentTags(
       if (!tag.tagName?.trim() || !tag.value?.trim()) continue
 
       const tagName = tag.tagName.trim()
-      const fieldType = tag.fieldType || 'text'
+      const fieldType = tag.fieldType
       const value = tag.value.trim()
 
       let targetSlot: string | null = null
@@ -65,13 +108,8 @@ async function processDocumentTags(
       if (existingDef) {
         targetSlot = existingDef.tagSlot
       } else {
-        // Find next available slot
-        for (const slot of TAG_SLOTS) {
-          if (!existingBySlot.has(slot)) {
-            targetSlot = slot
-            break
-          }
-        }
+        // Find next available slot using the helper function
+        targetSlot = await getNextAvailableSlot(knowledgeBaseId, fieldType, existingBySlot)
 
         // Create new tag definition if we have a slot
         if (targetSlot) {

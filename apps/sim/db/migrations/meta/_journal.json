@@ -463,6 +463,13 @@
       "when": 1754352106989,
       "tag": "0066_talented_mentor",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1754424644234,
+      "tag": "0067_safe_bushwacker",
+      "breakpoints": true
     }
   ]
 }
