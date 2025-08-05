@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/webhooks/poll/outlook",
-      "schedule": "*/10 * * * * *"
+      "schedule": "*/1 * * * *"
     },
     {
       "path": "/api/logs/cleanup",
