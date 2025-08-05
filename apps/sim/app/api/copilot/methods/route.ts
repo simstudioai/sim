@@ -98,6 +98,18 @@ async function pollRedisForTool(
       }
 
       if (status !== 'pending') {
+        // Log the message found in redis prominently - always log, even if message is null/undefined
+        logger.info('Redis poller found non-pending status', {
+          toolCallId,
+          foundMessage: message,
+          messageType: typeof message,
+          messageIsNull: message === null,
+          messageIsUndefined: message === undefined,
+          status,
+          duration: Date.now() - startTime,
+          rawRedisValue: redisValue,
+        })
+
         logger.info('Tool call status resolved', {
           toolCallId,
           status,

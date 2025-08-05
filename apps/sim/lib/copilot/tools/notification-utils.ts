@@ -55,8 +55,14 @@ export async function notify(
   // Get the state message from tool metadata
   const metadata = toolRegistry.getToolMetadata(toolId)
   let stateMessage = metadata?.stateMessages?.[notificationStatus]
+  
+  // If no message from metadata, provide default messages
   if (!stateMessage) {
-    stateMessage = ''
+    if (notificationStatus === 'background') {
+      stateMessage = 'The user has moved tool execution to the background and it is not complete, it will run asynchronously'
+    } else {
+      stateMessage = ''
+    }
   }
 
   // Call backend confirm route
@@ -68,9 +74,7 @@ export async function notify(
     body: JSON.stringify({
       toolCallId: toolId,
       status: notificationStatus,
-      toolName,
-      toolState,
-      stateMessage,
+      message: stateMessage,
     }),
   })
 }
