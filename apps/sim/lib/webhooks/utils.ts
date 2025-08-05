@@ -1071,17 +1071,14 @@ export async function configureOutlookPolling(
 ): Promise<boolean> {
   const logger = createLogger('OutlookWebhookSetup')
   logger.info(`[${requestId}] Setting up Outlook polling for webhook ${webhookData.id}`)
-  console.log(`🔧 OUTLOOK SETUP: Starting setup for webhook ${webhookData.id}, userId: ${userId}`)
+  logger.info(`[${requestId}] Setting up Outlook polling for webhook ${webhookData.id}`)
 
   try {
-    console.log(`🔧 OUTLOOK SETUP: Attempting to get OAuth token for userId: ${userId}`)
     const accessToken = await getOAuthToken(userId, 'outlook')
     if (!accessToken) {
       logger.error(`[${requestId}] Failed to retrieve Outlook access token for user ${userId}`)
-      console.log(`❌ OUTLOOK SETUP: Failed to get access token for userId: ${userId}`)
       return false
     }
-    console.log(`✅ OUTLOOK SETUP: Got access token successfully`)
 
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
 
