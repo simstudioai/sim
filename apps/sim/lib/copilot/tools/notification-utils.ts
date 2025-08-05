@@ -32,19 +32,21 @@ const SERVER_TOOL_MAPPINGS: Partial<Record<ToolState, NotificationStatus>> = {
 export async function notifyServerTool(
   toolId: string,
   toolName: string,
-  toolState: ToolState
+  toolState: ToolState,
+  executionStartTime?: string
 ): Promise<void> {
   const notificationStatus = SERVER_TOOL_MAPPINGS[toolState]
   if (!notificationStatus) {
     throw new Error(`Invalid tool state: ${toolState}`)
   }
-  await notify(toolId, toolName, toolState)
+  await notify(toolId, toolName, toolState, executionStartTime)
 }
 
 export async function notify(
   toolId: string,
   toolName: string,
-  toolState: ToolState
+  toolState: ToolState,
+  executionStartTime?: string
 ): Promise<void> {
   // toolState must be in STATE_MAPPINGS
   const notificationStatus = STATE_MAPPINGS[toolState]
@@ -55,8 +57,15 @@ export async function notify(
   // Get the state message from tool metadata
   const metadata = toolRegistry.getToolMetadata(toolId)
   let stateMessage = metadata?.stateMessages?.[notificationStatus]
+
+  // If no message from metadata, provide default messages
   if (!stateMessage) {
-    stateMessage = ''
+    if (notificationStatus === 'background') {
+      const timeInfo = executionStartTime ? ` Started at: ${executionStartTime}.` : ''
+      stateMessage = `The user has moved tool execution to the background and it is not complete, it will run asynchronously.${timeInfo}`
+    } else {
+      stateMessage = ''
+    }
   }
 
   // Call backend confirm route
@@ -68,9 +77,7 @@ export async function notify(
     body: JSON.stringify({
       toolCallId: toolId,
       status: notificationStatus,
-      toolName,
-      toolState,
-      stateMessage,
+      message: stateMessage,
     }),
   })
 }

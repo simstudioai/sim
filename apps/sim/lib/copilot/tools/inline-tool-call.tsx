@@ -262,8 +262,9 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
                 // Set tool state to background
                 setToolCallState(toolCall, 'background')
 
-                // Notify the backend about background state
-                await notifyServerTool(toolCall.id, toolCall.name, 'background')
+                // Notify the backend about background state with execution start time if available
+                const executionStartTime = context?.executionStartTime
+                await notifyServerTool(toolCall.id, toolCall.name, 'background', executionStartTime)
 
                 // Track that this tool was moved to background
                 if (context) {
