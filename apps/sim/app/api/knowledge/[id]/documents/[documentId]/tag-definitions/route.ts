@@ -3,7 +3,11 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { MAX_TAG_SLOTS, TAG_SLOTS } from '@/lib/constants/knowledge'
+import {
+  getMaxSlotsForFieldType,
+  getSlotsForFieldType,
+  SUPPORTED_FIELD_TYPES,
+} from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
@@ -14,16 +18,59 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('DocumentTagDefinitionsAPI')
 
 const TagDefinitionSchema = z.object({
-  tagSlot: z.enum(TAG_SLOTS as [string, ...string[]]),
+  tagSlot: z.string(), // Will be validated against field type slots
   displayName: z.string().min(1, 'Display name is required').max(100, 'Display name too long'),
-  fieldType: z.string().default('text'), // Currently only 'text', future: 'date', 'number', 'range'
+  fieldType: z.enum(SUPPORTED_FIELD_TYPES as [string, ...string[]]).default('text'),
+  // Optional: for editing existing definitions
+  _originalDisplayName: z.string().optional(),
 })
 
 const BulkTagDefinitionsSchema = z.object({
-  definitions: z
-    .array(TagDefinitionSchema)
-    .max(MAX_TAG_SLOTS, `Cannot define more than ${MAX_TAG_SLOTS} tags`),
+  definitions: z.array(TagDefinitionSchema),
 })
+
+// Helper function to get the next available slot for a knowledge base and field type
+async function getNextAvailableSlot(
+  knowledgeBaseId: string,
+  fieldType: string,
+  existingBySlot?: Map<string, any>
+): Promise<string | null> {
+  // Get available slots for this field type
+  const availableSlots = getSlotsForFieldType(fieldType)
+  let usedSlots: Set<string>
+
+  if (existingBySlot) {
+    // Use provided map if available (for performance in batch operations)
+    // Filter by field type
+    usedSlots = new Set(
+      Array.from(existingBySlot.entries())
+        .filter(([_, def]) => def.fieldType === fieldType)
+        .map(([slot, _]) => slot)
+    )
+  } else {
+    // Query database for existing tag definitions of the same field type
+    const existingDefinitions = await db
+      .select({ tagSlot: knowledgeBaseTagDefinitions.tagSlot })
+      .from(knowledgeBaseTagDefinitions)
+      .where(
+        and(
+          eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId),
+          eq(knowledgeBaseTagDefinitions.fieldType, fieldType)
+        )
+      )
+
+    usedSlots = new Set(existingDefinitions.map((def) => def.tagSlot))
+  }
+
+  // Find the first available slot for this field type
+  for (const slot of availableSlots) {
+    if (!usedSlots.has(slot)) {
+      return slot
+    }
+  }
+
+  return null // No available slots for this field type
+}
 
 // Helper function to clean up unused tag definitions
 async function cleanupUnusedTagDefinitions(knowledgeBaseId: string, requestId: string) {
@@ -191,35 +238,93 @@ export async function POST(
 
     const validatedData = BulkTagDefinitionsSchema.parse(body)
 
-    // Validate no duplicate tag slots
-    const tagSlots = validatedData.definitions.map((def) => def.tagSlot)
-    const uniqueTagSlots = new Set(tagSlots)
-    if (tagSlots.length !== uniqueTagSlots.size) {
-      return NextResponse.json({ error: 'Duplicate tag slots not allowed' }, { status: 400 })
+    // Validate slots are valid for their field types
+    for (const definition of validatedData.definitions) {
+      const validSlots = getSlotsForFieldType(definition.fieldType)
+      if (validSlots.length === 0) {
+        return NextResponse.json(
+          { error: `Unsupported field type: ${definition.fieldType}` },
+          { status: 400 }
+        )
+      }
+
+      if (!validSlots.includes(definition.tagSlot)) {
+        return NextResponse.json(
+          {
+            error: `Invalid slot '${definition.tagSlot}' for field type '${definition.fieldType}'. Valid slots: ${validSlots.join(', ')}`,
+          },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Validate no duplicate tag slots within the same field type
+    const slotsByFieldType = new Map<string, Set<string>>()
+    for (const definition of validatedData.definitions) {
+      if (!slotsByFieldType.has(definition.fieldType)) {
+        slotsByFieldType.set(definition.fieldType, new Set())
+      }
+      const slotsForType = slotsByFieldType.get(definition.fieldType)!
+      if (slotsForType.has(definition.tagSlot)) {
+        return NextResponse.json(
+          {
+            error: `Duplicate slot '${definition.tagSlot}' for field type '${definition.fieldType}'`,
+          },
+          { status: 400 }
+        )
+      }
+      slotsForType.add(definition.tagSlot)
     }
 
     const now = new Date()
     const createdDefinitions: (typeof knowledgeBaseTagDefinitions.$inferSelect)[] = []
 
-    // Get existing definitions count before transaction for cleanup check
+    // Get existing definitions
     const existingDefinitions = await db
       .select()
       .from(knowledgeBaseTagDefinitions)
       .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
 
-    // Check if we're trying to create more tag definitions than available slots
-    const existingTagNames = new Set(existingDefinitions.map((def) => def.displayName))
-    const trulyNewTags = validatedData.definitions.filter(
-      (def) => !existingTagNames.has(def.displayName)
-    )
+    // Group by field type for validation
+    const existingByFieldType = new Map<string, number>()
+    for (const def of existingDefinitions) {
+      existingByFieldType.set(def.fieldType, (existingByFieldType.get(def.fieldType) || 0) + 1)
+    }
 
-    if (existingDefinitions.length + trulyNewTags.length > MAX_TAG_SLOTS) {
-      return NextResponse.json(
-        {
-          error: `Cannot create ${trulyNewTags.length} new tags. Knowledge base already has ${existingDefinitions.length} tag definitions. Maximum is ${MAX_TAG_SLOTS} total.`,
-        },
-        { status: 400 }
+    // Validate we don't exceed limits per field type
+    const newByFieldType = new Map<string, number>()
+    for (const definition of validatedData.definitions) {
+      // Skip validation for edit operations - they don't create new slots
+      if (definition._originalDisplayName) {
+        continue
+      }
+
+      const existingTagNames = new Set(
+        existingDefinitions
+          .filter((def) => def.fieldType === definition.fieldType)
+          .map((def) => def.displayName)
       )
+
+      if (!existingTagNames.has(definition.displayName)) {
+        newByFieldType.set(
+          definition.fieldType,
+          (newByFieldType.get(definition.fieldType) || 0) + 1
+        )
+      }
+    }
+
+    for (const [fieldType, newCount] of newByFieldType.entries()) {
+      const existingCount = existingByFieldType.get(fieldType) || 0
+      const maxSlots = getMaxSlotsForFieldType(fieldType)
+
+      if (existingCount + newCount > maxSlots) {
+        return NextResponse.json(
+          {
+            error: `Cannot create ${newCount} new '${fieldType}' tags. Knowledge base already has ${existingCount} '${fieldType}' tag definitions. Maximum is ${maxSlots} per field type.`,
+          },
+          { status: 400 }
+        )
+      }
     }
 
     // Use transaction to ensure consistency
@@ -228,30 +333,51 @@ export async function POST(
       const existingByName = new Map(existingDefinitions.map((def) => [def.displayName, def]))
       const existingBySlot = new Map(existingDefinitions.map((def) => [def.tagSlot, def]))
 
-      // Process each new definition
+      // Process each definition
       for (const definition of validatedData.definitions) {
+        if (definition._originalDisplayName) {
+          // This is an EDIT operation - find by original name and update
+          const originalDefinition = existingByName.get(definition._originalDisplayName)
+
+          if (originalDefinition) {
+            logger.info(
+              `[${requestId}] Editing tag definition: ${definition._originalDisplayName} -> ${definition.displayName} (slot ${originalDefinition.tagSlot})`
+            )
+
+            await tx
+              .update(knowledgeBaseTagDefinitions)
+              .set({
+                displayName: definition.displayName,
+                fieldType: definition.fieldType,
+                updatedAt: now,
+              })
+              .where(eq(knowledgeBaseTagDefinitions.id, originalDefinition.id))
+
+            createdDefinitions.push({
+              ...originalDefinition,
+              displayName: definition.displayName,
+              fieldType: definition.fieldType,
+              updatedAt: now,
+            })
+            continue
+          }
+          logger.warn(
+            `[${requestId}] Could not find original definition for: ${definition._originalDisplayName}`
+          )
+        }
+
+        // Regular create/update logic
         const existingByDisplayName = existingByName.get(definition.displayName)
-        const existingByTagSlot = existingBySlot.get(definition.tagSlot)
 
         if (existingByDisplayName) {
-          // Update existing definition (same display name)
-          if (existingByDisplayName.tagSlot !== definition.tagSlot) {
-            // Slot is changing - check if target slot is available
-            if (existingByTagSlot && existingByTagSlot.id !== existingByDisplayName.id) {
-              // Target slot is occupied by a different definition - this is a conflict
-              // For now, keep the existing slot to avoid constraint violation
-              logger.warn(
-                `[${requestId}] Slot conflict for ${definition.displayName}: keeping existing slot ${existingByDisplayName.tagSlot}`
-              )
-              createdDefinitions.push(existingByDisplayName)
-              continue
-            }
-          }
+          // Display name exists - UPDATE operation
+          logger.info(
+            `[${requestId}] Updating existing tag definition: ${definition.displayName} (slot ${existingByDisplayName.tagSlot})`
+          )
 
           await tx
             .update(knowledgeBaseTagDefinitions)
             .set({
-              tagSlot: definition.tagSlot,
               fieldType: definition.fieldType,
               updatedAt: now,
             })
@@ -259,33 +385,32 @@ export async function POST(
 
           createdDefinitions.push({
             ...existingByDisplayName,
-            tagSlot: definition.tagSlot,
-            fieldType: definition.fieldType,
-            updatedAt: now,
-          })
-        } else if (existingByTagSlot) {
-          // Slot is occupied by a different display name - update it
-          await tx
-            .update(knowledgeBaseTagDefinitions)
-            .set({
-              displayName: definition.displayName,
-              fieldType: definition.fieldType,
-              updatedAt: now,
-            })
-            .where(eq(knowledgeBaseTagDefinitions.id, existingByTagSlot.id))
-
-          createdDefinitions.push({
-            ...existingByTagSlot,
-            displayName: definition.displayName,
             fieldType: definition.fieldType,
             updatedAt: now,
           })
         } else {
-          // Create new definition
+          // Display name doesn't exist - CREATE operation
+          const targetSlot = await getNextAvailableSlot(
+            knowledgeBaseId,
+            definition.fieldType,
+            existingBySlot
+          )
+
+          if (!targetSlot) {
+            logger.error(
+              `[${requestId}] No available slots for new tag definition: ${definition.displayName}`
+            )
+            continue
+          }
+
+          logger.info(
+            `[${requestId}] Creating new tag definition: ${definition.displayName} -> ${targetSlot}`
+          )
+
           const newDefinition = {
             id: randomUUID(),
             knowledgeBaseId,
-            tagSlot: definition.tagSlot,
+            tagSlot: targetSlot as any,
             displayName: definition.displayName,
             fieldType: definition.fieldType,
             createdAt: now,
@@ -293,7 +418,8 @@ export async function POST(
           }
 
           await tx.insert(knowledgeBaseTagDefinitions).values(newDefinition)
-          createdDefinitions.push(newDefinition)
+          existingBySlot.set(targetSlot as any, newDefinition)
+          createdDefinitions.push(newDefinition as any)
         }
       }
     })

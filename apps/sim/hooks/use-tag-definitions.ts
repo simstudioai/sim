@@ -19,6 +19,8 @@ export interface TagDefinitionInput {
   tagSlot: TagSlot
   displayName: string
   fieldType: string
+  // Optional: for editing existing definitions
+  _originalDisplayName?: string
 }
 
 /**
