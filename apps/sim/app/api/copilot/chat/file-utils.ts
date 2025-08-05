@@ -27,7 +27,7 @@ export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document'> = {
   'image/gif': 'image',
   'image/webp': 'image',
   'image/svg+xml': 'image',
-  
+
   // Documents
   'application/pdf': 'document',
   'text/plain': 'document',
@@ -109,7 +109,7 @@ export function getMimeTypeFromExtension(extension: string): string {
     gif: 'image/gif',
     webp: 'image/webp',
     svg: 'image/svg+xml',
-    
+
     // Documents
     pdf: 'application/pdf',
     txt: 'text/plain',
@@ -127,6 +127,6 @@ export function getMimeTypeFromExtension(extension: string): string {
     md: 'text/markdown',
     rtf: 'application/rtf',
   }
-  
+
   return extensionMimeMap[extension.toLowerCase()] || 'application/octet-stream'
-} 
+}

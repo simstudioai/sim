@@ -58,10 +58,10 @@ export async function GET(
     if (isUsingCloudStorage() || isCloudPath) {
       // Extract the actual key (remove 's3/' or 'blob/' prefix if present)
       const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
-      
+
       // Get bucket type from query parameter
       const bucketType = request.nextUrl.searchParams.get('bucket')
-      
+
       return await handleCloudProxy(cloudKey, bucketType)
     }
 
@@ -156,19 +156,22 @@ async function downloadKBFile(cloudKey: string): Promise<Buffer> {
 /**
  * Proxy cloud file through our server
  */
-async function handleCloudProxy(cloudKey: string, bucketType?: string | null): Promise<NextResponse> {
+async function handleCloudProxy(
+  cloudKey: string,
+  bucketType?: string | null
+): Promise<NextResponse> {
   try {
     // Check if this is a KB file (starts with 'kb/')
     const isKBFile = cloudKey.startsWith('kb/')
 
     let fileBuffer: Buffer
-    
+
     if (isKBFile) {
       fileBuffer = await downloadKBFile(cloudKey)
     } else if (bucketType === 'copilot') {
       // Download from copilot-specific bucket
       const storageProvider = getStorageProvider()
-      
+
       if (storageProvider === 's3') {
         const { downloadFromS3WithConfig } = await import('@/lib/uploads/s3/s3-client')
         const { S3_COPILOT_CONFIG } = await import('@/lib/uploads/setup')

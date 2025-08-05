@@ -157,16 +157,16 @@ async function handleS3PresignedUrl(
     }
 
     const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
-    
+
     let prefix = ''
     if (uploadType === 'knowledge-base') {
       prefix = 'kb/'
     } else if (uploadType === 'chat') {
       prefix = 'chat/'
     } else if (uploadType === 'copilot') {
-      prefix = `${userId}/`  // Simplified to just userId, removed chatId
+      prefix = `${userId}/`
     }
-    
+
     const uniqueKey = `${prefix}${uuidv4()}-${safeFileName}`
 
     const sanitizedOriginalName = sanitizeFilenameForMetadata(fileName)
@@ -260,16 +260,16 @@ async function handleBlobPresignedUrl(
     }
 
     const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
-    
+
     let prefix = ''
     if (uploadType === 'knowledge-base') {
       prefix = 'kb/'
     } else if (uploadType === 'chat') {
       prefix = 'chat/'
     } else if (uploadType === 'copilot') {
-      prefix = `${userId}/`  // Simplified to just userId, removed chatId
+      prefix = `${userId}/`
     }
-    
+
     const uniqueKey = `${prefix}${uuidv4()}-${safeFileName}`
 
     const blobServiceClient = getBlobServiceClient()
@@ -325,7 +325,6 @@ async function handleBlobPresignedUrl(
     } else if (uploadType === 'copilot') {
       uploadHeaders['x-ms-meta-purpose'] = 'copilot'
       uploadHeaders['x-ms-meta-userid'] = encodeURIComponent(userId || '')
-      // Removed chatId - no longer needed
     }
 
     return NextResponse.json({

@@ -8,11 +8,20 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ArrowUp, FileText, Image, Loader2, MessageCircle, Package, Paperclip, X } from 'lucide-react'
+import {
+  ArrowUp,
+  FileText,
+  Image,
+  Loader2,
+  MessageCircle,
+  Package,
+  Paperclip,
+  X,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { cn } from '@/lib/utils'
 import { useSession } from '@/lib/auth-client'
+import { cn } from '@/lib/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
 
 interface MessageFileAttachment {
@@ -76,7 +85,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const [dragCounter, setDragCounter] = useState(0)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
-    
+
     const { data: session } = useSession()
     const { currentChat, workflowId } = useCopilotStore()
 
@@ -108,7 +117,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     // Cleanup preview URLs on unmount
     useEffect(() => {
       return () => {
-        attachedFiles.forEach(f => {
+        attachedFiles.forEach((f) => {
           if (f.previewUrl) {
             URL.revokeObjectURL(f.previewUrl)
           }
@@ -187,7 +196,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           previewUrl,
         }
 
-        setAttachedFiles(prev => [...prev, tempFile])
+        setAttachedFiles((prev) => [...prev, tempFile])
 
         try {
           // Request presigned URL
@@ -221,7 +230,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           })
 
           console.log('S3 Upload response status:', uploadResponse.status)
-          
+
           if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text()
             console.error('S3 Upload failed:', errorText)
@@ -229,8 +238,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           }
 
           // Update file entry with success
-          setAttachedFiles(prev =>
-            prev.map(f =>
+          setAttachedFiles((prev) =>
+            prev.map((f) =>
               f.id === tempFile.id
                 ? {
                     ...f,
@@ -244,7 +253,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         } catch (error) {
           console.error('File upload failed:', error)
           // Remove failed upload
-          setAttachedFiles(prev => prev.filter(f => f.id !== tempFile.id))
+          setAttachedFiles((prev) => prev.filter((f) => f.id !== tempFile.id))
         }
       }
     }
@@ -255,8 +264,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
       // Convert attached files to the format expected by the API
       const fileAttachments = attachedFiles
-        .filter(f => !f.uploading && f.key) // Only include successfully uploaded files with keys
-        .map(f => ({
+        .filter((f) => !f.uploading && f.key) // Only include successfully uploaded files with keys
+        .map((f) => ({
           id: f.id,
           s3_key: f.key!, // Use the actual S3 key stored from the upload response
           filename: f.name,
@@ -265,14 +274,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         }))
 
       onSubmit(trimmedMessage, fileAttachments)
-      
+
       // Clean up preview URLs before clearing
-      attachedFiles.forEach(f => {
+      attachedFiles.forEach((f) => {
         if (f.previewUrl) {
           URL.revokeObjectURL(f.previewUrl)
         }
       })
-      
+
       // Clear the message and files after submit
       if (controlledValue !== undefined) {
         onControlledChange?.('')
@@ -322,11 +331,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const removeFile = (fileId: string) => {
       // Clean up preview URL if it exists
-      const file = attachedFiles.find(f => f.id === fileId)
+      const file = attachedFiles.find((f) => f.id === fileId)
       if (file?.previewUrl) {
         URL.revokeObjectURL(file.previewUrl)
       }
-      setAttachedFiles(prev => prev.filter(f => f.id !== fileId))
+      setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId))
     }
 
     const handleFileClick = (file: AttachedFile) => {
@@ -345,7 +354,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       const k = 1024
       const sizes = ['Bytes', 'KB', 'MB', 'GB']
       const i = Math.floor(Math.log(bytes) / Math.log(k))
-      return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+      return `${Math.round((bytes / k ** i) * 100) / 100} ${sizes[i]}`
     }
 
     const isImageFile = (type: string) => {
@@ -384,10 +393,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     return (
       <div className={cn('relative flex-none pb-4', className)}>
-        <div 
+        <div
           className={cn(
-            'rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] p-2 shadow-xs dark:border-[#414141] dark:bg-[#202020] transition-all duration-200',
-            isDragging && 'border-[#802FFF] bg-purple-50/50 dark:bg-purple-950/20 dark:border-[#802FFF]'
+            'rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] p-2 shadow-xs transition-all duration-200 dark:border-[#414141] dark:bg-[#202020]',
+            isDragging &&
+              'border-[#802FFF] bg-purple-50/50 dark:border-[#802FFF] dark:bg-purple-950/20'
           )}
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
@@ -400,38 +410,38 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               {attachedFiles.map((file) => (
                 <div
                   key={file.id}
-                  className='group relative w-16 h-16 rounded-md border border-border/50 bg-muted/20 hover:bg-muted/40 cursor-pointer transition-all overflow-hidden'
+                  className='group relative h-16 w-16 cursor-pointer overflow-hidden rounded-md border border-border/50 bg-muted/20 transition-all hover:bg-muted/40'
                   title={`${file.name} (${formatFileSize(file.size)})`}
                   onClick={() => handleFileClick(file)}
                 >
                   {isImageFile(file.type) && file.previewUrl ? (
                     // For images, show actual thumbnail
-                    <img 
+                    <img
                       src={file.previewUrl}
                       alt={file.name}
-                      className='w-full h-full object-cover'
+                      className='h-full w-full object-cover'
                     />
                   ) : isImageFile(file.type) && file.key ? (
                     // For uploaded images without preview URL, use S3 URL
-                    <img 
+                    <img
                       src={`/api/files/serve/s3/${encodeURIComponent(file.key)}?bucket=copilot`}
                       alt={file.name}
-                      className='w-full h-full object-cover'
+                      className='h-full w-full object-cover'
                     />
                   ) : (
                     // For other files, show icon centered
-                    <div className='flex items-center justify-center w-full h-full bg-background/50'>
+                    <div className='flex h-full w-full items-center justify-center bg-background/50'>
                       {getFileIcon(file.type)}
                     </div>
                   )}
-                  
+
                   {/* Loading overlay */}
                   {file.uploading && (
-                    <div className='absolute inset-0 bg-black/50 flex items-center justify-center'>
+                    <div className='absolute inset-0 flex items-center justify-center bg-black/50'>
                       <Loader2 className='h-4 w-4 animate-spin text-white' />
                     </div>
                   )}
-                  
+
                   {/* Remove button */}
                   {!file.uploading && (
                     <Button
@@ -441,14 +451,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                         e.stopPropagation()
                         removeFile(file.id)
                       }}
-                      className='absolute top-0.5 right-0.5 h-5 w-5 bg-black/50 hover:bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity'
+                      className='absolute top-0.5 right-0.5 h-5 w-5 bg-black/50 text-white opacity-0 transition-opacity hover:bg-black/70 group-hover:opacity-100'
                     >
                       <X className='h-3 w-3' />
                     </Button>
                   )}
-                  
+
                   {/* Hover overlay effect */}
-                  <div className='absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none' />
+                  <div className='pointer-events-none absolute inset-0 bg-black/10 opacity-0 transition-opacity group-hover:opacity-100' />
                 </div>
               ))}
             </div>
@@ -546,4 +556,3 @@ UserInput.displayName = 'UserInput'
 
 export { UserInput }
 export type { UserInputRef }
-

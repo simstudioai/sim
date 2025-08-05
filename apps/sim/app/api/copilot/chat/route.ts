@@ -211,10 +211,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Process file attachments if present
-    let processedFileContents: any[] = []
+    const processedFileContents: any[] = []
     if (fileAttachments && fileAttachments.length > 0) {
       logger.info(`[${tracker.requestId}] Processing ${fileAttachments.length} file attachments`)
-      
+
       for (const attachment of fileAttachments) {
         try {
           // Check if file type is supported
@@ -232,15 +232,20 @@ export async function POST(req: NextRequest) {
             // Fallback to generic downloadFile for other storage providers
             fileBuffer = await downloadFile(attachment.s3_key)
           }
-          
+
           // Convert to Anthropic format
           const fileContent = createAnthropicFileContent(fileBuffer, attachment.media_type)
           if (fileContent) {
             processedFileContents.push(fileContent)
-            logger.info(`[${tracker.requestId}] Processed file: ${attachment.filename} (${attachment.media_type})`)
+            logger.info(
+              `[${tracker.requestId}] Processed file: ${attachment.filename} (${attachment.media_type})`
+            )
           }
         } catch (error) {
-          logger.error(`[${tracker.requestId}] Failed to process file ${attachment.filename}:`, error)
+          logger.error(
+            `[${tracker.requestId}] Failed to process file ${attachment.filename}:`,
+            error
+          )
           // Continue processing other files
         }
       }
@@ -254,7 +259,7 @@ export async function POST(req: NextRequest) {
       if (msg.fileAttachments && msg.fileAttachments.length > 0) {
         // This is a message with file attachments - rebuild with content array
         const content: any[] = [{ type: 'text', text: msg.content }]
-        
+
         // Process file attachments for historical messages
         for (const attachment of msg.fileAttachments) {
           try {
@@ -272,10 +277,13 @@ export async function POST(req: NextRequest) {
               }
             }
           } catch (error) {
-            logger.error(`[${tracker.requestId}] Failed to process historical file ${attachment.filename}:`, error)
+            logger.error(
+              `[${tracker.requestId}] Failed to process historical file ${attachment.filename}:`,
+              error
+            )
           }
         }
-        
+
         messages.push({
           role: msg.role,
           content,
@@ -300,15 +308,13 @@ export async function POST(req: NextRequest) {
     // Add current user message with file attachments
     if (processedFileContents.length > 0) {
       // Message with files - use content array format
-      const content: any[] = [
-        { type: 'text', text: message }
-      ]
-      
+      const content: any[] = [{ type: 'text', text: message }]
+
       // Add file contents
       for (const fileContent of processedFileContents) {
         content.push(fileContent)
       }
-      
+
       messages.push({
         role: 'user',
         content,

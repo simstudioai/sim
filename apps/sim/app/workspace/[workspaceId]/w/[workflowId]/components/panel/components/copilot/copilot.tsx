@@ -256,7 +256,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
       try {
         await sendMessage(query, { stream: true, fileAttachments })
-        logger.info('Sent message:', query, fileAttachments ? `with ${fileAttachments.length} attachments` : '')
+        logger.info(
+          'Sent message:',
+          query,
+          fileAttachments ? `with ${fileAttachments.length} attachments` : ''
+        )
       } catch (error) {
         logger.error('Failed to send message:', error)
       }

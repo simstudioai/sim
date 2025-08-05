@@ -1,7 +1,17 @@
 'use client'
 
 import { type FC, memo, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Clipboard, FileText, Image, Loader2, RotateCcw, ThumbsDown, ThumbsUp, X } from 'lucide-react'
+import {
+  Check,
+  Clipboard,
+  FileText,
+  Image,
+  Loader2,
+  RotateCcw,
+  ThumbsDown,
+  ThumbsUp,
+  X,
+} from 'lucide-react'
 import { InlineToolCall } from '@/lib/copilot/tools/inline-tool-call'
 import { createLogger } from '@/lib/logs/console/logger'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
@@ -49,7 +59,7 @@ const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayPr
     const k = 1024
     const sizes = ['B', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Math.round(bytes / Math.pow(k, i) * 10) / 10 + ' ' + sizes[i]
+    return `${Math.round((bytes / k ** i) * 10) / 10} ${sizes[i]}`
   }
 
   const getFileIcon = (mediaType: string) => {
@@ -68,7 +78,7 @@ const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayPr
   const handleFileClick = (file: any) => {
     // Construct the serve URL for the file with bucket type parameter
     const serveUrl = `/api/files/serve/s3/${encodeURIComponent(file.s3_key)}?bucket=copilot`
-    
+
     // Open the file in a new tab
     window.open(serveUrl, '_blank')
   }
@@ -82,16 +92,16 @@ const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayPr
       {fileAttachments.map((file) => (
         <div
           key={file.id}
-          className='group relative w-16 h-16 rounded-md border border-border/50 bg-muted/20 hover:bg-muted/40 cursor-pointer transition-all overflow-hidden'
+          className='group relative h-16 w-16 cursor-pointer overflow-hidden rounded-md border border-border/50 bg-muted/20 transition-all hover:bg-muted/40'
           onClick={() => handleFileClick(file)}
           title={`${file.filename} (${formatFileSize(file.size)})`}
         >
           {isImageFile(file.media_type) ? (
             // For images, show actual thumbnail
-            <img 
+            <img
               src={`/api/files/serve/s3/${encodeURIComponent(file.s3_key)}?bucket=copilot`}
               alt={file.filename}
-              className='w-full h-full object-cover'
+              className='h-full w-full object-cover'
               onError={(e) => {
                 // If image fails to load, replace with icon
                 const target = e.target as HTMLImageElement
@@ -99,21 +109,23 @@ const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayPr
                 const parent = target.parentElement
                 if (parent) {
                   const iconContainer = document.createElement('div')
-                  iconContainer.className = 'flex items-center justify-center w-full h-full bg-background/50'
-                  iconContainer.innerHTML = '<svg class="h-5 w-5 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>'
+                  iconContainer.className =
+                    'flex items-center justify-center w-full h-full bg-background/50'
+                  iconContainer.innerHTML =
+                    '<svg class="h-5 w-5 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>'
                   parent.appendChild(iconContainer)
                 }
               }}
             />
           ) : (
             // For other files, show icon centered
-            <div className='flex items-center justify-center w-full h-full bg-background/50'>
+            <div className='flex h-full w-full items-center justify-center bg-background/50'>
               {getFileIcon(file.media_type)}
             </div>
           )}
-          
+
           {/* Hover overlay effect */}
-          <div className='absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none' />
+          <div className='pointer-events-none absolute inset-0 bg-black/10 opacity-0 transition-opacity group-hover:opacity-100' />
         </div>
       ))}
     </>
@@ -567,13 +579,13 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         <div className='w-full py-2'>
           {/* File attachments displayed above the message, completely separate from message box width */}
           {message.fileAttachments && message.fileAttachments.length > 0 && (
-            <div className='flex justify-end mb-1'>
+            <div className='mb-1 flex justify-end'>
               <div className='flex flex-wrap gap-1.5'>
                 <FileAttachmentDisplay fileAttachments={message.fileAttachments} />
               </div>
             </div>
           )}
-          
+
           <div className='flex justify-end'>
             <div className='max-w-[80%]'>
               {/* Message content in purple box */}
@@ -585,7 +597,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                   <WordWrap text={message.content} />
                 </div>
               </div>
-              
+
               {/* Checkpoints below message */}
               {hasCheckpoints && (
                 <div className='mt-1 flex justify-end'>
