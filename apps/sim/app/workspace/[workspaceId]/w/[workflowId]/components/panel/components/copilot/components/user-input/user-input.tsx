@@ -24,7 +24,7 @@ import { useSession } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
 
-interface MessageFileAttachment {
+export interface MessageFileAttachment {
   id: string
   s3_key: string
   filename: string
@@ -261,6 +261,15 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const handleSubmit = () => {
       const trimmedMessage = message.trim()
       if (!trimmedMessage || disabled || isLoading) return
+
+      // Check for failed uploads and show user feedback
+      const failedUploads = attachedFiles.filter((f) => !f.uploading && !f.key)
+      if (failedUploads.length > 0) {
+        console.error(
+          'Some files failed to upload:',
+          failedUploads.map((f) => f.name)
+        )
+      }
 
       // Convert attached files to the format expected by the API
       const fileAttachments = attachedFiles

@@ -54,6 +54,9 @@ interface FileAttachmentDisplayProps {
 }
 
 const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayProps) => {
+  // Cache for file URLs to avoid re-fetching on every render
+  const [fileUrls, setFileUrls] = useState<Record<string, string>>({})
+
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 B'
     const k = 1024
@@ -75,9 +78,21 @@ const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayPr
     return <FileText className='h-5 w-5 text-muted-foreground' />
   }
 
+  const getFileUrl = (file: any) => {
+    const cacheKey = file.s3_key
+    if (fileUrls[cacheKey]) {
+      return fileUrls[cacheKey]
+    }
+
+    // Generate URL only once and cache it
+    const url = `/api/files/serve/s3/${encodeURIComponent(file.s3_key)}?bucket=copilot`
+    setFileUrls((prev) => ({ ...prev, [cacheKey]: url }))
+    return url
+  }
+
   const handleFileClick = (file: any) => {
-    // Construct the serve URL for the file with bucket type parameter
-    const serveUrl = `/api/files/serve/s3/${encodeURIComponent(file.s3_key)}?bucket=copilot`
+    // Use cached URL or generate it
+    const serveUrl = getFileUrl(file)
 
     // Open the file in a new tab
     window.open(serveUrl, '_blank')
@@ -99,7 +114,7 @@ const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayPr
           {isImageFile(file.media_type) ? (
             // For images, show actual thumbnail
             <img
-              src={`/api/files/serve/s3/${encodeURIComponent(file.s3_key)}?bucket=copilot`}
+              src={getFileUrl(file)}
               alt={file.filename}
               className='h-full w-full object-cover'
               onError={(e) => {

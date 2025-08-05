@@ -12,7 +12,10 @@ import {
   CopilotWelcome,
   UserInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
-import type { UserInputRef } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
+import type {
+  MessageFileAttachment,
+  UserInputRef,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
 import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
@@ -251,7 +254,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
   // Handle message submission
   const handleSubmit = useCallback(
-    async (query: string, fileAttachments?: any[]) => {
+    async (query: string, fileAttachments?: MessageFileAttachment[]) => {
       if (!query || isSendingMessage || !activeWorkflowId) return
 
       try {
