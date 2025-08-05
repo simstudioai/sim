@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { InlineToolCall } from '@/lib/copilot/tools/inline-tool-call'
+import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotMessage as CopilotMessageType } from '@/stores/copilot/types'
 
@@ -214,7 +215,16 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       messageCheckpoints: allMessageCheckpoints,
       revertToCheckpoint,
       isRevertingCheckpoint,
+      currentChat,
+      messages,
+      workflowId,
     } = useCopilotStore()
+
+    // Get preview store for accessing workflow YAML after rejection
+    const { getPreviewByToolCall, getLatestPendingPreview } = usePreviewStore()
+
+    // Import COPILOT_TOOL_IDS - placing it here since it's needed in multiple functions
+    const WORKFLOW_TOOL_NAMES = ['build_workflow', 'edit_workflow']
 
     // Get checkpoints for this message if it's a user message
     const messageCheckpoints = isUser ? allMessageCheckpoints[message.id] || [] : []
@@ -226,16 +236,187 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       setShowCopySuccess(true)
     }
 
-    const handleUpvote = () => {
+    // Helper function to get the full assistant response content
+    const getFullAssistantContent = (message: CopilotMessageType) => {
+      // First try the direct content
+      if (message.content?.trim()) {
+        return message.content
+      }
+
+      // If no direct content, build from content blocks
+      if (message.contentBlocks && message.contentBlocks.length > 0) {
+        return message.contentBlocks
+          .filter((block) => block.type === 'text')
+          .map((block) => block.content)
+          .join('')
+      }
+
+      return message.content || ''
+    }
+
+    // Helper function to find the last user query before this assistant message
+    const getLastUserQuery = () => {
+      const messageIndex = messages.findIndex((msg) => msg.id === message.id)
+      if (messageIndex === -1) return null
+
+      // Look backwards from this message to find the last user message
+      for (let i = messageIndex - 1; i >= 0; i--) {
+        if (messages[i].role === 'user') {
+          return messages[i].content
+        }
+      }
+      return null
+    }
+
+    // Helper function to extract workflow YAML from workflow tool calls
+    const getWorkflowYaml = () => {
+      // Step 1: Check both toolCalls array and contentBlocks for workflow tools
+      const allToolCalls = [
+        ...(message.toolCalls || []),
+        ...(message.contentBlocks || [])
+          .filter((block) => block.type === 'tool_call')
+          .map((block) => (block as any).toolCall),
+      ]
+
+      // Find workflow tools (build_workflow or edit_workflow)
+      const workflowTools = allToolCalls.filter((toolCall) =>
+        WORKFLOW_TOOL_NAMES.includes(toolCall?.name)
+      )
+
+      // Extract YAML content from workflow tools in the current message
+      for (const toolCall of workflowTools) {
+        // Try various locations where YAML content might be stored
+        const yamlContent =
+          toolCall.result?.yamlContent ||
+          toolCall.result?.data?.yamlContent ||
+          toolCall.input?.yamlContent ||
+          toolCall.input?.data?.yamlContent
+
+        if (yamlContent && typeof yamlContent === 'string' && yamlContent.trim()) {
+          console.log('Found workflow YAML in tool call:', {
+            toolCallId: toolCall.id,
+            toolName: toolCall.name,
+            yamlLength: yamlContent.length,
+          })
+          return yamlContent
+        }
+      }
+
+      // Step 2: Check copilot store's preview YAML (set when workflow tools execute)
+      if (currentChat?.previewYaml?.trim()) {
+        console.log('Found workflow YAML in copilot store preview:', {
+          yamlLength: currentChat.previewYaml.length,
+        })
+        return currentChat.previewYaml
+      }
+
+      // Step 3: Check preview store for recent workflow tool calls from this message
+      for (const toolCall of workflowTools) {
+        if (toolCall.id) {
+          const preview = getPreviewByToolCall(toolCall.id)
+          if (preview?.yamlContent?.trim()) {
+            console.log('Found workflow YAML in preview store:', {
+              toolCallId: toolCall.id,
+              previewId: preview.id,
+              yamlLength: preview.yamlContent.length,
+            })
+            return preview.yamlContent
+          }
+        }
+      }
+
+      // Step 4: If this message contains workflow tools but no YAML found yet,
+      // try to get the latest pending preview for this workflow (fallback)
+      if (workflowTools.length > 0 && workflowId) {
+        const latestPreview = getLatestPendingPreview(workflowId, currentChat?.id)
+        if (latestPreview?.yamlContent?.trim()) {
+          console.log('Found workflow YAML in latest pending preview:', {
+            previewId: latestPreview.id,
+            yamlLength: latestPreview.yamlContent.length,
+          })
+          return latestPreview.yamlContent
+        }
+      }
+
+      return null
+    }
+
+    // Function to submit feedback
+    const submitFeedback = async (isPositive: boolean) => {
+      // Ensure we have a chat ID
+      if (!currentChat?.id) {
+        console.error('No current chat ID available for feedback submission')
+        return
+      }
+
+      const userQuery = getLastUserQuery()
+      if (!userQuery) {
+        console.error('No user query found for feedback submission')
+        return
+      }
+
+      const agentResponse = getFullAssistantContent(message)
+      if (!agentResponse.trim()) {
+        console.error('No agent response content available for feedback submission')
+        return
+      }
+
+      // Get workflow YAML if this message contains workflow tools
+      const workflowYaml = getWorkflowYaml()
+
+      try {
+        const requestBody: any = {
+          chatId: currentChat.id,
+          userQuery,
+          agentResponse,
+          isPositiveFeedback: isPositive,
+        }
+
+        // Only include workflowYaml if it exists
+        if (workflowYaml) {
+          requestBody.workflowYaml = workflowYaml
+          console.log('Including workflow YAML in feedback:', {
+            yamlLength: workflowYaml.length,
+            yamlPreview: workflowYaml.substring(0, 100),
+          })
+        }
+
+        const response = await fetch('/api/copilot/feedback', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to submit feedback: ${response.statusText}`)
+        }
+
+        const result = await response.json()
+        console.log('Feedback submitted successfully:', result)
+      } catch (error) {
+        console.error('Error submitting feedback:', error)
+        // Could show a toast or error message to user here
+      }
+    }
+
+    const handleUpvote = async () => {
       // Reset downvote if it was active
       setShowDownvoteSuccess(false)
       setShowUpvoteSuccess(true)
+
+      // Submit positive feedback
+      await submitFeedback(true)
     }
 
-    const handleDownvote = () => {
+    const handleDownvote = async () => {
       // Reset upvote if it was active
       setShowUpvoteSuccess(false)
       setShowDownvoteSuccess(true)
+
+      // Submit negative feedback
+      await submitFeedback(false)
     }
 
     const handleRevertToCheckpoint = () => {

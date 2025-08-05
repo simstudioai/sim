@@ -378,7 +378,7 @@ function processWorkflowToolResult(toolCall: any, result: any, get: () => Copilo
 /**
  * Helper function to handle tool execution failure
  */
-function handleToolFailure(toolCall: any, error: string): void {
+function handleToolFailure(toolCall: any, error: string, failedDependency?: boolean): void {
   // Don't override terminal states for tools with ready_for_review and interrupt tools
   if (
     (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
@@ -396,8 +396,8 @@ function handleToolFailure(toolCall: any, error: string): void {
     return
   }
 
-  // Check if error message is exactly 'skipped' to set 'rejected' state instead of 'errored'
-  toolCall.state = error === 'skipped' ? 'rejected' : 'errored'
+  // Check if failedDependency is true to set 'rejected' state instead of 'errored'
+  toolCall.state = failedDependency === true ? 'rejected' : 'errored'
   toolCall.error = error
 
   // Update displayName to match the error state
@@ -681,7 +681,7 @@ const sseHandlers: Record<string, SSEHandler> = {
 
   // Handle tool result events - simplified
   tool_result: (data, context, get, set) => {
-    const { toolCallId, result, success, error } = data
+    const { toolCallId, result, success, error, failedDependency } = data
 
     if (!toolCallId) return
 
@@ -723,11 +723,20 @@ const sseHandlers: Record<string, SSEHandler> = {
       if (toolSupportsReadyForReview(toolCall.name)) {
         processWorkflowToolResult(toolCall, parsedResult, get)
       }
+
+      // COMMENTED OUT OLD LOGIC:
+      // finalizeToolCall(toolCall, true, parsedResult, get)
     } else {
+      // NEW LOGIC: Use centralized state management
+      // Check if failedDependency is true to set 'rejected' state instead of 'errored'
+      // Use the error field first, then fall back to result field, then default message
       const errorMessage = error || result || 'Tool execution failed'
-      const targetState = errorMessage === 'skipped' ? 'rejected' : 'errored'
+      const targetState = failedDependency === true ? 'rejected' : 'errored'
 
       setToolCallState(toolCall, targetState, { error: errorMessage })
+
+      // COMMENTED OUT OLD LOGIC:
+      // handleToolFailure(toolCall, result || 'Tool execution failed')
     }
 
     // Update both contentBlocks and toolCalls atomically before UI update
@@ -990,7 +999,9 @@ const sseHandlers: Record<string, SSEHandler> = {
   tool_error: (data, context, get, set) => {
     const toolCall = context.toolCalls.find((tc) => tc.id === data.toolCallId)
     if (toolCall) {
-      handleToolFailure(toolCall, data.error)
+      // Check if failedDependency is available in the data
+      const failedDependency = data.failedDependency
+      handleToolFailure(toolCall, data.error, failedDependency)
       updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
       updateStreamingMessage(set, context)
     }
@@ -1002,36 +1013,11 @@ const sseHandlers: Record<string, SSEHandler> = {
   },
 }
 
-// Cache workflow tool IDs for diff-related functionality (keep for diff store integration)
-const WORKFLOW_TOOL_IDS = new Set<string>([
-  COPILOT_TOOL_IDS.BUILD_WORKFLOW,
-  COPILOT_TOOL_IDS.EDIT_WORKFLOW,
-])
-
 // Cache tools that support ready_for_review state for faster lookup
 function getToolsWithReadyForReview(): Set<string> {
   const toolsWithReadyForReview = new Set<string>()
 
-  // For now, just return the known workflow tools since we don't have getAllServerToolMetadata
-  // This can be expanded when the registry provides that method
   return new Set([COPILOT_TOOL_IDS.BUILD_WORKFLOW, COPILOT_TOOL_IDS.EDIT_WORKFLOW])
-
-  /* TODO: Implement when getAllServerToolMetadata is available
-  Object.keys(toolRegistry.getAllServerToolMetadata?.() || {}).forEach(toolId => {
-    if (toolSupportsReadyForReview(toolId)) {
-      toolsWithReadyForReview.add(toolId)
-    }
-  })
-  
-  // Check all client tools
-  toolRegistry.getAllTools().forEach(tool => {
-    if (toolSupportsReadyForReview(tool.metadata.id)) {
-      toolsWithReadyForReview.add(tool.metadata.id)
-    }
-  })
-  
-  return toolsWithReadyForReview
-  */
 }
 
 // Cache for ready_for_review tools

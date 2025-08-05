@@ -71,8 +71,12 @@ async function clientAcceptTool(
   } catch (error) {
     console.error('Error executing client tool:', error)
     const errorMessage = error instanceof Error ? error.message : 'Tool execution failed'
-    // Check if error message is exactly 'skipped' to set 'rejected' state instead of 'errored'
-    const targetState = errorMessage === 'skipped' ? 'rejected' : 'errored'
+    const failedDependency =
+      error && typeof error === 'object' && 'failedDependency' in error
+        ? (error as any).failedDependency
+        : false
+    // Check if failedDependency is true to set 'rejected' state instead of 'errored'
+    const targetState = failedDependency === true ? 'rejected' : 'errored'
     setToolCallState(toolCall, targetState, {
       error: errorMessage,
     })

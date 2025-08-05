@@ -1137,3 +1137,35 @@ export const templateStars = pgTable(
     ),
   })
 )
+
+export const copilotFeedback = pgTable(
+  'copilot_feedback',
+  {
+    feedbackId: uuid('feedback_id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    chatId: uuid('chat_id')
+      .notNull()
+      .references(() => copilotChats.id, { onDelete: 'cascade' }),
+    userQuery: text('user_query').notNull(),
+    agentResponse: text('agent_response').notNull(),
+    isPositive: boolean('is_positive').notNull(),
+    feedback: text('feedback'), // Optional feedback text
+    workflowYaml: text('workflow_yaml'), // Optional workflow YAML if edit/build workflow was triggered
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Access patterns
+    userIdIdx: index('copilot_feedback_user_id_idx').on(table.userId),
+    chatIdIdx: index('copilot_feedback_chat_id_idx').on(table.chatId),
+    userChatIdx: index('copilot_feedback_user_chat_idx').on(table.userId, table.chatId),
+
+    // Query patterns
+    isPositiveIdx: index('copilot_feedback_is_positive_idx').on(table.isPositive),
+
+    // Ordering indexes
+    createdAtIdx: index('copilot_feedback_created_at_idx').on(table.createdAt),
+  })
+)
