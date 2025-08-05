@@ -4,6 +4,7 @@ import {
   GithubIcon,
   GmailIcon,
   MicrosoftTeamsIcon,
+  OutlookIcon,
   SignalIcon,
   SlackIcon,
   StripeIcon,
@@ -17,6 +18,7 @@ const getWebhookProviderIcon = (provider: string) => {
   const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     slack: SlackIcon,
     gmail: GmailIcon,
+    outlook: OutlookIcon,
     airtable: AirtableIcon,
     telegram: TelegramIcon,
     generic: SignalIcon,
@@ -47,6 +49,7 @@ export const WebhookBlock: BlockConfig = {
       options: [
         'slack',
         'gmail',
+        'outlook',
         'airtable',
         'telegram',
         'generic',
@@ -59,6 +62,7 @@ export const WebhookBlock: BlockConfig = {
         const providerLabels = {
           slack: 'Slack',
           gmail: 'Gmail',
+          outlook: 'Outlook',
           airtable: 'Airtable',
           telegram: 'Telegram',
           generic: 'Generic',
@@ -91,6 +95,24 @@ export const WebhookBlock: BlockConfig = {
       ],
       placeholder: 'Select Gmail account',
       condition: { field: 'webhookProvider', value: 'gmail' },
+      required: true,
+    },
+    {
+      id: 'outlookCredential',
+      title: 'Microsoft Account',
+      type: 'oauth-input',
+      layout: 'full',
+      provider: 'outlook',
+      serviceId: 'outlook',
+      requiredScopes: [
+        'Mail.ReadWrite',
+        'Mail.ReadBasic',
+        'Mail.Read',
+        'Mail.Send',
+        'offline_access',
+      ],
+      placeholder: 'Select Microsoft account',
+      condition: { field: 'webhookProvider', value: 'outlook' },
       required: true,
     },
     {

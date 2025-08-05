@@ -72,6 +72,48 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
       required: true,
     },
+    // Advanced Settings - Threading
+    {
+      id: 'replyToMessageId',
+      title: 'Reply to Message ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Message ID to reply to (for threading)',
+      condition: { field: 'operation', value: ['send_outlook'] },
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'conversationId',
+      title: 'Conversation ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Conversation ID for threading',
+      condition: { field: 'operation', value: ['send_outlook'] },
+      mode: 'advanced',
+      required: false,
+    },
+    // Advanced Settings - Additional Recipients
+    {
+      id: 'cc',
+      title: 'CC',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'CC recipients (comma-separated)',
+      condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'bcc',
+      title: 'BCC',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'BCC recipients (comma-separated)',
+      condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      mode: 'advanced',
+      required: false,
+    },
     // Read Email Fields - Add folder selector (basic mode)
     {
       id: 'folder',
