@@ -464,7 +464,7 @@ export function WorkspaceSelector({
           {/* Bottom Actions */}
           <div className='mt-2 flex items-center gap-2 border-t pt-2'>
             {/* Send Invite - Hide in development */}
-            {isDev && (
+            {!isDev && (
               <Button
                 variant='secondary'
                 onClick={userPermissions.canAdmin ? () => setShowInviteMembers(true) : undefined}
