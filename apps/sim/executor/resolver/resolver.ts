@@ -58,7 +58,7 @@ export class InputResolver {
 
   /**
    * Evaluates if a sub-block should be active based on its condition
-   * @param condition - The condition to evaluate
+   * @param condition - The condition to evaluate (can be static object or function)
    * @param currentValues - Current values of all inputs
    * @returns True if the sub-block should be active
    */
@@ -70,37 +70,46 @@ export class InputResolver {
           not?: boolean
           and?: { field: string; value: any; not?: boolean }
         }
+      | (() => {
+          field: string
+          value: any
+          not?: boolean
+          and?: { field: string; value: any; not?: boolean }
+        })
       | undefined,
     currentValues: Record<string, any>
   ): boolean {
     if (!condition) return true
 
+    // If condition is a function, call it to get the actual condition object
+    const actualCondition = typeof condition === 'function' ? condition() : condition
+
     // Get the field value
-    const fieldValue = currentValues[condition.field]
+    const fieldValue = currentValues[actualCondition.field]
 
     // Check if the condition value is an array
-    const isValueMatch = Array.isArray(condition.value)
+    const isValueMatch = Array.isArray(actualCondition.value)
       ? fieldValue != null &&
-        (condition.not
-          ? !condition.value.includes(fieldValue)
-          : condition.value.includes(fieldValue))
-      : condition.not
-        ? fieldValue !== condition.value
-        : fieldValue === condition.value
+        (actualCondition.not
+          ? !actualCondition.value.includes(fieldValue)
+          : actualCondition.value.includes(fieldValue))
+      : actualCondition.not
+        ? fieldValue !== actualCondition.value
+        : fieldValue === actualCondition.value
 
     // Check both conditions if 'and' is present
     const isAndValueMatch =
-      !condition.and ||
+      !actualCondition.and ||
       (() => {
-        const andFieldValue = currentValues[condition.and!.field]
-        return Array.isArray(condition.and!.value)
+        const andFieldValue = currentValues[actualCondition.and!.field]
+        return Array.isArray(actualCondition.and!.value)
           ? andFieldValue != null &&
-              (condition.and!.not
-                ? !condition.and!.value.includes(andFieldValue)
-                : condition.and!.value.includes(andFieldValue))
-          : condition.and!.not
-            ? andFieldValue !== condition.and!.value
-            : andFieldValue === condition.and!.value
+              (actualCondition.and!.not
+                ? !actualCondition.and!.value.includes(andFieldValue)
+                : actualCondition.and!.value.includes(andFieldValue))
+          : actualCondition.and!.not
+            ? andFieldValue !== actualCondition.and!.value
+            : andFieldValue === actualCondition.and!.value
       })()
 
     return isValueMatch && isAndValueMatch

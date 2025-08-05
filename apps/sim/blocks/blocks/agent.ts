@@ -12,6 +12,12 @@ import {
   MODELS_WITH_TEMPERATURE_SUPPORT,
   providers,
 } from '@/providers/utils'
+
+// Get current Ollama models dynamically
+const getCurrentOllamaModels = () => {
+  return useOllamaStore.getState().models
+}
+
 import { useOllamaStore } from '@/stores/ollama/store'
 import type { ToolResponse } from '@/tools/types'
 
@@ -213,14 +219,18 @@ Create a system prompt appropriately detailed for the request, using clear langu
       password: true,
       connectionDroppable: false,
       required: true,
-      // Hide API key for all hosted models when running on hosted version
+      // Hide API key for hosted models and Ollama models
       condition: isHosted
         ? {
             field: 'model',
             value: getHostedModels(),
             not: true, // Show for all models EXCEPT those listed
           }
-        : undefined, // Show for all models in non-hosted environments
+        : () => ({
+            field: 'model',
+            value: getCurrentOllamaModels(),
+            not: true, // Show for all models EXCEPT Ollama models
+          }),
     },
     {
       id: 'azureEndpoint',
