@@ -912,8 +912,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   }
                   if (foundParent) break
                 }
-                // Clear hover if not a parent item
-                if (!foundParent) {
+                // Clear hover if not a parent item and user isn't actively in submenu
+                if (!foundParent && !inSubmenu) {
                   setHoveredNested(null)
                 }
                 return newIndex
@@ -948,8 +948,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   }
                   if (foundParent) break
                 }
-                // Clear hover if not a parent item
-                if (!foundParent) {
+                // Clear hover if not a parent item and user isn't actively in submenu
+                if (!foundParent && !inSubmenu) {
                   setHoveredNested(null)
                 }
                 return newIndex
@@ -1063,7 +1063,17 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                             tagIndex >= 0 &&
                             'bg-accent text-accent-foreground'
                         )}
-                        onMouseEnter={() => setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)}
+                        onMouseEnter={() => {
+                          setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)
+                          // Clear nested hover when hovering over regular items
+                          if (hoveredNested) {
+                            if (hideTimeout) {
+                              clearTimeout(hideTimeout)
+                              setHideTimeout(null)
+                            }
+                            setHoveredNested(null)
+                          }
+                        }}
                         onMouseDown={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
@@ -1214,11 +1224,15 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                 }}
                                 onMouseLeave={() => {
                                   if (hasChildren) {
-                                    // Small delay to allow moving to submenu
+                                    // Clear any existing timeout first
+                                    if (hideTimeout) {
+                                      clearTimeout(hideTimeout)
+                                    }
+                                    // Longer delay to allow smooth movement to submenu
                                     const timeout = setTimeout(() => {
                                       setHoveredNested(null)
                                       setHideTimeout(null)
-                                    }, 150)
+                                    }, 300)
                                     setHideTimeout(timeout)
                                   }
                                 }}
@@ -1268,7 +1282,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                               {/* Nested submenu */}
                               {hasChildren && isHovered && (
                                 <div
-                                  className='absolute top-0 left-full z-[10000] ml-1 min-w-[200px] max-w-[300px] rounded-md border border-border bg-background shadow-lg'
+                                  className='absolute top-0 left-full z-[10000] ml-0.5 min-w-[200px] max-w-[300px] rounded-md border border-border bg-background shadow-lg'
                                   onMouseEnter={() => {
                                     // Clear any pending hide timeout
                                     if (hideTimeout) {
@@ -1281,11 +1295,15 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                     })
                                   }}
                                   onMouseLeave={() => {
+                                    // Clear any existing timeout first
+                                    if (hideTimeout) {
+                                      clearTimeout(hideTimeout)
+                                    }
                                     // Set timeout to hide submenu when leaving
                                     const timeout = setTimeout(() => {
                                       setHoveredNested(null)
                                       setHideTimeout(null)
-                                    }, 150)
+                                    }, 300)
                                     setHideTimeout(timeout)
                                   }}
                                 >
