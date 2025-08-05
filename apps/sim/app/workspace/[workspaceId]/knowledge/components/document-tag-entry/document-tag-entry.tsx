@@ -342,7 +342,7 @@ export function DocumentTagEntry({
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Info className='h-4 w-4 text-muted-foreground cursor-help' />
+                        <Info className='h-4 w-4 cursor-help text-muted-foreground' />
                       </TooltipTrigger>
                       <TooltipContent>
                         <p className='text-sm'>
@@ -425,7 +425,7 @@ export function DocumentTagEntry({
               <div className='flex items-center gap-2 text-amber-800 text-sm'>
                 <span className='font-medium'>Maximum tag definitions reached</span>
               </div>
-              <p className='text-amber-700 text-xs mt-1'>
+              <p className='mt-1 text-amber-700 text-xs'>
                 You can still use existing tag definitions from the dropdown, but cannot create new
                 ones.
               </p>
