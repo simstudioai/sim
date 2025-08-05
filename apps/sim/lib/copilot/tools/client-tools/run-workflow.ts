@@ -141,12 +141,12 @@ export class RunWorkflowTool extends BaseTool {
 
       // Capture the execution timestamp
       const executionStartTime = new Date().toISOString()
-      
+
       // Store execution start time in context for background notifications
       if (options?.context) {
         options.context.executionStartTime = executionStartTime
       }
-      
+
       // Use the standalone execution utility with full logging support
       // This works for both deployed and non-deployed workflows
       const result = await executeWorkflowWithFullLogging({
@@ -160,7 +160,11 @@ export class RunWorkflowTool extends BaseTool {
       // Check if execution was successful
       if (result && (!('success' in result) || result.success !== false)) {
         // Notify server of success with execution timestamp
-        await this.notify(toolCall.id, 'success', `Workflow execution completed successfully. Started at: ${executionStartTime}`)
+        await this.notify(
+          toolCall.id,
+          'success',
+          `Workflow execution completed successfully. Started at: ${executionStartTime}`
+        )
 
         options?.onStateChange?.('success')
 
