@@ -168,7 +168,7 @@ export const ChatInput: React.FC<{
                   ref={textareaRef}
                   value={inputValue}
                   onChange={handleInputChange}
-                  className='flex w-full resize-none items-center overflow-hidden bg-transparent text-sm outline-none placeholder:text-gray-400 md:font-[330] md:text-base'
+                  className='flex w-full resize-none items-center overflow-hidden bg-transparent text-base outline-none placeholder:text-gray-400 md:font-[330]'
                   placeholder={isActive ? '' : ''}
                   rows={1}
                   style={{
@@ -191,14 +191,14 @@ export const ChatInput: React.FC<{
                     <>
                       {/* Mobile placeholder */}
                       <div
-                        className='-translate-y-1/2 absolute top-1/2 left-0 transform select-none text-gray-400 text-sm md:hidden md:text-base'
+                        className='-translate-y-1/2 absolute top-1/2 left-0 transform select-none text-base text-gray-400 md:hidden'
                         style={{ paddingTop: '3px', paddingBottom: '3px' }}
                       >
                         {PLACEHOLDER_MOBILE}
                       </div>
                       {/* Desktop placeholder */}
                       <div
-                        className='-translate-y-1/2 absolute top-1/2 left-0 hidden transform select-none font-[330] text-gray-400 text-sm md:block md:text-base'
+                        className='-translate-y-1/2 absolute top-1/2 left-0 hidden transform select-none font-[330] text-base text-gray-400 md:block'
                         style={{ paddingTop: '4px', paddingBottom: '4px' }}
                       >
                         {PLACEHOLDER_DESKTOP}

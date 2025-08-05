@@ -1,6 +1,8 @@
 'use client'
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { ArrowDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { LoadingAgent } from '@/components/ui/loading-agent'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -10,6 +12,7 @@ import {
   CopilotWelcome,
   UserInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
+import type { UserInputRef } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
 import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
@@ -27,10 +30,15 @@ interface CopilotRef {
 
 export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const userInputRef = useRef<UserInputRef>(null)
   const [showCheckpoints] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   const lastWorkflowIdRef = useRef<string | null>(null)
   const hasMountedRef = useRef(false)
+
+  // Scroll state
+  const [isNearBottom, setIsNearBottom] = useState(true)
+  const [showScrollButton, setShowScrollButton] = useState(false)
 
   const { activeWorkflowId } = useWorkflowRegistry()
 
@@ -97,29 +105,94 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     // Preview clearing is now handled automatically by the copilot store
   }, [activeWorkflowId])
 
-  // Auto-scroll to bottom when new messages are added
-  useEffect(() => {
+  // Scroll to bottom function
+  const scrollToBottom = useCallback(() => {
     if (scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector(
         '[data-radix-scroll-area-viewport]'
       )
       if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight
+        scrollContainer.scrollTo({
+          top: scrollContainer.scrollHeight,
+          behavior: 'smooth',
+        })
       }
     }
-  }, [messages])
+  }, [])
 
-  // Auto-scroll to bottom when chat loads in
+  // Handle scroll events to track user position
+  const handleScroll = useCallback(() => {
+    const scrollArea = scrollAreaRef.current
+    if (!scrollArea) return
+
+    // Find the viewport element inside the ScrollArea
+    const viewport = scrollArea.querySelector('[data-radix-scroll-area-viewport]')
+    if (!viewport) return
+
+    const { scrollTop, scrollHeight, clientHeight } = viewport
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+
+    // Consider "near bottom" if within 100px of bottom
+    const nearBottom = distanceFromBottom <= 100
+    setIsNearBottom(nearBottom)
+    setShowScrollButton(!nearBottom)
+  }, [])
+
+  // Attach scroll listener
   useEffect(() => {
-    if (isInitialized && messages.length > 0 && scrollAreaRef.current) {
+    const scrollArea = scrollAreaRef.current
+    if (!scrollArea) return
+
+    // Find the viewport element inside the ScrollArea
+    const viewport = scrollArea.querySelector('[data-radix-scroll-area-viewport]')
+    if (!viewport) return
+
+    viewport.addEventListener('scroll', handleScroll, { passive: true })
+
+    // Also listen for scrollend event if available (for smooth scrolling)
+    if ('onscrollend' in viewport) {
+      viewport.addEventListener('scrollend', handleScroll, { passive: true })
+    }
+
+    // Initial scroll state check with small delay to ensure DOM is ready
+    setTimeout(handleScroll, 100)
+
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll)
+      if ('onscrollend' in viewport) {
+        viewport.removeEventListener('scrollend', handleScroll)
+      }
+    }
+  }, [handleScroll])
+
+  // Smart auto-scroll: only scroll if user is near bottom or for user messages
+  useEffect(() => {
+    if (messages.length === 0) return
+
+    const lastMessage = messages[messages.length - 1]
+    const isNewUserMessage = lastMessage?.role === 'user'
+
+    // Always scroll for new user messages, or only if near bottom for assistant messages
+    if ((isNewUserMessage || isNearBottom) && scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector(
         '[data-radix-scroll-area-viewport]'
       )
       if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight
+        scrollContainer.scrollTo({
+          top: scrollContainer.scrollHeight,
+          behavior: 'smooth',
+        })
+        // Let the scroll event handler update the state naturally after animation completes
       }
     }
-  }, [isInitialized, messages.length])
+  }, [messages, isNearBottom])
+
+  // Auto-scroll to bottom when chat loads in
+  useEffect(() => {
+    if (isInitialized && messages.length > 0) {
+      scrollToBottom()
+    }
+  }, [isInitialized, messages.length, scrollToBottom])
 
   // Cleanup on component unmount (page refresh, navigation, etc.)
   useEffect(() => {
@@ -160,6 +233,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     // Preview clearing is now handled automatically by the copilot store
     createNewChat()
     logger.info('Started new chat')
+
+    // Focus the input after creating new chat
+    setTimeout(() => {
+      userInputRef.current?.focus()
+    }, 100) // Small delay to ensure DOM updates are complete
   }, [createNewChat])
 
   // Expose functions to parent
@@ -203,34 +281,48 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
             {showCheckpoints ? (
               <CheckpointPanel />
             ) : (
-              <ScrollArea
-                ref={scrollAreaRef}
-                className='flex-1 overflow-hidden'
-                hideScrollbar={true}
-              >
-                <div className='w-full max-w-full space-y-1 overflow-hidden'>
-                  {messages.length === 0 ? (
-                    <div className='flex h-full items-center justify-center p-4'>
-                      <CopilotWelcome onQuestionClick={handleSubmit} mode={mode} />
-                    </div>
-                  ) : (
-                    messages.map((message) => (
-                      <CopilotMessage
-                        key={message.id}
-                        message={message}
-                        isStreaming={
-                          isSendingMessage && message.id === messages[messages.length - 1]?.id
-                        }
-                      />
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
+              <div className='relative flex-1 overflow-hidden'>
+                <ScrollArea ref={scrollAreaRef} className='h-full' hideScrollbar={true}>
+                  <div className='w-full max-w-full space-y-1 overflow-hidden'>
+                    {messages.length === 0 ? (
+                      <div className='flex h-full items-center justify-center p-4'>
+                        <CopilotWelcome onQuestionClick={handleSubmit} mode={mode} />
+                      </div>
+                    ) : (
+                      messages.map((message) => (
+                        <CopilotMessage
+                          key={message.id}
+                          message={message}
+                          isStreaming={
+                            isSendingMessage && message.id === messages[messages.length - 1]?.id
+                          }
+                        />
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+
+                {/* Scroll to bottom button */}
+                {showScrollButton && (
+                  <div className='-translate-x-1/2 absolute bottom-4 left-1/2 z-10'>
+                    <Button
+                      onClick={scrollToBottom}
+                      size='sm'
+                      variant='outline'
+                      className='flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 shadow-lg transition-all hover:bg-gray-50'
+                    >
+                      <ArrowDown className='h-3.5 w-3.5' />
+                      <span className='sr-only'>Scroll to bottom</span>
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Input area with integrated mode selector */}
             {!showCheckpoints && (
               <UserInput
+                ref={userInputRef}
                 onSubmit={handleSubmit}
                 onAbort={abortMessage}
                 disabled={!activeWorkflowId}

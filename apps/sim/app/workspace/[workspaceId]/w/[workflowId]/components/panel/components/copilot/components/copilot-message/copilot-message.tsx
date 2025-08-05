@@ -1,40 +1,19 @@
 'use client'
 
-import React, { type FC, memo, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Clipboard, Copy, Loader2, RotateCcw, ThumbsDown, ThumbsUp, X } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { type FC, memo, useEffect, useMemo, useRef, useState } from 'react'
+import { Check, Clipboard, Loader2, RotateCcw, ThumbsDown, ThumbsUp, X } from 'lucide-react'
 import { InlineToolCall } from '@/lib/copilot/tools/inline-tool-call'
+import { createLogger } from '@/lib/logs/console/logger'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotMessage as CopilotMessageType } from '@/stores/copilot/types'
+import CopilotMarkdownRenderer from './components/markdown-renderer'
+
+const logger = createLogger('CopilotMessage')
 
 interface CopilotMessageProps {
   message: CopilotMessageType
   isStreaming?: boolean
-}
-
-// Link component with preview
-function LinkWithPreview({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Tooltip delayDuration={300}>
-      <TooltipTrigger asChild>
-        <a
-          href={href}
-          className='text-blue-600 hover:underline dark:text-blue-400'
-          target='_blank'
-          rel='noopener noreferrer'
-        >
-          {children}
-        </a>
-      </TooltipTrigger>
-      <TooltipContent side='top' align='center' sideOffset={5} className='max-w-sm p-3'>
-        <span className='text-sm'>{href}</span>
-      </TooltipContent>
-    </Tooltip>
-  )
 }
 
 // Memoized streaming indicator component for better performance
@@ -63,11 +42,10 @@ StreamingIndicator.displayName = 'StreamingIndicator'
 interface SmoothStreamingTextProps {
   content: string
   isStreaming: boolean
-  markdownComponents: any
 }
 
 const SmoothStreamingText = memo(
-  ({ content, isStreaming, markdownComponents }: SmoothStreamingTextProps) => {
+  ({ content, isStreaming }: SmoothStreamingTextProps) => {
     const [displayedContent, setDisplayedContent] = useState('')
     const contentRef = useRef(content)
     const timeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -147,11 +125,7 @@ const SmoothStreamingText = memo(
 
     return (
       <div className='relative max-w-full overflow-hidden' style={{ minHeight: '1.25rem' }}>
-        <div className='max-w-full space-y-4 break-words font-geist-sans text-[#0D0D0D] text-base leading-relaxed dark:text-gray-100'>
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {displayedContent}
-          </ReactMarkdown>
-        </div>
+        <CopilotMarkdownRenderer content={displayedContent} />
       </div>
     )
   },
@@ -293,20 +267,12 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           toolCall.input?.data?.yamlContent
 
         if (yamlContent && typeof yamlContent === 'string' && yamlContent.trim()) {
-          console.log('Found workflow YAML in tool call:', {
-            toolCallId: toolCall.id,
-            toolName: toolCall.name,
-            yamlLength: yamlContent.length,
-          })
           return yamlContent
         }
       }
 
       // Step 2: Check copilot store's preview YAML (set when workflow tools execute)
       if (currentChat?.previewYaml?.trim()) {
-        console.log('Found workflow YAML in copilot store preview:', {
-          yamlLength: currentChat.previewYaml.length,
-        })
         return currentChat.previewYaml
       }
 
@@ -315,11 +281,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         if (toolCall.id) {
           const preview = getPreviewByToolCall(toolCall.id)
           if (preview?.yamlContent?.trim()) {
-            console.log('Found workflow YAML in preview store:', {
-              toolCallId: toolCall.id,
-              previewId: preview.id,
-              yamlLength: preview.yamlContent.length,
-            })
             return preview.yamlContent
           }
         }
@@ -330,10 +291,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       if (workflowTools.length > 0 && workflowId) {
         const latestPreview = getLatestPendingPreview(workflowId, currentChat?.id)
         if (latestPreview?.yamlContent?.trim()) {
-          console.log('Found workflow YAML in latest pending preview:', {
-            previewId: latestPreview.id,
-            yamlLength: latestPreview.yamlContent.length,
-          })
           return latestPreview.yamlContent
         }
       }
@@ -345,19 +302,19 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     const submitFeedback = async (isPositive: boolean) => {
       // Ensure we have a chat ID
       if (!currentChat?.id) {
-        console.error('No current chat ID available for feedback submission')
+        logger.error('No current chat ID available for feedback submission')
         return
       }
 
       const userQuery = getLastUserQuery()
       if (!userQuery) {
-        console.error('No user query found for feedback submission')
+        logger.error('No user query found for feedback submission')
         return
       }
 
       const agentResponse = getFullAssistantContent(message)
       if (!agentResponse.trim()) {
-        console.error('No agent response content available for feedback submission')
+        logger.error('No agent response content available for feedback submission')
         return
       }
 
@@ -375,10 +332,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         // Only include workflowYaml if it exists
         if (workflowYaml) {
           requestBody.workflowYaml = workflowYaml
-          console.log('Including workflow YAML in feedback:', {
-            yamlLength: workflowYaml.length,
-            yamlPreview: workflowYaml.substring(0, 100),
-          })
         }
 
         const response = await fetch('/api/copilot/feedback', {
@@ -394,10 +347,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         }
 
         const result = await response.json()
-        console.log('Feedback submitted successfully:', result)
       } catch (error) {
-        console.error('Error submitting feedback:', error)
-        // Could show a toast or error message to user here
+        logger.error('Error submitting feedback:', error)
       }
     }
 
@@ -431,7 +382,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           await revertToCheckpoint(latestCheckpoint.id)
           setShowRestoreConfirmation(false)
         } catch (error) {
-          console.error('Failed to revert to checkpoint:', error)
+          logger.error('Failed to revert to checkpoint:', error)
           setShowRestoreConfirmation(false)
         }
       }
@@ -476,194 +427,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       return message.content.replace(/\n{3,}/g, '\n\n')
     }, [message.content])
 
-    // Custom components for react-markdown with current styling - memoized to prevent re-renders
-    const markdownComponents = useMemo(
-      () => ({
-        // Paragraph
-        p: ({ children }: React.HTMLAttributes<HTMLParagraphElement>) => (
-          <p className='mb-1 font-geist-sans text-base text-gray-800 leading-relaxed last:mb-0 dark:text-gray-200'>
-            {children}
-          </p>
-        ),
-
-        // Headings
-        h1: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-          <h1 className='mt-10 mb-5 font-geist-sans font-semibold text-2xl text-gray-900 dark:text-gray-100'>
-            {children}
-          </h1>
-        ),
-        h2: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-          <h2 className='mt-8 mb-4 font-geist-sans font-semibold text-gray-900 text-xl dark:text-gray-100'>
-            {children}
-          </h2>
-        ),
-        h3: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-          <h3 className='mt-7 mb-3 font-geist-sans font-semibold text-gray-900 text-lg dark:text-gray-100'>
-            {children}
-          </h3>
-        ),
-        h4: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-          <h4 className='mt-5 mb-2 font-geist-sans font-semibold text-base text-gray-900 dark:text-gray-100'>
-            {children}
-          </h4>
-        ),
-
-        // Lists
-        ul: ({ children }: React.HTMLAttributes<HTMLUListElement>) => (
-          <ul
-            className='mt-1 mb-1 space-y-1 pl-6 font-geist-sans text-gray-800 dark:text-gray-200'
-            style={{ listStyleType: 'disc' }}
-          >
-            {children}
-          </ul>
-        ),
-        ol: ({ children }: React.HTMLAttributes<HTMLOListElement>) => (
-          <ol
-            className='mt-1 mb-1 space-y-1 pl-6 font-geist-sans text-gray-800 dark:text-gray-200'
-            style={{ listStyleType: 'decimal' }}
-          >
-            {children}
-          </ol>
-        ),
-        li: ({
-          children,
-          ordered,
-        }: React.LiHTMLAttributes<HTMLLIElement> & { ordered?: boolean }) => (
-          <li
-            className='font-geist-sans text-gray-800 dark:text-gray-200'
-            style={{ display: 'list-item' }}
-          >
-            {children}
-          </li>
-        ),
-
-        // Code blocks
-        pre: ({ children }: React.HTMLAttributes<HTMLPreElement>) => {
-          let codeContent: React.ReactNode = children
-          let language = 'code'
-
-          if (
-            React.isValidElement<{ className?: string; children?: React.ReactNode }>(children) &&
-            children.type === 'code'
-          ) {
-            const childElement = children as React.ReactElement<{
-              className?: string
-              children?: React.ReactNode
-            }>
-            codeContent = childElement.props.children
-            language = childElement.props.className?.replace('language-', '') || 'code'
-          }
-
-          return (
-            <div className='my-6 w-0 min-w-full rounded-md bg-gray-900 text-sm dark:bg-black'>
-              <div className='flex items-center justify-between border-gray-700 border-b px-4 py-1.5 dark:border-gray-800'>
-                <span className='font-geist-sans text-gray-400 text-xs'>{language}</span>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  className='h-4 w-4 p-0 opacity-70 hover:opacity-100'
-                  onClick={() => {
-                    if (typeof codeContent === 'string') {
-                      navigator.clipboard.writeText(codeContent)
-                    }
-                  }}
-                >
-                  <Copy className='h-3 w-3 text-gray-400' />
-                </Button>
-              </div>
-              <div className='overflow-x-auto'>
-                <pre className='whitespace-pre p-4 font-mono text-gray-100 text-sm leading-relaxed'>
-                  {codeContent}
-                </pre>
-              </div>
-            </div>
-          )
-        },
-
-        // Inline code
-        code: ({
-          inline,
-          className,
-          children,
-          ...props
-        }: React.HTMLAttributes<HTMLElement> & { className?: string; inline?: boolean }) => {
-          if (inline) {
-            return (
-              <code
-                className='rounded bg-gray-200 px-1 py-0.5 font-mono text-[0.9em] text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                {...props}
-              >
-                {children}
-              </code>
-            )
-          }
-          return (
-            <code className={className} {...props}>
-              {children}
-            </code>
-          )
-        },
-
-        // Blockquotes
-        blockquote: ({ children }: React.HTMLAttributes<HTMLQuoteElement>) => (
-          <blockquote className='my-4 border-gray-300 border-l-4 py-1 pl-4 font-geist-sans text-gray-700 italic dark:border-gray-600 dark:text-gray-300'>
-            {children}
-          </blockquote>
-        ),
-
-        // Horizontal rule
-        hr: () => <hr className='my-8 border-gray-500/[.07] border-t dark:border-gray-400/[.07]' />,
-
-        // Links
-        a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-          <LinkWithPreview href={href || '#'} {...props}>
-            {children}
-          </LinkWithPreview>
-        ),
-
-        // Tables
-        table: ({ children }: React.TableHTMLAttributes<HTMLTableElement>) => (
-          <div className='my-4 max-w-full overflow-x-auto'>
-            <table className='min-w-full table-auto border border-gray-300 font-geist-sans text-sm dark:border-gray-700'>
-              {children}
-            </table>
-          </div>
-        ),
-        thead: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
-          <thead className='bg-gray-100 text-left dark:bg-gray-800'>{children}</thead>
-        ),
-        tbody: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
-          <tbody className='divide-y divide-gray-200 dark:divide-gray-700'>{children}</tbody>
-        ),
-        tr: ({ children }: React.HTMLAttributes<HTMLTableRowElement>) => (
-          <tr className='border-gray-200 border-b transition-colors hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/60'>
-            {children}
-          </tr>
-        ),
-        th: ({ children }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
-          <th className='border-gray-300 border-r px-4 py-2 font-medium text-gray-700 last:border-r-0 dark:border-gray-700 dark:text-gray-300'>
-            {children}
-          </th>
-        ),
-        td: ({ children }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
-          <td className='break-words border-gray-300 border-r px-4 py-2 text-gray-800 last:border-r-0 dark:border-gray-700 dark:text-gray-200'>
-            {children}
-          </td>
-        ),
-
-        // Images
-        img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-          <img
-            src={src}
-            alt={alt || 'Image'}
-            className='my-3 h-auto max-w-full rounded-md'
-            {...props}
-          />
-        ),
-      }),
-      []
-    )
-
     // Memoize content blocks to avoid re-rendering unchanged blocks
     const memoizedContentBlocks = useMemo(() => {
       if (!message.contentBlocks || message.contentBlocks.length === 0) {
@@ -693,17 +456,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               }}
             >
               {shouldUseSmoothing ? (
-                <SmoothStreamingText
-                  content={cleanBlockContent}
-                  isStreaming={isStreaming}
-                  markdownComponents={markdownComponents}
-                />
+                <SmoothStreamingText content={cleanBlockContent} isStreaming={isStreaming} />
               ) : (
-                <div className='max-w-full space-y-4 break-words font-geist-sans text-[#0D0D0D] text-base leading-relaxed dark:text-gray-100'>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                    {cleanBlockContent}
-                  </ReactMarkdown>
-                </div>
+                <CopilotMarkdownRenderer content={cleanBlockContent} />
               )}
             </div>
           )
@@ -721,7 +476,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         }
         return null
       })
-    }, [message.contentBlocks, isStreaming, markdownComponents])
+    }, [message.contentBlocks, isStreaming])
 
     if (isUser) {
       return (

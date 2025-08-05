@@ -1,7 +1,7 @@
 'use client'
 
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp } from 'lucide-react'
+import { ArrowDown, ArrowUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -42,6 +42,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   } = useChatStore()
   const { entries } = useConsoleStore()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -49,6 +50,10 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   // Prompt history state
   const [promptHistory, setPromptHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
+
+  // Scroll state
+  const [isNearBottom, setIsNearBottom] = useState(true)
+  const [showScrollButton, setShowScrollButton] = useState(false)
 
   // Use the execution store state to track if a workflow is executing
   const { isExecuting } = useExecutionStore()
@@ -125,6 +130,31 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     }, delay)
   }, [])
 
+  // Scroll to bottom function
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [])
+
+  // Handle scroll events to track user position
+  const handleScroll = useCallback(() => {
+    const scrollArea = scrollAreaRef.current
+    if (!scrollArea) return
+
+    // Find the viewport element inside the ScrollArea
+    const viewport = scrollArea.querySelector('[data-radix-scroll-area-viewport]')
+    if (!viewport) return
+
+    const { scrollTop, scrollHeight, clientHeight } = viewport
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+
+    // Consider "near bottom" if within 100px of bottom
+    const nearBottom = distanceFromBottom <= 100
+    setIsNearBottom(nearBottom)
+    setShowScrollButton(!nearBottom)
+  }, [])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -137,12 +167,47 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     }
   }, [])
 
-  // Auto-scroll to bottom when new messages are added
+  // Attach scroll listener
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    const scrollArea = scrollAreaRef.current
+    if (!scrollArea) return
+
+    // Find the viewport element inside the ScrollArea
+    const viewport = scrollArea.querySelector('[data-radix-scroll-area-viewport]')
+    if (!viewport) return
+
+    viewport.addEventListener('scroll', handleScroll, { passive: true })
+
+    // Also listen for scrollend event if available (for smooth scrolling)
+    if ('onscrollend' in viewport) {
+      viewport.addEventListener('scrollend', handleScroll, { passive: true })
     }
-  }, [workflowMessages])
+
+    // Initial scroll state check with small delay to ensure DOM is ready
+    setTimeout(handleScroll, 100)
+
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll)
+      if ('onscrollend' in viewport) {
+        viewport.removeEventListener('scrollend', handleScroll)
+      }
+    }
+  }, [handleScroll])
+
+  // Auto-scroll to bottom when new messages are added, but only if user is near bottom
+  // Exception: Always scroll when sending a new message
+  useEffect(() => {
+    if (workflowMessages.length === 0) return
+
+    const lastMessage = workflowMessages[workflowMessages.length - 1]
+    const isNewUserMessage = lastMessage?.type === 'user'
+
+    // Always scroll for new user messages, or only if near bottom for assistant messages
+    if ((isNewUserMessage || isNearBottom) && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+      // Let the scroll event handler update the state naturally after animation completes
+    }
+  }, [workflowMessages, isNearBottom])
 
   // Handle send message
   const handleSendMessage = useCallback(async () => {
@@ -449,7 +514,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
               No messages yet
             </div>
           ) : (
-            <ScrollArea className='h-full pb-2' hideScrollbar={true}>
+            <ScrollArea ref={scrollAreaRef} className='h-full pb-2' hideScrollbar={true}>
               <div>
                 {workflowMessages.map((message) => (
                   <ChatMessage key={message.id} message={message} />
@@ -457,6 +522,21 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                 <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
+          )}
+
+          {/* Scroll to bottom button */}
+          {showScrollButton && (
+            <div className='-translate-x-1/2 absolute bottom-20 left-1/2 z-10'>
+              <Button
+                onClick={scrollToBottom}
+                size='sm'
+                variant='outline'
+                className='flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 shadow-lg transition-all hover:bg-gray-50'
+              >
+                <ArrowDown className='h-3.5 w-3.5' />
+                <span className='sr-only'>Scroll to bottom</span>
+              </Button>
+            </div>
           )}
         </div>
 
