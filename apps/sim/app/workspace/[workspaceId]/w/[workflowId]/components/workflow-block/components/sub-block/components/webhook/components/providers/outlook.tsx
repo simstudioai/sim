@@ -43,7 +43,7 @@ const TOOLTIPS = {
 
 // Generate example payload for Outlook
 const generateOutlookExamplePayload = (includeRawEmail: boolean) => {
-  const baseExample = {
+  const baseExample: any = {
     email: {
       id: 'AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T4KzowKTAAAAAAEMAAAiIsqMbYjsT5e-T4KzowKTAAAYbvZDAAA=',
       conversationId:
@@ -58,9 +58,6 @@ const generateOutlookExamplePayload = (includeRawEmail: boolean) => {
       hasAttachments: true,
       isRead: false,
       folderId: 'inbox',
-      messageId:
-        'AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T4KzowKTAAAAAAEMAAAiIsqMbYjsT5e-T4KzowKTAAAYbvZDAAA=',
-      threadId: 'AAQkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OAAQAOH_y8jLzUGIn-HVkHUBrEE=',
     },
     timestamp: '2024-01-15T10:30:15.123Z',
   }
@@ -90,11 +87,20 @@ const generateOutlookExamplePayload = (includeRawEmail: boolean) => {
           },
         },
       ],
+      ccRecipients: [],
+      bccRecipients: [],
       receivedDateTime: '2024-01-15T10:30:00Z',
       sentDateTime: '2024-01-15T10:29:45Z',
       hasAttachments: true,
       isRead: false,
+      isDraft: false,
+      importance: 'normal',
       parentFolderId: 'inbox',
+      internetMessageId: '<message-id@company.com>',
+      webLink: 'https://outlook.office365.com/owa/?ItemID=...',
+      createdDateTime: '2024-01-15T10:30:00Z',
+      lastModifiedDateTime: '2024-01-15T10:30:15Z',
+      changeKey: 'CQAAABYAAAAiIsqMbYjsT5e-T4KzowKTAAAYbvZE',
     }
   }
 
