@@ -1,7 +1,7 @@
 import { env } from '@/lib/env'
 
 // Client-safe configuration - no Node.js modules
-export const UPLOAD_DIR = typeof process !== 'undefined' ? '/uploads' : '/uploads'
+export const UPLOAD_DIR = '/uploads'
 
 // Check if S3 is configured (has required credentials)
 const hasS3Config = !!(env.S3_BUCKET_NAME && env.AWS_REGION)
