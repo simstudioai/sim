@@ -41,7 +41,6 @@ function extractBlockExecutionsFromTraceSpans(traceSpans: any[]): any[] {
   return blockExecutions
 }
 
-export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const QueryParamsSchema = z.object({
