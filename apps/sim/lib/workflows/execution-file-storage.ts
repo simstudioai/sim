@@ -39,7 +39,7 @@ export async function uploadExecutionFile(
   contentType: string
 ): Promise<UserFile> {
   logger.info(`Uploading execution file: ${fileName} for execution ${context.executionId}`)
-  console.log(`File upload context:`, {
+  logger.debug(`File upload context:`, {
     workspaceId: context.workspaceId,
     workflowId: context.workflowId,
     executionId: context.executionId,
@@ -58,8 +58,9 @@ export async function uploadExecutionFile(
 
     if (USE_S3_STORAGE) {
       // Upload to S3 execution files bucket with exact key (no timestamp prefix)
-      console.log(
+      logger.debug(
         `Uploading to S3 with key: ${storageKey}, bucket: ${S3_EXECUTION_FILES_CONFIG.bucket}`
+      )
       )
       fileInfo = await uploadToS3(
         fileBuffer,
