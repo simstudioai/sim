@@ -9,7 +9,6 @@ import { templateStars, templates, workflow } from '@/db/schema'
 
 const logger = createLogger('TemplatesAPI')
 
-export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // Function to sanitize sensitive data from workflow state
