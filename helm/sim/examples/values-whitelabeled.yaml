@@ -14,10 +14,10 @@ app:
   # Custom branding configuration
   env:
     # Application URLs (update with your domain)
-    NEXT_PUBLIC_APP_URL: "https://acme.sim"
-    BETTER_AUTH_URL: "https://acme.sim"
-    SOCKET_SERVER_URL: "https://acme-ws.sim"
-    NEXT_PUBLIC_SOCKET_URL: "https://acme-ws.sim"
+    NEXT_PUBLIC_APP_URL: "https://sim.acme.ai"
+    BETTER_AUTH_URL: "https://sim.acme.ai"
+    SOCKET_SERVER_URL: "https://sim-ws.acme.ai"
+    NEXT_PUBLIC_SOCKET_URL: "https://sim-ws.acme.ai"
     
     # Security settings (REQUIRED)
     BETTER_AUTH_SECRET: "your-production-auth-secret-here"
@@ -44,11 +44,11 @@ realtime:
   enabled: true
   replicaCount: 1
   env:
-    NEXT_PUBLIC_APP_URL: "https://acme.sim"
-    BETTER_AUTH_URL: "https://acme.sim"
-    NEXT_PUBLIC_SOCKET_URL: "https://acme-ws.sim"
+    NEXT_PUBLIC_APP_URL: "https://sim.acme.ai"
+    BETTER_AUTH_URL: "https://sim.acme.ai"
+    NEXT_PUBLIC_SOCKET_URL: "https://sim-ws.acme.ai"
     BETTER_AUTH_SECRET: "your-production-auth-secret-here"
-    ALLOWED_ORIGINS: "https://acme.sim"
+    ALLOWED_ORIGINS: "https://sim.acme.ai"
 
 # PostgreSQL database  
 postgresql:
@@ -68,20 +68,20 @@ ingress:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
   
   app:
-    host: "acme.sim"
+    host: "sim.acme.ai"
     paths:
       - path: /
         pathType: Prefix
   
   realtime:
-    host: "acme-ws.sim" 
+    host: "sim-ws.acme.ai" 
     paths:
       - path: /
         pathType: Prefix
   
   tls:
     enabled: true
-    secretName: "acme-sim-tls"
+    secretName: "sim-acme-tls"
 
 # Auto-scaling
 autoscaling:
