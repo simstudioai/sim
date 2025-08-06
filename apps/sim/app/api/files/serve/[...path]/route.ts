@@ -58,7 +58,11 @@ export async function GET(
     if (isUsingCloudStorage() || isCloudPath) {
       // Extract the actual key (remove 's3/' or 'blob/' prefix if present)
       const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
-      return await handleCloudProxy(cloudKey)
+
+      // Get bucket type from query parameter
+      const bucketType = request.nextUrl.searchParams.get('bucket')
+
+      return await handleCloudProxy(cloudKey, bucketType)
     }
 
     // Use local handler for local files
@@ -152,12 +156,37 @@ async function downloadKBFile(cloudKey: string): Promise<Buffer> {
 /**
  * Proxy cloud file through our server
  */
-async function handleCloudProxy(cloudKey: string): Promise<NextResponse> {
+async function handleCloudProxy(
+  cloudKey: string,
+  bucketType?: string | null
+): Promise<NextResponse> {
   try {
     // Check if this is a KB file (starts with 'kb/')
     const isKBFile = cloudKey.startsWith('kb/')
 
-    const fileBuffer = isKBFile ? await downloadKBFile(cloudKey) : await downloadFile(cloudKey)
+    let fileBuffer: Buffer
+
+    if (isKBFile) {
+      fileBuffer = await downloadKBFile(cloudKey)
+    } else if (bucketType === 'copilot') {
+      // Download from copilot-specific bucket
+      const storageProvider = getStorageProvider()
+
+      if (storageProvider === 's3') {
+        const { downloadFromS3WithConfig } = await import('@/lib/uploads/s3/s3-client')
+        const { S3_COPILOT_CONFIG } = await import('@/lib/uploads/setup')
+        fileBuffer = await downloadFromS3WithConfig(cloudKey, S3_COPILOT_CONFIG)
+      } else if (storageProvider === 'blob') {
+        // For Azure Blob, use the default downloadFile for now
+        // TODO: Add downloadFromBlobWithConfig when needed
+        fileBuffer = await downloadFile(cloudKey)
+      } else {
+        fileBuffer = await downloadFile(cloudKey)
+      }
+    } else {
+      // Default bucket
+      fileBuffer = await downloadFile(cloudKey)
+    }
 
     // Extract the original filename from the key (last part after last /)
     const originalFilename = cloudKey.split('/').pop() || 'download'

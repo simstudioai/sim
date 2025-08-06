@@ -7,7 +7,12 @@ import { toolRegistry } from '@/lib/copilot/tools'
 import { createLogger } from '@/lib/logs/console/logger'
 import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
 import { COPILOT_TOOL_IDS } from './constants'
-import type { CopilotMessage, CopilotStore, WorkflowCheckpoint } from './types'
+import type {
+  CopilotMessage,
+  CopilotStore,
+  MessageFileAttachment,
+  WorkflowCheckpoint,
+} from './types'
 
 const logger = createLogger('CopilotStore')
 
@@ -143,14 +148,18 @@ const initialState = {
 }
 
 /**
- * Helper function to create a new user messagenow let
+ * Helper function to create a new user message
  */
-function createUserMessage(content: string): CopilotMessage {
+function createUserMessage(
+  content: string,
+  fileAttachments?: MessageFileAttachment[]
+): CopilotMessage {
   return {
     id: crypto.randomUUID(),
     role: 'user',
     content,
     timestamp: new Date().toISOString(),
+    ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
   }
 }
 
@@ -213,6 +222,8 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
         ...(msg.toolCalls && msg.toolCalls.length > 0 && { toolCalls: msg.toolCalls }),
         ...(msg.contentBlocks &&
           msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks }),
+        ...(msg.fileAttachments &&
+          msg.fileAttachments.length > 0 && { fileAttachments: msg.fileAttachments }),
       }
     })
     .filter((msg) => {
@@ -1685,7 +1696,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // Send a message
       sendMessage: async (message: string, options = {}) => {
         const { workflowId, currentChat, mode, revertState } = get()
-        const { stream = true } = options
+        const { stream = true, fileAttachments } = options
 
         if (!workflowId) {
           logger.warn('Cannot send message: no workflow ID set')
@@ -1696,7 +1707,7 @@ export const useCopilotStore = create<CopilotStore>()(
         const abortController = new AbortController()
         set({ isSendingMessage: true, error: null, abortController })
 
-        const userMessage = createUserMessage(message)
+        const userMessage = createUserMessage(message, fileAttachments)
         const streamingMessage = createStreamingMessage()
 
         // Handle message history rewriting if we're in revert state
@@ -1752,6 +1763,7 @@ export const useCopilotStore = create<CopilotStore>()(
             mode,
             createNewChat: !currentChat,
             stream,
+            fileAttachments: options.fileAttachments,
             abortSignal: abortController.signal,
           })
 

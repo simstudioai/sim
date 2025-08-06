@@ -38,6 +38,17 @@ export interface CopilotChat {
 }
 
 /**
+ * File attachment interface for message requests
+ */
+export interface MessageFileAttachment {
+  id: string
+  s3_key: string
+  filename: string
+  media_type: string
+  size: number
+}
+
+/**
  * Request interface for sending messages
  */
 export interface SendMessageRequest {
@@ -49,6 +60,7 @@ export interface SendMessageRequest {
   createNewChat?: boolean
   stream?: boolean
   implicitFeedback?: string
+  fileAttachments?: MessageFileAttachment[]
   abortSignal?: AbortSignal
 }
 

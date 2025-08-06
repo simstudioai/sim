@@ -12,7 +12,10 @@ import {
   CopilotWelcome,
   UserInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
-import type { UserInputRef } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
+import type {
+  MessageFileAttachment,
+  UserInputRef,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
 import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
@@ -251,12 +254,16 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
   // Handle message submission
   const handleSubmit = useCallback(
-    async (query: string) => {
+    async (query: string, fileAttachments?: MessageFileAttachment[]) => {
       if (!query || isSendingMessage || !activeWorkflowId) return
 
       try {
-        await sendMessage(query, { stream: true })
-        logger.info('Sent message:', query)
+        await sendMessage(query, { stream: true, fileAttachments })
+        logger.info(
+          'Sent message:',
+          query,
+          fileAttachments ? `with ${fileAttachments.length} attachments` : ''
+        )
       } catch (error) {
         logger.error('Failed to send message:', error)
       }

@@ -24,6 +24,17 @@ const UpdateMessagesSchema = z.object({
       timestamp: z.string(),
       toolCalls: z.array(z.any()).optional(),
       contentBlocks: z.array(z.any()).optional(),
+      fileAttachments: z
+        .array(
+          z.object({
+            id: z.string(),
+            s3_key: z.string(),
+            filename: z.string(),
+            media_type: z.string(),
+            size: z.number(),
+          })
+        )
+        .optional(),
     })
   ),
 })

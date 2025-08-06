@@ -9,9 +9,11 @@ import { getS3Client, sanitizeFilenameForMetadata } from '@/lib/uploads/s3/s3-cl
 import {
   BLOB_CHAT_CONFIG,
   BLOB_CONFIG,
+  BLOB_COPILOT_CONFIG,
   BLOB_KB_CONFIG,
   S3_CHAT_CONFIG,
   S3_CONFIG,
+  S3_COPILOT_CONFIG,
   S3_KB_CONFIG,
 } from '@/lib/uploads/setup'
 import { createErrorResponse, createOptionsResponse } from '@/app/api/files/utils'
@@ -22,9 +24,11 @@ interface PresignedUrlRequest {
   fileName: string
   contentType: string
   fileSize: number
+  userId?: string
+  chatId?: string
 }
 
-type UploadType = 'general' | 'knowledge-base' | 'chat'
+type UploadType = 'general' | 'knowledge-base' | 'chat' | 'copilot'
 
 class PresignedUrlError extends Error {
   constructor(
@@ -58,7 +62,7 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('Invalid JSON in request body')
     }
 
-    const { fileName, contentType, fileSize } = data
+    const { fileName, contentType, fileSize, userId, chatId } = data
 
     if (!fileName?.trim()) {
       throw new ValidationError('fileName is required and cannot be empty')
@@ -83,7 +87,16 @@ export async function POST(request: NextRequest) {
         ? 'knowledge-base'
         : uploadTypeParam === 'chat'
           ? 'chat'
-          : 'general'
+          : uploadTypeParam === 'copilot'
+            ? 'copilot'
+            : 'general'
+
+    // Validate copilot-specific requirements
+    if (uploadType === 'copilot') {
+      if (!userId?.trim()) {
+        throw new ValidationError('userId is required for copilot uploads')
+      }
+    }
 
     if (!isUsingCloudStorage()) {
       throw new StorageConfigError(
@@ -96,9 +109,9 @@ export async function POST(request: NextRequest) {
 
     switch (storageProvider) {
       case 's3':
-        return await handleS3PresignedUrl(fileName, contentType, fileSize, uploadType)
+        return await handleS3PresignedUrl(fileName, contentType, fileSize, uploadType, userId)
       case 'blob':
-        return await handleBlobPresignedUrl(fileName, contentType, fileSize, uploadType)
+        return await handleBlobPresignedUrl(fileName, contentType, fileSize, uploadType, userId)
       default:
         throw new StorageConfigError(`Unknown storage provider: ${storageProvider}`)
     }
@@ -126,7 +139,8 @@ async function handleS3PresignedUrl(
   fileName: string,
   contentType: string,
   fileSize: number,
-  uploadType: UploadType
+  uploadType: UploadType,
+  userId?: string
 ) {
   try {
     const config =
@@ -134,15 +148,26 @@ async function handleS3PresignedUrl(
         ? S3_KB_CONFIG
         : uploadType === 'chat'
           ? S3_CHAT_CONFIG
-          : S3_CONFIG
+          : uploadType === 'copilot'
+            ? S3_COPILOT_CONFIG
+            : S3_CONFIG
 
     if (!config.bucket || !config.region) {
       throw new StorageConfigError(`S3 configuration missing for ${uploadType} uploads`)
     }
 
     const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
-    const prefix = uploadType === 'knowledge-base' ? 'kb/' : uploadType === 'chat' ? 'chat/' : ''
-    const uniqueKey = `${prefix}${Date.now()}-${uuidv4()}-${safeFileName}`
+
+    let prefix = ''
+    if (uploadType === 'knowledge-base') {
+      prefix = 'kb/'
+    } else if (uploadType === 'chat') {
+      prefix = 'chat/'
+    } else if (uploadType === 'copilot') {
+      prefix = `${userId}/`
+    }
+
+    const uniqueKey = `${prefix}${uuidv4()}-${safeFileName}`
 
     const sanitizedOriginalName = sanitizeFilenameForMetadata(fileName)
 
@@ -155,6 +180,9 @@ async function handleS3PresignedUrl(
       metadata.purpose = 'knowledge-base'
     } else if (uploadType === 'chat') {
       metadata.purpose = 'chat'
+    } else if (uploadType === 'copilot') {
+      metadata.purpose = 'copilot'
+      metadata.userId = userId || ''
     }
 
     const command = new PutObjectCommand({
@@ -210,7 +238,8 @@ async function handleBlobPresignedUrl(
   fileName: string,
   contentType: string,
   fileSize: number,
-  uploadType: UploadType
+  uploadType: UploadType,
+  userId?: string
 ) {
   try {
     const config =
@@ -218,7 +247,9 @@ async function handleBlobPresignedUrl(
         ? BLOB_KB_CONFIG
         : uploadType === 'chat'
           ? BLOB_CHAT_CONFIG
-          : BLOB_CONFIG
+          : uploadType === 'copilot'
+            ? BLOB_COPILOT_CONFIG
+            : BLOB_CONFIG
 
     if (
       !config.accountName ||
@@ -229,8 +260,17 @@ async function handleBlobPresignedUrl(
     }
 
     const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
-    const prefix = uploadType === 'knowledge-base' ? 'kb/' : uploadType === 'chat' ? 'chat/' : ''
-    const uniqueKey = `${prefix}${Date.now()}-${uuidv4()}-${safeFileName}`
+
+    let prefix = ''
+    if (uploadType === 'knowledge-base') {
+      prefix = 'kb/'
+    } else if (uploadType === 'chat') {
+      prefix = 'chat/'
+    } else if (uploadType === 'copilot') {
+      prefix = `${userId}/`
+    }
+
+    const uniqueKey = `${prefix}${uuidv4()}-${safeFileName}`
 
     const blobServiceClient = getBlobServiceClient()
     const containerClient = blobServiceClient.getContainerClient(config.containerName)
@@ -282,6 +322,9 @@ async function handleBlobPresignedUrl(
       uploadHeaders['x-ms-meta-purpose'] = 'knowledge-base'
     } else if (uploadType === 'chat') {
       uploadHeaders['x-ms-meta-purpose'] = 'chat'
+    } else if (uploadType === 'copilot') {
+      uploadHeaders['x-ms-meta-purpose'] = 'copilot'
+      uploadHeaders['x-ms-meta-userid'] = encodeURIComponent(userId || '')
     }
 
     return NextResponse.json({
