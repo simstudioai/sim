@@ -13,7 +13,7 @@ interface WorkflowYamlState {
 
 interface WorkflowYamlActions {
   generateYaml: () => Promise<void>
-  getYaml: () => string
+  getYaml: () => Promise<string>
   refreshYaml: () => void
 }
 
@@ -151,7 +151,7 @@ export const useWorkflowYamlStore = create<WorkflowYamlStore>()(
         }
       },
 
-      getYaml: () => {
+      getYaml: async () => {
         // Initialize subscriptions on first use
         initializeSubscriptions()
 
@@ -160,7 +160,7 @@ export const useWorkflowYamlStore = create<WorkflowYamlStore>()(
 
         // Auto-refresh if data is stale (older than 1 second) or never generated
         if (!lastGenerated || currentTime - lastGenerated > 1000) {
-          get().generateYaml()
+          await get().generateYaml()
           return get().yaml
         }
 
