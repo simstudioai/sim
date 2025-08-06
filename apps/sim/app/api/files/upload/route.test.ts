@@ -26,7 +26,9 @@ describe('File Upload API Route', () => {
 
   beforeEach(() => {
     vi.resetModules()
-    vi.doMock('@/lib/uploads/setup.server', () => ({}))
+    vi.doMock('@/lib/uploads/setup.server', () => ({
+      UPLOAD_DIR_SERVER: '/tmp/test-uploads',
+    }))
   })
 
   afterEach(() => {
@@ -51,6 +53,12 @@ describe('File Upload API Route', () => {
 
     const response = await POST(req)
     const data = await response.json()
+
+    // Log error details if test fails
+    if (response.status !== 200) {
+      console.error('Upload failed with status:', response.status)
+      console.error('Error response:', data)
+    }
 
     expect(response.status).toBe(200)
     expect(data).toHaveProperty('path')

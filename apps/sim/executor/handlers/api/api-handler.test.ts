@@ -100,11 +100,17 @@ describe('ApiBlockHandler', () => {
     const result = await handler.execute(mockBlock, inputs, mockContext)
 
     expect(mockGetTool).toHaveBeenCalledWith('http_request')
-    expect(mockExecuteTool).toHaveBeenCalledWith('http_request', {
-      ...inputs,
-      body: { key: 'value' }, // Expect parsed body
-      _context: { workflowId: 'test-workflow-id' },
-    })
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'http_request',
+      {
+        ...inputs,
+        body: { key: 'value' }, // Expect parsed body
+        _context: { workflowId: 'test-workflow-id' },
+      },
+      false, // skipProxy
+      false, // skipPostProcess
+      mockContext // execution context
+    )
     expect(result).toEqual(expectedOutput)
   })
 
@@ -152,7 +158,10 @@ describe('ApiBlockHandler', () => {
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'http_request',
-      expect.objectContaining({ body: expectedParsedBody })
+      expect.objectContaining({ body: expectedParsedBody }),
+      false, // skipProxy
+      false, // skipPostProcess
+      mockContext // execution context
     )
   })
 
@@ -166,7 +175,10 @@ describe('ApiBlockHandler', () => {
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'http_request',
-      expect.objectContaining({ body: 'This is plain text' })
+      expect.objectContaining({ body: 'This is plain text' }),
+      false, // skipProxy
+      false, // skipPostProcess
+      mockContext // execution context
     )
   })
 
@@ -180,7 +192,10 @@ describe('ApiBlockHandler', () => {
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'http_request',
-      expect.objectContaining({ body: undefined })
+      expect.objectContaining({ body: undefined }),
+      false, // skipProxy
+      false, // skipPostProcess
+      mockContext // execution context
     )
   })
 

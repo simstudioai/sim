@@ -712,6 +712,7 @@ export function mockFileSystem(
       }
       return Promise.reject(new Error('File not found'))
     }),
+    mkdir: vi.fn().mockResolvedValue(undefined),
   }))
 }
 
@@ -769,6 +770,7 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
     }),
     downloadFile: vi.fn().mockResolvedValue(Buffer.from('test content')),
     deleteFile: vi.fn().mockResolvedValue(undefined),
+    getPresignedUrl: vi.fn().mockResolvedValue(presignedUrl),
   }))
 
   if (provider === 's3') {
@@ -1243,6 +1245,7 @@ export function setupFileApiMocks(
       }),
       downloadFile: vi.fn().mockResolvedValue(Buffer.from('test content')),
       deleteFile: vi.fn().mockResolvedValue(undefined),
+      getPresignedUrl: vi.fn().mockResolvedValue('https://example.com/presigned-url'),
     }))
   }
 

@@ -327,11 +327,14 @@ describe('Workflow Execution API Route', () => {
     expect(executeMock).toHaveBeenCalledWith('workflow-id')
 
     expect(Executor).toHaveBeenCalledWith(
-      expect.anything(), // serializedWorkflow
-      expect.anything(), // processedBlockStates
-      expect.anything(), // decryptedEnvVars
-      requestBody, // processedInput (direct input, not wrapped)
-      expect.anything() // workflowVariables
+      expect.objectContaining({
+        workflow: expect.any(Object), // serializedWorkflow
+        currentBlockStates: expect.any(Object), // processedBlockStates
+        envVarValues: expect.any(Object), // decryptedEnvVars
+        workflowInput: requestBody, // processedInput (direct input, not wrapped)
+        workflowVariables: expect.any(Object),
+        contextExtensions: expect.any(Object), // Allow any context extensions object
+      })
     )
   })
 
@@ -363,11 +366,14 @@ describe('Workflow Execution API Route', () => {
 
     const Executor = (await import('@/executor')).Executor
     expect(Executor).toHaveBeenCalledWith(
-      expect.anything(), // serializedWorkflow
-      expect.anything(), // processedBlockStates
-      expect.anything(), // decryptedEnvVars
-      structuredInput, // processedInput (direct input, not wrapped)
-      expect.anything() // workflowVariables
+      expect.objectContaining({
+        workflow: expect.any(Object), // serializedWorkflow
+        currentBlockStates: expect.any(Object), // processedBlockStates
+        envVarValues: expect.any(Object), // decryptedEnvVars
+        workflowInput: structuredInput, // processedInput (direct input, not wrapped)
+        workflowVariables: expect.any(Object),
+        contextExtensions: expect.any(Object), // Allow any context extensions object
+      })
     )
   })
 
@@ -391,11 +397,14 @@ describe('Workflow Execution API Route', () => {
 
     const Executor = (await import('@/executor')).Executor
     expect(Executor).toHaveBeenCalledWith(
-      expect.anything(), // serializedWorkflow
-      expect.anything(), // processedBlockStates
-      expect.anything(), // decryptedEnvVars
-      expect.objectContaining({}), // processedInput with empty input
-      expect.anything() // workflowVariables
+      expect.objectContaining({
+        workflow: expect.any(Object), // serializedWorkflow
+        currentBlockStates: expect.any(Object), // processedBlockStates
+        envVarValues: expect.any(Object), // decryptedEnvVars
+        workflowInput: expect.objectContaining({}), // processedInput with empty input
+        workflowVariables: expect.any(Object),
+        contextExtensions: expect.any(Object), // Allow any context extensions object
+      })
     )
   })
 
@@ -585,8 +594,13 @@ describe('Workflow Execution API Route', () => {
     expect(executorCalls.length).toBeGreaterThan(0)
 
     const lastCall = executorCalls[executorCalls.length - 1]
-    expect(lastCall.length).toBeGreaterThanOrEqual(5)
+    expect(lastCall.length).toBeGreaterThanOrEqual(1)
 
-    expect(lastCall[4]).toEqual(workflowVariables)
+    // Check that workflowVariables are passed in the options object
+    expect(lastCall[0]).toEqual(
+      expect.objectContaining({
+        workflowVariables: workflowVariables,
+      })
+    )
   })
 })
