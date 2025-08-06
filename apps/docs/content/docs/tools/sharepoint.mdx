@@ -86,7 +86,7 @@ Create a new page in a SharePoint site
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sites` | json | sites output from the block |
+| `sites` | json | An array of SharePoint site objects, each containing details such as id, name, and more. |
 
 ### `sharepoint_read_page`
 
@@ -107,20 +107,25 @@ Read a specific page from a SharePoint site
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sites` | json | sites output from the block |
+| `sites` | json | An array of SharePoint site objects, each containing details such as id, name, and more. |
 
 ### `sharepoint_list_sites`
+
+List details of all SharePoint sites
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the SharePoint API |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `groupId` | string | No | The group ID for accessing a group team site |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sites` | json | sites output from the block |
+| `sites` | json | An array of SharePoint site objects, each containing details such as id, name, and more. |
 
 
 

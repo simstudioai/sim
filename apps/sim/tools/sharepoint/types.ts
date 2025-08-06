@@ -133,6 +133,79 @@ export interface SharepointToolParams {
   maxPages?: number
 }
 
+export interface GraphApiResponse {
+  id?: string
+  name?: string
+  title?: string
+  webUrl?: string
+  pageLayout?: string
+  createdDateTime?: string
+  lastModifiedDateTime?: string
+  canvasLayout?: CanvasLayout
+  value?: GraphApiPageItem[]
+  error?: {
+    message: string
+  }
+}
+
+export interface GraphApiPageItem {
+  id: string
+  name: string
+  title?: string
+  webUrl?: string
+  pageLayout?: string
+  createdDateTime?: string
+  lastModifiedDateTime?: string
+}
+
+export interface CanvasLayout {
+  horizontalSections?: Array<{
+    layout?: string
+    id?: string
+    emphasis?: string
+    columns?: Array<{
+      webparts?: Array<{
+        id?: string
+        innerHtml?: string
+      }>
+    }>
+    webparts?: Array<{
+      id?: string
+      innerHtml?: string
+    }>
+  }>
+}
+
+export interface SharepointReadSiteResponse extends ToolResponse {
+  output: {
+    site?: {
+      id: string
+      name: string
+      displayName: string
+      webUrl: string
+      description?: string
+      createdDateTime?: string
+      lastModifiedDateTime?: string
+      isPersonalSite?: boolean
+      root?: {
+        serverRelativeUrl: string
+      }
+      siteCollection?: {
+        hostname: string
+      }
+    }
+    sites?: Array<{
+      id: string
+      name: string
+      displayName: string
+      webUrl: string
+      description?: string
+      createdDateTime?: string
+      lastModifiedDateTime?: string
+    }>
+  }
+}
+
 export type SharepointResponse =
   | SharepointListSitesResponse
   | SharepointCreatePageResponse

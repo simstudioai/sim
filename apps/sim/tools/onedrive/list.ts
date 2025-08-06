@@ -1,26 +1,9 @@
-import type { OneDriveListResponse, OneDriveToolParams } from '@/tools/onedrive/types'
+import type {
+  MicrosoftGraphDriveItem,
+  OneDriveListResponse,
+  OneDriveToolParams,
+} from '@/tools/onedrive/types'
 import type { ToolConfig } from '@/tools/types'
-
-interface MicrosoftGraphDriveItem {
-  id: string
-  name: string
-  file?: {
-    mimeType: string
-  }
-  folder?: {
-    childCount: number
-  }
-  webUrl: string
-  createdDateTime: string
-  lastModifiedDateTime: string
-  size?: number
-  '@microsoft.graph.downloadUrl'?: string
-  parentReference?: {
-    id: string
-    driveId: string
-    path: string
-  }
-}
 
 export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
   id: 'onedrive_list',

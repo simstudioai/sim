@@ -71,9 +71,6 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
     },
   },
   transformResponse: async (response: Response, params) => {
-    logger.info('Raw response URL:', response.url)
-    logger.info('Raw response status:', response.status)
-
     if (!response.ok) {
       const errorJson = await response.json().catch(() => ({ error: response.statusText }))
       const errorText =

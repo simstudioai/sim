@@ -224,7 +224,15 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
     bucketId: { type: 'string', description: 'Bucket ID' },
   },
   outputs: {
-    task: 'json',
-    metadata: 'json',
+    task: {
+      type: 'json',
+      description:
+        'The Microsoft Planner task object, including details such as id, title, description, status, due date, and assignees.',
+    },
+    metadata: {
+      type: 'json',
+      description:
+        'Additional metadata about the operation, such as timestamps, request status, or other relevant information.',
+    },
   },
 }

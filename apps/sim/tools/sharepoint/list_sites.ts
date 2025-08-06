@@ -1,35 +1,9 @@
-import type { SharepointSite, SharepointToolParams } from '@/tools/sharepoint/types'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-export interface SharepointReadSiteResponse extends ToolResponse {
-  output: {
-    site?: {
-      id: string
-      name: string
-      displayName: string
-      webUrl: string
-      description?: string
-      createdDateTime?: string
-      lastModifiedDateTime?: string
-      isPersonalSite?: boolean
-      root?: {
-        serverRelativeUrl: string
-      }
-      siteCollection?: {
-        hostname: string
-      }
-    }
-    sites?: Array<{
-      id: string
-      name: string
-      displayName: string
-      webUrl: string
-      description?: string
-      createdDateTime?: string
-      lastModifiedDateTime?: string
-    }>
-  }
-}
+import type {
+  SharepointReadSiteResponse,
+  SharepointSite,
+  SharepointToolParams,
+} from '@/tools/sharepoint/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteResponse> = {
   id: 'sharepoint_list_sites',

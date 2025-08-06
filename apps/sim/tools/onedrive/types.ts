@@ -1,5 +1,26 @@
 import type { ToolResponse } from '@/tools/types'
 
+export interface MicrosoftGraphDriveItem {
+  id: string
+  name: string
+  file?: {
+    mimeType: string
+  }
+  folder?: {
+    childCount: number
+  }
+  webUrl: string
+  createdDateTime: string
+  lastModifiedDateTime: string
+  size?: number
+  '@microsoft.graph.downloadUrl'?: string
+  parentReference?: {
+    id: string
+    driveId: string
+    path: string
+  }
+}
+
 export interface OneDriveFile {
   id: string
   name: string
@@ -25,13 +46,6 @@ export interface OneDriveUploadResponse extends ToolResponse {
   }
 }
 
-export interface OneDriveGetContentResponse extends ToolResponse {
-  output: {
-    content: string
-    metadata: OneDriveFile
-  }
-}
-
 export interface OneDriveToolParams {
   accessToken: string
   folderId?: string
@@ -46,7 +60,4 @@ export interface OneDriveToolParams {
   exportMimeType?: string
 }
 
-export type OneDriveResponse =
-  | OneDriveUploadResponse
-  | OneDriveGetContentResponse
-  | OneDriveListResponse
+export type OneDriveResponse = OneDriveUploadResponse | OneDriveListResponse

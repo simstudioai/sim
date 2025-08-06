@@ -222,7 +222,14 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     pageSize: { type: 'number', description: 'Results per page' },
   },
   outputs: {
-    file: { type: 'any', description: 'File metadata' },
-    files: { type: 'any', description: 'Files metadata' },
+    file: {
+      type: 'json',
+      description: 'The OneDrive file object, including details such as id, name, size, and more.',
+    },
+    files: {
+      type: 'json',
+      description:
+        'An array of OneDrive file objects, each containing details such as id, name, size, and more.',
+    },
   },
 }

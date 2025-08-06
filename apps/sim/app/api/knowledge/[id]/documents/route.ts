@@ -1,4 +1,4 @@
-import crypto from 'node:crypto'
+import { randomUUID } from 'crypto'
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -114,7 +114,7 @@ async function processDocumentTags(
         // Create new tag definition if we have a slot
         if (targetSlot) {
           const newDefinition = {
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             knowledgeBaseId,
             tagSlot: targetSlot as any,
             displayName: tagName,
@@ -312,7 +312,7 @@ const BulkUpdateDocumentsSchema = z.object({
 })
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = randomUUID().slice(0, 8)
   const { id: knowledgeBaseId } = await params
 
   try {
@@ -423,7 +423,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = randomUUID().slice(0, 8)
   const { id: knowledgeBaseId } = await params
 
   try {
@@ -470,7 +470,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         const createdDocuments = await db.transaction(async (tx) => {
           const documentPromises = validatedData.documents.map(async (docData) => {
-            const documentId = crypto.randomUUID()
+            const documentId = randomUUID()
             const now = new Date()
 
             // Process documentTagsData if provided (for knowledge base block)
@@ -578,7 +578,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       try {
         const validatedData = CreateDocumentSchema.parse(body)
 
-        const documentId = crypto.randomUUID()
+        const documentId = randomUUID()
         const now = new Date()
 
         // Process structured tag data if provided

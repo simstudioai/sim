@@ -1,4 +1,4 @@
-import crypto from 'node:crypto'
+import { randomUUID } from 'crypto'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -11,26 +11,13 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OneDriveFoldersAPI')
 
-interface MicrosoftGraphDriveItem {
-  id: string
-  name: string
-  folder?: {
-    childCount: number
-  }
-  file?: {
-    mimeType: string
-  }
-  webUrl: string
-  createdDateTime: string
-  lastModifiedDateTime: string
-  size?: number
-}
+import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
 
 /**
  * Get folders from Microsoft OneDrive
  */
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = randomUUID().slice(0, 8)
 
   try {
     const session = await getSession()

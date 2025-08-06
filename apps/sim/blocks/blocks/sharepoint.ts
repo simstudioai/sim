@@ -149,6 +149,10 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
     pageSize: { type: 'number', description: 'Results per page' },
   },
   outputs: {
-    sites: { type: 'any', description: 'Sites metadata' },
+    sites: {
+      type: 'json',
+      description:
+        'An array of SharePoint site objects, each containing details such as id, name, and more.',
+    },
   },
 }
