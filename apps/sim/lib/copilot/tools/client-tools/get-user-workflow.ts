@@ -149,6 +149,22 @@ export class GetUserWorkflowTool extends BaseTool {
           })
         }
       }
+
+      // Ensure workflow state has all required properties with proper defaults
+      if (workflowState) {
+        if (!workflowState.loops) {
+          workflowState.loops = {}
+        }
+        if (!workflowState.parallels) {
+          workflowState.parallels = {}
+        }
+        if (!workflowState.edges) {
+          workflowState.edges = []
+        }
+        if (!workflowState.blocks) {
+          workflowState.blocks = {}
+        }
+      }
       
             logger.info('Validating workflow state', {
         workflowId,

@@ -2784,17 +2784,8 @@ export const useCopilotStore = create<CopilotStore>()(
             hasDiffWorkflow: !!diffStoreBefore.diffWorkflow,
           })
 
-          // Determine if we should clear or merge based on tool type and message context
-          const { messages } = get()
-          const currentMessage = messages[messages.length - 1]
-          const messageHasExistingEdits =
-            currentMessage?.toolCalls?.some(
-              (tc) =>
-                (tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-                  tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
-                tc.state !== 'executing'
-            ) || false
-
+          // Determine diff merge strategy based on tool type and existing edits
+          const messageHasExistingEdits = !!diffStoreBefore.diffWorkflow
           const shouldClearDiff =
             toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || // build_workflow always clears
             (toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW && !messageHasExistingEdits) // first edit_workflow in message clears
@@ -2824,15 +2815,9 @@ export const useCopilotStore = create<CopilotStore>()(
             hasDiffWorkflow: !!diffStoreBefore.diffWorkflow,
           })
 
-          if (shouldClearDiff || !diffStoreBefore.diffWorkflow) {
-            // Use setProposedChanges which will create a new diff
-            // Pass undefined to let sim-agent generate the diff analysis
-            await diffStore.setProposedChanges(yamlContent, undefined)
-          } else {
-            // Use mergeProposedChanges which will merge into existing diff
-            // Pass undefined to let sim-agent generate the diff analysis
-            await diffStore.mergeProposedChanges(yamlContent, undefined)
-          }
+          // Always use setProposedChanges to ensure the diff view fully overwrites with new changes
+          // This provides better UX as users expect to see the latest changes, not merged/cumulative changes
+          await diffStore.setProposedChanges(yamlContent, undefined)
 
           // Check diff store state after update
           const diffStoreAfter = useWorkflowDiffStore.getState()

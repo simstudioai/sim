@@ -24,8 +24,8 @@ const MergeDiffRequestSchema = z.object({
     proposedState: z.object({
       blocks: z.record(z.any()),
       edges: z.array(z.any()),
-      loops: z.record(z.any()),
-      parallels: z.record(z.any()),
+      loops: z.record(z.any()).optional(),
+      parallels: z.record(z.any()).optional(),
     }),
     diffAnalysis: z.any().optional(),
     metadata: z.object({
@@ -49,6 +49,14 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { existingDiff, yamlContent, diffAnalysis, options } = MergeDiffRequestSchema.parse(body)
+
+    // Ensure existingDiff.proposedState has all required properties with proper defaults
+    if (!existingDiff.proposedState.loops) {
+      existingDiff.proposedState.loops = {}
+    }
+    if (!existingDiff.proposedState.parallels) {
+      existingDiff.proposedState.parallels = {}
+    }
 
     logger.info(`[${requestId}] Merging diff from YAML`, {
       contentLength: yamlContent.length,
