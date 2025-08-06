@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { CheckCircle, Heart, Info, Loader2, XCircle } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { useBrandConfig } from '@/lib/branding/branding'
 
 interface UnsubscribeData {
   success: boolean
@@ -26,6 +27,7 @@ function UnsubscribeContent() {
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
   const [unsubscribed, setUnsubscribed] = useState(false)
+  const brand = useBrandConfig()
 
   const email = searchParams.get('email')
   const token = searchParams.get('token')
@@ -160,7 +162,7 @@ function UnsubscribeContent() {
               <Button
                 onClick={() =>
                   window.open(
-                    'mailto:help@sim.ai?subject=Unsubscribe%20Help&body=Hi%2C%20I%20need%20help%20unsubscribing%20from%20emails.%20My%20unsubscribe%20link%20is%20not%20working.',
+                    `mailto:${brand.supportEmail}?subject=Unsubscribe%20Help&body=Hi%2C%20I%20need%20help%20unsubscribing%20from%20emails.%20My%20unsubscribe%20link%20is%20not%20working.`,
                     '_blank'
                   )
                 }
@@ -176,8 +178,8 @@ function UnsubscribeContent() {
             <div className='mt-4 text-center'>
               <p className='text-muted-foreground text-xs'>
                 Need immediate help? Email us at{' '}
-                <a href='mailto:help@sim.ai' className='text-primary hover:underline'>
-                  help@sim.ai
+                <a href={`mailto:${brand.supportEmail}`} className='text-primary hover:underline'>
+                  {brand.supportEmail}
                 </a>
               </p>
             </div>
@@ -222,7 +224,7 @@ function UnsubscribeContent() {
               <Button
                 onClick={() =>
                   window.open(
-                    'mailto:help@sim.ai?subject=Account%20Help&body=Hi%2C%20I%20need%20help%20with%20my%20account%20emails.',
+                    `mailto:${brand.supportEmail}?subject=Account%20Help&body=Hi%2C%20I%20need%20help%20with%20my%20account%20emails.`,
                     '_blank'
                   )
                 }
@@ -256,8 +258,8 @@ function UnsubscribeContent() {
             <p className='text-muted-foreground text-sm'>
               If you change your mind, you can always update your email preferences in your account
               settings or contact us at{' '}
-              <a href='mailto:help@sim.ai' className='text-primary hover:underline'>
-                help@sim.ai
+              <a href={`mailto:${brand.supportEmail}`} className='text-primary hover:underline'>
+                {brand.supportEmail}
               </a>
             </p>
           </CardContent>
@@ -369,8 +371,8 @@ function UnsubscribeContent() {
 
             <p className='text-center text-muted-foreground text-xs'>
               Questions? Contact us at{' '}
-              <a href='mailto:help@sim.ai' className='text-primary hover:underline'>
-                help@sim.ai
+              <a href={`mailto:${brand.supportEmail}`} className='text-primary hover:underline'>
+                {brand.supportEmail}
               </a>
             </p>
           </div>

@@ -10,6 +10,7 @@ import {
   Section,
   Text,
 } from '@react-email/components'
+import { getBrandConfig } from '@/lib/branding/branding'
 import { env } from '@/lib/env'
 import { getAssetUrl } from '@/lib/utils'
 import { baseStyles } from './base-styles'
@@ -24,18 +25,18 @@ interface OTPVerificationEmailProps {
 
 const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
 
-const getSubjectByType = (type: string, chatTitle?: string) => {
+const getSubjectByType = (type: string, brandName: string, chatTitle?: string) => {
   switch (type) {
     case 'sign-in':
-      return 'Sign in to Sim'
+      return `Sign in to ${brandName}`
     case 'email-verification':
-      return 'Verify your email for Sim'
+      return `Verify your email for ${brandName}`
     case 'forget-password':
-      return 'Reset your Sim password'
+      return `Reset your ${brandName} password`
     case 'chat-access':
       return `Verification code for ${chatTitle || 'Chat'}`
     default:
-      return 'Verification code for Sim'
+      return `Verification code for ${brandName}`
   }
 }
 
@@ -45,17 +46,19 @@ export const OTPVerificationEmail = ({
   type = 'email-verification',
   chatTitle,
 }: OTPVerificationEmailProps) => {
+  const brand = getBrandConfig()
+
   // Get a message based on the type
   const getMessage = () => {
     switch (type) {
       case 'sign-in':
-        return 'Sign in to Sim'
+        return `Sign in to ${brand.name}`
       case 'forget-password':
-        return 'Reset your password for Sim'
+        return `Reset your password for ${brand.name}`
       case 'chat-access':
         return `Access ${chatTitle || 'the chat'}`
       default:
-        return 'Welcome to Sim'
+        return `Welcome to ${brand.name}`
     }
   }
 
@@ -63,15 +66,15 @@ export const OTPVerificationEmail = ({
     <Html>
       <Head />
       <Body style={baseStyles.main}>
-        <Preview>{getSubjectByType(type, chatTitle)}</Preview>
+        <Preview>{getSubjectByType(type, brand.name, chatTitle)}</Preview>
         <Container style={baseStyles.container}>
           <Section style={{ padding: '30px 0', textAlign: 'center' }}>
             <Row>
               <Column style={{ textAlign: 'center' }}>
                 <Img
-                  src={getAssetUrl('static/sim.png')}
+                  src={brand.logoUrl || getAssetUrl('static/sim.png')}
                   width='114'
-                  alt='Sim'
+                  alt={brand.name}
                   style={{
                     margin: '0 auto',
                   }}

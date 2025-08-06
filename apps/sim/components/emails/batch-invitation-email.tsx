@@ -11,6 +11,7 @@ import {
   Section,
   Text,
 } from '@react-email/components'
+import { getBrandConfig } from '@/lib/branding/branding'
 
 interface WorkspaceInvitation {
   workspaceId: string
@@ -57,6 +58,7 @@ export const BatchInvitationEmail = ({
   workspaceInvitations = [],
   acceptUrl,
 }: BatchInvitationEmailProps) => {
+  const brand = getBrandConfig()
   const hasWorkspaces = workspaceInvitations.length > 0
 
   return (
@@ -69,7 +71,13 @@ export const BatchInvitationEmail = ({
       <Body style={main}>
         <Container style={container}>
           <Section style={logoContainer}>
-            <Img src='https://sim.ai/logo.png' width='120' height='36' alt='Sim' style={logo} />
+            <Img
+              src={brand.logoUrl || 'https://sim.ai/logo.png'}
+              width='120'
+              height='36'
+              alt={brand.name}
+              style={logo}
+            />
           </Section>
 
           <Heading style={h1}>You're invited to join {organizationName}!</Heading>

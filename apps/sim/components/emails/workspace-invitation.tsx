@@ -11,6 +11,7 @@ import {
   Section,
   Text,
 } from '@react-email/components'
+import { getBrandConfig } from '@/lib/branding/branding'
 import { env } from '@/lib/env'
 import { getAssetUrl } from '@/lib/utils'
 import { baseStyles } from './base-styles'
@@ -29,6 +30,8 @@ export const WorkspaceInvitationEmail = ({
   inviterName = 'Someone',
   invitationLink = '',
 }: WorkspaceInvitationEmailProps) => {
+  const brand = getBrandConfig()
+
   // Extract token from the link to ensure we're using the correct format
   let enhancedLink = invitationLink
 
@@ -55,9 +58,9 @@ export const WorkspaceInvitationEmail = ({
             <Row>
               <Column style={{ textAlign: 'center' }}>
                 <Img
-                  src={getAssetUrl('static/sim.png')}
+                  src={brand.logoUrl || getAssetUrl('static/sim.png')}
                   width='114'
-                  alt='Sim'
+                  alt={brand.name}
                   style={{
                     margin: '0 auto',
                   }}

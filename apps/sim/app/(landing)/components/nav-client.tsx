@@ -15,6 +15,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { useBrandConfig } from '@/lib/branding/branding'
 import { usePrefetchOnHover } from '@/app/(landing)/utils/prefetch'
 
 // --- Framer Motion Variants ---
@@ -165,6 +166,7 @@ export default function NavClient({
   const [isMobile, setIsMobile] = useState(initialIsMobile ?? false)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const _router = useRouter()
+  const brand = useBrandConfig()
 
   useEffect(() => {
     setMounted(true)
@@ -199,7 +201,17 @@ export default function NavClient({
           <div className='flex flex-1 items-center'>
             <div className='inline-block'>
               <Link href='/' className='inline-flex'>
-                <Image src='/sim.svg' alt='Sim Logo' width={42} height={42} />
+                {brand.logoUrl ? (
+                  <img
+                    src={brand.logoUrl}
+                    alt={`${brand.name} Logo`}
+                    width={42}
+                    height={42}
+                    className='h-[42px] w-[42px] object-contain'
+                  />
+                ) : (
+                  <Image src='/sim.svg' alt={`${brand.name} Logo`} width={42} height={42} />
+                )}
               </Link>
             </div>
           </div>
