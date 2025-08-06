@@ -50,7 +50,6 @@ export async function uploadExecutionFile(
   // Generate execution-scoped storage key
   const storageKey = generateExecutionFileKey(context, fileName)
   const fileId = generateFileId()
-  console.log(`Generated storage key: ${storageKey}, fileId: ${fileId}`)
 
   try {
     let fileInfo: any
@@ -60,7 +59,6 @@ export async function uploadExecutionFile(
       // Upload to S3 execution files bucket with exact key (no timestamp prefix)
       logger.debug(
         `Uploading to S3 with key: ${storageKey}, bucket: ${S3_EXECUTION_FILES_CONFIG.bucket}`
-      )
       )
       fileInfo = await uploadToS3(
         fileBuffer,
@@ -73,7 +71,6 @@ export async function uploadExecutionFile(
         undefined, // size (will use buffer length)
         true // skipTimestampPrefix = true
       )
-      console.log(`S3 upload completed:`, fileInfo)
 
       // Generate presigned URL for execution (5 minutes)
       try {
