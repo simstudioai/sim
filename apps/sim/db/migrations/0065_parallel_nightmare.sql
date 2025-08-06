@@ -1,1 +1,0 @@
-ALTER TABLE "workflow_execution_logs" ADD COLUMN "files" jsonb;

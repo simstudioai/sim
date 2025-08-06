@@ -449,13 +449,6 @@
       "when": 1754088313157,
       "tag": "0064_elite_hedge_knight",
       "breakpoints": true
-    },
-    {
-      "idx": 65,
-      "version": "7",
-      "when": 1754098219958,
-      "tag": "0065_parallel_nightmare",
-      "breakpoints": true
     }
   ]
 }
