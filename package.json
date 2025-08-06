@@ -41,12 +41,9 @@
   "devDependencies": {
     "@biomejs/biome": "2.0.0-beta.5",
     "@next/env": "^15.3.2",
-    "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "dotenv-cli": "^8.0.0",
     "husky": "9.1.7",
     "lint-staged": "16.0.0",
-    "prettier": "^3.5.3",
-    "prettier-plugin-tailwindcss": "^0.6.11",
     "turbo": "2.5.5"
   },
   "lint-staged": {

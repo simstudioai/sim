@@ -7,10 +7,14 @@ import { BookOpen, Building2, LibraryBig, ScrollText, Search, Shapes, Workflow }
 import { useParams, useRouter } from 'next/navigation'
 import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { useBrandConfig } from '@/lib/branding/branding'
 import { cn } from '@/lib/utils'
+import {
+  TemplateCard,
+  TemplateCardSkeleton,
+} from '@/app/workspace/[workspaceId]/templates/components/template-card'
+import { getKeyboardShortcutText } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
 import { getAllBlocks } from '@/blocks'
-import { TemplateCard, TemplateCardSkeleton } from '../../../templates/components/template-card'
-import { getKeyboardShortcutText } from '../../hooks/use-keyboard-shortcuts'
 import { type NavigationSection, useSearchNavigation } from './hooks/use-search-navigation'
 
 interface SearchModalProps {
@@ -100,6 +104,7 @@ export function SearchModal({
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
+  const brand = useBrandConfig()
 
   // Local state for templates to handle star changes
   const [localTemplates, setLocalTemplates] = useState<TemplateData[]>(templates)
@@ -182,7 +187,7 @@ export function SearchModal({
         id: 'docs',
         name: 'Docs',
         icon: BookOpen,
-        href: 'https://docs.simstudio.ai/',
+        href: brand.documentationUrl || 'https://docs.sim.ai/',
       },
     ],
     [workspaceId]

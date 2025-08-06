@@ -1,4 +1,5 @@
 import { Container, Img, Link, Section, Text } from '@react-email/components'
+import { getBrandConfig } from '@/lib/branding/branding'
 import { env } from '@/lib/env'
 import { getAssetUrl } from '@/lib/utils'
 
@@ -16,6 +17,8 @@ export const EmailFooter = ({
   baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai',
   unsubscribe,
 }: EmailFooterProps) => {
+  const brand = getBrandConfig()
+
   return (
     <Container>
       <Section style={{ maxWidth: '580px', margin: '0 auto', padding: '20px 0' }}>
@@ -62,11 +65,11 @@ export const EmailFooter = ({
                   margin: '8px 0 0 0',
                 }}
               >
-                © {new Date().getFullYear()} Sim, All Rights Reserved
+                © {new Date().getFullYear()} {brand.name}, All Rights Reserved
                 <br />
                 If you have any questions, please contact us at{' '}
                 <a
-                  href='mailto:help@sim.ai'
+                  href={`mailto:${brand.supportEmail}`}
                   style={{
                     color: '#706a7b !important',
                     textDecoration: 'underline',
@@ -74,7 +77,7 @@ export const EmailFooter = ({
                     fontFamily: 'HelveticaNeue, Helvetica, Arial, sans-serif',
                   }}
                 >
-                  help@sim.ai
+                  {brand.supportEmail}
                 </a>
               </Text>
               <table cellPadding={0} cellSpacing={0} style={{ width: '100%', marginTop: '4px' }}>
@@ -118,7 +121,7 @@ export const EmailFooter = ({
                         href={
                           unsubscribe?.unsubscribeToken && unsubscribe?.email
                             ? `${baseUrl}/unsubscribe?token=${unsubscribe.unsubscribeToken}&email=${encodeURIComponent(unsubscribe.email)}`
-                            : `mailto:help@sim.ai?subject=Unsubscribe%20Request&body=Please%20unsubscribe%20me%20from%20all%20emails.`
+                            : `mailto:${brand.supportEmail}?subject=Unsubscribe%20Request&body=Please%20unsubscribe%20me%20from%20all%20emails.`
                         }
                         style={{
                           color: '#706a7b !important',

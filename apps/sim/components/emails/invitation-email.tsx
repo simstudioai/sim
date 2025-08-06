@@ -12,6 +12,7 @@ import {
   Text,
 } from '@react-email/components'
 import { format } from 'date-fns'
+import { getBrandConfig } from '@/lib/branding/branding'
 import { env } from '@/lib/env'
 import { getAssetUrl } from '@/lib/utils'
 import { baseStyles } from './base-styles'
@@ -34,6 +35,8 @@ export const InvitationEmail = ({
   invitedEmail = '',
   updatedDate = new Date(),
 }: InvitationEmailProps) => {
+  const brand = getBrandConfig()
+
   // Extract invitation ID or token from inviteLink if present
   let enhancedLink = inviteLink
 
@@ -60,9 +63,9 @@ export const InvitationEmail = ({
             <Row>
               <Column style={{ textAlign: 'center' }}>
                 <Img
-                  src={getAssetUrl('static/sim.png')}
+                  src={brand.logoUrl || getAssetUrl('static/sim.png')}
                   width='114'
-                  alt='Sim'
+                  alt={brand.name}
                   style={{
                     margin: '0 auto',
                   }}

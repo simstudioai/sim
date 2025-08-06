@@ -537,7 +537,7 @@ This visibility system ensures clean user interfaces while maintaining full flex
 
 ### Guidelines & Best Practices
 
-- **Code Style:** Follow the project's ESLint and Prettier configurations. Use meaningful variable names and small, focused functions.
+- **Code Style:** Follow the project's Biome configurations. Use meaningful variable names and small, focused functions.
 - **Documentation:** Clearly document the purpose, inputs, outputs, and any special behavior for your block/tool.
 - **Error Handling:** Implement robust error handling and provide user-friendly error messages.
 - **Parameter Visibility:** Always specify the appropriate visibility level for each parameter to ensure proper UI behavior and LLM integration.
