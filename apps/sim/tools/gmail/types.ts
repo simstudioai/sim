@@ -58,12 +58,7 @@ export interface GmailToolResponse extends ToolResponse {
   output: {
     content: string
     metadata: EmailMetadata | SearchMetadata
-    attachments?: Array<{
-      name: string
-      data: Buffer
-      mimeType: string
-      size: number
-    }>
+    attachments?: GmailAttachment[]
   }
 }
 
@@ -96,9 +91,10 @@ export interface GmailMessage {
   }
 }
 
-// Gmail Attachment Interface
+// Gmail Attachment Interface (for processed attachments)
 export interface GmailAttachment {
-  attachmentId: string
+  name: string
+  data: Buffer
+  mimeType: string
   size: number
-  data: string // base64url encoded
 }

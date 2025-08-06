@@ -1,4 +1,9 @@
-import type { GmailMessage, GmailReadParams, GmailToolResponse } from '@/tools/gmail/types'
+import type {
+  GmailAttachment,
+  GmailMessage,
+  GmailReadParams,
+  GmailToolResponse,
+} from '@/tools/gmail/types'
 import type { ToolConfig } from '@/tools/types'
 
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
@@ -296,7 +301,7 @@ async function processMessage(
   const hasAttachments = attachmentInfo.length > 0
 
   // Download attachments if requested
-  let attachments: Array<{ name: string; data: Buffer; mimeType: string; size: number }> | undefined
+  let attachments: GmailAttachment[] | undefined
   if (params?.includeAttachments && hasAttachments && params.accessToken) {
     try {
       attachments = await downloadAttachments(message.id, attachmentInfo, params.accessToken)
@@ -453,13 +458,8 @@ async function downloadAttachments(
   messageId: string,
   attachmentInfo: Array<{ attachmentId: string; filename: string; mimeType: string; size: number }>,
   accessToken: string
-): Promise<Array<{ name: string; data: Buffer; mimeType: string; size: number }>> {
-  const downloadedAttachments: Array<{
-    name: string
-    data: Buffer
-    mimeType: string
-    size: number
-  }> = []
+): Promise<GmailAttachment[]> {
+  const downloadedAttachments: GmailAttachment[] = []
 
   for (const attachment of attachmentInfo) {
     try {
