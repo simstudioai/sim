@@ -12,7 +12,14 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
   oauth: {
     required: true,
     provider: 'onedrive',
-    additionalScopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
+    additionalScopes: [
+      'openid',
+      'profile',
+      'email',
+      'Files.Read',
+      'Files.ReadWrite',
+      'offline_access',
+    ],
   },
   params: {
     accessToken: {
@@ -53,7 +60,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       // Always create .txt files for text content
       if (!fileName.endsWith('.txt')) {
         // Remove any existing extensions and add .txt
-        fileName = fileName.replace(/\.[^.]*$/, '') + '.txt'
+        fileName = `${fileName.replace(/\.[^.]*$/, '')}.txt`
       }
 
       // Build the proper URL based on parent folder
@@ -61,7 +68,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       if (parentFolderId && parentFolderId.trim() !== '') {
         return `https://graph.microsoft.com/v1.0/me/drive/items/${parentFolderId}:/${fileName}:/content`
       }
-      // Default to root folder  
+      // Default to root folder
       return `https://graph.microsoft.com/v1.0/me/drive/root:/${fileName}:/content`
     },
     method: 'PUT',

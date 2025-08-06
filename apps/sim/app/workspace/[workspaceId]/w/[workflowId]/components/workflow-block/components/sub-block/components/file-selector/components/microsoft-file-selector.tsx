@@ -827,10 +827,13 @@ export function MicrosoftFileSelector({
                     className='flex items-center gap-1 text-primary text-xs hover:underline'
                     onClick={(e) => e.stopPropagation()}
                   >
-                                      <span>
-                    {serviceId === 'microsoft-planner' ? 'Open in Planner' : 
-                     serviceId === 'sharepoint' ? 'Open in SharePoint' : 'Open in OneDrive'}
-                  </span>
+                    <span>
+                      {serviceId === 'microsoft-planner'
+                        ? 'Open in Planner'
+                        : serviceId === 'sharepoint'
+                          ? 'Open in SharePoint'
+                          : 'Open in OneDrive'}
+                    </span>
                     <ExternalLink className='h-3 w-3' />
                   </a>
                 ) : (
@@ -841,7 +844,9 @@ export function MicrosoftFileSelector({
                     className='flex items-center gap-1 text-primary text-xs hover:underline'
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <span>{serviceId === 'sharepoint' ? 'Open in SharePoint' : 'Open in OneDrive'}</span>
+                    <span>
+                      {serviceId === 'sharepoint' ? 'Open in SharePoint' : 'Open in OneDrive'}
+                    </span>
                     <ExternalLink className='h-3 w-3' />
                   </a>
                 )}
