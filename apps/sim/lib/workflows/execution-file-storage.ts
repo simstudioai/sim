@@ -74,7 +74,7 @@ export async function uploadExecutionFile(
       )
       console.log(`S3 upload completed:`, fileInfo)
 
-      // Generate presigned URL for external services (24 hours)
+      // Generate presigned URL for execution (5 minutes)
       try {
         directUrl = await getPresignedUrlWithConfig(
           fileInfo.key, // Use the actual uploaded key
@@ -82,7 +82,7 @@ export async function uploadExecutionFile(
             bucket: S3_EXECUTION_FILES_CONFIG.bucket,
             region: S3_EXECUTION_FILES_CONFIG.region,
           },
-          24 * 60 * 60 // 24 hours
+          5 * 60 // 5 minutes
         )
       } catch (error) {
         logger.warn(`Failed to generate S3 presigned URL for ${fileName}:`, error)
@@ -96,7 +96,7 @@ export async function uploadExecutionFile(
         containerName: BLOB_EXECUTION_FILES_CONFIG.containerName,
       })
 
-      // Generate presigned URL for external services (24 hours)
+      // Generate presigned URL for execution (5 minutes)
       try {
         directUrl = await getBlobPresignedUrlWithConfig(
           fileInfo.key, // Use the actual uploaded key
@@ -106,7 +106,7 @@ export async function uploadExecutionFile(
             connectionString: BLOB_EXECUTION_FILES_CONFIG.connectionString,
             containerName: BLOB_EXECUTION_FILES_CONFIG.containerName,
           },
-          24 * 60 * 60 // 24 hours
+          5 * 60 // 5 minutes
         )
       } catch (error) {
         logger.warn(`Failed to generate Blob presigned URL for ${fileName}:`, error)
@@ -120,7 +120,7 @@ export async function uploadExecutionFile(
       name: fileName,
       size: fileBuffer.length,
       type: contentType,
-      url: directUrl || `/api/files/serve/${fileInfo.key}`, // Use directUrl as url, fallback to serve path
+      url: directUrl || `/api/files/serve/${fileInfo.key}`, // Use 5-minute presigned URL, fallback to serve path
       key: fileInfo.key, // Use the actual uploaded key from S3/Blob
       uploadedAt: new Date().toISOString(),
       expiresAt: getFileExpirationDate(),

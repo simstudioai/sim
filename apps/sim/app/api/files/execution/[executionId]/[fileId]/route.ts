@@ -46,7 +46,7 @@ export async function GET(
       name: file.fileName,
       size: file.fileSize,
       type: file.fileType,
-      url: file.directUrl || `/api/files/serve/${file.fileKey}`, // Use directUrl as url, fallback to serve path
+      url: file.directUrl || `/api/files/serve/${file.fileKey}`, // Use 5-minute presigned URL, fallback to serve path
       key: file.fileKey,
       uploadedAt: file.uploadedAt,
       expiresAt: file.expiresAt,

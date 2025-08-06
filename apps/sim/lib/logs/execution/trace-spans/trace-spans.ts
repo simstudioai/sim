@@ -67,7 +67,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       children: [],
       // Store the block ID for later use in identifying direct parent-child relationships
       blockId: log.blockId,
-      // Include block input/output data (no transformation needed - using UserFile directly)
+      // Include block input/output data
       input: log.input || {},
       output: output,
     }

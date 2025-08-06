@@ -61,7 +61,7 @@ export function metadataToUserFile(metadata: ExecutionFileMetadata): UserFile {
     name: metadata.fileName,
     size: metadata.fileSize,
     type: metadata.fileType,
-    url: metadata.directUrl || `/api/files/serve/${metadata.fileKey}`, // Use directUrl as url, fallback to serve path
+    url: metadata.directUrl || `/api/files/serve/${metadata.fileKey}`, // Use 5-minute presigned URL, fallback to serve path
     key: metadata.fileKey,
     uploadedAt: metadata.uploadedAt,
     expiresAt: metadata.expiresAt,
@@ -86,7 +86,7 @@ export function userFileToMetadata(
     fileType: userFile.type,
     storageProvider,
     bucketName,
-    directUrl: userFile.url, // UserFile.url maps to ExecutionFileMetadata.directUrl
+    directUrl: userFile.url, // Store the 5-minute presigned URL
     uploadedAt: userFile.uploadedAt,
     expiresAt: userFile.expiresAt,
   }

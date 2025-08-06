@@ -65,12 +65,6 @@ export const BLOB_CHAT_CONFIG = {
   containerName: env.AZURE_STORAGE_CHAT_CONTAINER_NAME || '',
 }
 
-// Server-only function moved to setup.server.ts
-// This is kept here for backward compatibility but should not be used directly
-export function ensureUploadsDirectory() {
-  throw new Error('ensureUploadsDirectory moved to setup.server.ts - import from there instead')
-}
-
 /**
  * Get the current storage provider as a human-readable string
  */

@@ -14,7 +14,9 @@ interface FileDownloadProps {
     size: number
     type: string
     key: string
-    directUrl?: string
+    url: string
+    uploadedAt: string
+    expiresAt: string
     storageProvider?: 's3' | 'blob' | 'local'
     bucketName?: string
   }
@@ -66,8 +68,6 @@ export function FileDownload({ file, className }: FileDownloadProps) {
       logger.info(`Download initiated for file: ${fileName}`)
     } catch (error) {
       logger.error(`Failed to download file ${file.name}:`, error)
-      // You could show a toast notification here
-      console.error('Download failed:', error)
     } finally {
       setIsDownloading(false)
     }

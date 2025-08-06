@@ -439,8 +439,15 @@ export class ExecutionLogger implements IExecutionLoggerService {
               seenFileIds.add(fileId)
               files.push({
                 id: fileId,
-                ...file,
-                source, // Track which block/source created this file
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                url: file.url,
+                key: file.key,
+                uploadedAt: file.uploadedAt,
+                expiresAt: file.expiresAt,
+                storageProvider: file.storageProvider,
+                bucketName: file.bucketName,
               })
             }
           }
@@ -456,8 +463,15 @@ export class ExecutionLogger implements IExecutionLoggerService {
               seenFileIds.add(fileId)
               files.push({
                 id: fileId,
-                ...file,
-                source, // Track which block/source created this file
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                url: file.url,
+                key: file.key,
+                uploadedAt: file.uploadedAt,
+                expiresAt: file.expiresAt,
+                storageProvider: file.storageProvider,
+                bucketName: file.bucketName,
               })
             }
           }
@@ -471,8 +485,15 @@ export class ExecutionLogger implements IExecutionLoggerService {
           seenFileIds.add(fileId)
           files.push({
             id: fileId,
-            ...obj,
-            source,
+            name: obj.name,
+            size: obj.size,
+            type: obj.type,
+            url: obj.url,
+            key: obj.key,
+            uploadedAt: obj.uploadedAt,
+            expiresAt: obj.expiresAt,
+            storageProvider: obj.storageProvider,
+            bucketName: obj.bucketName,
           })
         }
       }

@@ -100,12 +100,12 @@ export interface WorkflowExecutionLog {
     name: string
     size: number
     type: string
-    path: string
-    directUrl?: string
+    url: string
     key: string
     uploadedAt: string
     expiresAt: string
-    source: string
+    storageProvider?: 's3' | 'blob' | 'local'
+    bucketName?: string
   }>
   metadata: {
     environment: ExecutionEnvironment

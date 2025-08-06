@@ -1,4 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import type { CustomBlobConfig } from '@/lib/uploads/blob/blob-client'
+import type { CustomS3Config } from '@/lib/uploads/s3/s3-client'
 import { USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/setup'
 
 const logger = createLogger('StorageClient')
@@ -66,7 +68,13 @@ export async function uploadFile(
     logger.info(`Uploading file to Azure Blob Storage: ${fileName}`)
     const { uploadToBlob } = await import('@/lib/uploads/blob/blob-client')
     if (typeof configOrSize === 'object') {
-      return uploadToBlob(file, fileName, contentType, configOrSize as any, size)
+      const blobConfig: CustomBlobConfig = {
+        containerName: configOrSize.containerName!,
+        accountName: configOrSize.accountName!,
+        accountKey: configOrSize.accountKey,
+        connectionString: configOrSize.connectionString,
+      }
+      return uploadToBlob(file, fileName, contentType, blobConfig, size)
     }
     return uploadToBlob(file, fileName, contentType, configOrSize)
   }
@@ -75,7 +83,11 @@ export async function uploadFile(
     logger.info(`Uploading file to S3: ${fileName}`)
     const { uploadToS3 } = await import('@/lib/uploads/s3/s3-client')
     if (typeof configOrSize === 'object') {
-      return uploadToS3(file, fileName, contentType, configOrSize as any, size)
+      const s3Config: CustomS3Config = {
+        bucket: configOrSize.bucket!,
+        region: configOrSize.region!,
+      }
+      return uploadToS3(file, fileName, contentType, s3Config, size)
     }
     return uploadToS3(file, fileName, contentType, configOrSize)
   }
@@ -171,7 +183,14 @@ export async function getPresignedUrlWithConfig(
     const { getPresignedUrlWithConfig: getBlobPresignedUrlWithConfig } = await import(
       '@/lib/uploads/blob/blob-client'
     )
-    return getBlobPresignedUrlWithConfig(key, customConfig as any, expiresIn)
+    // Convert CustomStorageConfig to CustomBlobConfig
+    const blobConfig: CustomBlobConfig = {
+      containerName: customConfig.containerName!,
+      accountName: customConfig.accountName!,
+      accountKey: customConfig.accountKey,
+      connectionString: customConfig.connectionString,
+    }
+    return getBlobPresignedUrlWithConfig(key, blobConfig, expiresIn)
   }
 
   if (USE_S3_STORAGE) {
@@ -179,7 +198,12 @@ export async function getPresignedUrlWithConfig(
     const { getPresignedUrlWithConfig: getS3PresignedUrlWithConfig } = await import(
       '@/lib/uploads/s3/s3-client'
     )
-    return getS3PresignedUrlWithConfig(key, customConfig as any, expiresIn)
+    // Convert CustomStorageConfig to CustomS3Config
+    const s3Config: CustomS3Config = {
+      bucket: customConfig.bucket!,
+      region: customConfig.region!,
+    }
+    return getS3PresignedUrlWithConfig(key, s3Config, expiresIn)
   }
 
   throw new Error(
