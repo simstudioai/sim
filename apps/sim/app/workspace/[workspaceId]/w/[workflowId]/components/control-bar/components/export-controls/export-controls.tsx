@@ -37,7 +37,7 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
     }
   }
 
-  const handleExportYaml = () => {
+  const handleExportYaml = async () => {
     if (!currentWorkflow || !activeWorkflowId) {
       logger.warn('No active workflow to export')
       return
@@ -45,7 +45,7 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
 
     setIsExporting(true)
     try {
-      const yamlContent = getYaml()
+      const yamlContent = await getYaml()
       const filename = `${currentWorkflow.name.replace(/[^a-z0-9]/gi, '-')}.yaml`
 
       downloadFile(yamlContent, filename, 'text/yaml')
