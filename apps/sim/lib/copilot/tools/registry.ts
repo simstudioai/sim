@@ -8,8 +8,8 @@
  * It also provides metadata for server-side tools for display purposes
  */
 
-import { RunWorkflowTool } from '@/lib/copilot/tools/client-tools/run-workflow'
 import { GetUserWorkflowTool } from '@/lib/copilot/tools/client-tools/get-user-workflow'
+import { RunWorkflowTool } from '@/lib/copilot/tools/client-tools/run-workflow'
 import { SERVER_TOOL_METADATA } from '@/lib/copilot/tools/server-tools/definitions'
 import type { Tool, ToolMetadata } from '@/lib/copilot/tools/types'
 

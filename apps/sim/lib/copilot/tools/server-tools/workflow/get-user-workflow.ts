@@ -15,7 +15,7 @@ class GetUserWorkflowTool extends BaseCopilotTool<GetUserWorkflowParams, string>
 
   protected async executeImpl(params: GetUserWorkflowParams): Promise<string> {
     const logger = createLogger('GetUserWorkflow')
-    
+
     logger.info('Server tool received params', {
       hasFullData: !!params.fullData,
       hasConfirmationMessage: !!params.confirmationMessage,
@@ -23,11 +23,11 @@ class GetUserWorkflowTool extends BaseCopilotTool<GetUserWorkflowParams, string>
       fullDataKeys: params.fullData ? Object.keys(params.fullData) : null,
       confirmationMessageLength: params.confirmationMessage?.length || 0,
     })
-    
+
     // Extract the workflow data from fullData or confirmationMessage
     let workflowData: string | null = null
-    
-    if (params.fullData && params.fullData.userWorkflow) {
+
+    if (params.fullData?.userWorkflow) {
       // New format: fullData contains structured data with userWorkflow field
       workflowData = params.fullData.userWorkflow
       logger.info('Using workflow data from fullData.userWorkflow', {
@@ -39,15 +39,15 @@ class GetUserWorkflowTool extends BaseCopilotTool<GetUserWorkflowParams, string>
         messageLength: params.confirmationMessage.length,
         messagePreview: params.confirmationMessage.substring(0, 100),
       })
-      
+
       try {
         // Try to parse the confirmation message as structured data
         const parsedMessage = JSON.parse(params.confirmationMessage)
-                 if (parsedMessage && parsedMessage.userWorkflow) {
-           workflowData = parsedMessage.userWorkflow
-           logger.info('Successfully extracted userWorkflow from confirmationMessage', {
-             dataLength: workflowData?.length || 0,
-           })
+        if (parsedMessage?.userWorkflow) {
+          workflowData = parsedMessage.userWorkflow
+          logger.info('Successfully extracted userWorkflow from confirmationMessage', {
+            dataLength: workflowData?.length || 0,
+          })
         } else {
           // Fallback: treat the entire message as workflow data
           workflowData = params.confirmationMessage
@@ -74,7 +74,7 @@ class GetUserWorkflowTool extends BaseCopilotTool<GetUserWorkflowParams, string>
     try {
       // Parse the workflow data to validate it's valid JSON
       const workflowState = JSON.parse(workflowData)
-      
+
       if (!workflowState || !workflowState.blocks) {
         throw new Error('Invalid workflow state received from client tool')
       }
@@ -94,5 +94,3 @@ class GetUserWorkflowTool extends BaseCopilotTool<GetUserWorkflowParams, string>
 
 // Export the tool instance
 export const getUserWorkflowTool = new GetUserWorkflowTool()
-
-

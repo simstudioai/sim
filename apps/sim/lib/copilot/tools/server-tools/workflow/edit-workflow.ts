@@ -273,11 +273,11 @@ async function applyOperationsToYaml(
   return yamlDump(workflowData)
 }
 
-import { BaseCopilotTool } from '../base'
 import { eq } from 'drizzle-orm'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
 import { workflow as workflowTable } from '@/db/schema'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { BaseCopilotTool } from '../base'
 
 interface EditWorkflowParams {
   operations: EditWorkflowOperation[]
@@ -386,7 +386,7 @@ async function editWorkflow(params: EditWorkflowParams): Promise<EditWorkflowRes
 
   // Get current workflow state - use provided currentUserWorkflow or fetch from DB
   let workflowStateJson: string
-  
+
   if (currentUserWorkflow) {
     logger.info('Using provided currentUserWorkflow for edits', {
       workflowId,

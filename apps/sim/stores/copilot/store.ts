@@ -543,26 +543,26 @@ function createToolCall(id: string, name: string, input: any = {}): any {
             onStateChange: (state: any) => {
               // Update the tool call state in the store
               const currentState = useCopilotStore.getState()
-              const updatedMessages = currentState.messages.map(msg => ({
+              const updatedMessages = currentState.messages.map((msg) => ({
                 ...msg,
-                toolCalls: msg.toolCalls?.map(tc => 
+                toolCalls: msg.toolCalls?.map((tc) =>
                   tc.id === toolCall.id ? { ...tc, state } : tc
                 ),
-                contentBlocks: msg.contentBlocks?.map(block => 
-                  block.type === 'tool_call' && block.toolCall?.id === toolCall.id 
+                contentBlocks: msg.contentBlocks?.map((block) =>
+                  block.type === 'tool_call' && block.toolCall?.id === toolCall.id
                     ? { ...block, toolCall: { ...block.toolCall, state } }
                     : block
-                )
+                ),
               }))
-              
+
               useCopilotStore.setState({ messages: updatedMessages })
             },
           })
         }
       } catch (error) {
         logger.error('Error auto-executing client tool:', name, toolCall.id, error)
-        setToolCallState(toolCall, 'errored', { 
-          error: error instanceof Error ? error.message : 'Auto-execution failed' 
+        setToolCallState(toolCall, 'errored', {
+          error: error instanceof Error ? error.message : 'Auto-execution failed',
         })
       }
     }, 0)

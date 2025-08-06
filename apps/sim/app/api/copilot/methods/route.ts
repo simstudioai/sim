@@ -167,7 +167,13 @@ async function pollRedisForTool(
  */
 async function interruptHandler(
   toolCallId: string
-): Promise<{ approved: boolean; rejected: boolean; error?: boolean; message?: string; fullData?: any }> {
+): Promise<{
+  approved: boolean
+  rejected: boolean
+  error?: boolean
+  message?: string
+  fullData?: any
+}> {
   if (!toolCallId) {
     logger.error('interruptHandler: No tool call ID provided')
     return { approved: false, rejected: false, error: true, message: 'No tool call ID provided' }

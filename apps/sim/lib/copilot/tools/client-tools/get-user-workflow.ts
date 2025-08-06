@@ -10,8 +10,8 @@ import type {
   ToolMetadata,
 } from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface GetUserWorkflowParams {
@@ -21,7 +21,7 @@ interface GetUserWorkflowParams {
 
 export class GetUserWorkflowTool extends BaseTool {
   static readonly id = 'get_user_workflow'
-  
+
   metadata: ToolMetadata = {
     id: GetUserWorkflowTool.id,
     displayConfig: {
@@ -60,7 +60,8 @@ export class GetUserWorkflowTool extends BaseTool {
         properties: {
           workflowId: {
             type: 'string',
-            description: 'The ID of the workflow to fetch (optional, uses active workflow if not provided)',
+            description:
+              'The ID of the workflow to fetch (optional, uses active workflow if not provided)',
           },
           includeMetadata: {
             type: 'boolean',
@@ -86,17 +87,17 @@ export class GetUserWorkflowTool extends BaseTool {
     options?: ToolExecutionOptions
   ): Promise<ToolExecuteResult> {
     const logger = createLogger('GetUserWorkflowTool')
-    
+
     logger.info('Starting client tool execution', {
       toolCallId: toolCall.id,
       toolName: toolCall.name,
     })
-    
+
     try {
       // Parse parameters
       const rawParams = toolCall.parameters || toolCall.input || {}
       const params = rawParams as GetUserWorkflowParams
-      
+
       // Get workflow ID - use provided or active workflow
       let workflowId = params.workflowId
       if (!workflowId) {
@@ -110,12 +111,15 @@ export class GetUserWorkflowTool extends BaseTool {
         }
         workflowId = activeWorkflowId
       }
-      
-      logger.info('Fetching user workflow from stores', { workflowId, includeMetadata: params.includeMetadata })
-      
+
+      logger.info('Fetching user workflow from stores', {
+        workflowId,
+        includeMetadata: params.includeMetadata,
+      })
+
       // Try to get workflow from diff/preview store first, then main store
       let workflowState: any = null
-      
+
       // Check diff store first
       const diffStore = useWorkflowDiffStore.getState()
       if (diffStore.diffWorkflow && Object.keys(diffStore.diffWorkflow.blocks || {}).length > 0) {
@@ -125,12 +129,12 @@ export class GetUserWorkflowTool extends BaseTool {
         // Get the actual workflow state from the workflow store
         const workflowStore = useWorkflowStore.getState()
         const fullWorkflowState = workflowStore.getWorkflowState()
-        
+
         if (!fullWorkflowState || !fullWorkflowState.blocks) {
           // Fallback to workflow registry metadata if no workflow state
           const workflowRegistry = useWorkflowRegistry.getState()
           const workflow = workflowRegistry.workflows[workflowId]
-          
+
           if (!workflow) {
             options?.onStateChange?.('errored')
             return {
@@ -138,14 +142,14 @@ export class GetUserWorkflowTool extends BaseTool {
               error: `Workflow ${workflowId} not found in any store`,
             }
           }
-          
+
           logger.warn('No workflow state found, using workflow metadata only', { workflowId })
           workflowState = workflow
         } else {
           workflowState = fullWorkflowState
-          logger.info('Using workflow state from workflow store', { 
+          logger.info('Using workflow state from workflow store', {
             workflowId,
-            blockCount: Object.keys(fullWorkflowState.blocks || {}).length 
+            blockCount: Object.keys(fullWorkflowState.blocks || {}).length,
           })
         }
       }
@@ -165,11 +169,11 @@ export class GetUserWorkflowTool extends BaseTool {
           workflowState.blocks = {}
         }
       }
-      
-            logger.info('Validating workflow state', {
+
+      logger.info('Validating workflow state', {
         workflowId,
         hasWorkflowState: !!workflowState,
-        hasBlocks: !!(workflowState && workflowState.blocks),
+        hasBlocks: !!workflowState?.blocks,
         workflowStateType: typeof workflowState,
       })
 
@@ -177,7 +181,7 @@ export class GetUserWorkflowTool extends BaseTool {
         logger.error('Workflow state validation failed', {
           workflowId,
           workflowState: workflowState,
-          hasBlocks: !!(workflowState && workflowState.blocks),
+          hasBlocks: !!workflowState?.blocks,
         })
         options?.onStateChange?.('errored')
         return {
@@ -185,23 +189,24 @@ export class GetUserWorkflowTool extends BaseTool {
           error: 'Workflow state is empty or invalid',
         }
       }
-      
+
       // Include metadata if requested and available
       if (params.includeMetadata && workflowState.metadata) {
         // Metadata is already included in the workflow state
       }
-      
+
       logger.info('Successfully fetched user workflow from stores', {
         workflowId,
         blockCount: Object.keys(workflowState.blocks || {}).length,
-        fromDiffStore: !!diffStore.diffWorkflow && Object.keys(diffStore.diffWorkflow.blocks || {}).length > 0,
+        fromDiffStore:
+          !!diffStore.diffWorkflow && Object.keys(diffStore.diffWorkflow.blocks || {}).length > 0,
       })
-      
+
       logger.info('About to stringify workflow state', {
         workflowId,
         workflowStateKeys: Object.keys(workflowState),
       })
-      
+
       // Convert workflow state to JSON string
       let workflowJson: string
       try {
@@ -226,25 +231,25 @@ export class GetUserWorkflowTool extends BaseTool {
         toolCallId: toolCall.id,
         dataLength: workflowJson.length,
       })
-      
+
       // Notify server of success with structured data containing userWorkflow
       const structuredData = JSON.stringify({
         userWorkflow: workflowJson,
       })
-      
+
       logger.info('Calling notify with structured data', {
         toolCallId: toolCall.id,
         structuredDataLength: structuredData.length,
       })
-      
+
       await this.notify(toolCall.id, 'success', structuredData)
-      
+
       logger.info('Successfully notified server of success', {
         toolCallId: toolCall.id,
       })
-      
+
       options?.onStateChange?.('success')
-      
+
       return {
         success: true,
         data: workflowJson, // Return the same data that goes to Redis
@@ -256,7 +261,7 @@ export class GetUserWorkflowTool extends BaseTool {
         stack: error instanceof Error ? error.stack : undefined,
         message: error instanceof Error ? error.message : String(error),
       })
-      
+
       try {
         // Notify server of error
         await this.notify(toolCall.id, 'errored', error.message || 'Failed to fetch workflow')
@@ -269,13 +274,13 @@ export class GetUserWorkflowTool extends BaseTool {
           notifyError: notifyError,
         })
       }
-      
+
       options?.onStateChange?.('errored')
-      
+
       return {
         success: false,
         error: error.message || 'Failed to fetch workflow',
       }
     }
   }
-} 
+}
