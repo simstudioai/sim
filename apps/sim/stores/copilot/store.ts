@@ -531,6 +531,43 @@ function createToolCall(id: string, name: string, input: any = {}): any {
 
   setToolCallState(toolCall, initialState, { preserveTerminalStates: false })
 
+  // Auto-execute client tools that don't require interrupt
+  if (!requiresInterrupt && toolRegistry.getTool(name)) {
+    logger.info('Auto-executing client tool:', name, toolCall.id)
+    // Execute client tool asynchronously
+    setTimeout(async () => {
+      try {
+        const tool = toolRegistry.getTool(name)
+        if (tool && toolCall.state === 'executing') {
+          await tool.execute(toolCall as any, {
+            onStateChange: (state: any) => {
+              // Update the tool call state in the store
+              const currentState = useCopilotStore.getState()
+              const updatedMessages = currentState.messages.map(msg => ({
+                ...msg,
+                toolCalls: msg.toolCalls?.map(tc => 
+                  tc.id === toolCall.id ? { ...tc, state } : tc
+                ),
+                contentBlocks: msg.contentBlocks?.map(block => 
+                  block.type === 'tool_call' && block.toolCall?.id === toolCall.id 
+                    ? { ...block, toolCall: { ...block.toolCall, state } }
+                    : block
+                )
+              }))
+              
+              useCopilotStore.setState({ messages: updatedMessages })
+            },
+          })
+        }
+      } catch (error) {
+        logger.error('Error auto-executing client tool:', name, toolCall.id, error)
+        setToolCallState(toolCall, 'errored', { 
+          error: error instanceof Error ? error.message : 'Auto-execution failed' 
+        })
+      }
+    }, 0)
+  }
+
   return toolCall
 }
 
