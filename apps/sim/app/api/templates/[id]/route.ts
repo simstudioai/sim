@@ -7,7 +7,6 @@ import { templates } from '@/db/schema'
 
 const logger = createLogger('TemplateByIdAPI')
 
-export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // GET /api/templates/[id] - Retrieve a single template by ID

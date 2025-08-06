@@ -13,8 +13,6 @@ import {
   getContentType,
 } from '@/app/api/files/utils'
 
-export const dynamic = 'force-dynamic'
-
 const logger = createLogger('FilesServeAPI')
 
 async function streamToBuffer(readableStream: NodeJS.ReadableStream): Promise<Buffer> {

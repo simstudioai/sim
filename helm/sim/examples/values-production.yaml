@@ -21,10 +21,10 @@ app:
   
   # Production URLs (REQUIRED - update with your actual domain names)
   env:
-    NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
-    BETTER_AUTH_URL: "https://simstudio.acme.com"
-    SOCKET_SERVER_URL: "https://simstudio-ws.acme.com"
-    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
+    NEXT_PUBLIC_APP_URL: "https://sim.acme.ai"
+    BETTER_AUTH_URL: "https://sim.acme.ai"
+    SOCKET_SERVER_URL: "https://sim-ws.acme.ai"
+    NEXT_PUBLIC_SOCKET_URL: "https://sim-ws.acme.ai"
     
     # Security settings (REQUIRED - replace with your own secure secrets)
     BETTER_AUTH_SECRET: "your-production-auth-secret-here"
@@ -49,11 +49,11 @@ realtime:
       cpu: "500m"
   
   env:
-    NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
-    BETTER_AUTH_URL: "https://simstudio.acme.com"
-    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
+    NEXT_PUBLIC_APP_URL: "https://sim.acme.ai"
+    BETTER_AUTH_URL: "https://sim.acme.ai"
+    NEXT_PUBLIC_SOCKET_URL: "https://sim-ws.acme.ai"
     BETTER_AUTH_SECRET: "your-production-auth-secret-here"
-    ALLOWED_ORIGINS: "https://simstudio.acme.com"
+    ALLOWED_ORIGINS: "https://sim.acme.ai"
 
 # Database migrations
 migrations:
@@ -118,14 +118,14 @@ ingress:
   
   # Main application
   app:
-    host: simstudio.acme.com
+    host: sim.acme.ai
     paths:
       - path: /
         pathType: Prefix
   
   # Realtime service
   realtime:
-    host: simstudio-ws.acme.com
+    host: sim-ws.acme.ai
     paths:
       - path: /
         pathType: Prefix
@@ -133,7 +133,7 @@ ingress:
   # TLS configuration
   tls:
     enabled: true
-    secretName: simstudio-tls-secret
+    secretName: sim-tls-secret
 
 # Horizontal Pod Autoscaler (automatically scales pods based on CPU/memory usage)
 autoscaling:

@@ -6,8 +6,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { account, user } from '@/db/schema'
 
-export const dynamic = 'force-dynamic'
-
 const logger = createLogger('OAuthConnectionsAPI')
 
 interface GoogleIdToken {
