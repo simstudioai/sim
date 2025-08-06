@@ -50,6 +50,7 @@ export interface OneDriveToolParams {
   accessToken: string
   folderId?: string
   folderSelector?: string
+  folderName?: string
   fileId?: string
   fileName?: string
   content?: string
