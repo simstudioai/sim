@@ -145,6 +145,16 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       placeholder: 'Number of emails to retrieve (default: 1, max: 10)',
       condition: { field: 'operation', value: 'read_outlook' },
     },
+    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
+    {
+      id: 'triggerConfig',
+      title: 'Trigger Configuration',
+      type: 'trigger-config',
+      layout: 'full',
+      triggerProvider: 'outlook',
+      availableTriggers: ['outlook_poller'],
+      hidden: false, // Will be filtered by trigger mode logic
+    },
   ],
   tools: {
     access: ['outlook_send', 'outlook_draft', 'outlook_read'],
@@ -195,5 +205,13 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
   outputs: {
     message: { type: 'string', description: 'Response message' },
     results: { type: 'json', description: 'Email results' },
+    // Trigger outputs
+    email: { type: 'json', description: 'Email data from trigger' },
+    timestamp: { type: 'string', description: 'Event timestamp' },
+    rawEmail: { type: 'json', description: 'Complete raw email data from Microsoft Graph API' },
+  },
+  triggers: {
+    enabled: true,
+    available: ['outlook_poller'],
   },
 }

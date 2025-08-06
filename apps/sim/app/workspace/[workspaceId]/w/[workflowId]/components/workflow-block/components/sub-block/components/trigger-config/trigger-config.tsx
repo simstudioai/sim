@@ -151,7 +151,7 @@ export function TriggerConfig({
       setStoredTriggerId(effectiveTriggerId)
 
       // Map trigger ID to webhook provider name
-      const webhookProvider = effectiveTriggerId.replace('_webhook', '') // e.g., 'slack_webhook' -> 'slack'
+      const webhookProvider = effectiveTriggerId.replace(/_webhook|_poller$/, '') // e.g., 'slack_webhook' -> 'slack', 'gmail_poller' -> 'gmail'
 
       // For credential-based triggers (like Gmail), create webhook entry for polling service but no webhook URL
       if (triggerDef.requiresCredentials && !triggerDef.webhook) {

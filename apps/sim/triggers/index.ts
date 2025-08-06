@@ -3,8 +3,9 @@
 import { airtableWebhookTrigger } from './airtable'
 import { discordWebhookTrigger } from './discord'
 import { githubWebhookTrigger } from './github'
-import { gmailWebhookTrigger } from './gmail'
+import { gmailPollingTrigger } from './gmail'
 import { microsoftTeamsWebhookTrigger } from './microsoftteams'
+import { outlookPollingTrigger } from './outlook'
 import { slackWebhookTrigger } from './slack'
 import { stripeWebhookTrigger } from './stripe/webhook'
 import { telegramWebhookTrigger } from './telegram'
@@ -17,8 +18,9 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   airtable_webhook: airtableWebhookTrigger,
   discord_webhook: discordWebhookTrigger,
   github_webhook: githubWebhookTrigger,
-  gmail_webhook: gmailWebhookTrigger,
+  gmail_poller: gmailPollingTrigger,
   microsoftteams_webhook: microsoftTeamsWebhookTrigger,
+  outlook_poller: outlookPollingTrigger,
   stripe_webhook: stripeWebhookTrigger,
   telegram_webhook: telegramWebhookTrigger,
   whatsapp_webhook: whatsappWebhookTrigger,

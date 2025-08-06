@@ -1,1 +1,1 @@
-export { gmailWebhookTrigger } from './webhook'
+export { gmailPollingTrigger } from './poller'

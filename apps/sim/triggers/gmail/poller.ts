@@ -1,8 +1,8 @@
 import { GmailIcon } from '@/components/icons'
-import type { TriggerConfig } from '../types'
+import type { TriggerConfig } from '@/triggers/types'
 
-export const gmailWebhookTrigger: TriggerConfig = {
-  id: 'gmail_webhook',
+export const gmailPollingTrigger: TriggerConfig = {
+  id: 'gmail_poller',
   name: 'Gmail Email Trigger',
   provider: 'gmail',
   description: 'Triggers when new emails are received in Gmail (requires Gmail credentials)',
@@ -109,12 +109,9 @@ export const gmailWebhookTrigger: TriggerConfig = {
   },
 
   instructions: [
-    'This trigger requires Gmail credentials to access your Gmail account',
-    'You must first connect your Gmail account using OAuth credentials',
-    'Once connected, configure which Gmail labels to monitor for new emails',
-    'The system polls Gmail automatically using the existing polling infrastructure',
-    'Each new email matching your criteria will trigger your workflow execution',
-    'Configure polling frequency, email limits, and processing options as needed',
+    'Connect your Gmail account using OAuth credentials',
+    'Configure which Gmail labels to monitor (optional)',
+    'The system will automatically check for new emails and trigger your workflow',
   ],
 
   samplePayload: {

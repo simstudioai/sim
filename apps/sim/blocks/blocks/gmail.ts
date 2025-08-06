@@ -229,7 +229,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     raw_email: { type: 'json', description: 'Complete raw email data from Gmail API (if enabled)' },
     timestamp: { type: 'string', description: 'Event timestamp' },
   },
-  // New: Trigger capabilities
   triggers: {
     enabled: true,
     available: ['gmail_webhook'],
