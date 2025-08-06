@@ -56,7 +56,7 @@ async function runBillingTestSuite(): Promise<TestResults> {
     logger.info('\n📋 Creating test users...')
 
     // Free user (no overage billing)
-    const freeUser = await createTestUser('free', 5) // $5 usage on free plan
+    const freeUser = await createTestUser('free', 10) // $10 usage on free plan
     results.users.push(freeUser)
 
     // Pro user with no overage

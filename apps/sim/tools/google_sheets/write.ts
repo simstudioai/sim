@@ -9,7 +9,7 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
   oauth: {
     required: true,
     provider: 'google-sheets',
-    additionalScopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    additionalScopes: [],
   },
   params: {
     accessToken: {

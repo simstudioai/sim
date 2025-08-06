@@ -14,6 +14,7 @@ import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/comp
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { GenerationType } from '@/blocks/types'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useTagSelection } from '@/hooks/use-tag-selection'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
@@ -96,7 +97,11 @@ export function Code({
   const collapsedStateKey = `${subBlockId}_collapsed`
   const isCollapsed =
     (useSubBlockStore((state) => state.getValue(blockId, collapsedStateKey)) as boolean) ?? false
-  const setCollapsedValue = useSubBlockStore((state) => state.setValue)
+
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
+  const setCollapsedValue = (blockId: string, subblockId: string, value: any) => {
+    collaborativeSetSubblockValue(blockId, subblockId, value)
+  }
 
   const showCollapseButton =
     (subBlockId === 'responseFormat' || subBlockId === 'code') && code.split('\n').length > 5

@@ -1,71 +1,55 @@
 import { MistralIcon } from '@/components/icons'
-import { isProd } from '@/lib/environment'
-import type { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '@/blocks/types'
+import type { BlockConfig, SubBlockLayout, SubBlockType } from '@/blocks/types'
 import type { MistralParserOutput } from '@/tools/mistral/types'
-
-const shouldEnableFileUpload = isProd
-
-const inputMethodBlock: SubBlockConfig = {
-  id: 'inputMethod',
-  title: 'Select Input Method',
-  type: 'dropdown' as SubBlockType,
-  layout: 'full' as SubBlockLayout,
-  options: [
-    { id: 'url', label: 'PDF Document URL' },
-    { id: 'upload', label: 'Upload PDF Document' },
-  ],
-}
-
-const fileUploadBlock: SubBlockConfig = {
-  id: 'fileUpload',
-  title: 'Upload PDF',
-  type: 'file-upload' as SubBlockType,
-  layout: 'full' as SubBlockLayout,
-  acceptedTypes: 'application/pdf',
-  condition: {
-    field: 'inputMethod',
-    value: 'upload',
-  },
-  maxSize: 50, // 50MB max via direct upload
-}
 
 export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   type: 'mistral_parse',
   name: 'Mistral Parser',
   description: 'Extract text from PDF documents',
-  longDescription: `Extract text and structure from PDF documents using Mistral's OCR API.${
-    shouldEnableFileUpload
-      ? ' Either enter a URL to a PDF document or upload a PDF file directly.'
-      : ' Enter a URL to a PDF document (.pdf extension required).'
-  } Configure processing options and get the content in your preferred format. For URLs, they must be publicly accessible and point to a valid PDF file. Note: Google Drive, Dropbox, and other cloud storage links are not supported; use a direct download URL from a web server instead.`,
+  longDescription: `Extract text and structure from PDF documents using Mistral's OCR API. Either enter a URL to a PDF document or upload a PDF file directly. Configure processing options and get the content in your preferred format. For URLs, they must be publicly accessible and point to a valid PDF file. Note: Google Drive, Dropbox, and other cloud storage links are not supported; use a direct download URL from a web server instead.`,
   docsLink: 'https://docs.sim.ai/tools/mistral_parse',
   category: 'tools',
   bgColor: '#000000',
   icon: MistralIcon,
   subBlocks: [
-    // Show input method selection only if file upload is available
-    ...(shouldEnableFileUpload ? [inputMethodBlock] : []),
+    // Show input method selection
+    {
+      id: 'inputMethod',
+      title: 'Select Input Method',
+      type: 'dropdown' as SubBlockType,
+      layout: 'full' as SubBlockLayout,
+      options: [
+        { id: 'url', label: 'PDF Document URL' },
+        { id: 'upload', label: 'Upload PDF Document' },
+      ],
+    },
 
-    // URL input - always shown, but conditional on inputMethod in production
+    // URL input - conditional on inputMethod
     {
       id: 'filePath',
       title: 'PDF Document URL',
       type: 'short-input' as SubBlockType,
       layout: 'full' as SubBlockLayout,
       placeholder: 'Enter full URL to a PDF document (https://example.com/document.pdf)',
-      required: !shouldEnableFileUpload,
-      ...(shouldEnableFileUpload
-        ? {
-            condition: {
-              field: 'inputMethod',
-              value: 'url',
-            },
-          }
-        : {}),
+      condition: {
+        field: 'inputMethod',
+        value: 'url',
+      },
     },
 
-    // File upload option - only shown in production environments
-    ...(shouldEnableFileUpload ? [fileUploadBlock] : []),
+    // File upload option
+    {
+      id: 'fileUpload',
+      title: 'Upload PDF',
+      type: 'file-upload' as SubBlockType,
+      layout: 'full' as SubBlockLayout,
+      acceptedTypes: 'application/pdf',
+      condition: {
+        field: 'inputMethod',
+        value: 'upload',
+      },
+      maxSize: 50, // 50MB max via direct upload
+    },
 
     {
       id: 'resultType',
@@ -136,27 +120,19 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
           resultType: params.resultType || 'markdown',
         }
 
-        // Set filePath or fileUpload based on input method (or directly use filePath if no method selector)
-        if (shouldEnableFileUpload) {
-          const inputMethod = params.inputMethod || 'url'
-          if (inputMethod === 'url') {
-            if (!params.filePath || params.filePath.trim() === '') {
-              throw new Error('PDF Document URL is required')
-            }
-            parameters.filePath = params.filePath.trim()
-          } else if (inputMethod === 'upload') {
-            if (!params.fileUpload) {
-              throw new Error('Please upload a PDF document')
-            }
-            // Pass the entire fileUpload object to the tool
-            parameters.fileUpload = params.fileUpload
-          }
-        } else {
-          // In local development, only URL input is available
+        // Set filePath or fileUpload based on input method
+        const inputMethod = params.inputMethod || 'url'
+        if (inputMethod === 'url') {
           if (!params.filePath || params.filePath.trim() === '') {
             throw new Error('PDF Document URL is required')
           }
           parameters.filePath = params.filePath.trim()
+        } else if (inputMethod === 'upload') {
+          if (!params.fileUpload) {
+            throw new Error('Please upload a PDF document')
+          }
+          // Pass the entire fileUpload object to the tool
+          parameters.fileUpload = params.fileUpload
         }
 
         // Convert pages input from string to array of numbers if provided

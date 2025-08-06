@@ -3,9 +3,6 @@ import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-
-export const dynamic = 'force-dynamic'
-
 import { db } from '@/db'
 import { permissions, workflow, workflowBlocks, workspace } from '@/db/schema'
 
@@ -161,6 +158,7 @@ async function createWorkspace(userId: string, name: string) {
             enabled: true,
             horizontalHandles: true,
             isWide: false,
+            advancedMode: false,
             height: 95,
           },
         },
@@ -206,6 +204,7 @@ async function createWorkspace(userId: string, name: string) {
         enabled: true,
         horizontalHandles: true,
         isWide: false,
+        advancedMode: false,
         height: '95',
         subBlocks: {
           startWorkflow: {

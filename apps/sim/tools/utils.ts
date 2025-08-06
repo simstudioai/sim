@@ -2,25 +2,18 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { editWorkflowTool } from '@/tools/blocks/edit-workflow'
-import { getAllBlocksTool } from '@/tools/blocks/get-all'
-import { getBlockMetadataTool } from '@/tools/blocks/get-metadata'
-import { getYamlStructureTool } from '@/tools/blocks/get-yaml-structure'
-import { docsSearchTool } from '@/tools/docs/search'
+// Copilot-specific tools are now handled in @/lib/copilot/tools.ts
 import { tools } from '@/tools/registry'
 import type { TableRow, ToolConfig, ToolResponse } from '@/tools/types'
-import { getUserWorkflowTool } from '@/tools/workflow/get-yaml'
+
+// Workflow tools moved to copilot system
 
 const logger = createLogger('ToolsUtils')
 
 // Internal-only tools (not exposed to users in workflows)
+// Note: All copilot-specific tools are now handled in @/lib/copilot/tools.ts
 const internalTools: Record<string, ToolConfig> = {
-  docs_search_internal: docsSearchTool,
-  get_user_workflow: getUserWorkflowTool,
-  get_blocks_and_tools: getAllBlocksTool,
-  get_blocks_metadata: getBlockMetadataTool,
-  get_yaml_structure: getYamlStructureTool,
-  edit_workflow: editWorkflowTool,
+  // No internal tools remain - all have been moved to copilot system
 }
 
 // Export the list of internal tool IDs for filtering purposes

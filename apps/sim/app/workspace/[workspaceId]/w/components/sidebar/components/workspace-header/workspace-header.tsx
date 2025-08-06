@@ -1,17 +1,11 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, PanelLeft } from 'lucide-react'
-import Link from 'next/link'
-import { AgentIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console/logger'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
-
-const logger = createLogger('WorkspaceHeader')
 
 /**
  * Workspace entity interface
@@ -33,7 +27,6 @@ interface WorkspaceHeaderProps {
   onToggleSidebar: () => void
   activeWorkspace: Workspace | null
   isWorkspacesLoading: boolean
-  updateWorkspaceName: (workspaceId: string, newName: string) => Promise<boolean>
 }
 
 /**
@@ -47,26 +40,15 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
     onToggleSidebar,
     activeWorkspace,
     isWorkspacesLoading,
-    updateWorkspaceName,
   }) => {
     // External hooks
     const { data: sessionData } = useSession()
-    const userPermissions = useUserPermissionsContext()
     const [isClientLoading, setIsClientLoading] = useState(true)
-    const [isEditingName, setIsEditingName] = useState(false)
-    const [editingName, setEditingName] = useState('')
-
-    // Refs
-    const editInputRef = useRef<HTMLInputElement>(null)
 
     // Computed values
     const userName = useMemo(
       () => sessionData?.user?.name || sessionData?.user?.email || 'User',
       [sessionData?.user?.name, sessionData?.user?.email]
-    )
-    const workspaceUrl = useMemo(
-      () => (activeWorkspace ? `/workspace/${activeWorkspace.id}/w` : '/workspace'),
-      [activeWorkspace]
     )
 
     const displayName = useMemo(
@@ -79,207 +61,98 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
       setIsClientLoading(false)
     }, [])
 
-    // Focus input when editing starts
-    useEffect(() => {
-      if (isEditingName && editInputRef.current) {
-        editInputRef.current.focus()
-        editInputRef.current.select()
-      }
-    }, [isEditingName])
+    // Handle header click to toggle workspace selector
+    const handleHeaderClick = useCallback(() => {
+      onToggleWorkspaceSelector()
+    }, [onToggleWorkspaceSelector])
 
-    // Handle workspace name click
-    const handleWorkspaceNameClick = useCallback(() => {
-      // Only allow admins to rename workspace
-      if (!userPermissions.canAdmin) {
-        return
-      }
-      setEditingName(displayName)
-      setIsEditingName(true)
-    }, [displayName, userPermissions.canAdmin])
-
-    // Handle workspace name editing actions
-    const handleEditingAction = useCallback(
-      (action: 'save' | 'cancel') => {
-        switch (action) {
-          case 'save': {
-            // Exit edit mode immediately, save in background
-            setIsEditingName(false)
-            const trimmedName = editingName.trim()
-            if (activeWorkspace && trimmedName !== '' && trimmedName !== activeWorkspace.name) {
-              updateWorkspaceName(activeWorkspace.id, trimmedName).catch((error) => {
-                logger.error('Failed to update workspace name:', error)
-              })
-            }
-            break
-          }
-
-          case 'cancel': {
-            // Cancel without saving
-            setIsEditingName(false)
-            setEditingName('')
-            break
-          }
-        }
+    // Handle sidebar toggle click
+    const handleSidebarToggle = useCallback(
+      (e: React.MouseEvent) => {
+        e.stopPropagation() // Prevent header click
+        onToggleSidebar()
       },
-      [activeWorkspace, editingName, updateWorkspaceName]
+      [onToggleSidebar]
     )
-
-    // Handle keyboard interactions
-    const handleInputKeyDown = useCallback(
-      (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') {
-          handleEditingAction('save')
-        } else if (e.key === 'Escape') {
-          handleEditingAction('cancel')
-        }
-      },
-      [handleEditingAction]
-    )
-
-    // Handle click away - immediate exit with background save
-    const handleInputBlur = useCallback(() => {
-      handleEditingAction('save')
-    }, [handleEditingAction])
 
     // Render loading state
     const renderLoadingState = () => (
       <>
-        {/* Icon */}
-        <div className='flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]'>
-          <AgentIcon className='h-4 w-4 text-white' />
+        {/* Loading workspace name - matches actual layout */}
+        <div className='flex min-w-0 flex-1 items-center pl-1'>
+          <Skeleton className='h-4 w-24' />
         </div>
 
-        {/* Loading workspace name and chevron container */}
-        <div className='flex min-w-0 flex-1 items-center'>
-          <div className='min-w-0 flex-1 p-1'>
-            <Skeleton className='h-4 w-24' />
-          </div>
-
-          {/* Chevron */}
-          <Button
-            variant='ghost'
-            size='icon'
-            className='h-6 w-6 text-muted-foreground hover:bg-secondary'
-            disabled
-          >
-            {isWorkspaceSelectorVisible ? (
-              <ChevronUp className='h-4 w-4' />
-            ) : (
-              <ChevronDown className='h-4 w-4' />
-            )}
-          </Button>
+        {/* Chevron - actual element, not skeleton */}
+        <div className='flex h-5 w-5 items-center justify-center text-muted-foreground'>
+          {!isWorkspaceSelectorVisible ? (
+            <ChevronUp className='h-4 w-4' />
+          ) : (
+            <ChevronDown className='h-4 w-4' />
+          )}
         </div>
 
-        {/* Toggle Sidebar - with gap-2 max from chevron */}
-        <div className='flex items-center gap-2'>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='h-6 w-6 text-muted-foreground hover:bg-secondary'
-            disabled
-          >
-            <PanelLeft className='h-4 w-4' />
-          </Button>
-        </div>
+        {/* Toggle Sidebar - actual element, not skeleton */}
+        <Button
+          variant='ghost'
+          size='icon'
+          className='h-6 w-6 text-muted-foreground hover:bg-secondary'
+          disabled
+        >
+          <PanelLeft className='h-4 w-4' />
+        </Button>
       </>
     )
 
     // Render workspace info
     const renderWorkspaceInfo = () => (
       <>
-        {/* Icon - separate from hover area */}
-        <Link
-          href={workspaceUrl}
-          className='group flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]'
-        >
-          <AgentIcon className='h-4 w-4 text-white transition-all group-hover:scale-105' />
-        </Link>
+        {/* Workspace Name - Display only */}
+        <div className='flex min-w-0 flex-1 items-center pl-1'>
+          <span
+            className='truncate font-medium text-sm leading-none'
+            style={{
+              minHeight: '1rem',
+              lineHeight: '1rem',
+            }}
+          >
+            {displayName}
+          </span>
+        </div>
 
-        {/* Workspace Name and Chevron Container */}
-        <div className='flex min-w-0 flex-1 items-center'>
-          {/* Workspace Name - Editable */}
-          <div className={`flex min-w-0 items-center p-1 ${isEditingName ? 'flex-1' : ''}`}>
-            {isEditingName ? (
-              <input
-                ref={editInputRef}
-                type='text'
-                value={editingName}
-                onChange={(e) => setEditingName(e.target.value)}
-                onKeyDown={handleInputKeyDown}
-                onBlur={handleInputBlur}
-                className='m-0 h-auto w-full resize-none truncate border-0 bg-transparent p-0 font-medium text-sm leading-none outline-none'
-                style={{
-                  minHeight: '1rem',
-                  lineHeight: '1rem',
-                }}
-              />
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    onClick={handleWorkspaceNameClick}
-                    className={`truncate font-medium text-sm leading-none transition-all ${
-                      userPermissions.canAdmin
-                        ? 'cursor-pointer hover:brightness-75 dark:hover:brightness-125'
-                        : 'cursor-default'
-                    }`}
-                    style={{
-                      minHeight: '1rem',
-                      lineHeight: '1rem',
-                    }}
-                  >
-                    {displayName}
-                  </div>
-                </TooltipTrigger>
-                {!userPermissions.canAdmin && (
-                  <TooltipContent side='bottom'>
-                    Admin permissions required to rename workspace
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            )}
-          </div>
-
-          {/* Chevron - Next to name, hidden in edit mode */}
-          {!isEditingName && (
-            <Button
-              variant='ghost'
-              size='icon'
-              onClick={onToggleWorkspaceSelector}
-              className='h-6 w-6 text-muted-foreground hover:bg-secondary'
-            >
-              {isWorkspaceSelectorVisible ? (
-                <ChevronUp className='h-4 w-4' />
-              ) : (
-                <ChevronDown className='h-4 w-4' />
-              )}
-            </Button>
+        {/* Chevron - Display only */}
+        <div className='flex h-5 w-5 items-center justify-center text-muted-foreground'>
+          {!isWorkspaceSelectorVisible ? (
+            <ChevronUp className='h-4 w-4' />
+          ) : (
+            <ChevronDown className='h-4 w-4' />
           )}
         </div>
 
-        {/* Toggle Sidebar - with gap-2 max from chevron */}
-        <div className='flex items-center gap-2'>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant='ghost'
-                size='icon'
-                onClick={onToggleSidebar}
-                className='h-6 w-6 text-muted-foreground hover:bg-secondary'
-              >
-                <PanelLeft className='h-4 w-4' />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side='bottom'>Toggle sidebar</TooltipContent>
-          </Tooltip>
-        </div>
+        {/* Toggle Sidebar - with gap-1 from chevron */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={handleSidebarToggle}
+              className='h-6 w-6 text-muted-foreground hover:bg-secondary'
+            >
+              <PanelLeft className='h-4 w-4' />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side='bottom'>Toggle sidebar</TooltipContent>
+        </Tooltip>
       </>
     )
 
     // Main render - using h-12 to match control bar height
     return (
-      <div className='h-12 rounded-[14px] border bg-card shadow-xs'>
-        <div className='flex h-full items-center gap-1 px-3'>
+      <div className='h-12 rounded-[10px] border bg-background shadow-xs'>
+        <div
+          className='flex h-full cursor-pointer items-center gap-1 rounded-[10px] pr-[10px] pl-3 transition-colors hover:bg-muted/50'
+          onClick={handleHeaderClick}
+        >
           {isClientLoading || isWorkspacesLoading ? renderLoadingState() : renderWorkspaceInfo()}
         </div>
       </div>

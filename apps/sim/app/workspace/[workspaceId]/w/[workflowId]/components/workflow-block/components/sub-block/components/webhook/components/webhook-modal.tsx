@@ -17,6 +17,7 @@ import {
   GithubConfig,
   GmailConfig,
   MicrosoftTeamsConfig,
+  OutlookConfig,
   SlackConfig,
   StripeConfig,
   TelegramConfig,
@@ -125,7 +126,7 @@ export function WebhookModal({
   const [includeRawEmail, setIncludeRawEmail] = useState<boolean>(false)
 
   // Get the current provider configuration
-  const _provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
+  // const provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
 
   // Generate a random verification token if none exists
   useEffect(() => {
@@ -255,6 +256,31 @@ export function WebhookModal({
                   ...prev,
                   selectedLabels: labelIds,
                   labelFilterBehavior,
+                }))
+
+                if (config.markAsRead !== undefined) {
+                  setMarkAsRead(config.markAsRead)
+                  setOriginalValues((prev) => ({ ...prev, markAsRead: config.markAsRead }))
+                }
+
+                if (config.includeRawEmail !== undefined) {
+                  setIncludeRawEmail(config.includeRawEmail)
+                  setOriginalValues((prev) => ({
+                    ...prev,
+                    includeRawEmail: config.includeRawEmail,
+                  }))
+                }
+              } else if (webhookProvider === 'outlook') {
+                const folderIds = config.folderIds || []
+                const folderFilterBehavior = config.folderFilterBehavior || 'INCLUDE'
+
+                setSelectedLabels(folderIds) // Reuse selectedLabels for folder IDs
+                setLabelFilterBehavior(folderFilterBehavior) // Reuse labelFilterBehavior for folders
+
+                setOriginalValues((prev) => ({
+                  ...prev,
+                  selectedLabels: folderIds,
+                  labelFilterBehavior: folderFilterBehavior,
                 }))
 
                 if (config.markAsRead !== undefined) {
@@ -427,6 +453,14 @@ export function WebhookModal({
         return {
           labelIds: selectedLabels,
           labelFilterBehavior,
+          markAsRead,
+          includeRawEmail,
+          maxEmailsPerPoll: 25,
+        }
+      case 'outlook':
+        return {
+          folderIds: selectedLabels, // Reuse selectedLabels for folder IDs
+          folderFilterBehavior: labelFilterBehavior, // Reuse labelFilterBehavior for folders
           markAsRead,
           includeRawEmail,
           maxEmailsPerPoll: 25,
@@ -681,6 +715,19 @@ export function WebhookModal({
       case 'gmail':
         return (
           <GmailConfig
+            selectedLabels={selectedLabels}
+            setSelectedLabels={setSelectedLabels}
+            labelFilterBehavior={labelFilterBehavior}
+            setLabelFilterBehavior={setLabelFilterBehavior}
+            markAsRead={markAsRead}
+            setMarkAsRead={setMarkAsRead}
+            includeRawEmail={includeRawEmail}
+            setIncludeRawEmail={setIncludeRawEmail}
+          />
+        )
+      case 'outlook':
+        return (
+          <OutlookConfig
             selectedLabels={selectedLabels}
             setSelectedLabels={setSelectedLabels}
             labelFilterBehavior={labelFilterBehavior}

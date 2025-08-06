@@ -287,6 +287,10 @@ export function LongInput({
       setShowEnvVars(false)
       setShowTags(false)
     }
+    // Prevent user input during streaming
+    if (wandHook?.isStreaming) {
+      e.preventDefault()
+    }
   }
 
   // Handle wheel events to control ReactFlow zoom
@@ -352,14 +356,19 @@ export function LongInput({
         />
       )}
 
-      <div ref={containerRef} className='group relative w-full' style={{ height: `${height}px` }}>
+      <div
+        ref={containerRef}
+        className={cn('group relative w-full', wandHook?.isStreaming && 'streaming-effect')}
+        style={{ height: `${height}px` }}
+      >
         <Textarea
           ref={textareaRef}
           className={cn(
             'allow-scroll min-h-full w-full resize-none text-transparent caret-foreground placeholder:text-muted-foreground/50',
             isConnecting &&
               config?.connectionDroppable !== false &&
-              'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
+              'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500',
+            wandHook?.isStreaming && 'pointer-events-none cursor-not-allowed opacity-50'
           )}
           rows={rows ?? DEFAULT_ROWS}
           placeholder={placeholder ?? ''}
@@ -397,7 +406,7 @@ export function LongInput({
         </div>
 
         {/* Wand Button */}
-        {wandHook && !isPreview && (
+        {wandHook && !isPreview && !wandHook.isStreaming && (
           <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
             <Button
               variant='ghost'
@@ -415,51 +424,57 @@ export function LongInput({
         )}
 
         {/* Custom resize handle */}
-        <div
-          className='absolute right-1 bottom-1 flex h-4 w-4 cursor-s-resize items-center justify-center rounded-sm bg-background'
-          onMouseDown={startResize}
-          onDragStart={(e) => {
-            e.preventDefault()
-          }}
-        >
-          <ChevronsUpDown className='h-3 w-3 text-muted-foreground/70' />
-        </div>
+        {!wandHook?.isStreaming && (
+          <div
+            className='absolute right-1 bottom-1 flex h-4 w-4 cursor-s-resize items-center justify-center rounded-sm bg-background'
+            onMouseDown={startResize}
+            onDragStart={(e) => {
+              e.preventDefault()
+            }}
+          >
+            <ChevronsUpDown className='h-3 w-3 text-muted-foreground/70' />
+          </div>
+        )}
 
-        <EnvVarDropdown
-          visible={showEnvVars}
-          onSelect={(newValue) => {
-            if (onChange) {
-              onChange(newValue)
-            } else if (!isPreview) {
-              emitTagSelection(newValue)
-            }
-          }}
-          searchTerm={searchTerm}
-          inputValue={value?.toString() ?? ''}
-          cursorPosition={cursorPosition}
-          onClose={() => {
-            setShowEnvVars(false)
-            setSearchTerm('')
-          }}
-        />
-        <TagDropdown
-          visible={showTags}
-          onSelect={(newValue) => {
-            if (onChange) {
-              onChange(newValue)
-            } else if (!isPreview) {
-              emitTagSelection(newValue)
-            }
-          }}
-          blockId={blockId}
-          activeSourceBlockId={activeSourceBlockId}
-          inputValue={value?.toString() ?? ''}
-          cursorPosition={cursorPosition}
-          onClose={() => {
-            setShowTags(false)
-            setActiveSourceBlockId(null)
-          }}
-        />
+        {!wandHook?.isStreaming && (
+          <>
+            <EnvVarDropdown
+              visible={showEnvVars}
+              onSelect={(newValue) => {
+                if (onChange) {
+                  onChange(newValue)
+                } else if (!isPreview) {
+                  emitTagSelection(newValue)
+                }
+              }}
+              searchTerm={searchTerm}
+              inputValue={value?.toString() ?? ''}
+              cursorPosition={cursorPosition}
+              onClose={() => {
+                setShowEnvVars(false)
+                setSearchTerm('')
+              }}
+            />
+            <TagDropdown
+              visible={showTags}
+              onSelect={(newValue) => {
+                if (onChange) {
+                  onChange(newValue)
+                } else if (!isPreview) {
+                  emitTagSelection(newValue)
+                }
+              }}
+              blockId={blockId}
+              activeSourceBlockId={activeSourceBlockId}
+              inputValue={value?.toString() ?? ''}
+              cursorPosition={cursorPosition}
+              onClose={() => {
+                setShowTags(false)
+                setActiveSourceBlockId(null)
+              }}
+            />
+          </>
+        )}
       </div>
     </>
   )

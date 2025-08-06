@@ -20,6 +20,7 @@ import {
   renderPasswordResetEmail,
 } from '@/components/emails/render-email'
 import { getBaseURL } from '@/lib/auth-client'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { env, isTruthy } from '@/lib/env'
 import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -388,7 +389,6 @@ export const auth = betterAuth({
           scopes: [
             'https://www.googleapis.com/auth/userinfo.email',
             'https://www.googleapis.com/auth/userinfo.profile',
-            'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/drive.file',
           ],
           prompt: 'consent',
@@ -1081,7 +1081,7 @@ export const auth = betterAuth({
                   name: 'free',
                   priceId: env.STRIPE_FREE_PRICE_ID || '',
                   limits: {
-                    cost: env.FREE_TIER_COST_LIMIT ?? 5,
+                    cost: env.FREE_TIER_COST_LIMIT ?? DEFAULT_FREE_CREDITS,
                     sharingEnabled: 0,
                     multiplayerEnabled: 0,
                     workspaceCollaborationEnabled: 0,

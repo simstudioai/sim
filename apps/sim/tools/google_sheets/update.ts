@@ -12,7 +12,7 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
   oauth: {
     required: true,
     provider: 'google-sheets',
-    additionalScopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    additionalScopes: [],
   },
   params: {
     accessToken: {

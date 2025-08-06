@@ -1,11 +1,106 @@
+name: sim-with-ollama
+
 services:
-  local-llm-gpu:
-    profiles:
-      - local-gpu # This profile requires both 'local' and 'gpu'
+  # Main Sim Studio Application
+  simstudio:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    ports:
+      - '3000:3000'
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
+      - BETTER_AUTH_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-sim_auth_secret_$(openssl rand -hex 16)}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-$(openssl rand -hex 32)}
+      - OLLAMA_URL=http://ollama:11434
+      - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-http://localhost:3002}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      realtime:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3000']
+      interval: 90s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Realtime Socket Server
+  realtime:
+    build:
+      context: .
+      dockerfile: docker/realtime.Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-sim_auth_secret_$(openssl rand -hex 16)}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - '3002:3002'
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3002/health']
+      interval: 90s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Database Migrations
+  migrations:
+    build:
+      context: .
+      dockerfile: docker/db.Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ['bun', 'run', 'db:migrate']
+    restart: 'no'
+
+  # PostgreSQL Database with Vector Extension
+  db:
+    image: pgvector/pgvector:pg17
+    restart: always
+    ports:
+      - '5432:5432'
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-simstudio}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Ollama with GPU support (default)
+  ollama:
     image: ollama/ollama:latest
     pull_policy: always
     volumes:
-      - ${HOME}/.ollama:/root/.ollama
+      - ollama_data:/root/.ollama
     ports:
       - '11434:11434'
     environment:
@@ -13,6 +108,7 @@ services:
       - OLLAMA_LOAD_TIMEOUT=-1
       - OLLAMA_KEEP_ALIVE=-1
       - OLLAMA_DEBUG=1
+      - OLLAMA_HOST=0.0.0.0:11434
     command: 'serve'
     deploy:
       resources:
@@ -26,23 +122,56 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
+    restart: unless-stopped
 
-  local-llm-cpu:
+  # Ollama CPU-only version (use with --profile cpu profile)
+  ollama-cpu:
     profiles:
-      - local-cpu # This profile requires both 'local' and 'cpu'
+      - cpu
     image: ollama/ollama:latest
     pull_policy: always
     volumes:
-      - ${HOME}/.ollama:/root/.ollama
+      - ollama_data:/root/.ollama
     ports:
       - '11434:11434'
     environment:
       - OLLAMA_LOAD_TIMEOUT=-1
       - OLLAMA_KEEP_ALIVE=-1
       - OLLAMA_DEBUG=1
+      - OLLAMA_HOST=0.0.0.0:11434
     command: 'serve'
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:11434/']
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # Helper container to pull models automatically
+  model-setup:
+    image: ollama/ollama:latest
+    profiles:
+      - setup
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for Ollama to be ready...' &&
+        sleep 10 &&
+        echo 'Pulling gemma3:4b model (recommended starter model)...' &&
+        ollama pull gemma3:4b &&
+        echo 'Model setup complete! You can now use gemma3:4b in Sim.' &&
+        echo 'To add more models, run: docker compose -f docker-compose.ollama.yml exec ollama ollama pull <model-name>'
+      "
+    restart: 'no'
+
+volumes:
+  postgres_data:
+  ollama_data:

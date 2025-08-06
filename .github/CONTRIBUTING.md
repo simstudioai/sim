@@ -164,10 +164,14 @@ Access the application at [http://localhost:3000/](http://localhost:3000/)
 
 To use local models with Sim:
 
-1. Pull models using our helper script:
+1. Install Ollama and pull models:
 
 ```bash
-./apps/sim/scripts/ollama_docker.sh pull <model_name>
+# Install Ollama (if not already installed)
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Pull a model (e.g., gemma3:4b)
+ollama pull gemma3:4b
 ```
 
 2. Start Sim with local model support:

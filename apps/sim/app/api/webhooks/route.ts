@@ -266,6 +266,40 @@ export async function POST(request: NextRequest) {
     }
     // --- End Gmail specific logic ---
 
+    // --- Outlook webhook setup ---
+    if (savedWebhook && provider === 'outlook') {
+      logger.info(
+        `[${requestId}] Outlook provider detected. Setting up Outlook webhook configuration.`
+      )
+      try {
+        const { configureOutlookPolling } = await import('@/lib/webhooks/utils')
+        const success = await configureOutlookPolling(userId, savedWebhook, requestId)
+
+        if (!success) {
+          logger.error(`[${requestId}] Failed to configure Outlook polling`)
+          return NextResponse.json(
+            {
+              error: 'Failed to configure Outlook polling',
+              details: 'Please check your Outlook account permissions and try again',
+            },
+            { status: 500 }
+          )
+        }
+
+        logger.info(`[${requestId}] Successfully configured Outlook polling`)
+      } catch (err) {
+        logger.error(`[${requestId}] Error setting up Outlook webhook configuration`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to configure Outlook webhook',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+    // --- End Outlook specific logic ---
+
     const status = existingWebhooks.length > 0 ? 200 : 201
     return NextResponse.json({ webhook: savedWebhook }, { status })
   } catch (error: any) {

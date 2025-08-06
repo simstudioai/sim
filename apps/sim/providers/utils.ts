@@ -27,6 +27,7 @@ import { openaiProvider } from '@/providers/openai'
 import type { ProviderConfig, ProviderId, ProviderToolConfig } from '@/providers/types'
 import { xAIProvider } from '@/providers/xai'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { useOllamaStore } from '@/stores/ollama/store'
 
 const logger = createLogger('ProviderUtils')
 
@@ -429,13 +430,15 @@ export async function transformBlockTool(
  * @param promptTokens Number of prompt tokens used
  * @param completionTokens Number of completion tokens used
  * @param useCachedInput Whether to use cached input pricing (default: false)
+ * @param customMultiplier Optional custom multiplier to override the default cost multiplier
  * @returns Cost calculation results with input, output and total costs
  */
 export function calculateCost(
   model: string,
   promptTokens = 0,
   completionTokens = 0,
-  useCachedInput = false
+  useCachedInput = false,
+  customMultiplier?: number
 ) {
   // First check if it's an embedding model
   let pricing = getEmbeddingModelPricing(model)
@@ -472,7 +475,7 @@ export function calculateCost(
   const outputCost = completionTokens * (pricing.output / 1_000_000)
   const totalCost = inputCost + outputCost
 
-  const costMultiplier = getCostMultiplier()
+  const costMultiplier = customMultiplier ?? getCostMultiplier()
 
   const finalInputCost = inputCost * costMultiplier
   const finalOutputCost = outputCost * costMultiplier
@@ -545,6 +548,12 @@ export function getHostedModels(): string[] {
 export function getApiKey(provider: string, model: string, userProvidedKey?: string): string {
   // If user provided a key, use it as a fallback
   const hasUserKey = !!userProvidedKey
+
+  // Ollama models don't require API keys - they run locally
+  const isOllamaModel = provider === 'ollama' || useOllamaStore.getState().models.includes(model)
+  if (isOllamaModel) {
+    return 'empty' // Ollama uses 'empty' as a placeholder API key
+  }
 
   // Use server key rotation for all OpenAI models and Anthropic's Claude models on the hosted platform
   const isOpenAIModel = provider === 'openai'

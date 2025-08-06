@@ -449,6 +449,27 @@
       "when": 1754088313157,
       "tag": "0064_elite_hedge_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1754171385971,
+      "tag": "0065_solid_newton_destine",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1754352106989,
+      "tag": "0066_talented_mentor",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1754424644234,
+      "tag": "0067_safe_bushwacker",
+      "breakpoints": true
     }
   ]
 }

@@ -7,15 +7,13 @@ import { BookOpen, Building2, LibraryBig, ScrollText, Search, Shapes, Workflow }
 import { useParams, useRouter } from 'next/navigation'
 import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import {
-  TemplateCard,
-  TemplateCardSkeleton,
-} from '@/app/workspace/[workspaceId]/templates/components/template-card'
-import { getKeyboardShortcutText } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
+import { cn } from '@/lib/utils'
 import { getAllBlocks } from '@/blocks'
-import { useSearchNavigation } from './hooks/use-search-navigation'
+import { TemplateCard, TemplateCardSkeleton } from '../../../templates/components/template-card'
+import { getKeyboardShortcutText } from '../../hooks/use-keyboard-shortcuts'
+import { type NavigationSection, useSearchNavigation } from './hooks/use-search-navigation'
 
-export interface SearchModalProps {
+interface SearchModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   templates?: TemplateData[]
@@ -25,7 +23,7 @@ export interface SearchModalProps {
   isOnWorkflowPage?: boolean
 }
 
-export interface TemplateData {
+interface TemplateData {
   id: string
   title: string
   description: string
@@ -40,37 +38,40 @@ export interface TemplateData {
   isStarred?: boolean
 }
 
-export interface WorkflowItem {
+interface WorkflowItem {
   id: string
   name: string
   href: string
   isCurrent?: boolean
 }
 
-export interface WorkspaceItem {
+interface WorkspaceItem {
   id: string
   name: string
   href: string
   isCurrent?: boolean
 }
 
-export interface BlockItem {
+interface BlockItem {
   id: string
   name: string
+  description: string
+  longDescription?: string
   icon: React.ComponentType<any>
   bgColor: string
   type: string
 }
 
-export interface ToolItem {
+interface ToolItem {
   id: string
   name: string
+  description: string
   icon: React.ComponentType<any>
   bgColor: string
   type: string
 }
 
-export interface PageItem {
+interface PageItem {
   id: string
   name: string
   icon: React.ComponentType<any>
@@ -78,25 +79,12 @@ export interface PageItem {
   shortcut?: string
 }
 
-export interface DocItem {
+interface DocItem {
   id: string
   name: string
   icon: React.ComponentType<any>
   href: string
   type: 'main' | 'block' | 'tool'
-}
-
-export interface NavigationPosition {
-  sectionIndex: number
-  itemIndex: number
-}
-
-export interface NavigationSection {
-  id: string
-  name: string
-  type: 'grid' | 'list'
-  items: any[]
-  gridCols?: number // How many columns per row for grid sections
 }
 
 export function SearchModal({
@@ -113,12 +101,15 @@ export function SearchModal({
   const router = useRouter()
   const workspaceId = params.workspaceId as string
 
+  // Local state for templates to handle star changes
   const [localTemplates, setLocalTemplates] = useState<TemplateData[]>(templates)
 
+  // Update local templates when props change
   useEffect(() => {
     setLocalTemplates(templates)
   }, [templates])
 
+  // Get all available blocks - only when on workflow page
   const blocks = useMemo(() => {
     if (!isOnWorkflowPage) return []
 
@@ -134,6 +125,8 @@ export function SearchModal({
         (block): BlockItem => ({
           id: block.type,
           name: block.name,
+          description: block.description || '',
+          longDescription: block.longDescription,
           icon: block.icon,
           bgColor: block.bgColor || '#6B7280',
           type: block.type,
@@ -142,6 +135,7 @@ export function SearchModal({
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [isOnWorkflowPage])
 
+  // Get all available tools - only when on workflow page
   const tools = useMemo(() => {
     if (!isOnWorkflowPage) return []
 
@@ -152,6 +146,7 @@ export function SearchModal({
         (block): ToolItem => ({
           id: block.type,
           name: block.name,
+          description: block.description || '',
           icon: block.icon,
           bgColor: block.bgColor || '#6B7280',
           type: block.type,
@@ -160,6 +155,7 @@ export function SearchModal({
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [isOnWorkflowPage])
 
+  // Define pages
   const pages = useMemo(
     (): PageItem[] => [
       {
@@ -186,16 +182,18 @@ export function SearchModal({
         id: 'docs',
         name: 'Docs',
         icon: BookOpen,
-        href: 'https://docs.sim.ai/',
+        href: 'https://docs.simstudio.ai/',
       },
     ],
     [workspaceId]
   )
 
+  // Define docs
   const docs = useMemo((): DocItem[] => {
     const allBlocks = getAllBlocks()
     const docsItems: DocItem[] = []
 
+    // Add individual block/tool docs
     allBlocks.forEach((block) => {
       if (block.docsLink) {
         docsItems.push({
@@ -211,6 +209,7 @@ export function SearchModal({
     return docsItems.sort((a, b) => a.name.localeCompare(b.name))
   }, [])
 
+  // Filter all items based on search query
   const filteredBlocks = useMemo(() => {
     if (!searchQuery.trim()) return blocks
     const query = searchQuery.toLowerCase()
@@ -259,6 +258,7 @@ export function SearchModal({
     return docs.filter((doc) => doc.name.toLowerCase().includes(query))
   }, [docs, searchQuery])
 
+  // Create navigation sections for keyboard navigation
   const navigationSections = useMemo((): NavigationSection[] => {
     const sections: NavigationSection[] = []
 
@@ -268,7 +268,7 @@ export function SearchModal({
         name: 'Blocks',
         type: 'grid',
         items: filteredBlocks,
-        gridCols: 4, // 4 items per row
+        gridCols: filteredBlocks.length, // Single row - all items in one row
       })
     }
 
@@ -278,7 +278,7 @@ export function SearchModal({
         name: 'Tools',
         type: 'grid',
         items: filteredTools,
-        gridCols: 4, // 4 items per row
+        gridCols: filteredTools.length, // Single row - all items in one row
       })
     }
 
@@ -288,10 +288,11 @@ export function SearchModal({
         name: 'Templates',
         type: 'grid',
         items: filteredTemplates,
-        gridCols: 2, // 2 templates per row
+        gridCols: filteredTemplates.length, // Single row - all templates in one row
       })
     }
 
+    // Combine all list items into one section
     const listItems = [
       ...filteredWorkspaces.map((item) => ({ type: 'workspace', data: item })),
       ...filteredWorkflows.map((item) => ({ type: 'workflow', data: item })),
@@ -321,16 +322,21 @@ export function SearchModal({
 
   const { navigate, getCurrentItem, scrollRefs } = useSearchNavigation(navigationSections, open)
 
+  // Clear search when modal closes
   useEffect(() => {
     if (!open) {
       setSearchQuery('')
     }
   }, [open])
 
+  // Handle block/tool click (same as toolbar interaction)
   const handleBlockClick = useCallback(
     (blockType: string) => {
+      // Dispatch a custom event to be caught by the workflow component
       const event = new CustomEvent('add-block-from-toolbar', {
-        detail: { type: blockType },
+        detail: {
+          type: blockType,
+        },
       })
       window.dispatchEvent(event)
       onOpenChange(false)
@@ -338,8 +344,10 @@ export function SearchModal({
     [onOpenChange]
   )
 
+  // Handle page navigation
   const handlePageClick = useCallback(
     (href: string) => {
+      // External links open in new tab
       if (href.startsWith('http')) {
         window.open(href, '_blank', 'noopener,noreferrer')
       } else {
@@ -350,6 +358,7 @@ export function SearchModal({
     [router, onOpenChange]
   )
 
+  // Handle workflow/workspace navigation (same as page navigation)
   const handleNavigationClick = useCallback(
     (href: string) => {
       router.push(href)
@@ -358,8 +367,10 @@ export function SearchModal({
     [router, onOpenChange]
   )
 
+  // Handle docs navigation
   const handleDocsClick = useCallback(
     (href: string) => {
+      // External links open in new tab
       if (href.startsWith('http')) {
         window.open(href, '_blank', 'noopener,noreferrer')
       } else {
@@ -370,6 +381,70 @@ export function SearchModal({
     [router, onOpenChange]
   )
 
+  // Handle page navigation shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle shortcuts when modal is open
+      if (!open) return
+
+      const isMac =
+        typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0
+      const isModifierPressed = isMac ? e.metaKey : e.ctrlKey
+
+      // Check if this is one of our specific shortcuts
+      const isOurShortcut =
+        isModifierPressed &&
+        e.shiftKey &&
+        (e.key.toLowerCase() === 'l' || e.key.toLowerCase() === 'k')
+
+      // Don't trigger other shortcuts if user is typing in the search input
+      // But allow our specific shortcuts to pass through
+      if (!isOurShortcut) {
+        const activeElement = document.activeElement
+        const isEditableElement =
+          activeElement instanceof HTMLInputElement ||
+          activeElement instanceof HTMLTextAreaElement ||
+          activeElement?.hasAttribute('contenteditable')
+
+        if (isEditableElement) return
+      }
+
+      if (isModifierPressed && e.shiftKey) {
+        // Command+Shift+L - Navigate to Logs
+        if (e.key.toLowerCase() === 'l') {
+          e.preventDefault()
+          handlePageClick(`/workspace/${workspaceId}/logs`)
+        }
+        // Command+Shift+K - Navigate to Knowledge
+        else if (e.key.toLowerCase() === 'k') {
+          e.preventDefault()
+          handlePageClick(`/workspace/${workspaceId}/knowledge`)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, handlePageClick, workspaceId])
+
+  // Handle template usage callback (closes modal after template is used)
+  const handleTemplateUsed = useCallback(() => {
+    onOpenChange(false)
+  }, [onOpenChange])
+
+  // Handle star change callback from template card
+  const handleStarChange = useCallback(
+    (templateId: string, isStarred: boolean, newStarCount: number) => {
+      setLocalTemplates((prevTemplates) =>
+        prevTemplates.map((template) =>
+          template.id === templateId ? { ...template, isStarred, stars: newStarCount } : template
+        )
+      )
+    },
+    []
+  )
+
+  // Handle item selection based on current item
   const handleItemSelection = useCallback(() => {
     const current = getCurrentItem()
     if (!current) return
@@ -379,6 +454,7 @@ export function SearchModal({
     if (section.id === 'blocks' || section.id === 'tools') {
       handleBlockClick(item.type)
     } else if (section.id === 'templates') {
+      // Templates don't have direct selection, but we close the modal
       onOpenChange(false)
     } else if (section.id === 'list') {
       switch (item.type) {
@@ -413,6 +489,7 @@ export function SearchModal({
     onOpenChange,
   ])
 
+  // Handle keyboard navigation
   useEffect(() => {
     if (!open) return
 
@@ -448,17 +525,7 @@ export function SearchModal({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [open, navigate, handleItemSelection, onOpenChange])
 
-  const handleStarChange = useCallback(
-    (templateId: string, isStarred: boolean, newStarCount: number) => {
-      setLocalTemplates((prevTemplates) =>
-        prevTemplates.map((template) =>
-          template.id === templateId ? { ...template, isStarred, stars: newStarCount } : template
-        )
-      )
-    },
-    []
-  )
-
+  // Helper function to check if an item is selected
   const isItemSelected = useCallback(
     (sectionId: string, itemIndex: number) => {
       const current = getCurrentItem()
@@ -467,6 +534,7 @@ export function SearchModal({
     [getCurrentItem]
   )
 
+  // Render skeleton cards for loading state
   const renderSkeletonCards = () => {
     return Array.from({ length: 8 }).map((_, index) => (
       <div key={`skeleton-${index}`} className='w-80 flex-shrink-0'>
@@ -480,13 +548,12 @@ export function SearchModal({
       <DialogPortal>
         <DialogOverlay
           className='bg-white/50 dark:bg-black/50'
-          style={{ backdropFilter: 'blur(4.8px)' }}
+          style={{ backdropFilter: 'blur(1.5px)' }}
         />
-        <DialogPrimitive.Content className='data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed top-[50%] left-[50%] z-50 flex h-[580px] w-[700px] translate-x-[-50%] translate-y-[-50%] flex-col gap-0 overflow-hidden rounded-xl border border-border bg-background p-0 shadow-lg duration-200 focus:outline-none focus-visible:outline-none data-[state=closed]:animate-out data-[state=open]:animate-in'>
+        <DialogPrimitive.Content className='data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed top-[50%] left-[50%] z-50 flex h-[580px] w-[700px] translate-x-[-50%] translate-y-[-50%] flex-col gap-0 overflow-hidden rounded-[8px] border border-border bg-background p-0 focus:outline-none focus-visible:outline-none data-[state=closed]:animate-out data-[state=open]:animate-in'>
           <VisuallyHidden.Root>
             <DialogTitle>Search</DialogTitle>
           </VisuallyHidden.Root>
-
           {/* Header with search input */}
           <div className='flex items-center border-b px-6 py-2'>
             <Search className='h-5 w-5 font-sans text-muted-foreground text-xl' />
@@ -494,7 +561,7 @@ export function SearchModal({
               placeholder='Search anything'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className='!font-[300] !text-lg placeholder:!text-lg border-0 bg-transparent font-sans text-muted-foreground leading-10 tracking-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='!font-[300] !text-lg placeholder:!text-lg border-0 bg-transparent font-sans text-muted-foreground leading-10 tracking-normal placeholder:text-muted-foreground focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
               autoFocus
             />
           </div>
@@ -515,36 +582,38 @@ export function SearchModal({
                     ref={(el) => {
                       if (el) scrollRefs.current.set('blocks', el)
                     }}
-                    className='scrollbar-none overflow-x-auto pr-6 pb-1 pl-6'
+                    className='scrollbar-none flex gap-2 overflow-x-auto px-6 pb-1'
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                   >
-                    <div
-                      className='grid auto-cols-max grid-flow-col gap-2'
-                      style={{ gridTemplateRows: 'repeat(2, minmax(0, 1fr))' }}
-                    >
-                      {filteredBlocks.map((block, index) => (
-                        <button
-                          key={block.id}
-                          onClick={() => handleBlockClick(block.type)}
-                          data-nav-item={`blocks-${index}`}
-                          className={`flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl p-2 transition-all duration-200 ${
-                            isItemSelected('blocks', index)
-                              ? 'bg-accent'
-                              : 'bg-secondary hover:bg-secondary/80'
-                          }`}
-                        >
+                    {filteredBlocks.map((block, index) => (
+                      <button
+                        key={block.id}
+                        onClick={() => handleBlockClick(block.type)}
+                        data-nav-item={`blocks-${index}`}
+                        className={`flex h-auto w-[180px] flex-shrink-0 cursor-pointer flex-col items-start gap-2 rounded-[8px] border p-3 transition-all duration-200 ${
+                          isItemSelected('blocks', index)
+                            ? 'border-border bg-secondary/80'
+                            : 'border-border/40 bg-background/60 hover:border-border hover:bg-secondary/80'
+                        }`}
+                      >
+                        <div className='flex items-center gap-2'>
                           <div
-                            className='flex h-5 w-5 items-center justify-center rounded-md'
+                            className='flex h-5 w-5 items-center justify-center rounded-[4px]'
                             style={{ backgroundColor: block.bgColor }}
                           >
-                            <block.icon className='h-4 w-4 text-white' />
+                            <block.icon className='!h-3.5 !w-3.5 text-white' />
                           </div>
-                          <span className='font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                          <span className='font-medium font-sans text-foreground text-sm leading-none tracking-normal'>
                             {block.name}
                           </span>
-                        </button>
-                      ))}
-                    </div>
+                        </div>
+                        {(block.longDescription || block.description) && (
+                          <p className='line-clamp-2 text-left text-muted-foreground text-xs'>
+                            {block.longDescription || block.description}
+                          </p>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -559,36 +628,38 @@ export function SearchModal({
                     ref={(el) => {
                       if (el) scrollRefs.current.set('tools', el)
                     }}
-                    className='scrollbar-none overflow-x-auto pr-6 pb-1 pl-6'
+                    className='scrollbar-none flex gap-2 overflow-x-auto px-6 pb-1'
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                   >
-                    <div
-                      className='grid auto-cols-max grid-flow-col gap-2'
-                      style={{ gridTemplateRows: 'repeat(2, minmax(0, 1fr))' }}
-                    >
-                      {filteredTools.map((tool, index) => (
-                        <button
-                          key={tool.id}
-                          onClick={() => handleBlockClick(tool.type)}
-                          data-nav-item={`tools-${index}`}
-                          className={`flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl p-2 transition-all duration-200 ${
-                            isItemSelected('tools', index)
-                              ? 'bg-accent'
-                              : 'bg-secondary hover:bg-secondary/80'
-                          }`}
-                        >
+                    {filteredTools.map((tool, index) => (
+                      <button
+                        key={tool.id}
+                        onClick={() => handleBlockClick(tool.type)}
+                        data-nav-item={`tools-${index}`}
+                        className={`flex h-auto w-[180px] flex-shrink-0 cursor-pointer flex-col items-start gap-2 rounded-[8px] border p-3 transition-all duration-200 ${
+                          isItemSelected('tools', index)
+                            ? 'border-border bg-secondary/80'
+                            : 'border-border/40 bg-background/60 hover:border-border hover:bg-secondary/80'
+                        }`}
+                      >
+                        <div className='flex items-center gap-2'>
                           <div
-                            className='flex h-5 w-5 items-center justify-center rounded-md'
+                            className='flex h-5 w-5 items-center justify-center rounded-[4px]'
                             style={{ backgroundColor: tool.bgColor }}
                           >
-                            <tool.icon className='h-4 w-4 text-white' />
+                            <tool.icon className='!h-3.5 !w-3.5 text-white' />
                           </div>
-                          <span className='font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                          <span className='font-medium font-sans text-foreground text-sm leading-none tracking-normal'>
                             {tool.name}
                           </span>
-                        </button>
-                      ))}
-                    </div>
+                        </div>
+                        {tool.description && (
+                          <p className='line-clamp-2 text-left text-muted-foreground text-xs'>
+                            {tool.description}
+                          </p>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -613,7 +684,7 @@ export function SearchModal({
                             key={template.id}
                             data-nav-item={`templates-${index}`}
                             className={`w-80 flex-shrink-0 rounded-lg transition-all duration-200 ${
-                              isItemSelected('templates', index) ? 'bg-accent' : ''
+                              isItemSelected('templates', index) ? 'opacity-75' : 'opacity-100'
                             }`}
                           >
                             <TemplateCard
@@ -627,7 +698,7 @@ export function SearchModal({
                               iconColor={template.iconColor}
                               state={template.state}
                               isStarred={template.isStarred}
-                              onTemplateUsed={() => onOpenChange(false)}
+                              onTemplateUsed={handleTemplateUsed}
                               onStarChange={handleStarChange}
                             />
                           </div>
@@ -661,7 +732,7 @@ export function SearchModal({
                                   : handleNavigationClick(workspace.href)
                               }
                               data-nav-item={`list-${globalIndex}`}
-                              className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                              className={`flex h-10 w-full items-center gap-3 rounded-[8px] px-3 py-2 transition-colors focus:outline-none ${
                                 isItemSelected('list', globalIndex)
                                   ? 'bg-accent text-accent-foreground'
                                   : 'hover:bg-accent/60 focus:bg-accent/60'
@@ -699,7 +770,7 @@ export function SearchModal({
                                   : handleNavigationClick(workflow.href)
                               }
                               data-nav-item={`list-${globalIndex}`}
-                              className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                              className={`flex h-10 w-full items-center gap-3 rounded-[8px] px-3 py-2 transition-colors focus:outline-none ${
                                 isItemSelected('list', globalIndex)
                                   ? 'bg-accent text-accent-foreground'
                                   : 'hover:bg-accent/60 focus:bg-accent/60'
@@ -734,7 +805,7 @@ export function SearchModal({
                               key={page.id}
                               onClick={() => handlePageClick(page.href)}
                               data-nav-item={`list-${globalIndex}`}
-                              className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                              className={`flex h-10 w-full items-center gap-3 rounded-[8px] px-3 py-2 transition-colors focus:outline-none ${
                                 isItemSelected('list', globalIndex)
                                   ? 'bg-accent text-accent-foreground'
                                   : 'hover:bg-accent/60 focus:bg-accent/60'
@@ -746,15 +817,7 @@ export function SearchModal({
                               <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
                                 {page.name}
                               </span>
-                              {page.shortcut && (
-                                <kbd className='flex h-6 w-10 items-center justify-center rounded-[5px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[#454545]'>
-                                  <span className='flex items-center justify-center gap-[1px] pt-[1px]'>
-                                    <span className='text-lg'>⌘</span>
-                                    <span className='pb-[4px] text-lg'>⇧</span>
-                                    <span className='text-xs'>{page.shortcut.slice(-1)}</span>
-                                  </span>
-                                </kbd>
-                              )}
+                              {page.shortcut && <KeyboardShortcut shortcut={page.shortcut} />}
                             </button>
                           )
                         })}
@@ -780,7 +843,7 @@ export function SearchModal({
                               key={doc.id}
                               onClick={() => handleDocsClick(doc.href)}
                               data-nav-item={`list-${globalIndex}`}
-                              className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                              className={`flex h-10 w-full items-center gap-3 rounded-[8px] px-3 py-2 transition-colors focus:outline-none ${
                                 isItemSelected('list', globalIndex)
                                   ? 'bg-accent text-accent-foreground'
                                   : 'hover:bg-accent/60 focus:bg-accent/60'
@@ -820,5 +883,48 @@ export function SearchModal({
         </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>
+  )
+}
+
+// Keyboard Shortcut Component
+interface KeyboardShortcutProps {
+  shortcut: string
+  className?: string
+}
+
+const KeyboardShortcut = ({ shortcut, className }: KeyboardShortcutProps) => {
+  const parts = shortcut.split('+')
+
+  // Helper function to determine if a part is a symbol that should be larger
+  const isSymbol = (part: string) => {
+    return ['⌘', '⇧', '⌥', '⌃'].includes(part)
+  }
+
+  // Helper function to determine if a part is the shift symbol that needs special positioning
+  const isShiftSymbol = (part: string) => {
+    return part === '⇧'
+  }
+
+  return (
+    <kbd
+      className={cn(
+        'flex h-6 w-9 items-center justify-center rounded-[5px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[#454545]',
+        className
+      )}
+    >
+      <span className='flex items-center justify-center gap-[1px] pt-[1px]'>
+        {parts.map((part, index) => (
+          <span
+            key={index}
+            className={cn(
+              isSymbol(part) ? 'text-[17px]' : 'text-xs',
+              isShiftSymbol(part) && 'pb-[4px]'
+            )}
+          >
+            {part}
+          </span>
+        ))}
+      </span>
+    </kbd>
   )
 }

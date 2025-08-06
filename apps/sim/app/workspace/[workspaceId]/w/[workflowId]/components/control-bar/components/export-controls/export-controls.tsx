@@ -46,7 +46,7 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
     setIsExporting(true)
     try {
       const yamlContent = getYaml()
-      const filename = `${currentWorkflow.name.replace(/[^a-z0-9]/gi, '_')}_workflow.yaml`
+      const filename = `${currentWorkflow.name.replace(/[^a-z0-9]/gi, '-')}.yaml`
 
       downloadFile(yamlContent, filename, 'text/yaml')
       logger.info('Workflow exported as YAML')

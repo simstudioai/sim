@@ -59,27 +59,21 @@ docker compose -f docker-compose.prod.yml up -d
 
 Access the application at [http://localhost:3000/](http://localhost:3000/)
 
-#### Using Local Models
+#### Using Local Models with Ollama
 
-To use local models with Sim:
-
-1. Pull models using our helper script:
+Run Sim with local AI models using [Ollama](https://ollama.ai) - no external APIs required:
 
 ```bash
-./apps/sim/scripts/ollama_docker.sh pull <model_name>
+# Start with GPU support (automatically downloads gemma3:4b model)
+docker compose -f docker-compose.ollama.yml --profile setup up -d
+
+# For CPU-only systems:
+docker compose -f docker-compose.ollama.yml --profile cpu --profile setup up -d
 ```
 
-2. Start Sim with local model support:
-
+Wait for the model to download, then visit [http://localhost:3000](http://localhost:3000). Add more models with:
 ```bash
-# With NVIDIA GPU support
-docker compose --profile local-gpu -f docker-compose.ollama.yml up -d
-
-# Without GPU (CPU only)
-docker compose --profile local-cpu -f docker-compose.ollama.yml up -d
-
-# If hosting on a server, update the environment variables in the docker-compose.prod.yml file to include the server's public IP then start again (OLLAMA_URL to i.e. http://1.1.1.1:11434)
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.1:8b
 ```
 
 ### Option 3: Dev Containers

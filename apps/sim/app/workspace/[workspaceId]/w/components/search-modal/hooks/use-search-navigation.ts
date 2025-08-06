@@ -1,20 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { NavigationPosition, NavigationSection } from '../search-modal'
 
-export function useSearchNavigation(sections: NavigationSection[], open: boolean) {
+export interface NavigationSection {
+  id: string
+  name: string
+  type: 'grid' | 'list'
+  items: any[]
+  gridCols?: number // How many columns per row for grid sections
+}
+
+export interface NavigationPosition {
+  sectionIndex: number
+  itemIndex: number
+}
+
+export function useSearchNavigation(sections: NavigationSection[], isOpen: boolean) {
   const [position, setPosition] = useState<NavigationPosition>({ sectionIndex: 0, itemIndex: 0 })
   const scrollRefs = useRef<Map<string, HTMLElement>>(new Map())
-  const lastItemIndex = useRef<Map<string, number>>(new Map())
+  const lastPositionInSection = useRef<Map<string, number>>(new Map())
 
+  // Reset position when sections change or modal opens
   useEffect(() => {
-    if (open) {
+    if (sections.length > 0) {
       setPosition({ sectionIndex: 0, itemIndex: 0 })
     }
-  }, [open, sections])
+  }, [sections, isOpen])
 
   const getCurrentItem = useCallback(() => {
+    if (sections.length === 0 || position.sectionIndex >= sections.length) return null
+
     const section = sections[position.sectionIndex]
-    if (!section || position.itemIndex >= section.items.length) return null
+    if (position.itemIndex >= section.items.length) return null
 
     return {
       section,
@@ -25,147 +40,180 @@ export function useSearchNavigation(sections: NavigationSection[], open: boolean
 
   const navigate = useCallback(
     (direction: 'up' | 'down' | 'left' | 'right') => {
-      setPosition((prev) => {
-        const section = sections[prev.sectionIndex]
-        if (!section) return prev
+      if (sections.length === 0) return
 
-        switch (direction) {
-          case 'down':
-            if (section.type === 'grid' && section.gridCols) {
-              const totalRows = section.id === 'templates' ? 1 : 2
-              const currentCol = Math.floor(prev.itemIndex / totalRows)
-              const currentRow = prev.itemIndex % totalRows
+      const currentSection = sections[position.sectionIndex]
+      if (!currentSection) return
 
-              if (currentRow < totalRows - 1) {
-                const nextIndex = currentCol * totalRows + (currentRow + 1)
-                if (nextIndex < section.items.length) {
-                  return { ...prev, itemIndex: nextIndex }
-                }
-              }
-            } else if (section.type === 'list') {
-              if (prev.itemIndex < section.items.length - 1) {
-                return { ...prev, itemIndex: prev.itemIndex + 1 }
-              }
-            }
-            if (prev.sectionIndex < sections.length - 1) {
-              const nextSection = sections[prev.sectionIndex + 1]
+      const isGridSection = currentSection.type === 'grid'
+      const gridCols = currentSection.gridCols || 1
 
-              lastItemIndex.current.set(section.id, prev.itemIndex)
+      setPosition((prevPosition) => {
+        let newSectionIndex = prevPosition.sectionIndex
+        let newItemIndex = prevPosition.itemIndex
 
-              const rememberedIndex = lastItemIndex.current.get(nextSection.id)
-              const targetIndex =
-                rememberedIndex !== undefined
-                  ? Math.min(rememberedIndex, nextSection.items.length - 1)
-                  : 0
+        if (direction === 'up') {
+          if (isGridSection) {
+            // In grid: up moves to previous row in same section, or previous section
+            if (newItemIndex >= gridCols) {
+              newItemIndex -= gridCols
+            } else if (newSectionIndex > 0) {
+              // Save current position before moving to previous section
+              lastPositionInSection.current.set(currentSection.id, newItemIndex)
 
-              return { sectionIndex: prev.sectionIndex + 1, itemIndex: targetIndex }
-            }
-            return prev
+              // Move to previous section
+              newSectionIndex -= 1
+              const prevSection = sections[newSectionIndex]
 
-          case 'up':
-            if (section.type === 'grid' && section.gridCols) {
-              const totalRows = section.id === 'templates' ? 1 : 2
-              const currentCol = Math.floor(prev.itemIndex / totalRows)
-              const currentRow = prev.itemIndex % totalRows
-
-              if (currentRow > 0) {
-                const prevIndex = currentCol * totalRows + (currentRow - 1)
-                return { ...prev, itemIndex: prevIndex }
-              }
-            } else if (section.type === 'list') {
-              if (prev.itemIndex > 0) {
-                return { ...prev, itemIndex: prev.itemIndex - 1 }
+              // Restore last position in that section, or go to end
+              const lastPos = lastPositionInSection.current.get(prevSection.id)
+              if (lastPos !== undefined && lastPos < prevSection.items.length) {
+                newItemIndex = lastPos
+              } else {
+                newItemIndex = Math.max(0, prevSection.items.length - 1)
               }
             }
-            if (prev.sectionIndex > 0) {
-              const prevSection = sections[prev.sectionIndex - 1]
+          } else {
+            // In list: up moves to previous item, or previous section
+            if (newItemIndex > 0) {
+              newItemIndex -= 1
+            } else if (newSectionIndex > 0) {
+              // Save current position before moving to previous section
+              lastPositionInSection.current.set(currentSection.id, newItemIndex)
 
-              lastItemIndex.current.set(section.id, prev.itemIndex)
+              newSectionIndex -= 1
+              const prevSection = sections[newSectionIndex]
 
-              const rememberedIndex = lastItemIndex.current.get(prevSection.id)
-              const targetIndex =
-                rememberedIndex !== undefined
-                  ? Math.min(rememberedIndex, prevSection.items.length - 1)
-                  : prevSection.items.length - 1
-
-              return { sectionIndex: prev.sectionIndex - 1, itemIndex: targetIndex }
-            }
-            return prev
-
-          case 'right':
-            if (section.type === 'grid' && section.gridCols) {
-              const totalRows = section.id === 'templates' ? 1 : 2
-              const currentCol = Math.floor(prev.itemIndex / totalRows)
-              const currentRow = prev.itemIndex % totalRows
-              const totalCols = Math.ceil(section.items.length / totalRows)
-
-              if (currentCol < totalCols - 1) {
-                const nextIndex = (currentCol + 1) * totalRows + currentRow
-                if (nextIndex < section.items.length) {
-                  return { ...prev, itemIndex: nextIndex }
-                }
-              }
-            } else if (section.type === 'list') {
-              if (prev.itemIndex < section.items.length - 1) {
-                return { ...prev, itemIndex: prev.itemIndex + 1 }
+              // Restore last position in that section, or go to end
+              const lastPos = lastPositionInSection.current.get(prevSection.id)
+              if (lastPos !== undefined && lastPos < prevSection.items.length) {
+                newItemIndex = lastPos
+              } else {
+                newItemIndex = Math.max(0, prevSection.items.length - 1)
               }
             }
-            return prev
+          }
+        } else if (direction === 'down') {
+          if (isGridSection) {
+            // In grid: down moves to next row in same section, or next section
+            const maxIndexInCurrentRow = Math.min(
+              newItemIndex + gridCols,
+              currentSection.items.length - 1
+            )
 
-          case 'left':
-            if (section.type === 'grid' && section.gridCols) {
-              const totalRows = section.id === 'templates' ? 1 : 2
-              const currentCol = Math.floor(prev.itemIndex / totalRows)
-              const currentRow = prev.itemIndex % totalRows
+            if (newItemIndex + gridCols < currentSection.items.length) {
+              newItemIndex += gridCols
+            } else if (newSectionIndex < sections.length - 1) {
+              // Save current position before moving to next section
+              lastPositionInSection.current.set(currentSection.id, newItemIndex)
 
-              if (currentCol > 0) {
-                const prevIndex = (currentCol - 1) * totalRows + currentRow
-                return { ...prev, itemIndex: prevIndex }
-              }
-            } else if (section.type === 'list') {
-              if (prev.itemIndex > 0) {
-                return { ...prev, itemIndex: prev.itemIndex - 1 }
+              // Move to next section
+              newSectionIndex += 1
+              const nextSection = sections[newSectionIndex]
+
+              // Restore last position in next section, or start at beginning
+              const lastPos = lastPositionInSection.current.get(nextSection.id)
+              if (lastPos !== undefined && lastPos < nextSection.items.length) {
+                newItemIndex = lastPos
+              } else {
+                newItemIndex = 0
               }
             }
-            return prev
+          } else {
+            // In list: down moves to next item, or next section
+            if (newItemIndex < currentSection.items.length - 1) {
+              newItemIndex += 1
+            } else if (newSectionIndex < sections.length - 1) {
+              // Save current position before moving to next section
+              lastPositionInSection.current.set(currentSection.id, newItemIndex)
 
-          default:
-            return prev
+              newSectionIndex += 1
+              const nextSection = sections[newSectionIndex]
+
+              // Restore last position in next section, or start at beginning
+              const lastPos = lastPositionInSection.current.get(nextSection.id)
+              if (lastPos !== undefined && lastPos < nextSection.items.length) {
+                newItemIndex = lastPos
+              } else {
+                newItemIndex = 0
+              }
+            }
+          }
+        } else if (direction === 'left' && isGridSection) {
+          // In grid: left moves to previous item in same row
+          if (newItemIndex > 0) {
+            const currentRow = Math.floor(newItemIndex / gridCols)
+            const newIndex = newItemIndex - 1
+            const newRow = Math.floor(newIndex / gridCols)
+
+            // Only move if we stay in the same row
+            if (currentRow === newRow) {
+              newItemIndex = newIndex
+            }
+          }
+        } else if (direction === 'right' && isGridSection) {
+          // In grid: right moves to next item in same row
+          if (newItemIndex < currentSection.items.length - 1) {
+            const currentRow = Math.floor(newItemIndex / gridCols)
+            const newIndex = newItemIndex + 1
+            const newRow = Math.floor(newIndex / gridCols)
+
+            // Only move if we stay in the same row
+            if (currentRow === newRow) {
+              newItemIndex = newIndex
+            }
+          }
         }
+
+        return { sectionIndex: newSectionIndex, itemIndex: newItemIndex }
       })
     },
-    [sections]
+    [sections, position]
   )
 
-  const scrollIntoView = useCallback(() => {
+  // Scroll selected item into view
+  useEffect(() => {
     const current = getCurrentItem()
     if (!current) return
 
-    const container = scrollRefs.current.get(current.section.id)
-    if (!container) return
+    const { section, position: currentPos } = current
+    const scrollContainer = scrollRefs.current.get(section.id)
 
-    const itemSelector = `[data-nav-item="${current.section.id}-${current.position.itemIndex}"]`
-    const element = container.querySelector(itemSelector) as HTMLElement
-    if (!element) return
+    if (scrollContainer) {
+      const itemElement = scrollContainer.querySelector(
+        `[data-nav-item="${section.id}-${currentPos.itemIndex}"]`
+      ) as HTMLElement
 
-    element.scrollIntoView({
-      behavior: 'smooth',
-      block: 'nearest',
-      inline: 'center',
-    })
-  }, [getCurrentItem])
+      if (itemElement) {
+        // For horizontal scrolling sections (blocks/tools)
+        if (section.type === 'grid') {
+          const containerRect = scrollContainer.getBoundingClientRect()
+          const itemRect = itemElement.getBoundingClientRect()
 
-  useEffect(() => {
-    if (open) {
-      const timer = setTimeout(scrollIntoView, 10)
-      return () => clearTimeout(timer)
+          // Check if item is outside the visible area horizontally
+          if (itemRect.left < containerRect.left) {
+            scrollContainer.scrollTo({
+              left: scrollContainer.scrollLeft - (containerRect.left - itemRect.left + 20),
+              behavior: 'smooth',
+            })
+          } else if (itemRect.right > containerRect.right) {
+            scrollContainer.scrollTo({
+              left: scrollContainer.scrollLeft + (itemRect.right - containerRect.right + 20),
+              behavior: 'smooth',
+            })
+          }
+        }
+
+        // Always ensure vertical visibility
+        itemElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
     }
-  }, [position, open, scrollIntoView])
+  }, [getCurrentItem, position])
 
   return {
-    position,
     navigate,
     getCurrentItem,
     scrollRefs,
+    position,
   }
 }

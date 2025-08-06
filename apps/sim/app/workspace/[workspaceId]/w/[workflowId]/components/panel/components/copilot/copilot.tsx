@@ -1,23 +1,23 @@
 'use client'
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { Bot, ChevronDown, History, MessageSquarePlus, MoreHorizontal, Trash2 } from 'lucide-react'
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  ScrollArea,
-} from '@/components/ui'
+import { ArrowDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { LoadingAgent } from '@/components/ui/loading-agent'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   CheckpointPanel,
-  CopilotModal,
+  CopilotMessage,
   CopilotWelcome,
-  ProfessionalInput,
-  ProfessionalMessage,
+  UserInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
+import type {
+  MessageFileAttachment,
+  UserInputRef,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
+import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
+import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -25,380 +25,327 @@ const logger = createLogger('Copilot')
 
 interface CopilotProps {
   panelWidth: number
-  isFullscreen?: boolean
-  onFullscreenToggle?: (fullscreen: boolean) => void
-  fullscreenInput?: string
-  onFullscreenInputChange?: (input: string) => void
 }
 
 interface CopilotRef {
-  clearMessages: () => void
-  startNewChat: () => void
+  createNewChat: () => void
 }
 
-export const Copilot = forwardRef<CopilotRef, CopilotProps>(
-  (
-    {
-      panelWidth,
-      isFullscreen = false,
-      onFullscreenToggle,
-      fullscreenInput = '',
-      onFullscreenInputChange,
-    },
-    ref
-  ) => {
-    const scrollAreaRef = useRef<HTMLDivElement>(null)
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-    const [showCheckpoints, setShowCheckpoints] = useState(false)
+export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref) => {
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const userInputRef = useRef<UserInputRef>(null)
+  const [showCheckpoints] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
+  const lastWorkflowIdRef = useRef<string | null>(null)
+  const hasMountedRef = useRef(false)
 
-    const { activeWorkflowId } = useWorkflowRegistry()
+  // Scroll state
+  const [isNearBottom, setIsNearBottom] = useState(true)
+  const [showScrollButton, setShowScrollButton] = useState(false)
 
-    // Use the new copilot store
-    const {
-      currentChat,
-      chats,
-      messages,
-      isLoading,
-      isLoadingChats,
-      isSendingMessage,
-      error,
-      workflowId,
-      mode,
-      setWorkflowId,
-      validateCurrentChat,
-      selectChat,
-      createNewChat,
-      deleteChat,
-      sendMessage,
-      clearMessages,
-      clearError,
-      setMode,
-    } = useCopilotStore()
+  const { activeWorkflowId } = useWorkflowRegistry()
 
-    // Sync workflow ID with store
-    useEffect(() => {
-      if (activeWorkflowId !== workflowId) {
-        setWorkflowId(activeWorkflowId)
+  // Use preview store to track seen previews
+  const { isToolCallSeen, markToolCallAsSeen } = usePreviewStore()
+
+  // Use the new copilot store
+  const {
+    messages,
+    isLoadingChats,
+    isSendingMessage,
+    isAborting,
+    mode,
+    inputValue,
+    sendMessage,
+    abortMessage,
+    createNewChat,
+    setMode,
+    setInputValue,
+    chatsLoadedForWorkflow,
+    setWorkflowId: setCopilotWorkflowId,
+    loadChats,
+  } = useCopilotStore()
+
+  // Force fresh initialization on mount (handles hot reload)
+  useEffect(() => {
+    if (activeWorkflowId && !hasMountedRef.current) {
+      hasMountedRef.current = true
+      // Reset state to ensure fresh load, especially important for hot reload
+      setIsInitialized(false)
+      lastWorkflowIdRef.current = null
+
+      // Force reload chats for current workflow
+      setCopilotWorkflowId(activeWorkflowId)
+      loadChats(true) // Force refresh
+    }
+  }, [activeWorkflowId, setCopilotWorkflowId, loadChats])
+
+  // Initialize the component - only on mount and genuine workflow changes
+  useEffect(() => {
+    // If workflow actually changed (not initial mount), reset initialization
+    if (
+      activeWorkflowId &&
+      activeWorkflowId !== lastWorkflowIdRef.current &&
+      hasMountedRef.current
+    ) {
+      setIsInitialized(false)
+      lastWorkflowIdRef.current = activeWorkflowId
+    }
+
+    // Set as initialized once we have the workflow and chats are ready
+    if (
+      activeWorkflowId &&
+      !isLoadingChats &&
+      chatsLoadedForWorkflow === activeWorkflowId &&
+      !isInitialized
+    ) {
+      setIsInitialized(true)
+    }
+  }, [activeWorkflowId, isLoadingChats, chatsLoadedForWorkflow, isInitialized])
+
+  // Clear any existing preview when component mounts or workflow changes
+  useEffect(() => {
+    // Preview clearing is now handled automatically by the copilot store
+  }, [activeWorkflowId])
+
+  // Scroll to bottom function
+  const scrollToBottom = useCallback(() => {
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector(
+        '[data-radix-scroll-area-viewport]'
+      )
+      if (scrollContainer) {
+        scrollContainer.scrollTo({
+          top: scrollContainer.scrollHeight,
+          behavior: 'smooth',
+        })
       }
-    }, [activeWorkflowId, workflowId, setWorkflowId])
+    }
+  }, [])
 
-    // Safety check: Clear any chat that doesn't belong to current workflow
-    useEffect(() => {
-      if (activeWorkflowId && workflowId === activeWorkflowId) {
-        // Validate that current chat belongs to this workflow
-        validateCurrentChat()
+  // Handle scroll events to track user position
+  const handleScroll = useCallback(() => {
+    const scrollArea = scrollAreaRef.current
+    if (!scrollArea) return
+
+    // Find the viewport element inside the ScrollArea
+    const viewport = scrollArea.querySelector('[data-radix-scroll-area-viewport]')
+    if (!viewport) return
+
+    const { scrollTop, scrollHeight, clientHeight } = viewport
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+
+    // Consider "near bottom" if within 100px of bottom
+    const nearBottom = distanceFromBottom <= 100
+    setIsNearBottom(nearBottom)
+    setShowScrollButton(!nearBottom)
+  }, [])
+
+  // Attach scroll listener
+  useEffect(() => {
+    const scrollArea = scrollAreaRef.current
+    if (!scrollArea) return
+
+    // Find the viewport element inside the ScrollArea
+    const viewport = scrollArea.querySelector('[data-radix-scroll-area-viewport]')
+    if (!viewport) return
+
+    viewport.addEventListener('scroll', handleScroll, { passive: true })
+
+    // Also listen for scrollend event if available (for smooth scrolling)
+    if ('onscrollend' in viewport) {
+      viewport.addEventListener('scrollend', handleScroll, { passive: true })
+    }
+
+    // Initial scroll state check with small delay to ensure DOM is ready
+    setTimeout(handleScroll, 100)
+
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll)
+      if ('onscrollend' in viewport) {
+        viewport.removeEventListener('scrollend', handleScroll)
       }
-    }, [currentChat, chats, activeWorkflowId, workflowId, validateCurrentChat])
+    }
+  }, [handleScroll])
 
-    // Auto-scroll to bottom when new messages are added
-    useEffect(() => {
-      if (scrollAreaRef.current) {
-        const scrollContainer = scrollAreaRef.current.querySelector(
-          '[data-radix-scroll-area-viewport]'
+  // Smart auto-scroll: only scroll if user is near bottom or for user messages
+  useEffect(() => {
+    if (messages.length === 0) return
+
+    const lastMessage = messages[messages.length - 1]
+    const isNewUserMessage = lastMessage?.role === 'user'
+
+    // Always scroll for new user messages, or only if near bottom for assistant messages
+    if ((isNewUserMessage || isNearBottom) && scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector(
+        '[data-radix-scroll-area-viewport]'
+      )
+      if (scrollContainer) {
+        scrollContainer.scrollTo({
+          top: scrollContainer.scrollHeight,
+          behavior: 'smooth',
+        })
+        // Let the scroll event handler update the state naturally after animation completes
+      }
+    }
+  }, [messages, isNearBottom])
+
+  // Auto-scroll to bottom when chat loads in
+  useEffect(() => {
+    if (isInitialized && messages.length > 0) {
+      scrollToBottom()
+    }
+  }, [isInitialized, messages.length, scrollToBottom])
+
+  // Cleanup on component unmount (page refresh, navigation, etc.)
+  useEffect(() => {
+    return () => {
+      // Abort any active message streaming and terminate active tools
+      if (isSendingMessage) {
+        abortMessage()
+        logger.info('Aborted active message streaming due to component unmount')
+      }
+    }
+  }, [isSendingMessage, abortMessage])
+
+  // Watch for completed preview_workflow tool calls in the new format
+  useEffect(() => {
+    if (!messages.length) return
+
+    const lastMessage = messages[messages.length - 1]
+    if (lastMessage.role !== 'assistant' || !lastMessage.toolCalls) return
+
+    // Check for completed preview_workflow tool calls
+    const previewToolCall = lastMessage.toolCalls.find(
+      (tc) =>
+        tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW &&
+        tc.state === 'completed' &&
+        !isToolCallSeen(tc.id)
+    )
+
+    if (previewToolCall?.result) {
+      logger.info('Preview workflow completed via native SSE - handling result')
+      // Mark as seen to prevent duplicate processing
+      markToolCallAsSeen(previewToolCall.id)
+      // Tool call handling logic would go here if needed
+    }
+  }, [messages, isToolCallSeen, markToolCallAsSeen])
+
+  // Handle new chat creation
+  const handleStartNewChat = useCallback(() => {
+    // Preview clearing is now handled automatically by the copilot store
+    createNewChat()
+    logger.info('Started new chat')
+
+    // Focus the input after creating new chat
+    setTimeout(() => {
+      userInputRef.current?.focus()
+    }, 100) // Small delay to ensure DOM updates are complete
+  }, [createNewChat])
+
+  // Expose functions to parent
+  useImperativeHandle(
+    ref,
+    () => ({
+      createNewChat: handleStartNewChat,
+    }),
+    [handleStartNewChat]
+  )
+
+  // Handle message submission
+  const handleSubmit = useCallback(
+    async (query: string, fileAttachments?: MessageFileAttachment[]) => {
+      if (!query || isSendingMessage || !activeWorkflowId) return
+
+      try {
+        await sendMessage(query, { stream: true, fileAttachments })
+        logger.info(
+          'Sent message:',
+          query,
+          fileAttachments ? `with ${fileAttachments.length} attachments` : ''
         )
-        if (scrollContainer) {
-          scrollContainer.scrollTop = scrollContainer.scrollHeight
-        }
+      } catch (error) {
+        logger.error('Failed to send message:', error)
       }
-    }, [messages])
+    },
+    [isSendingMessage, activeWorkflowId, sendMessage]
+  )
 
-    // Handle chat deletion
-    const handleDeleteChat = useCallback(
-      async (chatId: string) => {
-        try {
-          await deleteChat(chatId)
-          logger.info('Chat deleted successfully')
-        } catch (error) {
-          logger.error('Error deleting chat:', error)
-        }
-      },
-      [deleteChat]
-    )
-
-    // Handle new chat creation
-    const handleStartNewChat = useCallback(() => {
-      clearMessages()
-      logger.info('Started new chat')
-    }, [clearMessages])
-
-    // Expose functions to parent
-    useImperativeHandle(
-      ref,
-      () => ({
-        clearMessages: handleStartNewChat,
-        startNewChat: handleStartNewChat,
-      }),
-      [handleStartNewChat]
-    )
-
-    // Handle message submission
-    const handleSubmit = useCallback(
-      async (query: string) => {
-        if (!query || isSendingMessage || !activeWorkflowId) return
-
-        try {
-          await sendMessage(query, { stream: true })
-          logger.info('Sent message:', query)
-        } catch (error) {
-          logger.error('Failed to send message:', error)
-        }
-      },
-      [isSendingMessage, activeWorkflowId, sendMessage]
-    )
-
-    // Handle modal message sending
-    const handleModalSendMessage = useCallback(
-      async (message: string) => {
-        await handleSubmit(message)
-      },
-      [handleSubmit]
-    )
-
-    return (
-      <>
-        <div
-          className='flex h-full max-w-full flex-col overflow-hidden'
-          style={{ width: `${panelWidth}px`, maxWidth: `${panelWidth}px` }}
-        >
-          {/* Show loading state with centered pulsing agent icon */}
-          {isLoadingChats || isLoading ? (
-            <div className='flex h-full items-center justify-center'>
-              <div className='flex items-center justify-center'>
-                <Bot className='h-16 w-16 animate-pulse text-muted-foreground' />
-              </div>
+  return (
+    <>
+      <div className='flex h-full flex-col overflow-hidden'>
+        {/* Show loading state until fully initialized */}
+        {!isInitialized ? (
+          <div className='flex h-full w-full items-center justify-center'>
+            <div className='flex flex-col items-center gap-3'>
+              <LoadingAgent size='md' />
+              <p className='text-muted-foreground text-sm'>Loading chat history...</p>
             </div>
-          ) : (
-            <>
-              {/* Header with Chat Title and Management */}
-              <div className='border-b p-4'>
-                <div className='flex items-center justify-between'>
-                  {/* Chat Title Dropdown */}
-                  <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        className='h-8 min-w-0 flex-1 justify-start px-3 hover:bg-accent/50'
-                      >
-                        <span className='truncate'>
-                          {/* Only show chat title if we have verified workflow match */}
-                          {currentChat &&
-                          workflowId === activeWorkflowId &&
-                          chats.some((chat) => chat.id === currentChat.id)
-                            ? currentChat.title || 'New Chat'
-                            : 'New Chat'}
-                        </span>
-                        <ChevronDown className='ml-2 h-4 w-4 shrink-0' />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align='start'
-                      className='z-[110] w-72 border-border/50 bg-background/95 shadow-lg backdrop-blur-sm'
-                      sideOffset={8}
-                      onMouseLeave={() => setIsDropdownOpen(false)}
-                    >
-                      {isLoadingChats ? (
-                        <div className='px-4 py-3 text-muted-foreground text-sm'>
-                          Loading chats...
-                        </div>
-                      ) : chats.length === 0 ? (
-                        <div className='px-4 py-3 text-muted-foreground text-sm'>No chats yet</div>
-                      ) : (
-                        // Sort chats by updated date (most recent first) for display
-                        [...chats]
-                          .sort(
-                            (a, b) =>
-                              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-                          )
-                          .map((chat) => (
-                            <div key={chat.id} className='group flex items-center gap-2 px-2 py-1'>
-                              <DropdownMenuItem asChild>
-                                <div
-                                  onClick={() => {
-                                    selectChat(chat)
-                                    setIsDropdownOpen(false)
-                                  }}
-                                  className={`min-w-0 flex-1 cursor-pointer rounded-lg px-3 py-2.5 transition-all ${
-                                    currentChat?.id === chat.id
-                                      ? 'bg-accent/80 text-accent-foreground'
-                                      : 'hover:bg-accent/40'
-                                  }`}
-                                >
-                                  <div className='min-w-0'>
-                                    <div className='truncate font-medium text-sm leading-tight'>
-                                      {chat.title || 'Untitled Chat'}
-                                    </div>
-                                    <div className='mt-0.5 truncate text-muted-foreground text-xs'>
-                                      {new Date(chat.updatedAt).toLocaleDateString()} at{' '}
-                                      {new Date(chat.updatedAt).toLocaleTimeString([], {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                      })}{' '}
-                                      • {chat.messageCount}
-                                    </div>
-                                  </div>
-                                </div>
-                              </DropdownMenuItem>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant='ghost'
-                                    size='sm'
-                                    className='h-7 w-7 shrink-0 p-0 hover:bg-accent/60'
-                                  >
-                                    <MoreHorizontal className='h-3.5 w-3.5' />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                  align='end'
-                                  className='z-[120] border-border/50 bg-background/95 shadow-lg backdrop-blur-sm'
-                                >
-                                  <DropdownMenuItem
-                                    onClick={() => handleDeleteChat(chat.id)}
-                                    className='cursor-pointer text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive'
-                                  >
-                                    <Trash2 className='mr-2 h-3.5 w-3.5' />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          ))
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+          </div>
+        ) : (
+          <>
+            {/* Messages area or Checkpoint Panel */}
+            {showCheckpoints ? (
+              <CheckpointPanel />
+            ) : (
+              <div className='relative flex-1 overflow-hidden'>
+                <ScrollArea ref={scrollAreaRef} className='h-full' hideScrollbar={true}>
+                  <div className='w-full max-w-full space-y-1 overflow-hidden'>
+                    {messages.length === 0 ? (
+                      <div className='flex h-full items-center justify-center p-4'>
+                        <CopilotWelcome onQuestionClick={handleSubmit} mode={mode} />
+                      </div>
+                    ) : (
+                      messages.map((message) => (
+                        <CopilotMessage
+                          key={message.id}
+                          message={message}
+                          isStreaming={
+                            isSendingMessage && message.id === messages[messages.length - 1]?.id
+                          }
+                        />
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
 
-                  {/* Checkpoint Toggle Button */}
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    onClick={() => setShowCheckpoints(!showCheckpoints)}
-                    className={`h-8 w-8 p-0 ${
-                      showCheckpoints
-                        ? 'bg-[#802FFF]/20 text-[#802FFF] hover:bg-[#802FFF]/30'
-                        : 'hover:bg-accent/50'
-                    }`}
-                    title='View Checkpoints'
-                  >
-                    <History className='h-4 w-4' />
-                  </Button>
-
-                  {/* New Chat Button */}
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    onClick={handleStartNewChat}
-                    className='h-8 w-8 p-0'
-                    title='New Chat'
-                  >
-                    <MessageSquarePlus className='h-4 w-4' />
-                  </Button>
-                </div>
-
-                {/* Error display */}
-                {error && (
-                  <div className='mt-2 rounded-md bg-destructive/10 p-2 text-destructive text-sm'>
-                    {error}
+                {/* Scroll to bottom button */}
+                {showScrollButton && (
+                  <div className='-translate-x-1/2 absolute bottom-4 left-1/2 z-10'>
                     <Button
-                      variant='ghost'
+                      onClick={scrollToBottom}
                       size='sm'
-                      onClick={clearError}
-                      className='ml-2 h-auto p-1 text-destructive'
+                      variant='outline'
+                      className='flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 shadow-lg transition-all hover:bg-gray-50'
                     >
-                      Dismiss
+                      <ArrowDown className='h-3.5 w-3.5' />
+                      <span className='sr-only'>Scroll to bottom</span>
                     </Button>
                   </div>
                 )}
               </div>
+            )}
 
-              {/* Messages area or Checkpoint Panel */}
-              {showCheckpoints ? (
-                <CheckpointPanel />
-              ) : (
-                <ScrollArea ref={scrollAreaRef} className='max-w-full flex-1 overflow-hidden'>
-                  {messages.length === 0 ? (
-                    <CopilotWelcome onQuestionClick={handleSubmit} mode={mode} />
-                  ) : (
-                    messages.map((message) => (
-                      <ProfessionalMessage
-                        key={message.id}
-                        message={message}
-                        isStreaming={
-                          isSendingMessage && message.id === messages[messages.length - 1]?.id
-                        }
-                      />
-                    ))
-                  )}
-                </ScrollArea>
-              )}
-
-              {/* Mode Selector and Input */}
-              {!showCheckpoints && (
-                <>
-                  {/* Mode Selector */}
-                  <div className='border-t px-4 pt-2 pb-1'>
-                    <div className='flex items-center gap-1 rounded-md border bg-muted/30 p-0.5'>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => setMode('ask')}
-                        className={`h-6 flex-1 font-medium text-xs ${
-                          mode === 'ask'
-                            ? 'bg-[#802FFF]/20 text-[#802FFF] hover:bg-[#802FFF]/30'
-                            : 'hover:bg-muted/50'
-                        }`}
-                        title='Ask questions and get answers. Cannot edit workflows.'
-                      >
-                        Ask
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => setMode('agent')}
-                        className={`h-6 flex-1 font-medium text-xs ${
-                          mode === 'agent'
-                            ? 'bg-[#802FFF]/20 text-[#802FFF] hover:bg-[#802FFF]/30'
-                            : 'hover:bg-muted/50'
-                        }`}
-                        title='Full agent with workflow editing capabilities.'
-                      >
-                        Agent
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Input area */}
-                  <ProfessionalInput
-                    onSubmit={handleSubmit}
-                    disabled={!activeWorkflowId}
-                    isLoading={isSendingMessage}
-                  />
-                </>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Fullscreen Modal */}
-        <CopilotModal
-          open={isFullscreen}
-          onOpenChange={(open) => onFullscreenToggle?.(open)}
-          copilotMessage={fullscreenInput}
-          setCopilotMessage={(message) => onFullscreenInputChange?.(message)}
-          messages={messages}
-          onSendMessage={handleModalSendMessage}
-          isLoading={isSendingMessage}
-          isLoadingChats={isLoadingChats}
-          chats={chats}
-          currentChat={currentChat}
-          onSelectChat={selectChat}
-          onStartNewChat={handleStartNewChat}
-          onDeleteChat={handleDeleteChat}
-          mode={mode}
-          onModeChange={setMode}
-        />
-      </>
-    )
-  }
-)
+            {/* Input area with integrated mode selector */}
+            {!showCheckpoints && (
+              <UserInput
+                ref={userInputRef}
+                onSubmit={handleSubmit}
+                onAbort={abortMessage}
+                disabled={!activeWorkflowId}
+                isLoading={isSendingMessage}
+                isAborting={isAborting}
+                mode={mode}
+                onModeChange={setMode}
+                value={inputValue}
+                onChange={setInputValue}
+              />
+            )}
+          </>
+        )}
+      </div>
+    </>
+  )
+})
 
 Copilot.displayName = 'Copilot'

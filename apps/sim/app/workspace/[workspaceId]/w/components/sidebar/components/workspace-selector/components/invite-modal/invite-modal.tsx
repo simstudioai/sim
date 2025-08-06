@@ -1,13 +1,22 @@
 'use client'
 
-import React, { type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react'
-import { HelpCircle, Loader2, Trash2, X } from 'lucide-react'
+import React, { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Loader2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { validateAndNormalizeEmail } from '@/lib/email/utils'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -16,7 +25,7 @@ import { cn } from '@/lib/utils'
 import {
   useUserPermissionsContext,
   useWorkspacePermissionsContext,
-} from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+} from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { WorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { API_ENDPOINTS } from '@/stores/constants'
 
@@ -26,6 +35,7 @@ interface InviteModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onInviteMember?: (email: string) => void
+  workspaceName?: string
 }
 
 interface EmailTagProps {
@@ -33,6 +43,7 @@ interface EmailTagProps {
   onRemove: () => void
   disabled?: boolean
   isInvalid?: boolean
+  isSent?: boolean
 }
 
 interface UserPermissions {
@@ -67,16 +78,27 @@ interface PendingInvitation {
   createdAt: string
 }
 
-const EmailTag = React.memo<EmailTagProps>(({ email, onRemove, disabled, isInvalid }) => (
+const EmailTag = React.memo<EmailTagProps>(({ email, onRemove, disabled, isInvalid, isSent }) => (
   <div
-    className={`flex items-center ${isInvalid ? 'border-red-200 bg-red-50 text-red-700' : 'border-gray-200 bg-gray-100 text-slate-700'} my-0 ml-0 w-auto gap-1 rounded-md border px-2 py-0.5 text-sm`}
+    className={cn(
+      'flex w-auto items-center gap-1 rounded-[8px] border px-2 py-0.5 text-sm',
+      isInvalid
+        ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-400'
+        : 'border bg-muted text-muted-foreground'
+    )}
   >
-    <span className='max-w-[180px] truncate'>{email}</span>
-    {!disabled && (
+    <span className='max-w-[200px] truncate'>{email}</span>
+    {isSent && <span className='text-muted-foreground text-xs'>sent</span>}
+    {!disabled && !isSent && (
       <button
         type='button'
         onClick={onRemove}
-        className={`${isInvalid ? 'text-red-400 hover:text-red-600' : 'text-gray-400 hover:text-gray-600'} flex-shrink-0 focus:outline-none`}
+        className={cn(
+          'flex-shrink-0 transition-colors focus:outline-none',
+          isInvalid
+            ? 'text-red-400 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300'
+            : 'text-muted-foreground hover:text-foreground'
+        )}
         aria-label={`Remove ${email}`}
       >
         <X className='h-3 w-3' />
@@ -106,7 +128,9 @@ const PermissionSelector = React.memo<PermissionSelectorProps>(
     )
 
     return (
-      <div className={cn('inline-flex rounded-md border border-input bg-background', className)}>
+      <div
+        className={cn('inline-flex rounded-[12px] border border-input bg-background', className)}
+      >
         {permissionOptions.map((option, index) => (
           <button
             key={option.value}
@@ -114,11 +138,11 @@ const PermissionSelector = React.memo<PermissionSelectorProps>(
             onClick={() => !disabled && onChange(option.value)}
             disabled={disabled}
             className={cn(
-              'px-3 py-1.5 font-medium text-sm transition-colors focus:outline-none',
-              'first:rounded-l-md last:rounded-r-md',
+              'px-2.5 py-1.5 font-medium text-xs transition-colors focus:outline-none',
+              'first:rounded-l-[11px] last:rounded-r-[11px]',
               disabled && 'cursor-not-allowed opacity-50',
               value === option.value
-                ? 'bg-primary text-primary-foreground shadow-sm'
+                ? 'bg-foreground text-background'
                 : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
               index > 0 && 'border-input border-l'
             )}
@@ -134,45 +158,13 @@ const PermissionSelector = React.memo<PermissionSelectorProps>(
 PermissionSelector.displayName = 'PermissionSelector'
 
 const PermissionsTableSkeleton = React.memo(() => (
-  <div className='space-y-4'>
-    <div className='flex items-center gap-2'>
-      <h3 className='font-medium text-sm'>Member Permissions</h3>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant='ghost'
-            size='sm'
-            className='h-5 w-5 p-0 text-muted-foreground hover:text-foreground'
-            type='button'
-          >
-            <HelpCircle className='h-4 w-4' />
-            <span className='sr-only'>Member permissions help</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side='top' className='max-w-[320px]'>
-          <p className='text-sm'>Loading permissions...</p>
-        </TooltipContent>
-      </Tooltip>
-    </div>
-    <div className='rounded-md border'>
-      <div className='divide-y'>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className='flex items-center justify-between p-4'>
-            <div className='min-w-0 flex-1'>
-              <div className='flex items-center gap-2'>
-                <Skeleton className='h-4 w-48' />
-                {i === 1 && <Skeleton className='h-5 w-12 rounded-md' />}
-              </div>
-              <div className='mt-1 flex items-center gap-2'>
-                {i > 0 && <Skeleton className='h-5 w-16 rounded-md' />}
-              </div>
-            </div>
-            <div className='flex-shrink-0'>
-              <Skeleton className='h-9 w-32 rounded-md' />
-            </div>
-          </div>
-        ))}
-      </div>
+  <div className='scrollbar-hide max-h-[300px] overflow-y-auto'>
+    <div className='flex items-center justify-between gap-2 py-2'>
+      {/* Email skeleton - matches the actual email span dimensions */}
+      <Skeleton className='h-5 w-40' />
+
+      {/* Permission selector skeleton - matches PermissionSelector exact height */}
+      <Skeleton className='h-[30px] w-32 flex-shrink-0 rounded-[12px]' />
     </div>
   </div>
 ))
@@ -180,16 +172,8 @@ const PermissionsTableSkeleton = React.memo(() => (
 PermissionsTableSkeleton.displayName = 'PermissionsTableSkeleton'
 
 const getStatusBadgeStyles = (status: 'sent' | 'member' | 'modified'): string => {
-  switch (status) {
-    case 'sent':
-      return 'inline-flex items-center rounded-md bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-    case 'member':
-      return 'inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400'
-    case 'modified':
-      return 'inline-flex items-center rounded-md bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-    default:
-      return 'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-  }
+  // Use consistent gray styling for all statuses to align with modal design
+  return 'inline-flex items-center rounded-[8px] bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'
 }
 
 const PermissionsTable = ({
@@ -273,7 +257,7 @@ const PermissionsTable = ({
     return (
       <div className='space-y-4'>
         <h3 className='font-medium text-sm'>Member Permissions</h3>
-        <div className='rounded-md border bg-card'>
+        <div className='rounded-[8px] border bg-card'>
           <div className='flex items-center justify-center py-12'>
             <div className='flex items-center space-x-2 text-muted-foreground'>
               <Loader2 className='h-5 w-5 animate-spin' />
@@ -281,11 +265,9 @@ const PermissionsTable = ({
             </div>
           </div>
         </div>
-        <div className='flex min-h-[2rem] items-start'>
-          <p className='text-muted-foreground text-xs'>
-            Please wait while we update the permissions.
-          </p>
-        </div>
+        <p className='flex min-h-[2rem] items-start text-muted-foreground text-xs'>
+          Please wait while we update the permissions.
+        </p>
       </div>
     )
   }
@@ -293,145 +275,121 @@ const PermissionsTable = ({
   const currentUserIsAdmin = userPerms.canAdmin
 
   return (
-    <div className='space-y-4'>
-      <div className='flex items-center gap-2'>
-        <h3 className='font-medium text-sm'>Member Permissions</h3>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='ghost'
-              size='sm'
-              className='h-5 w-5 p-0 text-muted-foreground hover:text-foreground'
-              type='button'
-            >
-              <HelpCircle className='h-4 w-4' />
-              <span className='sr-only'>Member permissions help</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side='top' className='max-w-[320px]'>
-            <div className='space-y-2'>
-              {userPerms.isLoading || permissionsLoading ? (
-                <p className='text-sm'>Loading permissions...</p>
-              ) : !currentUserIsAdmin ? (
-                <p className='text-sm'>
-                  Only administrators can invite new members and modify permissions.
-                </p>
-              ) : (
-                <div className='space-y-1'>
-                  <p className='text-sm'>Admin grants all permissions automatically.</p>
+    <div className='scrollbar-hide max-h-[300px] overflow-y-auto'>
+      {allUsers.length > 0 && (
+        <div>
+          {allUsers.map((user) => {
+            const isCurrentUser = user.isCurrentUser === true
+            const isExistingUser = filteredExistingUsers.some((eu) => eu.email === user.email)
+            const isPendingInvitation = user.isPendingInvitation === true
+            const userIdentifier = user.userId || user.email
+            // Check if current permission is different from original permission
+            const originalPermission = workspacePermissions?.users?.find(
+              (eu) => eu.userId === user.userId
+            )?.permissionType
+            const currentPermission =
+              existingUserPermissionChanges[userIdentifier]?.permissionType ?? user.permissionType
+            const hasChanges = originalPermission && currentPermission !== originalPermission
+            // Check if user is in workspace permissions directly
+            const isWorkspaceMember = workspacePermissions?.users?.some(
+              (eu) => eu.email === user.email && eu.userId
+            )
+            const canShowRemoveButton =
+              isWorkspaceMember &&
+              !isCurrentUser &&
+              !isPendingInvitation &&
+              currentUserIsAdmin &&
+              user.userId
+
+            const uniqueKey = user.userId
+              ? `existing-${user.userId}`
+              : isPendingInvitation
+                ? `pending-${user.email}`
+                : `new-${user.email}`
+
+            return (
+              <div key={uniqueKey} className='flex items-center justify-between gap-2 py-2'>
+                {/* Email and status badges */}
+                <div className='min-w-0 flex-1'>
+                  <div className='flex items-center gap-2'>
+                    <span className='font-medium text-card-foreground text-sm'>{user.email}</span>
+                    {isPendingInvitation && (
+                      <span className='inline-flex items-center rounded-[8px] bg-blue-100 px-2 py-1 font-medium text-blue-700 text-xs dark:bg-blue-900/30 dark:text-blue-400'>
+                        Sent
+                      </span>
+                    )}
+                    {hasChanges && (
+                      <span className='inline-flex items-center rounded-[8px] bg-orange-100 px-2 py-1 font-medium text-orange-700 text-xs dark:bg-orange-900/30 dark:text-orange-400'>
+                        Modified
+                      </span>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      </div>
-      <div className='rounded-md border'>
-        {allUsers.length > 0 && (
-          <div className='divide-y'>
-            {allUsers.map((user) => {
-              const isCurrentUser = user.isCurrentUser === true
-              const isExistingUser = filteredExistingUsers.some((eu) => eu.email === user.email)
-              const isPendingInvitation = user.isPendingInvitation === true
-              const userIdentifier = user.userId || user.email
-              // Check if current permission is different from original permission
-              const originalPermission = workspacePermissions?.users?.find(
-                (eu) => eu.userId === user.userId
-              )?.permissionType
-              const currentPermission =
-                existingUserPermissionChanges[userIdentifier]?.permissionType ?? user.permissionType
-              const hasChanges = originalPermission && currentPermission !== originalPermission
-              // Check if user is in workspace permissions directly
-              const isWorkspaceMember = workspacePermissions?.users?.some(
-                (eu) => eu.email === user.email && eu.userId
-              )
-              const canShowRemoveButton =
-                isWorkspaceMember &&
-                !isCurrentUser &&
-                !isPendingInvitation &&
-                currentUserIsAdmin &&
-                user.userId
 
-              const uniqueKey = user.userId
-                ? `existing-${user.userId}`
-                : isPendingInvitation
-                  ? `pending-${user.email}`
-                  : `new-${user.email}`
+                {/* Permission selector and remove button container */}
+                <div className='flex flex-shrink-0 items-center gap-2'>
+                  <PermissionSelector
+                    value={user.permissionType}
+                    onChange={(newPermission) => onPermissionChange(userIdentifier, newPermission)}
+                    disabled={
+                      disabled ||
+                      !currentUserIsAdmin ||
+                      isPendingInvitation ||
+                      (isCurrentUser && user.permissionType === 'admin')
+                    }
+                    className='w-auto'
+                  />
 
-              return (
-                <div key={uniqueKey} className='flex items-center justify-between p-4'>
-                  <div className='min-w-0 flex-1'>
-                    <div className='flex items-center gap-2'>
-                      <span className='font-medium text-card-foreground text-sm'>{user.email}</span>
-                      {isPendingInvitation && (
-                        <span className={getStatusBadgeStyles('sent')}>Sent</span>
-                      )}
-                      {/* Show remove button for existing workspace members (not current user, not pending) */}
-                      {canShowRemoveButton && onRemoveMember && (
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          onClick={() => onRemoveMember(user.userId!, user.email)}
-                          disabled={disabled || isSaving}
-                          className='h-6 w-6 rounded-md p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive'
-                          title={`Remove ${user.email} from workspace`}
-                        >
-                          <Trash2 className='h-3.5 w-3.5' />
-                          <span className='sr-only'>Remove {user.email}</span>
-                        </Button>
-                      )}
-                      {/* Show remove button for pending invitations */}
-                      {isPendingInvitation &&
+                  {/* X button with consistent spacing - always reserve space */}
+                  <div className='flex h-4 w-4 items-center justify-center'>
+                    {((canShowRemoveButton && onRemoveMember) ||
+                      (isPendingInvitation &&
                         currentUserIsAdmin &&
                         user.invitationId &&
-                        onRemoveInvitation && (
+                        onRemoveInvitation)) && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
                           <Button
                             variant='ghost'
-                            size='sm'
-                            onClick={() => onRemoveInvitation(user.invitationId!, user.email)}
+                            size='icon'
+                            onClick={() => {
+                              if (canShowRemoveButton && onRemoveMember) {
+                                onRemoveMember(user.userId!, user.email)
+                              } else if (
+                                isPendingInvitation &&
+                                user.invitationId &&
+                                onRemoveInvitation
+                              ) {
+                                onRemoveInvitation(user.invitationId, user.email)
+                              }
+                            }}
                             disabled={disabled || isSaving}
-                            className='h-6 w-6 rounded-md p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive'
-                            title={`Cancel invitation for ${user.email}`}
+                            className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
                           >
-                            <Trash2 className='h-3.5 w-3.5' />
-                            <span className='sr-only'>Cancel invitation for {user.email}</span>
+                            <X className='h-3.5 w-3.5' />
+                            <span className='sr-only'>
+                              {isPendingInvitation ? 'Revoke invite' : 'Remove member'}
+                            </span>
                           </Button>
-                        )}
-                    </div>
-                    <div className='mt-1 flex items-center gap-2'>
-                      {isExistingUser && !isCurrentUser && (
-                        <span className={getStatusBadgeStyles('member')}>Member</span>
-                      )}
-                      {hasChanges && (
-                        <span className={getStatusBadgeStyles('modified')}>Modified</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className='flex-shrink-0'>
-                    <PermissionSelector
-                      value={user.permissionType}
-                      onChange={(newPermission) =>
-                        onPermissionChange(userIdentifier, newPermission)
-                      }
-                      disabled={
-                        disabled ||
-                        !currentUserIsAdmin ||
-                        isPendingInvitation ||
-                        (isCurrentUser && user.permissionType === 'admin')
-                      }
-                      className='w-auto'
-                    />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{isPendingInvitation ? 'Revoke invite' : 'Remove member'}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
 
-export function InviteModal({ open, onOpenChange }: InviteModalProps) {
+export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalProps) {
+  const formRef = useRef<HTMLFormElement>(null)
   const [inputValue, setInputValue] = useState('')
   const [emails, setEmails] = useState<string[]>([])
   const [invalidEmails, setInvalidEmails] = useState<string[]>([])
@@ -905,11 +863,6 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
           } else {
             setEmails([])
             setUserPermissions([])
-            setSuccessMessage(
-              successCount === 1
-                ? 'Invitation sent successfully!'
-                : `${successCount} invitations sent successfully!`
-            )
 
             setTimeout(() => {
               onOpenChange(false)
@@ -965,7 +918,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   }, [])
 
   return (
-    <Dialog
+    <AlertDialog
       open={open}
       onOpenChange={(newOpen) => {
         if (!newOpen) {
@@ -974,248 +927,187 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
         onOpenChange(newOpen)
       }}
     >
-      <DialogContent
-        className='flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
-        hideCloseButton
-      >
-        <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
-          <div className='flex items-center justify-between'>
-            <DialogTitle className='font-medium text-lg'>Invite Members to Workspace</DialogTitle>
-            <Button
-              variant='ghost'
-              size='icon'
-              className='h-8 w-8 p-0'
-              onClick={() => onOpenChange(false)}
-            >
-              <X className='h-4 w-4' />
-              <span className='sr-only'>Close</span>
-            </Button>
-          </div>
-        </DialogHeader>
+      <AlertDialogContent className='flex max-h-[80vh] flex-col gap-0 sm:max-w-[560px]'>
+        <TooltipProvider>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Invite members to {workspaceName || 'Workspace'}</AlertDialogTitle>
+          </AlertDialogHeader>
 
-        <div className='max-h-[80vh] overflow-y-auto px-6 pt-4 pb-6'>
-          <form onSubmit={handleSubmit}>
-            <div className='space-y-4'>
-              <div className='space-y-2'>
-                <div className='flex items-center gap-2'>
-                  <label htmlFor='emails' className='font-medium text-sm'>
-                    Email Addresses
-                  </label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-5 w-5 p-0 text-muted-foreground hover:text-foreground'
-                        type='button'
-                      >
-                        <HelpCircle className='h-4 w-4' />
-                        <span className='sr-only'>Email addresses help</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side='top' className='max-w-[280px]'>
-                      <p className='text-sm'>
-                        Press Enter, comma, or space after each email address to add it to the list.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <div
-                  className={cn(
-                    'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-3 py-1 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2'
-                  )}
-                >
-                  {invalidEmails.map((email, index) => (
-                    <EmailTag
-                      key={`invalid-${index}`}
-                      email={email}
-                      onRemove={() => removeInvalidEmail(index)}
-                      disabled={isSubmitting || !userPerms.canAdmin}
-                      isInvalid={true}
-                    />
-                  ))}
-                  {emails.map((email, index) => (
-                    <EmailTag
-                      key={`valid-${index}`}
-                      email={email}
-                      onRemove={() => removeEmail(index)}
-                      disabled={isSubmitting || !userPerms.canAdmin}
-                    />
-                  ))}
-                  <Input
-                    id='emails'
-                    type='text'
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onPaste={handlePaste}
-                    onBlur={() => inputValue.trim() && addEmail(inputValue)}
-                    placeholder={
-                      !userPerms.canAdmin
-                        ? 'Only administrators can invite new members'
-                        : emails.length > 0 || invalidEmails.length > 0
-                          ? 'Add another email'
-                          : 'Enter email addresses'
-                    }
-                    className={cn(
-                      'h-7 min-w-[180px] flex-1 border-none py-1 focus-visible:ring-0 focus-visible:ring-offset-0',
-                      emails.length > 0 || invalidEmails.length > 0 ? 'pl-1' : 'pl-0'
-                    )}
-                    autoFocus={userPerms.canAdmin}
+          <form ref={formRef} onSubmit={handleSubmit} className='mt-5'>
+            <div className='space-y-2'>
+              <label htmlFor='emails' className='font-medium text-sm'>
+                Email Addresses
+              </label>
+              <div className='scrollbar-hide flex max-h-32 min-h-9 flex-wrap items-center gap-x-2 gap-y-1 overflow-y-auto rounded-[8px] border px-2 py-1 focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background'>
+                {invalidEmails.map((email, index) => (
+                  <EmailTag
+                    key={`invalid-${index}`}
+                    email={email}
+                    onRemove={() => removeInvalidEmail(index)}
+                    disabled={isSubmitting || !userPerms.canAdmin}
+                    isInvalid={true}
+                  />
+                ))}
+                {emails.map((email, index) => (
+                  <EmailTag
+                    key={`valid-${index}`}
+                    email={email}
+                    onRemove={() => removeEmail(index)}
                     disabled={isSubmitting || !userPerms.canAdmin}
                   />
-                </div>
-                {(errorMessage || successMessage) && (
-                  <p
-                    className={cn(
-                      'mt-1 text-xs',
-                      errorMessage ? 'text-destructive' : 'text-green-600'
-                    )}
-                  >
-                    {errorMessage || successMessage}
-                  </p>
-                )}
-              </div>
-
-              <PermissionsTable
-                userPermissions={userPermissions}
-                onPermissionChange={handlePermissionChange}
-                onRemoveMember={handleRemoveMemberClick}
-                onRemoveInvitation={handleRemoveInvitationClick}
-                disabled={isSubmitting || isSaving || isRemovingMember || isRemovingInvitation}
-                existingUserPermissionChanges={existingUserPermissionChanges}
-                isSaving={isSaving}
-                workspacePermissions={workspacePermissions}
-                permissionsLoading={permissionsLoading}
-                pendingInvitations={pendingInvitations}
-                isPendingInvitationsLoading={isPendingInvitationsLoading}
-              />
-
-              <div className='flex justify-between'>
-                {hasPendingChanges && userPerms.canAdmin && (
-                  <div className='flex gap-2'>
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='sm'
-                      disabled={isSaving || isSubmitting}
-                      onClick={handleRestoreChanges}
-                      className='gap-2 font-medium'
-                    >
-                      Restore Changes
-                    </Button>
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='sm'
-                      disabled={isSaving || isSubmitting}
-                      onClick={handleSaveChanges}
-                      className='gap-2 font-medium'
-                    >
-                      {isSaving && <Loader2 className='h-4 w-4 animate-spin' />}
-                      Save Changes
-                    </Button>
-                  </div>
-                )}
-
-                <Button
-                  type='submit'
-                  size='sm'
-                  disabled={
-                    !userPerms.canAdmin ||
-                    !hasNewInvites ||
-                    isSubmitting ||
-                    isSaving ||
-                    !workspaceId
+                ))}
+                <Input
+                  id='emails'
+                  type='text'
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
+                  onBlur={() => inputValue.trim() && addEmail(inputValue)}
+                  placeholder={
+                    !userPerms.canAdmin
+                      ? 'Only administrators can invite new members'
+                      : emails.length > 0 || invalidEmails.length > 0
+                        ? 'Add another email'
+                        : 'Enter emails'
                   }
                   className={cn(
-                    'ml-auto gap-2 font-medium',
-                    'bg-[#802FFF] hover:bg-[#7028E6]',
-                    'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                    'text-white transition-all duration-200',
-                    'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
+                    'h-6 min-w-[180px] flex-1 border-none focus-visible:ring-0 focus-visible:ring-offset-0',
+                    emails.length > 0 || invalidEmails.length > 0 ? 'pl-1' : 'pl-1'
                   )}
-                >
-                  {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
-                  {!userPerms.canAdmin
-                    ? 'Admin Access Required'
-                    : showSent
-                      ? 'Sent!'
-                      : 'Send Invitations'}
-                </Button>
+                  autoFocus={userPerms.canAdmin}
+                  disabled={isSubmitting || !userPerms.canAdmin}
+                />
               </div>
+              {errorMessage && <p className='mt-1 text-destructive text-xs'>{errorMessage}</p>}
             </div>
+
+            {/* Line separator */}
+            <div className='mt-6 mb-4 border-t' />
+
+            <PermissionsTable
+              userPermissions={userPermissions}
+              onPermissionChange={handlePermissionChange}
+              onRemoveMember={handleRemoveMemberClick}
+              onRemoveInvitation={handleRemoveInvitationClick}
+              disabled={isSubmitting || isSaving || isRemovingMember || isRemovingInvitation}
+              existingUserPermissionChanges={existingUserPermissionChanges}
+              isSaving={isSaving}
+              workspacePermissions={workspacePermissions}
+              permissionsLoading={permissionsLoading}
+              pendingInvitations={pendingInvitations}
+              isPendingInvitationsLoading={isPendingInvitationsLoading}
+            />
           </form>
-        </div>
-      </DialogContent>
+
+          {/* Consistent spacing below user list to match spacing above */}
+          <div className='mb-4' />
+
+          <AlertDialogFooter className='flex justify-between'>
+            {hasPendingChanges && userPerms.canAdmin && (
+              <>
+                <Button
+                  type='button'
+                  variant='outline'
+                  disabled={isSaving || isSubmitting}
+                  onClick={handleRestoreChanges}
+                  className='h-9 gap-2 rounded-[8px] font-medium'
+                >
+                  Restore Changes
+                </Button>
+                <Button
+                  type='button'
+                  variant='outline'
+                  disabled={isSaving || isSubmitting}
+                  onClick={handleSaveChanges}
+                  className='h-9 gap-2 rounded-[8px] font-medium'
+                >
+                  {isSaving && <Loader2 className='h-4 w-4 animate-spin' />}
+                  Save Changes
+                </Button>
+              </>
+            )}
+
+            <Button
+              type='button'
+              onClick={() => formRef.current?.requestSubmit()}
+              disabled={
+                !userPerms.canAdmin || isSubmitting || isSaving || !workspaceId || !hasNewInvites
+              }
+              className={cn(
+                'ml-auto flex h-9 items-center justify-center gap-2 rounded-[8px] px-4 py-2 font-medium transition-all duration-200',
+                'bg-[#701FFC] text-white shadow-[0_0_0_0_#701FFC] hover:bg-[#7028E6] hover:shadow-[0_0_0_4px_rgba(112,31,252,0.15)] disabled:opacity-50 disabled:hover:bg-[#701FFC] disabled:hover:shadow-none'
+              )}
+            >
+              {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
+              {!userPerms.canAdmin ? 'Admin Access Required' : 'Send Invite'}
+            </Button>
+          </AlertDialogFooter>
+        </TooltipProvider>
+      </AlertDialogContent>
 
       {/* Remove Member Confirmation Dialog */}
-      <Dialog open={!!memberToRemove} onOpenChange={handleRemoveMemberCancel}>
-        <DialogContent className='sm:max-w-[425px]'>
-          <DialogHeader>
-            <DialogTitle>Remove Member</DialogTitle>
-          </DialogHeader>
-          <div className='py-4'>
-            <p className='text-muted-foreground text-sm'>
+      <AlertDialog open={!!memberToRemove} onOpenChange={handleRemoveMemberCancel}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Member</AlertDialogTitle>
+            <AlertDialogDescription>
               Are you sure you want to remove{' '}
               <span className='font-medium text-foreground'>{memberToRemove?.email}</span> from this
-              workspace? This action cannot be undone.
-            </p>
-          </div>
-          <div className='flex justify-end gap-2'>
-            <Button
-              variant='outline'
+              workspace?{' '}
+              <span className='text-red-500 dark:text-red-500'>This action cannot be undone.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className='flex'>
+            <AlertDialogCancel
+              className='h-9 w-full rounded-[8px]'
               onClick={handleRemoveMemberCancel}
               disabled={isRemovingMember}
             >
               Cancel
-            </Button>
-            <Button
-              variant='destructive'
+            </AlertDialogCancel>
+            <AlertDialogAction
               onClick={handleRemoveMemberConfirm}
               disabled={isRemovingMember}
-              className='gap-2'
+              className='h-9 w-full gap-2 rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
             >
               {isRemovingMember && <Loader2 className='h-4 w-4 animate-spin' />}
               Remove Member
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Remove Invitation Confirmation Dialog */}
-      <Dialog open={!!invitationToRemove} onOpenChange={handleRemoveInvitationCancel}>
-        <DialogContent className='sm:max-w-[425px]'>
-          <DialogHeader>
-            <DialogTitle>Cancel Invitation</DialogTitle>
-          </DialogHeader>
-          <div className='py-4'>
-            <p className='text-muted-foreground text-sm'>
+      <AlertDialog open={!!invitationToRemove} onOpenChange={handleRemoveInvitationCancel}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Invitation</AlertDialogTitle>
+            <AlertDialogDescription>
               Are you sure you want to cancel the invitation for{' '}
-              <span className='font-medium text-foreground'>{invitationToRemove?.email}</span>? This
-              action cannot be undone.
-            </p>
-          </div>
-          <div className='flex justify-end gap-2'>
-            <Button
-              variant='outline'
+              <span className='font-medium text-foreground'>{invitationToRemove?.email}</span>?{' '}
+              <span className='text-red-500 dark:text-red-500'>This action cannot be undone.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className='flex'>
+            <AlertDialogCancel
+              className='h-9 w-full rounded-[8px]'
               onClick={handleRemoveInvitationCancel}
               disabled={isRemovingInvitation}
             >
               Cancel
-            </Button>
-            <Button
-              variant='destructive'
+            </AlertDialogCancel>
+            <AlertDialogAction
               onClick={handleRemoveInvitationConfirm}
               disabled={isRemovingInvitation}
-              className='gap-2'
+              className='h-9 w-full gap-2 rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
             >
               {isRemovingInvitation && <Loader2 className='h-4 w-4 animate-spin' />}
               Cancel Invitation
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </AlertDialog>
   )
 }

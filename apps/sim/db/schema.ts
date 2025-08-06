@@ -16,6 +16,7 @@ import {
   uuid,
   vector,
 } from 'drizzle-orm/pg-core'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { TAG_SLOTS } from '@/lib/constants/knowledge'
 
 // Custom tsvector type for full-text search
@@ -452,7 +453,9 @@ export const userStats = pgTable('user_stats', {
   totalChatExecutions: integer('total_chat_executions').notNull().default(0),
   totalTokensUsed: integer('total_tokens_used').notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
-  currentUsageLimit: decimal('current_usage_limit').notNull().default('5'), // Default $5 for free plan
+  currentUsageLimit: decimal('current_usage_limit')
+    .notNull()
+    .default(DEFAULT_FREE_CREDITS.toString()), // Default $10 for free plan
   usageLimitSetBy: text('usage_limit_set_by'), // User ID who set the limit (for team admin tracking)
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
   // Billing period tracking
@@ -820,6 +823,11 @@ export const knowledgeBaseTagDefinitions = pgTable(
       table.knowledgeBaseId,
       table.tagSlot
     ),
+    // Ensure unique display name per knowledge base
+    kbDisplayNameIdx: uniqueIndex('kb_tag_definitions_kb_display_name_idx').on(
+      table.knowledgeBaseId,
+      table.displayName
+    ),
     // Index for querying by knowledge base
     kbIdIdx: index('kb_tag_definitions_kb_id_idx').on(table.knowledgeBaseId),
   })
@@ -996,6 +1004,7 @@ export const copilotChats = pgTable(
     title: text('title'),
     messages: jsonb('messages').notNull().default('[]'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
+    previewYaml: text('preview_yaml'), // YAML content for pending workflow preview
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -1011,8 +1020,8 @@ export const copilotChats = pgTable(
   })
 )
 
-export const copilotCheckpoints = pgTable(
-  'copilot_checkpoints',
+export const workflowCheckpoints = pgTable(
+  'workflow_checkpoints',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     userId: text('user_id')
@@ -1024,29 +1033,31 @@ export const copilotCheckpoints = pgTable(
     chatId: uuid('chat_id')
       .notNull()
       .references(() => copilotChats.id, { onDelete: 'cascade' }),
-    yaml: text('yaml').notNull(),
+    messageId: text('message_id'), // ID of the user message that triggered this checkpoint
+    workflowState: json('workflow_state').notNull(), // JSON workflow state
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
     // Primary access patterns
-    userIdIdx: index('copilot_checkpoints_user_id_idx').on(table.userId),
-    workflowIdIdx: index('copilot_checkpoints_workflow_id_idx').on(table.workflowId),
-    chatIdIdx: index('copilot_checkpoints_chat_id_idx').on(table.chatId),
+    userIdIdx: index('workflow_checkpoints_user_id_idx').on(table.userId),
+    workflowIdIdx: index('workflow_checkpoints_workflow_id_idx').on(table.workflowId),
+    chatIdIdx: index('workflow_checkpoints_chat_id_idx').on(table.chatId),
+    messageIdIdx: index('workflow_checkpoints_message_id_idx').on(table.messageId),
 
     // Combined indexes for common queries
-    userWorkflowIdx: index('copilot_checkpoints_user_workflow_idx').on(
+    userWorkflowIdx: index('workflow_checkpoints_user_workflow_idx').on(
       table.userId,
       table.workflowId
     ),
-    workflowChatIdx: index('copilot_checkpoints_workflow_chat_idx').on(
+    workflowChatIdx: index('workflow_checkpoints_workflow_chat_idx').on(
       table.workflowId,
       table.chatId
     ),
 
     // Ordering indexes
-    createdAtIdx: index('copilot_checkpoints_created_at_idx').on(table.createdAt),
-    chatCreatedAtIdx: index('copilot_checkpoints_chat_created_at_idx').on(
+    createdAtIdx: index('workflow_checkpoints_created_at_idx').on(table.createdAt),
+    chatCreatedAtIdx: index('workflow_checkpoints_chat_created_at_idx').on(
       table.chatId,
       table.createdAt
     ),
@@ -1130,5 +1141,37 @@ export const templateStars = pgTable(
       table.userId,
       table.templateId
     ),
+  })
+)
+
+export const copilotFeedback = pgTable(
+  'copilot_feedback',
+  {
+    feedbackId: uuid('feedback_id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    chatId: uuid('chat_id')
+      .notNull()
+      .references(() => copilotChats.id, { onDelete: 'cascade' }),
+    userQuery: text('user_query').notNull(),
+    agentResponse: text('agent_response').notNull(),
+    isPositive: boolean('is_positive').notNull(),
+    feedback: text('feedback'), // Optional feedback text
+    workflowYaml: text('workflow_yaml'), // Optional workflow YAML if edit/build workflow was triggered
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Access patterns
+    userIdIdx: index('copilot_feedback_user_id_idx').on(table.userId),
+    chatIdIdx: index('copilot_feedback_chat_id_idx').on(table.chatId),
+    userChatIdx: index('copilot_feedback_user_chat_idx').on(table.userId, table.chatId),
+
+    // Query patterns
+    isPositiveIdx: index('copilot_feedback_is_positive_idx').on(table.isPositive),
+
+    // Ordering indexes
+    createdAtIdx: index('copilot_feedback_created_at_idx').on(table.createdAt),
   })
 )

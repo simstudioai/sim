@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import type React from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
 import { Label, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
+import { cn } from '@/lib/utils'
 import {
   ChannelSelectorInput,
   CheckboxList,
@@ -40,6 +42,7 @@ interface SubBlockProps {
   isPreview?: boolean
   subBlockValues?: Record<string, any>
   disabled?: boolean
+  fieldDiffStatus?: 'changed' | 'unchanged'
 }
 
 export function SubBlock({
@@ -49,8 +52,16 @@ export function SubBlock({
   isPreview = false,
   subBlockValues,
   disabled = false,
+  fieldDiffStatus,
 }: SubBlockProps) {
   const [isValidJson, setIsValidJson] = useState(true)
+
+  // Debug field diff status
+  useEffect(() => {
+    if (fieldDiffStatus) {
+      console.log(`[SubBlock ${config.id}] fieldDiffStatus:`, fieldDiffStatus)
+    }
+  }, [fieldDiffStatus, config.id])
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -430,7 +441,15 @@ export function SubBlock({
   const required = isFieldRequired()
 
   return (
-    <div className='space-y-[6px] pt-[2px]' onMouseDown={handleMouseDown}>
+    <div
+      className={cn(
+        'space-y-[6px] pt-[2px]',
+        // Field-level diff highlighting - make it more prominent for testing
+        fieldDiffStatus === 'changed' &&
+          '-m-1 rounded-lg border border-orange-200 bg-orange-100 p-3 ring-2 ring-orange-500 dark:border-orange-800 dark:bg-orange-900/40'
+      )}
+      onMouseDown={handleMouseDown}
+    >
       {config.type !== 'switch' && (
         <Label className='flex items-center gap-1'>
           {config.title}

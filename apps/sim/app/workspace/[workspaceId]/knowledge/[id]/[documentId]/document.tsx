@@ -13,7 +13,6 @@ import {
 } from '@/components/ui'
 import { TAG_SLOTS } from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 import {
   CreateChunkModal,
   DeleteChunkModal,
@@ -26,6 +25,7 @@ import {
   type DocumentTag,
   DocumentTagEntry,
 } from '@/app/workspace/[workspaceId]/knowledge/components/document-tag-entry/document-tag-entry'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { useTagDefinitions } from '@/hooks/use-tag-definitions'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'

@@ -34,16 +34,29 @@ properties:
             description: Secret key for webhook verification
           headers:
             type: array
-            description: Expected headers for validation
+            description: Expected headers for validation as table entries
             items:
               type: object
               properties:
+                id:
+                  type: string
+                  description: Unique identifier for the header entry
                 key:
                   type: string
                   description: Header name
                 value:
                   type: string
                   description: Expected header value
+                cells:
+                  type: object
+                  description: Cell display values for the table interface
+                  properties:
+                    Key:
+                      type: string
+                      description: Display value for the key column
+                    Value:
+                      type: string
+                      description: Display value for the value column
           methods:
             type: array
             description: Allowed HTTP methods
@@ -63,16 +76,29 @@ properties:
             maximum: 599
           headers:
             type: array
-            description: Response headers
+            description: Response headers as table entries
             items:
               type: object
               properties:
+                id:
+                  type: string
+                  description: Unique identifier for the header entry
                 key:
                   type: string
                   description: Header name
                 value:
                   type: string
                   description: Header value
+                cells:
+                  type: object
+                  description: Cell display values for the table interface
+                  properties:
+                    Key:
+                      type: string
+                      description: Display value for the key column
+                    Value:
+                      type: string
+                      description: Display value for the value column
           body:
             type: string
             description: Response body content
@@ -180,6 +206,55 @@ stripe-webhook:
     error: payment-webhook-error
 ```
 
+### Webhook with Complete Table Header Format
+
+When headers are created through the UI table interface, the YAML includes additional metadata:
+
+```yaml
+api-webhook-complete:
+  type: webhook
+  name: "API Webhook with Table Headers"
+  inputs:
+    webhookConfig:
+      enabled: true
+      methods: [POST]
+      headers:
+        - id: header-1-uuid-here
+          key: "Authorization"
+          value: "Bearer {{WEBHOOK_API_KEY}}"
+          cells:
+            Key: "Authorization"
+            Value: "Bearer {{WEBHOOK_API_KEY}}"
+        - id: header-2-uuid-here
+          key: "Content-Type"
+          value: "application/json"
+          cells:
+            Key: "Content-Type"
+            Value: "application/json"
+    responseConfig:
+      status: 200
+      headers:
+        - id: response-header-1-uuid
+          key: "Content-Type"
+          value: "application/json"
+          cells:
+            Key: "Content-Type"
+            Value: "application/json"
+        - id: response-header-2-uuid
+          key: "X-Webhook-Response"
+          value: "processed"
+          cells:
+            Key: "X-Webhook-Response"
+            Value: "processed"
+      body: |
+        {
+          "status": "received",
+          "timestamp": "{{new Date().toISOString()}}"
+        }
+  connections:
+    success: process-webhook-complete
+```
+
 ### Generic API Webhook
 
 ```yaml
@@ -238,6 +313,56 @@ crud-webhook:
         }
   connections:
     success: route-by-method
+```
+
+## Table Parameter Formats
+
+The Webhook block supports two formats for headers (both validation headers and response headers):
+
+### Simplified Format (Manual YAML)
+
+When writing YAML manually, you can use the simplified format:
+
+```yaml
+headers:
+  - key: "Authorization"
+    value: "Bearer {{API_TOKEN}}"
+  - key: "Content-Type"
+    value: "application/json"
+```
+
+### Complete Table Format (UI Generated)
+
+When headers are created through the UI table interface, the YAML includes additional metadata:
+
+```yaml
+headers:
+  - id: unique-identifier-here
+    key: "Authorization"
+    value: "Bearer {{API_TOKEN}}"
+    cells:
+      Key: "Authorization"
+      Value: "Bearer {{API_TOKEN}}"
+```
+
+**Key Differences:**
+- `id`: Unique identifier for tracking the table row
+- `cells`: Display values used by the UI table interface
+- Both formats are functionally equivalent for webhook processing
+- The complete format preserves UI state when importing/exporting workflows
+
+**Important:** Always quote header names and values that contain special characters:
+
+```yaml
+headers:
+  - id: auth-header-uuid
+    cells:
+      Key: "Authorization"
+      Value: "Bearer {{WEBHOOK_API_KEY}}"
+  - id: content-type-uuid
+    cells:
+      Key: "Content-Type"
+      Value: "application/json"
 ```
 
 ## Webhook Variables
