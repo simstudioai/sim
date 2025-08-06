@@ -95,13 +95,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // For credential-based providers like Gmail, generate a dummy path if none provided
-    // since they don't use actual webhook URLs but still need database entries
+    // For credential-based providers (those that use polling instead of webhooks),
+    // generate a dummy path if none provided since they don't use actual webhook URLs
+    // but still need database entries for the polling services to find them
     let finalPath = path
     if (!path || path.trim() === '') {
-      if (provider === 'gmail') {
-        finalPath = `gmail-${crypto.randomUUID()}`
-        logger.info(`[${requestId}] Generated dummy path for Gmail trigger: ${finalPath}`)
+      // List of providers that use credential-based polling instead of webhooks
+      const credentialBasedProviders = ['gmail', 'outlook']
+
+      if (credentialBasedProviders.includes(provider)) {
+        finalPath = `${provider}-${crypto.randomUUID()}`
+        logger.info(`[${requestId}] Generated dummy path for ${provider} trigger: ${finalPath}`)
       } else {
         logger.warn(`[${requestId}] Missing path for webhook creation`, {
           hasWorkflowId: !!workflowId,
@@ -174,14 +178,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // For Gmail webhooks, add userId to providerConfig so the polling service can get OAuth tokens
-    let finalProviderConfig = providerConfig
-    if (provider === 'gmail') {
-      finalProviderConfig = {
-        ...providerConfig,
-        userId, // Add userId for Gmail polling service
-      }
-    }
+    // Use the original provider config - Gmail/Outlook configuration functions will inject userId automatically
+    const finalProviderConfig = providerConfig
 
     // If a webhook with the same path and workflowId exists, update it
     if (existingWebhooks.length > 0 && existingWebhooks[0].workflowId === workflowId) {
