@@ -64,7 +64,7 @@ Search for similar content in a knowledge base using vector similarity
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `knowledgeBaseId` | string | Yes | ID of the knowledge base to search in |
-| `query` | string | Yes | Search query text |
+| `query` | string | No | Search query text \(optional when using tag filters\) |
 | `topK` | number | No | Number of most similar results to return \(1-100\) |
 | `tagFilters` | any | No | Array of tag filters with tagName and tagValue properties |
 
