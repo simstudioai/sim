@@ -39,7 +39,7 @@ export async function uploadExecutionFile(
   contentType: string
 ): Promise<UserFile> {
   logger.info(`Uploading execution file: ${fileName} for execution ${context.executionId}`)
-  console.log(`File upload context:`, {
+  logger.debug(`File upload context:`, {
     workspaceId: context.workspaceId,
     workflowId: context.workflowId,
     executionId: context.executionId,
