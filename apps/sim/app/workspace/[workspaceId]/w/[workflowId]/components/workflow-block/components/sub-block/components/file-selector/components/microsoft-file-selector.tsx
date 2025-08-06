@@ -24,6 +24,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import type { PlannerTask } from '@/tools/microsoft_planner/types'
 
 const logger = createLogger('MicrosoftFileSelector')
 
@@ -40,6 +41,9 @@ export interface MicrosoftFileInfo {
   owners?: { displayName: string; emailAddress: string }[]
 }
 
+// Union type for items that can be displayed in the file selector
+type SelectableItem = MicrosoftFileInfo | PlannerTask
+
 interface MicrosoftFileSelectorProps {
   value: string
   onChange: (value: string, fileInfo?: MicrosoftFileInfo) => void
@@ -50,6 +54,7 @@ interface MicrosoftFileSelectorProps {
   serviceId?: string
   showPreview?: boolean
   onFileInfoChange?: (fileInfo: MicrosoftFileInfo | null) => void
+  planId?: string
 }
 
 export function MicrosoftFileSelector({
@@ -62,6 +67,7 @@ export function MicrosoftFileSelector({
   serviceId,
   showPreview = true,
   onFileInfoChange,
+  planId,
 }: MicrosoftFileSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -76,6 +82,11 @@ export function MicrosoftFileSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [credentialsLoaded, setCredentialsLoaded] = useState(false)
   const initialFetchRef = useRef(false)
+
+  // Handle Microsoft Planner task selection
+  const [plannerTasks, setPlannerTasks] = useState<PlannerTask[]>([])
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<PlannerTask | null>(null)
 
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
@@ -128,7 +139,7 @@ export function MicrosoftFileSelector({
     }
   }, [provider, getProviderId, selectedCredentialId])
 
-  // Fetch available Excel files for the selected credential
+  // Fetch available files for the selected credential
   const fetchAvailableFiles = useCallback(async () => {
     if (!selectedCredentialId) return
 
@@ -143,7 +154,17 @@ export function MicrosoftFileSelector({
         queryParams.append('query', searchQuery.trim())
       }
 
-      const response = await fetch(`/api/auth/oauth/microsoft/files?${queryParams.toString()}`)
+      // Route to correct endpoint based on service
+      let endpoint: string
+      if (serviceId === 'onedrive') {
+        endpoint = `/api/tools/onedrive/folders?${queryParams.toString()}`
+      } else if (serviceId === 'sharepoint') {
+        endpoint = `/api/tools/sharepoint/sites?${queryParams.toString()}`
+      } else {
+        endpoint = `/api/auth/oauth/microsoft/files?${queryParams.toString()}`
+      }
+
+      const response = await fetch(endpoint)
 
       if (response.ok) {
         const data = await response.json()
@@ -160,7 +181,7 @@ export function MicrosoftFileSelector({
     } finally {
       setIsLoadingFiles(false)
     }
-  }, [selectedCredentialId, searchQuery])
+  }, [selectedCredentialId, searchQuery, serviceId])
 
   // Fetch a single file by ID when we have a selectedFileId but no metadata
   const fetchFileById = useCallback(
@@ -175,7 +196,22 @@ export function MicrosoftFileSelector({
           fileId: fileId,
         })
 
-        const response = await fetch(`/api/auth/oauth/microsoft/file?${queryParams.toString()}`)
+        // Route to correct endpoint based on service
+        let endpoint: string
+        if (serviceId === 'onedrive') {
+          endpoint = `/api/tools/onedrive/folder?${queryParams.toString()}`
+        } else if (serviceId === 'sharepoint') {
+          // Change from fileId to siteId for SharePoint
+          const sharepointParams = new URLSearchParams({
+            credentialId: selectedCredentialId,
+            siteId: fileId, // Use siteId instead of fileId
+          })
+          endpoint = `/api/tools/sharepoint/site?${sharepointParams.toString()}`
+        } else {
+          endpoint = `/api/auth/oauth/microsoft/file?${queryParams.toString()}`
+        }
+
+        const response = await fetch(endpoint)
 
         if (response.ok) {
           const data = await response.json()
@@ -204,8 +240,76 @@ export function MicrosoftFileSelector({
         setIsLoadingSelectedFile(false)
       }
     },
-    [selectedCredentialId, onFileInfoChange]
+    [selectedCredentialId, onFileInfoChange, serviceId]
   )
+
+  // Fetch Microsoft Planner tasks when planId and credentials are available
+  const fetchPlannerTasks = useCallback(async () => {
+    if (!selectedCredentialId || !planId || serviceId !== 'microsoft-planner') {
+      logger.info('Skipping task fetch - missing requirements:', {
+        selectedCredentialId: !!selectedCredentialId,
+        planId: !!planId,
+        serviceId,
+      })
+      return
+    }
+
+    logger.info('Fetching Planner tasks with:', {
+      credentialId: selectedCredentialId,
+      planId,
+      serviceId,
+    })
+
+    setIsLoadingTasks(true)
+    try {
+      const queryParams = new URLSearchParams({
+        credentialId: selectedCredentialId,
+        planId: planId,
+      })
+
+      const url = `/api/tools/microsoft_planner/tasks?${queryParams.toString()}`
+      logger.info('Calling API endpoint:', url)
+
+      const response = await fetch(url)
+
+      if (response.ok) {
+        const data = await response.json()
+        logger.info('Received task data:', data)
+        const tasks = data.tasks || []
+
+        // Transform tasks to match file info format for consistency
+        const transformedTasks = tasks.map((task: PlannerTask) => ({
+          id: task.id,
+          name: task.title,
+          mimeType: 'planner/task',
+          webViewLink: `https://tasks.office.com/planner/task/${task.id}`,
+          modifiedTime: task.createdDateTime,
+          createdTime: task.createdDateTime,
+          planId: task.planId,
+          bucketId: task.bucketId,
+          percentComplete: task.percentComplete,
+          priority: task.priority,
+          dueDateTime: task.dueDateTime,
+        }))
+
+        logger.info('Transformed tasks:', transformedTasks)
+        setPlannerTasks(transformedTasks)
+      } else {
+        const errorText = await response.text()
+        logger.error('API response not ok:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText,
+        })
+        setPlannerTasks([])
+      }
+    } catch (error) {
+      logger.error('Network/fetch error:', error)
+      setPlannerTasks([])
+    } finally {
+      setIsLoadingTasks(false)
+    }
+  }, [selectedCredentialId, planId, serviceId])
 
   // Fetch credentials on initial mount
   useEffect(() => {
@@ -232,6 +336,35 @@ export function MicrosoftFileSelector({
       return () => clearTimeout(timeoutId)
     }
   }, [searchQuery, selectedCredentialId, fetchAvailableFiles])
+
+  // Fetch planner tasks when credentials and planId change
+  useEffect(() => {
+    if (serviceId === 'microsoft-planner' && selectedCredentialId && planId) {
+      fetchPlannerTasks()
+    }
+  }, [selectedCredentialId, planId, serviceId, fetchPlannerTasks])
+
+  // Handle task selection for planner
+  const handleTaskSelect = (task: PlannerTask) => {
+    const taskId = task.id || ''
+    // Convert PlannerTask to MicrosoftFileInfo format for compatibility
+    const taskAsFileInfo: MicrosoftFileInfo = {
+      id: taskId,
+      name: task.title,
+      mimeType: 'planner/task',
+      webViewLink: `https://tasks.office.com/planner/task/${taskId}`,
+      createdTime: task.createdDateTime,
+      modifiedTime: task.createdDateTime,
+    }
+
+    setSelectedFileId(taskId)
+    setSelectedFile(taskAsFileInfo)
+    setSelectedTask(task)
+    onChange(taskId, taskAsFileInfo)
+    onFileInfoChange?.(taskAsFileInfo)
+    setOpen(false)
+    setSearchQuery('')
+  }
 
   // Keep internal selectedFileId in sync with the value prop
   useEffect(() => {
@@ -276,7 +409,10 @@ export function MicrosoftFileSelector({
       selectedCredentialId &&
       credentialsLoaded &&
       !selectedFile &&
-      !isLoadingSelectedFile
+      !isLoadingSelectedFile &&
+      serviceId !== 'microsoft-planner' &&
+      serviceId !== 'sharepoint' &&
+      serviceId !== 'onedrive'
     ) {
       fetchFileById(value)
     }
@@ -287,6 +423,7 @@ export function MicrosoftFileSelector({
     selectedFile,
     isLoadingSelectedFile,
     fetchFileById,
+    serviceId,
   ])
 
   // Handle selecting a file from the available files
@@ -322,6 +459,22 @@ export function MicrosoftFileSelector({
 
     if (!baseProviderConfig) {
       return <ExternalLink className='h-4 w-4' />
+    }
+
+    // Handle OneDrive specifically by checking serviceId
+    if (baseProvider === 'microsoft' && serviceId === 'onedrive') {
+      const onedriveService = baseProviderConfig.services.onedrive
+      if (onedriveService) {
+        return onedriveService.icon({ className: 'h-4 w-4' })
+      }
+    }
+
+    // Handle SharePoint specifically by checking serviceId
+    if (baseProvider === 'microsoft' && serviceId === 'sharepoint') {
+      const sharepointService = baseProviderConfig.services.sharepoint
+      if (sharepointService) {
+        return sharepointService.icon({ className: 'h-4 w-4' })
+      }
     }
 
     // For compound providers, find the specific service
@@ -383,6 +536,9 @@ export function MicrosoftFileSelector({
     if (file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
       return <MicrosoftExcelIcon className={`${iconSize} text-green-600`} />
     }
+    if (file.mimeType === 'planner/task') {
+      return getProviderIcon(provider)
+    }
     // if (file.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
     //   return <FileIcon className={`${iconSize} text-blue-600`} />
     // }
@@ -397,6 +553,55 @@ export function MicrosoftFileSelector({
     setSearchQuery(query)
   }
 
+  const getFileTypeTitleCase = () => {
+    if (serviceId === 'onedrive') return 'Folders'
+    if (serviceId === 'sharepoint') return 'Sites'
+    if (serviceId === 'microsoft-planner') return 'Tasks'
+    return 'Excel Files'
+  }
+
+  const getSearchPlaceholder = () => {
+    if (serviceId === 'onedrive') return 'Search OneDrive folders...'
+    if (serviceId === 'sharepoint') return 'Search SharePoint sites...'
+    if (serviceId === 'microsoft-planner') return 'Search tasks...'
+    return 'Search Excel files...'
+  }
+
+  const getEmptyStateText = () => {
+    if (serviceId === 'onedrive') {
+      return {
+        title: 'No folders found.',
+        description: 'No folders were found in your OneDrive.',
+      }
+    }
+    if (serviceId === 'sharepoint') {
+      return {
+        title: 'No sites found.',
+        description: 'No SharePoint sites were found.',
+      }
+    }
+    if (serviceId === 'microsoft-planner') {
+      return {
+        title: 'No tasks found.',
+        description: 'No tasks were found in this plan.',
+      }
+    }
+    return {
+      title: 'No Excel files found.',
+      description: 'No .xlsx files were found in your OneDrive.',
+    }
+  }
+
+  // Filter tasks based on search query for planner
+  const filteredTasks: SelectableItem[] =
+    serviceId === 'microsoft-planner'
+      ? plannerTasks.filter((task) => {
+          const title = task.title || ''
+          const query = searchQuery || ''
+          return title.toLowerCase().includes(query.toLowerCase())
+        })
+      : availableFiles
+
   return (
     <>
       <div className='space-y-2'>
@@ -405,7 +610,7 @@ export function MicrosoftFileSelector({
           onOpenChange={(isOpen) => {
             setOpen(isOpen)
             if (!isOpen) {
-              setSearchQuery('') // Clear search when popover closes
+              setSearchQuery('')
             }
           }}
         >
@@ -415,7 +620,7 @@ export function MicrosoftFileSelector({
               role='combobox'
               aria-expanded={open}
               className='h-10 w-full min-w-0 justify-between'
-              disabled={disabled}
+              disabled={disabled || (serviceId === 'microsoft-planner' && !planId)}
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
                 {selectedFile ? (
@@ -463,10 +668,10 @@ export function MicrosoftFileSelector({
             )}
 
             <Command>
-              <CommandInput placeholder='Search Excel files...' onValueChange={handleSearch} />
+              <CommandInput placeholder={getSearchPlaceholder()} onValueChange={handleSearch} />
               <CommandList>
                 <CommandEmpty>
-                  {isLoading || isLoadingFiles ? (
+                  {isLoading || isLoadingFiles || isLoadingTasks ? (
                     <div className='flex items-center justify-center p-4'>
                       <RefreshCw className='h-4 w-4 animate-spin' />
                       <span className='ml-2'>Loading...</span>
@@ -478,11 +683,18 @@ export function MicrosoftFileSelector({
                         Connect a {getProviderName(provider)} account to continue.
                       </p>
                     </div>
-                  ) : availableFiles.length === 0 ? (
+                  ) : serviceId === 'microsoft-planner' && !planId ? (
                     <div className='p-4 text-center'>
-                      <p className='font-medium text-sm'>No Excel files found.</p>
+                      <p className='font-medium text-sm'>Plan ID required.</p>
                       <p className='text-muted-foreground text-xs'>
-                        No .xlsx files were found in your OneDrive.
+                        Please enter a Plan ID first to see tasks.
+                      </p>
+                    </div>
+                  ) : filteredTasks.length === 0 ? (
+                    <div className='p-4 text-center'>
+                      <p className='font-medium text-sm'>{getEmptyStateText().title}</p>
+                      <p className='text-muted-foreground text-xs'>
+                        {getEmptyStateText().description}
                       </p>
                     </div>
                   ) : null}
@@ -510,32 +722,58 @@ export function MicrosoftFileSelector({
                   </CommandGroup>
                 )}
 
-                {/* Available Excel files - only show if we have credentials and files */}
-                {credentials.length > 0 && selectedCredentialId && availableFiles.length > 0 && (
+                {/* Available files/tasks - only show if we have credentials and items */}
+                {credentials.length > 0 && selectedCredentialId && filteredTasks.length > 0 && (
                   <CommandGroup>
                     <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
-                      Excel Files
+                      {getFileTypeTitleCase()}
                     </div>
-                    {availableFiles.map((file) => (
-                      <CommandItem
-                        key={file.id}
-                        value={`file-${file.id}-${file.name}`}
-                        onSelect={() => handleFileSelect(file)}
-                      >
-                        <div className='flex items-center gap-2 overflow-hidden'>
-                          {getFileIcon(file, 'sm')}
-                          <div className='min-w-0 flex-1'>
-                            <span className='truncate font-normal'>{file.name}</span>
-                            {file.modifiedTime && (
-                              <div className='text-muted-foreground text-xs'>
-                                Modified {new Date(file.modifiedTime).toLocaleDateString()}
-                              </div>
+                    {filteredTasks.map((item) => {
+                      const isPlanner = serviceId === 'microsoft-planner'
+                      const isPlannerTask = isPlanner && 'title' in item
+                      const plannerTask = item as PlannerTask
+                      const fileInfo = item as MicrosoftFileInfo
+
+                      const displayName = isPlannerTask ? plannerTask.title : fileInfo.name
+                      const dateField = isPlannerTask
+                        ? plannerTask.createdDateTime
+                        : fileInfo.createdTime
+
+                      return (
+                        <CommandItem
+                          key={item.id}
+                          value={`file-${item.id}-${displayName}`}
+                          onSelect={() =>
+                            isPlannerTask
+                              ? handleTaskSelect(plannerTask)
+                              : handleFileSelect(fileInfo)
+                          }
+                        >
+                          <div className='flex items-center gap-2 overflow-hidden'>
+                            {getFileIcon(
+                              isPlannerTask
+                                ? {
+                                    ...fileInfo,
+                                    id: plannerTask.id || '',
+                                    name: plannerTask.title,
+                                    mimeType: 'planner/task',
+                                  }
+                                : fileInfo,
+                              'sm'
                             )}
+                            <div className='min-w-0 flex-1'>
+                              <span className='truncate font-normal'>{displayName}</span>
+                              {dateField && (
+                                <div className='text-muted-foreground text-xs'>
+                                  Modified {new Date(dateField).toLocaleDateString()}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        {file.id === selectedFileId && <Check className='ml-auto h-4 w-4' />}
-                      </CommandItem>
-                    ))}
+                          {item.id === selectedFileId && <Check className='ml-auto h-4 w-4' />}
+                        </CommandItem>
+                      )
+                    })}
                   </CommandGroup>
                 )}
 
@@ -589,7 +827,13 @@ export function MicrosoftFileSelector({
                     className='flex items-center gap-1 text-primary text-xs hover:underline'
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <span>Open in OneDrive</span>
+                    <span>
+                      {serviceId === 'microsoft-planner'
+                        ? 'Open in Planner'
+                        : serviceId === 'sharepoint'
+                          ? 'Open in SharePoint'
+                          : 'Open in OneDrive'}
+                    </span>
                     <ExternalLink className='h-3 w-3' />
                   </a>
                 ) : (
@@ -600,7 +844,9 @@ export function MicrosoftFileSelector({
                     className='flex items-center gap-1 text-primary text-xs hover:underline'
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <span>Open in OneDrive</span>
+                    <span>
+                      {serviceId === 'sharepoint' ? 'Open in SharePoint' : 'Open in OneDrive'}
+                    </span>
                     <ExternalLink className='h-3 w-3' />
                   </a>
                 )}

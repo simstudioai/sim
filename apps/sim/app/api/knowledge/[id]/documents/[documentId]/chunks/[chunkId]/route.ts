@@ -1,4 +1,4 @@
-import crypto from 'node:crypto'
+import { createHash, randomUUID } from 'crypto'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -22,7 +22,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = randomUUID().slice(0, 8)
   const { id: knowledgeBaseId, documentId, chunkId } = await params
 
   try {
@@ -70,7 +70,7 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = randomUUID().slice(0, 8)
   const { id: knowledgeBaseId, documentId, chunkId } = await params
 
   try {
@@ -119,10 +119,7 @@ export async function PUT(
         updateData.contentLength = validatedData.content.length
         // Update token count estimation (rough approximation: 4 chars per token)
         updateData.tokenCount = Math.ceil(validatedData.content.length / 4)
-        updateData.chunkHash = crypto
-          .createHash('sha256')
-          .update(validatedData.content)
-          .digest('hex')
+        updateData.chunkHash = createHash('sha256').update(validatedData.content).digest('hex')
       }
 
       if (validatedData.enabled !== undefined) updateData.enabled = validatedData.enabled
@@ -166,7 +163,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = randomUUID().slice(0, 8)
   const { id: knowledgeBaseId, documentId, chunkId } = await params
 
   try {
