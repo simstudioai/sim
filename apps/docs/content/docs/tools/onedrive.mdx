@@ -59,10 +59,17 @@ Integrate OneDrive functionality to manage files and folders. Upload new files, 
 
 ### `onedrive_upload`
 
+Upload a file to OneDrive
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the OneDrive API |
+| `fileName` | string | Yes | The name of the file to upload |
+| `content` | string | Yes | The content of the file to upload |
+| `folderSelector` | string | No | Select the folder to upload the file to |
+| `folderId` | string | No | The ID of the folder to upload the file to \(internal use\) |
 
 #### Output
 

@@ -53,7 +53,7 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
     }),
     body: (params) => {
       return {
-        name: params.fileName,
+        name: params.folderName,
         folder: {}, // Required facet for folder creation in Microsoft Graph API
         '@microsoft.graph.conflictBehavior': 'rename', // Handle name conflicts
       }

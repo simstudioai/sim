@@ -99,7 +99,7 @@ import {
   notionSearchTool,
   notionWriteTool,
 } from '@/tools/notion'
-import { onedriveCreateFolderTool, onedriveListTool } from '@/tools/onedrive'
+import { onedriveCreateFolderTool, onedriveListTool, onedriveUploadTool } from '@/tools/onedrive'
 import { imageTool, embeddingsTool as openAIEmbeddings } from '@/tools/openai'
 import { outlookDraftTool, outlookReadTool, outlookSendTool } from '@/tools/outlook'
 import { perplexityChatTool } from '@/tools/perplexity'
@@ -277,6 +277,7 @@ export const tools: Record<string, ToolConfig> = {
   linear_create_issue: linearCreateIssueTool,
   onedrive_create_folder: onedriveCreateFolderTool,
   onedrive_list: onedriveListTool,
+  onedrive_upload: onedriveUploadTool,
   microsoft_excel_read: microsoftExcelReadTool,
   microsoft_excel_write: microsoftExcelWriteTool,
   microsoft_excel_table_add: microsoftExcelTableAddTool,
