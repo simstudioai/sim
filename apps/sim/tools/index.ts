@@ -39,13 +39,13 @@ async function processFileOutputs(
       return result
     }
 
-    console.log(`File processing for tool ${tool.id}: checking outputs`, Object.keys(result.output))
+    logger.info(`File processing for tool ${tool.id}: checking outputs`, Object.keys(result.output))
     const processedOutput = await FileToolProcessor.processToolOutputs(
       result.output,
       tool,
       executionContext
     )
-    console.log(
+    logger.info(
       `File processing for tool ${tool.id}: processed outputs`,
       Object.keys(processedOutput)
     )
