@@ -71,6 +71,34 @@ app:
     GITHUB_CLIENT_ID: ""
     GITHUB_CLIENT_SECRET: ""
     RESEND_API_KEY: ""
+    
+    # UI Branding & Whitelabeling Configuration
+    NEXT_PUBLIC_BRAND_NAME: "Sim"                         # Custom brand name
+    NEXT_PUBLIC_BRAND_LOGO_URL: ""                        # Custom logo URL (leave empty for default)
+    NEXT_PUBLIC_BRAND_FAVICON_URL: ""                     # Custom favicon URL (leave empty for default)
+    NEXT_PUBLIC_BRAND_PRIMARY_COLOR: "#000000"           # Primary brand color (hex)
+    NEXT_PUBLIC_BRAND_SECONDARY_COLOR: "#6366f1"         # Secondary brand color (hex)
+    NEXT_PUBLIC_BRAND_ACCENT_COLOR: "#f59e0b"            # Accent brand color (hex)
+    NEXT_PUBLIC_CUSTOM_CSS_URL: ""                        # Custom stylesheet URL (leave empty for none)
+    NEXT_PUBLIC_HIDE_BRANDING: "false"                   # Hide "Powered by" branding (true/false)
+    NEXT_PUBLIC_CUSTOM_FOOTER_TEXT: ""                   # Custom footer text (leave empty for default)
+    NEXT_PUBLIC_SUPPORT_EMAIL: "help@sim.ai"             # Support email address
+    NEXT_PUBLIC_SUPPORT_URL: ""                          # Support page URL (leave empty for none)
+    NEXT_PUBLIC_DOCUMENTATION_URL: ""                    # Documentation URL (leave empty for none)
+    NEXT_PUBLIC_TERMS_URL: ""                            # Terms of service URL (leave empty for none)
+    NEXT_PUBLIC_PRIVACY_URL: ""                          # Privacy policy URL (leave empty for none)
+    
+    # Rate Limiting Configuration
+    RATE_LIMIT_WINDOW_MS: "60000"                        # Rate limit window in milliseconds (1 minute)
+    MANUAL_EXECUTION_LIMIT: "999999"                     # Manual execution limit (effectively unlimited)
+    RATE_LIMIT_FREE_SYNC: "10"                          # Free tier sync API executions per minute
+    RATE_LIMIT_FREE_ASYNC: "50"                         # Free tier async API executions per minute
+    RATE_LIMIT_PRO_SYNC: "25"                           # Pro tier sync API executions per minute
+    RATE_LIMIT_PRO_ASYNC: "200"                         # Pro tier async API executions per minute
+    RATE_LIMIT_TEAM_SYNC: "75"                          # Team tier sync API executions per minute
+    RATE_LIMIT_TEAM_ASYNC: "500"                        # Team tier async API executions per minute
+    RATE_LIMIT_ENTERPRISE_SYNC: "150"                   # Enterprise tier sync API executions per minute
+    RATE_LIMIT_ENTERPRISE_ASYNC: "1000"                 # Enterprise tier async API executions per minute
   
   # Service configuration
   service:

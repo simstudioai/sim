@@ -68,8 +68,12 @@ export function FileSelectorInput({
   const isDiscord = provider === 'discord'
   const isMicrosoftTeams = provider === 'microsoft-teams'
   const isMicrosoftExcel = provider === 'microsoft-excel'
+  const isMicrosoftWord = provider === 'microsoft-word'
+  const isMicrosoftOneDrive = provider === 'microsoft' && subBlock.serviceId === 'onedrive'
   const isGoogleCalendar = subBlock.provider === 'google-calendar'
   const isWealthbox = provider === 'wealthbox'
+  const isMicrosoftSharePoint = provider === 'microsoft' && subBlock.serviceId === 'sharepoint'
+  const isMicrosoftPlanner = provider === 'microsoft-planner'
   // For Confluence and Jira, we need the domain and credentials
   const domain = isConfluence || isJira ? (getValue(blockId, 'domain') as string) || '' : ''
   // For Discord, we need the bot token and server ID
@@ -94,6 +98,8 @@ export function FileSelectorInput({
           setSelectedCalendarId(value)
         } else if (isWealthbox) {
           setSelectedWealthboxItemId(value)
+        } else if (isMicrosoftSharePoint) {
+          setSelectedFileId(value)
         } else {
           setSelectedFileId(value)
         }
@@ -111,6 +117,8 @@ export function FileSelectorInput({
           setSelectedCalendarId(value)
         } else if (isWealthbox) {
           setSelectedWealthboxItemId(value)
+        } else if (isMicrosoftSharePoint) {
+          setSelectedFileId(value)
         } else {
           setSelectedFileId(value)
         }
@@ -125,6 +133,7 @@ export function FileSelectorInput({
     isMicrosoftTeams,
     isGoogleCalendar,
     isWealthbox,
+    isMicrosoftSharePoint,
     isPreview,
     previewValue,
   ])
@@ -320,6 +329,141 @@ export function FileSelectorInput({
               <p>Please select Microsoft Excel credentials first</p>
             </TooltipContent>
           )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  // Handle Microsoft Word selector
+  if (isMicrosoftWord) {
+    // Get credential using the same pattern as other tools
+    const credential = (getValue(blockId, 'credential') as string) || ''
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='w-full'>
+              <MicrosoftFileSelector
+                value={selectedFileId}
+                onChange={handleFileChange}
+                provider='microsoft-word'
+                requiredScopes={subBlock.requiredScopes || []}
+                serviceId={subBlock.serviceId}
+                label={subBlock.placeholder || 'Select Microsoft Word document'}
+                disabled={disabled || !credential}
+                showPreview={true}
+                onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
+              />
+            </div>
+          </TooltipTrigger>
+          {!credential && (
+            <TooltipContent side='top'>
+              <p>Please select Microsoft Word credentials first</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  // Handle Microsoft OneDrive selector
+  if (isMicrosoftOneDrive) {
+    const credential = (getValue(blockId, 'credential') as string) || ''
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='w-full'>
+              <MicrosoftFileSelector
+                value={selectedFileId}
+                onChange={handleFileChange}
+                provider='microsoft'
+                requiredScopes={subBlock.requiredScopes || []}
+                serviceId={subBlock.serviceId}
+                label={subBlock.placeholder || 'Select OneDrive folder'}
+                disabled={disabled || !credential}
+                showPreview={true}
+                onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
+              />
+            </div>
+          </TooltipTrigger>
+          {!credential && (
+            <TooltipContent side='top'>
+              <p>Please select Microsoft credentials first</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  // Handle Microsoft SharePoint selector
+  if (isMicrosoftSharePoint) {
+    const credential = (getValue(blockId, 'credential') as string) || ''
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='w-full'>
+              <MicrosoftFileSelector
+                value={selectedFileId}
+                onChange={handleFileChange}
+                provider='microsoft'
+                requiredScopes={subBlock.requiredScopes || []}
+                serviceId={subBlock.serviceId}
+                label={subBlock.placeholder || 'Select SharePoint site'}
+                disabled={disabled || !credential}
+                showPreview={true}
+                onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
+              />
+            </div>
+          </TooltipTrigger>
+          {!credential && (
+            <TooltipContent side='top'>
+              <p>Please select SharePoint credentials first</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  // Handle Microsoft Planner task selector
+  if (isMicrosoftPlanner) {
+    const credential = (getValue(blockId, 'credential') as string) || ''
+    const planId = (getValue(blockId, 'planId') as string) || ''
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='w-full'>
+              <MicrosoftFileSelector
+                value={selectedFileId}
+                onChange={handleFileChange}
+                provider='microsoft-planner'
+                requiredScopes={subBlock.requiredScopes || []}
+                serviceId='microsoft-planner'
+                label={subBlock.placeholder || 'Select task'}
+                disabled={disabled || !credential || !planId}
+                showPreview={true}
+                onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
+                planId={planId}
+              />
+            </div>
+          </TooltipTrigger>
+          {!credential ? (
+            <TooltipContent side='top'>
+              <p>Please select Microsoft Planner credentials first</p>
+            </TooltipContent>
+          ) : !planId ? (
+            <TooltipContent side='top'>
+              <p>Please enter a Plan ID first</p>
+            </TooltipContent>
+          ) : null}
         </Tooltip>
       </TooltipProvider>
     )

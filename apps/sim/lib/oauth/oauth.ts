@@ -14,6 +14,9 @@ import {
   LinearIcon,
   MicrosoftExcelIcon,
   MicrosoftIcon,
+  MicrosoftOneDriveIcon,
+  MicrosoftPlannerIcon,
+  MicrosoftSharepointIcon,
   MicrosoftTeamsIcon,
   NotionIcon,
   OutlookIcon,
@@ -62,12 +65,14 @@ export type OAuthService =
   | 'discord'
   | 'microsoft-excel'
   | 'microsoft-teams'
+  | 'microsoft-planner'
+  | 'sharepoint'
   | 'outlook'
   | 'linear'
   | 'slack'
   | 'reddit'
   | 'wealthbox'
-
+  | 'onedrive'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -159,6 +164,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         baseProviderIcon: (props) => MicrosoftIcon(props),
         scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
       },
+      'microsoft-planner': {
+        id: 'microsoft-planner',
+        name: 'Microsoft Planner',
+        description: 'Connect to Microsoft Planner and manage tasks.',
+        providerId: 'microsoft-planner',
+        icon: (props) => MicrosoftPlannerIcon(props),
+        baseProviderIcon: (props) => MicrosoftIcon(props),
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'Group.ReadWrite.All',
+          'Group.Read.All',
+          'Tasks.ReadWrite',
+          'offline_access',
+        ],
+      },
       'microsoft-teams': {
         id: 'microsoft-teams',
         name: 'Microsoft Teams',
@@ -198,6 +220,31 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Mail.ReadBasic',
           'Mail.Read',
           'Mail.Send',
+          'offline_access',
+        ],
+      },
+      onedrive: {
+        id: 'onedrive',
+        name: 'OneDrive',
+        description: 'Connect to OneDrive and manage files.',
+        providerId: 'onedrive',
+        icon: (props) => MicrosoftOneDriveIcon(props),
+        baseProviderIcon: (props) => MicrosoftIcon(props),
+        scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
+      },
+      sharepoint: {
+        id: 'sharepoint',
+        name: 'SharePoint',
+        description: 'Connect to SharePoint and manage sites.',
+        providerId: 'sharepoint',
+        icon: (props) => MicrosoftSharepointIcon(props),
+        baseProviderIcon: (props) => MicrosoftIcon(props),
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'Sites.Read.All',
+          'Sites.ReadWrite.All',
           'offline_access',
         ],
       },
@@ -472,6 +519,12 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'microsoft-teams'
   } else if (provider === 'outlook') {
     return 'outlook'
+  } else if (provider === 'sharepoint') {
+    return 'sharepoint'
+  } else if (provider === 'microsoft-planner') {
+    return 'microsoft-planner'
+  } else if (provider === 'onedrive') {
+    return 'onedrive'
   } else if (provider === 'github') {
     return 'github'
   } else if (provider === 'supabase') {
@@ -541,6 +594,18 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
     return {
       baseProvider: 'microsoft',
       featureType: 'outlook',
+    }
+  }
+  if (provider === 'onedrive') {
+    return {
+      baseProvider: 'microsoft',
+      featureType: 'onedrive',
+    }
+  }
+  if (provider === 'sharepoint') {
+    return {
+      baseProvider: 'microsoft',
+      featureType: 'sharepoint',
     }
   }
 
@@ -701,6 +766,30 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
       }
     }
     case 'outlook': {
+      const { clientId, clientSecret } = getCredentials(
+        env.MICROSOFT_CLIENT_ID,
+        env.MICROSOFT_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
+    case 'onedrive': {
+      const { clientId, clientSecret } = getCredentials(
+        env.MICROSOFT_CLIENT_ID,
+        env.MICROSOFT_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
+    case 'sharepoint': {
       const { clientId, clientSecret } = getCredentials(
         env.MICROSOFT_CLIENT_ID,
         env.MICROSOFT_CLIENT_SECRET

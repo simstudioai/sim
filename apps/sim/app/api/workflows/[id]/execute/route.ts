@@ -9,7 +9,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
 import {
   createHttpResponseFromBlock,
   updateWorkflowRunCounts,
@@ -111,20 +111,13 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any): P
     runningExecutions.add(executionKey)
     logger.info(`[${requestId}] Starting workflow execution: ${workflowId}`)
 
-    // Load workflow data from normalized tables
-    logger.debug(`[${requestId}] Loading workflow ${workflowId} from normalized tables`)
-    const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+    // Load workflow data from deployed state for API executions
+    const deployedData = await loadDeployedWorkflowState(workflowId)
 
-    if (!normalizedData) {
-      throw new Error(
-        `Workflow ${workflowId} has no normalized data available. Ensure the workflow is properly saved to normalized tables.`
-      )
-    }
-
-    // Use normalized data as primary source
-    const { blocks, edges, loops, parallels } = normalizedData
-    logger.info(`[${requestId}] Using normalized tables for workflow execution: ${workflowId}`)
-    logger.debug(`[${requestId}] Normalized data loaded:`, {
+    // Use deployed data as primary source for API executions
+    const { blocks, edges, loops, parallels } = deployedData
+    logger.info(`[${requestId}] Using deployed state for workflow execution: ${workflowId}`)
+    logger.debug(`[${requestId}] Deployed data loaded:`, {
       blocksCount: Object.keys(blocks || {}).length,
       edgesCount: (edges || []).length,
       loopsCount: Object.keys(loops || {}).length,

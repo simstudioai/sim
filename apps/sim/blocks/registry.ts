@@ -36,9 +36,11 @@ import { LinkupBlock } from '@/blocks/blocks/linkup'
 import { Mem0Block } from '@/blocks/blocks/mem0'
 import { MemoryBlock } from '@/blocks/blocks/memory'
 import { MicrosoftExcelBlock } from '@/blocks/blocks/microsoft_excel'
+import { MicrosoftPlannerBlock } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
 import { MistralParseBlock } from '@/blocks/blocks/mistral_parse'
 import { NotionBlock } from '@/blocks/blocks/notion'
+import { OneDriveBlock } from '@/blocks/blocks/onedrive'
 import { OpenAIBlock } from '@/blocks/blocks/openai'
 import { OutlookBlock } from '@/blocks/blocks/outlook'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
@@ -50,6 +52,7 @@ import { RouterBlock } from '@/blocks/blocks/router'
 import { S3Block } from '@/blocks/blocks/s3'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { SerperBlock } from '@/blocks/blocks/serper'
+import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { SlackBlock } from '@/blocks/blocks/slack'
 import { StagehandBlock } from '@/blocks/blocks/stagehand'
 import { StagehandAgentBlock } from '@/blocks/blocks/stagehand_agent'
@@ -105,11 +108,13 @@ export const registry: Record<string, BlockConfig> = {
   linkup: LinkupBlock,
   mem0: Mem0Block,
   microsoft_excel: MicrosoftExcelBlock,
+  microsoft_planner: MicrosoftPlannerBlock,
   microsoft_teams: MicrosoftTeamsBlock,
   mistral_parse: MistralParseBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
   outlook: OutlookBlock,
+  onedrive: OneDriveBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
   qdrant: QdrantBlock,
@@ -120,6 +125,7 @@ export const registry: Record<string, BlockConfig> = {
   schedule: ScheduleBlock,
   s3: S3Block,
   serper: SerperBlock,
+  sharepoint: SharepointBlock,
   stagehand: StagehandBlock,
   stagehand_agent: StagehandAgentBlock,
   slack: SlackBlock,

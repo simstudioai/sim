@@ -12,6 +12,7 @@ import {
   Text,
 } from '@react-email/components'
 import { format } from 'date-fns'
+import { getBrandConfig } from '@/lib/branding/branding'
 import { env } from '@/lib/env'
 import { getAssetUrl } from '@/lib/utils'
 import { baseStyles } from './base-styles'
@@ -30,19 +31,21 @@ export const ResetPasswordEmail = ({
   resetLink = '',
   updatedDate = new Date(),
 }: ResetPasswordEmailProps) => {
+  const brand = getBrandConfig()
+
   return (
     <Html>
       <Head />
       <Body style={baseStyles.main}>
-        <Preview>Reset your Sim password</Preview>
+        <Preview>Reset your {brand.name} password</Preview>
         <Container style={baseStyles.container}>
           <Section style={{ padding: '30px 0', textAlign: 'center' }}>
             <Row>
               <Column style={{ textAlign: 'center' }}>
                 <Img
-                  src={getAssetUrl('static/sim.png')}
+                  src={brand.logoUrl || getAssetUrl('static/sim.png')}
                   width='114'
-                  alt='Sim'
+                  alt={brand.name}
                   style={{
                     margin: '0 auto',
                   }}
@@ -62,8 +65,8 @@ export const ResetPasswordEmail = ({
           <Section style={baseStyles.content}>
             <Text style={baseStyles.paragraph}>Hello {username},</Text>
             <Text style={baseStyles.paragraph}>
-              You recently requested to reset your password for your Sim account. Use the button
-              below to reset it. This password reset is only valid for the next 24 hours.
+              You recently requested to reset your password for your {brand.name} account. Use the
+              button below to reset it. This password reset is only valid for the next 24 hours.
             </Text>
             <Link href={resetLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Reset Your Password</Text>
@@ -75,7 +78,7 @@ export const ResetPasswordEmail = ({
             <Text style={baseStyles.paragraph}>
               Best regards,
               <br />
-              The Sim Team
+              The {brand.name} Team
             </Text>
             <Text
               style={{

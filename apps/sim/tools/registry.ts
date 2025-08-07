@@ -80,6 +80,10 @@ import {
   microsoftExcelWriteTool,
 } from '@/tools/microsoft_excel'
 import {
+  microsoftPlannerCreateTaskTool,
+  microsoftPlannerReadTaskTool,
+} from '@/tools/microsoft_planner'
+import {
   microsoftTeamsReadChannelTool,
   microsoftTeamsReadChatTool,
   microsoftTeamsWriteChannelTool,
@@ -95,6 +99,7 @@ import {
   notionSearchTool,
   notionWriteTool,
 } from '@/tools/notion'
+import { onedriveCreateFolderTool, onedriveListTool, onedriveUploadTool } from '@/tools/onedrive'
 import { imageTool, embeddingsTool as openAIEmbeddings } from '@/tools/openai'
 import { outlookDraftTool, outlookReadTool, outlookSendTool } from '@/tools/outlook'
 import { perplexityChatTool } from '@/tools/perplexity'
@@ -109,6 +114,11 @@ import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdr
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from '@/tools/reddit'
 import { s3GetObjectTool } from '@/tools/s3'
 import { searchTool as serperSearch } from '@/tools/serper'
+import {
+  sharepointCreatePageTool,
+  sharepointListSitesTool,
+  sharepointReadPageTool,
+} from '@/tools/sharepoint'
 import { slackCanvasTool, slackMessageReaderTool, slackMessageTool } from '@/tools/slack'
 import { stagehandAgentTool, stagehandExtractTool } from '@/tools/stagehand'
 import {
@@ -265,9 +275,14 @@ export const tools: Record<string, ToolConfig> = {
   outlook_draft: outlookDraftTool,
   linear_read_issues: linearReadIssuesTool,
   linear_create_issue: linearCreateIssueTool,
+  onedrive_create_folder: onedriveCreateFolderTool,
+  onedrive_list: onedriveListTool,
+  onedrive_upload: onedriveUploadTool,
   microsoft_excel_read: microsoftExcelReadTool,
   microsoft_excel_write: microsoftExcelWriteTool,
   microsoft_excel_table_add: microsoftExcelTableAddTool,
+  microsoft_planner_create_task: microsoftPlannerCreateTaskTool,
+  microsoft_planner_read_task: microsoftPlannerReadTaskTool,
   google_calendar_create: googleCalendarCreateTool,
   google_calendar_get: googleCalendarGetTool,
   google_calendar_list: googleCalendarListTool,
@@ -293,4 +308,7 @@ export const tools: Record<string, ToolConfig> = {
   hunter_email_verifier: hunterEmailVerifierTool,
   hunter_companies_find: hunterCompaniesFindTool,
   hunter_email_count: hunterEmailCountTool,
+  sharepoint_create_page: sharepointCreatePageTool,
+  sharepoint_read_page: sharepointReadPageTool,
+  sharepoint_list_sites: sharepointListSitesTool,
 }

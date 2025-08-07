@@ -7,7 +7,12 @@ import { toolRegistry } from '@/lib/copilot/tools'
 import { createLogger } from '@/lib/logs/console/logger'
 import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
 import { COPILOT_TOOL_IDS } from './constants'
-import type { CopilotMessage, CopilotStore, WorkflowCheckpoint } from './types'
+import type {
+  CopilotMessage,
+  CopilotStore,
+  MessageFileAttachment,
+  WorkflowCheckpoint,
+} from './types'
 
 const logger = createLogger('CopilotStore')
 
@@ -143,14 +148,18 @@ const initialState = {
 }
 
 /**
- * Helper function to create a new user messagenow let
+ * Helper function to create a new user message
  */
-function createUserMessage(content: string): CopilotMessage {
+function createUserMessage(
+  content: string,
+  fileAttachments?: MessageFileAttachment[]
+): CopilotMessage {
   return {
     id: crypto.randomUUID(),
     role: 'user',
     content,
     timestamp: new Date().toISOString(),
+    ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
   }
 }
 
@@ -213,6 +222,8 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
         ...(msg.toolCalls && msg.toolCalls.length > 0 && { toolCalls: msg.toolCalls }),
         ...(msg.contentBlocks &&
           msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks }),
+        ...(msg.fileAttachments &&
+          msg.fileAttachments.length > 0 && { fileAttachments: msg.fileAttachments }),
       }
     })
     .filter((msg) => {
@@ -519,6 +530,43 @@ function createToolCall(id: string, name: string, input: any = {}): any {
   const initialState = requiresInterrupt ? 'pending' : 'executing'
 
   setToolCallState(toolCall, initialState, { preserveTerminalStates: false })
+
+  // Auto-execute client tools that don't require interrupt
+  if (!requiresInterrupt && toolRegistry.getTool(name)) {
+    logger.info('Auto-executing client tool:', name, toolCall.id)
+    // Execute client tool asynchronously
+    setTimeout(async () => {
+      try {
+        const tool = toolRegistry.getTool(name)
+        if (tool && toolCall.state === 'executing') {
+          await tool.execute(toolCall as any, {
+            onStateChange: (state: any) => {
+              // Update the tool call state in the store
+              const currentState = useCopilotStore.getState()
+              const updatedMessages = currentState.messages.map((msg) => ({
+                ...msg,
+                toolCalls: msg.toolCalls?.map((tc) =>
+                  tc.id === toolCall.id ? { ...tc, state } : tc
+                ),
+                contentBlocks: msg.contentBlocks?.map((block) =>
+                  block.type === 'tool_call' && block.toolCall?.id === toolCall.id
+                    ? { ...block, toolCall: { ...block.toolCall, state } }
+                    : block
+                ),
+              }))
+
+              useCopilotStore.setState({ messages: updatedMessages })
+            },
+          })
+        }
+      } catch (error) {
+        logger.error('Error auto-executing client tool:', name, toolCall.id, error)
+        setToolCallState(toolCall, 'errored', {
+          error: error instanceof Error ? error.message : 'Auto-execution failed',
+        })
+      }
+    }, 0)
+  }
 
   return toolCall
 }
@@ -1685,7 +1733,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // Send a message
       sendMessage: async (message: string, options = {}) => {
         const { workflowId, currentChat, mode, revertState } = get()
-        const { stream = true } = options
+        const { stream = true, fileAttachments } = options
 
         if (!workflowId) {
           logger.warn('Cannot send message: no workflow ID set')
@@ -1696,7 +1744,7 @@ export const useCopilotStore = create<CopilotStore>()(
         const abortController = new AbortController()
         set({ isSendingMessage: true, error: null, abortController })
 
-        const userMessage = createUserMessage(message)
+        const userMessage = createUserMessage(message, fileAttachments)
         const streamingMessage = createStreamingMessage()
 
         // Handle message history rewriting if we're in revert state
@@ -1752,6 +1800,7 @@ export const useCopilotStore = create<CopilotStore>()(
             mode,
             createNewChat: !currentChat,
             stream,
+            fileAttachments: options.fileAttachments,
             abortSignal: abortController.signal,
           })
 
@@ -2735,17 +2784,8 @@ export const useCopilotStore = create<CopilotStore>()(
             hasDiffWorkflow: !!diffStoreBefore.diffWorkflow,
           })
 
-          // Determine if we should clear or merge based on tool type and message context
-          const { messages } = get()
-          const currentMessage = messages[messages.length - 1]
-          const messageHasExistingEdits =
-            currentMessage?.toolCalls?.some(
-              (tc) =>
-                (tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-                  tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
-                tc.state !== 'executing'
-            ) || false
-
+          // Determine diff merge strategy based on tool type and existing edits
+          const messageHasExistingEdits = !!diffStoreBefore.diffWorkflow
           const shouldClearDiff =
             toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || // build_workflow always clears
             (toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW && !messageHasExistingEdits) // first edit_workflow in message clears
@@ -2775,15 +2815,9 @@ export const useCopilotStore = create<CopilotStore>()(
             hasDiffWorkflow: !!diffStoreBefore.diffWorkflow,
           })
 
-          if (shouldClearDiff || !diffStoreBefore.diffWorkflow) {
-            // Use setProposedChanges which will create a new diff
-            // Pass undefined to let sim-agent generate the diff analysis
-            await diffStore.setProposedChanges(yamlContent, undefined)
-          } else {
-            // Use mergeProposedChanges which will merge into existing diff
-            // Pass undefined to let sim-agent generate the diff analysis
-            await diffStore.mergeProposedChanges(yamlContent, undefined)
-          }
+          // Always use setProposedChanges to ensure the diff view fully overwrites with new changes
+          // This provides better UX as users expect to see the latest changes, not merged/cumulative changes
+          await diffStore.setProposedChanges(yamlContent, undefined)
 
           // Check diff store state after update
           const diffStoreAfter = useWorkflowDiffStore.getState()

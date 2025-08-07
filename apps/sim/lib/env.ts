@@ -96,6 +96,7 @@ export const env = createEnv({
     S3_LOGS_BUCKET_NAME:                  z.string().optional(),                // S3 bucket for storing logs
     S3_KB_BUCKET_NAME:                    z.string().optional(),                // S3 bucket for knowledge base files
     S3_CHAT_BUCKET_NAME:                  z.string().optional(),                // S3 bucket for chat logos
+    S3_COPILOT_BUCKET_NAME:               z.string().optional(),                // S3 bucket for copilot files
 
     // Cloud Storage - Azure Blob
     AZURE_ACCOUNT_NAME:                   z.string().optional(),                // Azure storage account name
@@ -104,9 +105,22 @@ export const env = createEnv({
     AZURE_STORAGE_CONTAINER_NAME:         z.string().optional(),                // Azure container for general files
     AZURE_STORAGE_KB_CONTAINER_NAME:      z.string().optional(),                // Azure container for knowledge base files
     AZURE_STORAGE_CHAT_CONTAINER_NAME:    z.string().optional(),                // Azure container for chat logos
+    AZURE_STORAGE_COPILOT_CONTAINER_NAME: z.string().optional(),                // Azure container for copilot files
 
     // Data Retention
     FREE_PLAN_LOG_RETENTION_DAYS:         z.string().optional(),                // Log retention days for free plan users
+
+    // Rate Limiting Configuration
+    RATE_LIMIT_WINDOW_MS:                 z.string().optional().default('60000'), // Rate limit window duration in milliseconds (default: 1 minute)
+    MANUAL_EXECUTION_LIMIT:               z.string().optional().default('999999'), // Manual execution bypass value (effectively unlimited)
+    RATE_LIMIT_FREE_SYNC:                 z.string().optional().default('10'),   // Free tier sync API executions per minute
+    RATE_LIMIT_FREE_ASYNC:                z.string().optional().default('50'),   // Free tier async API executions per minute
+    RATE_LIMIT_PRO_SYNC:                  z.string().optional().default('25'),   // Pro tier sync API executions per minute
+    RATE_LIMIT_PRO_ASYNC:                 z.string().optional().default('200'),  // Pro tier async API executions per minute
+    RATE_LIMIT_TEAM_SYNC:                 z.string().optional().default('75'),   // Team tier sync API executions per minute
+    RATE_LIMIT_TEAM_ASYNC:                z.string().optional().default('500'),  // Team tier async API executions per minute
+    RATE_LIMIT_ENTERPRISE_SYNC:           z.string().optional().default('150'),  // Enterprise tier sync API executions per minute
+    RATE_LIMIT_ENTERPRISE_ASYNC:          z.string().optional().default('1000'), // Enterprise tier async API executions per minute
 
     // Real-time Communication
     SOCKET_SERVER_URL:                    z.string().url().optional(),          // WebSocket server URL for real-time features
@@ -168,6 +182,22 @@ export const env = createEnv({
     NEXT_PUBLIC_RB2B_KEY:                 z.string().optional(),                // RB2B tracking key for B2B analytics
     NEXT_PUBLIC_GOOGLE_API_KEY:           z.string().optional(),                // Google API key for client-side API calls
     NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER:    z.string().optional(),                // Google project number for Drive picker
+
+    // UI Branding & Whitelabeling
+    NEXT_PUBLIC_BRAND_NAME:               z.string().optional(),                // Custom brand name (defaults to "Sim")
+    NEXT_PUBLIC_BRAND_LOGO_URL:           z.string().url().optional(),          // Custom logo URL
+    NEXT_PUBLIC_BRAND_FAVICON_URL:        z.string().url().optional(),          // Custom favicon URL
+    NEXT_PUBLIC_BRAND_PRIMARY_COLOR:      z.string().optional(),                // Primary brand color (hex)
+    NEXT_PUBLIC_BRAND_SECONDARY_COLOR:    z.string().optional(),                // Secondary brand color (hex)
+    NEXT_PUBLIC_BRAND_ACCENT_COLOR:       z.string().optional(),                // Accent brand color (hex)
+    NEXT_PUBLIC_CUSTOM_CSS_URL:           z.string().url().optional(),          // Custom CSS stylesheet URL
+    NEXT_PUBLIC_HIDE_BRANDING:            z.string().optional(),                // Hide "Powered by" branding
+    NEXT_PUBLIC_CUSTOM_FOOTER_TEXT:       z.string().optional(),                // Custom footer text
+    NEXT_PUBLIC_SUPPORT_EMAIL:            z.string().email().optional(),        // Custom support email
+    NEXT_PUBLIC_SUPPORT_URL:              z.string().url().optional(),          // Custom support URL
+    NEXT_PUBLIC_DOCUMENTATION_URL:        z.string().url().optional(),          // Custom documentation URL
+    NEXT_PUBLIC_TERMS_URL:                z.string().url().optional(),          // Custom terms of service URL
+    NEXT_PUBLIC_PRIVACY_URL:              z.string().url().optional(),          // Custom privacy policy URL
   },
 
   // Variables available on both server and client
@@ -186,6 +216,20 @@ export const env = createEnv({
     NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
     NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: process.env.NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER,
     NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL,
+    NEXT_PUBLIC_BRAND_NAME: process.env.NEXT_PUBLIC_BRAND_NAME,
+    NEXT_PUBLIC_BRAND_LOGO_URL: process.env.NEXT_PUBLIC_BRAND_LOGO_URL,
+    NEXT_PUBLIC_BRAND_FAVICON_URL: process.env.NEXT_PUBLIC_BRAND_FAVICON_URL,
+    NEXT_PUBLIC_BRAND_PRIMARY_COLOR: process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR,
+    NEXT_PUBLIC_BRAND_SECONDARY_COLOR: process.env.NEXT_PUBLIC_BRAND_SECONDARY_COLOR,
+    NEXT_PUBLIC_BRAND_ACCENT_COLOR: process.env.NEXT_PUBLIC_BRAND_ACCENT_COLOR,
+    NEXT_PUBLIC_CUSTOM_CSS_URL: process.env.NEXT_PUBLIC_CUSTOM_CSS_URL,
+    NEXT_PUBLIC_HIDE_BRANDING: process.env.NEXT_PUBLIC_HIDE_BRANDING,
+    NEXT_PUBLIC_CUSTOM_FOOTER_TEXT: process.env.NEXT_PUBLIC_CUSTOM_FOOTER_TEXT,
+    NEXT_PUBLIC_SUPPORT_EMAIL: process.env.NEXT_PUBLIC_SUPPORT_EMAIL,
+    NEXT_PUBLIC_SUPPORT_URL: process.env.NEXT_PUBLIC_SUPPORT_URL,
+    NEXT_PUBLIC_DOCUMENTATION_URL: process.env.NEXT_PUBLIC_DOCUMENTATION_URL,
+    NEXT_PUBLIC_TERMS_URL: process.env.NEXT_PUBLIC_TERMS_URL,
+    NEXT_PUBLIC_PRIVACY_URL: process.env.NEXT_PUBLIC_PRIVACY_URL,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_TELEMETRY_DISABLED: process.env.NEXT_TELEMETRY_DISABLED,
   },

@@ -13,11 +13,24 @@ import { getCopilotModel } from '@/lib/copilot/config'
 import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { downloadFile } from '@/lib/uploads'
+import { downloadFromS3WithConfig } from '@/lib/uploads/s3/s3-client'
+import { S3_COPILOT_CONFIG, USE_S3_STORAGE } from '@/lib/uploads/setup'
 import { db } from '@/db'
 import { copilotChats } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
+import { createAnthropicFileContent, isSupportedFileType } from './file-utils'
 
 const logger = createLogger('CopilotChatAPI')
+
+// Schema for file attachments
+const FileAttachmentSchema = z.object({
+  id: z.string(),
+  s3_key: z.string(),
+  filename: z.string(),
+  media_type: z.string(),
+  size: z.number(),
+})
 
 // Schema for chat messages
 const ChatMessageSchema = z.object({
@@ -29,6 +42,7 @@ const ChatMessageSchema = z.object({
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
   implicitFeedback: z.string().optional(),
+  fileAttachments: z.array(FileAttachmentSchema).optional(),
 })
 
 // Sim Agent API configuration
@@ -145,6 +159,7 @@ export async function POST(req: NextRequest) {
       createNewChat,
       stream,
       implicitFeedback,
+      fileAttachments,
     } = ChatMessageSchema.parse(body)
 
     logger.info(`[${tracker.requestId}] Processing copilot chat request`, {
@@ -195,15 +210,91 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Process file attachments if present
+    const processedFileContents: any[] = []
+    if (fileAttachments && fileAttachments.length > 0) {
+      logger.info(`[${tracker.requestId}] Processing ${fileAttachments.length} file attachments`)
+
+      for (const attachment of fileAttachments) {
+        try {
+          // Check if file type is supported
+          if (!isSupportedFileType(attachment.media_type)) {
+            logger.warn(`[${tracker.requestId}] Unsupported file type: ${attachment.media_type}`)
+            continue
+          }
+
+          // Download file from S3
+          logger.info(`[${tracker.requestId}] Downloading file: ${attachment.s3_key}`)
+          let fileBuffer: Buffer
+          if (USE_S3_STORAGE) {
+            fileBuffer = await downloadFromS3WithConfig(attachment.s3_key, S3_COPILOT_CONFIG)
+          } else {
+            // Fallback to generic downloadFile for other storage providers
+            fileBuffer = await downloadFile(attachment.s3_key)
+          }
+
+          // Convert to Anthropic format
+          const fileContent = createAnthropicFileContent(fileBuffer, attachment.media_type)
+          if (fileContent) {
+            processedFileContents.push(fileContent)
+            logger.info(
+              `[${tracker.requestId}] Processed file: ${attachment.filename} (${attachment.media_type})`
+            )
+          }
+        } catch (error) {
+          logger.error(
+            `[${tracker.requestId}] Failed to process file ${attachment.filename}:`,
+            error
+          )
+          // Continue processing other files
+        }
+      }
+    }
+
     // Build messages array for sim agent with conversation history
     const messages = []
 
-    // Add conversation history
+    // Add conversation history (need to rebuild these with file support if they had attachments)
     for (const msg of conversationHistory) {
-      messages.push({
-        role: msg.role,
-        content: msg.content,
-      })
+      if (msg.fileAttachments && msg.fileAttachments.length > 0) {
+        // This is a message with file attachments - rebuild with content array
+        const content: any[] = [{ type: 'text', text: msg.content }]
+
+        // Process file attachments for historical messages
+        for (const attachment of msg.fileAttachments) {
+          try {
+            if (isSupportedFileType(attachment.media_type)) {
+              let fileBuffer: Buffer
+              if (USE_S3_STORAGE) {
+                fileBuffer = await downloadFromS3WithConfig(attachment.s3_key, S3_COPILOT_CONFIG)
+              } else {
+                // Fallback to generic downloadFile for other storage providers
+                fileBuffer = await downloadFile(attachment.s3_key)
+              }
+              const fileContent = createAnthropicFileContent(fileBuffer, attachment.media_type)
+              if (fileContent) {
+                content.push(fileContent)
+              }
+            }
+          } catch (error) {
+            logger.error(
+              `[${tracker.requestId}] Failed to process historical file ${attachment.filename}:`,
+              error
+            )
+          }
+        }
+
+        messages.push({
+          role: msg.role,
+          content,
+        })
+      } else {
+        // Regular text-only message
+        messages.push({
+          role: msg.role,
+          content: msg.content,
+        })
+      }
     }
 
     // Add implicit feedback if provided
@@ -214,11 +305,27 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Add current user message
-    messages.push({
-      role: 'user',
-      content: message,
-    })
+    // Add current user message with file attachments
+    if (processedFileContents.length > 0) {
+      // Message with files - use content array format
+      const content: any[] = [{ type: 'text', text: message }]
+
+      // Add file contents
+      for (const fileContent of processedFileContents) {
+        content.push(fileContent)
+      }
+
+      messages.push({
+        role: 'user',
+        content,
+      })
+    } else {
+      // Text-only message
+      messages.push({
+        role: 'user',
+        content: message,
+      })
+    }
 
     // Start title generation in parallel if this is a new chat with first message
     if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
@@ -270,6 +377,7 @@ export async function POST(req: NextRequest) {
         role: 'user',
         content: message,
         timestamp: new Date().toISOString(),
+        ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
       }
 
       // Create a pass-through stream that captures the response
@@ -590,6 +698,7 @@ export async function POST(req: NextRequest) {
         role: 'user',
         content: message,
         timestamp: new Date().toISOString(),
+        ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
       }
 
       const assistantMessage = {

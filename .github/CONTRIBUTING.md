@@ -164,10 +164,14 @@ Access the application at [http://localhost:3000/](http://localhost:3000/)
 
 To use local models with Sim:
 
-1. Pull models using our helper script:
+1. Install Ollama and pull models:
 
 ```bash
-./apps/sim/scripts/ollama_docker.sh pull <model_name>
+# Install Ollama (if not already installed)
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Pull a model (e.g., gemma3:4b)
+ollama pull gemma3:4b
 ```
 
 2. Start Sim with local model support:
@@ -533,7 +537,7 @@ This visibility system ensures clean user interfaces while maintaining full flex
 
 ### Guidelines & Best Practices
 
-- **Code Style:** Follow the project's ESLint and Prettier configurations. Use meaningful variable names and small, focused functions.
+- **Code Style:** Follow the project's Biome configurations. Use meaningful variable names and small, focused functions.
 - **Documentation:** Clearly document the purpose, inputs, outputs, and any special behavior for your block/tool.
 - **Error Handling:** Implement robust error handling and provide user-friendly error messages.
 - **Parameter Visibility:** Always specify the appropriate visibility level for each parameter to ensure proper UI behavior and LLM integration.

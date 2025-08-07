@@ -57,7 +57,7 @@ async function addToolToRedis(toolCallId: string): Promise<void> {
  */
 async function pollRedisForTool(
   toolCallId: string
-): Promise<{ status: NotificationStatus; message?: string } | null> {
+): Promise<{ status: NotificationStatus; message?: string; fullData?: any } | null> {
   const redis = getRedisClient()
   if (!redis) {
     logger.warn('pollRedisForTool: Redis client not available')
@@ -86,12 +86,14 @@ async function pollRedisForTool(
 
       let status: NotificationStatus | null = null
       let message: string | undefined
+      let fullData: any = null
 
       // Try to parse as JSON (new format), fallback to string (old format)
       try {
         const parsedData = JSON.parse(redisValue)
         status = parsedData.status as NotificationStatus
         message = parsedData.message || undefined
+        fullData = parsedData // Store the full parsed data
       } catch {
         // Fallback to old format (direct status string)
         status = redisValue as NotificationStatus
@@ -138,7 +140,7 @@ async function pollRedisForTool(
           })
         }
 
-        return { status, message }
+        return { status, message, fullData }
       }
 
       // Wait before next poll
@@ -163,9 +165,13 @@ async function pollRedisForTool(
  * Handle tool calls that require user interruption/approval
  * Returns { approved: boolean, rejected: boolean, error?: boolean, message?: string } to distinguish between rejection, timeout, and error
  */
-async function interruptHandler(
-  toolCallId: string
-): Promise<{ approved: boolean; rejected: boolean; error?: boolean; message?: string }> {
+async function interruptHandler(toolCallId: string): Promise<{
+  approved: boolean
+  rejected: boolean
+  error?: boolean
+  message?: string
+  fullData?: any
+}> {
   if (!toolCallId) {
     logger.error('interruptHandler: No tool call ID provided')
     return { approved: false, rejected: false, error: true, message: 'No tool call ID provided' }
@@ -185,31 +191,31 @@ async function interruptHandler(
       return { approved: false, rejected: false }
     }
 
-    const { status, message } = result
+    const { status, message, fullData } = result
 
     if (status === 'rejected') {
       logger.info('Tool execution rejected by user', { toolCallId, message })
-      return { approved: false, rejected: true, message }
+      return { approved: false, rejected: true, message, fullData }
     }
 
     if (status === 'accepted') {
       logger.info('Tool execution approved by user', { toolCallId, message })
-      return { approved: true, rejected: false, message }
+      return { approved: true, rejected: false, message, fullData }
     }
 
     if (status === 'error') {
       logger.error('Tool execution failed with error', { toolCallId, message })
-      return { approved: false, rejected: false, error: true, message }
+      return { approved: false, rejected: false, error: true, message, fullData }
     }
 
     if (status === 'background') {
       logger.info('Tool execution moved to background', { toolCallId, message })
-      return { approved: true, rejected: false, message }
+      return { approved: true, rejected: false, message, fullData }
     }
 
     if (status === 'success') {
       logger.info('Tool execution completed successfully', { toolCallId, message })
-      return { approved: true, rejected: false, message }
+      return { approved: true, rejected: false, message, fullData }
     }
 
     logger.warn('Unexpected tool call status', { toolCallId, status, message })
@@ -326,7 +332,7 @@ export async function POST(req: NextRequest) {
       })
 
       // Handle interrupt flow
-      const { approved, rejected, error, message } = await interruptHandler(toolCallId)
+      const { approved, rejected, error, message, fullData } = await interruptHandler(toolCallId)
 
       if (rejected) {
         logger.info(`[${requestId}] Tool execution rejected by user`, {
@@ -371,9 +377,12 @@ export async function POST(req: NextRequest) {
         message,
       })
 
-      // For noop tool, pass the confirmation message as a parameter
-      if (methodId === 'no_op' && message) {
+      // For tools that need confirmation data, pass the message and/or fullData as parameters
+      if (message) {
         params.confirmationMessage = message
+      }
+      if (fullData) {
+        params.fullData = fullData
       }
     }
 

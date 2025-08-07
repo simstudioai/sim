@@ -61,6 +61,17 @@ export interface ToolCallContentBlock {
 export type ContentBlock = TextContentBlock | ToolCallContentBlock
 
 /**
+ * File attachment interface for copilot messages
+ */
+export interface MessageFileAttachment {
+  id: string
+  s3_key: string
+  filename: string
+  media_type: string
+  size: number
+}
+
+/**
  * Copilot message interface
  */
 export interface CopilotMessage {
@@ -71,6 +82,7 @@ export interface CopilotMessage {
   citations?: Citation[]
   toolCalls?: CopilotToolCall[]
   contentBlocks?: ContentBlock[] // New chronological content structure
+  fileAttachments?: MessageFileAttachment[] // File attachments
 }
 
 /**
@@ -132,6 +144,7 @@ export interface CreateChatOptions {
  */
 export interface SendMessageOptions {
   stream?: boolean
+  fileAttachments?: MessageFileAttachment[]
 }
 
 /**

@@ -2,9 +2,12 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
+import { useBrandConfig } from '@/lib/branding/branding'
 import { GridPattern } from '@/app/(landing)/components/grid-pattern'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  const brand = useBrandConfig()
+
   return (
     <main className='relative flex min-h-screen flex-col bg-[#0C0C0C] font-geist-sans text-white'>
       {/* Background pattern */}
@@ -21,7 +24,17 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className='relative z-10 px-6 pt-9'>
         <div className='mx-auto max-w-7xl'>
           <Link href='/' className='inline-flex'>
-            <Image src='/sim.svg' alt='Sim Logo' width={42} height={42} />
+            {brand.logoUrl ? (
+              <img
+                src={brand.logoUrl}
+                alt={`${brand.name} Logo`}
+                width={42}
+                height={42}
+                className='h-[42px] w-[42px] object-contain'
+              />
+            ) : (
+              <Image src='/sim.svg' alt={`${brand.name} Logo`} width={42} height={42} />
+            )}
           </Link>
         </div>
       </div>

@@ -7,8 +7,6 @@ import { member, permissions, user, workspace } from '@/db/schema'
 
 const logger = createLogger('OrganizationWorkspacesAPI')
 
-export const dynamic = 'force-dynamic'
-
 /**
  * GET /api/organizations/[id]/workspaces
  * Get workspaces related to the organization with optional filtering

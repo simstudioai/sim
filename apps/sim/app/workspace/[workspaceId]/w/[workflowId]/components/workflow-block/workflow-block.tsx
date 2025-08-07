@@ -70,7 +70,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentWorkflow.getBlockById(id)
 
-  const isEnabled = currentBlock?.enabled ?? true
+  // In preview mode, use the blockState provided; otherwise use current workflow state
+  const isEnabled = data.isPreview
+    ? (data.blockState?.enabled ?? true)
+    : (currentBlock?.enabled ?? true)
 
   // Get diff status from the block itself (set by diff engine)
   const diffStatus =
@@ -405,33 +408,37 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       // If there's no condition, the block should be shown
       if (!block.condition) return true
 
+      // If condition is a function, call it to get the actual condition object
+      const actualCondition =
+        typeof block.condition === 'function' ? block.condition() : block.condition
+
       // Get the values of the fields this block depends on from the appropriate state
-      const fieldValue = stateToUse[block.condition.field]?.value
-      const andFieldValue = block.condition.and
-        ? stateToUse[block.condition.and.field]?.value
+      const fieldValue = stateToUse[actualCondition.field]?.value
+      const andFieldValue = actualCondition.and
+        ? stateToUse[actualCondition.and.field]?.value
         : undefined
 
       // Check if the condition value is an array
-      const isValueMatch = Array.isArray(block.condition.value)
+      const isValueMatch = Array.isArray(actualCondition.value)
         ? fieldValue != null &&
-          (block.condition.not
-            ? !block.condition.value.includes(fieldValue as string | number | boolean)
-            : block.condition.value.includes(fieldValue as string | number | boolean))
-        : block.condition.not
-          ? fieldValue !== block.condition.value
-          : fieldValue === block.condition.value
+          (actualCondition.not
+            ? !actualCondition.value.includes(fieldValue as string | number | boolean)
+            : actualCondition.value.includes(fieldValue as string | number | boolean))
+        : actualCondition.not
+          ? fieldValue !== actualCondition.value
+          : fieldValue === actualCondition.value
 
       // Check both conditions if 'and' is present
       const isAndValueMatch =
-        !block.condition.and ||
-        (Array.isArray(block.condition.and.value)
+        !actualCondition.and ||
+        (Array.isArray(actualCondition.and.value)
           ? andFieldValue != null &&
-            (block.condition.and.not
-              ? !block.condition.and.value.includes(andFieldValue as string | number | boolean)
-              : block.condition.and.value.includes(andFieldValue as string | number | boolean))
-          : block.condition.and.not
-            ? andFieldValue !== block.condition.and.value
-            : andFieldValue === block.condition.and.value)
+            (actualCondition.and.not
+              ? !actualCondition.and.value.includes(andFieldValue as string | number | boolean)
+              : actualCondition.and.value.includes(andFieldValue as string | number | boolean))
+          : actualCondition.and.not
+            ? andFieldValue !== actualCondition.and.value
+            : andFieldValue === actualCondition.and.value)
 
       return isValueMatch && isAndValueMatch
     })

@@ -118,16 +118,27 @@ export interface SubBlockConfig {
   hidden?: boolean
   description?: string
   value?: (params: Record<string, any>) => string
-  condition?: {
-    field: string
-    value: string | number | boolean | Array<string | number | boolean>
-    not?: boolean
-    and?: {
-      field: string
-      value: string | number | boolean | Array<string | number | boolean> | undefined
-      not?: boolean
-    }
-  }
+  condition?:
+    | {
+        field: string
+        value: string | number | boolean | Array<string | number | boolean>
+        not?: boolean
+        and?: {
+          field: string
+          value: string | number | boolean | Array<string | number | boolean> | undefined
+          not?: boolean
+        }
+      }
+    | (() => {
+        field: string
+        value: string | number | boolean | Array<string | number | boolean>
+        not?: boolean
+        and?: {
+          field: string
+          value: string | number | boolean | Array<string | number | boolean> | undefined
+          not?: boolean
+        }
+      })
   // Props specific to 'code' sub-block type
   language?: 'javascript' | 'json'
   generationType?: GenerationType

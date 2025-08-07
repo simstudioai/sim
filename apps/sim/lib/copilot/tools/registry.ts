@@ -8,6 +8,7 @@
  * It also provides metadata for server-side tools for display purposes
  */
 
+import { GetUserWorkflowTool } from '@/lib/copilot/tools/client-tools/get-user-workflow'
 import { RunWorkflowTool } from '@/lib/copilot/tools/client-tools/run-workflow'
 import { SERVER_TOOL_METADATA } from '@/lib/copilot/tools/server-tools/definitions'
 import type { Tool, ToolMetadata } from '@/lib/copilot/tools/types'
@@ -112,6 +113,7 @@ export class ToolRegistry {
   private registerDefaultTools(): void {
     // Register actual client tool implementations
     this.register(new RunWorkflowTool())
+    this.register(new GetUserWorkflowTool())
   }
 }
 
