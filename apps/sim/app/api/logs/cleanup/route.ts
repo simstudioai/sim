@@ -5,7 +5,8 @@ import { verifyCronAuth } from '@/lib/auth/internal'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
-import { getS3Client } from '@/lib/uploads/s3/s3-client'
+import { deleteFile, isUsingCloudStorage } from '@/lib/uploads'
+// Dynamic import for S3 client to avoid client-side bundling
 import { db } from '@/db'
 import { subscription, user, workflow, workflowExecutionLogs } from '@/db/schema'
 
@@ -69,6 +70,11 @@ export async function GET(request: NextRequest) {
         deleted: 0,
         deleteFailed: 0,
       },
+      files: {
+        total: 0,
+        deleted: 0,
+        deleteFailed: 0,
+      },
       snapshots: {
         cleaned: 0,
         cleanupFailed: 0,
@@ -106,6 +112,7 @@ export async function GET(request: NextRequest) {
           totalInputCost: workflowExecutionLogs.totalInputCost,
           totalOutputCost: workflowExecutionLogs.totalOutputCost,
           totalTokens: workflowExecutionLogs.totalTokens,
+          files: workflowExecutionLogs.files,
           metadata: workflowExecutionLogs.metadata,
           createdAt: workflowExecutionLogs.createdAt,
         })
@@ -132,6 +139,7 @@ export async function GET(request: NextRequest) {
         })
 
         try {
+          const { getS3Client } = await import('@/lib/uploads/s3/s3-client')
           await getS3Client().send(
             new PutObjectCommand({
               Bucket: S3_CONFIG.bucket,
@@ -149,6 +157,23 @@ export async function GET(request: NextRequest) {
           )
 
           results.enhancedLogs.archived++
+
+          // Clean up associated files if using cloud storage
+          if (isUsingCloudStorage() && log.files && Array.isArray(log.files)) {
+            for (const file of log.files) {
+              if (file && typeof file === 'object' && file.key) {
+                results.files.total++
+                try {
+                  await deleteFile(file.key)
+                  results.files.deleted++
+                  logger.info(`Deleted file: ${file.key}`)
+                } catch (fileError) {
+                  results.files.deleteFailed++
+                  logger.error(`Failed to delete file ${file.key}:`, { fileError })
+                }
+              }
+            }
+          }
 
           try {
             // Delete enhanced log
@@ -198,7 +223,7 @@ export async function GET(request: NextRequest) {
     const reachedLimit = batchesProcessed >= MAX_BATCHES && hasMoreLogs
 
     return NextResponse.json({
-      message: `Processed ${batchesProcessed} enhanced log batches (${results.enhancedLogs.total} logs) in ${timeElapsed.toFixed(2)}s${reachedLimit ? ' (batch limit reached)' : ''}`,
+      message: `Processed ${batchesProcessed} enhanced log batches (${results.enhancedLogs.total} logs, ${results.files.total} files) in ${timeElapsed.toFixed(2)}s${reachedLimit ? ' (batch limit reached)' : ''}`,
       results,
       complete: !hasMoreLogs,
       batchLimitReached: reachedLimit,

@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { redactApiKeys } from '@/lib/utils'
 import { FrozenCanvasModal } from '@/app/workspace/[workspaceId]/logs/components/frozen-canvas/frozen-canvas-modal'
+import { FileDownload } from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/file-download'
 import LogMarkdownRenderer from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/markdown-renderer'
 import { ToolCallsDisplay } from '@/app/workspace/[workspaceId]/logs/components/tool-calls/tool-calls-display'
 import { TraceSpansDisplay } from '@/app/workspace/[workspaceId]/logs/components/trace-spans/trace-spans-display'
@@ -485,6 +486,36 @@ export function Sidebar({
                     <div className='group relative text-sm'>
                       <CopyButton text={log.duration} />
                       {log.duration}
+                    </div>
+                  </div>
+                )}
+
+                {/* Files */}
+                {log.files && log.files.length > 0 && (
+                  <div>
+                    <h3 className='mb-1 font-medium text-muted-foreground text-xs'>
+                      Files ({log.files.length})
+                    </h3>
+                    <div className='space-y-2'>
+                      {log.files.map((file, index) => (
+                        <div
+                          key={file.id || index}
+                          className='flex items-center justify-between rounded-md border bg-muted/30 p-2'
+                        >
+                          <div className='min-w-0 flex-1'>
+                            <div className='truncate font-medium text-sm' title={file.name}>
+                              {file.name}
+                            </div>
+                            <div className='text-muted-foreground text-xs'>
+                              {file.size ? `${Math.round(file.size / 1024)}KB` : 'Unknown size'}
+                              {file.type && ` • ${file.type.split('/')[0]}`}
+                            </div>
+                          </div>
+                          <div className='ml-2 flex items-center gap-1'>
+                            <FileDownload file={file} isExecutionFile={true} />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

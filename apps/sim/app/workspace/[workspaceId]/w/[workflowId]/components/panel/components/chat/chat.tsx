@@ -19,8 +19,17 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { ChatFileUpload } from './components/chat-file-upload'
 
 const logger = createLogger('ChatPanel')
+
+interface ChatFile {
+  id: string
+  name: string
+  size: number
+  type: string
+  file: File
+}
 
 interface ChatProps {
   panelWidth: number
@@ -51,6 +60,11 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   const [promptHistory, setPromptHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
 
+  // File upload state
+  const [chatFiles, setChatFiles] = useState<ChatFile[]>([])
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false)
+  const [dragCounter, setDragCounter] = useState(0)
+  const isDragOver = dragCounter > 0
   // Scroll state
   const [isNearBottom, setIsNearBottom] = useState(true)
   const [showScrollButton, setShowScrollButton] = useState(false)
@@ -211,13 +225,22 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
 
   // Handle send message
   const handleSendMessage = useCallback(async () => {
-    if (!chatMessage.trim() || !activeWorkflowId || isExecuting) return
+    if (
+      (!chatMessage.trim() && chatFiles.length === 0) ||
+      !activeWorkflowId ||
+      isExecuting ||
+      isUploadingFiles
+    )
+      return
 
     // Store the message being sent for reference
     const sentMessage = chatMessage.trim()
 
     // Add to prompt history if it's not already the most recent
-    if (promptHistory.length === 0 || promptHistory[promptHistory.length - 1] !== sentMessage) {
+    if (
+      sentMessage &&
+      (promptHistory.length === 0 || promptHistory[promptHistory.length - 1] !== sentMessage)
+    ) {
       setPromptHistory((prev) => [...prev, sentMessage])
     }
 
@@ -232,23 +255,46 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
 
     // Get the conversationId for this workflow before adding the message
     const conversationId = getConversationId(activeWorkflowId)
+    let result: any = null
 
-    // Add user message
-    addMessage({
-      content: sentMessage,
-      workflowId: activeWorkflowId,
-      type: 'user',
-    })
+    try {
+      // Add user message
+      addMessage({
+        content:
+          sentMessage || (chatFiles.length > 0 ? `Uploaded ${chatFiles.length} file(s)` : ''),
+        workflowId: activeWorkflowId,
+        type: 'user',
+      })
 
-    // Clear input and refocus immediately
-    setChatMessage('')
-    focusInput(10)
+      // Prepare workflow input
+      const workflowInput: any = {
+        input: sentMessage,
+        conversationId: conversationId,
+      }
 
-    // Execute the workflow to generate a response, passing the chat message and conversationId as input
-    const result = await handleRunWorkflow({
-      input: sentMessage,
-      conversationId: conversationId,
-    })
+      // Add files if any (pass the File objects directly)
+      if (chatFiles.length > 0) {
+        workflowInput.files = chatFiles.map((chatFile) => ({
+          name: chatFile.name,
+          size: chatFile.size,
+          type: chatFile.type,
+          file: chatFile.file, // Pass the actual File object
+        }))
+      }
+
+      // Clear input and files, refocus immediately
+      setChatMessage('')
+      setChatFiles([])
+      focusInput(10)
+
+      // Execute the workflow to generate a response
+      result = await handleRunWorkflow(workflowInput)
+    } catch (error) {
+      logger.error('Error in handleSendMessage:', error)
+      setIsUploadingFiles(false)
+      // You might want to show an error message to the user here
+      return
+    }
 
     // Check if we got a streaming response
     if (result && 'stream' in result && result.stream instanceof ReadableStream) {
@@ -541,7 +587,57 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
         </div>
 
         {/* Input section - Fixed height */}
-        <div className='-mt-[1px] relative flex-nonept-3 pb-4'>
+        <div
+          className='-mt-[1px] relative flex-none pt-3 pb-4'
+          onDragEnter={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            if (!(!activeWorkflowId || isExecuting || isUploadingFiles)) {
+              setDragCounter((prev) => prev + 1)
+            }
+          }}
+          onDragOver={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            if (!(!activeWorkflowId || isExecuting || isUploadingFiles)) {
+              e.dataTransfer.dropEffect = 'copy'
+            }
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setDragCounter((prev) => Math.max(0, prev - 1))
+          }}
+          onDrop={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setDragCounter(0)
+            if (!(!activeWorkflowId || isExecuting || isUploadingFiles)) {
+              const droppedFiles = Array.from(e.dataTransfer.files)
+              if (droppedFiles.length > 0) {
+                const newFiles = droppedFiles.slice(0, 5 - chatFiles.length).map((file) => ({
+                  id: crypto.randomUUID(),
+                  name: file.name,
+                  size: file.size,
+                  type: file.type,
+                  file,
+                }))
+                setChatFiles([...chatFiles, ...newFiles])
+              }
+            }
+          }}
+        >
+          {/* File upload section */}
+          <div className='mb-2'>
+            <ChatFileUpload
+              files={chatFiles}
+              onFilesChange={setChatFiles}
+              maxFiles={5}
+              maxSize={10}
+              disabled={!activeWorkflowId || isExecuting || isUploadingFiles}
+            />
+          </div>
+
           <div className='flex gap-2'>
             <Input
               ref={inputRef}
@@ -551,14 +647,23 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                 setHistoryIndex(-1) // Reset history index when typing
               }}
               onKeyDown={handleKeyPress}
-              placeholder='Type a message...'
-              className='h-9 flex-1 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] text-muted-foreground shadow-xs focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-[#414141] dark:bg-[#202020]'
-              disabled={!activeWorkflowId || isExecuting}
+              placeholder={isDragOver ? 'Drop files here...' : 'Type a message...'}
+              className={`h-9 flex-1 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] text-muted-foreground shadow-xs focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-[#414141] dark:bg-[#202020] ${
+                isDragOver
+                  ? 'border-[#802FFF] bg-purple-50/50 dark:border-[#802FFF] dark:bg-purple-950/20'
+                  : ''
+              }`}
+              disabled={!activeWorkflowId || isExecuting || isUploadingFiles}
             />
             <Button
               onClick={handleSendMessage}
               size='icon'
-              disabled={!chatMessage.trim() || !activeWorkflowId || isExecuting}
+              disabled={
+                (!chatMessage.trim() && chatFiles.length === 0) ||
+                !activeWorkflowId ||
+                isExecuting ||
+                isUploadingFiles
+              }
               className='h-9 w-9 rounded-lg bg-[#802FFF] text-white shadow-[0_0_0_0_#802FFF] transition-all duration-200 hover:bg-[#7028E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
             >
               <ArrowUp className='h-4 w-4' />

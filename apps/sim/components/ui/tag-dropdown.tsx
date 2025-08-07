@@ -212,8 +212,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             .getValue(activeSourceBlockId, 'startWorkflow')
 
           if (startWorkflowValue === 'chat') {
-            // For chat mode, provide input and conversationId
-            blockTags = [`${normalizedBlockName}.input`, `${normalizedBlockName}.conversationId`]
+            // For chat mode, provide input, conversationId, and files
+            blockTags = [
+              `${normalizedBlockName}.input`,
+              `${normalizedBlockName}.conversationId`,
+              `${normalizedBlockName}.files`,
+            ]
           } else {
             // Check for custom input format fields (for manual mode)
             const inputFormatValue = useSubBlockStore
@@ -487,8 +491,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             .getValue(accessibleBlockId, 'startWorkflow')
 
           if (startWorkflowValue === 'chat') {
-            // For chat mode, provide input and conversationId
-            blockTags = [`${normalizedBlockName}.input`, `${normalizedBlockName}.conversationId`]
+            // For chat mode, provide input, conversationId, and files
+            blockTags = [
+              `${normalizedBlockName}.input`,
+              `${normalizedBlockName}.conversationId`,
+              `${normalizedBlockName}.files`,
+            ]
           } else {
             // Check for custom input format fields (for manual mode)
             const inputFormatValue = useSubBlockStore

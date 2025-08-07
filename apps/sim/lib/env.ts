@@ -95,6 +95,7 @@ export const env = createEnv({
     S3_BUCKET_NAME:                       z.string().optional(),                // S3 bucket for general file storage
     S3_LOGS_BUCKET_NAME:                  z.string().optional(),                // S3 bucket for storing logs
     S3_KB_BUCKET_NAME:                    z.string().optional(),                // S3 bucket for knowledge base files
+    S3_EXECUTION_FILES_BUCKET_NAME:       z.string().optional(),                // S3 bucket for workflow execution files
     S3_CHAT_BUCKET_NAME:                  z.string().optional(),                // S3 bucket for chat logos
     S3_COPILOT_BUCKET_NAME:               z.string().optional(),                // S3 bucket for copilot files
 
@@ -104,6 +105,7 @@ export const env = createEnv({
     AZURE_CONNECTION_STRING:              z.string().optional(),                // Azure storage connection string
     AZURE_STORAGE_CONTAINER_NAME:         z.string().optional(),                // Azure container for general files
     AZURE_STORAGE_KB_CONTAINER_NAME:      z.string().optional(),                // Azure container for knowledge base files
+    AZURE_STORAGE_EXECUTION_FILES_CONTAINER_NAME: z.string().optional(),        // Azure container for workflow execution files
     AZURE_STORAGE_CHAT_CONTAINER_NAME:    z.string().optional(),                // Azure container for chat logos
     AZURE_STORAGE_COPILOT_CONTAINER_NAME: z.string().optional(),                // Azure container for copilot files
 

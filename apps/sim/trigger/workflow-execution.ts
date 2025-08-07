@@ -126,13 +126,17 @@ export const workflowExecution = task({
       )
 
       // Create executor and execute
-      const executor = new Executor(
-        serializedWorkflow,
-        processedBlockStates,
-        decryptedEnvVars,
-        payload.input || {},
-        {} // workflow variables
-      )
+      const executor = new Executor({
+        workflow: serializedWorkflow,
+        currentBlockStates: processedBlockStates,
+        envVarValues: decryptedEnvVars,
+        workflowInput: payload.input || {},
+        workflowVariables: {},
+        contextExtensions: {
+          executionId,
+          workspaceId: '', // TODO: Get from workflow if needed - see comment on line 120
+        },
+      })
 
       // Set up logging on the executor
       loggingSession.setupExecutor(executor)

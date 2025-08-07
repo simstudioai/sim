@@ -278,13 +278,17 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any): P
       true // Enable validation during execution
     )
 
-    const executor = new Executor(
-      serializedWorkflow,
-      processedBlockStates,
-      decryptedEnvVars,
-      processedInput,
-      workflowVariables
-    )
+    const executor = new Executor({
+      workflow: serializedWorkflow,
+      currentBlockStates: processedBlockStates,
+      envVarValues: decryptedEnvVars,
+      workflowInput: processedInput,
+      workflowVariables,
+      contextExtensions: {
+        executionId,
+        workspaceId: workflow.workspaceId,
+      },
+    })
 
     // Set up logging on the executor
     loggingSession.setupExecutor(executor)
