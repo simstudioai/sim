@@ -44,6 +44,19 @@ export interface ToolConfig<P = any, R = any> {
     }
   >
 
+  // Output schema - what this tool produces
+  outputs?: Record<
+    string,
+    {
+      type: 'string' | 'number' | 'boolean' | 'json' | 'file' | 'file[]'
+      description?: string
+      fileConfig?: {
+        mimeType?: string // Expected MIME type for file outputs
+        extension?: string // Expected file extension
+      }
+    }
+  >
+
   // OAuth configuration for this tool (if it requires authentication)
   oauth?: OAuthConfig
 
@@ -82,4 +95,15 @@ export interface TableRow {
 export interface OAuthTokenPayload {
   credentialId: string
   workflowId?: string
+}
+
+/**
+ * File data that tools can return for file-typed outputs
+ */
+export interface ToolFileData {
+  name: string
+  mimeType: string
+  data?: Buffer | string // Buffer or base64 string
+  url?: string // URL to download file from
+  size?: number
 }

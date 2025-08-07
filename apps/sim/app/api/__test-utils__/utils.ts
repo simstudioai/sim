@@ -712,6 +712,7 @@ export function mockFileSystem(
       }
       return Promise.reject(new Error('File not found'))
     }),
+    mkdir: vi.fn().mockResolvedValue(undefined),
   }))
 }
 
@@ -761,14 +762,15 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
     getStorageProvider: vi.fn().mockReturnValue(provider),
     isUsingCloudStorage: vi.fn().mockReturnValue(isCloudEnabled),
     uploadFile: vi.fn().mockResolvedValue({
-      path: '/api/files/serve/test-key',
-      key: 'test-key',
+      path: '/api/files/serve/test-key.txt',
+      key: 'test-key.txt',
       name: 'test.txt',
       size: 100,
       type: 'text/plain',
     }),
     downloadFile: vi.fn().mockResolvedValue(Buffer.from('test content')),
     deleteFile: vi.fn().mockResolvedValue(undefined),
+    getPresignedUrl: vi.fn().mockResolvedValue(presignedUrl),
   }))
 
   if (provider === 's3') {
@@ -1235,14 +1237,15 @@ export function setupFileApiMocks(
       getStorageProvider: vi.fn().mockReturnValue('local'),
       isUsingCloudStorage: vi.fn().mockReturnValue(cloudEnabled),
       uploadFile: vi.fn().mockResolvedValue({
-        path: '/api/files/serve/test-key',
-        key: 'test-key',
+        path: '/api/files/serve/test-key.txt',
+        key: 'test-key.txt',
         name: 'test.txt',
         size: 100,
         type: 'text/plain',
       }),
       downloadFile: vi.fn().mockResolvedValue(Buffer.from('test content')),
       deleteFile: vi.fn().mockResolvedValue(undefined),
+      getPresignedUrl: vi.fn().mockResolvedValue('https://example.com/presigned-url'),
     }))
   }
 
@@ -1347,8 +1350,8 @@ export function mockUploadUtils(
   const {
     isCloudStorage = false,
     uploadResult = {
-      path: '/api/files/serve/test-key',
-      key: 'test-key',
+      path: '/api/files/serve/test-key.txt',
+      key: 'test-key.txt',
       name: 'test.txt',
       size: 100,
       type: 'text/plain',

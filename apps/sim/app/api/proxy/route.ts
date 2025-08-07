@@ -177,7 +177,7 @@ export async function POST(request: Request) {
       throw new Error('Invalid JSON in request body')
     }
 
-    const { toolId, params } = requestBody
+    const { toolId, params, executionContext } = requestBody
 
     if (!toolId) {
       logger.error(`[${requestId}] Missing toolId in request`)
@@ -214,8 +214,21 @@ export async function POST(request: Request) {
       })
     }
 
+    // Check if tool has file outputs - if so, don't skip post-processing
+    const hasFileOutputs =
+      tool.outputs &&
+      Object.values(tool.outputs).some(
+        (output) => output.type === 'file' || output.type === 'file[]'
+      )
+
     // Execute tool
-    const result = await executeTool(toolId, params, true, true)
+    const result = await executeTool(
+      toolId,
+      params,
+      true, // skipProxy (we're already in the proxy)
+      !hasFileOutputs, // skipPostProcess (don't skip if tool has file outputs)
+      executionContext // pass execution context for file processing
+    )
 
     if (!result.success) {
       logger.warn(`[${requestId}] Tool execution failed for ${toolId}`, {

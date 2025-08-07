@@ -38,7 +38,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       requiredScopes: [
         'https://www.googleapis.com/auth/gmail.send',
         'https://www.googleapis.com/auth/gmail.modify',
-        // 'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.readonly',
         'https://www.googleapis.com/auth/gmail.labels',
       ],
       placeholder: 'Select Gmail account',
@@ -101,6 +101,13 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     {
       id: 'unreadOnly',
       title: 'Unread Only',
+      type: 'switch',
+      layout: 'full',
+      condition: { field: 'operation', value: 'read_gmail' },
+    },
+    {
+      id: 'includeAttachments',
+      title: 'Include Attachments',
       type: 'switch',
       layout: 'full',
       condition: { field: 'operation', value: 'read_gmail' },
@@ -187,6 +194,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     manualFolder: { type: 'string', description: 'Manual folder name' },
     messageId: { type: 'string', description: 'Message identifier' },
     unreadOnly: { type: 'boolean', description: 'Unread messages only' },
+    includeAttachments: { type: 'boolean', description: 'Include email attachments' },
     // Search operation inputs
     query: { type: 'string', description: 'Search query' },
     maxResults: { type: 'number', description: 'Maximum results' },
@@ -194,5 +202,9 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   outputs: {
     content: { type: 'string', description: 'Response content' },
     metadata: { type: 'json', description: 'Email metadata' },
+    attachments: {
+      type: 'json',
+      description: 'Email attachments (when includeAttachments is enabled)',
+    },
   },
 }

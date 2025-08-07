@@ -85,7 +85,13 @@ describe('FunctionBlockHandler', () => {
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
 
-    expect(mockExecuteTool).toHaveBeenCalledWith('function_execute', expectedToolParams)
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expectedToolParams,
+      false, // skipProxy
+      false, // skipPostProcess
+      mockContext // execution context
+    )
     expect(result).toEqual(expectedOutput)
   })
 
@@ -110,7 +116,13 @@ describe('FunctionBlockHandler', () => {
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
 
-    expect(mockExecuteTool).toHaveBeenCalledWith('function_execute', expectedToolParams)
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expectedToolParams,
+      false, // skipProxy
+      false, // skipPostProcess
+      mockContext // execution context
+    )
     expect(result).toEqual(expectedOutput)
   })
 
@@ -127,7 +139,13 @@ describe('FunctionBlockHandler', () => {
 
     await handler.execute(mockBlock, inputs, mockContext)
 
-    expect(mockExecuteTool).toHaveBeenCalledWith('function_execute', expectedToolParams)
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expectedToolParams,
+      false, // skipProxy
+      false, // skipPostProcess
+      mockContext // execution context
+    )
   })
 
   it('should handle execution errors from the tool', async () => {

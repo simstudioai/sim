@@ -93,10 +93,10 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
         if (
           typeof params.fileUpload === 'object' &&
           params.fileUpload !== null &&
-          params.fileUpload.path
+          (params.fileUpload.url || params.fileUpload.path)
         ) {
-          // Get the full URL to the file
-          let uploadedFilePath = params.fileUpload.path
+          // Get the full URL to the file - prefer url over path for UserFile compatibility
+          let uploadedFilePath = params.fileUpload.url || params.fileUpload.path
 
           // Make sure the file path is an absolute URL
           if (uploadedFilePath.startsWith('/')) {

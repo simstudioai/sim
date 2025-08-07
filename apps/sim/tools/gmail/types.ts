@@ -18,6 +18,7 @@ export interface GmailReadParams extends BaseGmailParams {
   folder: string
   unreadOnly?: boolean
   maxResults?: number
+  includeAttachments?: boolean
 }
 
 // Search operation parameters
@@ -41,6 +42,8 @@ interface EmailMetadata extends BaseGmailMetadata {
   to?: string
   subject?: string
   date?: string
+  hasAttachments?: boolean
+  attachmentCount?: number
 }
 
 interface SearchMetadata extends BaseGmailMetadata {
@@ -55,6 +58,7 @@ export interface GmailToolResponse extends ToolResponse {
   output: {
     content: string
     metadata: EmailMetadata | SearchMetadata
+    attachments?: GmailAttachment[]
   }
 }
 
@@ -71,12 +75,26 @@ export interface GmailMessage {
     }>
     body: {
       data?: string
+      attachmentId?: string
+      size?: number
     }
     parts?: Array<{
       mimeType: string
+      filename?: string
       body: {
         data?: string
+        attachmentId?: string
+        size?: number
       }
+      parts?: Array<any>
     }>
   }
+}
+
+// Gmail Attachment Interface (for processed attachments)
+export interface GmailAttachment {
+  name: string
+  data: Buffer
+  mimeType: string
+  size: number
 }

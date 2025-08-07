@@ -394,13 +394,17 @@ export async function GET() {
               variables: variables || {},
             })
 
-            const executor = new Executor(
-              serializedWorkflow,
-              processedBlockStates,
-              decryptedEnvVars,
-              input,
-              workflowVariables
-            )
+            const executor = new Executor({
+              workflow: serializedWorkflow,
+              currentBlockStates: processedBlockStates,
+              envVarValues: decryptedEnvVars,
+              workflowInput: input,
+              workflowVariables,
+              contextExtensions: {
+                executionId,
+                workspaceId: workflowRecord.workspaceId || '',
+              },
+            })
 
             // Set up logging on the executor
             loggingSession.setupExecutor(executor)

@@ -1,10 +1,6 @@
-import { writeFile } from 'fs/promises'
-import { join } from 'path'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
-import { isUsingCloudStorage, uploadFile } from '@/lib/uploads'
-import { UPLOAD_DIR } from '@/lib/uploads/setup'
+import { getPresignedUrl, isUsingCloudStorage, uploadFile } from '@/lib/uploads'
 import '@/lib/uploads/setup.server'
 import {
   createErrorResponse,
@@ -27,9 +23,20 @@ export async function POST(request: NextRequest) {
       throw new InvalidRequestError('No files provided')
     }
 
+    // Get optional scoping parameters for execution-scoped storage
+    const workflowId = formData.get('workflowId') as string | null
+    const executionId = formData.get('executionId') as string | null
+    const workspaceId = formData.get('workspaceId') as string | null
+
     // Log storage mode
     const usingCloudStorage = isUsingCloudStorage()
     logger.info(`Using storage mode: ${usingCloudStorage ? 'Cloud' : 'Local'} for file upload`)
+
+    if (workflowId && executionId) {
+      logger.info(
+        `Uploading files for execution-scoped storage: workflow=${workflowId}, execution=${executionId}`
+      )
+    }
 
     const uploadResults = []
 
@@ -39,33 +46,60 @@ export async function POST(request: NextRequest) {
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
 
-      if (usingCloudStorage) {
-        // Upload to cloud storage (S3 or Azure Blob)
-        try {
-          logger.info(`Uploading file to cloud storage: ${originalName}`)
-          const result = await uploadFile(buffer, originalName, file.type, file.size)
-          logger.info(`Successfully uploaded to cloud storage: ${result.key}`)
-          uploadResults.push(result)
-        } catch (error) {
-          logger.error('Error uploading to cloud storage:', error)
-          throw error
+      // For execution-scoped files, use the dedicated execution file storage
+      if (workflowId && executionId) {
+        // Use the dedicated execution file storage system
+        const { uploadExecutionFile } = await import('@/lib/workflows/execution-file-storage')
+        const userFile = await uploadExecutionFile(
+          {
+            workspaceId: workspaceId || '',
+            workflowId,
+            executionId,
+          },
+          buffer,
+          originalName,
+          file.type
+        )
+
+        uploadResults.push(userFile)
+        continue
+      }
+
+      // Upload to cloud or local storage using the standard uploadFile function
+      try {
+        logger.info(`Uploading file: ${originalName}`)
+        const result = await uploadFile(buffer, originalName, file.type, file.size)
+
+        // Generate a presigned URL for cloud storage with appropriate expiry
+        // Regular files get 24 hours (execution files are handled above)
+        let presignedUrl: string | undefined
+        if (usingCloudStorage) {
+          try {
+            presignedUrl = await getPresignedUrl(result.key, 24 * 60 * 60) // 24 hours
+          } catch (error) {
+            logger.warn(`Failed to generate presigned URL for ${originalName}:`, error)
+          }
         }
-      } else {
-        // Upload to local file system in development
-        const extension = originalName.split('.').pop() || ''
-        const uniqueFilename = `${uuidv4()}.${extension}`
-        const filePath = join(UPLOAD_DIR, uniqueFilename)
 
-        logger.info(`Uploading file to local storage: ${filePath}`)
-        await writeFile(filePath, buffer)
-        logger.info(`Successfully wrote file to: ${filePath}`)
+        // Create the serve path
+        const servePath = `/api/files/serve/${result.key}`
 
-        uploadResults.push({
-          path: `/api/files/serve/${uniqueFilename}`,
+        const uploadResult = {
           name: originalName,
           size: file.size,
           type: file.type,
-        })
+          key: result.key,
+          path: servePath,
+          url: presignedUrl || servePath,
+          uploadedAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+        }
+
+        logger.info(`Successfully uploaded: ${result.key}`)
+        uploadResults.push(uploadResult)
+      } catch (error) {
+        logger.error(`Error uploading ${originalName}:`, error)
+        throw error
       }
     }
 

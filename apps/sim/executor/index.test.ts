@@ -974,6 +974,7 @@ describe('Executor', () => {
       async () => {
         // Create a workflow with two parallel agents
         const workflow = {
+          version: '1.0',
           blocks: [
             {
               id: 'starter',

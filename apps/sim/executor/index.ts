@@ -87,6 +87,7 @@ export class Executor {
             edges?: Array<{ source: string; target: string }>
             onStream?: (streamingExecution: StreamingExecution) => Promise<void>
             executionId?: string
+            workspaceId?: string
           }
         },
     private initialBlockStates: Record<string, BlockOutput> = {},
@@ -675,6 +676,8 @@ export class Executor {
   ): ExecutionContext {
     const context: ExecutionContext = {
       workflowId,
+      workspaceId: this.contextExtensions.workspaceId,
+      executionId: this.contextExtensions.executionId,
       blockStates: new Map(),
       blockLogs: [],
       metadata: {
@@ -797,6 +800,11 @@ export class Executor {
             ...finalInput, // Add input fields directly at top level
           }
 
+          // Add files if present (for all trigger types)
+          if (this.workflowInput?.files && Array.isArray(this.workflowInput.files)) {
+            blockOutput.files = this.workflowInput.files
+          }
+
           logger.info(`[Executor] Starting block output:`, JSON.stringify(blockOutput, null, 2))
 
           context.blockStates.set(initBlock.id, {
@@ -804,6 +812,10 @@ export class Executor {
             executed: true,
             executionTime: 0,
           })
+
+          // Create a block log for the starter block if it has files
+          // This ensures files are captured in trace spans and execution logs
+          this.createStartedBlockWithFilesLog(initBlock, blockOutput, context)
         } else {
           // Handle structured input (like API calls or chat messages)
           if (this.workflowInput && typeof this.workflowInput === 'object') {
@@ -812,10 +824,15 @@ export class Executor {
               Object.hasOwn(this.workflowInput, 'input') &&
               Object.hasOwn(this.workflowInput, 'conversationId')
             ) {
-              // Chat workflow: extract input and conversationId to root level
-              const starterOutput = {
+              // Chat workflow: extract input, conversationId, and files to root level
+              const starterOutput: any = {
                 input: this.workflowInput.input,
                 conversationId: this.workflowInput.conversationId,
+              }
+
+              // Add files if present
+              if (this.workflowInput.files && Array.isArray(this.workflowInput.files)) {
+                starterOutput.files = this.workflowInput.files
               }
 
               context.blockStates.set(initBlock.id, {
@@ -823,6 +840,10 @@ export class Executor {
                 executed: true,
                 executionTime: 0,
               })
+
+              // Create a block log for the starter block if it has files
+              // This ensures files are captured in trace spans and execution logs
+              this.createStartedBlockWithFilesLog(initBlock, starterOutput, context)
             } else {
               // API workflow: spread the raw data directly (no wrapping)
               const starterOutput = { ...this.workflowInput }
@@ -857,10 +878,15 @@ export class Executor {
             Object.hasOwn(this.workflowInput, 'input') &&
             Object.hasOwn(this.workflowInput, 'conversationId')
           ) {
-            // Chat workflow: extract input and conversationId to root level
+            // Chat workflow: extract input, conversationId, and files to root level
             blockOutput = {
               input: this.workflowInput.input,
               conversationId: this.workflowInput.conversationId,
+            }
+
+            // Add files if present
+            if (this.workflowInput.files && Array.isArray(this.workflowInput.files)) {
+              blockOutput.files = this.workflowInput.files
             }
           } else {
             // API workflow: spread the raw data directly (no wrapping)
@@ -883,6 +909,7 @@ export class Executor {
           executed: true,
           executionTime: 0,
         })
+        this.createStartedBlockWithFilesLog(initBlock, blockOutput, context)
       }
       // Ensure the starting block is in the active execution path
       context.activeExecutionPath.add(initBlock.id)
@@ -1805,5 +1832,30 @@ export class Executor {
 
     // Fallback to string conversion
     return String(error)
+  }
+
+  /**
+   * Creates a block log for the starter block if it contains files.
+   * This ensures files are captured in trace spans and execution logs.
+   */
+  private createStartedBlockWithFilesLog(
+    initBlock: SerializedBlock,
+    blockOutput: any,
+    context: ExecutionContext
+  ): void {
+    if (blockOutput.files && Array.isArray(blockOutput.files) && blockOutput.files.length > 0) {
+      const starterBlockLog: BlockLog = {
+        blockId: initBlock.id,
+        blockName: initBlock.metadata?.name || 'Start',
+        blockType: initBlock.metadata?.id || 'start',
+        startedAt: new Date().toISOString(),
+        endedAt: new Date().toISOString(),
+        success: true,
+        input: this.workflowInput,
+        output: blockOutput,
+        durationMs: 0,
+      }
+      context.blockLogs.push(starterBlockLog)
+    }
   }
 }

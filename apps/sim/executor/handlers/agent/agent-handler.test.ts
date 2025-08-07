@@ -364,16 +364,23 @@ describe('AgentBlockHandler', () => {
         expect.objectContaining({
           code: 'return { result: "auto tool executed", input }',
           input: 'test input',
-        })
+        }),
+        false, // skipProxy
+        false, // skipPostProcess
+        expect.any(Object) // execution context
       )
 
       await forceTool.executeFunction({ input: 'another test' })
-      expect(mockExecuteTool).toHaveBeenCalledWith(
+      expect(mockExecuteTool).toHaveBeenNthCalledWith(
+        2, // Check the 2nd call
         'function_execute',
         expect.objectContaining({
           code: 'return { result: "force tool executed", input }',
           input: 'another test',
-        })
+        }),
+        false, // skipProxy
+        false, // skipPostProcess
+        expect.any(Object) // execution context
       )
 
       const fetchCall = mockFetch.mock.calls[0]

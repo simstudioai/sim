@@ -172,14 +172,20 @@ export class AgentBlockHandler implements BlockHandler {
         // Merge user-provided parameters with LLM-generated parameters
         const mergedParams = mergeToolParameters(userProvidedParams, callParams)
 
-        const result = await executeTool('function_execute', {
-          code: tool.code,
-          ...mergedParams,
-          timeout: tool.timeout ?? DEFAULT_FUNCTION_TIMEOUT,
-          envVars: context.environmentVariables || {},
-          isCustomTool: true,
-          _context: { workflowId: context.workflowId },
-        })
+        const result = await executeTool(
+          'function_execute',
+          {
+            code: tool.code,
+            ...mergedParams,
+            timeout: tool.timeout ?? DEFAULT_FUNCTION_TIMEOUT,
+            envVars: context.environmentVariables || {},
+            isCustomTool: true,
+            _context: { workflowId: context.workflowId },
+          },
+          false, // skipProxy
+          false, // skipPostProcess
+          context // execution context for file processing
+        )
 
         if (!result.success) {
           throw new Error(result.error || 'Function execution failed')

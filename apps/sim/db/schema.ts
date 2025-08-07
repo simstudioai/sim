@@ -300,6 +300,7 @@ export const workflowExecutionLogs = pgTable(
     totalTokens: integer('total_tokens'),
 
     metadata: jsonb('metadata').notNull().default('{}'),
+    files: jsonb('files'), // File metadata for execution files
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
