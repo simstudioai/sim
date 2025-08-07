@@ -78,6 +78,58 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
       },
       {
+        id: 'gpt-5',
+        pricing: {
+          input: 10.0,
+          cachedInput: 5.0,
+          output: 40.0,
+          updatedAt: '2025-08-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+        },
+      },
+      {
+        id: 'gpt-5-mini',
+        pricing: {
+          input: 1.0,
+          cachedInput: 0.5,
+          output: 4.0,
+          updatedAt: '2025-08-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+        },
+      },
+      {
+        id: 'gpt-5-nano',
+        pricing: {
+          input: 0.2,
+          cachedInput: 0.1,
+          output: 0.8,
+          updatedAt: '2025-08-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+        },
+      },
+      {
+        id: 'gpt-5-chat-latest',
+        pricing: {
+          input: 10.0,
+          cachedInput: 5.0,
+          output: 40.0,
+          updatedAt: '2025-08-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+        },
+      },
+      {
         id: 'o1',
         pricing: {
           input: 15.0,
@@ -169,6 +221,58 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           cachedInput: 1.25,
           output: 10.0,
           updatedAt: '2025-06-15',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+        },
+      },
+      {
+        id: 'azure/gpt-5',
+        pricing: {
+          input: 10.0,
+          cachedInput: 5.0,
+          output: 40.0,
+          updatedAt: '2025-08-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+        },
+      },
+      {
+        id: 'azure/gpt-5-mini',
+        pricing: {
+          input: 1.0,
+          cachedInput: 0.5,
+          output: 4.0,
+          updatedAt: '2025-08-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+        },
+      },
+      {
+        id: 'azure/gpt-5-nano',
+        pricing: {
+          input: 0.2,
+          cachedInput: 0.1,
+          output: 0.8,
+          updatedAt: '2025-08-07',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+        },
+      },
+      {
+        id: 'azure/gpt-5-chat-latest',
+        pricing: {
+          input: 10.0,
+          cachedInput: 5.0,
+          output: 40.0,
+          updatedAt: '2025-08-07',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
