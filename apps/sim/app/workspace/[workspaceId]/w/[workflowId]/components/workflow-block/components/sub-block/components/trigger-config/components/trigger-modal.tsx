@@ -241,23 +241,25 @@ export function TriggerModal({
               <DialogTitle className='font-medium text-lg'>
                 {triggerDef.name} Configuration
               </DialogTitle>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge
-                    variant='outline'
-                    className='flex items-center gap-1 border-green-200 bg-green-50 font-normal text-green-600 text-xs hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400'
-                  >
-                    <div className='relative mr-0.5 flex items-center justify-center'>
-                      <div className='absolute h-3 w-3 rounded-full bg-green-500/20' />
-                      <div className='relative h-2 w-2 rounded-full bg-green-500' />
-                    </div>
-                    Active Trigger
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent side='bottom' className='max-w-[300px] p-4'>
-                  <p className='text-sm'>{triggerDef.name}</p>
-                </TooltipContent>
-              </Tooltip>
+              {triggerId && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge
+                      variant='outline'
+                      className='flex items-center gap-1 border-green-200 bg-green-50 font-normal text-green-600 text-xs hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400'
+                    >
+                      <div className='relative mr-0.5 flex items-center justify-center'>
+                        <div className='absolute h-3 w-3 rounded-full bg-green-500/20' />
+                        <div className='relative h-2 w-2 rounded-full bg-green-500' />
+                      </div>
+                      Active Trigger
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent side='bottom' className='max-w-[300px] p-4'>
+                    <p className='text-sm'>{triggerDef.name}</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
           </div>
         </DialogHeader>
