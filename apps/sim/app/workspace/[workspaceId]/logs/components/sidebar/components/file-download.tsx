@@ -55,15 +55,8 @@ export function FileDownload({ file, className }: FileDownloadProps) {
 
       const { downloadUrl, fileName } = await response.json()
 
-      // Create a temporary link and trigger download
-      const link = document.createElement('a')
-      link.href = downloadUrl
-      link.download = fileName
-      link.style.display = 'none'
-
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      // Open the download URL in a new tab
+      window.open(downloadUrl, '_blank')
 
       logger.info(`Download initiated for file: ${fileName}`)
     } catch (error) {
