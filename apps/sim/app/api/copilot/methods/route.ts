@@ -165,9 +165,7 @@ async function pollRedisForTool(
  * Handle tool calls that require user interruption/approval
  * Returns { approved: boolean, rejected: boolean, error?: boolean, message?: string } to distinguish between rejection, timeout, and error
  */
-async function interruptHandler(
-  toolCallId: string
-): Promise<{
+async function interruptHandler(toolCallId: string): Promise<{
   approved: boolean
   rejected: boolean
   error?: boolean
