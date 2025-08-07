@@ -40,7 +40,9 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
     referrer: 'origin-when-cross-origin',
     creator: brand.name,
     publisher: brand.name,
-    metadataBase: new URL(env.NEXT_PUBLIC_APP_URL),
+    metadataBase: env.NEXT_PUBLIC_APP_URL
+      ? new URL(env.NEXT_PUBLIC_APP_URL)
+      : new URL('https://sim.ai'),
     alternates: {
       canonical: '/',
       languages: {
@@ -61,7 +63,7 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
     openGraph: {
       type: 'website',
       locale: 'en_US',
-      url: env.NEXT_PUBLIC_APP_URL,
+      url: env.NEXT_PUBLIC_APP_URL || 'https://sim.ai',
       title: defaultTitle,
       description: defaultDescription,
       siteName: brand.name,
