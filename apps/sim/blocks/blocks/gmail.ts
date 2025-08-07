@@ -72,6 +72,27 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
       required: true,
     },
+    // Advanced Settings - Additional Recipients
+    {
+      id: 'cc',
+      title: 'CC',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'CC recipients (comma-separated)',
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'bcc',
+      title: 'BCC',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'BCC recipients (comma-separated)',
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+      mode: 'advanced',
+      required: false,
+    },
     // Label/folder selector (basic mode)
     {
       id: 'folder',
@@ -198,6 +219,8 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email content' },
+    cc: { type: 'string', description: 'CC recipients (comma-separated)' },
+    bcc: { type: 'string', description: 'BCC recipients (comma-separated)' },
     // Read operation inputs
     folder: { type: 'string', description: 'Gmail folder' },
     manualFolder: { type: 'string', description: 'Manual folder name' },
