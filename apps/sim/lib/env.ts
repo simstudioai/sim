@@ -110,6 +110,18 @@ export const env = createEnv({
     // Data Retention
     FREE_PLAN_LOG_RETENTION_DAYS:         z.string().optional(),                // Log retention days for free plan users
 
+    // Rate Limiting Configuration
+    RATE_LIMIT_WINDOW_MS:                 z.string().optional().default('60000'), // Rate limit window duration in milliseconds (default: 1 minute)
+    MANUAL_EXECUTION_LIMIT:               z.string().optional().default('999999'), // Manual execution bypass value (effectively unlimited)
+    RATE_LIMIT_FREE_SYNC:                 z.string().optional().default('10'),   // Free tier sync API executions per minute
+    RATE_LIMIT_FREE_ASYNC:                z.string().optional().default('50'),   // Free tier async API executions per minute
+    RATE_LIMIT_PRO_SYNC:                  z.string().optional().default('25'),   // Pro tier sync API executions per minute
+    RATE_LIMIT_PRO_ASYNC:                 z.string().optional().default('200'),  // Pro tier async API executions per minute
+    RATE_LIMIT_TEAM_SYNC:                 z.string().optional().default('75'),   // Team tier sync API executions per minute
+    RATE_LIMIT_TEAM_ASYNC:                z.string().optional().default('500'),  // Team tier async API executions per minute
+    RATE_LIMIT_ENTERPRISE_SYNC:           z.string().optional().default('150'),  // Enterprise tier sync API executions per minute
+    RATE_LIMIT_ENTERPRISE_ASYNC:          z.string().optional().default('1000'), // Enterprise tier async API executions per minute
+
     // Real-time Communication
     SOCKET_SERVER_URL:                    z.string().url().optional(),          // WebSocket server URL for real-time features
     SOCKET_PORT:                          z.number().optional(),                // Port for WebSocket server

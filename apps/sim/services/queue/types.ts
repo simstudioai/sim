@@ -1,4 +1,5 @@
 import type { InferSelectModel } from 'drizzle-orm'
+import { env } from '@/lib/env'
 import type { userRateLimits } from '@/db/schema'
 
 // Database types
@@ -16,22 +17,28 @@ export interface RateLimitConfig {
   asyncApiExecutionsPerMinute: number
 }
 
+// Rate limit window duration in milliseconds
+export const RATE_LIMIT_WINDOW_MS = Number.parseInt(env.RATE_LIMIT_WINDOW_MS) || 60000
+
+// Manual execution bypass value (effectively unlimited)
+export const MANUAL_EXECUTION_LIMIT = Number.parseInt(env.MANUAL_EXECUTION_LIMIT) || 999999
+
 export const RATE_LIMITS: Record<SubscriptionPlan, RateLimitConfig> = {
   free: {
-    syncApiExecutionsPerMinute: 10,
-    asyncApiExecutionsPerMinute: 50,
+    syncApiExecutionsPerMinute: Number.parseInt(env.RATE_LIMIT_FREE_SYNC) || 10,
+    asyncApiExecutionsPerMinute: Number.parseInt(env.RATE_LIMIT_FREE_ASYNC) || 50,
   },
   pro: {
-    syncApiExecutionsPerMinute: 25,
-    asyncApiExecutionsPerMinute: 200,
+    syncApiExecutionsPerMinute: Number.parseInt(env.RATE_LIMIT_PRO_SYNC) || 25,
+    asyncApiExecutionsPerMinute: Number.parseInt(env.RATE_LIMIT_PRO_ASYNC) || 200,
   },
   team: {
-    syncApiExecutionsPerMinute: 75,
-    asyncApiExecutionsPerMinute: 500,
+    syncApiExecutionsPerMinute: Number.parseInt(env.RATE_LIMIT_TEAM_SYNC) || 75,
+    asyncApiExecutionsPerMinute: Number.parseInt(env.RATE_LIMIT_TEAM_ASYNC) || 500,
   },
   enterprise: {
-    syncApiExecutionsPerMinute: 150,
-    asyncApiExecutionsPerMinute: 1000,
+    syncApiExecutionsPerMinute: Number.parseInt(env.RATE_LIMIT_ENTERPRISE_SYNC) || 150,
+    asyncApiExecutionsPerMinute: Number.parseInt(env.RATE_LIMIT_ENTERPRISE_ASYNC) || 1000,
   },
 }
 
