@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { workflow, workflowSchedule } from '@/db/schema'
 
@@ -36,6 +37,7 @@ export async function DELETE(
         workflow: {
           id: workflow.id,
           userId: workflow.userId,
+          workspaceId: workflow.workspaceId,
         },
       })
       .from(workflowSchedule)
@@ -48,7 +50,22 @@ export async function DELETE(
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
     }
 
-    if (schedules[0].workflow.userId !== session.user.id) {
+    const workflowRecord = schedules[0].workflow
+
+    // Check authorization - either the user owns the workflow or has write/admin workspace permissions
+    let isAuthorized = workflowRecord.userId === session.user.id
+
+    // If not authorized by ownership and the workflow belongs to a workspace, check workspace permissions
+    if (!isAuthorized && workflowRecord.workspaceId) {
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workflowRecord.workspaceId
+      )
+      isAuthorized = userPermission === 'write' || userPermission === 'admin'
+    }
+
+    if (!isAuthorized) {
       logger.warn(`[${requestId}] Unauthorized schedule deletion attempt for schedule: ${id}`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }

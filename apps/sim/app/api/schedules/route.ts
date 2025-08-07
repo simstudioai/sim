@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import {
   type BlockState,
   calculateNextRunTime,
@@ -13,7 +14,7 @@ import {
   validateCronExpression,
 } from '@/lib/schedules/utils'
 import { db } from '@/db'
-import { workflowSchedule } from '@/db/schema'
+import { workflow, workflowSchedule } from '@/db/schema'
 
 const logger = createLogger('ScheduledAPI')
 
@@ -87,6 +88,34 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing workflowId parameter' }, { status: 400 })
     }
 
+    // Check if user has permission to view this workflow
+    const [workflowRecord] = await db
+      .select({ userId: workflow.userId, workspaceId: workflow.workspaceId })
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .limit(1)
+
+    if (!workflowRecord) {
+      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+    }
+
+    // Check authorization - either the user owns the workflow or has workspace permissions
+    let isAuthorized = workflowRecord.userId === session.user.id
+
+    // If not authorized by ownership and the workflow belongs to a workspace, check workspace permissions
+    if (!isAuthorized && workflowRecord.workspaceId) {
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workflowRecord.workspaceId
+      )
+      isAuthorized = userPermission !== null
+    }
+
+    if (!isAuthorized) {
+      return NextResponse.json({ error: 'Not authorized to view this workflow' }, { status: 403 })
+    }
+
     const now = Date.now()
     const lastLog = recentRequests.get(workflowId) || 0
     const shouldLog = now - lastLog > LOGGING_THROTTLE_MS
@@ -151,6 +180,38 @@ export async function POST(req: NextRequest) {
     const { workflowId, blockId, state } = ScheduleRequestSchema.parse(body)
 
     logger.info(`[${requestId}] Processing schedule update for workflow ${workflowId}`)
+
+    // Check if user has permission to modify this workflow
+    const [workflowRecord] = await db
+      .select({ userId: workflow.userId, workspaceId: workflow.workspaceId })
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .limit(1)
+
+    if (!workflowRecord) {
+      logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+    }
+
+    // Check authorization - either the user owns the workflow or has write/admin workspace permissions
+    let isAuthorized = workflowRecord.userId === session.user.id
+
+    // If not authorized by ownership and the workflow belongs to a workspace, check workspace permissions
+    if (!isAuthorized && workflowRecord.workspaceId) {
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workflowRecord.workspaceId
+      )
+      isAuthorized = userPermission === 'write' || userPermission === 'admin'
+    }
+
+    if (!isAuthorized) {
+      logger.warn(
+        `[${requestId}] User not authorized to modify schedule for workflow: ${workflowId}`
+      )
+      return NextResponse.json({ error: 'Not authorized to modify this workflow' }, { status: 403 })
+    }
 
     // Find the target block - prioritize the specific blockId if provided
     let targetBlock: BlockState | undefined
