@@ -63,7 +63,8 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   // File upload state
   const [chatFiles, setChatFiles] = useState<ChatFile[]>([])
   const [isUploadingFiles, setIsUploadingFiles] = useState(false)
-  const [isDragOver, setIsDragOver] = useState(false)
+  const [dragCounter, setDragCounter] = useState(0)
+  const isDragOver = dragCounter > 0
   // Scroll state
   const [isNearBottom, setIsNearBottom] = useState(true)
   const [showScrollButton, setShowScrollButton] = useState(false)
@@ -592,7 +593,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
             e.preventDefault()
             e.stopPropagation()
             if (!(!activeWorkflowId || isExecuting || isUploadingFiles)) {
-              setIsDragOver(true)
+              setDragCounter((prev) => prev + 1)
             }
           }}
           onDragOver={(e) => {
@@ -605,12 +606,12 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
           onDragLeave={(e) => {
             e.preventDefault()
             e.stopPropagation()
-            setIsDragOver(false)
+            setDragCounter((prev) => Math.max(0, prev - 1))
           }}
           onDrop={(e) => {
             e.preventDefault()
             e.stopPropagation()
-            setIsDragOver(false)
+            setDragCounter(0)
             if (!(!activeWorkflowId || isExecuting || isUploadingFiles)) {
               const droppedFiles = Array.from(e.dataTransfer.files)
               if (droppedFiles.length > 0) {
