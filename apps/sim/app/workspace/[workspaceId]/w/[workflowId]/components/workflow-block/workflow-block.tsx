@@ -404,8 +404,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
       // Special handling for trigger mode
       if (block.type === ('trigger-config' as SubBlockType)) {
-        // Only show trigger-config blocks when in trigger mode
-        return isTriggerMode
+        // Show trigger-config blocks when in trigger mode OR for pure trigger blocks
+        const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
+        return isTriggerMode || isPureTriggerBlock
       }
 
       if (isTriggerMode && block.type !== ('trigger-config' as SubBlockType)) {
@@ -765,8 +766,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 </TooltipContent>
               </Tooltip>
             )}
-            {/* Trigger Mode Button - Show for blocks that support triggers */}
-            {config.triggers?.enabled && (
+            {/* Trigger Mode Button - Show for hybrid blocks that support triggers (not pure trigger blocks) */}
+            {config.triggers?.enabled && config.category !== 'triggers' && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button

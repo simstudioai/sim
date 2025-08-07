@@ -8,6 +8,7 @@ import { LoopBlockHandler } from '@/executor/handlers/loop/loop-handler'
 import { ParallelBlockHandler } from '@/executor/handlers/parallel/parallel-handler'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
 import { RouterBlockHandler } from '@/executor/handlers/router/router-handler'
+import { TriggerBlockHandler } from '@/executor/handlers/trigger/trigger-handler'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
 
 export {
@@ -21,5 +22,6 @@ export {
   ParallelBlockHandler,
   ResponseBlockHandler,
   RouterBlockHandler,
+  TriggerBlockHandler,
   WorkflowBlockHandler,
 }

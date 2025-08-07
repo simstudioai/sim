@@ -199,7 +199,6 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
     }
   }
   hideFromToolbar?: boolean
-  // New: Trigger capabilities
   triggers?: {
     enabled: boolean
     available: string[] // List of trigger IDs this block supports

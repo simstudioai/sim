@@ -1055,4 +1055,55 @@ describe('Executor', () => {
       }
     )
   })
+
+  /**
+   * Trigger handler integration tests
+   */
+  describe('trigger block handling', () => {
+    it.concurrent('should not interfere with regular tool blocks', async () => {
+      const workflow = {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'starter',
+            position: { x: -100, y: 0 },
+            metadata: { id: BlockType.STARTER, name: 'Starter Block' },
+            config: { tool: 'starter', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'api-block',
+            position: { x: 0, y: 0 },
+            metadata: { id: BlockType.API, name: 'API Block', category: 'tools' },
+            config: { tool: 'api', params: {} },
+            inputs: { url: 'string' },
+            outputs: { response: 'json' },
+            enabled: true,
+          },
+        ],
+        connections: [{ source: 'starter', target: 'api-block' }],
+        loops: {},
+      }
+
+      const executor = new Executor({
+        workflow,
+        workflowInput: { url: 'https://api.example.com' },
+      })
+
+      // The TriggerBlockHandler should NOT handle regular tool blocks
+      expect(
+        (executor as any).blockHandlers[0].canHandle({
+          id: 'api-block',
+          metadata: { id: BlockType.API, category: 'tools' },
+          config: { tool: 'api', params: {} },
+          position: { x: 0, y: 0 },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+        })
+      ).toBe(false)
+    })
+  })
 })

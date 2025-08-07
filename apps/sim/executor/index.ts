@@ -13,6 +13,7 @@ import {
   ParallelBlockHandler,
   ResponseBlockHandler,
   RouterBlockHandler,
+  TriggerBlockHandler,
   WorkflowBlockHandler,
 } from '@/executor/handlers'
 import { LoopManager } from '@/executor/loops/loops'
@@ -149,6 +150,7 @@ export class Executor {
     this.pathTracker = new PathTracker(this.actualWorkflow)
 
     this.blockHandlers = [
+      new TriggerBlockHandler(),
       new AgentBlockHandler(),
       new RouterBlockHandler(this.pathTracker),
       new ConditionBlockHandler(this.pathTracker, this.resolver),
