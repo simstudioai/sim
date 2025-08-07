@@ -25,6 +25,7 @@ interface FileUploadProps {
 interface UploadedFile {
   name: string
   url: string
+  path?: string
   size: number
   type: string
 }
@@ -196,7 +197,13 @@ export function FileUpload({
             }
 
             // Use the file info returned from the presigned URL endpoint
-            uploadedFiles.push(presignedData.fileInfo)
+            uploadedFiles.push({
+              name: presignedData.fileInfo.name,
+              url: presignedData.fileInfo.path, // Use path as url for consistency
+              path: presignedData.fileInfo.path,
+              size: presignedData.fileInfo.size,
+              type: presignedData.fileInfo.type,
+            })
           } else {
             // Fallback to traditional upload through API route
             useDirectUpload = false

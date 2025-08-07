@@ -77,7 +77,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
         if (inputMethod === 'upload') {
           // Handle case where 'file' is an array (multiple files)
           if (params.file && Array.isArray(params.file) && params.file.length > 0) {
-            const filePaths = params.file.map((file) => file.url)
+            const filePaths = params.file.map((file) => file.url || file.path)
 
             return {
               filePath: filePaths.length === 1 ? filePaths[0] : filePaths,
@@ -86,9 +86,9 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
           }
 
           // Handle case where 'file' is a single file object
-          if (params.file?.url) {
+          if (params.file?.url || params.file?.path) {
             return {
-              filePath: params.file.url,
+              filePath: params.file.url || params.file.path,
               fileType: params.fileType || 'auto',
             }
           }
