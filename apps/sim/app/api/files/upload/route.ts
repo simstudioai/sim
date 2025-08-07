@@ -74,25 +74,28 @@ export async function POST(request: NextRequest) {
           // doesn't support custom keys. For now, use the default and update the key in the result
           const result = await uploadFile(buffer, originalName, file.type, file.size)
 
-          // Generate a presigned URL for direct access (24 hours)
-          let directUrl: string | undefined
+          // Generate a presigned URL with appropriate expiry
+          // Execution files get 5 minutes, other files get 24 hours
+          const expirySeconds = workflowId && executionId ? 5 * 60 : 24 * 60 * 60
+          let presignedUrl: string | undefined
           try {
-            directUrl = await getPresignedUrl(result.key, 24 * 60 * 60) // 24 hours
+            presignedUrl = await getPresignedUrl(result.key, expirySeconds)
           } catch (error) {
             logger.warn(`Failed to generate presigned URL for ${originalName}:`, error)
           }
 
           // Create the final result with proper URLs
           // Use the actual key where the file was stored, not our custom storageKey
+          const expiryMs = workflowId && executionId ? 5 * 60 * 1000 : 24 * 60 * 60 * 1000
           const customResult = {
             name: originalName,
             size: file.size,
             type: file.type,
             key: result.key, // Use the actual key from cloud storage
             path: servePath, // Keep for backward compatibility
-            directUrl, // Use the generated presigned URL
+            url: presignedUrl || servePath, // Use presigned URL or fallback to serve path
             uploadedAt: new Date().toISOString(),
-            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+            expiresAt: new Date(Date.now() + expiryMs).toISOString(),
           }
 
           logger.info(`Successfully uploaded to cloud storage: ${customResult.key}`)
@@ -120,18 +123,17 @@ export async function POST(request: NextRequest) {
         await writeFile(filePath, buffer)
         logger.info(`Successfully wrote file to: ${filePath}`)
 
-        // For local storage, the directUrl is the same as the path
-        const fullUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}${servePath}`
-
+        // For local storage, use the serve path
+        const expiryMs = workflowId && executionId ? 5 * 60 * 1000 : 24 * 60 * 60 * 1000
         uploadResults.push({
           name: originalName,
           size: file.size,
           type: file.type,
           key: storageKey,
           path: servePath, // Keep for backward compatibility
-          directUrl: fullUrl,
+          url: servePath, // Use clean url field instead of directUrl
           uploadedAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+          expiresAt: new Date(Date.now() + expiryMs).toISOString(),
         })
       }
     }

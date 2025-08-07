@@ -122,12 +122,6 @@ export async function uploadExecutionFile(
       key: fileInfo.key, // Use the actual uploaded key from S3/Blob
       uploadedAt: new Date().toISOString(),
       expiresAt: getFileExpirationDate(),
-      storageProvider: USE_S3_STORAGE ? 's3' : USE_BLOB_STORAGE ? 'blob' : 'local',
-      bucketName: USE_S3_STORAGE
-        ? S3_EXECUTION_FILES_CONFIG.bucket
-        : USE_BLOB_STORAGE
-          ? BLOB_EXECUTION_FILES_CONFIG.containerName
-          : undefined,
     }
 
     logger.info(`Successfully uploaded execution file: ${fileName} (${fileBuffer.length} bytes)`)

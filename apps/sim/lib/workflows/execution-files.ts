@@ -3,10 +3,7 @@
  * This handles file storage, retrieval, and cleanup for workflow executions
  */
 
-import { createLogger } from '@/lib/logs/console/logger'
 import type { UserFile } from '@/executor/types'
-
-const logger = createLogger('ExecutionFiles')
 
 /**
  * Execution context for file operations
@@ -18,20 +15,9 @@ export interface ExecutionContext {
 }
 
 /**
- * File metadata stored in execution logs
+ * File metadata stored in execution logs - now just uses UserFile directly
  */
-export interface ExecutionFileMetadata {
-  id: string
-  fileKey: string
-  fileName: string
-  fileSize: number
-  fileType: string
-  storageProvider: 's3' | 'blob' | 'local'
-  bucketName?: string
-  directUrl?: string
-  uploadedAt: string
-  expiresAt: string
-}
+export type ExecutionFileMetadata = UserFile
 
 /**
  * Generate execution-scoped storage key
@@ -53,46 +39,6 @@ export function generateExecutionPrefix(context: ExecutionContext): string {
 }
 
 /**
- * Convert ExecutionFileMetadata to UserFile for block outputs
- */
-export function metadataToUserFile(metadata: ExecutionFileMetadata): UserFile {
-  return {
-    id: metadata.id,
-    name: metadata.fileName,
-    size: metadata.fileSize,
-    type: metadata.fileType,
-    url: metadata.directUrl || `/api/files/serve/${metadata.fileKey}`, // Use 5-minute presigned URL, fallback to serve path
-    key: metadata.fileKey,
-    uploadedAt: metadata.uploadedAt,
-    expiresAt: metadata.expiresAt,
-    storageProvider: metadata.storageProvider,
-    bucketName: metadata.bucketName,
-  }
-}
-
-/**
- * Convert UserFile to ExecutionFileMetadata for storage
- */
-export function userFileToMetadata(
-  userFile: UserFile,
-  storageProvider: 's3' | 'blob' | 'local' = 's3',
-  bucketName?: string
-): ExecutionFileMetadata {
-  return {
-    id: userFile.id,
-    fileKey: userFile.key,
-    fileName: userFile.name,
-    fileSize: userFile.size,
-    fileType: userFile.type,
-    storageProvider,
-    bucketName,
-    directUrl: userFile.url, // Store the 5-minute presigned URL
-    uploadedAt: userFile.uploadedAt,
-    expiresAt: userFile.expiresAt,
-  }
-}
-
-/**
  * Generate unique file ID for execution files
  */
 export function generateFileId(): string {
@@ -107,8 +53,8 @@ export function isFileExpired(userFile: UserFile): boolean {
 }
 
 /**
- * Get file expiration date (30 days from now)
+ * Get file expiration date for execution files (5 minutes from now)
  */
 export function getFileExpirationDate(): string {
-  return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+  return new Date(Date.now() + 5 * 60 * 1000).toISOString()
 }

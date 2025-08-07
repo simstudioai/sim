@@ -9,17 +9,9 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 const logger = createLogger('InputResolver')
 
 /**
- * Helper function to resolve property access with FileReference mapping
+ * Helper function to resolve property access
  */
 function resolvePropertyAccess(obj: any, property: string): any {
-  // Special handling for user-friendly file properties
-  if (obj.directUrl !== undefined && obj.key !== undefined) {
-    // This looks like a FileReference object, apply user-friendly property mapping
-    if (property === 'url') {
-      return obj.directUrl
-    }
-    return obj[property]
-  }
   return obj[property]
 }
 

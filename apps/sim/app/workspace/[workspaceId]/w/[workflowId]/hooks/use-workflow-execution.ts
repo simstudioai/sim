@@ -294,13 +294,27 @@ export function useWorkflowExecution() {
                     const uploadResult = await response.json()
                     console.log('Upload successful:', uploadResult)
 
+                    // Convert upload result to clean UserFile format
+                    const processUploadResult = (result: any) => ({
+                      id:
+                        result.id ||
+                        `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                      name: result.name,
+                      url: result.url,
+                      size: result.size,
+                      type: result.type,
+                      key: result.key,
+                      uploadedAt: result.uploadedAt,
+                      expiresAt: result.expiresAt,
+                    })
+
                     // The API returns the file directly for single uploads
                     // or { files: [...] } for multiple uploads
                     if (uploadResult.files && Array.isArray(uploadResult.files)) {
-                      uploadedFiles.push(...uploadResult.files)
-                    } else if (uploadResult.path) {
+                      uploadedFiles.push(...uploadResult.files.map(processUploadResult))
+                    } else if (uploadResult.path || uploadResult.url) {
                       // Single file upload - the result IS the file object
-                      uploadedFiles.push(uploadResult)
+                      uploadedFiles.push(processUploadResult(uploadResult))
                     } else {
                       console.error('Unexpected upload response format:', uploadResult)
                     }

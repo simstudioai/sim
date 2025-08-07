@@ -5,18 +5,13 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
  * User-facing file object with simplified interface
  */
 export interface UserFile {
+  id: string
   name: string
   url: string
   size: number
   type: string
-  uploadedAt: string
-  // Preserve key and id for download functionality
   key: string
-  id: string
-  // Preserve storage properties for download functionality
-  storageProvider?: 's3' | 'blob' | 'local'
-  bucketName?: string
-  // Add expiration support for cleanup and validation
+  uploadedAt: string
   expiresAt: string
 }
 

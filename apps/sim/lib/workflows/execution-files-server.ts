@@ -73,7 +73,7 @@ export async function addExecutionFile(
     // Store updated files
     await storeExecutionFiles(executionId, updatedFiles)
 
-    logger.info(`Added file ${fileMetadata.fileName} to execution ${executionId}`)
+    logger.info(`Added file ${fileMetadata.name} to execution ${executionId}`)
   } catch (error) {
     logger.error(`Failed to add file to execution ${executionId}:`, error)
     throw error

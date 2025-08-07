@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateExecutionFileDownloadUrl } from '@/lib/workflows/execution-file-storage'
 import { getExecutionFiles } from '@/lib/workflows/execution-files-server'
+import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionFileDownloadAPI')
 
@@ -40,30 +41,19 @@ export async function GET(
       return NextResponse.json({ error: 'File has expired' }, { status: 410 })
     }
 
-    // Convert metadata to UserFile format
-    const userFile = {
-      id: file.id,
-      name: file.fileName,
-      size: file.fileSize,
-      type: file.fileType,
-      url: file.directUrl || `/api/files/serve/${file.fileKey}`, // Use 5-minute presigned URL, fallback to serve path
-      key: file.fileKey,
-      uploadedAt: file.uploadedAt,
-      expiresAt: file.expiresAt,
-      storageProvider: file.storageProvider,
-      bucketName: file.bucketName,
-    }
+    // Since ExecutionFileMetadata is now just UserFile, no conversion needed
+    const userFile: UserFile = file
 
     // Generate a new short-lived presigned URL (5 minutes)
     const downloadUrl = await generateExecutionFileDownloadUrl(userFile)
 
-    logger.info(`Generated download URL for file ${file.fileName} (execution: ${executionId})`)
+    logger.info(`Generated download URL for file ${file.name} (execution: ${executionId})`)
 
     const response = NextResponse.json({
       downloadUrl,
-      fileName: file.fileName,
-      fileSize: file.fileSize,
-      fileType: file.fileType,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
       expiresIn: 300, // 5 minutes
     })
 
