@@ -86,7 +86,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-07',
         },
         capabilities: {
-          temperature: { min: 0, max: 2 },
           toolUsageControl: true,
         },
       },
@@ -99,7 +98,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-07',
         },
         capabilities: {
-          temperature: { min: 0, max: 2 },
           toolUsageControl: true,
         },
       },
@@ -112,7 +110,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-07',
         },
         capabilities: {
-          temperature: { min: 0, max: 2 },
           toolUsageControl: true,
         },
       },
@@ -125,7 +122,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-07',
         },
         capabilities: {
-          temperature: { min: 0, max: 2 },
           toolUsageControl: true,
         },
       },
@@ -236,7 +232,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-07',
         },
         capabilities: {
-          temperature: { min: 0, max: 2 },
           toolUsageControl: true,
         },
       },
@@ -249,7 +244,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-07',
         },
         capabilities: {
-          temperature: { min: 0, max: 2 },
           toolUsageControl: true,
         },
       },
@@ -262,7 +256,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-07',
         },
         capabilities: {
-          temperature: { min: 0, max: 2 },
           toolUsageControl: true,
         },
       },
@@ -275,7 +268,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2025-08-07',
         },
         capabilities: {
-          temperature: { min: 0, max: 2 },
           toolUsageControl: true,
         },
       },
