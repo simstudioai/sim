@@ -80,9 +80,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'gpt-5',
         pricing: {
-          input: 10.0,
-          cachedInput: 5.0,
-          output: 40.0,
+          input: 1.25,
+          cachedInput: 0.125,
+          output: 10.0,
           updatedAt: '2025-08-07',
         },
         capabilities: {
@@ -93,9 +93,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'gpt-5-mini',
         pricing: {
-          input: 1.0,
-          cachedInput: 0.5,
-          output: 4.0,
+          input: 0.25,
+          cachedInput: 0.025,
+          output: 2.0,
           updatedAt: '2025-08-07',
         },
         capabilities: {
@@ -106,9 +106,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'gpt-5-nano',
         pricing: {
-          input: 0.2,
-          cachedInput: 0.1,
-          output: 0.8,
+          input: 0.05,
+          cachedInput: 0.005,
+          output: 0.4,
           updatedAt: '2025-08-07',
         },
         capabilities: {
@@ -119,9 +119,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'gpt-5-chat-latest',
         pricing: {
-          input: 10.0,
-          cachedInput: 5.0,
-          output: 40.0,
+          input: 1.25,
+          cachedInput: 0.125,
+          output: 10.0,
           updatedAt: '2025-08-07',
         },
         capabilities: {
@@ -230,9 +230,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'azure/gpt-5',
         pricing: {
-          input: 10.0,
-          cachedInput: 5.0,
-          output: 40.0,
+          input: 1.25,
+          cachedInput: 0.125,
+          output: 10.0,
           updatedAt: '2025-08-07',
         },
         capabilities: {
@@ -243,9 +243,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'azure/gpt-5-mini',
         pricing: {
-          input: 1.0,
-          cachedInput: 0.5,
-          output: 4.0,
+          input: 0.25,
+          cachedInput: 0.025,
+          output: 2.0,
           updatedAt: '2025-08-07',
         },
         capabilities: {
@@ -256,9 +256,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'azure/gpt-5-nano',
         pricing: {
-          input: 0.2,
-          cachedInput: 0.1,
-          output: 0.8,
+          input: 0.05,
+          cachedInput: 0.005,
+          output: 0.4,
           updatedAt: '2025-08-07',
         },
         capabilities: {
@@ -269,9 +269,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'azure/gpt-5-chat-latest',
         pricing: {
-          input: 10.0,
-          cachedInput: 5.0,
-          output: 40.0,
+          input: 1.25,
+          cachedInput: 0.125,
+          output: 10.0,
           updatedAt: '2025-08-07',
         },
         capabilities: {
