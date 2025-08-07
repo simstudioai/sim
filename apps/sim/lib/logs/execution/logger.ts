@@ -433,12 +433,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
       // Check if this object has files property
       if (Array.isArray(obj.files)) {
         for (const file of obj.files) {
-          if (file?.name && file.key) {
-            const fileId = file.id || file.key
-            if (!seenFileIds.has(fileId)) {
-              seenFileIds.add(fileId)
+          if (file?.name && file.key && file.id) {
+            if (!seenFileIds.has(file.id)) {
+              seenFileIds.add(file.id)
               files.push({
-                id: fileId,
+                id: file.id,
                 name: file.name,
                 size: file.size,
                 type: file.type,
@@ -457,12 +456,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
       // Check if this object has attachments property (for Gmail and other tools)
       if (Array.isArray(obj.attachments)) {
         for (const file of obj.attachments) {
-          if (file?.name && file.key) {
-            const fileId = file.id || file.key
-            if (!seenFileIds.has(fileId)) {
-              seenFileIds.add(fileId)
+          if (file?.name && file.key && file.id) {
+            if (!seenFileIds.has(file.id)) {
+              seenFileIds.add(file.id)
               files.push({
-                id: fileId,
+                id: file.id,
                 name: file.name,
                 size: file.size,
                 type: file.type,
@@ -480,12 +478,15 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
       // Check if this object itself is a file reference
       if (obj.name && obj.key && typeof obj.size === 'number') {
-        // Use the actual file ID if available, otherwise generate one from the key
-        const fileId = obj.id || `file_${obj.key.replace(/[^a-zA-Z0-9]/g, '_')}`
-        if (!seenFileIds.has(fileId)) {
-          seenFileIds.add(fileId)
+        if (!obj.id) {
+          logger.warn(`File object missing ID, skipping: ${obj.name}`)
+          return
+        }
+
+        if (!seenFileIds.has(obj.id)) {
+          seenFileIds.add(obj.id)
           files.push({
-            id: obj.id || fileId, // Preserve original ID if it exists
+            id: obj.id,
             name: obj.name,
             size: obj.size,
             type: obj.type,
