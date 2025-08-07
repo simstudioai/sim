@@ -95,12 +95,12 @@ export class FileToolProcessor {
         logger.info(
           `Converted serialized Buffer to Buffer for ${fileData.name} (${buffer.length} bytes)`
         )
-      } else if (typeof fileData.data === 'string') {
+      } else if (typeof fileData.data === 'string' && fileData.data) {
         // Assume base64 or base64url
         let base64Data = fileData.data
 
         // Convert base64url to base64 if needed (Gmail API format)
-        if (base64Data.includes('-') || base64Data.includes('_')) {
+        if (base64Data && (base64Data.includes('-') || base64Data.includes('_'))) {
           base64Data = base64Data.replace(/-/g, '+').replace(/_/g, '/')
         }
 

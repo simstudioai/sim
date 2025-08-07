@@ -218,7 +218,8 @@ async function handleS3PresignedUrl(
       presignedUrl,
       uploadUrl: presignedUrl, // Make sure we're returning the uploadUrl field
       fileInfo: {
-        path: finalPath,
+        path: finalPath, // Keep for backward compatibility
+        url: finalPath, // Add url field for consistency
         key: uniqueKey,
         name: fileName,
         size: fileSize,
@@ -332,7 +333,8 @@ async function handleBlobPresignedUrl(
     return NextResponse.json({
       presignedUrl,
       fileInfo: {
-        path: finalPath,
+        path: finalPath, // Keep for backward compatibility
+        url: finalPath, // Add url field for consistency
         key: uniqueKey,
         name: fileName,
         size: fileSize,
