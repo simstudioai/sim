@@ -67,8 +67,9 @@ describe('File Upload API Route', () => {
     expect(data).toHaveProperty('size')
     expect(data).toHaveProperty('type', 'text/plain')
 
-    const fs = await import('fs/promises')
-    expect(fs.writeFile).toHaveBeenCalled()
+    // Verify the upload function was called (we're mocking at the uploadFile level)
+    const { uploadFile } = await import('@/lib/uploads')
+    expect(uploadFile).toHaveBeenCalled()
   })
 
   it('should upload a file to S3 when in S3 mode', async () => {
