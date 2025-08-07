@@ -64,18 +64,6 @@ Fetch posts from a subreddit with different sorting options
 | --------- | ---- | ----------- |
 | `subreddit` | string | Name of the subreddit where posts were fetched from |
 | `posts` | array | Array of posts with title, author, URL, score, comments count, and metadata |
-|   ↳ `id` | string | Post ID |
-|   ↳ `title` | string | Post title |
-|   ↳ `author` | string | Author username |
-|   ↳ `url` | string | Post URL |
-|   ↳ `permalink` | string | Reddit permalink |
-|   ↳ `score` | number | Post score \(upvotes - downvotes\) |
-|   ↳ `num_comments` | number | Number of comments |
-|   ↳ `created_utc` | number | Creation timestamp \(UTC\) |
-|   ↳ `is_self` | boolean | Whether this is a text post |
-|   ↳ `selftext` | string | Text content for self posts |
-|   ↳ `thumbnail` | string | Thumbnail URL |
-|   ↳ `subreddit` | string | Subreddit name |
 
 ### `reddit_get_comments`
 
@@ -95,21 +83,6 @@ Fetch comments from a specific Reddit post
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `post` | object | Post information including ID, title, author, content, and metadata |
-| ↳ `id` | string | Post ID |
-| ↳ `title` | string | Post title |
-| ↳ `author` | string | Post author |
-| ↳ `selftext` | string | Post text content |
-| ↳ `score` | number | Post score |
-| ↳ `created_utc` | number | Creation timestamp |
-| ↳ `permalink` | string | Reddit permalink |
-| `comments` | array | Nested comments with author, body, score, timestamps, and replies |
-|   ↳ `id` | string | Comment ID |
-|   ↳ `author` | string | Comment author |
-|   ↳ `body` | string | Comment text |
-|   ↳ `score` | number | Comment score |
-|   ↳ `created_utc` | number | Creation timestamp |
-|   ↳ `permalink` | string | Comment permalink |
-|   ↳ `replies` | array | Nested reply comments |
 
 
 

@@ -75,12 +75,6 @@ Get a summary and metadata for a specific Wikipedia page.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `summary` | object | Wikipedia page summary and metadata |
-| ↳ `title` | string | Page title |
-| ↳ `extract` | string | Page extract/summary text |
-| ↳ `description` | string | Short page description |
-| ↳ `thumbnail` | object | Thumbnail image data |
-| ↳ `content_urls` | object | URLs to access the page |
-| ↳ `pageid` | number | Wikipedia page ID |
 
 ### `wikipedia_search`
 
@@ -98,8 +92,6 @@ Search for Wikipedia pages by title or content.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `searchResults` | array | Array of matching Wikipedia pages |
-| `totalHits` | number | Total number of search results found |
-| `query` | string | The search query that was executed |
 
 ### `wikipedia_content`
 
@@ -116,11 +108,6 @@ Get the full HTML content of a Wikipedia page.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | object | Full HTML content and metadata of the Wikipedia page |
-| ↳ `title` | string | Page title |
-| ↳ `pageid` | number | Wikipedia page ID |
-| ↳ `html` | string | Full HTML content of the page |
-| ↳ `revision` | number | Page revision number |
-| ↳ `timestamp` | string | Last modified timestamp |
 
 ### `wikipedia_random`
 
@@ -136,11 +123,6 @@ Get a random Wikipedia page.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `randomPage` | object | Random Wikipedia page data |
-| ↳ `title` | string | Page title |
-| ↳ `extract` | string | Page extract/summary |
-| ↳ `description` | string | Page description |
-| ↳ `thumbnail` | object | Thumbnail image data |
-| ↳ `content_urls` | object | URLs to access the page |
 
 
 

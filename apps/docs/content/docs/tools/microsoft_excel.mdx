@@ -117,16 +117,6 @@ Read data from a Microsoft Excel spreadsheet
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Excel spreadsheet data and metadata |
-| ↳ `data` | object | Range data from the spreadsheet |
-|   ↳ `range` | string | The range that was read |
-|   ↳ `values` | array | Array of rows containing cell values |
-| ↳ `range` | string | The range that was read |
-| ↳ `values` | array | Array of rows containing cell values |
-| ↳ `metadata` | object | Spreadsheet metadata |
-|   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
-|   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
-| ↳ `spreadsheetId` | string | The ID of the spreadsheet |
-| ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
 ### `microsoft_excel_write`
 
@@ -148,15 +138,6 @@ Write data to a Microsoft Excel spreadsheet
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Write operation results and metadata |
-| ↳ `updatedRange` | string | The range that was updated |
-| ↳ `updatedRows` | number | Number of rows that were updated |
-| ↳ `updatedColumns` | number | Number of columns that were updated |
-| ↳ `updatedCells` | number | Number of cells that were updated |
-| ↳ `metadata` | object | Spreadsheet metadata |
-|   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
-|   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
-| ↳ `spreadsheetId` | string | The ID of the spreadsheet |
-| ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
 ### `microsoft_excel_table_add`
 
@@ -176,13 +157,6 @@ Add new rows to a Microsoft Excel table
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Table add operation results and metadata |
-| ↳ `index` | number | Index of the first row that was added |
-| ↳ `values` | array | Array of rows that were added to the table |
-| ↳ `metadata` | object | Spreadsheet metadata |
-|   ↳ `spreadsheetId` | string | The ID of the spreadsheet |
-|   ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
-| ↳ `spreadsheetId` | string | The ID of the spreadsheet |
-| ↳ `spreadsheetUrl` | string | URL to access the spreadsheet |
 
 
 

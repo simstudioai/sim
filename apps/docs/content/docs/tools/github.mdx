@@ -58,25 +58,8 @@ Fetch PR details including diff and files changed
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Response content |
-| `metadata` | json | Response metadata |
-| `action` | string | The action that was performed |
-| `event_type` | string | Type of GitHub event |
-| `repository` | string | Repository full name |
-| `repository_name` | string | Repository name only |
-| `repository_owner` | string | Repository owner username |
-| `sender` | string | Username of the user who triggered the event |
-| `sender_id` | string | User ID of the sender |
-| `ref` | string | Git reference \(for push events\) |
-| `before` | string | SHA of the commit before the push |
-| `after` | string | SHA of the commit after the push |
-| `commits` | string | Array of commit objects \(for push events\) |
-| `pull_request` | string | Pull request object \(for pull_request events\) |
-| `issue` | string | Issue object \(for issues events\) |
-| `comment` | string | Comment object \(for comment events\) |
-| `branch` | string | Branch name extracted from ref |
-| `commit_message` | string | Latest commit message |
-| `commit_author` | string | Author of the latest commit |
+| `content` | string | Human-readable PR summary |
+| `metadata` | object | Detailed PR metadata including file changes |
 
 ### `github_comment`
 
@@ -102,25 +85,8 @@ Create comments on GitHub PRs
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Response content |
-| `metadata` | json | Response metadata |
-| `action` | string | The action that was performed |
-| `event_type` | string | Type of GitHub event |
-| `repository` | string | Repository full name |
-| `repository_name` | string | Repository name only |
-| `repository_owner` | string | Repository owner username |
-| `sender` | string | Username of the user who triggered the event |
-| `sender_id` | string | User ID of the sender |
-| `ref` | string | Git reference \(for push events\) |
-| `before` | string | SHA of the commit before the push |
-| `after` | string | SHA of the commit after the push |
-| `commits` | string | Array of commit objects \(for push events\) |
-| `pull_request` | string | Pull request object \(for pull_request events\) |
-| `issue` | string | Issue object \(for issues events\) |
-| `comment` | string | Comment object \(for comment events\) |
-| `branch` | string | Branch name extracted from ref |
-| `commit_message` | string | Latest commit message |
-| `commit_author` | string | Author of the latest commit |
+| `content` | string | Human-readable comment confirmation |
+| `metadata` | object | Comment metadata |
 
 ### `github_repo_info`
 
@@ -138,25 +104,8 @@ Retrieve comprehensive GitHub repository metadata including stars, forks, issues
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Response content |
-| `metadata` | json | Response metadata |
-| `action` | string | The action that was performed |
-| `event_type` | string | Type of GitHub event |
-| `repository` | string | Repository full name |
-| `repository_name` | string | Repository name only |
-| `repository_owner` | string | Repository owner username |
-| `sender` | string | Username of the user who triggered the event |
-| `sender_id` | string | User ID of the sender |
-| `ref` | string | Git reference \(for push events\) |
-| `before` | string | SHA of the commit before the push |
-| `after` | string | SHA of the commit after the push |
-| `commits` | string | Array of commit objects \(for push events\) |
-| `pull_request` | string | Pull request object \(for pull_request events\) |
-| `issue` | string | Issue object \(for issues events\) |
-| `comment` | string | Comment object \(for comment events\) |
-| `branch` | string | Branch name extracted from ref |
-| `commit_message` | string | Latest commit message |
-| `commit_author` | string | Author of the latest commit |
+| `content` | string | Human-readable repository summary |
+| `metadata` | object | Repository metadata |
 
 ### `github_latest_commit`
 
@@ -175,25 +124,8 @@ Retrieve the latest commit from a GitHub repository
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Response content |
-| `metadata` | json | Response metadata |
-| `action` | string | The action that was performed |
-| `event_type` | string | Type of GitHub event |
-| `repository` | string | Repository full name |
-| `repository_name` | string | Repository name only |
-| `repository_owner` | string | Repository owner username |
-| `sender` | string | Username of the user who triggered the event |
-| `sender_id` | string | User ID of the sender |
-| `ref` | string | Git reference \(for push events\) |
-| `before` | string | SHA of the commit before the push |
-| `after` | string | SHA of the commit after the push |
-| `commits` | string | Array of commit objects \(for push events\) |
-| `pull_request` | string | Pull request object \(for pull_request events\) |
-| `issue` | string | Issue object \(for issues events\) |
-| `comment` | string | Comment object \(for comment events\) |
-| `branch` | string | Branch name extracted from ref |
-| `commit_message` | string | Latest commit message |
-| `commit_author` | string | Author of the latest commit |
+| `content` | string | Human-readable commit summary |
+| `metadata` | object | Commit metadata |
 
 
 

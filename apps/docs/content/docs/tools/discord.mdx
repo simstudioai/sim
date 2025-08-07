@@ -80,17 +80,8 @@ Send a message to a Discord channel
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Message content |
-| `data` | json | Response data |
-| `content` | string | Message content from Discord webhook |
-| `username` | string | Username of the sender \(if provided\) |
-| `avatar_url` | string | Avatar URL of the sender \(if provided\) |
-| `timestamp` | string | Timestamp when the webhook was triggered |
-| `webhook_id` | string | Discord webhook identifier |
-| `webhook_token` | string | Discord webhook token |
-| `guild_id` | string | Discord server/guild ID |
-| `channel_id` | string | Discord channel ID where the event occurred |
-| `embeds` | string | Embedded content data \(if any\) |
+| `message` | string | Success or error message |
+| `data` | object | Discord message data |
 
 ### `discord_get_messages`
 
@@ -108,17 +99,8 @@ Retrieve messages from a Discord channel
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Message content |
-| `data` | json | Response data |
-| `content` | string | Message content from Discord webhook |
-| `username` | string | Username of the sender \(if provided\) |
-| `avatar_url` | string | Avatar URL of the sender \(if provided\) |
-| `timestamp` | string | Timestamp when the webhook was triggered |
-| `webhook_id` | string | Discord webhook identifier |
-| `webhook_token` | string | Discord webhook token |
-| `guild_id` | string | Discord server/guild ID |
-| `channel_id` | string | Discord channel ID where the event occurred |
-| `embeds` | string | Embedded content data \(if any\) |
+| `message` | string | Success or error message |
+| `messages` | array | Array of Discord messages with full metadata |
 
 ### `discord_get_server`
 
@@ -135,17 +117,8 @@ Retrieve information about a Discord server (guild)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Message content |
-| `data` | json | Response data |
-| `content` | string | Message content from Discord webhook |
-| `username` | string | Username of the sender \(if provided\) |
-| `avatar_url` | string | Avatar URL of the sender \(if provided\) |
-| `timestamp` | string | Timestamp when the webhook was triggered |
-| `webhook_id` | string | Discord webhook identifier |
-| `webhook_token` | string | Discord webhook token |
-| `guild_id` | string | Discord server/guild ID |
-| `channel_id` | string | Discord channel ID where the event occurred |
-| `embeds` | string | Embedded content data \(if any\) |
+| `message` | string | Success or error message |
+| `data` | object | Discord server \(guild\) information |
 
 ### `discord_get_user`
 
@@ -162,17 +135,8 @@ Retrieve information about a Discord user
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Message content |
-| `data` | json | Response data |
-| `content` | string | Message content from Discord webhook |
-| `username` | string | Username of the sender \(if provided\) |
-| `avatar_url` | string | Avatar URL of the sender \(if provided\) |
-| `timestamp` | string | Timestamp when the webhook was triggered |
-| `webhook_id` | string | Discord webhook identifier |
-| `webhook_token` | string | Discord webhook token |
-| `guild_id` | string | Discord server/guild ID |
-| `channel_id` | string | Discord channel ID where the event occurred |
-| `embeds` | string | Embedded content data \(if any\) |
+| `message` | string | Success or error message |
+| `data` | object | Discord user information |
 
 
 

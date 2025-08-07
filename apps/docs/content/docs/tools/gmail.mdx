@@ -75,9 +75,6 @@ Send emails using Gmail
 | --------- | ---- | ----------- |
 | `content` | string | Success message |
 | `metadata` | object | Email metadata |
-| ↳ `id` | string | Gmail message ID |
-| ↳ `threadId` | string | Gmail thread ID |
-| ↳ `labelIds` | array | Email labels |
 
 ### `gmail_draft`
 
@@ -97,13 +94,6 @@ Draft emails using Gmail
 | --------- | ---- | ----------- |
 | `content` | string | Success message |
 | `metadata` | object | Draft metadata |
-| ↳ `id` | string | Gmail message ID |
-| ↳ `message` | object | Message metadata |
-|   ↳ `id` | string | Gmail message ID |
-|   ↳ `threadId` | string | Gmail thread ID |
-|   ↳ `labelIds` | array | Email labels |
-| ↳ `threadId` | string | Gmail thread ID |
-| ↳ `labelIds` | array | Email labels |
 
 ### `gmail_read`
 
@@ -124,19 +114,6 @@ Read emails from Gmail
 | --------- | ---- | ----------- |
 | `content` | string | Email content or summary |
 | `metadata` | object | Email metadata |
-| ↳ `id` | string | Gmail message ID |
-| ↳ `threadId` | string | Gmail thread ID |
-| ↳ `labelIds` | array | Email labels |
-| ↳ `from` | string | Sender email address |
-| ↳ `to` | string | Recipient email address |
-| ↳ `subject` | string | Email subject |
-| ↳ `date` | string | Email date |
-| ↳ `results` | array | Array of message results \(when multiple messages\) |
-|   ↳ `id` | string | Gmail message ID |
-|   ↳ `threadId` | string | Gmail thread ID |
-|   ↳ `subject` | string | Email subject |
-|   ↳ `from` | string | Sender email address |
-|   ↳ `date` | string | Email date |
 
 ### `gmail_search`
 
@@ -155,19 +132,6 @@ Search emails in Gmail
 | --------- | ---- | ----------- |
 | `content` | string | Search results summary |
 | `metadata` | object | Search metadata |
-| ↳ `results` | array | Array of search results |
-|   ↳ `id` | string | Gmail message ID |
-|   ↳ `threadId` | string | Gmail thread ID |
-|   ↳ `subject` | string | Email subject |
-|   ↳ `from` | string | Sender email address |
-|   ↳ `date` | string | Email date |
-|   ↳ `snippet` | string | Email snippet/preview |
-| ↳ `id` | string | Gmail message ID |
-| ↳ `threadId` | string | Gmail thread ID |
-| ↳ `subject` | string | Email subject |
-| ↳ `from` | string | Sender email address |
-| ↳ `date` | string | Email date |
-| ↳ `snippet` | string | Email snippet/preview |
 
 
 

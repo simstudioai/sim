@@ -114,13 +114,6 @@ Search for similar text in a Pinecone index
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `matches` | array | Search results with ID, score, and metadata |
-|   ↳ `id` | string | Vector ID |
-|   ↳ `score` | number | Similarity score |
-|   ↳ `metadata` | object | Associated metadata |
-| `usage` | object | Usage statistics including tokens, read units, and rerank units |
-| ↳ `total_tokens` | number | Total tokens used for embedding |
-| ↳ `read_units` | number | Read units consumed |
-| ↳ `rerank_units` | number | Rerank units used |
 
 ### `pinecone_search_vector`
 
@@ -164,15 +157,6 @@ Fetch vectors by ID from a Pinecone index
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `matches` | array | Fetched vectors with ID, values, metadata, and score |
-|   ↳ `id` | string | Vector ID |
-|   ↳ `values` | array | Vector values |
-|   ↳ `metadata` | object | Associated metadata |
-|   ↳ `score` | number | Match score \(1.0 for exact matches\) |
-| `data` | array | Vector data with values and vector type |
-|   ↳ `values` | array | Vector values |
-|   ↳ `vector_type` | string | Vector type \(dense/sparse\) |
-| `usage` | object | Usage statistics including total read units |
-| ↳ `total_tokens` | number | Read units consumed |
 
 
 

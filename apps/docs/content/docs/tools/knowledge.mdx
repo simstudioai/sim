@@ -73,9 +73,6 @@ Search for similar content in a knowledge base using vector similarity
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Array of search results from the knowledge base |
-| `query` | string | The search query that was executed |
-| `totalResults` | number | Total number of results found |
-| `cost` | object | Cost information for the search operation |
 
 ### `knowledge_upload_chunk`
 
@@ -94,17 +91,6 @@ Upload a new chunk to a document in a knowledge base
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `data` | object | Information about the uploaded chunk |
-| ↳ `id` | string | Chunk ID |
-| ↳ `chunkIndex` | number | Index of the chunk within the document |
-| ↳ `content` | string | Content of the chunk |
-| ↳ `contentLength` | number | Length of the content in characters |
-| ↳ `tokenCount` | number | Number of tokens in the chunk |
-| ↳ `enabled` | boolean | Whether the chunk is enabled |
-| ↳ `createdAt` | string | Creation timestamp |
-| ↳ `updatedAt` | string | Last update timestamp |
-| `message` | string | Success or error message describing the operation result |
-| `documentId` | string | ID of the document the chunk was added to |
-| `cost` | object | Cost information for the upload operation |
 
 ### `knowledge_create_document`
 
@@ -131,14 +117,6 @@ Create a new document in a knowledge base
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `data` | object | Information about the created document |
-| ↳ `id` | string | Document ID |
-| ↳ `name` | string | Document name |
-| ↳ `type` | string | Document type |
-| ↳ `enabled` | boolean | Whether the document is enabled |
-| ↳ `createdAt` | string | Creation timestamp |
-| ↳ `updatedAt` | string | Last update timestamp |
-| `message` | string | Success or error message describing the operation result |
-| `documentId` | string | ID of the created document |
 
 
 

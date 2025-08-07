@@ -81,8 +81,7 @@ Perform AI-powered web searches using Tavily
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `query` | string | The search query that was executed |
-| `results` | array | Search results with titles, URLs, and content snippets |
-| `response_time` | number | Time taken for the search request in seconds |
+| `results` | array | results output from the tool |
 
 ### `tavily_extract`
 
@@ -101,12 +100,6 @@ Extract raw content from multiple web pages simultaneously using Tavily
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | The URL that was extracted |
-|   ↳ `url` | string | The URL that was extracted |
-|   ↳ `raw_content` | string | The raw text content from the webpage |
-| `failed_results` | array | The URL that failed extraction |
-|   ↳ `url` | string | The URL that failed extraction |
-|   ↳ `error` | string | Error message for the failed extraction |
-| `response_time` | number | Time taken for the extraction request in seconds |
 
 
 

@@ -69,15 +69,6 @@ Search the web using Exa AI. Returns relevant search results with titles, URLs, 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Search results with titles, URLs, and text snippets |
-|   ↳ `title` | string | The title of the search result |
-|   ↳ `url` | string | The URL of the search result |
-|   ↳ `publishedDate` | string | Date when the content was published |
-|   ↳ `author` | string | The author of the content |
-|   ↳ `summary` | string | A brief summary of the content |
-|   ↳ `favicon` | string | URL of the site |
-|   ↳ `image` | string | URL of a representative image from the page |
-|   ↳ `text` | string | Text snippet or full content from the page |
-|   ↳ `score` | number | Relevance score for the search result |
 
 ### `exa_get_contents`
 
@@ -97,10 +88,6 @@ Retrieve the contents of webpages using Exa AI. Returns the title, text content,
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | Retrieved content from URLs with title, text, and summaries |
-|   ↳ `url` | string | The URL that content was retrieved from |
-|   ↳ `title` | string | The title of the webpage |
-|   ↳ `text` | string | The full text content of the webpage |
-|   ↳ `summary` | string | AI-generated summary of the webpage content |
 
 ### `exa_find_similar_links`
 
@@ -120,10 +107,6 @@ Find webpages similar to a given URL using Exa AI. Returns a list of similar lin
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `similarLinks` | array | Similar links found with titles, URLs, and text snippets |
-|   ↳ `title` | string | The title of the similar webpage |
-|   ↳ `url` | string | The URL of the similar webpage |
-|   ↳ `text` | string | Text snippet or full content from the similar webpage |
-|   ↳ `score` | number | Similarity score indicating how similar the page is |
 
 ### `exa_answer`
 
@@ -143,9 +126,6 @@ Get an AI-generated answer to a question with citations from the web using Exa A
 | --------- | ---- | ----------- |
 | `answer` | string | AI-generated answer to the question |
 | `citations` | array | Sources and citations for the answer |
-|   ↳ `title` | string | The title of the cited source |
-|   ↳ `url` | string | The URL of the cited source |
-|   ↳ `text` | string | Relevant text from the cited source |
 
 ### `exa_research`
 

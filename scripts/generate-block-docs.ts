@@ -455,7 +455,7 @@ function extractToolInfo(
     // First priority: Extract outputs from the new outputs field in ToolConfig
     let outputs: Record<string, any> = {}
     const outputsFieldRegex =
-      /outputs\s*:\s*{([\s\S]*?)},?\s*(?:oauth|params|request|directExecution|postProcess|transformResponse|transformError)/
+      /outputs\s*:\s*{([\s\S]*?)}\s*,?\s*(?:oauth|params|request|directExecution|postProcess|transformResponse|transformError|$|\})/
     const outputsFieldMatch = fileContent.match(outputsFieldRegex)
 
     if (outputsFieldMatch) {
