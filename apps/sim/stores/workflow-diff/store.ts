@@ -114,6 +114,9 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           // PERFORMANCE OPTIMIZATION: Immediate state update to prevent UI flicker
           batchedUpdate({ isDiffReady: false })
 
+          // Clear any existing diff state to ensure a fresh start
+          diffEngine.clearDiff()
+
           const result = await diffEngine.createDiffFromYaml(yamlContent, diffAnalysis)
 
           if (result.success && result.diff) {

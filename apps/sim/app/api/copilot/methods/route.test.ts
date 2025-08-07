@@ -354,7 +354,14 @@ describe('Copilot Methods API Route', () => {
         86400
       )
       expect(mockRedisGet).toHaveBeenCalledWith('tool_call:tool-call-123')
-      expect(mockToolRegistryExecute).toHaveBeenCalledWith('interrupt-tool', { key: 'value' })
+      expect(mockToolRegistryExecute).toHaveBeenCalledWith('interrupt-tool', {
+        key: 'value',
+        confirmationMessage: 'User approved',
+        fullData: {
+          message: 'User approved',
+          status: 'accepted',
+        },
+      })
     })
 
     it('should handle tool execution with interrupt - user rejection', async () => {
@@ -613,6 +620,10 @@ describe('Copilot Methods API Route', () => {
       expect(mockToolRegistryExecute).toHaveBeenCalledWith('no_op', {
         existing: 'param',
         confirmationMessage: 'Confirmation message',
+        fullData: {
+          message: 'Confirmation message',
+          status: 'accepted',
+        },
       })
     })
 

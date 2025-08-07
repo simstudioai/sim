@@ -70,6 +70,16 @@ export async function POST(request: NextRequest) {
     // Note: This endpoint is stateless, so we need to get this from the request
     const currentWorkflowState = (body as any).currentWorkflowState
 
+    // Ensure currentWorkflowState has all required properties with proper defaults if provided
+    if (currentWorkflowState) {
+      if (!currentWorkflowState.loops) {
+        currentWorkflowState.loops = {}
+      }
+      if (!currentWorkflowState.parallels) {
+        currentWorkflowState.parallels = {}
+      }
+    }
+
     logger.info(`[${requestId}] Creating diff from YAML`, {
       contentLength: yamlContent.length,
       hasDiffAnalysis: !!diffAnalysis,

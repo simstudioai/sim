@@ -273,11 +273,16 @@ async function applyOperationsToYaml(
   return yamlDump(workflowData)
 }
 
+import { eq } from 'drizzle-orm'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { db } from '@/db'
+import { workflow as workflowTable } from '@/db/schema'
 import { BaseCopilotTool } from '../base'
 
 interface EditWorkflowParams {
   operations: EditWorkflowOperation[]
   workflowId: string
+  currentUserWorkflow?: string // Optional current workflow JSON - if not provided, will fetch from DB
 }
 
 interface EditWorkflowResult {
@@ -297,28 +302,110 @@ class EditWorkflowTool extends BaseCopilotTool<EditWorkflowParams, EditWorkflowR
 // Export the tool instance
 export const editWorkflowTool = new EditWorkflowTool()
 
+/**
+ * Get user workflow from database - backend function for edit workflow
+ */
+async function getUserWorkflow(workflowId: string): Promise<string> {
+  logger.info('Fetching workflow from database', { workflowId })
+
+  // Fetch workflow from database
+  const [workflowRecord] = await db
+    .select()
+    .from(workflowTable)
+    .where(eq(workflowTable.id, workflowId))
+    .limit(1)
+
+  if (!workflowRecord) {
+    throw new Error(`Workflow ${workflowId} not found in database`)
+  }
+
+  // Try to load from normalized tables first, fallback to JSON blob
+  let workflowState: any = null
+  const subBlockValues: Record<string, Record<string, any>> = {}
+
+  const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+  if (normalizedData) {
+    workflowState = {
+      blocks: normalizedData.blocks,
+      edges: normalizedData.edges,
+      loops: normalizedData.loops,
+      parallels: normalizedData.parallels,
+    }
+
+    // Extract subblock values from normalized data
+    Object.entries(normalizedData.blocks).forEach(([blockId, block]) => {
+      subBlockValues[blockId] = {}
+      Object.entries((block as any).subBlocks || {}).forEach(([subBlockId, subBlock]) => {
+        if ((subBlock as any).value !== undefined) {
+          subBlockValues[blockId][subBlockId] = (subBlock as any).value
+        }
+      })
+    })
+  } else if (workflowRecord.state) {
+    // Fallback to JSON blob
+    const jsonState = workflowRecord.state as any
+    workflowState = {
+      blocks: jsonState.blocks || {},
+      edges: jsonState.edges || [],
+      loops: jsonState.loops || {},
+      parallels: jsonState.parallels || {},
+    }
+    // For JSON blob, subblock values are embedded in the block state
+    Object.entries((workflowState.blocks as any) || {}).forEach(([blockId, block]) => {
+      subBlockValues[blockId] = {}
+      Object.entries((block as any).subBlocks || {}).forEach(([subBlockId, subBlock]) => {
+        if ((subBlock as any).value !== undefined) {
+          subBlockValues[blockId][subBlockId] = (subBlock as any).value
+        }
+      })
+    })
+  }
+
+  if (!workflowState || !workflowState.blocks) {
+    throw new Error('Workflow state is empty or invalid')
+  }
+
+  logger.info('Successfully fetched workflow from database', {
+    workflowId,
+    blockCount: Object.keys(workflowState.blocks).length,
+  })
+
+  // Return the raw JSON workflow state
+  return JSON.stringify(workflowState, null, 2)
+}
+
 // Implementation function
 async function editWorkflow(params: EditWorkflowParams): Promise<EditWorkflowResult> {
-  const { operations, workflowId } = params
+  const { operations, workflowId, currentUserWorkflow } = params
 
   logger.info('Processing targeted update request', {
     workflowId,
     operationCount: operations.length,
+    hasCurrentUserWorkflow: !!currentUserWorkflow,
   })
 
-  // Get current workflow state as JSON
-  const { getUserWorkflowTool } = await import('./get-user-workflow')
+  // Get current workflow state - use provided currentUserWorkflow or fetch from DB
+  let workflowStateJson: string
 
-  const getUserWorkflowResult = await getUserWorkflowTool.execute({
-    workflowId: workflowId,
-    includeMetadata: false,
-  })
-
-  if (!getUserWorkflowResult.success || !getUserWorkflowResult.data) {
-    throw new Error('Failed to get current workflow state')
+  if (currentUserWorkflow) {
+    logger.info('Using provided currentUserWorkflow for edits', {
+      workflowId,
+      jsonLength: currentUserWorkflow.length,
+    })
+    workflowStateJson = currentUserWorkflow
+  } else {
+    logger.info('No currentUserWorkflow provided, fetching from database', {
+      workflowId,
+    })
+    workflowStateJson = await getUserWorkflow(workflowId)
   }
 
-  const workflowStateJson = getUserWorkflowResult.data
+  // Also get the DB version for diff calculation if we're using a different current workflow
+  let dbWorkflowStateJson: string = workflowStateJson
+  if (currentUserWorkflow) {
+    logger.info('Fetching DB workflow for diff calculation', { workflowId })
+    dbWorkflowStateJson = await getUserWorkflow(workflowId)
+  }
 
   logger.info('Retrieved current workflow state', {
     jsonLength: workflowStateJson.length,
@@ -327,6 +414,20 @@ async function editWorkflow(params: EditWorkflowParams): Promise<EditWorkflowRes
 
   // Parse the JSON to get the workflow state object
   const workflowState = JSON.parse(workflowStateJson)
+
+  // Ensure workflow state has all required properties with proper defaults
+  if (!workflowState.loops) {
+    workflowState.loops = {}
+  }
+  if (!workflowState.parallels) {
+    workflowState.parallels = {}
+  }
+  if (!workflowState.edges) {
+    workflowState.edges = []
+  }
+  if (!workflowState.blocks) {
+    workflowState.blocks = {}
+  }
 
   // Extract subblock values from the workflow state (same logic as get-user-workflow.ts)
   const subBlockValues: Record<string, Record<string, any>> = {}
