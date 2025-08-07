@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RateLimiter } from '@/services/queue/RateLimiter'
-import { RATE_LIMITS } from '@/services/queue/types'
+import { MANUAL_EXECUTION_LIMIT, RATE_LIMITS } from '@/services/queue/types'
 
 // Mock the database module
 vi.mock('@/db', () => ({
@@ -34,7 +34,7 @@ describe('RateLimiter', () => {
       const result = await rateLimiter.checkRateLimit(testUserId, 'free', 'manual', false)
 
       expect(result.allowed).toBe(true)
-      expect(result.remaining).toBe(999999)
+      expect(result.remaining).toBe(MANUAL_EXECUTION_LIMIT)
       expect(result.resetAt).toBeInstanceOf(Date)
       expect(db.select).not.toHaveBeenCalled()
     })
@@ -144,8 +144,8 @@ describe('RateLimiter', () => {
       const status = await rateLimiter.getRateLimitStatus(testUserId, 'free', 'manual', false)
 
       expect(status.used).toBe(0)
-      expect(status.limit).toBe(999999)
-      expect(status.remaining).toBe(999999)
+      expect(status.limit).toBe(MANUAL_EXECUTION_LIMIT)
+      expect(status.remaining).toBe(MANUAL_EXECUTION_LIMIT)
       expect(status.resetAt).toBeInstanceOf(Date)
     })
 

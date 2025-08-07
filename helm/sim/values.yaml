@@ -87,6 +87,18 @@ app:
     NEXT_PUBLIC_DOCUMENTATION_URL: ""                    # Documentation URL (leave empty for none)
     NEXT_PUBLIC_TERMS_URL: ""                            # Terms of service URL (leave empty for none)
     NEXT_PUBLIC_PRIVACY_URL: ""                          # Privacy policy URL (leave empty for none)
+    
+    # Rate Limiting Configuration
+    RATE_LIMIT_WINDOW_MS: "60000"                        # Rate limit window in milliseconds (1 minute)
+    MANUAL_EXECUTION_LIMIT: "999999"                     # Manual execution limit (effectively unlimited)
+    RATE_LIMIT_FREE_SYNC: "10"                          # Free tier sync API executions per minute
+    RATE_LIMIT_FREE_ASYNC: "50"                         # Free tier async API executions per minute
+    RATE_LIMIT_PRO_SYNC: "25"                           # Pro tier sync API executions per minute
+    RATE_LIMIT_PRO_ASYNC: "200"                         # Pro tier async API executions per minute
+    RATE_LIMIT_TEAM_SYNC: "75"                          # Team tier sync API executions per minute
+    RATE_LIMIT_TEAM_ASYNC: "500"                        # Team tier async API executions per minute
+    RATE_LIMIT_ENTERPRISE_SYNC: "150"                   # Enterprise tier sync API executions per minute
+    RATE_LIMIT_ENTERPRISE_ASYNC: "1000"                 # Enterprise tier async API executions per minute
   
   # Service configuration
   service:

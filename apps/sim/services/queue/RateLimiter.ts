@@ -2,7 +2,13 @@ import { eq, sql } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { userRateLimits } from '@/db/schema'
-import { RATE_LIMITS, type SubscriptionPlan, type TriggerType } from '@/services/queue/types'
+import {
+  MANUAL_EXECUTION_LIMIT,
+  RATE_LIMIT_WINDOW_MS,
+  RATE_LIMITS,
+  type SubscriptionPlan,
+  type TriggerType,
+} from '@/services/queue/types'
 
 const logger = createLogger('RateLimiter')
 
@@ -21,8 +27,8 @@ export class RateLimiter {
       if (triggerType === 'manual') {
         return {
           allowed: true,
-          remaining: 999999,
-          resetAt: new Date(Date.now() + 60000),
+          remaining: MANUAL_EXECUTION_LIMIT,
+          resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
         }
       }
 
@@ -32,7 +38,7 @@ export class RateLimiter {
         : limit.syncApiExecutionsPerMinute
 
       const now = new Date()
-      const windowStart = new Date(now.getTime() - 60000) // 1 minute ago
+      const windowStart = new Date(now.getTime() - RATE_LIMIT_WINDOW_MS)
 
       // Get or create rate limit record
       const [rateLimitRecord] = await db
@@ -78,7 +84,9 @@ export class RateLimiter {
 
         // Check if we exceeded the limit
         if (actualCount > execLimit) {
-          const resetAt = new Date(new Date(insertedRecord.windowStart).getTime() + 60000)
+          const resetAt = new Date(
+            new Date(insertedRecord.windowStart).getTime() + RATE_LIMIT_WINDOW_MS
+          )
 
           await db
             .update(userRateLimits)
@@ -98,7 +106,7 @@ export class RateLimiter {
         return {
           allowed: true,
           remaining: execLimit - actualCount,
-          resetAt: new Date(new Date(insertedRecord.windowStart).getTime() + 60000),
+          resetAt: new Date(new Date(insertedRecord.windowStart).getTime() + RATE_LIMIT_WINDOW_MS),
         }
       }
 
@@ -124,7 +132,9 @@ export class RateLimiter {
 
       // Check if we exceeded the limit AFTER the atomic increment
       if (actualNewRequests > execLimit) {
-        const resetAt = new Date(new Date(rateLimitRecord.windowStart).getTime() + 60000)
+        const resetAt = new Date(
+          new Date(rateLimitRecord.windowStart).getTime() + RATE_LIMIT_WINDOW_MS
+        )
 
         logger.info(
           `Rate limit exceeded - request ${actualNewRequests} > limit ${execLimit} for user ${userId}`,
@@ -154,7 +164,7 @@ export class RateLimiter {
       return {
         allowed: true,
         remaining: execLimit - actualNewRequests,
-        resetAt: new Date(new Date(rateLimitRecord.windowStart).getTime() + 60000),
+        resetAt: new Date(new Date(rateLimitRecord.windowStart).getTime() + RATE_LIMIT_WINDOW_MS),
       }
     } catch (error) {
       logger.error('Error checking rate limit:', error)
@@ -162,7 +172,7 @@ export class RateLimiter {
       return {
         allowed: true,
         remaining: 0,
-        resetAt: new Date(Date.now() + 60000),
+        resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
       }
     }
   }
@@ -181,9 +191,9 @@ export class RateLimiter {
       if (triggerType === 'manual') {
         return {
           used: 0,
-          limit: 999999,
-          remaining: 999999,
-          resetAt: new Date(Date.now() + 60000),
+          limit: MANUAL_EXECUTION_LIMIT,
+          remaining: MANUAL_EXECUTION_LIMIT,
+          resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
         }
       }
 
@@ -192,7 +202,7 @@ export class RateLimiter {
         ? limit.asyncApiExecutionsPerMinute
         : limit.syncApiExecutionsPerMinute
       const now = new Date()
-      const windowStart = new Date(now.getTime() - 60000)
+      const windowStart = new Date(now.getTime() - RATE_LIMIT_WINDOW_MS)
 
       const [rateLimitRecord] = await db
         .select()
@@ -205,7 +215,7 @@ export class RateLimiter {
           used: 0,
           limit: execLimit,
           remaining: execLimit,
-          resetAt: new Date(now.getTime() + 60000),
+          resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_MS),
         }
       }
 
@@ -214,7 +224,7 @@ export class RateLimiter {
         used,
         limit: execLimit,
         remaining: Math.max(0, execLimit - used),
-        resetAt: new Date(new Date(rateLimitRecord.windowStart).getTime() + 60000),
+        resetAt: new Date(new Date(rateLimitRecord.windowStart).getTime() + RATE_LIMIT_WINDOW_MS),
       }
     } catch (error) {
       logger.error('Error getting rate limit status:', error)
@@ -225,7 +235,7 @@ export class RateLimiter {
         used: 0,
         limit: execLimit,
         remaining: execLimit,
-        resetAt: new Date(Date.now() + 60000),
+        resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
       }
     }
   }
