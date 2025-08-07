@@ -86,12 +86,12 @@ export const outlookPollingTrigger: TriggerConfig = {
         description: 'HTML email body',
       },
       hasAttachments: {
-        type: 'string',
-        description: 'Whether email has attachments (boolean)',
+        type: 'boolean',
+        description: 'Whether email has attachments',
       },
       isRead: {
-        type: 'string',
-        description: 'Whether email is read (boolean)',
+        type: 'boolean',
+        description: 'Whether email is read',
       },
       folderId: {
         type: 'string',
@@ -111,7 +111,7 @@ export const outlookPollingTrigger: TriggerConfig = {
       description: 'Event timestamp',
     },
     rawEmail: {
-      type: 'string',
+      type: 'json',
       description: 'Complete raw email data from Microsoft Graph API (if enabled)',
     },
   },

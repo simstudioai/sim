@@ -98,7 +98,6 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
       description: 'Special entities in the message (mentions, hashtags, etc.)',
     },
   },
-  // New: Trigger capabilities
   triggers: {
     enabled: true,
     available: ['telegram_webhook'],

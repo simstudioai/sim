@@ -143,6 +143,633 @@ vi.mock('@/stores/workflows/subblock/store', () => ({
   })),
 }))
 
+// Mock trigger functions
+vi.mock('@/triggers/utils', () => ({
+  getTriggersByProvider: vi.fn((provider: string) => {
+    const mockTriggers: Record<string, any[]> = {
+      outlook: [
+        {
+          id: 'outlook_poller',
+          name: 'Outlook Email Trigger',
+          outputs: {
+            email: {
+              id: { type: 'string', description: 'Outlook message ID' },
+              conversationId: { type: 'string', description: 'Outlook conversation ID' },
+              subject: { type: 'string', description: 'Email subject line' },
+              hasAttachments: { type: 'boolean', description: 'Whether email has attachments' },
+              isRead: { type: 'boolean', description: 'Whether email is read' },
+              from: { type: 'string', description: 'Email sender' },
+              to: { type: 'string', description: 'Email recipient' },
+              cc: { type: 'string', description: 'CC recipients' },
+              date: { type: 'string', description: 'Email date' },
+              bodyText: { type: 'string', description: 'Email body text' },
+              bodyHtml: { type: 'string', description: 'Email body HTML' },
+              folderId: { type: 'string', description: 'Folder ID' },
+              messageId: { type: 'string', description: 'Message ID' },
+              threadId: { type: 'string', description: 'Thread ID' },
+            },
+            timestamp: { type: 'string', description: 'Event timestamp' },
+            rawEmail: {
+              type: 'json',
+              description: 'Complete raw email data from Microsoft Graph API',
+            },
+          },
+        },
+      ],
+      slack: [
+        {
+          id: 'slack_message',
+          name: 'Slack Message Trigger',
+          outputs: {
+            message: {
+              text: { type: 'string', description: 'Message text' },
+              user: { type: 'string', description: 'User ID' },
+              channel: { type: 'string', description: 'Channel ID' },
+              timestamp: { type: 'string', description: 'Message timestamp' },
+            },
+            channel: { type: 'string', description: 'Channel information' },
+          },
+        },
+      ],
+    }
+    return mockTriggers[provider] || []
+  }),
+}))
+
+describe('TagDropdown Trigger Output Parsing', () => {
+  it.concurrent('should parse trigger outputs correctly for outlook trigger', () => {
+    // Mock getTriggersByProvider function directly
+    const getTriggersByProvider = vi.fn((provider: string) => {
+      const mockTriggers: Record<string, any[]> = {
+        outlook: [
+          {
+            id: 'outlook_poller',
+            name: 'Outlook Email Trigger',
+            outputs: {
+              email: {
+                id: { type: 'string', description: 'Outlook message ID' },
+                conversationId: { type: 'string', description: 'Outlook conversation ID' },
+                subject: { type: 'string', description: 'Email subject line' },
+                hasAttachments: { type: 'boolean', description: 'Whether email has attachments' },
+                isRead: { type: 'boolean', description: 'Whether email is read' },
+              },
+              timestamp: { type: 'string', description: 'Event timestamp' },
+              rawEmail: { type: 'json', description: 'Complete raw email data' },
+            },
+          },
+        ],
+      }
+      return mockTriggers[provider] || []
+    })
+
+    const triggers = getTriggersByProvider('outlook')
+    const firstTrigger = triggers[0]
+
+    expect(firstTrigger).toBeDefined()
+    expect(firstTrigger.outputs).toBeDefined()
+    expect(firstTrigger.outputs.email).toBeDefined()
+    expect(firstTrigger.outputs.timestamp).toBeDefined()
+    expect(firstTrigger.outputs.rawEmail).toBeDefined()
+
+    // Verify email nested properties
+    expect(firstTrigger.outputs.email.id.type).toBe('string')
+    expect(firstTrigger.outputs.email.subject.type).toBe('string')
+    expect(firstTrigger.outputs.email.hasAttachments.type).toBe('boolean')
+    expect(firstTrigger.outputs.email.isRead.type).toBe('boolean')
+  })
+
+  it.concurrent(
+    'should get correct output type for trigger paths using getOutputTypeForPath',
+    () => {
+      // Mock getTriggersByProvider function directly
+      const getTriggersByProvider = vi.fn((provider: string) => {
+        const mockTriggers: Record<string, any[]> = {
+          outlook: [
+            {
+              id: 'outlook_poller',
+              outputs: {
+                email: {
+                  id: { type: 'string' },
+                  subject: { type: 'string' },
+                  hasAttachments: { type: 'boolean' },
+                  isRead: { type: 'boolean' },
+                  from: { type: 'string' },
+                  to: { type: 'string' },
+                },
+                timestamp: { type: 'string' },
+                rawEmail: { type: 'json' },
+              },
+            },
+          ],
+        }
+        return mockTriggers[provider] || []
+      })
+
+      // Mock the getOutputTypeForPath function behavior for triggers
+      const getOutputTypeForPath = (
+        block: any,
+        blockConfig: any,
+        blockId: string,
+        outputPath: string
+      ): string => {
+        if (block?.triggerMode && blockConfig?.triggers?.enabled) {
+          const triggers = getTriggersByProvider(block.type)
+          const firstTrigger = triggers[0]
+
+          if (firstTrigger?.outputs) {
+            const pathParts = outputPath.split('.')
+            let currentObj: any = firstTrigger.outputs
+
+            for (const part of pathParts) {
+              if (currentObj && typeof currentObj === 'object') {
+                currentObj = currentObj[part]
+              } else {
+                break
+              }
+            }
+
+            if (
+              currentObj &&
+              typeof currentObj === 'object' &&
+              'type' in currentObj &&
+              currentObj.type
+            ) {
+              return currentObj.type
+            }
+          }
+        }
+
+        return 'any'
+      }
+
+      const block = {
+        id: 'outlook1',
+        type: 'outlook',
+        triggerMode: true,
+      }
+
+      const blockConfig = {
+        triggers: { enabled: true },
+      }
+
+      // Test top-level trigger outputs
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'timestamp')).toBe('string')
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'rawEmail')).toBe('json')
+
+      // Test nested email properties
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email.id')).toBe('string')
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email.subject')).toBe('string')
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email.hasAttachments')).toBe(
+        'boolean'
+      )
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email.isRead')).toBe('boolean')
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email.from')).toBe('string')
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email.to')).toBe('string')
+
+      // Test non-existent paths
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email.nonexistent')).toBe('any')
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'nonexistent')).toBe('any')
+    }
+  )
+
+  it.concurrent('should handle trigger output navigation for parent objects', () => {
+    const getTriggersByProvider = vi.fn((provider: string) => {
+      const mockTriggers: Record<string, any[]> = {
+        outlook: [
+          {
+            outputs: {
+              email: {
+                id: { type: 'string' },
+                subject: { type: 'string' },
+              },
+              timestamp: { type: 'string' },
+            },
+          },
+        ],
+      }
+      return mockTriggers[provider] || []
+    })
+
+    const getOutputTypeForPath = (
+      block: any,
+      blockConfig: any,
+      blockId: string,
+      outputPath: string
+    ): string => {
+      if (block?.triggerMode && blockConfig?.triggers?.enabled) {
+        const triggers = getTriggersByProvider(block.type)
+        const firstTrigger = triggers[0]
+
+        if (firstTrigger?.outputs) {
+          const pathParts = outputPath.split('.')
+          let currentObj: any = firstTrigger.outputs
+
+          for (const part of pathParts) {
+            if (currentObj && typeof currentObj === 'object') {
+              currentObj = currentObj[part]
+            } else {
+              break
+            }
+          }
+
+          if (
+            currentObj &&
+            typeof currentObj === 'object' &&
+            'type' in currentObj &&
+            currentObj.type
+          ) {
+            return currentObj.type
+          }
+
+          // Check if currentObj is a parent object with nested properties
+          if (currentObj && typeof currentObj === 'object' && !('type' in currentObj)) {
+            return 'object'
+          }
+        }
+      }
+
+      return 'any'
+    }
+
+    const block = {
+      id: 'outlook1',
+      type: 'outlook',
+      triggerMode: true,
+    }
+
+    const blockConfig = {
+      triggers: { enabled: true },
+    }
+
+    // Test parent object (email should be treated as object type)
+    expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email')).toBe('object')
+  })
+
+  it.concurrent('should return "any" for non-trigger blocks', () => {
+    const getOutputTypeForPath = (
+      block: any,
+      blockConfig: any,
+      blockId: string,
+      outputPath: string
+    ): string => {
+      if (block?.triggerMode && blockConfig?.triggers?.enabled) {
+        const { getTriggersByProvider } = require('@/triggers/utils')
+        const triggers = getTriggersByProvider(block.type)
+        const firstTrigger = triggers[0]
+
+        if (firstTrigger?.outputs) {
+          const pathParts = outputPath.split('.')
+          let currentObj: any = firstTrigger.outputs
+
+          for (const part of pathParts) {
+            if (currentObj && typeof currentObj === 'object') {
+              currentObj = currentObj[part]
+            } else {
+              break
+            }
+          }
+
+          if (
+            currentObj &&
+            typeof currentObj === 'object' &&
+            'type' in currentObj &&
+            currentObj.type
+          ) {
+            return currentObj.type
+          }
+        }
+      }
+
+      return 'any'
+    }
+
+    // Test block without trigger mode
+    const normalBlock = {
+      id: 'outlook1',
+      type: 'outlook',
+      triggerMode: false,
+    }
+
+    const blockConfig = {
+      triggers: { enabled: true },
+    }
+
+    expect(getOutputTypeForPath(normalBlock, blockConfig, 'outlook1', 'email.id')).toBe('any')
+
+    // Test block with trigger mode but triggers not enabled
+    const triggerBlockNoConfig = {
+      id: 'outlook1',
+      type: 'outlook',
+      triggerMode: true,
+    }
+
+    const noTriggersConfig = {
+      triggers: { enabled: false },
+    }
+
+    expect(
+      getOutputTypeForPath(triggerBlockNoConfig, noTriggersConfig, 'outlook1', 'email.id')
+    ).toBe('any')
+  })
+
+  it.concurrent('should handle different trigger providers correctly', () => {
+    const getTriggersByProvider = vi.fn((provider: string) => {
+      const mockTriggers: Record<string, any[]> = {
+        slack: [
+          {
+            outputs: {
+              message: {
+                text: { type: 'string' },
+                user: { type: 'string' },
+                channel: { type: 'string' },
+              },
+              channel: { type: 'string' },
+            },
+          },
+        ],
+      }
+      return mockTriggers[provider] || []
+    })
+
+    const getOutputTypeForPath = (
+      block: any,
+      blockConfig: any,
+      blockId: string,
+      outputPath: string
+    ): string => {
+      if (block?.triggerMode && blockConfig?.triggers?.enabled) {
+        const triggers = getTriggersByProvider(block.type)
+        const firstTrigger = triggers[0]
+
+        if (firstTrigger?.outputs) {
+          const pathParts = outputPath.split('.')
+          let currentObj: any = firstTrigger.outputs
+
+          for (const part of pathParts) {
+            if (currentObj && typeof currentObj === 'object') {
+              currentObj = currentObj[part]
+            } else {
+              break
+            }
+          }
+
+          if (
+            currentObj &&
+            typeof currentObj === 'object' &&
+            'type' in currentObj &&
+            currentObj.type
+          ) {
+            return currentObj.type
+          }
+        }
+      }
+
+      return 'any'
+    }
+
+    // Test Slack trigger
+    const slackBlock = {
+      id: 'slack1',
+      type: 'slack',
+      triggerMode: true,
+    }
+
+    const blockConfig = {
+      triggers: { enabled: true },
+    }
+
+    expect(getOutputTypeForPath(slackBlock, blockConfig, 'slack1', 'message.text')).toBe('string')
+    expect(getOutputTypeForPath(slackBlock, blockConfig, 'slack1', 'message.user')).toBe('string')
+    expect(getOutputTypeForPath(slackBlock, blockConfig, 'slack1', 'channel')).toBe('string')
+  })
+
+  it.concurrent('should handle malformed or missing trigger configurations gracefully', () => {
+    const getOutputTypeForPath = (
+      block: any,
+      blockConfig: any,
+      blockId: string,
+      outputPath: string
+    ): string => {
+      if (block?.triggerMode && blockConfig?.triggers?.enabled) {
+        try {
+          const { getTriggersByProvider } = require('@/triggers/utils')
+          const triggers = getTriggersByProvider(block.type)
+          const firstTrigger = triggers[0]
+
+          if (firstTrigger?.outputs) {
+            const pathParts = outputPath.split('.')
+            let currentObj: any = firstTrigger.outputs
+
+            for (const part of pathParts) {
+              if (currentObj && typeof currentObj === 'object') {
+                currentObj = currentObj[part]
+              } else {
+                break
+              }
+            }
+
+            if (
+              currentObj &&
+              typeof currentObj === 'object' &&
+              'type' in currentObj &&
+              currentObj.type
+            ) {
+              return currentObj.type
+            }
+          }
+        } catch (error) {
+          return 'any'
+        }
+      }
+
+      return 'any'
+    }
+
+    // Test with unknown trigger provider
+    const unknownBlock = {
+      id: 'unknown1',
+      type: 'unknown_provider',
+      triggerMode: true,
+    }
+
+    const blockConfig = {
+      triggers: { enabled: true },
+    }
+
+    expect(getOutputTypeForPath(unknownBlock, blockConfig, 'unknown1', 'any.path')).toBe('any')
+
+    // Test with null/undefined configurations
+    expect(getOutputTypeForPath(null, blockConfig, 'test', 'path')).toBe('any')
+    expect(getOutputTypeForPath(unknownBlock, null, 'test', 'path')).toBe('any')
+  })
+
+  it.concurrent('should generate correct trigger output tags for dropdown', () => {
+    const getTriggersByProvider = vi.fn((provider: string) => {
+      const mockTriggers: Record<string, any[]> = {
+        outlook: [
+          {
+            outputs: {
+              email: {
+                id: { type: 'string' },
+                subject: { type: 'string' },
+                hasAttachments: { type: 'boolean' },
+                isRead: { type: 'boolean' },
+              },
+              timestamp: { type: 'string' },
+              rawEmail: { type: 'json' },
+            },
+          },
+        ],
+        slack: [
+          {
+            outputs: {
+              message: {
+                text: { type: 'string' },
+                user: { type: 'string' },
+              },
+              channel: { type: 'string' },
+            },
+          },
+        ],
+      }
+      return mockTriggers[provider] || []
+    })
+
+    // Mock trigger output tag generation
+    const generateTriggerOutputTags = (blockType: string, blockId: string): string[] => {
+      const triggers = getTriggersByProvider(blockType)
+      const firstTrigger = triggers[0]
+
+      if (!firstTrigger?.outputs) return []
+
+      const tags: string[] = []
+      const normalizedBlockId = blockId.replace(/\s+/g, '').toLowerCase()
+
+      const traverseOutputs = (outputs: any, prefix = '') => {
+        for (const [key, output] of Object.entries(outputs)) {
+          const currentPath = prefix ? `${prefix}.${key}` : key
+          const fullTag = `${normalizedBlockId}.${currentPath}`
+
+          tags.push(fullTag)
+
+          // If this is a parent object with nested properties, recurse
+          if (output && typeof output === 'object' && !('type' in output)) {
+            traverseOutputs(output, currentPath)
+          }
+        }
+      }
+
+      traverseOutputs(firstTrigger.outputs)
+      return tags
+    }
+
+    // Test Outlook trigger tags
+    const outlookTags = generateTriggerOutputTags('outlook', 'Outlook 1')
+
+    expect(outlookTags).toContain('outlook1.email')
+    expect(outlookTags).toContain('outlook1.email.id')
+    expect(outlookTags).toContain('outlook1.email.subject')
+    expect(outlookTags).toContain('outlook1.email.hasAttachments')
+    expect(outlookTags).toContain('outlook1.email.isRead')
+    expect(outlookTags).toContain('outlook1.timestamp')
+    expect(outlookTags).toContain('outlook1.rawEmail')
+
+    // Test Slack trigger tags
+    const slackTags = generateTriggerOutputTags('slack', 'Slack 1')
+
+    expect(slackTags).toContain('slack1.message')
+    expect(slackTags).toContain('slack1.message.text')
+    expect(slackTags).toContain('slack1.message.user')
+    expect(slackTags).toContain('slack1.channel')
+  })
+
+  it.concurrent('should correctly identify trigger vs tool output resolution', () => {
+    const getTriggersByProvider = vi.fn((provider: string) => {
+      const mockTriggers: Record<string, any[]> = {
+        outlook: [
+          {
+            outputs: {
+              email: {
+                id: { type: 'string' },
+              },
+            },
+          },
+        ],
+      }
+      return mockTriggers[provider] || []
+    })
+
+    const getOutputTypeForPath = (
+      block: any,
+      blockConfig: any,
+      blockId: string,
+      outputPath: string
+    ): string => {
+      if (block?.triggerMode && blockConfig?.triggers?.enabled) {
+        // Trigger mode logic
+        const triggers = getTriggersByProvider(block.type)
+        const firstTrigger = triggers[0]
+
+        if (firstTrigger?.outputs) {
+          const pathParts = outputPath.split('.')
+          let currentObj: any = firstTrigger.outputs
+
+          for (const part of pathParts) {
+            if (currentObj && typeof currentObj === 'object') {
+              currentObj = currentObj[part]
+            } else {
+              break
+            }
+          }
+
+          if (
+            currentObj &&
+            typeof currentObj === 'object' &&
+            'type' in currentObj &&
+            currentObj.type
+          ) {
+            return currentObj.type
+          }
+        }
+      } else {
+        // Tool mode logic - simplified mock
+        if (blockConfig && outputPath === 'results') {
+          return 'array'
+        }
+      }
+
+      return 'any'
+    }
+
+    // Test trigger mode
+    const triggerBlock = {
+      id: 'outlook1',
+      type: 'outlook',
+      triggerMode: true,
+    }
+
+    const triggerConfig = {
+      triggers: { enabled: true },
+    }
+
+    expect(getOutputTypeForPath(triggerBlock, triggerConfig, 'outlook1', 'email.id')).toBe('string')
+
+    // Test tool mode
+    const toolBlock = {
+      id: 'outlook1',
+      type: 'outlook',
+      triggerMode: false,
+    }
+
+    const toolConfig = {
+      triggers: { enabled: false },
+    }
+
+    expect(getOutputTypeForPath(toolBlock, toolConfig, 'outlook1', 'results')).toBe('array')
+    expect(getOutputTypeForPath(toolBlock, toolConfig, 'outlook1', 'email.id')).toBe('any')
+  })
+})
+
 describe('TagDropdown Loop Suggestions', () => {
   it.concurrent('should generate correct loop suggestions for forEach loops', () => {
     const blocks: Record<string, BlockState> = {

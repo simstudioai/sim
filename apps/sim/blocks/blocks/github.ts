@@ -193,7 +193,6 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
     commit_message: { type: 'string', description: 'Latest commit message' },
     commit_author: { type: 'string', description: 'Author of the latest commit' },
   },
-  // New: Trigger capabilities
   triggers: {
     enabled: true,
     available: ['github_webhook'],

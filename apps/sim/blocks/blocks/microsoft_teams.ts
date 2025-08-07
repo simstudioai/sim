@@ -255,7 +255,6 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     conversation_id: { type: 'string', description: 'Conversation/thread ID' },
     text: { type: 'string', description: 'Message text content' },
   },
-  // New: Trigger capabilities
   triggers: {
     enabled: true,
     available: ['microsoftteams_webhook'],

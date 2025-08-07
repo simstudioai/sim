@@ -224,7 +224,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     channel_id: { type: 'string', description: 'Discord channel ID where the event occurred' },
     embeds: { type: 'string', description: 'Embedded content data (if any)' },
   },
-  // New: Trigger capabilities
   triggers: {
     enabled: true,
     available: ['discord_webhook'],

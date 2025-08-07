@@ -71,7 +71,6 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
     timestamp: { type: 'string', description: 'Message timestamp' },
     type: { type: 'string', description: 'Message type (text, image, etc.)' },
   },
-  // New: Trigger capabilities
   triggers: {
     enabled: true,
     available: ['whatsapp_webhook'],

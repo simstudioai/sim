@@ -199,7 +199,6 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
     webhook_id: { type: 'string', description: 'Unique webhook identifier' },
     timestamp: { type: 'string', description: 'Event timestamp' },
   },
-  // New: Trigger capabilities
   triggers: {
     enabled: true,
     available: ['airtable_webhook'],
