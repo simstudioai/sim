@@ -52,7 +52,7 @@ export async function DELETE(
 
     const workflowRecord = schedules[0].workflow
 
-    // Check authorization - either the user owns the workflow or has workspace permissions
+    // Check authorization - either the user owns the workflow or has write/admin workspace permissions
     let isAuthorized = workflowRecord.userId === session.user.id
 
     // If not authorized by ownership and the workflow belongs to a workspace, check workspace permissions
@@ -62,7 +62,7 @@ export async function DELETE(
         'workspace',
         workflowRecord.workspaceId
       )
-      isAuthorized = userPermission !== null
+      isAuthorized = userPermission === 'write' || userPermission === 'admin'
     }
 
     if (!isAuthorized) {
