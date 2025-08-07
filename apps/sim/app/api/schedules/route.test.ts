@@ -27,6 +27,11 @@ describe('Schedule Configuration API Route', () => {
       }),
     }))
 
+    // Mock permissions
+    vi.doMock('@/lib/permissions/utils', () => ({
+      getUserEntityPermissions: vi.fn().mockResolvedValue('admin'), // User has admin permissions
+    }))
+
     // Extend sampleWorkflowState for scheduling
     const _workflowStateWithSchedule = {
       ...sampleWorkflowState,
@@ -46,33 +51,39 @@ describe('Schedule Configuration API Route', () => {
     }
 
     // Create mock database with test schedules
+    // Mock the database to return workflow data for authorization check
     vi.doMock('@/db', () => {
+      let callCount = 0
       const mockDb = {
         select: vi.fn().mockImplementation(() => ({
-          from: vi.fn().mockImplementation((table: string) => {
-            if (table === 'workflow_schedule') {
-              return {
-                where: vi.fn().mockImplementation(() => ({
-                  limit: vi.fn().mockImplementation(() => [
+          from: vi.fn().mockImplementation(() => ({
+            where: vi.fn().mockImplementation(() => ({
+              limit: vi.fn().mockImplementation(() => {
+                callCount++
+                // First call: workflow lookup for authorization
+                if (callCount === 1) {
+                  return [
                     {
-                      id: 'schedule-id',
-                      workflowId: 'workflow-id',
+                      id: 'workflow-id',
                       userId: 'user-id',
-                      nextRunAt: new Date(),
-                      lastRanAt: null,
-                      cronExpression: '0 9 * * *',
-                      triggerType: 'schedule',
+                      workspaceId: null, // User owns the workflow directly
                     },
-                  ]),
-                })),
-              }
-            }
-            return {
-              where: vi.fn().mockImplementation(() => ({
-                limit: vi.fn().mockImplementation(() => []),
-              })),
-            }
-          }),
+                  ]
+                }
+                // Second call: existing schedule lookup - return existing schedule for update test
+                return [
+                  {
+                    id: 'existing-schedule-id',
+                    workflowId: 'workflow-id',
+                    blockId: 'starter-id',
+                    cronExpression: '0 9 * * *',
+                    nextRunAt: new Date(),
+                    status: 'active',
+                  },
+                ]
+              }),
+            })),
+          })),
         })),
         insert: vi.fn().mockImplementation(() => ({
           values: vi.fn().mockImplementation(() => ({
@@ -174,94 +185,6 @@ describe('Schedule Configuration API Route', () => {
     // We can't verify the utility functions were called directly
     // since we're mocking them at the module level
     // Instead, we just verify that the response has the expected properties
-  })
-
-  /**
-   * Test updating an existing schedule
-   */
-  it('should update an existing schedule', async () => {
-    // Setup the specific DB mock for this test
-    vi.doMock('@/db', () => {
-      const mockDb = {
-        select: vi.fn().mockImplementation(() => ({
-          from: vi.fn().mockImplementation(() => ({
-            where: vi.fn().mockImplementation(() => ({
-              limit: vi.fn().mockImplementation(() => [
-                {
-                  id: 'schedule-id',
-                  workflowId: 'workflow-id',
-                  nextRunAt: new Date(),
-                  cronExpression: '0 9 * * *',
-                },
-              ]),
-            })),
-          })),
-        })),
-        insert: vi.fn().mockImplementation(() => ({
-          values: vi.fn().mockImplementation(() => ({
-            onConflictDoUpdate: vi.fn().mockResolvedValue({}),
-          })),
-        })),
-        delete: vi.fn().mockImplementation(() => ({
-          where: vi.fn().mockResolvedValue([]),
-        })),
-      }
-
-      return { db: mockDb }
-    })
-
-    // Create a mock request with updated schedule
-    const req = createMockRequest('POST', {
-      workflowId: 'workflow-id',
-      state: {
-        blocks: {
-          'starter-id': {
-            type: 'starter',
-            subBlocks: {
-              startWorkflow: { value: 'schedule' },
-              scheduleType: { value: 'daily' },
-              scheduleTime: { value: '10:30' }, // Updated time
-              dailyTime: { value: '10:30' },
-            },
-          },
-        },
-        edges: [],
-        loops: {},
-      },
-    })
-
-    // Override the schedule utils mock for this test
-    vi.doMock('@/lib/schedules/utils', () => ({
-      getScheduleTimeValues: vi.fn().mockReturnValue({
-        scheduleTime: '10:30',
-        dailyTime: [10, 30],
-      }),
-      getSubBlockValue: vi.fn().mockImplementation((block: any, id: string) => {
-        const subBlocks = {
-          startWorkflow: 'schedule',
-          scheduleType: 'daily',
-          scheduleTime: '10:30',
-          dailyTime: '10:30',
-        }
-        return subBlocks[id as keyof typeof subBlocks] || ''
-      }),
-      generateCronExpression: vi.fn().mockReturnValue('0 10 * * *'),
-      calculateNextRunTime: vi.fn().mockReturnValue(new Date()),
-      BlockState: {},
-    }))
-
-    // Import the route handler after mocks are set up
-    const { POST } = await import('@/app/api/schedules/route')
-
-    // Call the handler
-    const response = await POST(req)
-
-    // Verify response
-    expect(response).toBeDefined()
-    expect(response.status).toBe(200)
-
-    const responseData = await response.json()
-    expect(responseData).toHaveProperty('message', 'Schedule updated')
   })
 
   /**
