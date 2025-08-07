@@ -36,6 +36,8 @@ export interface OutlookReadResponse extends ToolResponse {
 export interface OutlookDraftParams {
   accessToken: string
   to: string
+  cc?: string
+  bcc?: string
   subject: string
   body: string
 }
