@@ -51,6 +51,8 @@ export async function uploadExecutionFile(
   const storageKey = generateExecutionFileKey(context, fileName)
   const fileId = generateFileId()
 
+  logger.info(`Generated storage key: "${storageKey}" for file: ${fileName}`)
+
   try {
     let fileInfo: any
     let directUrl: string | undefined
@@ -72,8 +74,13 @@ export async function uploadExecutionFile(
         true // skipTimestampPrefix = true
       )
 
+      logger.info(`S3 upload returned key: "${fileInfo.key}" for file: ${fileName}`)
+      logger.info(`Original storage key was: "${storageKey}"`)
+      logger.info(`Keys match: ${fileInfo.key === storageKey}`)
+
       // Generate presigned URL for execution (5 minutes)
       try {
+        logger.info(`Generating presigned URL with key: "${fileInfo.key}"`)
         directUrl = await getPresignedUrlWithConfig(
           fileInfo.key, // Use the actual uploaded key
           {
@@ -82,6 +89,7 @@ export async function uploadExecutionFile(
           },
           5 * 60 // 5 minutes
         )
+        logger.info(`Generated presigned URL: ${directUrl}`)
       } catch (error) {
         logger.warn(`Failed to generate S3 presigned URL for ${fileName}:`, error)
       }
@@ -176,6 +184,8 @@ export async function downloadExecutionFile(userFile: UserFile): Promise<Buffer>
  */
 export async function generateExecutionFileDownloadUrl(userFile: UserFile): Promise<string> {
   logger.info(`Generating download URL for execution file: ${userFile.name}`)
+  logger.info(`File key: "${userFile.key}"`)
+  logger.info(`S3 bucket: ${S3_EXECUTION_FILES_CONFIG.bucket}`)
 
   try {
     let downloadUrl: string

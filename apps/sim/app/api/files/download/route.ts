@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { key, name, storageProvider, bucketName } = body
+    const { key, name, storageProvider, bucketName, isExecutionFile } = body
 
     if (!key) {
       return createErrorResponse(new Error('File key is required'), 400)
@@ -24,8 +24,19 @@ export async function POST(request: NextRequest) {
       try {
         let downloadUrl: string
 
-        // Use storage provider info if available (execution files)
-        if (storageProvider && (storageProvider === 's3' || storageProvider === 'blob')) {
+        // Use execution files storage if flagged as execution file
+        if (isExecutionFile) {
+          logger.info(`Using execution files storage for file: ${key}`)
+          downloadUrl = await getPresignedUrlWithConfig(
+            key,
+            {
+              bucket: S3_EXECUTION_FILES_CONFIG.bucket,
+              region: S3_EXECUTION_FILES_CONFIG.region,
+            },
+            5 * 60 // 5 minutes
+          )
+        } else if (storageProvider && (storageProvider === 's3' || storageProvider === 'blob')) {
+          // Use explicitly specified storage provider (legacy support)
           logger.info(`Using specified storage provider '${storageProvider}' for file: ${key}`)
 
           if (storageProvider === 's3') {

@@ -480,11 +480,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
       // Check if this object itself is a file reference
       if (obj.name && obj.key && typeof obj.size === 'number') {
-        const fileId = obj.id || obj.key
+        // Use the actual file ID if available, otherwise generate one from the key
+        const fileId = obj.id || `file_${obj.key.replace(/[^a-zA-Z0-9]/g, '_')}`
         if (!seenFileIds.has(fileId)) {
           seenFileIds.add(fileId)
           files.push({
-            id: fileId,
+            id: obj.id || fileId, // Preserve original ID if it exists
             name: obj.name,
             size: obj.size,
             type: obj.type,

@@ -247,6 +247,14 @@ export function useWorkflowExecution() {
     async (workflowInput?: any, enableDebug = false) => {
       if (!activeWorkflowId) return
 
+      // Get workspaceId from workflow metadata
+      const workspaceId = workflows[activeWorkflowId]?.workspaceId
+
+      if (!workspaceId) {
+        logger.error('Cannot execute workflow without workspaceId')
+        return
+      }
+
       // Reset execution result and set execution state
       setExecutionResult(null)
       setIsExecuting(true)
@@ -271,18 +279,21 @@ export function useWorkflowExecution() {
 
             // Handle file uploads if present
             const uploadedFiles: any[] = []
+            console.log('Checking for files to upload:', workflowInput.files)
             if (workflowInput.files && Array.isArray(workflowInput.files)) {
               try {
                 console.log('Processing files for upload:', workflowInput.files.length)
 
                 for (const fileData of workflowInput.files) {
                   console.log('Uploading file:', fileData.name, fileData.size)
+                  console.log('File data:', fileData)
 
                   // Create FormData for upload
                   const formData = new FormData()
                   formData.append('file', fileData.file)
                   formData.append('workflowId', activeWorkflowId)
                   formData.append('executionId', executionId)
+                  formData.append('workspaceId', workspaceId)
 
                   // Upload the file
                   const response = await fetch('/api/files/upload', {

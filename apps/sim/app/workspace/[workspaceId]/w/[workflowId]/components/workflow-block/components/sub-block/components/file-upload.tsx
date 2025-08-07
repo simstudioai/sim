@@ -24,8 +24,7 @@ interface FileUploadProps {
 
 interface UploadedFile {
   name: string
-  url: string
-  path?: string
+  path: string
   size: number
   type: string
 }
@@ -199,7 +198,6 @@ export function FileUpload({
             // Use the file info returned from the presigned URL endpoint
             uploadedFiles.push({
               name: presignedData.fileInfo.name,
-              url: presignedData.fileInfo.path, // Use path as url for consistency
               path: presignedData.fileInfo.path,
               size: presignedData.fileInfo.size,
               type: presignedData.fileInfo.type,
@@ -231,7 +229,7 @@ export function FileUpload({
 
             uploadedFiles.push({
               name: file.name,
-              url: data.url,
+              path: data.url || data.path, // Use url or path from upload response
               size: file.size,
               type: file.type,
             })
@@ -291,9 +289,9 @@ export function FileUpload({
           uniqueFiles.set(file.url || file.path, file) // Use url, fallback to path for backward compatibility
         })
 
-        // Add new files to the map (will overwrite if same url)
+        // Add new files to the map (will overwrite if same path)
         uploadedFiles.forEach((file) => {
-          uniqueFiles.set(file.url, file)
+          uniqueFiles.set(file.path, file)
         })
 
         // Convert map values back to array
@@ -334,7 +332,7 @@ export function FileUpload({
     }
 
     // Mark this file as being deleted
-    setDeletingFiles((prev) => ({ ...prev, [file.url || '']: true }))
+    setDeletingFiles((prev) => ({ ...prev, [file.path || '']: true }))
 
     try {
       // Call API to delete the file from server
@@ -343,7 +341,7 @@ export function FileUpload({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ filePath: file.url }), // Use url for deletion
+        body: JSON.stringify({ filePath: file.path }),
       })
 
       if (!response.ok) {
@@ -356,7 +354,7 @@ export function FileUpload({
       if (multiple) {
         // For multiple files: Remove the specific file
         const filesArray = Array.isArray(value) ? value : value ? [value] : []
-        const updatedFiles = filesArray.filter((f) => f.url !== file.url)
+        const updatedFiles = filesArray.filter((f) => f.path !== file.path)
         setStoreValue(updatedFiles.length > 0 ? updatedFiles : null)
       } else {
         // For single file: Clear the value
@@ -373,7 +371,7 @@ export function FileUpload({
       // Remove file from the deleting state
       setDeletingFiles((prev) => {
         const updated = { ...prev }
-        delete updated[file.url || '']
+        delete updated[file.path || '']
         return updated
       })
     }
@@ -389,12 +387,11 @@ export function FileUpload({
     if (!value) return
 
     const filesToDelete = Array.isArray(value) ? value : [value]
-    const _fileCount = filesToDelete.length
 
     // Mark all files as deleting
     const deletingStatus: Record<string, boolean> = {}
     filesToDelete.forEach((file) => {
-      deletingStatus[file.url || ''] = true
+      deletingStatus[file.path || ''] = true
     })
     setDeletingFiles(deletingStatus)
 
@@ -420,7 +417,7 @@ export function FileUpload({
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ filePath: file.url }),
+          body: JSON.stringify({ filePath: file.path }),
         })
 
         if (response.ok) {
@@ -455,7 +452,7 @@ export function FileUpload({
 
   // Helper to render a single file item
   const renderFileItem = (file: UploadedFile) => {
-    const fileKey = file.url || ''
+    const fileKey = file.path || ''
     const isDeleting = deletingFiles[fileKey]
 
     return (

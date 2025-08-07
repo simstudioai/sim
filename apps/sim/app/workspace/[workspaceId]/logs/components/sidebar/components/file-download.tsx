@@ -20,10 +20,11 @@ interface FileDownloadProps {
     storageProvider?: 's3' | 'blob' | 'local'
     bucketName?: string
   }
+  isExecutionFile?: boolean // Flag to indicate this is an execution file
   className?: string
 }
 
-export function FileDownload({ file, className }: FileDownloadProps) {
+export function FileDownload({ file, isExecutionFile = false, className }: FileDownloadProps) {
   const [isDownloading, setIsDownloading] = useState(false)
 
   const handleDownload = async () => {
@@ -45,6 +46,7 @@ export function FileDownload({ file, className }: FileDownloadProps) {
           name: file.name,
           storageProvider: file.storageProvider,
           bucketName: file.bucketName,
+          isExecutionFile, // Add flag to indicate execution file
         }),
       })
 

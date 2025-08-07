@@ -57,19 +57,19 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       // 2. Check for file upload (array)
       else if (params.file && Array.isArray(params.file) && params.file.length > 0) {
         logger.info('Tool body processing file array upload')
-        const filePaths = params.file.map((file: any) => file.url)
+        const filePaths = params.file.map((file: any) => file.path)
         determinedFilePath = filePaths // Always send as array
       }
       // 3. Check for file upload (single object)
-      else if (params.file?.url) {
+      else if (params.file?.path) {
         logger.info('Tool body processing single file object upload')
-        determinedFilePath = params.file.url
+        determinedFilePath = params.file.path
       }
       // 4. Check for deprecated multiple files case (from older blocks?)
       else if (params.files && Array.isArray(params.files)) {
         logger.info('Tool body processing legacy files array:', params.files.length)
         if (params.files.length > 0) {
-          determinedFilePath = params.files.map((file: any) => file.url)
+          determinedFilePath = params.files.map((file: any) => file.path)
         } else {
           logger.warn('Legacy files array provided but is empty')
         }

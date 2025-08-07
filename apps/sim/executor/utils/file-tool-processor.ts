@@ -6,7 +6,9 @@ import type { ToolConfig, ToolFileData } from '@/tools/types'
 const logger = createLogger('FileToolProcessor')
 
 /**
- * Processes tool outputs and converts file-typed outputs to UserFile objects
+ * Processes tool outputs and converts file-typed outputs to UserFile objects.
+ * This enables tools to return file data that gets automatically stored in the
+ * execution filesystem and made available as UserFile objects for workflow use.
  */
 export class FileToolProcessor {
   /**
@@ -23,44 +25,74 @@ export class FileToolProcessor {
 
     const processedOutput = { ...toolOutput }
 
+    // Process each output that's marked as file or file[]
     for (const [outputKey, outputDef] of Object.entries(toolConfig.outputs)) {
-      if (outputDef.type === 'file' || outputDef.type === 'file[]') {
-        const fileData = processedOutput[outputKey]
+      if (!FileToolProcessor.isFileOutput(outputDef.type)) {
+        continue
+      }
 
-        if (!fileData) {
-          logger.warn(`File-typed output '${outputKey}' is missing from tool result`)
-          continue
-        }
+      const fileData = processedOutput[outputKey]
+      if (!fileData) {
+        logger.warn(`File-typed output '${outputKey}' is missing from tool result`)
+        continue
+      }
 
-        try {
-          if (outputDef.type === 'file[]') {
-            // Process array of files
-            if (!Array.isArray(fileData)) {
-              throw new Error(`Output '${outputKey}' is marked as file[] but is not an array`)
-            }
-
-            processedOutput[outputKey] = await Promise.all(
-              fileData.map((file, index) =>
-                FileToolProcessor.processFileData(file, executionContext, `${outputKey}[${index}]`)
-              )
-            )
-          } else {
-            // Process single file
-            processedOutput[outputKey] = await FileToolProcessor.processFileData(
-              fileData,
-              executionContext,
-              outputKey
-            )
-          }
-        } catch (error) {
-          logger.error(`Error processing file output '${outputKey}':`, error)
-          const errorMessage = error instanceof Error ? error.message : String(error)
-          throw new Error(`Failed to process file output '${outputKey}': ${errorMessage}`)
-        }
+      try {
+        processedOutput[outputKey] = await FileToolProcessor.processFileOutput(
+          fileData,
+          outputDef.type,
+          outputKey,
+          executionContext
+        )
+      } catch (error) {
+        logger.error(`Error processing file output '${outputKey}':`, error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        throw new Error(`Failed to process file output '${outputKey}': ${errorMessage}`)
       }
     }
 
     return processedOutput
+  }
+
+  /**
+   * Check if an output type is file-related
+   */
+  private static isFileOutput(type: string): boolean {
+    return type === 'file' || type === 'file[]'
+  }
+
+  /**
+   * Process a single file output (either single file or array of files)
+   */
+  private static async processFileOutput(
+    fileData: any,
+    outputType: string,
+    outputKey: string,
+    executionContext: ExecutionContext
+  ): Promise<UserFile | UserFile[]> {
+    if (outputType === 'file[]') {
+      return FileToolProcessor.processFileArray(fileData, outputKey, executionContext)
+    }
+    return FileToolProcessor.processFileData(fileData, executionContext, outputKey)
+  }
+
+  /**
+   * Process an array of files
+   */
+  private static async processFileArray(
+    fileData: any,
+    outputKey: string,
+    executionContext: ExecutionContext
+  ): Promise<UserFile[]> {
+    if (!Array.isArray(fileData)) {
+      throw new Error(`Output '${outputKey}' is marked as file[] but is not an array`)
+    }
+
+    return Promise.all(
+      fileData.map((file, index) =>
+        FileToolProcessor.processFileData(file, executionContext, `${outputKey}[${index}]`)
+      )
+    )
   }
 
   /**

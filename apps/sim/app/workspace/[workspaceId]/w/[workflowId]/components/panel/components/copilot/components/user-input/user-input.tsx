@@ -323,12 +323,18 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
 
     const handleFileSelect = () => {
+      if (disabled || isLoading) {
+        return
+      }
+
       fileInputRef.current?.click()
     }
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files
-      if (!files || files.length === 0) return
+      if (!files || files.length === 0) {
+        return
+      }
 
       await processFiles(files)
 
@@ -554,6 +560,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             className='hidden'
             accept='.pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.gif,.svg'
             multiple
+            disabled={disabled || isLoading}
           />
         </div>
       </div>

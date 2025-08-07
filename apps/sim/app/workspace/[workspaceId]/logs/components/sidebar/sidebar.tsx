@@ -512,7 +512,7 @@ export function Sidebar({
                             </div>
                           </div>
                           <div className='ml-2 flex items-center gap-1'>
-                            <FileDownload file={file} />
+                            <FileDownload file={file} isExecutionFile={true} />
                           </div>
                         </div>
                       ))}
