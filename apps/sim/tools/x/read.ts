@@ -34,6 +34,24 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
     },
   },
 
+  outputs: {
+    tweet: {
+      type: 'object',
+      description: 'The main tweet data',
+      properties: {
+        id: { type: 'string', description: 'Tweet ID' },
+        text: { type: 'string', description: 'Tweet content text' },
+        createdAt: { type: 'string', description: 'Tweet creation timestamp' },
+        authorId: { type: 'string', description: 'ID of the tweet author' },
+      },
+    },
+    context: {
+      type: 'object',
+      description: 'Conversation context including parent and root tweets',
+      optional: true,
+    },
+  },
+
   request: {
     url: (params) => {
       const expansions = [

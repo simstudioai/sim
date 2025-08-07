@@ -86,6 +86,14 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
       Authorization: `Bearer ${params.accessToken}`,
     }),
   },
+
+  outputs: {
+    files: {
+      type: 'json',
+      description: 'Array of file metadata objects from the specified folder',
+    },
+  },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
 

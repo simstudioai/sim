@@ -56,7 +56,29 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
       description: 'Hugging Face API token',
     },
   },
-
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Chat completion results',
+      properties: {
+        content: { type: 'string', description: 'Generated text content' },
+        model: { type: 'string', description: 'Model used for generation' },
+        usage: {
+          type: 'object',
+          description: 'Token usage information',
+          properties: {
+            prompt_tokens: { type: 'number', description: 'Number of tokens in the prompt' },
+            completion_tokens: {
+              type: 'number',
+              description: 'Number of tokens in the completion',
+            },
+            total_tokens: { type: 'number', description: 'Total number of tokens used' },
+          },
+        },
+      },
+    },
+  },
   request: {
     method: 'POST',
     url: (params) => {

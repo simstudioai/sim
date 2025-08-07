@@ -32,6 +32,17 @@ export const s3GetObjectTool: ToolConfig = {
       description: 'S3 Object URL',
     },
   },
+
+  outputs: {
+    url: {
+      type: 'string',
+      description: 'Pre-signed URL for downloading the S3 object',
+    },
+    metadata: {
+      type: 'object',
+      description: 'File metadata including type, size, name, and last modified date',
+    },
+  },
   request: {
     url: (params) => {
       try {

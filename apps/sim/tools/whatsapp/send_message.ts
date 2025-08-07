@@ -37,6 +37,14 @@ export const sendMessageTool: ToolConfig<WhatsAppSendMessageParams, WhatsAppResp
     },
   },
 
+  outputs: {
+    success: { type: 'boolean', description: 'WhatsApp message send success status' },
+    messageId: { type: 'string', description: 'Unique WhatsApp message identifier' },
+    phoneNumber: { type: 'string', description: 'Recipient phone number' },
+    status: { type: 'string', description: 'Message delivery status' },
+    timestamp: { type: 'string', description: 'Message send timestamp' },
+  },
+
   request: {
     url: (params) => {
       if (!params.phoneNumberId) {

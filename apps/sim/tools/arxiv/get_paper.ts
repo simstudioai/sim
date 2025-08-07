@@ -8,6 +8,31 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
   description: 'Get detailed information about a specific ArXiv paper by its ID.',
   version: '1.0.0',
 
+  outputs: {
+    paper: {
+      type: 'json',
+      description: 'Detailed information about the requested ArXiv paper',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          title: { type: 'string' },
+          summary: { type: 'string' },
+          authors: { type: 'string' },
+          published: { type: 'string' },
+          updated: { type: 'string' },
+          link: { type: 'string' },
+          pdfLink: { type: 'string' },
+          categories: { type: 'string' },
+          primaryCategory: { type: 'string' },
+          comment: { type: 'string' },
+          journalRef: { type: 'string' },
+          doi: { type: 'string' },
+        },
+      },
+    },
+  },
+
   params: {
     paperId: {
       type: 'string',

@@ -28,6 +28,25 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
     },
   },
 
+  outputs: {
+    answer: {
+      type: 'string',
+      description: 'AI-generated answer to the question',
+    },
+    citations: {
+      type: 'array',
+      description: 'Sources and citations for the answer',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'The title of the cited source' },
+          url: { type: 'string', description: 'The URL of the cited source' },
+          text: { type: 'string', description: 'Relevant text from the cited source' },
+        },
+      },
+    },
+  },
+
   request: {
     url: 'https://api.exa.ai/answer',
     method: 'POST',

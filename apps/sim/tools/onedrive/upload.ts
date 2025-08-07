@@ -53,6 +53,14 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       description: 'The ID of the folder to upload the file to (internal use)',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the file was uploaded successfully' },
+    file: {
+      type: 'object',
+      description:
+        'The uploaded file object with metadata including id, name, webViewLink, webContentLink, and timestamps',
+    },
+  },
   request: {
     url: (params) => {
       let fileName = params.fileName || 'untitled'

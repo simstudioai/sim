@@ -30,6 +30,15 @@ export const telegramMessageTool: ToolConfig<TelegramMessageParams, TelegramMess
     },
   },
 
+  outputs: {
+    success: { type: 'boolean', description: 'Telegram message send success status' },
+    messageId: { type: 'number', description: 'Unique Telegram message identifier' },
+    chatId: { type: 'string', description: 'Target chat ID where message was sent' },
+    text: { type: 'string', description: 'Text content of the sent message' },
+    timestamp: { type: 'number', description: 'Unix timestamp when message was sent' },
+    from: { type: 'object', description: 'Information about the bot that sent the message' },
+  },
+
   request: {
     url: (params: TelegramMessageParams) =>
       `https://api.telegram.org/bot${params.botToken}/sendMessage`,

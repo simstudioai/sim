@@ -74,6 +74,14 @@ export const quickAddTool: ToolConfig<
     }),
   },
 
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Event creation confirmation message from natural language',
+    },
+    metadata: { type: 'json', description: 'Created event metadata including parsed details' },
+  },
+
   transformResponse: async (response: Response, params) => {
     const data = await response.json()
 

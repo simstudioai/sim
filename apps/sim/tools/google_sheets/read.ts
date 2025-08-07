@@ -59,6 +59,12 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
       }
     },
   },
+
+  outputs: {
+    data: { type: 'json', description: 'Sheet data including range and cell values' },
+    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
+  },
+
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorJson = await response.json().catch(() => ({ error: response.statusText }))

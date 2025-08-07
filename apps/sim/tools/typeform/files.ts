@@ -44,6 +44,11 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
       description: 'Typeform Personal Access Token',
     },
   },
+  outputs: {
+    fileUrl: { type: 'string', description: 'Direct download URL for the uploaded file' },
+    contentType: { type: 'string', description: 'MIME type of the uploaded file' },
+    filename: { type: 'string', description: 'Original filename of the uploaded file' },
+  },
   request: {
     url: (params: TypeformFilesParams) => {
       const encodedFormId = encodeURIComponent(params.formId)

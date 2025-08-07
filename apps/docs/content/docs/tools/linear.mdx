@@ -63,8 +63,13 @@ Fetch and filter issues from Linear
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `issues` | json | Issues list |
-| `issue` | json | Single issue data |
+| `issues` | array | Array of issues from the specified Linear team and project, each containing id, title, description, state, teamId, and projectId |
+|   ↳ `id` | string | Issue ID |
+|   ↳ `title` | string | Issue title |
+|   ↳ `description` | string | Issue description |
+|   ↳ `state` | string | Issue state |
+|   ↳ `teamId` | string | Team ID |
+|   ↳ `projectId` | string | Project ID |
 
 ### `linear_create_issue`
 
@@ -83,8 +88,13 @@ Create a new issue in Linear
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `issues` | json | Issues list |
-| `issue` | json | Single issue data |
+| `issue` | object | The created issue containing id, title, description, state, teamId, and projectId |
+| ↳ `id` | string | Issue ID |
+| ↳ `title` | string | Issue title |
+| ↳ `description` | string | Issue description |
+| ↳ `state` | string | Issue state |
+| ↳ `teamId` | string | Team ID |
+| ↳ `projectId` | string | Project ID |
 
 
 

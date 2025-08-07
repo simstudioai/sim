@@ -60,6 +60,24 @@ export const imageTool: ToolConfig = {
       description: 'Your OpenAI API key',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Generated image data',
+      properties: {
+        content: { type: 'string', description: 'Image URL or identifier' },
+        image: { type: 'string', description: 'Base64 encoded image data' },
+        metadata: {
+          type: 'object',
+          description: 'Image generation metadata',
+          properties: {
+            model: { type: 'string', description: 'Model used for image generation' },
+          },
+        },
+      },
+    },
+  },
   request: {
     url: 'https://api.openai.com/v1/images/generations',
     method: 'POST',

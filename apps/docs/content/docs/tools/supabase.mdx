@@ -92,7 +92,7 @@ Query data from a Supabase table
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to query |
-| `filter` | string | No | PostgREST filter \(e.g.,  |
+| `filter` | string | No | PostgREST filter \(e.g., "id=eq.123"\) |
 | `orderBy` | string | No | Column to order by \(add DESC for descending\) |
 | `limit` | number | No | Maximum number of rows to return |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
@@ -101,8 +101,11 @@ Query data from a Supabase table
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Operation message |
-| `results` | json | Query results |
+| `success` | boolean | Operation success status |
+| `output` | object | Query operation results |
+| ↳ `message` | string | Operation status message |
+| ↳ `results` | array | Array of records returned from the query |
+| `error` | string | Error message if the operation failed |
 
 ### `supabase_insert`
 
@@ -121,8 +124,11 @@ Insert data into a Supabase table
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Operation message |
-| `results` | json | Query results |
+| `success` | boolean | Operation success status |
+| `output` | object | Insert operation results |
+| ↳ `message` | string | Operation status message |
+| ↳ `results` | array | Array of inserted records |
+| `error` | string | Error message if the operation failed |
 
 ### `supabase_get_row`
 
@@ -134,15 +140,18 @@ Get a single row from a Supabase table based on filter criteria
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to query |
-| `filter` | string | Yes | PostgREST filter to find the specific row \(e.g.,  |
+| `filter` | string | Yes | PostgREST filter to find the specific row \(e.g., "id=eq.123"\) |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Operation message |
-| `results` | json | Query results |
+| `success` | boolean | Operation success status |
+| `output` | object | Get row operation results |
+| ↳ `message` | string | Operation status message |
+| ↳ `results` | object | The row data if found, null if not found |
+| `error` | string | Error message if the operation failed |
 
 ### `supabase_update`
 
@@ -154,7 +163,7 @@ Update rows in a Supabase table based on filter criteria
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to update |
-| `filter` | string | Yes | PostgREST filter to identify rows to update \(e.g.,  |
+| `filter` | string | Yes | PostgREST filter to identify rows to update \(e.g., "id=eq.123"\) |
 | `data` | object | Yes | Data to update in the matching rows |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
@@ -162,8 +171,11 @@ Update rows in a Supabase table based on filter criteria
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Operation message |
-| `results` | json | Query results |
+| `success` | boolean | Operation success status |
+| `output` | object | Update operation results |
+| ↳ `message` | string | Operation status message |
+| ↳ `results` | array | Array of updated records |
+| `error` | string | Error message if the operation failed |
 
 ### `supabase_delete`
 
@@ -175,15 +187,18 @@ Delete rows from a Supabase table based on filter criteria
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to delete from |
-| `filter` | string | Yes | PostgREST filter to identify rows to delete \(e.g.,  |
+| `filter` | string | Yes | PostgREST filter to identify rows to delete \(e.g., "id=eq.123"\) |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Operation message |
-| `results` | json | Query results |
+| `success` | boolean | Operation success status |
+| `output` | object | Delete operation results |
+| ↳ `message` | string | Operation status message |
+| ↳ `results` | array | Array of deleted records |
+| `error` | string | Error message if the operation failed |
 
 
 

@@ -37,6 +37,22 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
         description: 'Issue description',
       },
     },
+
+    outputs: {
+      issue: {
+        type: 'object',
+        description:
+          'The created issue containing id, title, description, state, teamId, and projectId',
+        properties: {
+          id: { type: 'string', description: 'Issue ID' },
+          title: { type: 'string', description: 'Issue title' },
+          description: { type: 'string', description: 'Issue description' },
+          state: { type: 'string', description: 'Issue state' },
+          teamId: { type: 'string', description: 'Team ID' },
+          projectId: { type: 'string', description: 'Project ID' },
+        },
+      },
+    },
     request: {
       url: 'https://api.linear.app/graphql',
       method: 'POST',

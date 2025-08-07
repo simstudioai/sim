@@ -148,6 +148,14 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
     },
   },
 
+  outputs: {
+    content: { type: 'string', description: 'Event creation confirmation message' },
+    metadata: {
+      type: 'json',
+      description: 'Created event metadata including ID, status, and details',
+    },
+  },
+
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorData = await response.json()

@@ -35,7 +35,25 @@ export const embeddingsTool: ToolConfig<OpenAIEmbeddingsParams> = {
       description: 'OpenAI API key',
     },
   },
-
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Embeddings generation results',
+      properties: {
+        embeddings: { type: 'array', description: 'Array of embedding vectors' },
+        model: { type: 'string', description: 'Model used for generating embeddings' },
+        usage: {
+          type: 'object',
+          description: 'Token usage information',
+          properties: {
+            prompt_tokens: { type: 'number', description: 'Number of tokens in the prompt' },
+            total_tokens: { type: 'number', description: 'Total number of tokens used' },
+          },
+        },
+      },
+    },
+  },
   request: {
     method: 'POST',
     url: () => 'https://api.openai.com/v1/embeddings',

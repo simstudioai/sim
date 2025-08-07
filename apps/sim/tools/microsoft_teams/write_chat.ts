@@ -33,6 +33,16 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
       description: 'The content to write to the message',
     },
   },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Teams chat message send success status' },
+    messageId: { type: 'string', description: 'Unique identifier for the sent message' },
+    chatId: { type: 'string', description: 'ID of the chat where message was sent' },
+    createdTime: { type: 'string', description: 'Timestamp when message was created' },
+    url: { type: 'string', description: 'Web URL to the message' },
+    updatedContent: { type: 'boolean', description: 'Whether content was successfully updated' },
+  },
+
   request: {
     url: (params) => {
       // Ensure chatId is valid

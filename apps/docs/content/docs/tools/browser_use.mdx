@@ -73,6 +73,7 @@ Runs a browser automation task using BrowserUse
 | --------- | ---- | -------- | ----------- |
 | `task` | string | Yes | What should the browser agent do |
 | `variables` | json | No | Optional variables to use as secrets \(format: \{key: value\}\) |
+| `format` | string | No | No description |
 | `save_browser_data` | boolean | No | Whether to save browser data |
 | `model` | string | No | LLM model to use \(default: gpt-4o\) |
 | `apiKey` | string | Yes | API key for BrowserUse API |
@@ -81,10 +82,9 @@ Runs a browser automation task using BrowserUse
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Task execution identifier |
-| `success` | boolean | Task completion status |
-| `output` | any | Task output data |
-| `steps` | json | Execution steps taken |
+| `success` | boolean | Operation success status |
+| `output` | json | Browser automation task results including task ID, success status, output data, and execution steps |
+| `error` | string | Error message if the operation failed |
 
 
 

@@ -30,6 +30,16 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
       description: 'The ID of the Notion database to read',
     },
   },
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Database information including title, properties schema, and metadata',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Database metadata including title, ID, URL, timestamps, and properties schema',
+    },
+  },
 
   request: {
     url: (params: NotionReadDatabaseParams) => {

@@ -78,6 +78,17 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
         'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
+  outputs: {
+    success: {
+      type: 'boolean',
+      description: 'Operation success status',
+    },
+    output: {
+      type: 'object',
+      description:
+        'Updated Jira issue details with timestamp, issue key, summary, and success status',
+    },
+  },
 
   directExecution: async (params) => {
     // Pre-fetch the cloudId if not provided

@@ -104,7 +104,6 @@ Create a new event in Google Calendar
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Google Calendar API |
 | `calendarId` | string | No | Calendar ID \(defaults to primary\) |
 | `summary` | string | Yes | Event title/summary |
 | `description` | string | No | Event description |
@@ -119,8 +118,8 @@ Create a new event in Google Calendar
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Operation response content |
-| `metadata` | json | Event metadata |
+| `content` | string | Event creation confirmation message |
+| `metadata` | json | Created event metadata including ID, status, and details |
 
 ### `google_calendar_list`
 
@@ -130,7 +129,6 @@ List events from Google Calendar
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Google Calendar API |
 | `calendarId` | string | No | Calendar ID \(defaults to primary\) |
 | `timeMin` | string | No | Lower bound for events \(RFC3339 timestamp, e.g., 2025-06-03T00:00:00Z\) |
 | `timeMax` | string | No | Upper bound for events \(RFC3339 timestamp, e.g., 2025-06-04T00:00:00Z\) |
@@ -141,8 +139,8 @@ List events from Google Calendar
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Operation response content |
-| `metadata` | json | Event metadata |
+| `content` | string | Summary of found events count |
+| `metadata` | json | List of events with pagination tokens and event details |
 
 ### `google_calendar_get`
 
@@ -152,7 +150,6 @@ Get a specific event from Google Calendar
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Google Calendar API |
 | `calendarId` | string | No | Calendar ID \(defaults to primary\) |
 | `eventId` | string | Yes | Event ID to retrieve |
 
@@ -160,8 +157,8 @@ Get a specific event from Google Calendar
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Operation response content |
-| `metadata` | json | Event metadata |
+| `content` | string | Event retrieval confirmation message |
+| `metadata` | json | Event details including ID, status, times, and attendees |
 
 ### `google_calendar_quick_add`
 
@@ -171,9 +168,8 @@ Create events from natural language text
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Google Calendar API |
 | `calendarId` | string | No | Calendar ID \(defaults to primary\) |
-| `text` | string | Yes | Natural language text describing the event \(e.g.,  |
+| `text` | string | Yes | Natural language text describing the event \(e.g., "Meeting with John tomorrow at 3pm"\) |
 | `attendees` | array | No | Array of attendee email addresses \(comma-separated string also accepted\) |
 | `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
 
@@ -181,8 +177,8 @@ Create events from natural language text
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Operation response content |
-| `metadata` | json | Event metadata |
+| `content` | string | Event creation confirmation message from natural language |
+| `metadata` | json | Created event metadata including parsed details |
 
 ### `google_calendar_invite`
 
@@ -192,7 +188,6 @@ Invite attendees to an existing Google Calendar event
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Google Calendar API |
 | `calendarId` | string | No | Calendar ID \(defaults to primary\) |
 | `eventId` | string | Yes | Event ID to invite attendees to |
 | `attendees` | array | Yes | Array of attendee email addresses to invite |
@@ -203,8 +198,8 @@ Invite attendees to an existing Google Calendar event
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Operation response content |
-| `metadata` | json | Event metadata |
+| `content` | string | Attendee invitation confirmation message with email delivery status |
+| `metadata` | json | Updated event metadata including attendee list and details |
 
 
 

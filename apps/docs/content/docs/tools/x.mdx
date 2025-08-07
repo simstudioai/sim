@@ -50,7 +50,6 @@ Post new tweets, reply to tweets, or create polls on X (Twitter)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | X OAuth access token |
 | `text` | string | Yes | The text content of your tweet |
 | `replyTo` | string | No | ID of the tweet to reply to |
 | `mediaIds` | array | No | Array of media IDs to attach to the tweet |
@@ -60,14 +59,17 @@ Post new tweets, reply to tweets, or create polls on X (Twitter)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tweet` | json | Tweet data |
-| `replies` | any | Tweet replies |
-| `context` | any | Tweet context |
-| `tweets` | json | Tweets data |
-| `includes` | any | Additional data |
-| `meta` | json | Response metadata |
-| `user` | json | User profile data |
-| `recentTweets` | any | Recent tweets data |
+| `tweet` | object | The newly created tweet data |
+| ↳ `id` | string | Tweet ID |
+| ↳ `text` | string | Tweet content text |
+| ↳ `createdAt` | string | Tweet creation timestamp |
+| ↳ `authorId` | string | ID of the tweet author |
+| ↳ `conversationId` | string | Conversation thread ID |
+| ↳ `attachments` | object | Media or poll attachments |
+|   ↳ `mediaKeys` | array | Media attachment keys |
+|   ↳ `pollId` | string | Poll ID if poll attached |
+| ↳ `mediaKeys` | array | Media attachment keys |
+| ↳ `pollId` | string | Poll ID if poll attached |
 
 ### `x_read`
 
@@ -77,7 +79,6 @@ Read tweet details, including replies and conversation context
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | X OAuth access token |
 | `tweetId` | string | Yes | ID of the tweet to read |
 | `includeReplies` | boolean | No | Whether to include replies to the tweet |
 
@@ -85,14 +86,12 @@ Read tweet details, including replies and conversation context
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tweet` | json | Tweet data |
-| `replies` | any | Tweet replies |
-| `context` | any | Tweet context |
-| `tweets` | json | Tweets data |
-| `includes` | any | Additional data |
-| `meta` | json | Response metadata |
-| `user` | json | User profile data |
-| `recentTweets` | any | Recent tweets data |
+| `tweet` | object | The main tweet data |
+| ↳ `id` | string | Tweet ID |
+| ↳ `text` | string | Tweet content text |
+| ↳ `createdAt` | string | Tweet creation timestamp |
+| ↳ `authorId` | string | ID of the tweet author |
+| `context` | object | Conversation context including parent and root tweets |
 
 ### `x_search`
 
@@ -102,7 +101,6 @@ Search for tweets using keywords, hashtags, or advanced queries
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | X OAuth access token |
 | `query` | string | Yes | Search query \(supports X search operators\) |
 | `maxResults` | number | No | Maximum number of results to return \(default: 10, max: 100\) |
 | `startTime` | string | No | Start time for search \(ISO 8601 format\) |
@@ -113,14 +111,16 @@ Search for tweets using keywords, hashtags, or advanced queries
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tweet` | json | Tweet data |
-| `replies` | any | Tweet replies |
-| `context` | any | Tweet context |
-| `tweets` | json | Tweets data |
-| `includes` | any | Additional data |
-| `meta` | json | Response metadata |
-| `user` | json | User profile data |
-| `recentTweets` | any | Recent tweets data |
+| `tweets` | array | Array of tweets matching the search query |
+|   ↳ `id` | string | Tweet ID |
+|   ↳ `text` | string | Tweet content |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `authorId` | string | Author user ID |
+| `includes` | object | Additional data including user profiles and media |
+| `meta` | object | Search metadata including result count and pagination tokens |
+| ↳ `resultCount` | number | Number of results returned |
+| ↳ `newestId` | string | ID of the newest tweet |
+| ↳ `oldestId` | string | ID of the oldest tweet |
 
 ### `x_user`
 
@@ -130,21 +130,25 @@ Get user profile information
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | X OAuth access token |
 | `username` | string | Yes | Username to look up \(without @ symbol\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tweet` | json | Tweet data |
-| `replies` | any | Tweet replies |
-| `context` | any | Tweet context |
-| `tweets` | json | Tweets data |
-| `includes` | any | Additional data |
-| `meta` | json | Response metadata |
-| `user` | json | User profile data |
-| `recentTweets` | any | Recent tweets data |
+| `user` | object | X user profile information |
+| ↳ `id` | string | User ID |
+| ↳ `username` | string | Username without @ symbol |
+| ↳ `name` | string | Display name |
+| ↳ `description` | string | User bio/description |
+| ↳ `verified` | boolean | Whether the user is verified |
+| ↳ `metrics` | object | User statistics |
+|   ↳ `followersCount` | number | Number of followers |
+|   ↳ `followingCount` | number | Number of users following |
+|   ↳ `tweetCount` | number | Total number of tweets |
+| ↳ `followersCount` | number | Number of followers |
+| ↳ `followingCount` | number | Number of users following |
+| ↳ `tweetCount` | number | Total number of tweets |
 
 
 

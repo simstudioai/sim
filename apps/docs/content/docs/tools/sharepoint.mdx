@@ -75,7 +75,6 @@ Create a new page in a SharePoint site
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the SharePoint API |
 | `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `siteSelector` | string | No | Select the SharePoint site |
 | `pageName` | string | Yes | The name of the page to create |
@@ -86,7 +85,14 @@ Create a new page in a SharePoint site
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sites` | json | An array of SharePoint site objects, each containing details such as id, name, and more. |
+| `page` | object | Created SharePoint page information |
+| ↳ `id` | string | The unique ID of the created page |
+| ↳ `name` | string | The name of the created page |
+| ↳ `title` | string | The title of the created page |
+| ↳ `webUrl` | string | The URL to access the page |
+| ↳ `pageLayout` | string | The layout type of the page |
+| ↳ `createdDateTime` | string | When the page was created |
+| ↳ `lastModifiedDateTime` | string | When the page was last modified |
 
 ### `sharepoint_read_page`
 
@@ -96,7 +102,6 @@ Read a specific page from a SharePoint site
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the SharePoint API |
 | `siteSelector` | string | No | Select the SharePoint site |
 | `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `pageId` | string | No | The ID of the page to read |
@@ -107,7 +112,36 @@ Read a specific page from a SharePoint site
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sites` | json | An array of SharePoint site objects, each containing details such as id, name, and more. |
+| `page` | object | Information about the SharePoint page |
+| ↳ `id` | string | The unique ID of the page |
+| ↳ `name` | string | The name of the page |
+| ↳ `title` | string | The title of the page |
+| ↳ `webUrl` | string | The URL to access the page |
+| ↳ `pageLayout` | string | The layout type of the page |
+| ↳ `createdDateTime` | string | When the page was created |
+| ↳ `lastModifiedDateTime` | string | When the page was last modified |
+| `pages` | array | List of SharePoint pages |
+|   ↳ `page` | object | The unique ID of the page |
+|   ↳ `id` | string | The unique ID of the page |
+|   ↳ `name` | string | The name of the page |
+|   ↳ `title` | string | The title of the page |
+|   ↳ `webUrl` | string | The URL to access the page |
+|   ↳ `pageLayout` | string | The layout type of the page |
+|   ↳ `createdDateTime` | string | When the page was created |
+|   ↳ `lastModifiedDateTime` | string | When the page was last modified |
+|   ↳ `id` | string | The unique ID of the page |
+|   ↳ `name` | string | The name of the page |
+|   ↳ `title` | string | The title of the page |
+|   ↳ `webUrl` | string | The URL to access the page |
+|   ↳ `pageLayout` | string | The layout type of the page |
+|   ↳ `createdDateTime` | string | When the page was created |
+|   ↳ `lastModifiedDateTime` | string | When the page was last modified |
+|   ↳ `content` | string | Extracted text content from the page |
+|   ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
+| `content` | object | Content of the SharePoint page |
+| ↳ `content` | string | Extracted text content from the page |
+| ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
+| `totalPages` | number | Total number of pages found |
 
 ### `sharepoint_list_sites`
 
@@ -117,7 +151,6 @@ List details of all SharePoint sites
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the SharePoint API |
 | `siteSelector` | string | No | Select the SharePoint site |
 | `groupId` | string | No | The group ID for accessing a group team site |
 
@@ -125,7 +158,29 @@ List details of all SharePoint sites
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sites` | json | An array of SharePoint site objects, each containing details such as id, name, and more. |
+| `site` | object | Information about the current SharePoint site |
+| ↳ `id` | string | The unique ID of the site |
+| ↳ `name` | string | The name of the site |
+| ↳ `displayName` | string | The display name of the site |
+| ↳ `webUrl` | string | The URL to access the site |
+| ↳ `description` | string | The description of the site |
+| ↳ `createdDateTime` | string | When the site was created |
+| ↳ `lastModifiedDateTime` | string | When the site was last modified |
+| ↳ `isPersonalSite` | boolean | Whether this is a personal site |
+| ↳ `root` | object | Server relative URL |
+|   ↳ `serverRelativeUrl` | string | Server relative URL |
+| ↳ `serverRelativeUrl` | string | Server relative URL |
+| ↳ `siteCollection` | object | Site collection hostname |
+|   ↳ `hostname` | string | Site collection hostname |
+| ↳ `hostname` | string | Site collection hostname |
+| `sites` | array | List of all accessible SharePoint sites |
+|   ↳ `id` | string | The unique ID of the site |
+|   ↳ `name` | string | The name of the site |
+|   ↳ `displayName` | string | The display name of the site |
+|   ↳ `webUrl` | string | The URL to access the site |
+|   ↳ `description` | string | The description of the site |
+|   ↳ `createdDateTime` | string | When the site was created |
+|   ↳ `lastModifiedDateTime` | string | When the site was last modified |
 
 
 

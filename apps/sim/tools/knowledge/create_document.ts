@@ -63,6 +63,30 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       description: 'Structured tag data with names, types, and values',
     },
   },
+
+  outputs: {
+    data: {
+      type: 'object',
+      description: 'Information about the created document',
+      properties: {
+        id: { type: 'string', description: 'Document ID' },
+        name: { type: 'string', description: 'Document name' },
+        type: { type: 'string', description: 'Document type' },
+        enabled: { type: 'boolean', description: 'Whether the document is enabled' },
+        createdAt: { type: 'string', description: 'Creation timestamp' },
+        updatedAt: { type: 'string', description: 'Last update timestamp' },
+      },
+    },
+    message: {
+      type: 'string',
+      description: 'Success or error message describing the operation result',
+    },
+    documentId: {
+      type: 'string',
+      description: 'ID of the created document',
+    },
+  },
+
   request: {
     url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents`,
     method: 'POST',

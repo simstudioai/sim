@@ -58,16 +58,16 @@ Search the web for information using Linkup
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `q` | string | Yes | The search query |
-| `depth` | string | Yes | Search depth \(has to either be  |
-| `outputType` | string | Yes | Type of output to return \(has to either be  |
+| `depth` | string | Yes | Search depth \(has to either be "standard" or "deep"\) |
+| `outputType` | string | Yes | Type of output to return \(has to either be "sourcedAnswer" or "searchResults"\) |
 | `apiKey` | string | Yes | Enter your Linkup API key |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `answer` | string | Generated answer |
-| `sources` | json | Source references |
+| `answer` | string | The sourced answer to the search query |
+| `sources` | array | Array of sources used to compile the answer, each containing name, url, and snippet |
 
 
 

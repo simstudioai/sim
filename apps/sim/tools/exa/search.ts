@@ -41,6 +41,27 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
     },
   },
 
+  outputs: {
+    results: {
+      type: 'array',
+      description: 'Search results with titles, URLs, and text snippets',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'The title of the search result' },
+          url: { type: 'string', description: 'The URL of the search result' },
+          publishedDate: { type: 'string', description: 'Date when the content was published' },
+          author: { type: 'string', description: 'The author of the content' },
+          summary: { type: 'string', description: 'A brief summary of the content' },
+          favicon: { type: 'string', description: "URL of the site's favicon" },
+          image: { type: 'string', description: 'URL of a representative image from the page' },
+          text: { type: 'string', description: 'Text snippet or full content from the page' },
+          score: { type: 'number', description: 'Relevance score for the search result' },
+        },
+      },
+    },
+  },
+
   request: {
     url: 'https://api.exa.ai/search',
     method: 'POST',

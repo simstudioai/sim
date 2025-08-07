@@ -52,6 +52,90 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
     },
   },
 
+  outputs: {
+    domain: {
+      type: 'string',
+      description: 'The searched domain name',
+    },
+    disposable: {
+      type: 'boolean',
+      description: 'Whether the domain accepts disposable email addresses',
+    },
+    webmail: {
+      type: 'boolean',
+      description: 'Whether the domain is a webmail provider',
+    },
+    accept_all: {
+      type: 'boolean',
+      description: 'Whether the domain accepts all email addresses',
+    },
+    pattern: {
+      type: 'string',
+      description: 'The email pattern used by the organization',
+    },
+    organization: {
+      type: 'string',
+      description: 'The organization name',
+    },
+    description: {
+      type: 'string',
+      description: 'Description of the organization',
+    },
+    industry: {
+      type: 'string',
+      description: 'Industry of the organization',
+    },
+    twitter: {
+      type: 'string',
+      description: 'Twitter profile of the organization',
+    },
+    facebook: {
+      type: 'string',
+      description: 'Facebook profile of the organization',
+    },
+    linkedin: {
+      type: 'string',
+      description: 'LinkedIn profile of the organization',
+    },
+    instagram: {
+      type: 'string',
+      description: 'Instagram profile of the organization',
+    },
+    youtube: {
+      type: 'string',
+      description: 'YouTube channel of the organization',
+    },
+    technologies: {
+      type: 'array',
+      description: 'Array of technologies used by the organization',
+    },
+    country: {
+      type: 'string',
+      description: 'Country where the organization is located',
+    },
+    state: {
+      type: 'string',
+      description: 'State where the organization is located',
+    },
+    city: {
+      type: 'string',
+      description: 'City where the organization is located',
+    },
+    postal_code: {
+      type: 'string',
+      description: 'Postal code of the organization',
+    },
+    street: {
+      type: 'string',
+      description: 'Street address of the organization',
+    },
+    emails: {
+      type: 'array',
+      description:
+        'Array of email addresses found for the domain, each containing value, type, confidence, sources, and person details',
+    },
+  },
+
   request: {
     url: (params) => {
       const url = new URL('https://api.hunter.io/v2/domain-search')

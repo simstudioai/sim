@@ -134,4 +134,12 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
   transformError: (error) => {
     return error instanceof Error ? error.message : 'Failed to create comment'
   },
+
+  outputs: {
+    content: { type: 'string', description: 'Human-readable comment confirmation' },
+    metadata: {
+      type: 'object',
+      description: 'Comment metadata',
+    },
+  },
 }

@@ -308,7 +308,17 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     filterType: { type: 'string', description: 'Filter type' },
   },
   outputs: {
-    content: { type: 'string', description: 'Page content' },
-    metadata: { type: 'any', description: 'Page metadata' },
+    // Common outputs across all Notion operations
+    content: {
+      type: 'string',
+      description: 'Page content, search results, or confirmation messages',
+    },
+
+    // Metadata object containing operation-specific information
+    metadata: {
+      type: 'json',
+      description:
+        'Metadata containing operation-specific details including page/database info, results, and pagination data',
+    },
   },
 }

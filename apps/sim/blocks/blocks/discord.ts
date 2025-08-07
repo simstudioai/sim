@@ -212,7 +212,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
   },
   outputs: {
     message: { type: 'string', description: 'Message content' },
-    data: { type: 'any', description: 'Response data' },
+    data: { type: 'json', description: 'Response data' },
     // Trigger outputs
     content: { type: 'string', description: 'Message content from Discord webhook' },
     username: { type: 'string', description: 'Username of the sender (if provided)' },

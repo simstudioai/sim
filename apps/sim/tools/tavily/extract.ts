@@ -28,6 +28,34 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
       description: 'Tavily API Key',
     },
   },
+  outputs: {
+    results: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'The URL that was extracted' },
+          raw_content: { type: 'string', description: 'The raw text content from the webpage' },
+        },
+      },
+      description: 'Successfully extracted content from URLs',
+    },
+    failed_results: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'The URL that failed extraction' },
+          error: { type: 'string', description: 'Error message for the failed extraction' },
+        },
+      },
+      description: 'URLs that failed to extract content',
+    },
+    response_time: {
+      type: 'number',
+      description: 'Time taken for the extraction request in seconds',
+    },
+  },
 
   request: {
     url: 'https://api.tavily.com/extract',

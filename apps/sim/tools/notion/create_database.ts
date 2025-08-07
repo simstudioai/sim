@@ -38,6 +38,17 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
         'Database properties as JSON object (optional, will create a default "Name" property if empty)',
     },
   },
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Success message with database details and properties list',
+    },
+    metadata: {
+      type: 'object',
+      description:
+        'Database metadata including ID, title, URL, creation time, and properties schema',
+    },
+  },
 
   request: {
     url: () => 'https://api.notion.com/v1/databases',

@@ -47,6 +47,12 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
       }
     },
   },
+
+  outputs: {
+    content: { type: 'string', description: 'Extracted document text content' },
+    metadata: { type: 'json', description: 'Document metadata including ID, title, and URL' },
+  },
+
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorText = await response.text()

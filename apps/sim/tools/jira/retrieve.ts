@@ -46,6 +46,17 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
         'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
+  outputs: {
+    success: {
+      type: 'boolean',
+      description: 'Operation success status',
+    },
+    output: {
+      type: 'object',
+      description:
+        'Jira issue details with issue key, summary, description, created and updated timestamps',
+    },
+  },
 
   request: {
     url: (params: JiraRetrieveParams) => {

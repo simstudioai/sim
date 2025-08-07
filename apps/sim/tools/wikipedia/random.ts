@@ -9,6 +9,20 @@ export const randomPageTool: ToolConfig<Record<string, never>, WikipediaRandomPa
 
   params: {},
 
+  outputs: {
+    randomPage: {
+      type: 'object',
+      description: 'Random Wikipedia page data',
+      properties: {
+        title: { type: 'string', description: 'Page title' },
+        extract: { type: 'string', description: 'Page extract/summary' },
+        description: { type: 'string', description: 'Page description', optional: true },
+        thumbnail: { type: 'object', description: 'Thumbnail image data', optional: true },
+        content_urls: { type: 'object', description: 'URLs to access the page' },
+      },
+    },
+  },
+
   request: {
     url: () => {
       return 'https://en.wikipedia.org/api/rest_v1/page/random/summary'

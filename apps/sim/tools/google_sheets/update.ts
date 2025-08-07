@@ -130,6 +130,15 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
       return body
     },
   },
+
+  outputs: {
+    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
+    updatedRows: { type: 'number', description: 'Number of rows updated' },
+    updatedColumns: { type: 'number', description: 'Number of columns updated' },
+    updatedCells: { type: 'number', description: 'Number of cells updated' },
+    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
+  },
+
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorText = await response.text()

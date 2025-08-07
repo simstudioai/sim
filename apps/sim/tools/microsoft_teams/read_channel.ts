@@ -37,6 +37,18 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       description: 'The ID of the channel to read from',
     },
   },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Teams channel read operation success status' },
+    messageCount: { type: 'number', description: 'Number of messages retrieved from channel' },
+    teamId: { type: 'string', description: 'ID of the team that was read from' },
+    channelId: { type: 'string', description: 'ID of the channel that was read from' },
+    messages: { type: 'array', description: 'Array of channel message objects' },
+    attachmentCount: { type: 'number', description: 'Total number of attachments found' },
+    attachmentTypes: { type: 'array', description: 'Types of attachments found' },
+    content: { type: 'string', description: 'Formatted content of channel messages' },
+  },
+
   request: {
     url: (params) => {
       const teamId = params.teamId?.trim()

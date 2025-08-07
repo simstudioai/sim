@@ -144,4 +144,12 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
     }
     return 'Failed to fetch commit information'
   },
+
+  outputs: {
+    content: { type: 'string', description: 'Human-readable commit summary' },
+    metadata: {
+      type: 'object',
+      description: 'Commit metadata',
+    },
+  },
 }

@@ -72,4 +72,15 @@ export const airtableGetRecordTool: ToolConfig<AirtableGetParams, AirtableGetRes
     // logger.error('Airtable tool error:', error)
     return `Failed to get Airtable record: ${error.message || 'Unknown error'}`
   },
+
+  outputs: {
+    record: {
+      type: 'json',
+      description: 'Retrieved Airtable record with id, createdTime, and fields',
+    },
+    metadata: {
+      type: 'json',
+      description: 'Operation metadata including record count',
+    },
+  },
 }

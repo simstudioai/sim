@@ -25,6 +25,16 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
       description: 'The ID of the Notion page to read',
     },
   },
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Page content in markdown format with headers, paragraphs, lists, and todos',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Page metadata including title, URL, and timestamps',
+    },
+  },
 
   request: {
     url: (params: NotionReadParams) => {

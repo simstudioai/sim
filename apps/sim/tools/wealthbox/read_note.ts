@@ -23,6 +23,26 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
       visibility: 'user-only',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Note data and metadata',
+      properties: {
+        content: { type: 'string', description: 'Formatted note information' },
+        note: { type: 'object', description: 'Raw note data from Wealthbox' },
+        metadata: {
+          type: 'object',
+          description: 'Operation metadata',
+          properties: {
+            operation: { type: 'string', description: 'The operation performed' },
+            noteId: { type: 'string', description: 'ID of the note' },
+            itemType: { type: 'string', description: 'Type of item (note)' },
+          },
+        },
+      },
+    },
+  },
   request: {
     url: (params) => {
       const noteId = params.noteId?.trim()

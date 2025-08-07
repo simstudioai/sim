@@ -186,7 +186,7 @@ export const MemoryBlock: BlockConfig = {
     content: { type: 'string', description: 'Memory content' },
   },
   outputs: {
-    memories: { type: 'any', description: 'Memory data' },
+    memories: { type: 'json', description: 'Memory data' },
     id: { type: 'string', description: 'Memory identifier' },
   },
 }

@@ -63,6 +63,17 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       description: 'Mistral API key (MISTRAL_API_KEY)',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the PDF was parsed successfully' },
+    content: {
+      type: 'string',
+      description: 'Extracted content in the requested format (markdown, text, or JSON)',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Processing metadata including jobId, fileType, pageCount, and usage info',
+    },
+  },
 
   request: {
     url: 'https://api.mistral.ai/v1/ocr',

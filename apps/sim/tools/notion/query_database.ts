@@ -43,6 +43,37 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
       description: 'Number of results to return (default: 100, max: 100)',
     },
   },
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Formatted list of database entries with their properties',
+    },
+    metadata: {
+      type: 'object',
+      description:
+        'Query metadata including total results count, pagination info, and raw results array',
+      properties: {
+        totalResults: { type: 'number', description: 'Number of results returned' },
+        hasMore: { type: 'boolean', description: 'Whether more results are available' },
+        nextCursor: { type: 'string', description: 'Cursor for pagination', optional: true },
+        results: {
+          type: 'array',
+          description: 'Raw Notion page objects',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'Page ID' },
+              properties: { type: 'object', description: 'Page properties' },
+              created_time: { type: 'string', description: 'Creation timestamp' },
+              last_edited_time: { type: 'string', description: 'Last edit timestamp' },
+              url: { type: 'string', description: 'Page URL' },
+              archived: { type: 'boolean', description: 'Whether page is archived' },
+            },
+          },
+        },
+      },
+    },
+  },
 
   request: {
     url: (params: NotionQueryDatabaseParams) => {

@@ -45,7 +45,15 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
       description: 'API key for BrowserUse API',
     },
   },
-
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'json',
+      description:
+        'Browser automation task results including task ID, success status, output data, and execution steps',
+    },
+    error: { type: 'string', description: 'Error message if the operation failed' },
+  },
   request: {
     url: 'https://api.browser-use.com/api/v1/run-task',
     method: 'POST',

@@ -12,6 +12,13 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
     provider: 'confluence',
   },
 
+  outputs: {
+    ts: { type: 'string', description: 'Timestamp of update' },
+    pageId: { type: 'string', description: 'Confluence page ID' },
+    title: { type: 'string', description: 'Updated page title' },
+    success: { type: 'boolean', description: 'Update operation success status' },
+  },
+
   params: {
     accessToken: {
       type: 'string',

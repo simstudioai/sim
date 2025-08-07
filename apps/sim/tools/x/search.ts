@@ -52,6 +52,36 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
     },
   },
 
+  outputs: {
+    tweets: {
+      type: 'array',
+      description: 'Array of tweets matching the search query',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Tweet ID' },
+          text: { type: 'string', description: 'Tweet content' },
+          createdAt: { type: 'string', description: 'Creation timestamp' },
+          authorId: { type: 'string', description: 'Author user ID' },
+        },
+      },
+    },
+    includes: {
+      type: 'object',
+      description: 'Additional data including user profiles and media',
+      optional: true,
+    },
+    meta: {
+      type: 'object',
+      description: 'Search metadata including result count and pagination tokens',
+      properties: {
+        resultCount: { type: 'number', description: 'Number of results returned' },
+        newestId: { type: 'string', description: 'ID of the newest tweet' },
+        oldestId: { type: 'string', description: 'ID of the oldest tweet' },
+      },
+    },
+  },
+
   request: {
     url: (params) => {
       const query = params.query

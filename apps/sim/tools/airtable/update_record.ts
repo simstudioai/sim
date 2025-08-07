@@ -84,4 +84,15 @@ export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, Airtable
     // logger.error('Airtable tool error:', error)
     return `Failed to update Airtable record: ${error.message || 'Unknown error'}`
   },
+
+  outputs: {
+    record: {
+      type: 'json',
+      description: 'Updated Airtable record with id, createdTime, and fields',
+    },
+    metadata: {
+      type: 'json',
+      description: 'Operation metadata including record count and updated field names',
+    },
+  },
 }

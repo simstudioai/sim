@@ -74,6 +74,18 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
       return requestBody
     },
   },
+
+  outputs: {
+    updatedContent: {
+      type: 'boolean',
+      description: 'Indicates if document content was updated successfully',
+    },
+    metadata: {
+      type: 'json',
+      description: 'Updated document metadata including ID, title, and URL',
+    },
+  },
+
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       let errorText = ''

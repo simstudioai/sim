@@ -38,6 +38,11 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
       description: 'The ID of the task to get',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Whether tasks were retrieved successfully' },
+    tasks: { type: 'array', description: 'Array of task objects with filtered properties' },
+    metadata: { type: 'object', description: 'Metadata including planId, userId, and planUrl' },
+  },
   request: {
     url: (params) => {
       let finalUrl: string

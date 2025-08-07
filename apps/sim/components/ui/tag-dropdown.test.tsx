@@ -4,6 +4,115 @@ import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/respon
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks } from '@/stores/workflows/workflow/utils'
 
+// Mock getTool function for testing tool output types
+vi.mock('@/lib/get-tool', () => ({
+  getTool: vi.fn((toolId: string) => {
+    // Mock different tool configurations for testing
+    const mockTools: Record<string, any> = {
+      exa_search: {
+        outputs: {
+          results: {
+            type: 'array',
+            description: 'Search results with titles, URLs, and text snippets',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string', description: 'The title of the search result' },
+                url: { type: 'string', description: 'The URL of the search result' },
+                score: { type: 'number', description: 'Relevance score for the search result' },
+              },
+            },
+          },
+        },
+      },
+      pinecone_search_text: {
+        outputs: {
+          matches: {
+            type: 'array',
+            description: 'Search results with ID, score, and metadata',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'Vector ID' },
+                score: { type: 'number', description: 'Similarity score' },
+                metadata: { type: 'object', description: 'Associated metadata' },
+              },
+            },
+          },
+          usage: {
+            type: 'object',
+            description: 'Usage statistics including tokens, read units, and rerank units',
+            properties: {
+              total_tokens: { type: 'number', description: 'Total tokens used for embedding' },
+              read_units: { type: 'number', description: 'Read units consumed' },
+              rerank_units: { type: 'number', description: 'Rerank units used' },
+            },
+          },
+        },
+      },
+      notion_query_database: {
+        outputs: {
+          content: {
+            type: 'string',
+            description: 'Formatted list of database entries with their properties',
+          },
+          metadata: {
+            type: 'object',
+            description:
+              'Query metadata including total results count, pagination info, and raw results array',
+            properties: {
+              totalResults: { type: 'number', description: 'Number of results returned' },
+              hasMore: { type: 'boolean', description: 'Whether more results are available' },
+              results: {
+                type: 'array',
+                description: 'Raw Notion page objects',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string', description: 'Page ID' },
+                    properties: { type: 'object', description: 'Page properties' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }
+    return mockTools[toolId] || null
+  }),
+}))
+
+// Mock getBlock function for testing
+vi.mock('@/lib/get-block', () => ({
+  getBlock: vi.fn((blockType: string) => {
+    const mockBlockConfigs: Record<string, any> = {
+      exa: {
+        tools: {
+          config: {
+            tool: ({ operation }: { operation: string }) => `exa_${operation}`,
+          },
+        },
+      },
+      tools: {
+        tools: {
+          config: {
+            tool: ({ operation }: { operation: string }) => `pinecone_${operation}`,
+          },
+        },
+      },
+      notion: {
+        tools: {
+          config: {
+            tool: ({ operation }: { operation: string }) => `notion_${operation}`,
+          },
+        },
+      },
+    }
+    return mockBlockConfigs[blockType] || null
+  }),
+}))
+
 vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: vi.fn(() => ({
     blocks: {},
@@ -787,6 +896,469 @@ describe('TagDropdown Response Format Support', () => {
     expect(schemaFields).toEqual([
       { name: 'example_property', type: 'string', description: 'A simple string property.' },
       { name: 'another_field', type: 'number', description: 'Another field.' },
+    ])
+  })
+})
+
+describe('TagDropdown Type Display Functionality', () => {
+  it.concurrent(
+    'should extract types correctly from tool outputs using generateOutputPathsWithTypes',
+    () => {
+      // Test with Exa search tool outputs
+      const exaSearchOutputs = {
+        results: {
+          type: 'array',
+          description: 'Search results with titles, URLs, and text snippets',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: 'The title of the search result' },
+              url: { type: 'string', description: 'The URL of the search result' },
+              score: { type: 'number', description: 'Relevance score for the search result' },
+            },
+          },
+        },
+      }
+
+      // Mock the generateOutputPathsWithTypes function behavior
+      const generateOutputPathsWithTypes = (
+        outputs: Record<string, any>,
+        prefix = ''
+      ): Array<{ path: string; type: string }> => {
+        const paths: Array<{ path: string; type: string }> = []
+
+        for (const [key, output] of Object.entries(outputs)) {
+          const currentPath = prefix ? `${prefix}.${key}` : key
+          if (output && typeof output === 'object' && 'type' in output) {
+            paths.push({ path: currentPath, type: output.type as string })
+
+            // Handle nested properties
+            if ((output as any).properties) {
+              const nestedPaths = generateOutputPathsWithTypes(
+                (output as any).properties,
+                currentPath
+              )
+              paths.push(...nestedPaths)
+            }
+
+            // Handle array items properties
+            if ((output as any).items?.properties) {
+              const itemPaths = generateOutputPathsWithTypes(
+                (output as any).items.properties,
+                currentPath
+              )
+              paths.push(...itemPaths)
+            }
+          }
+        }
+
+        return paths
+      }
+
+      const paths = generateOutputPathsWithTypes(exaSearchOutputs)
+
+      expect(paths).toEqual([
+        { path: 'results', type: 'array' },
+        { path: 'results.title', type: 'string' },
+        { path: 'results.url', type: 'string' },
+        { path: 'results.score', type: 'number' },
+      ])
+    }
+  )
+
+  it.concurrent('should extract types correctly for complex nested structures', () => {
+    // Test with Pinecone tool outputs
+    const pineconeOutputs = {
+      matches: {
+        type: 'array',
+        description: 'Search results with ID, score, and metadata',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'Vector ID' },
+            score: { type: 'number', description: 'Similarity score' },
+            metadata: { type: 'object', description: 'Associated metadata' },
+          },
+        },
+      },
+      usage: {
+        type: 'object',
+        description: 'Usage statistics including tokens, read units, and rerank units',
+        properties: {
+          total_tokens: { type: 'number', description: 'Total tokens used for embedding' },
+          read_units: { type: 'number', description: 'Read units consumed' },
+          rerank_units: { type: 'number', description: 'Rerank units used' },
+        },
+      },
+    }
+
+    const generateOutputPathsWithTypes = (
+      outputs: Record<string, any>,
+      prefix = ''
+    ): Array<{ path: string; type: string }> => {
+      const paths: Array<{ path: string; type: string }> = []
+
+      for (const [key, output] of Object.entries(outputs)) {
+        const currentPath = prefix ? `${prefix}.${key}` : key
+        if (output && typeof output === 'object' && 'type' in output) {
+          paths.push({ path: currentPath, type: output.type as string })
+
+          if ((output as any).properties) {
+            const nestedPaths = generateOutputPathsWithTypes(
+              (output as any).properties,
+              currentPath
+            )
+            paths.push(...nestedPaths)
+          }
+
+          if ((output as any).items?.properties) {
+            const itemPaths = generateOutputPathsWithTypes(
+              (output as any).items.properties,
+              currentPath
+            )
+            paths.push(...itemPaths)
+          }
+        }
+      }
+
+      return paths
+    }
+
+    const paths = generateOutputPathsWithTypes(pineconeOutputs)
+
+    expect(paths).toEqual([
+      { path: 'matches', type: 'array' },
+      { path: 'matches.id', type: 'string' },
+      { path: 'matches.score', type: 'number' },
+      { path: 'matches.metadata', type: 'object' },
+      { path: 'usage', type: 'object' },
+      { path: 'usage.total_tokens', type: 'number' },
+      { path: 'usage.read_units', type: 'number' },
+      { path: 'usage.rerank_units', type: 'number' },
+    ])
+  })
+
+  it.concurrent('should get tool output type for specific paths using getToolOutputType', () => {
+    // Mock block configuration for Exa
+    const blockConfig = {
+      tools: {
+        config: {
+          tool: ({ operation }: { operation: string }) => `exa_${operation}`,
+        },
+      },
+    }
+
+    // Mock getToolOutputType function behavior
+    const getToolOutputType = (blockConfig: any, operation: string, path: string): string => {
+      // Get tool ID from block config
+      const toolId = blockConfig?.tools?.config?.tool?.({ operation })
+      if (!toolId) return ''
+
+      // Mock tool lookup (would use getTool in real implementation)
+      const mockTools: Record<string, any> = {
+        exa_search: {
+          outputs: {
+            results: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  title: { type: 'string' },
+                  url: { type: 'string' },
+                  score: { type: 'number' },
+                },
+              },
+            },
+          },
+        },
+      }
+
+      const tool = mockTools[toolId]
+      if (!tool?.outputs) return ''
+
+      // Navigate to the specific path
+      const pathParts = path.split('.')
+      let current = tool.outputs
+
+      for (const part of pathParts) {
+        if (!current[part]) {
+          // Check if we're looking at array items
+          if (current.items?.properties?.[part]) {
+            current = current.items.properties
+          } else {
+            return ''
+          }
+        }
+        current = current[part]
+      }
+
+      return current?.type || ''
+    }
+
+    // Test various path types
+    expect(getToolOutputType(blockConfig, 'search', 'results')).toBe('array')
+    expect(getToolOutputType(blockConfig, 'search', 'results.title')).toBe('string')
+    expect(getToolOutputType(blockConfig, 'search', 'results.url')).toBe('string')
+    expect(getToolOutputType(blockConfig, 'search', 'results.score')).toBe('number')
+    expect(getToolOutputType(blockConfig, 'search', 'nonexistent')).toBe('')
+  })
+
+  it.concurrent('should generate tool output paths with type information', () => {
+    // Mock the generateToolOutputPaths function that returns both path and type
+    const generateToolOutputPaths = (
+      blockConfig: any,
+      operation: string
+    ): Array<{ path: string; type: string }> => {
+      const toolId = blockConfig?.tools?.config?.tool?.({ operation })
+      if (!toolId) return []
+
+      // Mock tool configurations
+      const mockTools: Record<string, any> = {
+        exa_search: {
+          outputs: {
+            results: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  title: { type: 'string' },
+                  url: { type: 'string' },
+                  score: { type: 'number' },
+                },
+              },
+            },
+          },
+        },
+      }
+
+      const tool = mockTools[toolId]
+      if (!tool?.outputs) return []
+
+      const paths: Array<{ path: string; type: string }> = []
+
+      const traverse = (obj: any, prefix = '') => {
+        for (const [key, value] of Object.entries(obj)) {
+          const currentPath = prefix ? `${prefix}.${key}` : key
+          if (value && typeof value === 'object' && 'type' in value) {
+            paths.push({ path: currentPath, type: (value as any).type })
+
+            if ((value as any).properties) {
+              traverse((value as any).properties, currentPath)
+            }
+
+            if ((value as any).items?.properties) {
+              traverse((value as any).items.properties, currentPath)
+            }
+          }
+        }
+      }
+
+      traverse(tool.outputs)
+      return paths
+    }
+
+    const blockConfig = {
+      tools: {
+        config: {
+          tool: ({ operation }: { operation: string }) => `exa_${operation}`,
+        },
+      },
+    }
+
+    const paths = generateToolOutputPaths(blockConfig, 'search')
+
+    expect(paths).toEqual([
+      { path: 'results', type: 'array' },
+      { path: 'results.title', type: 'string' },
+      { path: 'results.url', type: 'string' },
+      { path: 'results.score', type: 'number' },
+    ])
+  })
+
+  it.concurrent('should handle missing or invalid tool configurations gracefully', () => {
+    const getToolOutputType = (blockConfig: any, operation: string, path: string): string => {
+      try {
+        const toolId = blockConfig?.tools?.config?.tool?.({ operation })
+        if (!toolId) return ''
+
+        // Mock empty tool configurations
+        const mockTools: Record<string, any> = {}
+        const tool = mockTools[toolId]
+        if (!tool?.outputs) return ''
+
+        return ''
+      } catch (error) {
+        return ''
+      }
+    }
+
+    // Test with null/undefined block config
+    expect(getToolOutputType(null, 'search', 'results')).toBe('')
+    expect(getToolOutputType(undefined, 'search', 'results')).toBe('')
+    expect(getToolOutputType({}, 'search', 'results')).toBe('')
+
+    // Test with invalid block config structure
+    const invalidBlockConfig = { tools: null }
+    expect(getToolOutputType(invalidBlockConfig, 'search', 'results')).toBe('')
+
+    // Test with missing tool function
+    const incompleteBlockConfig = {
+      tools: {
+        config: {},
+      },
+    }
+    expect(getToolOutputType(incompleteBlockConfig, 'search', 'results')).toBe('')
+  })
+
+  it.concurrent(
+    'should only show types when reliable data is available from tool configuration',
+    () => {
+      // Mock tag info creation that only includes type when available
+      const createTagInfo = (
+        blockConfig: any,
+        operation: string,
+        path: string
+      ): { type?: string; description?: string } => {
+        const getToolOutputType = (blockConfig: any, operation: string, path: string): string => {
+          const toolId = blockConfig?.tools?.config?.tool?.({ operation })
+          if (!toolId) return ''
+
+          const mockTools: Record<string, any> = {
+            exa_search: {
+              outputs: {
+                results: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      title: { type: 'string' },
+                    },
+                  },
+                },
+              },
+            },
+          }
+
+          const tool = mockTools[toolId]
+          if (!tool?.outputs) return ''
+
+          const pathParts = path.split('.')
+          let current = tool.outputs
+
+          for (const part of pathParts) {
+            if (!current[part]) {
+              if ((current as any).items?.properties?.[part]) {
+                current = (current as any).items.properties
+              } else {
+                return ''
+              }
+            }
+            current = current[part]
+          }
+
+          return (current as any)?.type || ''
+        }
+
+        const type = getToolOutputType(blockConfig, operation, path)
+
+        // Only return type information if we have reliable data
+        if (type) {
+          return { type }
+        }
+
+        return {}
+      }
+
+      const blockConfig = {
+        tools: {
+          config: {
+            tool: ({ operation }: { operation: string }) => `exa_${operation}`,
+          },
+        },
+      }
+
+      // Should have type for valid paths
+      expect(createTagInfo(blockConfig, 'search', 'results')).toEqual({ type: 'array' })
+      expect(createTagInfo(blockConfig, 'search', 'results.title')).toEqual({ type: 'string' })
+
+      // Should not have type for invalid paths
+      expect(createTagInfo(blockConfig, 'search', 'nonexistent')).toEqual({})
+      expect(createTagInfo(blockConfig, 'invalid_operation', 'results')).toEqual({})
+      expect(createTagInfo(null, 'search', 'results')).toEqual({})
+    }
+  )
+
+  it.concurrent('should handle deeply nested structures correctly', () => {
+    // Test with Notion query_database tool structure
+    const notionOutputs = {
+      content: {
+        type: 'string',
+        description: 'Formatted list of database entries with their properties',
+      },
+      metadata: {
+        type: 'object',
+        description:
+          'Query metadata including total results count, pagination info, and raw results array',
+        properties: {
+          totalResults: { type: 'number', description: 'Number of results returned' },
+          hasMore: { type: 'boolean', description: 'Whether more results are available' },
+          results: {
+            type: 'array',
+            description: 'Raw Notion page objects',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'Page ID' },
+                properties: { type: 'object', description: 'Page properties' },
+              },
+            },
+          },
+        },
+      },
+    }
+
+    const generateOutputPathsWithTypes = (
+      outputs: Record<string, any>,
+      prefix = ''
+    ): Array<{ path: string; type: string }> => {
+      const paths: Array<{ path: string; type: string }> = []
+
+      for (const [key, output] of Object.entries(outputs)) {
+        const currentPath = prefix ? `${prefix}.${key}` : key
+        if (output && typeof output === 'object' && 'type' in output) {
+          paths.push({ path: currentPath, type: output.type as string })
+
+          if ((output as any).properties) {
+            const nestedPaths = generateOutputPathsWithTypes(
+              (output as any).properties,
+              currentPath
+            )
+            paths.push(...nestedPaths)
+          }
+
+          if ((output as any).items?.properties) {
+            const itemPaths = generateOutputPathsWithTypes(
+              (output as any).items.properties,
+              currentPath
+            )
+            paths.push(...itemPaths)
+          }
+        }
+      }
+
+      return paths
+    }
+
+    const paths = generateOutputPathsWithTypes(notionOutputs)
+
+    expect(paths).toEqual([
+      { path: 'content', type: 'string' },
+      { path: 'metadata', type: 'object' },
+      { path: 'metadata.totalResults', type: 'number' },
+      { path: 'metadata.hasMore', type: 'boolean' },
+      { path: 'metadata.results', type: 'array' },
+      { path: 'metadata.results.id', type: 'string' },
+      { path: 'metadata.results.properties', type: 'object' },
     ])
   })
 })

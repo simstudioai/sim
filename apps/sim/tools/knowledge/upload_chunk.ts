@@ -23,6 +23,37 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
       description: 'Content of the chunk to upload',
     },
   },
+
+  outputs: {
+    data: {
+      type: 'object',
+      description: 'Information about the uploaded chunk',
+      properties: {
+        id: { type: 'string', description: 'Chunk ID' },
+        chunkIndex: { type: 'number', description: 'Index of the chunk within the document' },
+        content: { type: 'string', description: 'Content of the chunk' },
+        contentLength: { type: 'number', description: 'Length of the content in characters' },
+        tokenCount: { type: 'number', description: 'Number of tokens in the chunk' },
+        enabled: { type: 'boolean', description: 'Whether the chunk is enabled' },
+        createdAt: { type: 'string', description: 'Creation timestamp' },
+        updatedAt: { type: 'string', description: 'Last update timestamp' },
+      },
+    },
+    message: {
+      type: 'string',
+      description: 'Success or error message describing the operation result',
+    },
+    documentId: {
+      type: 'string',
+      description: 'ID of the document the chunk was added to',
+    },
+    cost: {
+      type: 'object',
+      description: 'Cost information for the upload operation',
+      optional: true,
+    },
+  },
+
   request: {
     url: (params) =>
       `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks`,

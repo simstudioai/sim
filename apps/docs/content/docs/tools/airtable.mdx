@@ -71,11 +71,10 @@ Read records from an Airtable table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
 | `baseId` | string | Yes | ID of the Airtable base |
 | `tableId` | string | Yes | ID of the table |
 | `maxRecords` | number | No | Maximum number of records to return |
-| `filterFormula` | string | No | Formula to filter records \(e.g.,  |
+| `filterFormula` | string | No | Formula to filter records \(e.g., "\(\{Field Name\} = \'Value\'\)"\) |
 
 #### Output
 
@@ -84,6 +83,14 @@ Read records from an Airtable table
 | `records` | json | Retrieved record data |
 | `record` | json | Single record data |
 | `metadata` | json | Operation metadata |
+| `event_type` | string | Type of Airtable event |
+| `base_id` | string | Airtable base identifier |
+| `table_id` | string | Airtable table identifier |
+| `record_id` | string | Record identifier that was modified |
+| `record_data` | string | Complete record data \(when Include Full Record Data is enabled\) |
+| `changed_fields` | string | Fields that were changed in the record |
+| `webhook_id` | string | Unique webhook identifier |
+| `timestamp` | string | Event timestamp |
 
 ### `airtable_get_record`
 
@@ -93,7 +100,6 @@ Retrieve a single record from an Airtable table by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
 | `baseId` | string | Yes | ID of the Airtable base |
 | `tableId` | string | Yes | ID or name of the table |
 | `recordId` | string | Yes | ID of the record to retrieve |
@@ -105,6 +111,14 @@ Retrieve a single record from an Airtable table by its ID
 | `records` | json | Retrieved record data |
 | `record` | json | Single record data |
 | `metadata` | json | Operation metadata |
+| `event_type` | string | Type of Airtable event |
+| `base_id` | string | Airtable base identifier |
+| `table_id` | string | Airtable table identifier |
+| `record_id` | string | Record identifier that was modified |
+| `record_data` | string | Complete record data \(when Include Full Record Data is enabled\) |
+| `changed_fields` | string | Fields that were changed in the record |
+| `webhook_id` | string | Unique webhook identifier |
+| `timestamp` | string | Event timestamp |
 
 ### `airtable_create_records`
 
@@ -114,9 +128,10 @@ Write new records to an Airtable table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
 | `baseId` | string | Yes | ID of the Airtable base |
 | `tableId` | string | Yes | ID or name of the table |
+| `records` | json | Yes | Array of records to create, each with a `fields` object |
+| `fields` | string | No | No description |
 
 #### Output
 
@@ -125,6 +140,14 @@ Write new records to an Airtable table
 | `records` | json | Retrieved record data |
 | `record` | json | Single record data |
 | `metadata` | json | Operation metadata |
+| `event_type` | string | Type of Airtable event |
+| `base_id` | string | Airtable base identifier |
+| `table_id` | string | Airtable table identifier |
+| `record_id` | string | Record identifier that was modified |
+| `record_data` | string | Complete record data \(when Include Full Record Data is enabled\) |
+| `changed_fields` | string | Fields that were changed in the record |
+| `webhook_id` | string | Unique webhook identifier |
+| `timestamp` | string | Event timestamp |
 
 ### `airtable_update_record`
 
@@ -134,11 +157,11 @@ Update an existing record in an Airtable table by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
 | `baseId` | string | Yes | ID of the Airtable base |
 | `tableId` | string | Yes | ID or name of the table |
 | `recordId` | string | Yes | ID of the record to update |
 | `fields` | json | Yes | An object containing the field names and their new values |
+| `Example` | string | No | No description |
 
 #### Output
 
@@ -147,6 +170,14 @@ Update an existing record in an Airtable table by ID
 | `records` | json | Retrieved record data |
 | `record` | json | Single record data |
 | `metadata` | json | Operation metadata |
+| `event_type` | string | Type of Airtable event |
+| `base_id` | string | Airtable base identifier |
+| `table_id` | string | Airtable table identifier |
+| `record_id` | string | Record identifier that was modified |
+| `record_data` | string | Complete record data \(when Include Full Record Data is enabled\) |
+| `changed_fields` | string | Fields that were changed in the record |
+| `webhook_id` | string | Unique webhook identifier |
+| `timestamp` | string | Event timestamp |
 
 ### `airtable_update_multiple_records`
 
@@ -156,9 +187,11 @@ Update multiple existing records in an Airtable table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
 | `baseId` | string | Yes | ID of the Airtable base |
 | `tableId` | string | Yes | ID or name of the table |
+| `records` | json | Yes | Array of records to update, each with an `id` and a `fields` object |
+| `fields` | string | No | No description |
+| `fields` | string | No | No description |
 
 #### Output
 
@@ -167,6 +200,14 @@ Update multiple existing records in an Airtable table
 | `records` | json | Retrieved record data |
 | `record` | json | Single record data |
 | `metadata` | json | Operation metadata |
+| `event_type` | string | Type of Airtable event |
+| `base_id` | string | Airtable base identifier |
+| `table_id` | string | Airtable table identifier |
+| `record_id` | string | Record identifier that was modified |
+| `record_data` | string | Complete record data \(when Include Full Record Data is enabled\) |
+| `changed_fields` | string | Fields that were changed in the record |
+| `webhook_id` | string | Unique webhook identifier |
+| `timestamp` | string | Event timestamp |
 
 
 

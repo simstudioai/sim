@@ -18,6 +18,13 @@ export const thinkingTool: ToolConfig<ThinkingToolParams, ThinkingToolResponse> 
     },
   },
 
+  outputs: {
+    acknowledgedThought: {
+      type: 'string',
+      description: 'The thought that was processed and acknowledged',
+    },
+  },
+
   // Use directExecution as no external HTTP call is needed
   directExecution: async (params: ThinkingToolParams): Promise<ThinkingToolResponse> => {
     // Simply acknowledge the thought by returning it in the output

@@ -154,7 +154,6 @@ Send emails using Outlook
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Outlook API |
 | `to` | string | Yes | Recipient email address |
 | `subject` | string | Yes | Email subject |
 | `body` | string | Yes | Email body content |
@@ -167,8 +166,10 @@ Send emails using Outlook
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Response message |
-| `results` | json | Email results |
+| `success` | boolean | Email send success status |
+| `status` | string | Delivery status of the email |
+| `timestamp` | string | Timestamp when email was sent |
+| `message` | string | Success or error message |
 
 ### `outlook_draft`
 
@@ -178,7 +179,6 @@ Draft emails using Outlook
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Outlook API |
 | `to` | string | Yes | Recipient email address |
 | `subject` | string | Yes | Email subject |
 | `body` | string | Yes | Email body content |
@@ -187,8 +187,12 @@ Draft emails using Outlook
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Response message |
-| `results` | json | Email results |
+| `success` | boolean | Email draft creation success status |
+| `messageId` | string | Unique identifier for the drafted email |
+| `status` | string | Draft status of the email |
+| `subject` | string | Subject of the drafted email |
+| `timestamp` | string | Timestamp when draft was created |
+| `message` | string | Success or error message |
 
 ### `outlook_read`
 
@@ -198,7 +202,6 @@ Read emails from Outlook
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token for Outlook |
 | `folder` | string | No | Folder ID to read emails from \(default: Inbox\) |
 | `maxResults` | number | No | Maximum number of emails to retrieve \(default: 1, max: 10\) |
 
@@ -206,8 +209,10 @@ Read emails from Outlook
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Response message |
-| `results` | json | Email results |
+| `success` | boolean | Email read operation success status |
+| `messageCount` | number | Number of emails retrieved |
+| `messages` | array | Array of email message objects |
+| `message` | string | Success or status message |
 
 
 

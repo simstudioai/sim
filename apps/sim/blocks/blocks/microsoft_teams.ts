@@ -221,9 +221,28 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     content: { type: 'string', description: 'Message content' },
   },
   outputs: {
-    content: { type: 'string', description: 'Message content' },
-    metadata: { type: 'json', description: 'Message metadata' },
-    updatedContent: { type: 'boolean', description: 'Content update status' },
+    // Read operation outputs
+    content: { type: 'string', description: 'Formatted message content from chat/channel' },
+    metadata: { type: 'json', description: 'Message metadata with full details' },
+    messageCount: { type: 'number', description: 'Number of messages retrieved' },
+    messages: { type: 'json', description: 'Array of message objects' },
+    totalAttachments: { type: 'number', description: 'Total number of attachments' },
+    attachmentTypes: { type: 'json', description: 'Array of attachment content types' },
+    // Write operation outputs
+    updatedContent: {
+      type: 'boolean',
+      description: 'Whether content was successfully updated/sent',
+    },
+    messageId: { type: 'string', description: 'ID of the created/sent message' },
+    createdTime: { type: 'string', description: 'Timestamp when message was created' },
+    url: { type: 'string', description: 'Web URL to the message' },
+    // Individual message fields (from read operations)
+    sender: { type: 'string', description: 'Message sender display name' },
+    messageTimestamp: { type: 'string', description: 'Individual message timestamp' },
+    messageType: {
+      type: 'string',
+      description: 'Type of message (message, systemEventMessage, etc.)',
+    },
     // Trigger outputs
     type: { type: 'string', description: 'Type of Teams message' },
     id: { type: 'string', description: 'Unique message identifier' },

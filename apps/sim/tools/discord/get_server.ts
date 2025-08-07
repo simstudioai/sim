@@ -92,4 +92,22 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
     logger.error('Error fetching Discord server', { error })
     return `Error fetching Discord server: ${error instanceof Error ? error.message : String(error)}`
   },
+
+  outputs: {
+    message: { type: 'string', description: 'Success or error message' },
+    data: {
+      type: 'object',
+      description: 'Discord server (guild) information',
+      properties: {
+        id: { type: 'string', description: 'Server ID' },
+        name: { type: 'string', description: 'Server name' },
+        icon: { type: 'string', description: 'Server icon hash' },
+        description: { type: 'string', description: 'Server description' },
+        owner_id: { type: 'string', description: 'Server owner user ID' },
+        roles: { type: 'array', description: 'Server roles' },
+        channels: { type: 'array', description: 'Server channels' },
+        member_count: { type: 'number', description: 'Number of members in server' },
+      },
+    },
+  },
 }

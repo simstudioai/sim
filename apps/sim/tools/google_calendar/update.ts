@@ -86,6 +86,14 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarTo
     },
   },
 
+  outputs: {
+    content: { type: 'string', description: 'Event update confirmation message' },
+    metadata: {
+      type: 'json',
+      description: 'Updated event metadata including ID, status, and details',
+    },
+  },
+
   request: {
     url: (params: GoogleCalendarUpdateParams) => {
       const calendarId = params.calendarId || 'primary'

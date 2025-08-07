@@ -28,7 +28,13 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
       description: 'Auth token for Clay webhook authentication',
     },
   },
-
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'json',
+      description: 'Clay populate operation results including response data from Clay webhook',
+    },
+  },
   request: {
     url: (params: ClayPopulateParams) => params.webhookURL,
     method: 'POST',

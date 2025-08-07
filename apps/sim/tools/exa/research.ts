@@ -33,6 +33,25 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
       description: 'Exa AI API Key',
     },
   },
+
+  outputs: {
+    research: {
+      type: 'array',
+      description: 'Comprehensive research findings with citations and summaries',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          url: { type: 'string' },
+          summary: { type: 'string' },
+          text: { type: 'string' },
+          publishedDate: { type: 'string' },
+          author: { type: 'string' },
+          score: { type: 'number' },
+        },
+      },
+    },
+  },
   request: {
     url: 'https://api.exa.ai/research/v0/tasks',
     method: 'POST',

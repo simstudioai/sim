@@ -176,6 +176,16 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
       return body
     },
   },
+
+  outputs: {
+    tableRange: { type: 'string', description: 'Range of the table where data was appended' },
+    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
+    updatedRows: { type: 'number', description: 'Number of rows updated' },
+    updatedColumns: { type: 'number', description: 'Number of columns updated' },
+    updatedCells: { type: 'number', description: 'Number of cells updated' },
+    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
+  },
+
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorText = await response.text()

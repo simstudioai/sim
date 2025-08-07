@@ -62,9 +62,17 @@ Generate completions using Perplexity AI chat models
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Generated response |
-| `model` | string | Model used |
-| `usage` | json | Token usage |
+| `success` | boolean | Operation success status |
+| `output` | object | Chat completion results |
+| ↳ `content` | string | Generated text content |
+| ↳ `model` | string | Model used for generation |
+| ↳ `usage` | object | Token usage information |
+|   ↳ `prompt_tokens` | number | Number of tokens in the prompt |
+|   ↳ `completion_tokens` | number | Number of tokens in the completion |
+|   ↳ `total_tokens` | number | Total number of tokens used |
+| ↳ `prompt_tokens` | number | Number of tokens in the prompt |
+| ↳ `completion_tokens` | number | Number of tokens in the completion |
+| ↳ `total_tokens` | number | Total number of tokens used |
 
 
 

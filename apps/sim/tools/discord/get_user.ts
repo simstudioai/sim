@@ -91,4 +91,22 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
     logger.error('Error retrieving Discord user information', { error })
     return `Error retrieving Discord user information: ${error.error}`
   },
+
+  outputs: {
+    message: { type: 'string', description: 'Success or error message' },
+    data: {
+      type: 'object',
+      description: 'Discord user information',
+      properties: {
+        id: { type: 'string', description: 'User ID' },
+        username: { type: 'string', description: 'Username' },
+        discriminator: { type: 'string', description: 'User discriminator (4-digit number)' },
+        avatar: { type: 'string', description: 'User avatar hash' },
+        bot: { type: 'boolean', description: 'Whether user is a bot' },
+        system: { type: 'boolean', description: 'Whether user is a system user' },
+        email: { type: 'string', description: 'User email (if available)' },
+        verified: { type: 'boolean', description: 'Whether user email is verified' },
+      },
+    },
+  },
 }

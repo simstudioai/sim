@@ -1,6 +1,6 @@
 ---
 title: GitHub
-description: Interact with GitHub
+description: Interact with GitHub or trigger workflows from GitHub events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -35,7 +35,7 @@ In Sim, the GitHub integration enables your agents to interact directly with Git
 
 ## Usage Instructions
 
-Access GitHub repositories, pull requests, and comments through the GitHub API. Automate code reviews, PR management, and repository interactions within your workflow.
+Access GitHub repositories, pull requests, and comments through the GitHub API. Automate code reviews, PR management, and repository interactions within your workflow. Trigger workflows from GitHub events like push, pull requests, and issues.
 
 
 
@@ -60,6 +60,23 @@ Fetch PR details including diff and files changed
 | --------- | ---- | ----------- |
 | `content` | string | Response content |
 | `metadata` | json | Response metadata |
+| `action` | string | The action that was performed |
+| `event_type` | string | Type of GitHub event |
+| `repository` | string | Repository full name |
+| `repository_name` | string | Repository name only |
+| `repository_owner` | string | Repository owner username |
+| `sender` | string | Username of the user who triggered the event |
+| `sender_id` | string | User ID of the sender |
+| `ref` | string | Git reference \(for push events\) |
+| `before` | string | SHA of the commit before the push |
+| `after` | string | SHA of the commit after the push |
+| `commits` | string | Array of commit objects \(for push events\) |
+| `pull_request` | string | Pull request object \(for pull_request events\) |
+| `issue` | string | Issue object \(for issues events\) |
+| `comment` | string | Comment object \(for comment events\) |
+| `branch` | string | Branch name extracted from ref |
+| `commit_message` | string | Latest commit message |
+| `commit_author` | string | Author of the latest commit |
 
 ### `github_comment`
 
@@ -87,6 +104,23 @@ Create comments on GitHub PRs
 | --------- | ---- | ----------- |
 | `content` | string | Response content |
 | `metadata` | json | Response metadata |
+| `action` | string | The action that was performed |
+| `event_type` | string | Type of GitHub event |
+| `repository` | string | Repository full name |
+| `repository_name` | string | Repository name only |
+| `repository_owner` | string | Repository owner username |
+| `sender` | string | Username of the user who triggered the event |
+| `sender_id` | string | User ID of the sender |
+| `ref` | string | Git reference \(for push events\) |
+| `before` | string | SHA of the commit before the push |
+| `after` | string | SHA of the commit after the push |
+| `commits` | string | Array of commit objects \(for push events\) |
+| `pull_request` | string | Pull request object \(for pull_request events\) |
+| `issue` | string | Issue object \(for issues events\) |
+| `comment` | string | Comment object \(for comment events\) |
+| `branch` | string | Branch name extracted from ref |
+| `commit_message` | string | Latest commit message |
+| `commit_author` | string | Author of the latest commit |
 
 ### `github_repo_info`
 
@@ -106,6 +140,23 @@ Retrieve comprehensive GitHub repository metadata including stars, forks, issues
 | --------- | ---- | ----------- |
 | `content` | string | Response content |
 | `metadata` | json | Response metadata |
+| `action` | string | The action that was performed |
+| `event_type` | string | Type of GitHub event |
+| `repository` | string | Repository full name |
+| `repository_name` | string | Repository name only |
+| `repository_owner` | string | Repository owner username |
+| `sender` | string | Username of the user who triggered the event |
+| `sender_id` | string | User ID of the sender |
+| `ref` | string | Git reference \(for push events\) |
+| `before` | string | SHA of the commit before the push |
+| `after` | string | SHA of the commit after the push |
+| `commits` | string | Array of commit objects \(for push events\) |
+| `pull_request` | string | Pull request object \(for pull_request events\) |
+| `issue` | string | Issue object \(for issues events\) |
+| `comment` | string | Comment object \(for comment events\) |
+| `branch` | string | Branch name extracted from ref |
+| `commit_message` | string | Latest commit message |
+| `commit_author` | string | Author of the latest commit |
 
 ### `github_latest_commit`
 
@@ -117,7 +168,7 @@ Retrieve the latest commit from a GitHub repository
 | --------- | ---- | -------- | ----------- |
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
-| `branch` | string | No | Branch name \(defaults to the repository |
+| `branch` | string | No | Branch name \(defaults to the repository's default branch\) |
 | `apiKey` | string | Yes | GitHub API token |
 
 #### Output
@@ -126,6 +177,23 @@ Retrieve the latest commit from a GitHub repository
 | --------- | ---- | ----------- |
 | `content` | string | Response content |
 | `metadata` | json | Response metadata |
+| `action` | string | The action that was performed |
+| `event_type` | string | Type of GitHub event |
+| `repository` | string | Repository full name |
+| `repository_name` | string | Repository name only |
+| `repository_owner` | string | Repository owner username |
+| `sender` | string | Username of the user who triggered the event |
+| `sender_id` | string | User ID of the sender |
+| `ref` | string | Git reference \(for push events\) |
+| `before` | string | SHA of the commit before the push |
+| `after` | string | SHA of the commit after the push |
+| `commits` | string | Array of commit objects \(for push events\) |
+| `pull_request` | string | Pull request object \(for pull_request events\) |
+| `issue` | string | Issue object \(for issues events\) |
+| `comment` | string | Comment object \(for comment events\) |
+| `branch` | string | Branch name extracted from ref |
+| `commit_message` | string | Latest commit message |
+| `commit_author` | string | Author of the latest commit |
 
 
 

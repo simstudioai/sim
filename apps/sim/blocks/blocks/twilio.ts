@@ -68,8 +68,8 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
   },
   outputs: {
     success: { type: 'boolean', description: 'Send success status' },
-    messageId: { type: 'any', description: 'Message identifier' },
-    status: { type: 'any', description: 'Delivery status' },
-    error: { type: 'any', description: 'Error information' },
+    messageId: { type: 'string', description: 'Twilio message SID' },
+    status: { type: 'string', description: 'SMS delivery status (queued, sent, delivered, etc.)' },
+    error: { type: 'string', description: 'Error information if sending fails' },
   },
 }

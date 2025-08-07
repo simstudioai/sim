@@ -55,4 +55,26 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     const code = error.error?.type || error.code
     return `${message} (${code})`
   },
+
+  outputs: {
+    data: {
+      type: 'array',
+      description: 'Search results data',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          description: { type: 'string' },
+          url: { type: 'string' },
+          markdown: { type: 'string' },
+          html: { type: 'string' },
+          rawHtml: { type: 'string' },
+          links: { type: 'array' },
+          screenshot: { type: 'string' },
+          metadata: { type: 'object' },
+        },
+      },
+    },
+    warning: { type: 'string', description: 'Warning messages from the search operation' },
+  },
 }

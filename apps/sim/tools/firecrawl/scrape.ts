@@ -64,4 +64,13 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
     const code = error.error?.type || error.code
     return `${message} (${code})`
   },
+
+  outputs: {
+    markdown: { type: 'string', description: 'Page content in markdown format' },
+    html: { type: 'string', description: 'Raw HTML content of the page' },
+    metadata: {
+      type: 'object',
+      description: 'Page metadata including SEO and Open Graph information',
+    },
+  },
 }

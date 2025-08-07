@@ -28,6 +28,17 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       description: 'The ID of the chat to read from',
     },
   },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Teams chat read operation success status' },
+    messageCount: { type: 'number', description: 'Number of messages retrieved from chat' },
+    chatId: { type: 'string', description: 'ID of the chat that was read from' },
+    messages: { type: 'array', description: 'Array of chat message objects' },
+    attachmentCount: { type: 'number', description: 'Total number of attachments found' },
+    attachmentTypes: { type: 'array', description: 'Types of attachments found' },
+    content: { type: 'string', description: 'Formatted content of chat messages' },
+  },
+
   request: {
     url: (params) => {
       // Ensure chatId is valid

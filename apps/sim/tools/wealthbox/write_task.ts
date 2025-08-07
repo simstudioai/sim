@@ -154,6 +154,26 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
       visibility: 'user-or-llm',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Created or updated task data and metadata',
+      properties: {
+        task: { type: 'object', description: 'Raw task data from Wealthbox' },
+        success: { type: 'boolean', description: 'Operation success indicator' },
+        metadata: {
+          type: 'object',
+          description: 'Operation metadata',
+          properties: {
+            operation: { type: 'string', description: 'The operation performed' },
+            itemId: { type: 'string', description: 'ID of the created/updated task' },
+            itemType: { type: 'string', description: 'Type of item (task)' },
+          },
+        },
+      },
+    },
+  },
   request: {
     url: (params) => {
       const taskId = params.taskId?.trim()

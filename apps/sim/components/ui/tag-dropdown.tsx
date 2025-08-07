@@ -11,6 +11,7 @@ import type { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { getTool } from '@/tools/utils'
 import { getTriggersByProvider } from '@/triggers'
 
 interface BlockTagGroup {
@@ -75,6 +76,97 @@ const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[
   }
 
   return paths
+}
+
+// Generate output paths with type information
+const generateOutputPathsWithTypes = (
+  outputs: Record<string, any>,
+  prefix = ''
+): Array<{ path: string; type: string }> => {
+  const paths: Array<{ path: string; type: string }> = []
+
+  for (const [key, value] of Object.entries(outputs)) {
+    const currentPath = prefix ? `${prefix}.${key}` : key
+
+    if (typeof value === 'string') {
+      // Simple type like 'string', 'number', 'json', 'any'
+      paths.push({ path: currentPath, type: value })
+    } else if (typeof value === 'object' && value !== null) {
+      // Check if this is our new format with type and description
+      if ('type' in value && typeof value.type === 'string') {
+        // Handle nested properties for arrays and objects
+        if (value.type === 'array' && value.items?.properties) {
+          // For arrays with properties, add the array itself and recurse into items
+          paths.push({ path: currentPath, type: 'array' })
+          const subPaths = generateOutputPathsWithTypes(value.items.properties, currentPath)
+          paths.push(...subPaths)
+        } else if (value.type === 'object' && value.properties) {
+          // For objects with properties, add the object itself and recurse into properties
+          paths.push({ path: currentPath, type: 'object' })
+          const subPaths = generateOutputPathsWithTypes(value.properties, currentPath)
+          paths.push(...subPaths)
+        } else {
+          // Leaf node - just add the type
+          paths.push({ path: currentPath, type: value.type })
+        }
+      } else {
+        // Legacy nested object - recurse and assume 'object' type
+        const subPaths = generateOutputPathsWithTypes(value, currentPath)
+        paths.push(...subPaths)
+      }
+    } else {
+      // Fallback - add with 'any' type
+      paths.push({ path: currentPath, type: 'any' })
+    }
+  }
+
+  return paths
+}
+
+// Generate output paths from tool configuration outputs
+const generateToolOutputPaths = (blockConfig: any, operation: string): string[] => {
+  if (!blockConfig?.tools?.config?.tool) return []
+
+  try {
+    // Get the tool ID for this operation
+    const toolId = blockConfig.tools.config.tool({ operation })
+    if (!toolId) return []
+
+    // Get the tool configuration
+    const toolConfig = getTool(toolId)
+    if (!toolConfig?.outputs) return []
+
+    // Generate paths from tool outputs
+    return generateOutputPaths(toolConfig.outputs)
+  } catch (error) {
+    console.warn('Failed to get tool outputs for operation:', operation, error)
+    return []
+  }
+}
+
+// Get type information for a specific path from tool configuration outputs
+const getToolOutputType = (blockConfig: any, operation: string, path: string): string => {
+  if (!blockConfig?.tools?.config?.tool) return 'any'
+
+  try {
+    // Get the tool ID for this operation
+    const toolId = blockConfig.tools.config.tool({ operation })
+    if (!toolId) return 'any'
+
+    // Get the tool configuration
+    const toolConfig = getTool(toolId)
+    if (!toolConfig?.outputs) return 'any'
+
+    // Generate paths with types from tool outputs
+    const pathsWithTypes = generateOutputPathsWithTypes(toolConfig.outputs)
+
+    // Find the matching path and return its type
+    const matchingPath = pathsWithTypes.find((p) => p.path === path)
+    return matchingPath?.type || 'any'
+  } catch (error) {
+    console.warn('Failed to get tool output type for path:', path, error)
+    return 'any'
+  }
 }
 
 export const TagDropdown: React.FC<TagDropdownProps> = ({
@@ -266,9 +358,22 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           }
         } else {
-          // Use default block outputs
-          const outputPaths = generateOutputPaths(blockConfig.outputs || {})
-          blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          // Check for tool-specific outputs first
+          const operationValue = useSubBlockStore
+            .getState()
+            .getValue(activeSourceBlockId, 'operation')
+          const toolOutputPaths = operationValue
+            ? generateToolOutputPaths(blockConfig, operationValue)
+            : []
+
+          if (toolOutputPaths.length > 0) {
+            // Use tool-specific outputs
+            blockTags = toolOutputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          } else {
+            // Fallback to default block outputs
+            const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          }
         }
       }
 
@@ -563,9 +668,22 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           }
         } else {
-          // Use default block outputs
-          const outputPaths = generateOutputPaths(blockConfig.outputs || {})
-          blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          // Check for tool-specific outputs first
+          const operationValue = useSubBlockStore
+            .getState()
+            .getValue(accessibleBlockId, 'operation')
+          const toolOutputPaths = operationValue
+            ? generateToolOutputPaths(blockConfig, operationValue)
+            : []
+
+          if (toolOutputPaths.length > 0) {
+            // Use tool-specific outputs
+            blockTags = toolOutputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          } else {
+            // Fallback to default block outputs
+            const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          }
         }
       }
 
@@ -1135,16 +1253,41 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                             // Contextual tags like 'index', 'currentItem', 'items'
                             if (nestedTag.key === 'index') {
                               tagIcon = '#'
-                              tagDescription = 'Index'
+                              tagDescription = 'number'
                             } else if (nestedTag.key === 'currentItem') {
                               tagIcon = 'i'
-                              tagDescription = 'Current item'
+                              tagDescription = 'any'
                             } else if (nestedTag.key === 'items') {
                               tagIcon = 'I'
-                              tagDescription = 'All items'
+                              tagDescription = 'array'
                             }
-                          } else if (nestedTag.key === 'results') {
-                            tagDescription = 'Results array'
+                          } else {
+                            // Get type from tool configuration if available
+                            if (nestedTag.fullTag) {
+                              // Extract the output path (remove block name prefix)
+                              const tagParts = nestedTag.fullTag.split('.')
+                              const outputPath = tagParts.slice(1).join('.')
+
+                              // Try to get type from tool configuration using the same mechanism as tag generation
+                              const block = Object.values(blocks).find(
+                                (b) => b.id === group.blockId
+                              )
+                              if (block) {
+                                const blockConfig = getBlock(block.type)
+                                const operationValue = useSubBlockStore
+                                  .getState()
+                                  .getValue(group.blockId, 'operation')
+
+                                if (blockConfig && operationValue) {
+                                  const toolType = getToolOutputType(
+                                    blockConfig,
+                                    operationValue,
+                                    outputPath
+                                  )
+                                  tagDescription = toolType
+                                }
+                              }
+                            }
                           }
 
                           // Check if this item is keyboard selected (for parent items with children)
@@ -1271,6 +1414,31 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                       const isKeyboardSelected =
                                         inSubmenu && submenuIndex === childIndex
                                       const isSelected = isKeyboardSelected
+
+                                      // Get type for child element
+                                      let childType = ''
+                                      const childTagParts = child.fullTag.split('.')
+                                      const childOutputPath = childTagParts.slice(1).join('.')
+
+                                      // Try to get type from tool configuration using the same mechanism as tag generation
+                                      const block = Object.values(blocks).find(
+                                        (b) => b.id === group.blockId
+                                      )
+                                      if (block) {
+                                        const blockConfig = getBlock(block.type)
+                                        const operationValue = useSubBlockStore
+                                          .getState()
+                                          .getValue(group.blockId, 'operation')
+
+                                        if (blockConfig && operationValue) {
+                                          childType = getToolOutputType(
+                                            blockConfig,
+                                            operationValue,
+                                            childOutputPath
+                                          )
+                                        }
+                                      }
+
                                       return (
                                         <button
                                           key={child.key}
@@ -1309,6 +1477,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                             </span>
                                           </div>
                                           <span className='flex-1 truncate'>{child.display}</span>
+                                          {childType && (
+                                            <span className='ml-auto text-muted-foreground text-xs'>
+                                              {childType}
+                                            </span>
+                                          )}
                                         </button>
                                       )
                                     })}

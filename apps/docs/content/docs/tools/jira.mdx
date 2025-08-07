@@ -57,7 +57,6 @@ Retrieve detailed information about a specific Jira issue
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token for Jira |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `projectId` | string | No | Jira project ID to retrieve issues from. If not provided, all issues will be retrieved. |
 | `issueKey` | string | Yes | Jira issue key to retrieve \(e.g., PROJ-123\) |
@@ -67,14 +66,8 @@ Retrieve detailed information about a specific Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp |
-| `issueKey` | string | Issue key |
-| `summary` | string | Issue summary |
-| `description` | string | Issue description |
-| `created` | string | Creation date |
-| `updated` | string | Update date |
-| `success` | boolean | Operation success |
-| `url` | string | Issue URL |
+| `success` | boolean | Operation success status |
+| `output` | object | Jira issue details with issue key, summary, description, created and updated timestamps |
 
 ### `jira_update`
 
@@ -84,7 +77,6 @@ Update a Jira issue
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token for Jira |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `projectId` | string | No | Jira project ID to update issues in. If not provided, all issues will be retrieved. |
 | `issueKey` | string | Yes | Jira issue key to update |
@@ -99,14 +91,8 @@ Update a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp |
-| `issueKey` | string | Issue key |
-| `summary` | string | Issue summary |
-| `description` | string | Issue description |
-| `created` | string | Creation date |
-| `updated` | string | Update date |
-| `success` | boolean | Operation success |
-| `url` | string | Issue URL |
+| `success` | boolean | Operation success status |
+| `output` | object | Updated Jira issue details with timestamp, issue key, summary, and success status |
 
 ### `jira_write`
 
@@ -116,7 +102,6 @@ Write a Jira issue
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token for Jira |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `projectId` | string | Yes | Project ID for the issue |
 | `summary` | string | Yes | Summary for the issue |
@@ -130,14 +115,8 @@ Write a Jira issue
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp |
-| `issueKey` | string | Issue key |
-| `summary` | string | Issue summary |
-| `description` | string | Issue description |
-| `created` | string | Creation date |
-| `updated` | string | Update date |
-| `success` | boolean | Operation success |
-| `url` | string | Issue URL |
+| `success` | boolean | Operation success status |
+| `output` | object | Created Jira issue details with timestamp, issue key, summary, success status, and URL |
 
 ### `jira_bulk_read`
 
@@ -147,7 +126,6 @@ Retrieve multiple Jira issues in bulk
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token for Jira |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `projectId` | string | Yes | Jira project ID |
 | `cloudId` | string | No | Jira cloud ID |
@@ -156,14 +134,8 @@ Retrieve multiple Jira issues in bulk
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp |
-| `issueKey` | string | Issue key |
-| `summary` | string | Issue summary |
-| `description` | string | Issue description |
-| `created` | string | Creation date |
-| `updated` | string | Update date |
-| `success` | boolean | Operation success |
-| `url` | string | Issue URL |
+| `success` | boolean | Operation success status |
+| `output` | array | Array of Jira issues with summary, description, created and updated timestamps |
 
 
 

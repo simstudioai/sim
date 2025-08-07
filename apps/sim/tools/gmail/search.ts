@@ -9,6 +9,31 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
   description: 'Search emails in Gmail',
   version: '1.0.0',
 
+  outputs: {
+    content: { type: 'string', description: 'Search results summary' },
+    metadata: {
+      type: 'object',
+      description: 'Search metadata',
+      properties: {
+        results: {
+          type: 'array',
+          description: 'Array of search results',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'Gmail message ID' },
+              threadId: { type: 'string', description: 'Gmail thread ID' },
+              subject: { type: 'string', description: 'Email subject' },
+              from: { type: 'string', description: 'Sender email address' },
+              date: { type: 'string', description: 'Email date' },
+              snippet: { type: 'string', description: 'Email snippet/preview' },
+            },
+          },
+        },
+      },
+    },
+  },
+
   oauth: {
     required: true,
     provider: 'google-email',
