@@ -80,14 +80,14 @@ export const gmailSendTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
         'MIME-Version: 1.0',
         `To: ${params.to}`,
       ]
-      
+
       if (params.cc) {
         emailHeaders.push(`Cc: ${params.cc}`)
       }
       if (params.bcc) {
         emailHeaders.push(`Bcc: ${params.bcc}`)
       }
-      
+
       emailHeaders.push(`Subject: ${params.subject}`, '', params.body)
       const email = emailHeaders.join('\n')
 
