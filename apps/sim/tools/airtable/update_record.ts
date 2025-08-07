@@ -44,9 +44,7 @@ export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, Airtable
       required: true,
       visibility: 'user-or-llm',
       description: 'An object containing the field names and their new values',
-      // Example: { "Field 1": "NewValue1", "Status": "Completed" }
     },
-    // TODO: Add typecast parameter
   },
 
   request: {
