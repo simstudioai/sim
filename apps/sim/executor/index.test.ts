@@ -8,6 +8,7 @@
  * resolving inputs and dependencies, and managing errors.
  */
 import { afterEach, beforeEach, describe, expect, vi } from 'vitest'
+import type { BlockOutput, ParamType } from '@/blocks/types'
 import { Executor } from '@/executor'
 import {
   createMinimalWorkflow,
@@ -196,7 +197,6 @@ describe('Executor', () => {
         // Add a trigger block (webhook trigger)
         workflow.blocks.push({
           id: 'webhook-trigger',
-          type: 'webhook',
           position: { x: 0, y: 0 },
           metadata: {
             category: 'triggers',
@@ -209,7 +209,6 @@ describe('Executor', () => {
           inputs: {},
           outputs: {},
           enabled: true,
-          data: {},
         })
 
         expect(() => new Executor(workflow)).not.toThrow()
@@ -225,7 +224,6 @@ describe('Executor', () => {
         // Add a block with triggerMode enabled
         workflow.blocks.push({
           id: 'gmail-trigger',
-          type: 'gmail',
           position: { x: 0, y: 0 },
           metadata: {
             id: 'gmail',
@@ -239,7 +237,6 @@ describe('Executor', () => {
           inputs: {},
           outputs: {},
           enabled: true,
-          data: {},
         })
 
         expect(() => new Executor(workflow)).not.toThrow()
@@ -1037,26 +1034,29 @@ describe('Executor', () => {
           blocks: [
             {
               id: 'starter',
+              position: { x: 0, y: 0 },
               metadata: { id: BlockType.STARTER },
-              subBlocks: {},
+              config: { tool: 'starter', params: {} },
+              inputs: {},
+              outputs: {},
               enabled: true,
             },
             {
               id: 'agent1',
+              position: { x: 100, y: 0 },
               metadata: { id: BlockType.AGENT, name: 'Agent 1' },
-              subBlocks: {
-                model: { value: 'gpt-4o' },
-                input: { value: 'Hello' },
-              },
+              config: { tool: 'agent', params: { model: 'gpt-4o', input: 'Hello' } },
+              inputs: {},
+              outputs: {},
               enabled: true,
             },
             {
               id: 'agent2',
+              position: { x: 200, y: 0 },
               metadata: { id: BlockType.AGENT, name: 'Agent 2' },
-              subBlocks: {
-                model: { value: 'gpt-4o' },
-                input: { value: 'Hello' },
-              },
+              config: { tool: 'agent', params: { model: 'gpt-4o', input: 'Hello' } },
+              inputs: {},
+              outputs: {},
               enabled: true,
             },
           ],
@@ -1064,8 +1064,8 @@ describe('Executor', () => {
             { source: 'starter', sourceHandle: 'out', target: 'agent1', targetHandle: 'in' },
             { source: 'starter', sourceHandle: 'out', target: 'agent2', targetHandle: 'in' },
           ],
-          loops: [],
-          parallels: [],
+          loops: {},
+          parallels: {},
         }
 
         const executor = new Executor(workflow)
@@ -1128,8 +1128,8 @@ describe('Executor', () => {
             position: { x: -100, y: 0 },
             metadata: { id: BlockType.STARTER, name: 'Starter Block' },
             config: { tool: 'starter', params: {} },
-            inputs: {},
-            outputs: {},
+            inputs: {} as Record<string, ParamType>,
+            outputs: {} as Record<string, BlockOutput>,
             enabled: true,
           },
           {
@@ -1137,8 +1137,8 @@ describe('Executor', () => {
             position: { x: 0, y: 0 },
             metadata: { id: BlockType.API, name: 'API Block', category: 'tools' },
             config: { tool: 'api', params: {} },
-            inputs: { url: 'string' },
-            outputs: { response: 'json' },
+            inputs: { url: 'string' as ParamType },
+            outputs: { response: 'json' as BlockOutput },
             enabled: true,
           },
         ],

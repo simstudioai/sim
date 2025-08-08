@@ -223,7 +223,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
 
   outputs: {
     data: {
-      type: 'any',
+      type: 'json',
       description: 'Response data from the HTTP request (JSON object, text, or other format)',
     },
     status: {
