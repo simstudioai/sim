@@ -78,7 +78,20 @@ export type BlockOutput =
 // Output field definition with optional description
 export type OutputFieldDefinition =
   | PrimitiveValueType
-  | { type: PrimitiveValueType; description?: string }
+  | {
+      type: PrimitiveValueType;
+      description?: string;
+      condition?: {
+        field: string
+        value: string | number | boolean | Array<string | number | boolean>
+        not?: boolean
+        and?: {
+          field: string
+          value: string | number | boolean | Array<string | number | boolean> | undefined
+          not?: boolean
+        }
+      }
+    }
 
 // Parameter validation rules
 export interface ParamConfig {

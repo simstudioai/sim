@@ -6,6 +6,7 @@ import { getBlock } from '@/blocks'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface OutputSelectProps {
   workflowId: string | null
@@ -13,6 +14,78 @@ interface OutputSelectProps {
   onOutputSelect: (outputIds: string[]) => void
   disabled?: boolean
   placeholder?: string
+}
+
+// Helper function to get all current values for a block
+const getBlockCurrentValues = (blockId: string, workflowId: string): Record<string, any> => {
+  const workflowValues = useSubBlockStore.getState().workflowValues[workflowId]
+  return workflowValues?.[blockId] || {}
+}
+
+// Evaluate output condition similar to input condition evaluation
+const evaluateOutputCondition = (
+  condition: {
+    field: string
+    value: any
+    not?: boolean
+    and?: { field: string; value: any; not?: boolean }
+  } | undefined,
+  currentValues: Record<string, any>
+): boolean => {
+  if (!condition) return true
+
+  // Get the field value
+  const fieldValue = currentValues[condition.field]
+
+  // Check if the condition value is an array
+  const isValueMatch = Array.isArray(condition.value)
+    ? fieldValue != null &&
+      (condition.not
+        ? !condition.value.includes(fieldValue)
+        : condition.value.includes(fieldValue))
+    : condition.not
+      ? fieldValue !== condition.value
+      : fieldValue === condition.value
+
+  // Check both conditions if 'and' is present
+  const isAndValueMatch =
+    !condition.and ||
+    (() => {
+      const andFieldValue = currentValues[condition.and!.field]
+      return Array.isArray(condition.and!.value)
+        ? andFieldValue != null &&
+            (condition.and!.not
+              ? !condition.and!.value.includes(andFieldValue)
+              : condition.and!.value.includes(andFieldValue))
+        : condition.and!.not
+          ? andFieldValue !== condition.and!.value
+          : andFieldValue === condition.and!.value
+    })()
+
+  return isValueMatch && isAndValueMatch
+}
+
+// Filter outputs based on conditions
+const filterOutputsByConditions = (
+  outputs: Record<string, any>,
+  currentValues: Record<string, any>
+): Record<string, any> => {
+  const filteredOutputs: Record<string, any> = {}
+
+  for (const [key, value] of Object.entries(outputs)) {
+    let shouldInclude = true
+
+    // Check if this output has a condition
+    if (typeof value === 'object' && value !== null && 'condition' in value) {
+      shouldInclude = evaluateOutputCondition(value.condition, currentValues)
+    }
+
+    if (shouldInclude) {
+      filteredOutputs[key] = value
+    }
+  }
+
+  return filteredOutputs
 }
 
 export function OutputSelect({
@@ -103,6 +176,12 @@ export function OutputSelect({
       } else {
         // Use block config outputs instead of block.outputs
         outputsToProcess = blockConfig?.outputs || {}
+      }
+
+      // Apply conditional filtering to outputs
+      if (workflowId && Object.keys(outputsToProcess).length > 0) {
+        const currentValues = getBlockCurrentValues(block.id, workflowId)
+        outputsToProcess = filterOutputsByConditions(outputsToProcess, currentValues)
       }
 
       // Add response outputs
