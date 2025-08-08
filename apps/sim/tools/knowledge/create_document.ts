@@ -157,7 +157,7 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
         documents: documents,
         processingOptions: {
           chunkSize: 1024,
-          minCharactersPerChunk: 100,
+          minCharactersPerChunk: 10,
           chunkOverlap: 200,
           recipe: 'default',
           lang: 'en',

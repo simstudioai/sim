@@ -18,12 +18,12 @@ const CreateKnowledgeBaseSchema = z.object({
   chunkingConfig: z
     .object({
       maxSize: z.number().min(100).max(4000).default(1024),
-      minSize: z.number().min(50).max(2000).default(100),
+      minSize: z.number().min(10).max(2000).default(10),
       overlap: z.number().min(0).max(500).default(200),
     })
     .default({
       maxSize: 1024,
-      minSize: 100,
+      minSize: 10,
       overlap: 200,
     })
     .refine((data) => data.minSize < data.maxSize, {
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
         embeddingDimension: validatedData.embeddingDimension,
         chunkingConfig: validatedData.chunkingConfig || {
           maxSize: 1024,
-          minSize: 100,
+          minSize: 10,
           overlap: 200,
         },
         docCount: 0,

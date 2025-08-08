@@ -25,7 +25,7 @@ export class DocsChunker {
     // Use the existing TextChunker for chunking logic
     this.textChunker = new TextChunker({
       chunkSize: options.chunkSize ?? 300, // Max 300 tokens per chunk
-      minChunkSize: options.minChunkSize ?? 100,
+      minChunkSize: options.minChunkSize ?? 10,
       overlap: options.overlap ?? 50,
     })
     // Use localhost docs in development, production docs otherwise
@@ -433,8 +433,8 @@ export class DocsChunker {
         if (nextLine?.includes('|') && nextLine.includes('-')) {
           inTable = true
 
-          // Save current chunk if it has content
-          if (currentChunk.length > 0 && currentChunk.join('\n').trim().length > 50) {
+          // Save current chunk if it meets minimum size
+          if (currentChunk.length > 0 && currentChunk.join('\n').trim().length >= 10) {
             const chunkText = currentChunk.join('\n').trim()
             const withHeader =
               chunks.length === 0 && header ? `${header}\n\n${chunkText}` : chunkText
@@ -478,7 +478,7 @@ export class DocsChunker {
         // If chunk is getting large, save it
         if (this.estimateTokens(currentChunk.join('\n')) > 250) {
           const chunkText = currentChunk.join('\n').trim()
-          if (chunkText.length > 50) {
+          if (chunkText.length >= 10) {
             const withHeader =
               chunks.length === 0 && header ? `${header}\n\n${chunkText}` : chunkText
             chunks.push(withHeader)
@@ -500,13 +500,13 @@ export class DocsChunker {
       }
     } else if (currentChunk.length > 0) {
       const chunkText = currentChunk.join('\n').trim()
-      if (chunkText.length > 50) {
+      if (chunkText.length >= 10) {
         const withHeader = chunks.length === 0 && header ? `${header}\n\n${chunkText}` : chunkText
         chunks.push(withHeader)
       }
     }
 
-    return chunks.filter((chunk) => chunk.trim().length > 50)
+    return chunks.filter((chunk) => chunk.trim().length >= 10)
   }
 
   /**
@@ -611,7 +611,7 @@ export class DocsChunker {
       currentPosition = chunkEnd
     }
 
-    return mergedChunks.filter((chunk) => chunk.length > 50) // Filter out tiny chunks
+    return mergedChunks.filter((chunk) => chunk.length >= 10) // Filter out chunks smaller than 10 chars
   }
 
   /**
@@ -652,6 +652,6 @@ export class DocsChunker {
       }
     }
 
-    return finalChunks.filter((chunk) => chunk.trim().length > 100)
+    return finalChunks.filter((chunk) => chunk.trim().length >= 10)
   }
 }
