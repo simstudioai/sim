@@ -68,6 +68,8 @@ Send emails using Gmail
 | `to` | string | Yes | Recipient email address |
 | `subject` | string | Yes | Email subject |
 | `body` | string | Yes | Email body content |
+| `cc` | string | No | CC recipients \(comma-separated\) |
+| `bcc` | string | No | BCC recipients \(comma-separated\) |
 
 #### Output
 
@@ -87,6 +89,8 @@ Draft emails using Gmail
 | `to` | string | Yes | Recipient email address |
 | `subject` | string | Yes | Email subject |
 | `body` | string | Yes | Email body content |
+| `cc` | string | No | CC recipients \(comma-separated\) |
+| `bcc` | string | No | BCC recipients \(comma-separated\) |
 
 #### Output
 
@@ -107,13 +111,15 @@ Read emails from Gmail
 | `folder` | string | No | Folder/label to read emails from |
 | `unreadOnly` | boolean | No | Only retrieve unread messages |
 | `maxResults` | number | No | Maximum number of messages to retrieve \(default: 1, max: 10\) |
+| `includeAttachments` | boolean | No | Download and include email attachments |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Email content or summary |
-| `metadata` | object | Email metadata |
+| `content` | string | Text content of the email |
+| `metadata` | json | Metadata of the email |
+| `attachments` | file[] | Attachments of the email |
 
 ### `gmail_search`
 

@@ -11,6 +11,7 @@
     "exa",
     "file",
     "firecrawl",
+    "generic_webhook",
     "github",
     "gmail",
     "google_calendar",

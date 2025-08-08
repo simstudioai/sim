@@ -24,9 +24,9 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
   },
 
   outputs: {
-    content: { type: 'string' },
-    metadata: { type: 'json' },
-    attachments: { type: 'file[]' },
+    content: { type: 'string', description: 'Text content of the email' },
+    metadata: { type: 'json', description: 'Metadata of the email' },
+    attachments: { type: 'file[]', description: 'Attachments of the email' },
   },
 
   params: {
