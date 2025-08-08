@@ -8,6 +8,8 @@ interface BaseGmailParams {
 // Send operation parameters
 export interface GmailSendParams extends BaseGmailParams {
   to: string
+  cc?: string
+  bcc?: string
   subject: string
   body: string
 }

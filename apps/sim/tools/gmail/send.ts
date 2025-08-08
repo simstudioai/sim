@@ -53,6 +53,18 @@ export const gmailSendTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
       visibility: 'user-or-llm',
       description: 'Email body content',
     },
+    cc: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'CC recipients (comma-separated)',
+    },
+    bcc: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'BCC recipients (comma-separated)',
+    },
   },
 
   request: {
@@ -63,14 +75,21 @@ export const gmailSendTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
       'Content-Type': 'application/json',
     }),
     body: (params: GmailSendParams): Record<string, any> => {
-      const email = [
+      const emailHeaders = [
         'Content-Type: text/plain; charset="UTF-8"',
         'MIME-Version: 1.0',
         `To: ${params.to}`,
-        `Subject: ${params.subject}`,
-        '',
-        params.body,
-      ].join('\n')
+      ]
+
+      if (params.cc) {
+        emailHeaders.push(`Cc: ${params.cc}`)
+      }
+      if (params.bcc) {
+        emailHeaders.push(`Bcc: ${params.bcc}`)
+      }
+
+      emailHeaders.push(`Subject: ${params.subject}`, '', params.body)
+      const email = emailHeaders.join('\n')
 
       return {
         raw: Buffer.from(email).toString('base64url'),
