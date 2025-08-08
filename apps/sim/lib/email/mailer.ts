@@ -68,7 +68,7 @@ export async function sendEmail({
       }
     }
 
-    const senderEmail = from || `noreply@${getEmailDomain()}`
+    const senderEmail = from || `noreply@${env.EMAIL_DOMAIN || getEmailDomain()}`
 
     if (!resend) {
       logger.info('Email not sent (Resend not configured):', {
@@ -132,7 +132,7 @@ export async function sendBatchEmails({
   emails,
 }: BatchEmailOptions): Promise<BatchSendEmailResult> {
   try {
-    const senderEmail = `noreply@${getEmailDomain()}`
+    const senderEmail = `noreply@${env.EMAIL_DOMAIN || getEmailDomain()}`
     const results: SendEmailResult[] = []
 
     if (!resend) {
