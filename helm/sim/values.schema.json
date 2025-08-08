@@ -179,10 +179,6 @@
               "type": "string",
               "description": "Additional Anthropic API key for load balancing"
             },
-            "FREESTYLE_API_KEY": {
-              "type": "string",
-              "description": "Freestyle AI API key"
-            },
             "OLLAMA_URL": {
               "type": "string",
               "format": "uri",
@@ -191,10 +187,6 @@
             "ELEVENLABS_API_KEY": {
               "type": "string",
               "description": "ElevenLabs API key for text-to-speech in deployed chat"
-            },
-            "SERPER_API_KEY": {
-              "type": "string",
-              "description": "Serper API key for online search"
             },
             "RATE_LIMIT_WINDOW_MS": {
               "type": "string",

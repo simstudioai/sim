@@ -83,10 +83,8 @@ app:
     ANTHROPIC_API_KEY_1: ""                               # Primary Anthropic Claude API key
     ANTHROPIC_API_KEY_2: ""                               # Additional Anthropic API key for load balancing
     ANTHROPIC_API_KEY_3: ""                               # Additional Anthropic API key for load balancing
-    FREESTYLE_API_KEY: ""                                 # Freestyle AI API key
     OLLAMA_URL: ""                                        # Ollama local LLM server URL
     ELEVENLABS_API_KEY: ""                                # ElevenLabs API key for text-to-speech in deployed chat
-    SERPER_API_KEY: ""                                    # Serper API key for online search
     
     # Rate Limiting Configuration (per minute)
     RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
