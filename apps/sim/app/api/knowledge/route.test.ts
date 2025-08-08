@@ -168,7 +168,7 @@ describe('Knowledge Base API Route', () => {
       expect(data.data.embeddingDimension).toBe(1536)
       expect(data.data.chunkingConfig).toEqual({
         maxSize: 1024,
-        minSize: 100,
+        minSize: 1,
         overlap: 200,
       })
     })
