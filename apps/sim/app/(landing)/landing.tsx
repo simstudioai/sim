@@ -25,11 +25,8 @@ export default function Landing() {
       <Integrations />
       <Testimonials />
       <Pricing />
+      
       <CTA />
-      {/* <Features /> */}
-      {/* <Blogs /> */}
-
-      {/* Footer */}
       <Footer />
     </main>
   )

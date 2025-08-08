@@ -28,7 +28,7 @@ const NavLinks = ({
 }) => {
   const navigationLinks = [
     { href: 'https://docs.sim.ai/', label: 'Docs', external: true },
-    { href: '#pricing', label: 'Pricing' },
+    { href: '/pricing', label: 'Pricing' },
     { href: '/enterprise', label: 'Enterprise' },
     // { href: '/blog', label: 'Blog' },
   ]
@@ -66,33 +66,6 @@ const NavLinks = ({
         )
       })}
 
-      {/* Enterprise button with the same action as contact */}
-      {onContactClick &&
-        (mobile ? (
-          <SheetClose asChild key='enterprise'>
-            <div>
-              <Link
-                href='https://form.typeform.com/to/jqCO12pF'
-                target='_blank'
-                rel='noopener noreferrer'
-                className={navItemClass}
-              >
-                Enterprise
-              </Link>
-            </div>
-          </SheetClose>
-        ) : (
-          <div key='enterprise'>
-            <Link
-              href='https://form.typeform.com/to/jqCO12pF'
-              target='_blank'
-              rel='noopener noreferrer'
-              className={navItemClass}
-            >
-              Enterprise
-            </Link>
-          </div>
-        ))}
     </>
   )
 }

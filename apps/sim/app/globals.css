@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+@utility mask-to-bottom {
+  mask: linear-gradient(to bottom, transparent 0%, transparent 50%, black 100%);
+}
+
 /* ==========================================================================
    WORKFLOW COMPONENT Z-INDEX FIXES
    ========================================================================== */
