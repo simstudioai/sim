@@ -234,6 +234,7 @@ export function TriggerModal({
       <DialogContent
         className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
         hideCloseButton
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <DialogHeader className='border-b px-6 py-4'>
           <div className='flex items-center justify-between'>
