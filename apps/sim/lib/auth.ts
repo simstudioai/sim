@@ -181,6 +181,39 @@ export const auth = betterAuth({
       if (ctx.path.startsWith('/sign-up') && isTruthy(env.DISABLE_REGISTRATION))
         throw new Error('Registration is disabled, please contact your admin.')
 
+      // Check email and domain whitelist for sign-in and sign-up
+      if (
+        (ctx.path.startsWith('/sign-in') || ctx.path.startsWith('/sign-up')) &&
+        (env.ALLOWED_LOGIN_EMAILS || env.ALLOWED_LOGIN_DOMAINS)
+      ) {
+        const requestEmail = ctx.body?.email?.toLowerCase()
+
+        if (requestEmail) {
+          let isAllowed = false
+
+          // Check specific email whitelist
+          if (env.ALLOWED_LOGIN_EMAILS) {
+            const allowedEmails = env.ALLOWED_LOGIN_EMAILS.split(',').map((email) =>
+              email.trim().toLowerCase()
+            )
+            isAllowed = allowedEmails.includes(requestEmail)
+          }
+
+          // Check domain whitelist if not already allowed
+          if (!isAllowed && env.ALLOWED_LOGIN_DOMAINS) {
+            const allowedDomains = env.ALLOWED_LOGIN_DOMAINS.split(',').map((domain) =>
+              domain.trim().toLowerCase()
+            )
+            const emailDomain = requestEmail.split('@')[1]
+            isAllowed = emailDomain && allowedDomains.includes(emailDomain)
+          }
+
+          if (!isAllowed) {
+            throw new Error('Access restricted. Please contact your administrator.')
+          }
+        }
+      }
+
       return
     }),
   },
