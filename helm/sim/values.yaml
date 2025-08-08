@@ -209,7 +209,7 @@ migrations:
   
   # Image configuration
   image:
-    repository: ghcr.io/simstudioai/migrations
+    repository: simstudioai/migrations
     tag: latest
     pullPolicy: Always
   
