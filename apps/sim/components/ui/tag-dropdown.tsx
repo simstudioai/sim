@@ -46,11 +46,93 @@ export const checkTagTrigger = (text: string, cursorPosition: number): { show: b
   return { show: false }
 }
 
-// Generate output paths from block configuration outputs
-const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[] => {
-  const paths: string[] = []
+// Helper function to get all current values for a block
+const getBlockCurrentValues = (blockId: string): Record<string, any> => {
+  const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+  if (!activeWorkflowId) return {}
+
+  const workflowValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
+  return workflowValues?.[blockId] || {}
+}
+
+// Evaluate output condition similar to input condition evaluation
+const evaluateOutputCondition = (
+  condition: {
+    field: string
+    value: any
+    not?: boolean
+    and?: { field: string; value: any; not?: boolean }
+  } | undefined,
+  currentValues: Record<string, any>
+): boolean => {
+  if (!condition) return true
+
+  // Get the field value
+  const fieldValue = currentValues[condition.field]
+
+  // Check if the condition value is an array
+  const isValueMatch = Array.isArray(condition.value)
+    ? fieldValue != null &&
+      (condition.not
+        ? !condition.value.includes(fieldValue)
+        : condition.value.includes(fieldValue))
+    : condition.not
+      ? fieldValue !== condition.value
+      : fieldValue === condition.value
+
+  // Check both conditions if 'and' is present
+  const isAndValueMatch =
+    !condition.and ||
+    (() => {
+      const andFieldValue = currentValues[condition.and!.field]
+      return Array.isArray(condition.and!.value)
+        ? andFieldValue != null &&
+            (condition.and!.not
+              ? !condition.and!.value.includes(andFieldValue)
+              : condition.and!.value.includes(andFieldValue))
+        : condition.and!.not
+          ? andFieldValue !== condition.and!.value
+          : andFieldValue === condition.and!.value
+    })()
+
+  return isValueMatch && isAndValueMatch
+}
+
+// Filter outputs based on conditions
+const filterOutputsByConditions = (
+  outputs: Record<string, any>,
+  currentValues: Record<string, any>
+): Record<string, any> => {
+  const filteredOutputs: Record<string, any> = {}
 
   for (const [key, value] of Object.entries(outputs)) {
+    let shouldInclude = true
+
+    // Check if this output has a condition
+    if (typeof value === 'object' && value !== null && 'condition' in value) {
+      shouldInclude = evaluateOutputCondition(value.condition, currentValues)
+    }
+
+    if (shouldInclude) {
+      filteredOutputs[key] = value
+    }
+  }
+
+  return filteredOutputs
+}
+
+// Generate output paths from block configuration outputs
+const generateOutputPaths = (
+  outputs: Record<string, any>, 
+  prefix = '', 
+  currentValues?: Record<string, any>
+): string[] => {
+  const paths: string[] = []
+  
+  // Filter outputs by conditions if currentValues are provided
+  const outputsToProcess = currentValues ? filterOutputsByConditions(outputs, currentValues) : outputs
+
+  for (const [key, value] of Object.entries(outputsToProcess)) {
     const currentPath = prefix ? `${prefix}.${key}` : key
 
     if (typeof value === 'string') {
@@ -63,7 +145,7 @@ const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[
         paths.push(currentPath)
       } else {
         // Legacy nested object - recurse
-        const subPaths = generateOutputPaths(value, currentPath)
+        const subPaths = generateOutputPaths(value, currentPath, currentValues)
         paths.push(...subPaths)
       }
     } else {
@@ -143,8 +225,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           const blockName = sourceBlock.name || sourceBlock.type
           const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
 
+          // Get current values for conditional filtering
+          const currentValues = getBlockCurrentValues(activeSourceBlockId)
+
           // Generate output paths for the mock config
-          const outputPaths = generateOutputPaths(mockConfig.outputs)
+          const outputPaths = generateOutputPaths(mockConfig.outputs, '', currentValues)
           const blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
 
           const blockTagGroups: BlockTagGroup[] = [
@@ -190,7 +275,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           )
         } else {
           // Fallback to default evaluator outputs if no metrics are defined
-          const outputPaths = generateOutputPaths(blockConfig.outputs)
+          // Get current values for conditional filtering
+          const currentValues = getBlockCurrentValues(activeSourceBlockId)
+          const outputPaths = generateOutputPaths(blockConfig.outputs, '', currentValues)
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
       } else if (responseFormat) {
@@ -200,7 +287,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockTags = schemaFields.map((field) => `${normalizedBlockName}.${field.name}`)
         } else {
           // Fallback to default if schema extraction failed
-          const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+          // Get current values for conditional filtering
+          const currentValues = getBlockCurrentValues(activeSourceBlockId)
+          const outputPaths = generateOutputPaths(blockConfig.outputs || {}, '', currentValues)
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
       } else if (!blockConfig.outputs || Object.keys(blockConfig.outputs).length === 0) {
@@ -240,7 +329,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         }
       } else {
         // Use default block outputs
-        const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+        // Get current values for conditional filtering
+        const currentValues = getBlockCurrentValues(activeSourceBlockId)
+        const outputPaths = generateOutputPaths(blockConfig.outputs || {}, '', currentValues)
         blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
       }
 
@@ -424,8 +515,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           const blockName = accessibleBlock.name || accessibleBlock.type
           const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
 
+          // Get current values for conditional filtering
+          const currentValues = getBlockCurrentValues(accessibleBlockId)
+          
           // Generate output paths for the mock config
-          const outputPaths = generateOutputPaths(mockConfig.outputs)
+          const outputPaths = generateOutputPaths(mockConfig.outputs, '', currentValues)
           const blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
 
           blockTagGroups.push({
@@ -465,7 +559,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           )
         } else {
           // Fallback to default evaluator outputs if no metrics are defined
-          const outputPaths = generateOutputPaths(blockConfig.outputs)
+          // Get current values for conditional filtering
+          const currentValues = getBlockCurrentValues(accessibleBlockId)
+          const outputPaths = generateOutputPaths(blockConfig.outputs, '', currentValues)
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
       } else if (responseFormat) {
@@ -475,7 +571,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockTags = schemaFields.map((field) => `${normalizedBlockName}.${field.name}`)
         } else {
           // Fallback to default if schema extraction failed
-          const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+          // Get current values for conditional filtering
+          const currentValues = getBlockCurrentValues(accessibleBlockId)
+          const outputPaths = generateOutputPaths(blockConfig.outputs || {}, '', currentValues)
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
       } else if (!blockConfig.outputs || Object.keys(blockConfig.outputs).length === 0) {
@@ -515,7 +613,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         }
       } else {
         // Use default block outputs
-        const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+        // Get current values for conditional filtering
+        const currentValues = getBlockCurrentValues(accessibleBlockId)
+        const outputPaths = generateOutputPaths(blockConfig.outputs || {}, '', currentValues)
         blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
       }
 
