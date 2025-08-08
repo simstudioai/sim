@@ -20,6 +20,8 @@ export const env = createEnv({
     BETTER_AUTH_URL:                      z.string().url(),                     // Base URL for Better Auth service
     BETTER_AUTH_SECRET:                   z.string().min(32),                   // Secret key for Better Auth JWT signing
     DISABLE_REGISTRATION:                 z.boolean().optional(),               // Flag to disable new user registration
+    ALLOWED_LOGIN_EMAILS:                 z.string().optional(),                // Comma-separated list of allowed email addresses for login
+    ALLOWED_LOGIN_DOMAINS:                z.string().optional(),                // Comma-separated list of allowed email domains for login
     ENCRYPTION_KEY:                       z.string().min(32),                   // Key for encrypting sensitive data
     INTERNAL_API_SECRET:                  z.string().min(32),                   // Secret for internal API authentication
     SIM_AGENT_API_KEY:                    z.string().min(1).optional(),         // Secret for internal sim agent API authentication
