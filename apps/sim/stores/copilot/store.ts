@@ -40,6 +40,7 @@ function toolSupportsReadyForReview(toolName: string): boolean {
 
 // PERFORMANCE OPTIMIZATION: Cached constants for faster lookups
 const TEXT_BLOCK_TYPE = 'text'
+const THINKING_BLOCK_TYPE = 'thinking'
 const TOOL_CALL_BLOCK_TYPE = 'tool_call'
 const ASSISTANT_ROLE = 'assistant'
 const DATA_PREFIX = 'data: '
@@ -116,6 +117,50 @@ class StringBuilder {
   get size(): number {
     return this.length
   }
+}
+
+/**
+ * Helper function to parse content and extract thinking blocks
+ * Returns an array of content blocks with their types
+ */
+function parseContentWithThinkingTags(content: string): Array<{ type: string; content: string }> {
+  const blocks: Array<{ type: string; content: string }> = []
+  const thinkingRegex = /<thinking>([\s\S]*?)<\/thinking>/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = thinkingRegex.exec(content)) !== null) {
+    // Add any text before the thinking tag as a text block
+    if (match.index > lastIndex) {
+      const textContent = content.substring(lastIndex, match.index)
+      if (textContent.trim()) {
+        blocks.push({ type: TEXT_BLOCK_TYPE, content: textContent })
+      }
+    }
+
+    // Add the thinking content as a thinking block
+    const thinkingContent = match[1]
+    if (thinkingContent.trim()) {
+      blocks.push({ type: THINKING_BLOCK_TYPE, content: thinkingContent })
+    }
+
+    lastIndex = match.index + match[0].length
+  }
+
+  // Add any remaining text after the last thinking tag
+  if (lastIndex < content.length) {
+    const remainingContent = content.substring(lastIndex)
+    if (remainingContent.trim()) {
+      blocks.push({ type: TEXT_BLOCK_TYPE, content: remainingContent })
+    }
+  }
+
+  // If no thinking tags were found, return the whole content as a text block
+  if (blocks.length === 0 && content.trim()) {
+    blocks.push({ type: TEXT_BLOCK_TYPE, content })
+  }
+
+  return blocks
 }
 
 /**
@@ -670,11 +715,15 @@ interface StreamingContext {
   toolCalls: any[]
   contentBlocks: any[]
   currentTextBlock: any | null
-  currentBlockType: 'text' | 'tool_use' | null
+  currentBlockType: 'text' | 'tool_use' | 'thinking' | null
   toolCallBuffer: any | null
   newChatId?: string
   doneEventCount: number
   streamComplete?: boolean
+  // Thinking tag tracking
+  pendingContent: string // Buffer for content that may contain partial thinking tags
+  isInThinkingBlock: boolean // Track if we're currently inside a thinking block
+  currentThinkingBlock: any | null
   // PERFORMANCE OPTIMIZATION: Pre-allocated buffers and caching
   _tempBuffer?: string[]
   _lastUpdateTime?: number
@@ -804,34 +853,145 @@ const sseHandlers: Record<string, SSEHandler> = {
   content: (data, context, get, set) => {
     if (!data.data) return
 
+    // Append new data to pending content buffer
+    context.pendingContent += data.data
+    
+    // Process complete thinking tags in the pending content
+    let contentToProcess = context.pendingContent
+    let hasProcessedContent = false
+    
+    // Check for complete thinking tags
+    const thinkingStartRegex = /<thinking>/
+    const thinkingEndRegex = /<\/thinking>/
+    
+    while (contentToProcess.length > 0) {
+      if (context.isInThinkingBlock) {
+        // We're inside a thinking block, look for the closing tag
+        const endMatch = thinkingEndRegex.exec(contentToProcess)
+        if (endMatch) {
+          // Found the end of thinking block
+          const thinkingContent = contentToProcess.substring(0, endMatch.index)
+          
+          // Append to current thinking block
+          if (context.currentThinkingBlock) {
+            context.currentThinkingBlock.content += thinkingContent
+          } else {
+            // Create new thinking block
+            context.currentThinkingBlock = contentBlockPool.get()
+            context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
+            context.currentThinkingBlock.content = thinkingContent
+            context.currentThinkingBlock.timestamp = Date.now()
+            context.contentBlocks.push(context.currentThinkingBlock)
+          }
+          
+          // Reset thinking state
+          context.isInThinkingBlock = false
+          context.currentThinkingBlock = null
+          context.currentTextBlock = null
+          
+          // Continue processing after the closing tag
+          contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
+          hasProcessedContent = true
+        } else {
+          // No closing tag yet, accumulate in thinking block
+          if (context.currentThinkingBlock) {
+            context.currentThinkingBlock.content += contentToProcess
+          } else {
+            // Create new thinking block
+            context.currentThinkingBlock = contentBlockPool.get()
+            context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
+            context.currentThinkingBlock.content = contentToProcess
+            context.currentThinkingBlock.timestamp = Date.now()
+            context.contentBlocks.push(context.currentThinkingBlock)
+          }
+          contentToProcess = ''
+          hasProcessedContent = true
+        }
+      } else {
+        // Not in a thinking block, look for the start of one
+        const startMatch = thinkingStartRegex.exec(contentToProcess)
+        if (startMatch) {
+          // Found start of thinking block
+          const textBeforeThinking = contentToProcess.substring(0, startMatch.index)
+          
+          // Add any text before the thinking tag as a text block
+          if (textBeforeThinking) {
+            if (context.currentTextBlock && context.contentBlocks.length > 0) {
+              const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
+              if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
+                lastBlock.content += textBeforeThinking
+              } else {
+                context.currentTextBlock = contentBlockPool.get()
+                context.currentTextBlock.type = TEXT_BLOCK_TYPE
+                context.currentTextBlock.content = textBeforeThinking
+                context.currentTextBlock.timestamp = Date.now()
+                context.contentBlocks.push(context.currentTextBlock)
+              }
+            } else {
+              context.currentTextBlock = contentBlockPool.get()
+              context.currentTextBlock.type = TEXT_BLOCK_TYPE
+              context.currentTextBlock.content = textBeforeThinking
+              context.currentTextBlock.timestamp = Date.now()
+              context.contentBlocks.push(context.currentTextBlock)
+            }
+          }
+          
+          // Enter thinking block mode
+          context.isInThinkingBlock = true
+          context.currentTextBlock = null
+          contentToProcess = contentToProcess.substring(startMatch.index + startMatch[0].length)
+          hasProcessedContent = true
+        } else {
+          // No thinking tag, treat as regular text
+          // But check if we might have a partial opening tag at the end
+          const partialTagIndex = contentToProcess.lastIndexOf('<')
+          let textToAdd = contentToProcess
+          let remaining = ''
+          
+          if (partialTagIndex >= 0 && partialTagIndex > contentToProcess.length - 10) {
+            // Might be a partial tag, keep it in buffer
+            textToAdd = contentToProcess.substring(0, partialTagIndex)
+            remaining = contentToProcess.substring(partialTagIndex)
+          }
+          
+          if (textToAdd) {
+            // Add as regular text block
+            if (context.currentTextBlock && context.contentBlocks.length > 0) {
+              const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
+              if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
+                lastBlock.content += textToAdd
+              } else {
+                context.currentTextBlock = contentBlockPool.get()
+                context.currentTextBlock.type = TEXT_BLOCK_TYPE
+                context.currentTextBlock.content = textToAdd
+                context.currentTextBlock.timestamp = Date.now()
+                context.contentBlocks.push(context.currentTextBlock)
+              }
+            } else {
+              context.currentTextBlock = contentBlockPool.get()
+              context.currentTextBlock.type = TEXT_BLOCK_TYPE
+              context.currentTextBlock.content = textToAdd
+              context.currentTextBlock.timestamp = Date.now()
+              context.contentBlocks.push(context.currentTextBlock)
+            }
+            hasProcessedContent = true
+          }
+          
+          contentToProcess = remaining
+          break // Exit loop to wait for more content if we have a partial tag
+        }
+      }
+    }
+    
+    // Update pending content with any remaining unprocessed content
+    context.pendingContent = contentToProcess
+    
     // PERFORMANCE OPTIMIZATION: Use StringBuilder for efficient concatenation
     context.accumulatedContent.append(data.data)
 
-    // Update existing text block or create new one (optimized for minimal array mutations)
-    if (context.currentTextBlock && context.contentBlocks.length > 0) {
-      // Find the last text block and update it in-place
-      const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
-      if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
-        // Efficiently update existing text block content in-place
-        lastBlock.content += data.data
-      } else {
-        // Last block is not text, create a new text block
-        context.currentTextBlock = contentBlockPool.get()
-        context.currentTextBlock.type = TEXT_BLOCK_TYPE
-        context.currentTextBlock.content = data.data
-        context.currentTextBlock.timestamp = Date.now()
-        context.contentBlocks.push(context.currentTextBlock)
-      }
-    } else {
-      // No current text block, create one from pool
-      context.currentTextBlock = contentBlockPool.get()
-      context.currentTextBlock.type = TEXT_BLOCK_TYPE
-      context.currentTextBlock.content = data.data
-      context.currentTextBlock.timestamp = Date.now()
-      context.contentBlocks.push(context.currentTextBlock)
+    if (hasProcessedContent) {
+      updateStreamingMessage(set, context)
     }
-
-    updateStreamingMessage(set, context)
   },
 
   // Handle tool call events - simplified
@@ -1055,7 +1215,46 @@ const sseHandlers: Record<string, SSEHandler> = {
     }
   },
 
-  // Default handler
+  // Handle stream end event - flush any pending content
+  stream_end: (data, context, get, set) => {
+    // Flush any remaining pending content as text
+    if (context.pendingContent) {
+      if (context.isInThinkingBlock && context.currentThinkingBlock) {
+        // We were in a thinking block, append remaining content to it
+        context.currentThinkingBlock.content += context.pendingContent
+      } else if (context.pendingContent.trim()) {
+        // Add remaining content as a text block
+        if (context.currentTextBlock && context.contentBlocks.length > 0) {
+          const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
+          if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
+            lastBlock.content += context.pendingContent
+          } else {
+            context.currentTextBlock = contentBlockPool.get()
+            context.currentTextBlock.type = TEXT_BLOCK_TYPE
+            context.currentTextBlock.content = context.pendingContent
+            context.currentTextBlock.timestamp = Date.now()
+            context.contentBlocks.push(context.currentTextBlock)
+          }
+        } else {
+          context.currentTextBlock = contentBlockPool.get()
+          context.currentTextBlock.type = TEXT_BLOCK_TYPE
+          context.currentTextBlock.content = context.pendingContent
+          context.currentTextBlock.timestamp = Date.now()
+          context.contentBlocks.push(context.currentTextBlock)
+        }
+      }
+      context.pendingContent = ''
+    }
+    
+    // Reset thinking state
+    context.isInThinkingBlock = false
+    context.currentThinkingBlock = null
+    context.currentTextBlock = null
+    
+    updateStreamingMessage(set, context)
+  },
+
+  // Default handler for unknown events
   default: () => {
     // Silently ignore unhandled events
   },
@@ -2519,6 +2718,9 @@ export const useCopilotStore = create<CopilotStore>()(
           currentBlockType: null,
           toolCallBuffer: null,
           doneEventCount: 0,
+          pendingContent: '',
+          isInThinkingBlock: false,
+          currentThinkingBlock: null,
           _tempBuffer: [],
           _lastUpdateTime: 0,
           _batchedUpdates: false,
@@ -2543,7 +2745,7 @@ export const useCopilotStore = create<CopilotStore>()(
         const timeoutId = setTimeout(() => {
           logger.warn('Stream timeout reached, completing response')
           reader.cancel()
-        }, 120000) // 2 minute timeout
+        }, 600000) // 10 minute timeout
 
         try {
           // Process SSE events
@@ -2570,6 +2772,11 @@ export const useCopilotStore = create<CopilotStore>()(
           logger.info(
             `Completed streaming response, content length: ${context.accumulatedContent.size}`
           )
+          
+          // Call stream_end handler to flush any pending content
+          if (sseHandlers.stream_end) {
+            sseHandlers.stream_end({}, context, get, set)
+          }
 
           // PERFORMANCE OPTIMIZATION: Cleanup and memory management
           if (streamingUpdateRAF !== null) {
@@ -2581,7 +2788,7 @@ export const useCopilotStore = create<CopilotStore>()(
           // Release pooled objects back to pool for reuse
           if (context.contentBlocks) {
             context.contentBlocks.forEach((block) => {
-              if (block.type === TEXT_BLOCK_TYPE) {
+              if (block.type === TEXT_BLOCK_TYPE || block.type === THINKING_BLOCK_TYPE) {
                 contentBlockPool.release(block)
               }
             })

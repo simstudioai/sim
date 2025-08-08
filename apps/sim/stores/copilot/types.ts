@@ -52,13 +52,19 @@ export interface TextContentBlock {
   timestamp: number
 }
 
+export interface ThinkingContentBlock {
+  type: 'thinking'
+  content: string
+  timestamp: number
+}
+
 export interface ToolCallContentBlock {
   type: 'tool_call'
   toolCall: CopilotToolCall
   timestamp: number
 }
 
-export type ContentBlock = TextContentBlock | ToolCallContentBlock
+export type ContentBlock = TextContentBlock | ThinkingContentBlock | ToolCallContentBlock
 
 /**
  * File attachment interface for copilot messages

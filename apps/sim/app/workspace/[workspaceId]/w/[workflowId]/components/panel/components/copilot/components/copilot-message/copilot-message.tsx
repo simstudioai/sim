@@ -18,6 +18,7 @@ import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotMessage as CopilotMessageType } from '@/stores/copilot/types'
 import CopilotMarkdownRenderer from './components/markdown-renderer'
+import { ThinkingBlock } from './components/thinking-block'
 
 const logger = createLogger('CopilotMessage')
 
@@ -572,6 +573,18 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 <CopilotMarkdownRenderer content={cleanBlockContent} />
               )}
             </div>
+          )
+        }
+        if (block.type === 'thinking') {
+          const isLastBlock = index === message.contentBlocks!.length - 1
+          const isStreamingThinking = isStreaming && isLastBlock
+          
+          return (
+            <ThinkingBlock
+              key={`thinking-${index}-${block.timestamp || index}`}
+              content={block.content}
+              isStreaming={isStreamingThinking}
+            />
           )
         }
         if (block.type === 'tool_call') {
