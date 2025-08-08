@@ -121,6 +121,27 @@ const getOutputTypeForPath = (
         return currentObj.type
       }
     }
+  } else if (block?.type === 'starter') {
+    // Handle starter block specific outputs
+    const startWorkflowValue = getSubBlockValue(blockId, 'startWorkflow')
+
+    if (startWorkflowValue === 'chat') {
+      // Define types for chat mode outputs
+      const chatModeTypes: Record<string, string> = {
+        input: 'string',
+        conversationId: 'string',
+        files: 'array',
+      }
+      return chatModeTypes[outputPath] || 'any'
+    }
+    // For API mode, check inputFormat for custom field types
+    const inputFormatValue = getSubBlockValue(blockId, 'inputFormat')
+    if (inputFormatValue && Array.isArray(inputFormatValue)) {
+      const field = inputFormatValue.find((f: any) => f.name === outputPath)
+      if (field?.type) {
+        return field.type
+      }
+    }
   } else {
     const operationValue = getSubBlockValue(blockId, 'operation')
     if (blockConfig && operationValue) {

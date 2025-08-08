@@ -621,12 +621,19 @@ export class Executor {
         throw new Error('Starter block cannot have incoming connections')
       }
 
-      // Only check outgoing connections for starter blocks, not trigger blocks
-      const outgoingFromStarter = this.actualWorkflow.connections.filter(
-        (conn) => conn.source === starterBlock.id
-      )
-      if (outgoingFromStarter.length === 0) {
-        throw new Error('Starter block must have at least one outgoing connection')
+      // Check if there are any trigger blocks on the canvas
+      const hasTriggerBlocks = this.actualWorkflow.blocks.some((block) => {
+        return block.metadata?.category === 'triggers' || block.config?.params?.triggerMode === true
+      })
+
+      // Only check outgoing connections for starter blocks if there are no trigger blocks
+      if (!hasTriggerBlocks) {
+        const outgoingFromStarter = this.actualWorkflow.connections.filter(
+          (conn) => conn.source === starterBlock.id
+        )
+        if (outgoingFromStarter.length === 0) {
+          throw new Error('Starter block must have at least one outgoing connection')
+        }
       }
     }
 

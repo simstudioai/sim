@@ -106,7 +106,6 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       layout: 'full',
       triggerProvider: 'airtable',
       availableTriggers: ['airtable_webhook'],
-      hidden: false, // Will be filtered by trigger mode logic
     },
   ],
   tools: {

@@ -159,7 +159,6 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       layout: 'full',
       triggerProvider: 'slack',
       availableTriggers: ['slack_webhook'],
-      hidden: false, // Will be filtered by trigger mode logic
     },
   ],
   tools: {

@@ -187,6 +187,65 @@ describe('Executor', () => {
       )
     })
 
+    it.concurrent(
+      'should NOT throw error if starter block has no outgoing connections but has trigger blocks',
+      () => {
+        const workflow = createMinimalWorkflow()
+        workflow.connections = []
+
+        // Add a trigger block (webhook trigger)
+        workflow.blocks.push({
+          id: 'webhook-trigger',
+          type: 'webhook',
+          position: { x: 0, y: 0 },
+          metadata: {
+            category: 'triggers',
+            id: 'webhook',
+          },
+          config: {
+            tool: 'webhook',
+            params: {},
+          },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+          data: {},
+        })
+
+        expect(() => new Executor(workflow)).not.toThrow()
+      }
+    )
+
+    it.concurrent(
+      'should NOT throw error if starter block has no outgoing connections but has triggerMode block',
+      () => {
+        const workflow = createMinimalWorkflow()
+        workflow.connections = []
+
+        // Add a block with triggerMode enabled
+        workflow.blocks.push({
+          id: 'gmail-trigger',
+          type: 'gmail',
+          position: { x: 0, y: 0 },
+          metadata: {
+            id: 'gmail',
+          },
+          config: {
+            tool: 'gmail',
+            params: {
+              triggerMode: true,
+            },
+          },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+          data: {},
+        })
+
+        expect(() => new Executor(workflow)).not.toThrow()
+      }
+    )
+
     it.concurrent('should throw error if connection references non-existent source block', () => {
       const workflow = createMinimalWorkflow()
       workflow.connections.push({

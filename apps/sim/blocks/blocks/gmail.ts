@@ -152,8 +152,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       type: 'trigger-config',
       layout: 'full',
       triggerProvider: 'gmail',
-      availableTriggers: ['gmail_webhook'],
-      hidden: false, // Will be filtered by trigger mode logic
+      availableTriggers: ['gmail_poller'],
     },
   ],
   tools: {
@@ -231,6 +230,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   },
   triggers: {
     enabled: true,
-    available: ['gmail_webhook'],
+    available: ['gmail_poller'],
   },
 }

@@ -153,7 +153,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       layout: 'full',
       triggerProvider: 'outlook',
       availableTriggers: ['outlook_poller'],
-      hidden: false, // Will be filtered by trigger mode logic
     },
   ],
   tools: {

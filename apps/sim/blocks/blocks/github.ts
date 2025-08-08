@@ -94,7 +94,6 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       layout: 'full',
       triggerProvider: 'github',
       availableTriggers: ['github_webhook'],
-      hidden: false, // Will be filtered by trigger mode logic
     },
     {
       id: 'commentType',

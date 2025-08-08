@@ -565,8 +565,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         )}
 
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
-        {/* Connection Blocks - Don't show for trigger blocks or starter blocks */}
-        {config.category !== 'triggers' && type !== 'starter' && (
+        {/* Connection Blocks - Don't show for trigger blocks, starter blocks, or blocks in trigger mode */}
+        {config.category !== 'triggers' && type !== 'starter' && !blockTriggerMode && (
           <ConnectionBlocks
             blockId={id}
             setIsConnecting={setIsConnecting}

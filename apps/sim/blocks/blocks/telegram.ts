@@ -56,7 +56,6 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
       layout: 'full',
       triggerProvider: 'telegram',
       availableTriggers: ['telegram_webhook'],
-      hidden: false, // Will be filtered by trigger mode logic
     },
   ],
   tools: {
