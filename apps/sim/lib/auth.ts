@@ -156,8 +156,8 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: false, // Keep false - don't break existing users
-    sendVerificationOnSignUp: true, // Auto-send verification emails
+    requireEmailVerification: false,
+    sendVerificationOnSignUp: true,
     throwOnMissingCredentials: true,
     throwOnInvalidCredentials: true,
     sendResetPassword: async ({ user, url, token }, request) => {
@@ -238,7 +238,7 @@ export const auth = betterAuth({
             throw new Error('Email is required')
           }
 
-          // Validate email before sending OTP (using quick validation for performance)
+          // Validate email before sending OTP
           const validation = quickValidateEmail(data.email)
           if (!validation.isValid) {
             logger.warn('Email validation failed', {

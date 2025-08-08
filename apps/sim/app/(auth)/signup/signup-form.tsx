@@ -327,13 +327,12 @@ function SignupFormContent({
         return
       }
 
-      // For new signups, always require verification to prevent bypass
-      // sendVerificationOnSignUp: true will automatically send the OTP
+      // For new signups, always require verification
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('verificationEmail', emailValue)
         localStorage.setItem('has_logged_in_before', 'true')
 
-        // Set cookie flag for middleware check (prevents bypass)
+        // Set cookie flag for middleware check
         document.cookie = 'requiresEmailVerification=true; path=/; max-age=900; SameSite=Lax' // 15 min expiry
         document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax'
 

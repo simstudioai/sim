@@ -211,10 +211,8 @@ describe('SignupPage', () => {
       fireEvent.click(submitButton)
 
       await waitFor(() => {
-        expect(mockSendOtp).toHaveBeenCalledWith({
-          email: 'user@company.com',
-          type: 'email-verification',
-        })
+        // With sendVerificationOnSignUp: true, OTP is sent automatically by Better Auth
+        // No manual OTP sending in the component anymore
         expect(mockRouter.push).toHaveBeenCalledWith('/verify?fromSignup=true')
       })
     })
@@ -390,7 +388,7 @@ describe('SignupPage', () => {
       fireEvent.click(submitButton)
 
       await waitFor(() => {
-        expect(mockRouter.push).toHaveBeenCalledWith('/invite/123')
+        expect(mockRouter.push).toHaveBeenCalledWith('/verify?fromSignup=true')
       })
     })
 

@@ -125,7 +125,7 @@ export function useVerification({
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('verificationEmail')
 
-          // Clear the verification requirement flag - this prevents the bypass
+          // Clear the verification requirement flag
           document.cookie =
             'requiresEmailVerification=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
 
