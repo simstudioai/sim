@@ -20,6 +20,8 @@ export const SERVER_TOOL_IDS = {
   SET_ENVIRONMENT_VARIABLES: 'set_environment_variables',
   GET_WORKFLOW_CONSOLE: 'get_workflow_console',
   SEARCH_ONLINE: 'search_online',
+  PLAN: 'plan',
+  REASON: 'reason',
 } as const
 
 export type ServerToolId = (typeof SERVER_TOOL_IDS)[keyof typeof SERVER_TOOL_IDS]
@@ -277,6 +279,42 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     schema: {
       name: SERVER_TOOL_IDS.SEARCH_ONLINE,
       description: 'Search online for information',
+    },
+    requiresInterrupt: false,
+  },
+
+  [SERVER_TOOL_IDS.PLAN]: {
+    id: SERVER_TOOL_IDS.PLAN,
+    displayConfig: {
+      states: {
+        executing: { displayName: 'Planning', icon: 'spinner' },
+        success: { displayName: 'Finished planning', icon: 'listTodo' },
+        rejected: { displayName: 'Skipped planning', icon: 'skip' },
+        errored: { displayName: 'Planning faile', icon: 'error' },
+        aborted: { displayName: 'Planning aborted', icon: 'x' },
+      },
+    },
+    schema: {
+      name: SERVER_TOOL_IDS.PLAN,
+      description: 'Plan the approach to solve a problem',
+    },
+    requiresInterrupt: false,
+  },
+
+  [SERVER_TOOL_IDS.REASON]: {
+    id: SERVER_TOOL_IDS.REASON,
+    displayConfig: {
+      states: {
+        executing: { displayName: 'Designing an approach', icon: 'spinner' },
+        success: { displayName: 'Designed an approach', icon: 'brain' },
+        rejected: { displayName: 'Skipped reasoning', icon: 'skip' },
+        errored: { displayName: 'Failed to design an approach', icon: 'error' },
+        aborted: { displayName: 'Reasoning aborted', icon: 'x' },
+      },
+    },
+    schema: {
+      name: SERVER_TOOL_IDS.REASON,
+      description: 'Reason through a complex problem',
     },
     requiresInterrupt: false,
   },

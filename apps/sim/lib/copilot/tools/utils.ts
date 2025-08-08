@@ -6,6 +6,7 @@
 import React from 'react'
 import {
   Blocks,
+  Brain,
   Check,
   CheckCircle,
   Code,
@@ -17,6 +18,7 @@ import {
   Globe,
   Info,
   Lightbulb,
+  ListTodo,
   Loader2,
   type LucideIcon,
   Minus,
@@ -74,6 +76,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   workflow: Workflow, // Flowchart icon with boxes and connecting lines
   network: Network, // Complex network icon with multiple interconnected nodes
   gitbranch: GitBranch, // Git branching icon showing workflow paths
+  brain: Brain, // Brain icon for reasoning/AI thinking
+  listTodo: ListTodo, // List with checkboxes for planning/todos
 
   // Default
   default: Lightbulb,
