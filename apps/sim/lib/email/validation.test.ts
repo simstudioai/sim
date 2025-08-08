@@ -23,19 +23,28 @@ describe('Email Validation', () => {
       expect(result.checks.disposable).toBe(false)
     })
 
-    it('should reject emails with suspicious patterns', async () => {
-      const result = await validateEmail('test@suspicious.com')
-      expect(result.isValid).toBe(false)
-      expect(result.reason).toBe('Email contains suspicious patterns')
+    it('should accept legitimate business emails', async () => {
+      const legitimateEmails = [
+        'test@gmail.com',
+        'noreply@gmail.com',
+        'no-reply@yahoo.com',
+        'user12345@outlook.com',
+        'longusernamehere@gmail.com',
+      ]
+
+      for (const email of legitimateEmails) {
+        const result = await validateEmail(email)
+        expect(result.isValid).toBe(true)
+      }
     })
 
-    it('should handle consecutive dots', async () => {
+    it('should reject consecutive dots (RFC violation)', async () => {
       const result = await validateEmail('user..name@example.com')
       expect(result.isValid).toBe(false)
       expect(result.reason).toBe('Email contains suspicious patterns')
     })
 
-    it('should reject very long local parts', async () => {
+    it('should reject very long local parts (RFC violation)', async () => {
       const longLocalPart = 'a'.repeat(65)
       const result = await validateEmail(`${longLocalPart}@example.com`)
       expect(result.isValid).toBe(false)

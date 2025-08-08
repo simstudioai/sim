@@ -1,10 +1,6 @@
-import dns from 'dns'
-import { promisify } from 'util'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('EmailValidation')
-
-const resolveMx = promisify(dns.resolveMx)
 
 export interface EmailValidationResult {
   isValid: boolean
@@ -51,10 +47,19 @@ function validateEmailSyntax(email: string): boolean {
 }
 
 /**
- * Checks if domain has valid MX records
+ * Checks if domain has valid MX records (server-side only)
  */
 async function checkMXRecord(domain: string): Promise<boolean> {
+  // Skip MX check on client-side (browser)
+  if (typeof window !== 'undefined') {
+    return true // Assume valid on client-side
+  }
+
   try {
+    const { promisify } = await import('util')
+    const dns = await import('dns')
+    const resolveMx = promisify(dns.resolveMx)
+
     const mxRecords = await resolveMx(domain)
     return mxRecords && mxRecords.length > 0
   } catch (error) {
@@ -75,25 +80,14 @@ function isDisposableEmail(email: string): boolean {
  * Checks for obvious patterns that indicate invalid emails
  */
 function hasInvalidPatterns(email: string): boolean {
-  const localPart = email.split('@')[0]
-  const domain = email.split('@')[1]
-
-  // Check for consecutive dots
+  // Check for consecutive dots (RFC violation)
   if (email.includes('..')) return true
 
-  // Check for very long local parts (likely spam)
+  // Check for local part length (RFC limit is 64 characters)
+  const localPart = email.split('@')[0]
   if (localPart && localPart.length > 64) return true
 
-  // Check for suspicious patterns
-  const suspiciousPatterns = [
-    /^test@/i,
-    /^noreply@/i,
-    /^no-reply@/i,
-    /^\w+\d{5,}@/i, // Long number sequences
-    /^[a-z]{20,}@/i, // Very long random strings
-  ]
-
-  return suspiciousPatterns.some((pattern) => pattern.test(email))
+  return false
 }
 
 /**
