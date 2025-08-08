@@ -25,7 +25,7 @@ export class DocsChunker {
     // Use the existing TextChunker for chunking logic
     this.textChunker = new TextChunker({
       chunkSize: options.chunkSize ?? 300, // Max 300 tokens per chunk
-      minChunkSize: options.minChunkSize ?? 100,
+      minChunkSize: options.minChunkSize ?? 1,
       overlap: options.overlap ?? 50,
     })
     // Use localhost docs in development, production docs otherwise

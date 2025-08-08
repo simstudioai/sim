@@ -107,8 +107,8 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       if (/[<>:"/\\|?*]/.test(documentName)) {
         throw new Error('Document name contains invalid characters. Avoid: < > : " / \\ | ? *')
       }
-      if (!textContent || textContent.length < 10) {
-        throw new Error('Document content must be at least 10 characters long')
+      if (!textContent || textContent.length < 1) {
+        throw new Error('Document content cannot be empty')
       }
       if (textContent.length > 1000000) {
         throw new Error('Document content exceeds maximum size of 1MB')
@@ -157,7 +157,7 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
         documents: documents,
         processingOptions: {
           chunkSize: 1024,
-          minCharactersPerChunk: 100,
+          minCharactersPerChunk: 1,
           chunkOverlap: 200,
           recipe: 'default',
           lang: 'en',

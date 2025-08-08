@@ -50,7 +50,7 @@ const FormSchema = z
     description: z.string().max(500, 'Description must be less than 500 characters').optional(),
     minChunkSize: z
       .number()
-      .min(50, 'Min chunk size must be at least 50')
+      .min(1, 'Min chunk size must be at least 1')
       .max(2000, 'Min chunk size must be less than 2000'),
     maxChunkSize: z
       .number()
@@ -115,7 +115,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     defaultValues: {
       name: '',
       description: '',
-      minChunkSize: 100,
+      minChunkSize: 1,
       maxChunkSize: 1024,
       overlapSize: 200,
     },
@@ -299,7 +299,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       reset({
         name: '',
         description: '',
-        minChunkSize: 100,
+        minChunkSize: 1,
         maxChunkSize: 1024,
         overlapSize: 200,
       })
@@ -423,7 +423,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                         <Input
                           id='minChunkSize'
                           type='number'
-                          placeholder='100'
+                          placeholder='1'
                           {...register('minChunkSize', { valueAsNumber: true })}
                           className={errors.minChunkSize ? 'border-red-500' : ''}
                           autoComplete='off'
