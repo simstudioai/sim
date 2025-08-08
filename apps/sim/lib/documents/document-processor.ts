@@ -61,7 +61,8 @@ export async function processDocument(
   filename: string,
   mimeType: string,
   chunkSize = 1000,
-  chunkOverlap = 200
+  chunkOverlap = 200,
+  minChunkSize = 1
 ): Promise<{
   chunks: Chunk[]
   metadata: {
@@ -85,6 +86,7 @@ export async function processDocument(
     const chunker = new TextChunker({
       chunkSize,
       overlap: chunkOverlap,
+      minChunkSize,
     })
 
     const chunks = await chunker.chunk(content)

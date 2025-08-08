@@ -531,7 +531,8 @@ export async function processDocumentAsync(
           docData.filename,
           docData.mimeType,
           processingOptions.chunkSize || 1000,
-          processingOptions.chunkOverlap || 200
+          processingOptions.chunkOverlap || 200,
+          processingOptions.minCharactersPerChunk || 1
         )
 
         const now = new Date()

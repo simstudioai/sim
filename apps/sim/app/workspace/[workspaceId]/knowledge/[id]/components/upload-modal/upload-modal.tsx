@@ -142,7 +142,7 @@ export function UploadModal({
     try {
       await uploadFiles(files, knowledgeBaseId, {
         chunkSize: chunkingConfig?.maxSize || 1024,
-        minCharactersPerChunk: chunkingConfig?.minSize || 100,
+        minCharactersPerChunk: chunkingConfig?.minSize || 1,
         chunkOverlap: chunkingConfig?.overlap || 200,
         recipe: 'default',
       })

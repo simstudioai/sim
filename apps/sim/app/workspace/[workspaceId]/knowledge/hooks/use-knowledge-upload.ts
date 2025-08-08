@@ -278,7 +278,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         })),
         processingOptions: {
           chunkSize: processingOptions.chunkSize || 1024,
-          minCharactersPerChunk: processingOptions.minCharactersPerChunk || 100,
+          minCharactersPerChunk: processingOptions.minCharactersPerChunk || 1,
           chunkOverlap: processingOptions.chunkOverlap || 200,
           recipe: processingOptions.recipe || 'default',
           lang: 'en',
