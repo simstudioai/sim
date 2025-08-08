@@ -327,27 +327,24 @@ function SignupFormContent({
         return
       }
 
-      // Handle invitation flow redirect
-      if (isInviteFlow && redirectUrl) {
-        router.push(redirectUrl)
-        return
-      }
-
-      try {
-        await client.emailOtp.sendVerificationOtp({
-          email: emailValue,
-          type: 'email-verification',
-        })
-      } catch (err) {
-        console.error('Failed to send verification OTP:', err)
-      }
-
+      // For new signups, always require verification to prevent bypass
+      // sendVerificationOnSignUp: true will automatically send the OTP
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('verificationEmail', emailValue)
         localStorage.setItem('has_logged_in_before', 'true')
-        document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax' // 1 year expiry
+
+        // Set cookie flag for middleware check (prevents bypass)
+        document.cookie = 'requiresEmailVerification=true; path=/; max-age=900; SameSite=Lax' // 15 min expiry
+        document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax'
+
+        // Store invitation flow state if applicable
+        if (isInviteFlow && redirectUrl) {
+          sessionStorage.setItem('inviteRedirectUrl', redirectUrl)
+          sessionStorage.setItem('isInviteFlow', 'true')
+        }
       }
 
+      // Always redirect to verification for new signups
       router.push('/verify?fromSignup=true')
     } catch (error) {
       console.error('Signup error:', error)

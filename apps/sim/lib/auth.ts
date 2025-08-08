@@ -156,8 +156,8 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: false,
-    sendVerificationOnSignUp: false,
+    requireEmailVerification: false, // Keep false - don't break existing users
+    sendVerificationOnSignUp: true, // Auto-send verification emails
     throwOnMissingCredentials: true,
     throwOnInvalidCredentials: true,
     sendResetPassword: async ({ user, url, token }, request) => {
