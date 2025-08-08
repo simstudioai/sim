@@ -83,4 +83,20 @@ URL: ${data.html_url}`
     }
     return 'Failed to fetch repository information'
   },
+
+  outputs: {
+    content: { type: 'string', description: 'Human-readable repository summary' },
+    metadata: {
+      type: 'object',
+      description: 'Repository metadata',
+      properties: {
+        name: { type: 'string', description: 'Repository name' },
+        description: { type: 'string', description: 'Repository description' },
+        stars: { type: 'number', description: 'Number of stars' },
+        forks: { type: 'number', description: 'Number of forks' },
+        openIssues: { type: 'number', description: 'Number of open issues' },
+        language: { type: 'string', description: 'Primary programming language' },
+      },
+    },
+  },
 }

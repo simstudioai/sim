@@ -79,6 +79,11 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
       return metadata
     },
   },
+
+  outputs: {
+    file: { type: 'json', description: 'Uploaded file metadata including ID, name, and links' },
+  },
+
   transformResponse: async (response: Response, params?: GoogleDriveToolParams) => {
     try {
       const data = await response.json()

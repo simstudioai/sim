@@ -58,10 +58,11 @@ Send text messages to single or multiple recipients using the Twilio API.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Send success status |
-| `messageId` | any | Message identifier |
-| `status` | any | Delivery status |
-| `error` | any | Error information |
+| `success` | boolean | SMS send success status |
+| `messageId` | string | Unique Twilio message identifier \(SID\) |
+| `status` | string | Message delivery status from Twilio |
+| `fromNumber` | string | Phone number message was sent from |
+| `toNumber` | string | Phone number message was sent to |
 
 
 

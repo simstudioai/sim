@@ -97,7 +97,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
   },
   outputs: {
     results: { type: 'json', description: 'Search results data' },
-    answer: { type: 'any', description: 'Search answer' },
+    answer: { type: 'string', description: 'Search answer' },
     query: { type: 'string', description: 'Query used' },
     content: { type: 'string', description: 'Extracted content' },
     title: { type: 'string', description: 'Page title' },

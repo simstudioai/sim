@@ -37,6 +37,16 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
       description: 'Jira cloud ID',
     },
   },
+  outputs: {
+    success: {
+      type: 'boolean',
+      description: 'Operation success status',
+    },
+    output: {
+      type: 'array',
+      description: 'Array of Jira issues with summary, description, created and updated timestamps',
+    },
+  },
   request: {
     url: (params: JiraRetrieveBulkParams) => {
       if (params.cloudId) {

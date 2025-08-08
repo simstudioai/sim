@@ -106,8 +106,9 @@ Parse PDF documents using Mistral OCR API
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Extracted content |
-| `metadata` | json | Processing metadata |
+| `success` | boolean | Whether the PDF was parsed successfully |
+| `content` | string | Extracted content in the requested format \(markdown, text, or JSON\) |
+| `metadata` | object | Processing metadata including jobId, fileType, pageCount, and usage info |
 
 
 

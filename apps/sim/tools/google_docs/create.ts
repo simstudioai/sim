@@ -112,6 +112,14 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
 
     return result
   },
+
+  outputs: {
+    metadata: {
+      type: 'json',
+      description: 'Created document metadata including ID, title, and URL',
+    },
+  },
+
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       let errorText = ''

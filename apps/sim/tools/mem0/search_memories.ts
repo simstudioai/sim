@@ -34,6 +34,17 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
       description: 'Your Mem0 API key',
     },
   },
+
+  outputs: {
+    searchResults: {
+      type: 'array',
+      description: 'Array of search results with memory data, each containing id, data, and score',
+    },
+    ids: {
+      type: 'array',
+      description: 'Array of memory IDs found in the search results',
+    },
+  },
   request: {
     url: 'https://api.mem0.ai/v2/memories/search/',
     method: 'POST',

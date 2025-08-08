@@ -43,6 +43,25 @@ export const tableAddTool: ToolConfig<
       description: 'The data to add to the table (array of arrays or array of objects)',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Table add operation results and metadata',
+      properties: {
+        index: { type: 'number', description: 'Index of the first row that was added' },
+        values: { type: 'array', description: 'Array of rows that were added to the table' },
+        metadata: {
+          type: 'object',
+          description: 'Spreadsheet metadata',
+          properties: {
+            spreadsheetId: { type: 'string', description: 'The ID of the spreadsheet' },
+            spreadsheetUrl: { type: 'string', description: 'URL to access the spreadsheet' },
+          },
+        },
+      },
+    },
+  },
   request: {
     url: (params) => {
       const tableName = encodeURIComponent(params.tableName)

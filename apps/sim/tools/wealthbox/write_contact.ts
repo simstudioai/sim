@@ -92,6 +92,26 @@ export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, Wealthb
       visibility: 'user-or-llm',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Created or updated contact data and metadata',
+      properties: {
+        contact: { type: 'object', description: 'Raw contact data from Wealthbox' },
+        success: { type: 'boolean', description: 'Operation success indicator' },
+        metadata: {
+          type: 'object',
+          description: 'Operation metadata',
+          properties: {
+            operation: { type: 'string', description: 'The operation performed' },
+            itemId: { type: 'string', description: 'ID of the created/updated contact' },
+            itemType: { type: 'string', description: 'Type of item (contact)' },
+          },
+        },
+      },
+    },
+  },
   request: {
     url: 'https://api.crmworkspace.com/v1/contacts',
     method: 'POST',

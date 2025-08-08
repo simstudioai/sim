@@ -43,6 +43,14 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
     },
   },
 
+  outputs: {
+    success: { type: 'boolean', description: 'SMS send success status' },
+    messageId: { type: 'string', description: 'Unique Twilio message identifier (SID)' },
+    status: { type: 'string', description: 'Message delivery status from Twilio' },
+    fromNumber: { type: 'string', description: 'Phone number message was sent from' },
+    toNumber: { type: 'string', description: 'Phone number message was sent to' },
+  },
+
   request: {
     url: (params) => {
       if (!params.accountSid) {

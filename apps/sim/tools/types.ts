@@ -2,6 +2,18 @@ import type { OAuthService } from '@/lib/oauth/oauth'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
+export interface OutputProperty {
+  type: string
+  description?: string
+  optional?: boolean
+  properties?: Record<string, OutputProperty>
+  items?: {
+    type: string
+    description?: string
+    properties?: Record<string, OutputProperty>
+  }
+}
+
 export type ParameterVisibility =
   | 'user-or-llm' // User can provide OR LLM must generate
   | 'user-only' // Only user can provide (required/optional determined by required field)
@@ -48,12 +60,18 @@ export interface ToolConfig<P = any, R = any> {
   outputs?: Record<
     string,
     {
-      type: 'string' | 'number' | 'boolean' | 'json' | 'file' | 'file[]'
+      type: 'string' | 'number' | 'boolean' | 'json' | 'file' | 'file[]' | 'array' | 'object'
       description?: string
+      optional?: boolean
       fileConfig?: {
         mimeType?: string // Expected MIME type for file outputs
         extension?: string // Expected file extension
       }
+      items?: {
+        type: string
+        properties?: Record<string, OutputProperty>
+      }
+      properties?: Record<string, OutputProperty>
     }
   >
 

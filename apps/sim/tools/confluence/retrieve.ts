@@ -15,6 +15,13 @@ export const confluenceRetrieveTool: ToolConfig<
     provider: 'confluence',
   },
 
+  outputs: {
+    ts: { type: 'string', description: 'Timestamp of retrieval' },
+    pageId: { type: 'string', description: 'Confluence page ID' },
+    content: { type: 'string', description: 'Page content with HTML tags stripped' },
+    title: { type: 'string', description: 'Page title' },
+  },
+
   params: {
     accessToken: {
       type: 'string',

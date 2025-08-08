@@ -31,6 +31,16 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
       description: 'JSON object of properties to update',
     },
   },
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Success message confirming page properties update',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Page metadata including title, page ID, URL, and update timestamps',
+    },
+  },
 
   request: {
     url: (params: NotionUpdatePageParams) => {

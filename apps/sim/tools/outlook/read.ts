@@ -37,6 +37,13 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
       description: 'Maximum number of emails to retrieve (default: 1, max: 10)',
     },
   },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Email read operation success status' },
+    messageCount: { type: 'number', description: 'Number of emails retrieved' },
+    messages: { type: 'array', description: 'Array of email message objects' },
+    message: { type: 'string', description: 'Success or status message' },
+  },
   request: {
     url: (params) => {
       // Set max results (default to 1 for simplicity, max 10) with no negative values

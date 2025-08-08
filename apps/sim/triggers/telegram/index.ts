@@ -1,0 +1,1 @@
+export { telegramWebhookTrigger } from './webhook'

@@ -11,6 +11,35 @@ export const getAuthorPapersTool: ToolConfig<
   description: 'Search for papers by a specific author on ArXiv.',
   version: '1.0.0',
 
+  outputs: {
+    authorPapers: {
+      type: 'json',
+      description: 'Array of papers authored by the specified author',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          title: { type: 'string' },
+          summary: { type: 'string' },
+          authors: { type: 'string' },
+          published: { type: 'string' },
+          updated: { type: 'string' },
+          link: { type: 'string' },
+          pdfLink: { type: 'string' },
+          categories: { type: 'string' },
+          primaryCategory: { type: 'string' },
+          comment: { type: 'string' },
+          journalRef: { type: 'string' },
+          doi: { type: 'string' },
+        },
+      },
+    },
+    totalResults: {
+      type: 'number',
+      description: 'Total number of papers found for the author',
+    },
+  },
+
   params: {
     authorName: {
       type: 'string',

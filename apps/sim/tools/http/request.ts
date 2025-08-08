@@ -221,6 +221,29 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     },
   },
 
+  outputs: {
+    data: {
+      type: 'json',
+      description: 'Response data from the HTTP request (JSON object, text, or other format)',
+    },
+    status: {
+      type: 'number',
+      description: 'HTTP status code of the response (e.g., 200, 404, 500)',
+    },
+    headers: {
+      type: 'object',
+      description: 'Response headers as key-value pairs',
+      properties: {
+        'content-type': {
+          type: 'string',
+          description: 'Content type of the response',
+          optional: true,
+        },
+        'content-length': { type: 'string', description: 'Content length', optional: true },
+      },
+    },
+  },
+
   // Direct execution to bypass server for HTTP requests
   directExecution: async (params: RequestParams): Promise<RequestResponse | undefined> => {
     try {

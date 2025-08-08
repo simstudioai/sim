@@ -94,8 +94,8 @@ Example:
     params: { type: 'json', description: 'URL query parameters' },
   },
   outputs: {
-    data: { type: 'any', description: 'Response data' },
-    status: { type: 'number', description: 'HTTP status code' },
-    headers: { type: 'json', description: 'Response headers' },
+    data: { type: 'json', description: 'API response data (JSON, text, or other formats)' },
+    status: { type: 'number', description: 'HTTP status code (200, 404, 500, etc.)' },
+    headers: { type: 'json', description: 'HTTP response headers as key-value pairs' },
   },
 }

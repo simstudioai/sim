@@ -34,6 +34,30 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
     },
   },
 
+  outputs: {
+    total: {
+      type: 'number',
+      description: 'Total number of email addresses found',
+    },
+    personal_emails: {
+      type: 'number',
+      description: 'Number of personal email addresses found',
+    },
+    generic_emails: {
+      type: 'number',
+      description: 'Number of generic email addresses found',
+    },
+    department: {
+      type: 'object',
+      description:
+        'Breakdown of email addresses by department (executive, it, finance, management, sales, legal, support, hr, marketing, communication)',
+    },
+    seniority: {
+      type: 'object',
+      description: 'Breakdown of email addresses by seniority level (junior, senior, executive)',
+    },
+  },
+
   request: {
     url: (params) => {
       if (!params.domain && !params.company) {

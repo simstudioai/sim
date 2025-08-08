@@ -20,6 +20,20 @@ export const pageContentTool: ToolConfig<WikipediaPageContentParams, WikipediaPa
       },
     },
 
+    outputs: {
+      content: {
+        type: 'object',
+        description: 'Full HTML content and metadata of the Wikipedia page',
+        properties: {
+          title: { type: 'string', description: 'Page title' },
+          pageid: { type: 'number', description: 'Wikipedia page ID' },
+          html: { type: 'string', description: 'Full HTML content of the page' },
+          revision: { type: 'number', description: 'Page revision number' },
+          timestamp: { type: 'string', description: 'Last modified timestamp' },
+        },
+      },
+    },
+
     request: {
       url: (params: WikipediaPageContentParams) => {
         const encodedTitle = encodeURIComponent(params.pageTitle.replace(/ /g, '_'))

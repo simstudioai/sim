@@ -25,6 +25,7 @@ export const BlockOperationSchema = z.object({
     'update-parent',
     'update-wide',
     'update-advanced-mode',
+    'update-trigger-mode',
     'toggle-handles',
     'duplicate',
   ]),
@@ -44,6 +45,7 @@ export const BlockOperationSchema = z.object({
     horizontalHandles: z.boolean().optional(),
     isWide: z.boolean().optional(),
     advancedMode: z.boolean().optional(),
+    triggerMode: z.boolean().optional(),
     height: z.number().optional(),
     autoConnectEdge: AutoConnectEdgeSchema.optional(), // Add support for auto-connect edges
   }),

@@ -68,11 +68,7 @@ Search the web using Exa AI. Returns relevant search results with titles, URLs, 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | json | Search results |
-| `similarLinks` | json | Similar links found |
-| `answer` | string | Generated answer |
-| `citations` | json | Answer citations |
-| `research` | json | Research findings |
+| `results` | array | Search results with titles, URLs, and text snippets |
 
 ### `exa_get_contents`
 
@@ -91,11 +87,7 @@ Retrieve the contents of webpages using Exa AI. Returns the title, text content,
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | json | Search results |
-| `similarLinks` | json | Similar links found |
-| `answer` | string | Generated answer |
-| `citations` | json | Answer citations |
-| `research` | json | Research findings |
+| `results` | array | Retrieved content from URLs with title, text, and summaries |
 
 ### `exa_find_similar_links`
 
@@ -114,11 +106,7 @@ Find webpages similar to a given URL using Exa AI. Returns a list of similar lin
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | json | Search results |
-| `similarLinks` | json | Similar links found |
-| `answer` | string | Generated answer |
-| `citations` | json | Answer citations |
-| `research` | json | Research findings |
+| `similarLinks` | array | Similar links found with titles, URLs, and text snippets |
 
 ### `exa_answer`
 
@@ -136,11 +124,8 @@ Get an AI-generated answer to a question with citations from the web using Exa A
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | json | Search results |
-| `similarLinks` | json | Similar links found |
-| `answer` | string | Generated answer |
-| `citations` | json | Answer citations |
-| `research` | json | Research findings |
+| `answer` | string | AI-generated answer to the question |
+| `citations` | array | Sources and citations for the answer |
 
 ### `exa_research`
 
@@ -158,11 +143,7 @@ Perform comprehensive research using AI to generate detailed reports with citati
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | json | Search results |
-| `similarLinks` | json | Similar links found |
-| `answer` | string | Generated answer |
-| `citations` | json | Answer citations |
-| `research` | json | Research findings |
+| `research` | array | Comprehensive research findings with citations and summaries |
 
 
 

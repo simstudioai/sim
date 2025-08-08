@@ -1,6 +1,6 @@
 ---
 title: Slack
-description: Send messages to Slack
+description: Send messages to Slack or trigger workflows from Slack events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -64,7 +64,7 @@ This allows for powerful automation scenarios such as sending notifications, ale
 
 ## Usage Instructions
 
-Comprehensive Slack integration with OAuth authentication. Send formatted messages using Slack's mrkdwn syntax.
+Comprehensive Slack integration with OAuth authentication. Send formatted messages using Slack's mrkdwn syntax or trigger workflows from Slack events like mentions and messages.
 
 
 
@@ -80,7 +80,6 @@ Send messages to Slack channels or users through the Slack API. Supports Slack m
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
 | `botToken` | string | No | Bot token for Custom Bot |
-| `accessToken` | string | No | OAuth access token or bot token for Slack API |
 | `channel` | string | Yes | Target Slack channel \(e.g., #general\) |
 | `text` | string | Yes | Message text to send \(supports Slack mrkdwn formatting\) |
 
@@ -89,10 +88,7 @@ Send messages to Slack channels or users through the Slack API. Supports Slack m
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | Message timestamp |
-| `channel` | string | Channel identifier |
-| `canvas_id` | string | Canvas identifier |
-| `title` | string | Canvas title |
-| `messages` | json | Message data |
+| `channel` | string | Channel ID where message was sent |
 
 ### `slack_canvas`
 
@@ -104,7 +100,6 @@ Create and share Slack canvases in channels. Canvases are collaborative document
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
 | `botToken` | string | No | Bot token for Custom Bot |
-| `accessToken` | string | No | OAuth access token or bot token for Slack API |
 | `channel` | string | Yes | Target Slack channel \(e.g., #general\) |
 | `title` | string | Yes | Title of the canvas |
 | `content` | string | Yes | Canvas content in markdown format |
@@ -114,11 +109,9 @@ Create and share Slack canvases in channels. Canvases are collaborative document
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Message timestamp |
-| `channel` | string | Channel identifier |
-| `canvas_id` | string | Canvas identifier |
-| `title` | string | Canvas title |
-| `messages` | json | Message data |
+| `canvas_id` | string | ID of the created canvas |
+| `channel` | string | Channel where canvas was created |
+| `title` | string | Title of the canvas |
 
 ### `slack_message_reader`
 
@@ -130,7 +123,6 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
 | `botToken` | string | No | Bot token for Custom Bot |
-| `accessToken` | string | No | OAuth access token or bot token for Slack API |
 | `channel` | string | Yes | Slack channel to read messages from \(e.g., #general\) |
 | `limit` | number | No | Number of messages to retrieve \(default: 10, max: 100\) |
 | `oldest` | string | No | Start of time range \(timestamp\) |
@@ -140,11 +132,7 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Message timestamp |
-| `channel` | string | Channel identifier |
-| `canvas_id` | string | Canvas identifier |
-| `title` | string | Canvas title |
-| `messages` | json | Message data |
+| `messages` | array | Array of message objects from the channel |
 
 
 

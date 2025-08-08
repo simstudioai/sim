@@ -43,6 +43,33 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
       description: 'Optional JSON schema defining the structure of data the agent should return',
     },
   },
+  outputs: {
+    agentResult: {
+      type: 'object',
+      description: 'Result from the Stagehand agent execution',
+      properties: {
+        success: { type: 'boolean', description: 'Whether the agent task completed successfully' },
+        completed: { type: 'boolean', description: 'Whether the task was fully completed' },
+        message: { type: 'string', description: 'Status message or final result' },
+        actions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', description: 'Type of action performed' },
+              params: { type: 'object', description: 'Parameters used for the action' },
+              result: { type: 'object', description: 'Result of the action' },
+            },
+          },
+          description: 'List of actions performed by the agent',
+        },
+      },
+    },
+    structuredOutput: {
+      type: 'object',
+      description: 'Extracted data matching the provided output schema',
+    },
+  },
 
   request: {
     url: '/api/tools/stagehand/agent',

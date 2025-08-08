@@ -74,6 +74,7 @@ export interface BlockState {
   isWide?: boolean
   height?: number
   advancedMode?: boolean
+  triggerMode?: boolean
   data?: BlockData
 }
 
@@ -167,6 +168,7 @@ export interface WorkflowActions {
       horizontalHandles?: boolean
       isWide?: boolean
       advancedMode?: boolean
+      triggerMode?: boolean
       height?: number
     }
   ) => void
@@ -185,6 +187,7 @@ export interface WorkflowActions {
   toggleBlockWide: (id: string) => void
   setBlockWide: (id: string, isWide: boolean) => void
   setBlockAdvancedMode: (id: string, advancedMode: boolean) => void
+  setBlockTriggerMode: (id: string, triggerMode: boolean) => void
   updateBlockHeight: (id: string, height: number) => void
   triggerUpdate: () => void
   updateLoopCount: (loopId: string, count: number) => void
@@ -199,6 +202,7 @@ export interface WorkflowActions {
   setWebhookStatus: (hasActiveWebhook: boolean) => void
   revertToDeployedState: (deployedState: WorkflowState) => void
   toggleBlockAdvancedMode: (id: string) => void
+  toggleBlockTriggerMode: (id: string) => void
 
   // Add the sync control methods to the WorkflowActions interface
   sync: SyncControl

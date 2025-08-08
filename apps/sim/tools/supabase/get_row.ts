@@ -32,6 +32,18 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
       description: 'Your Supabase service role secret key',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Get row operation results',
+      properties: {
+        message: { type: 'string', description: 'Operation status message' },
+        results: { type: 'object', description: 'The row data if found, null if not found' },
+      },
+    },
+    error: { type: 'string', description: 'Error message if the operation failed' },
+  },
   request: {
     url: (params) => `https://${params.projectId}.supabase.co/rest/v1/${params.table}`,
     method: 'GET',

@@ -71,6 +71,6 @@ export const StagehandAgentBlock: BlockConfig<StagehandAgentResponse> = {
   },
   outputs: {
     agentResult: { type: 'json', description: 'Agent execution result' },
-    structuredOutput: { type: 'any', description: 'Structured output data' },
+    structuredOutput: { type: 'json', description: 'Structured output data' },
   },
 }

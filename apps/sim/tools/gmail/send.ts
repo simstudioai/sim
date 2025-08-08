@@ -9,6 +9,19 @@ export const gmailSendTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
   description: 'Send emails using Gmail',
   version: '1.0.0',
 
+  outputs: {
+    content: { type: 'string', description: 'Success message' },
+    metadata: {
+      type: 'object',
+      description: 'Email metadata',
+      properties: {
+        id: { type: 'string', description: 'Gmail message ID' },
+        threadId: { type: 'string', description: 'Gmail thread ID' },
+        labelIds: { type: 'array', items: { type: 'string' }, description: 'Email labels' },
+      },
+    },
+  },
+
   oauth: {
     required: true,
     provider: 'google-email',

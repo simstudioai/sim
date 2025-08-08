@@ -54,15 +54,16 @@ Send WhatsApp messages
 | `phoneNumber` | string | Yes | Recipient phone number with country code |
 | `message` | string | Yes | Message content to send |
 | `phoneNumberId` | string | Yes | WhatsApp Business Phone Number ID |
-| `accessToken` | string | Yes | WhatsApp Business API Access Token |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Send success status |
-| `messageId` | any | Message identifier |
-| `error` | any | Error information |
+| `success` | boolean | WhatsApp message send success status |
+| `messageId` | string | Unique WhatsApp message identifier |
+| `phoneNumber` | string | Recipient phone number |
+| `status` | string | Message delivery status |
+| `timestamp` | string | Message send timestamp |
 
 
 

@@ -9,6 +9,26 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
   description: 'Draft emails using Gmail',
   version: '1.0.0',
 
+  outputs: {
+    content: { type: 'string', description: 'Success message' },
+    metadata: {
+      type: 'object',
+      description: 'Draft metadata',
+      properties: {
+        id: { type: 'string', description: 'Draft ID' },
+        message: {
+          type: 'object',
+          description: 'Message metadata',
+          properties: {
+            id: { type: 'string', description: 'Gmail message ID' },
+            threadId: { type: 'string', description: 'Gmail thread ID' },
+            labelIds: { type: 'array', items: { type: 'string' }, description: 'Email labels' },
+          },
+        },
+      },
+    },
+  },
+
   oauth: {
     required: true,
     provider: 'google-email',

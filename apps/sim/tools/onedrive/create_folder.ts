@@ -37,6 +37,14 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
       description: 'ID of the parent folder (internal use)',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the folder was created successfully' },
+    file: {
+      type: 'object',
+      description:
+        'The created folder object with metadata including id, name, webViewLink, and timestamps',
+    },
+  },
   request: {
     url: (params) => {
       // Use specific parent folder URL if parentId is provided

@@ -240,13 +240,24 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     issueType: { type: 'string', description: 'Issue type' },
   },
   outputs: {
-    ts: { type: 'string', description: 'Timestamp' },
-    issueKey: { type: 'string', description: 'Issue key' },
-    summary: { type: 'string', description: 'Issue summary' },
-    description: { type: 'string', description: 'Issue description' },
-    created: { type: 'string', description: 'Creation date' },
-    updated: { type: 'string', description: 'Update date' },
-    success: { type: 'boolean', description: 'Operation success' },
-    url: { type: 'string', description: 'Issue URL' },
+    // Common outputs across all Jira operations
+    ts: { type: 'string', description: 'Timestamp of the operation' },
+
+    // jira_retrieve (read) outputs
+    issueKey: { type: 'string', description: 'Issue key (e.g., PROJ-123)' },
+    summary: { type: 'string', description: 'Issue summary/title' },
+    description: { type: 'string', description: 'Issue description content' },
+    created: { type: 'string', description: 'Issue creation date' },
+    updated: { type: 'string', description: 'Issue last update date' },
+
+    // jira_update outputs
+    success: { type: 'boolean', description: 'Whether the update operation was successful' },
+
+    // jira_write (create) outputs
+    url: { type: 'string', description: 'URL to the created/accessed issue' },
+
+    // jira_bulk_read outputs (array of issues)
+    // Note: bulk_read returns an array in the output field, each item contains:
+    // ts, summary, description, created, updated
   },
 }

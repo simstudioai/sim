@@ -13,6 +13,12 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       description: 'Identifier for the memory to retrieve',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the memory was retrieved successfully' },
+    memories: { type: 'array', description: 'Array of memory data for the requested ID' },
+    message: { type: 'string', description: 'Success or error message' },
+    error: { type: 'string', description: 'Error message if operation failed' },
+  },
   request: {
     url: (params): any => {
       // Get workflowId from context (set by workflow execution)

@@ -67,12 +67,10 @@ Generate embeddings from text using Pinecone
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matches` | any | Search matches |
-| `upsertedCount` | any | Upserted count |
-| `data` | any | Response data |
-| `model` | any | Model information |
-| `vector_type` | any | Vector type |
-| `usage` | any | Usage statistics |
+| `data` | array | Generated embeddings data with values and vector type |
+| `model` | string | Model used for generating embeddings |
+| `vector_type` | string | Type of vector generated \(dense/sparse\) |
+| `usage` | object | Usage statistics for embeddings generation |
 
 ### `pinecone_upsert_text`
 
@@ -91,12 +89,8 @@ Insert or update text records in a Pinecone index
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matches` | any | Search matches |
-| `upsertedCount` | any | Upserted count |
-| `data` | any | Response data |
-| `model` | any | Model information |
-| `vector_type` | any | Vector type |
-| `usage` | any | Usage statistics |
+| `statusText` | string | Status of the upsert operation |
+| `upsertedCount` | number | Number of records successfully upserted |
 
 ### `pinecone_search_text`
 
@@ -119,12 +113,7 @@ Search for similar text in a Pinecone index
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matches` | any | Search matches |
-| `upsertedCount` | any | Upserted count |
-| `data` | any | Response data |
-| `model` | any | Model information |
-| `vector_type` | any | Vector type |
-| `usage` | any | Usage statistics |
+| `matches` | array | Search results with ID, score, and metadata |
 
 ### `pinecone_search_vector`
 
@@ -147,12 +136,8 @@ Search for similar vectors in a Pinecone index
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matches` | any | Search matches |
-| `upsertedCount` | any | Upserted count |
-| `data` | any | Response data |
-| `model` | any | Model information |
-| `vector_type` | any | Vector type |
-| `usage` | any | Usage statistics |
+| `matches` | array | Vector search results with ID, score, values, and metadata |
+| `namespace` | string | Namespace where the search was performed |
 
 ### `pinecone_fetch`
 
@@ -171,12 +156,7 @@ Fetch vectors by ID from a Pinecone index
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matches` | any | Search matches |
-| `upsertedCount` | any | Upserted count |
-| `data` | any | Response data |
-| `model` | any | Model information |
-| `vector_type` | any | Vector type |
-| `usage` | any | Usage statistics |
+| `matches` | array | Fetched vectors with ID, values, metadata, and score |
 
 
 

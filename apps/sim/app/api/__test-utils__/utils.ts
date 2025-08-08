@@ -99,6 +99,7 @@ export const sampleWorkflowState = {
       horizontalHandles: true,
       isWide: false,
       advancedMode: false,
+      triggerMode: false,
       height: 95,
     },
     'agent-id': {
@@ -127,6 +128,7 @@ export const sampleWorkflowState = {
       horizontalHandles: true,
       isWide: false,
       advancedMode: false,
+      triggerMode: false,
       height: 680,
     },
   },

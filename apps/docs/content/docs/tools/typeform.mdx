@@ -95,9 +95,9 @@ Download files uploaded in Typeform responses
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `total_items` | number | Total response count |
-| `page_count` | number | Total page count |
-| `items` | json | Response items |
+| `fileUrl` | string | Direct download URL for the uploaded file |
+| `contentType` | string | MIME type of the uploaded file |
+| `filename` | string | Original filename of the uploaded file |
 
 ### `typeform_insights`
 
@@ -114,9 +114,7 @@ Retrieve insights and analytics for Typeform forms
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `total_items` | number | Total response count |
-| `page_count` | number | Total page count |
-| `items` | json | Response items |
+| `fields` | array | Number of users who dropped off at this field |
 
 
 

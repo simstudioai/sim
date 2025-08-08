@@ -63,6 +63,14 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
       return metadata
     },
   },
+
+  outputs: {
+    file: {
+      type: 'json',
+      description: 'Created folder metadata including ID, name, and parent information',
+    },
+  },
+
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))

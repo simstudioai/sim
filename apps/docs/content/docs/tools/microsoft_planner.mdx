@@ -136,7 +136,6 @@ Read tasks from Microsoft Planner - get all user tasks or all tasks from a speci
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Microsoft Planner API |
 | `planId` | string | No | The ID of the plan to get tasks from \(if not provided, gets all user tasks\) |
 | `taskId` | string | No | The ID of the task to get |
 
@@ -144,8 +143,9 @@ Read tasks from Microsoft Planner - get all user tasks or all tasks from a speci
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `task` | json | The Microsoft Planner task object, including details such as id, title, description, status, due date, and assignees. |
-| `metadata` | json | Additional metadata about the operation, such as timestamps, request status, or other relevant information. |
+| `success` | boolean | Whether tasks were retrieved successfully |
+| `tasks` | array | Array of task objects with filtered properties |
+| `metadata` | object | Metadata including planId, userId, and planUrl |
 
 ### `microsoft_planner_create_task`
 
@@ -155,7 +155,6 @@ Create a new task in Microsoft Planner
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Microsoft Planner API |
 | `planId` | string | Yes | The ID of the plan where the task will be created |
 | `title` | string | Yes | The title of the task |
 | `description` | string | No | The description of the task |
@@ -167,8 +166,9 @@ Create a new task in Microsoft Planner
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `task` | json | The Microsoft Planner task object, including details such as id, title, description, status, due date, and assignees. |
-| `metadata` | json | Additional metadata about the operation, such as timestamps, request status, or other relevant information. |
+| `success` | boolean | Whether the task was created successfully |
+| `task` | object | The created task object with all properties |
+| `metadata` | object | Metadata including planId, taskId, and taskUrl |
 
 
 

@@ -71,19 +71,16 @@ Read records from an Airtable table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
 | `baseId` | string | Yes | ID of the Airtable base |
 | `tableId` | string | Yes | ID of the table |
 | `maxRecords` | number | No | Maximum number of records to return |
-| `filterFormula` | string | No | Formula to filter records \(e.g.,  |
+| `filterFormula` | string | No | Formula to filter records \(e.g., "\(\{Field Name\} = \'Value\'\)"\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `records` | json | Retrieved record data |
-| `record` | json | Single record data |
-| `metadata` | json | Operation metadata |
+| `records` | json | Array of retrieved Airtable records |
 
 ### `airtable_get_record`
 
@@ -93,7 +90,6 @@ Retrieve a single record from an Airtable table by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
 | `baseId` | string | Yes | ID of the Airtable base |
 | `tableId` | string | Yes | ID or name of the table |
 | `recordId` | string | Yes | ID of the record to retrieve |
@@ -102,9 +98,8 @@ Retrieve a single record from an Airtable table by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `records` | json | Retrieved record data |
-| `record` | json | Single record data |
-| `metadata` | json | Operation metadata |
+| `record` | json | Retrieved Airtable record with id, createdTime, and fields |
+| `metadata` | json | Operation metadata including record count |
 
 ### `airtable_create_records`
 
@@ -114,17 +109,16 @@ Write new records to an Airtable table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
 | `baseId` | string | Yes | ID of the Airtable base |
 | `tableId` | string | Yes | ID or name of the table |
+| `records` | json | Yes | Array of records to create, each with a `fields` object |
+| `fields` | string | No | No description |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `records` | json | Retrieved record data |
-| `record` | json | Single record data |
-| `metadata` | json | Operation metadata |
+| `records` | json | Array of created Airtable records |
 
 ### `airtable_update_record`
 
@@ -134,7 +128,6 @@ Update an existing record in an Airtable table by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
 | `baseId` | string | Yes | ID of the Airtable base |
 | `tableId` | string | Yes | ID or name of the table |
 | `recordId` | string | Yes | ID of the record to update |
@@ -144,9 +137,8 @@ Update an existing record in an Airtable table by ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `records` | json | Retrieved record data |
-| `record` | json | Single record data |
-| `metadata` | json | Operation metadata |
+| `record` | json | Updated Airtable record with id, createdTime, and fields |
+| `metadata` | json | Operation metadata including record count and updated field names |
 
 ### `airtable_update_multiple_records`
 
@@ -156,17 +148,17 @@ Update multiple existing records in an Airtable table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
 | `baseId` | string | Yes | ID of the Airtable base |
 | `tableId` | string | Yes | ID or name of the table |
+| `records` | json | Yes | Array of records to update, each with an `id` and a `fields` object |
+| `fields` | string | No | No description |
+| `fields` | string | No | No description |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `records` | json | Retrieved record data |
-| `record` | json | Single record data |
-| `metadata` | json | Operation metadata |
+| `records` | json | Array of updated Airtable records |
 
 
 

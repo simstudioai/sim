@@ -112,16 +112,19 @@ Read content from a Microsoft Teams chat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Microsoft Teams API |
 | `chatId` | string | Yes | The ID of the chat to read from |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Message content |
-| `metadata` | json | Message metadata |
-| `updatedContent` | boolean | Content update status |
+| `success` | boolean | Teams chat read operation success status |
+| `messageCount` | number | Number of messages retrieved from chat |
+| `chatId` | string | ID of the chat that was read from |
+| `messages` | array | Array of chat message objects |
+| `attachmentCount` | number | Total number of attachments found |
+| `attachmentTypes` | array | Types of attachments found |
+| `content` | string | Formatted content of chat messages |
 
 ### `microsoft_teams_write_chat`
 
@@ -131,7 +134,6 @@ Write or update content in a Microsoft Teams chat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Microsoft Teams API |
 | `chatId` | string | Yes | The ID of the chat to write to |
 | `content` | string | Yes | The content to write to the message |
 
@@ -139,9 +141,12 @@ Write or update content in a Microsoft Teams chat
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Message content |
-| `metadata` | json | Message metadata |
-| `updatedContent` | boolean | Content update status |
+| `success` | boolean | Teams chat message send success status |
+| `messageId` | string | Unique identifier for the sent message |
+| `chatId` | string | ID of the chat where message was sent |
+| `createdTime` | string | Timestamp when message was created |
+| `url` | string | Web URL to the message |
+| `updatedContent` | boolean | Whether content was successfully updated |
 
 ### `microsoft_teams_read_channel`
 
@@ -151,7 +156,6 @@ Read content from a Microsoft Teams channel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Microsoft Teams API |
 | `teamId` | string | Yes | The ID of the team to read from |
 | `channelId` | string | Yes | The ID of the channel to read from |
 
@@ -159,9 +163,14 @@ Read content from a Microsoft Teams channel
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Message content |
-| `metadata` | json | Message metadata |
-| `updatedContent` | boolean | Content update status |
+| `success` | boolean | Teams channel read operation success status |
+| `messageCount` | number | Number of messages retrieved from channel |
+| `teamId` | string | ID of the team that was read from |
+| `channelId` | string | ID of the channel that was read from |
+| `messages` | array | Array of channel message objects |
+| `attachmentCount` | number | Total number of attachments found |
+| `attachmentTypes` | array | Types of attachments found |
+| `content` | string | Formatted content of channel messages |
 
 ### `microsoft_teams_write_channel`
 
@@ -171,7 +180,6 @@ Write or send a message to a Microsoft Teams channel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Microsoft Teams API |
 | `teamId` | string | Yes | The ID of the team to write to |
 | `channelId` | string | Yes | The ID of the channel to write to |
 | `content` | string | Yes | The content to write to the channel |
@@ -180,9 +188,13 @@ Write or send a message to a Microsoft Teams channel
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Message content |
-| `metadata` | json | Message metadata |
-| `updatedContent` | boolean | Content update status |
+| `success` | boolean | Teams channel message send success status |
+| `messageId` | string | Unique identifier for the sent message |
+| `teamId` | string | ID of the team where message was sent |
+| `channelId` | string | ID of the channel where message was sent |
+| `createdTime` | string | Timestamp when message was created |
+| `url` | string | Web URL to the message |
+| `updatedContent` | boolean | Whether content was successfully updated |
 
 
 

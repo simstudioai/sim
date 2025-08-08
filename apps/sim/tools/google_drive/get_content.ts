@@ -39,6 +39,18 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
       description: 'The MIME type to export Google Workspace files to (optional)',
     },
   },
+
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'File content as text (Google Workspace files are exported)',
+    },
+    metadata: {
+      type: 'json',
+      description: 'File metadata including ID, name, MIME type, and links',
+    },
+  },
+
   request: {
     url: (params) =>
       `https://www.googleapis.com/drive/v3/files/${params.fileId}?fields=id,name,mimeType`,

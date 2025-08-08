@@ -39,6 +39,15 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
     },
   },
 
+  outputs: {
+    success: { type: 'boolean', description: 'Email draft creation success status' },
+    messageId: { type: 'string', description: 'Unique identifier for the drafted email' },
+    status: { type: 'string', description: 'Draft status of the email' },
+    subject: { type: 'string', description: 'Subject of the drafted email' },
+    timestamp: { type: 'string', description: 'Timestamp when draft was created' },
+    message: { type: 'string', description: 'Success or error message' },
+  },
+
   request: {
     url: (params) => {
       return `https://graph.microsoft.com/v1.0/me/messages`

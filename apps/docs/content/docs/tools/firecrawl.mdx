@@ -81,14 +81,9 @@ Extract structured content from web pages with comprehensive metadata support. C
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `markdown` | string | Page content markdown |
-| `html` | any | Raw HTML content |
-| `metadata` | json | Page metadata |
-| `data` | json | Search results data |
-| `warning` | any | Warning messages |
-| `pages` | json | Crawled pages data |
-| `total` | number | Total pages found |
-| `creditsUsed` | number | Credits consumed |
+| `markdown` | string | Page content in markdown format |
+| `html` | string | Raw HTML content of the page |
+| `metadata` | object | Page metadata including SEO and Open Graph information |
 
 ### `firecrawl_search`
 
@@ -105,14 +100,7 @@ Search for information on the web using Firecrawl
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `markdown` | string | Page content markdown |
-| `html` | any | Raw HTML content |
-| `metadata` | json | Page metadata |
-| `data` | json | Search results data |
-| `warning` | any | Warning messages |
-| `pages` | json | Crawled pages data |
-| `total` | number | Total pages found |
-| `creditsUsed` | number | Credits consumed |
+| `data` | array | Search results data |
 
 ### `firecrawl_crawl`
 
@@ -131,14 +119,7 @@ Crawl entire websites and extract structured content from all accessible pages
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `markdown` | string | Page content markdown |
-| `html` | any | Raw HTML content |
-| `metadata` | json | Page metadata |
-| `data` | json | Search results data |
-| `warning` | any | Warning messages |
-| `pages` | json | Crawled pages data |
-| `total` | number | Total pages found |
-| `creditsUsed` | number | Credits consumed |
+| `pages` | array | Array of crawled pages with their content and metadata |
 
 
 

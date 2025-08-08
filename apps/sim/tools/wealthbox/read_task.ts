@@ -23,6 +23,26 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
       visibility: 'user-only',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Task data and metadata',
+      properties: {
+        content: { type: 'string', description: 'Formatted task information' },
+        task: { type: 'object', description: 'Raw task data from Wealthbox' },
+        metadata: {
+          type: 'object',
+          description: 'Operation metadata',
+          properties: {
+            operation: { type: 'string', description: 'The operation performed' },
+            taskId: { type: 'string', description: 'ID of the task' },
+            itemType: { type: 'string', description: 'Type of item (task)' },
+          },
+        },
+      },
+    },
+  },
   request: {
     url: (params) => {
       const taskId = params.taskId?.trim()

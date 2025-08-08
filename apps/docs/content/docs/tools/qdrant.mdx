@@ -126,10 +126,8 @@ Insert or update points in a Qdrant collection
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matches` | any | Search matches |
-| `upsertedCount` | any | Upserted count |
-| `data` | any | Response data |
-| `status` | any | Operation status |
+| `status` | string | Status of the upsert operation |
+| `data` | object | Result data from the upsert operation |
 
 ### `qdrant_search_vector`
 
@@ -152,10 +150,8 @@ Search for similar vectors in a Qdrant collection
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matches` | any | Search matches |
-| `upsertedCount` | any | Upserted count |
-| `data` | any | Response data |
-| `status` | any | Operation status |
+| `data` | array | Vector search results with ID, score, payload, and optional vector data |
+| `status` | string | Status of the search operation |
 
 ### `qdrant_fetch_points`
 
@@ -176,10 +172,8 @@ Fetch points by ID from a Qdrant collection
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matches` | any | Search matches |
-| `upsertedCount` | any | Upserted count |
-| `data` | any | Response data |
-| `status` | any | Operation status |
+| `data` | array | Fetched points with ID, payload, and optional vector data |
+| `status` | string | Status of the fetch operation |
 
 
 

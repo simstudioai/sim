@@ -39,6 +39,17 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
       description: 'The content to write to the channel',
     },
   },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Teams channel message send success status' },
+    messageId: { type: 'string', description: 'Unique identifier for the sent message' },
+    teamId: { type: 'string', description: 'ID of the team where message was sent' },
+    channelId: { type: 'string', description: 'ID of the channel where message was sent' },
+    createdTime: { type: 'string', description: 'Timestamp when message was created' },
+    url: { type: 'string', description: 'Web URL to the message' },
+    updatedContent: { type: 'boolean', description: 'Whether content was successfully updated' },
+  },
+
   request: {
     url: (params) => {
       const teamId = params.teamId?.trim()

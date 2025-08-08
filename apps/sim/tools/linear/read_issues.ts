@@ -28,6 +28,25 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
       description: 'Linear project ID',
     },
   },
+
+  outputs: {
+    issues: {
+      type: 'array',
+      description:
+        'Array of issues from the specified Linear team and project, each containing id, title, description, state, teamId, and projectId',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Issue ID' },
+          title: { type: 'string', description: 'Issue title' },
+          description: { type: 'string', description: 'Issue description' },
+          state: { type: 'string', description: 'Issue state' },
+          teamId: { type: 'string', description: 'Team ID' },
+          projectId: { type: 'string', description: 'Project ID' },
+        },
+      },
+    },
+  },
   request: {
     url: 'https://api.linear.app/graphql',
     method: 'POST',

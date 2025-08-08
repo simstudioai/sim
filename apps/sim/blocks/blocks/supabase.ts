@@ -206,7 +206,13 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
     limit: { type: 'number', description: 'Result limit' },
   },
   outputs: {
-    message: { type: 'string', description: 'Operation message' },
-    results: { type: 'json', description: 'Query results' },
+    message: {
+      type: 'string',
+      description: 'Success or error message describing the operation outcome',
+    },
+    results: {
+      type: 'json',
+      description: 'Database records returned from query, insert, update, or delete operations',
+    },
   },
 }
