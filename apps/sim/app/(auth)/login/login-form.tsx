@@ -15,25 +15,27 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
+import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 
 const logger = createLogger('LoginForm')
 
-const EMAIL_VALIDATIONS = {
-  required: {
-    test: (value: string) => Boolean(value && typeof value === 'string'),
-    message: 'Email is required.',
-  },
-  notEmpty: {
-    test: (value: string) => value.trim().length > 0,
-    message: 'Email cannot be empty.',
-  },
-  basicFormat: {
-    regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-    message: 'Please enter a valid email address.',
-  },
+const validateEmailField = (emailValue: string): string[] => {
+  const errors: string[] = []
+
+  if (!emailValue || !emailValue.trim()) {
+    errors.push('Email is required.')
+    return errors
+  }
+
+  const validation = quickValidateEmail(emailValue.trim().toLowerCase())
+  if (!validation.isValid) {
+    errors.push(validation.reason || 'Please enter a valid email address.')
+  }
+
+  return errors
 }
 
 const PASSWORD_VALIDATIONS = {
@@ -66,27 +68,6 @@ const validateCallbackUrl = (url: string): boolean => {
     logger.error('Error validating callback URL:', { error, url })
     return false
   }
-}
-
-// Validate email and return array of error messages
-const validateEmail = (emailValue: string): string[] => {
-  const errors: string[] = []
-
-  if (!EMAIL_VALIDATIONS.required.test(emailValue)) {
-    errors.push(EMAIL_VALIDATIONS.required.message)
-    return errors // Return early for required field
-  }
-
-  if (!EMAIL_VALIDATIONS.notEmpty.test(emailValue)) {
-    errors.push(EMAIL_VALIDATIONS.notEmpty.message)
-    return errors // Return early for empty field
-  }
-
-  if (!EMAIL_VALIDATIONS.basicFormat.regex.test(emailValue)) {
-    errors.push(EMAIL_VALIDATIONS.basicFormat.message)
-  }
-
-  return errors
 }
 
 // Validate password and return array of error messages
@@ -182,7 +163,7 @@ export default function LoginPage({
     setEmail(newEmail)
 
     // Silently validate but don't show errors until submit
-    const errors = validateEmail(newEmail)
+    const errors = validateEmailField(newEmail)
     setEmailErrors(errors)
     setShowEmailValidationError(false)
   }
@@ -205,7 +186,7 @@ export default function LoginPage({
     const email = formData.get('email') as string
 
     // Validate email on submit
-    const emailValidationErrors = validateEmail(email)
+    const emailValidationErrors = validateEmailField(email)
     setEmailErrors(emailValidationErrors)
     setShowEmailValidationError(emailValidationErrors.length > 0)
 

@@ -96,11 +96,11 @@ describe('SignupPage', () => {
       const passwordInput = screen.getByPlaceholderText(/enter your password/i)
 
       fireEvent.change(nameInput, { target: { value: 'John Doe' } })
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+      fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
       fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
 
       expect(nameInput).toHaveValue('John Doe')
-      expect(emailInput).toHaveValue('test@example.com')
+      expect(emailInput).toHaveValue('user@company.com')
       expect(passwordInput).toHaveValue('Password123!')
     })
 
@@ -118,7 +118,7 @@ describe('SignupPage', () => {
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
       fireEvent.change(nameInput, { target: { value: 'John Doe' } })
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+      fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
       fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
       fireEvent.click(submitButton)
 
@@ -144,14 +144,14 @@ describe('SignupPage', () => {
 
       // Use valid input that passes all validation rules
       fireEvent.change(nameInput, { target: { value: 'John Doe' } })
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+      fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
       fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
       fireEvent.click(submitButton)
 
       await waitFor(() => {
         expect(mockSignUp).toHaveBeenCalledWith(
           {
-            email: 'test@example.com',
+            email: 'user@company.com',
             password: 'Password123!',
             name: 'John Doe',
           },
@@ -174,7 +174,7 @@ describe('SignupPage', () => {
 
       // Use name with leading/trailing spaces which should fail validation
       fireEvent.change(nameInput, { target: { value: '  John Doe  ' } })
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+      fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
       fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
       fireEvent.click(submitButton)
 
@@ -206,13 +206,13 @@ describe('SignupPage', () => {
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
       fireEvent.change(nameInput, { target: { value: 'John Doe' } })
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+      fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
       fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
       fireEvent.click(submitButton)
 
       await waitFor(() => {
         expect(mockSendOtp).toHaveBeenCalledWith({
-          email: 'test@example.com',
+          email: 'user@company.com',
           type: 'email-verification',
         })
         expect(mockRouter.push).toHaveBeenCalledWith('/verify?fromSignup=true')
@@ -267,7 +267,7 @@ describe('SignupPage', () => {
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
       fireEvent.change(nameInput, { target: { value: longName } })
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+      fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
       fireEvent.change(passwordInput, { target: { value: 'ValidPass123!' } })
       fireEvent.click(submitButton)
 
@@ -295,7 +295,7 @@ describe('SignupPage', () => {
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
       fireEvent.change(nameInput, { target: { value: exactLengthName } })
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+      fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
       fireEvent.change(passwordInput, { target: { value: 'ValidPass123!' } })
       fireEvent.click(submitButton)
 
@@ -308,7 +308,7 @@ describe('SignupPage', () => {
       await waitFor(() => {
         expect(mockSignUp).toHaveBeenCalledWith(
           {
-            email: 'test@example.com',
+            email: 'user@company.com',
             password: 'ValidPass123!',
             name: exactLengthName,
           },
@@ -343,7 +343,7 @@ describe('SignupPage', () => {
 
       await act(async () => {
         fireEvent.change(nameInput, { target: { value: 'John Doe' } })
-        fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+        fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
         fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
         fireEvent.click(submitButton)
       })
@@ -385,7 +385,7 @@ describe('SignupPage', () => {
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
       fireEvent.change(nameInput, { target: { value: 'John Doe' } })
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+      fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
       fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
       fireEvent.click(submitButton)
 
