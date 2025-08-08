@@ -332,6 +332,25 @@ export async function POST(req: NextRequest) {
       logger.info(`[${tracker.requestId}] Will start parallel title generation inside stream`)
     }
 
+    // Log the full messages array being sent to the LLM
+    logger.info(`[${tracker.requestId}] Full messages array being sent to LLM:`, {
+      messageCount: messages.length,
+      messages: messages.map((msg, index) => ({
+        index,
+        role: msg.role,
+        contentType: Array.isArray(msg.content) ? 'array' : 'string',
+        contentLength: Array.isArray(msg.content) 
+          ? msg.content.reduce((total, item) => total + (item.text?.length || 0), 0)
+          : msg.content?.length || 0,
+        hasContent: !!msg.content,
+        isFileContent: Array.isArray(msg.content) && msg.content.some(item => item.type !== 'text'),
+        fileContentTypes: Array.isArray(msg.content) 
+          ? msg.content.filter(item => item.type !== 'text').map(item => item.type)
+          : []
+      })),
+      fullMessages: JSON.stringify(messages, null, 2)
+    })
+
     // Forward to sim agent API
     logger.info(`[${tracker.requestId}] Sending request to sim agent API`, {
       messageCount: messages.length,
@@ -621,6 +640,25 @@ export async function POST(req: NextRequest) {
                   `[${tracker.requestId}] No assistant content or tool calls to save (aborted before response)`
                 )
               }
+
+              // Log the full messages array being persisted
+              logger.info(`[${tracker.requestId}] Full messages array being persisted:`, {
+                chatId: actualChatId,
+                messageCount: updatedMessages.length,
+                messages: updatedMessages.map((msg, index) => ({
+                  index,
+                  id: msg.id,
+                  role: msg.role,
+                  contentLength: msg.content?.length || 0,
+                  hasToolCalls: !!msg.toolCalls && msg.toolCalls.length > 0,
+                  toolCallsCount: msg.toolCalls?.length || 0,
+                  toolCallNames: msg.toolCalls?.map((tc: any) => tc.name) || [],
+                  timestamp: msg.timestamp,
+                  hasFileAttachments: !!msg.fileAttachments && msg.fileAttachments.length > 0,
+                  fileAttachmentsCount: msg.fileAttachments?.length || 0
+                })),
+                fullMessages: JSON.stringify(updatedMessages, null, 2)
+              })
 
               // Update chat in database immediately (without title)
               await db

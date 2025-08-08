@@ -10,6 +10,7 @@ import {
 } from 'react'
 import {
   ArrowUp,
+  Codesandbox,
   FileText,
   Image,
   Loader2,
@@ -412,7 +413,17 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       } else if (mode === 'agent') {
         return <Package className='h-3 w-3 text-muted-foreground' />
       } else {
-        return <Zap className='h-3 w-3 text-muted-foreground' />
+        return <Codesandbox className='h-3 w-3 text-muted-foreground' />
+      }
+    }
+
+    const getModeText = () => {
+      if (mode === 'ask') {
+        return 'Ask'
+      } else if (mode === 'agent') {
+        return 'Agent'
+      } else {
+        return 'Agent (MAX)'
       }
     }
 
@@ -513,7 +524,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               className='flex h-6 items-center gap-1.5 rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground text-xs hover:bg-secondary/80'
             >
               {getModeIcon()}
-              <span className='capitalize'>{mode}</span>
+              <span>{getModeText()}</span>
             </Button>
 
             {/* Right side: Attach Button + Send Button */}
