@@ -1358,7 +1358,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                 {hasChildren && (
                                   <ChevronRight className='h-4 w-4 text-muted-foreground' />
                                 )}
-                                {tagDescription && !hasChildren && (
+                                {tagDescription && tagDescription !== 'any' && !hasChildren && (
                                   <span className='ml-auto text-muted-foreground text-xs'>
                                     {tagDescription}
                                   </span>
@@ -1447,7 +1447,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                             </span>
                                           </div>
                                           <span className='flex-1 truncate'>{child.display}</span>
-                                          {childType && (
+                                          {childType && childType !== 'any' && (
                                             <span className='ml-auto text-muted-foreground text-xs'>
                                               {childType}
                                             </span>
