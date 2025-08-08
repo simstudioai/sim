@@ -38,9 +38,10 @@ spec:
         - name: migrations
           image: {{ include "sim.image" (dict "context" . "image" .Values.migrations.image) }}
           imagePullPolicy: {{ .Values.migrations.image.pullPolicy }}
-          command: ["/bin/bash", "-c"]
+          command: ["/bin/sh", "-c"]
           args:
             - |
+              cd /app/apps/sim
               export DATABASE_URL="{{ include "sim.databaseUrl" . }}"
               bun run db:migrate
           {{- if .Values.postgresql.enabled }}
