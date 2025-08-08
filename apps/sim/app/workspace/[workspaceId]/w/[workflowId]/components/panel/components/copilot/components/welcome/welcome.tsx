@@ -4,7 +4,7 @@ import { Bot } from 'lucide-react'
 
 interface CopilotWelcomeProps {
   onQuestionClick?: (question: string) => void
-  mode?: 'ask' | 'agent'
+  mode?: 'ask' | 'agent' | 'agent-max'
 }
 
 export function CopilotWelcome({ onQuestionClick, mode = 'ask' }: CopilotWelcomeProps) {
@@ -20,7 +20,13 @@ export function CopilotWelcome({ onQuestionClick, mode = 'ask' }: CopilotWelcome
     'Build me a small sample workflow',
   ]
 
-  const exampleQuestions = mode === 'ask' ? askQuestions : agentQuestions
+  const agentMaxQuestions = [
+    'Build me a complex workflow with advanced features',
+    'Optimize my entire workflow architecture',
+    'Create a comprehensive automation system',
+  ]
+
+  const exampleQuestions = mode === 'ask' ? askQuestions : mode === 'agent' ? agentQuestions : agentMaxQuestions
 
   const handleQuestionClick = (question: string) => {
     onQuestionClick?.(question)
@@ -35,7 +41,9 @@ export function CopilotWelcome({ onQuestionClick, mode = 'ask' }: CopilotWelcome
           <p className='text-muted-foreground text-sm'>
             {mode === 'ask'
               ? 'Ask me anything about your workflows, available tools, or how to get started.'
-              : 'I can help you build, edit, and create workflows. What would you like to do?'}
+              : mode === 'agent'
+              ? 'I can help you build, edit, and create workflows. What would you like to do?'
+              : 'Advanced workflow creation with comprehensive automation and optimization capabilities.'}
           </p>
         </div>
         <div className='mx-auto max-w-sm space-y-3'>

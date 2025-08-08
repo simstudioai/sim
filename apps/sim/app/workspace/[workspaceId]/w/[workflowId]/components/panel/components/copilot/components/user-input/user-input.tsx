@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Package,
   Paperclip,
+  Zap,
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -51,8 +52,8 @@ interface UserInputProps {
   isAborting?: boolean
   placeholder?: string
   className?: string
-  mode?: 'ask' | 'agent'
-  onModeChange?: (mode: 'ask' | 'agent') => void
+  mode?: 'ask' | 'agent' | 'agent-max'
+  onModeChange?: (mode: 'ask' | 'agent' | 'agent-max') => void
   value?: string // Controlled value from outside
   onChange?: (value: string) => void // Callback when value changes
 }
@@ -394,16 +395,25 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const handleModeToggle = () => {
       if (onModeChange) {
-        onModeChange(mode === 'ask' ? 'agent' : 'ask')
+        // Cycle through: ask -> agent -> agent-max -> ask
+        if (mode === 'ask') {
+          onModeChange('agent')
+        } else if (mode === 'agent') {
+          onModeChange('agent-max')
+        } else {
+          onModeChange('ask')
+        }
       }
     }
 
     const getModeIcon = () => {
-      return mode === 'ask' ? (
-        <MessageCircle className='h-3 w-3 text-muted-foreground' />
-      ) : (
-        <Package className='h-3 w-3 text-muted-foreground' />
-      )
+      if (mode === 'ask') {
+        return <MessageCircle className='h-3 w-3 text-muted-foreground' />
+      } else if (mode === 'agent') {
+        return <Package className='h-3 w-3 text-muted-foreground' />
+      } else {
+        return <Zap className='h-3 w-3 text-muted-foreground' />
+      }
     }
 
     return (

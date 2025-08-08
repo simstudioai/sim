@@ -115,7 +115,7 @@ export interface WorkflowCheckpoint {
 /**
  * Chat mode types
  */
-export type CopilotMode = 'ask' | 'agent'
+export type CopilotMode = 'ask' | 'agent' | 'agent-max'
 
 /**
  * Chat interface for copilot conversations
