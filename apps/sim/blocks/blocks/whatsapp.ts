@@ -46,6 +46,14 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
       password: true,
       required: true,
     },
+    {
+      id: 'triggerConfig',
+      title: 'Trigger Configuration',
+      type: 'trigger-config',
+      layout: 'full',
+      triggerProvider: 'whatsapp',
+      availableTriggers: ['whatsapp_webhook'],
+    },
   ],
   tools: {
     access: ['whatsapp_send_message'],

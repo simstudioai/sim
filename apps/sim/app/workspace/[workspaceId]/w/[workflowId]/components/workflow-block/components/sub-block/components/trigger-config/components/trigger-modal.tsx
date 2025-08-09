@@ -94,6 +94,8 @@ export function TriggerModal({
           setSelectedCredentialId(credentialValue)
           if (triggerDef.provider === 'gmail') {
             loadGmailLabels(credentialValue)
+          } else if (triggerDef.provider === 'outlook') {
+            loadOutlookFolders(credentialValue)
           }
         }
       }
@@ -136,6 +138,30 @@ export function TriggerModal({
       }
     } catch (error) {
       logger.error('Error loading Gmail labels:', error)
+    }
+  }
+
+  // Load Outlook folders for the selected credential
+  const loadOutlookFolders = async (credentialId: string) => {
+    try {
+      const response = await fetch(`/api/tools/outlook/folders?credentialId=${credentialId}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.folders && Array.isArray(data.folders)) {
+          const folderOptions = data.folders.map((folder: any) => ({
+            id: folder.id,
+            name: folder.name,
+          }))
+          setDynamicOptions((prev) => ({
+            ...prev,
+            folderIds: folderOptions,
+          }))
+        }
+      } else {
+        logger.error('Failed to load Outlook folders:', response.statusText)
+      }
+    } catch (error) {
+      logger.error('Error loading Outlook folders:', error)
     }
   }
 

@@ -96,6 +96,27 @@ export class TriggerBlockHandler implements BlockHandler {
             result[provider] = providerData
           }
 
+          // Pattern 3: Email providers with data in webhook.data.payload.email (Gmail, Outlook)
+          else if (provider && (provider === 'gmail' || provider === 'outlook') && 
+                   webhookData.payload?.email) {
+            const emailData = webhookData.payload.email
+            
+            // Flatten email fields to root level for direct access
+            for (const [key, value] of Object.entries(emailData)) {
+              if (!result[key]) {
+                result[key] = value
+              }
+            }
+            
+            // Keep the email object for backwards compatibility
+            result.email = emailData
+            
+            // Also keep timestamp if present in payload
+            if (webhookData.payload.timestamp) {
+              result.timestamp = webhookData.payload.timestamp
+            }
+          }
+
           // Always keep webhook metadata
           if (starterOutput.webhook) result.webhook = starterOutput.webhook
 
