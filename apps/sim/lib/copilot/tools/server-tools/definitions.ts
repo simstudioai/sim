@@ -291,7 +291,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         executing: { displayName: 'Planning', icon: 'spinner' },
         success: { displayName: 'Finished planning', icon: 'listTodo' },
         rejected: { displayName: 'Skipped planning', icon: 'skip' },
-        errored: { displayName: 'Planning faile', icon: 'error' },
+        errored: { displayName: 'Planning failed', icon: 'error' },
         aborted: { displayName: 'Planning aborted', icon: 'x' },
       },
     },
