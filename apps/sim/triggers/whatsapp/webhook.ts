@@ -49,7 +49,7 @@ export const whatsappWebhookTrigger: TriggerConfig = {
   },
 
   instructions: [
-    'Go to your <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer" class="text-primary underline transition-colors hover:text-primary/80">Meta for Developers Apps</a> page.',
+    'Go to your <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer" class="text-primary underline transition-colors hover:text-primary/80">Meta for Developers Apps</a> page and navigate to the "Build with us" --> "App Events" section.',
     'If you don\'t have an app:<br><ul class="mt-1 ml-5 list-disc"><li>Create an app from scratch</li><li>Give it a name and select your workspace</li></ul>',
     'Select your App, then navigate to WhatsApp > Configuration.',
     'Find the Webhooks section and click "Edit".',

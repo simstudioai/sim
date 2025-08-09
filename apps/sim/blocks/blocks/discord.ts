@@ -108,6 +108,14 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       placeholder: 'Enter message content...',
       condition: { field: 'operation', value: 'discord_send_message' },
     },
+    {
+      id: 'triggerConfig',
+      title: 'Trigger Configuration',
+      type: 'trigger-config',
+      layout: 'full',
+      triggerProvider: 'discord',
+      availableTriggers: ['discord_webhook'],
+    },
   ],
   tools: {
     access: [

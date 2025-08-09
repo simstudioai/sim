@@ -357,6 +357,13 @@ export function formatWebhookInput(
     return body
   }
 
+  if (foundWebhook.provider === 'outlook') {
+    if (body && typeof body === 'object' && 'email' in body) {
+      return body // { email: {...}, timestamp: ... }
+    }
+    return body
+  }
+
   if (foundWebhook.provider === 'microsoftteams') {
     // Microsoft Teams outgoing webhook - Teams sending data to us
     const messageText = body?.text || ''
