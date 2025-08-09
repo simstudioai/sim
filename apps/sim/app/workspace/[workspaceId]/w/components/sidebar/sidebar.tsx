@@ -5,7 +5,7 @@ import { HelpCircle, LibraryBig, ScrollText, Search, Settings, Shapes } from 'lu
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Button, ScrollArea, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
-import { isDev } from '@/lib/environment'
+import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
@@ -1013,7 +1013,7 @@ export function Sidebar() {
         }`}
         style={{
           top: `${toolbarTop}px`,
-          bottom: `${navigationBottom + SIDEBAR_HEIGHTS.NAVIGATION + SIDEBAR_GAP + (isDev ? 0 : SIDEBAR_HEIGHTS.USAGE_INDICATOR + SIDEBAR_GAP)}px`, // Navigation height + gap + UsageIndicator height + gap (if not in dev)
+          bottom: `${navigationBottom + SIDEBAR_HEIGHTS.NAVIGATION + SIDEBAR_GAP + (isBillingEnabled ? SIDEBAR_HEIGHTS.USAGE_INDICATOR + SIDEBAR_GAP : 0)}px`, // Navigation height + gap + UsageIndicator height + gap (if billing enabled)
         }}
       >
         <Toolbar
@@ -1029,14 +1029,14 @@ export function Sidebar() {
         }`}
         style={{
           top: `${toolbarTop}px`,
-          bottom: `${navigationBottom + SIDEBAR_HEIGHTS.NAVIGATION + SIDEBAR_GAP + (isDev ? 0 : SIDEBAR_HEIGHTS.USAGE_INDICATOR + SIDEBAR_GAP)}px`, // Navigation height + gap + UsageIndicator height + gap (if not in dev)
+          bottom: `${navigationBottom + SIDEBAR_HEIGHTS.NAVIGATION + SIDEBAR_GAP + (isBillingEnabled ? SIDEBAR_HEIGHTS.USAGE_INDICATOR + SIDEBAR_GAP : 0)}px`, // Navigation height + gap + UsageIndicator height + gap (if billing enabled)
         }}
       >
         <LogsFilters />
       </div>
 
-      {/* Floating Usage Indicator - Hidden in development */}
-      {!isDev && (
+      {/* Floating Usage Indicator - Only shown when billing enabled */}
+      {isBillingEnabled && (
         <div
           className='pointer-events-auto fixed left-4 z-50 w-56'
           style={{ bottom: `${navigationBottom + SIDEBAR_HEIGHTS.NAVIGATION + SIDEBAR_GAP}px` }} // Navigation height + gap
