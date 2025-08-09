@@ -284,7 +284,7 @@ export const auth = betterAuth({
           throw error
         }
       },
-      sendVerificationOnSignUp: false,
+      sendVerificationOnSignUp: true,
       otpLength: 6, // Explicitly set the OTP length
       expiresIn: 15 * 60, // 15 minutes in seconds
     }),
