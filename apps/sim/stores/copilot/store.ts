@@ -247,16 +247,22 @@ function handleStoreError(error: unknown, fallbackMessage: string): string {
 function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
   return messages
     .map((msg) => {
-      // Build content from contentBlocks if content is empty
+      // Build content from contentBlocks if content is empty, but EXCLUDE thinking blocks
       let validContent = msg.content || ''
 
       // For assistant messages, if content is empty but there are contentBlocks, build content from them
+      // BUT exclude thinking blocks to prevent thinking text from being sent to LLM
       if (msg.role === 'assistant' && !validContent.trim() && msg.contentBlocks?.length) {
         validContent = msg.contentBlocks
-          .filter((block) => block.type === 'text')
+          .filter((block) => block.type === 'text') // Only include text blocks, NOT thinking blocks
           .map((block) => block.content)
           .join('')
           .trim()
+      }
+
+      // For all messages, clean any thinking tags from the content to ensure no thinking text leaks through
+      if (validContent) {
+        validContent = cleanThinkingTags(validContent)
       }
 
       return {
@@ -266,7 +272,9 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
         timestamp: msg.timestamp,
         ...(msg.toolCalls && msg.toolCalls.length > 0 && { toolCalls: msg.toolCalls }),
         ...(msg.contentBlocks &&
-          msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks }),
+          msg.contentBlocks.length > 0 && { 
+            contentBlocks: msg.contentBlocks.filter(block => block.type !== 'thinking') // Exclude thinking blocks
+          }),
         ...(msg.fileAttachments &&
           msg.fileAttachments.length > 0 && { fileAttachments: msg.fileAttachments }),
       }
@@ -287,6 +295,13 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
       }
       return true // Keep all non-assistant messages
     })
+}
+
+/**
+ * Helper function to remove thinking tags and their content from text
+ */
+function cleanThinkingTags(content: string): string {
+  return content.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim()
 }
 
 /**
@@ -881,11 +896,16 @@ const sseHandlers: Record<string, SSEHandler> = {
             context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
             context.currentThinkingBlock.content = thinkingContent
             context.currentThinkingBlock.timestamp = Date.now()
+            context.currentThinkingBlock.startTime = Date.now()
             context.contentBlocks.push(context.currentThinkingBlock)
           }
           
           // Reset thinking state
           context.isInThinkingBlock = false
+          if (context.currentThinkingBlock) {
+            // Set final duration
+            context.currentThinkingBlock.duration = Date.now() - (context.currentThinkingBlock.startTime || Date.now())
+          }
           context.currentThinkingBlock = null
           context.currentTextBlock = null
           
@@ -902,6 +922,7 @@ const sseHandlers: Record<string, SSEHandler> = {
             context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
             context.currentThinkingBlock.content = contentToProcess
             context.currentThinkingBlock.timestamp = Date.now()
+            context.currentThinkingBlock.startTime = Date.now()
             context.contentBlocks.push(context.currentThinkingBlock)
           }
           contentToProcess = ''
@@ -914,8 +935,11 @@ const sseHandlers: Record<string, SSEHandler> = {
           // Found start of thinking block
           const textBeforeThinking = contentToProcess.substring(0, startMatch.index)
           
-          // Add any text before the thinking tag as a text block
+          // Add any text before the thinking tag as a text block AND to accumulated content
           if (textBeforeThinking) {
+            // Add to accumulated content for final message
+            context.accumulatedContent.append(textBeforeThinking)
+            
             if (context.currentTextBlock && context.contentBlocks.length > 0) {
               const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
               if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
@@ -955,6 +979,9 @@ const sseHandlers: Record<string, SSEHandler> = {
           }
           
           if (textToAdd) {
+            // Add to accumulated content for final message
+            context.accumulatedContent.append(textToAdd)
+            
             // Add as regular text block
             if (context.currentTextBlock && context.contentBlocks.length > 0) {
               const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
@@ -985,9 +1012,6 @@ const sseHandlers: Record<string, SSEHandler> = {
     
     // Update pending content with any remaining unprocessed content
     context.pendingContent = contentToProcess
-    
-    // PERFORMANCE OPTIMIZATION: Use StringBuilder for efficient concatenation
-    context.accumulatedContent.append(data.data)
 
     if (hasProcessedContent) {
       updateStreamingMessage(set, context)
@@ -1221,9 +1245,12 @@ const sseHandlers: Record<string, SSEHandler> = {
     if (context.pendingContent) {
       if (context.isInThinkingBlock && context.currentThinkingBlock) {
         // We were in a thinking block, append remaining content to it
+        // But DON'T add it to accumulated content
         context.currentThinkingBlock.content += context.pendingContent
       } else if (context.pendingContent.trim()) {
-        // Add remaining content as a text block
+        // Add remaining content as a text block AND to accumulated content
+        context.accumulatedContent.append(context.pendingContent)
+        
         if (context.currentTextBlock && context.contentBlocks.length > 0) {
           const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
           if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {

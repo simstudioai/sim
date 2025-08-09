@@ -1,6 +1,7 @@
 'use client'
 
 import { Bot } from 'lucide-react'
+import { workAsyncStorage } from 'next/dist/server/app-render/entry-base'
 
 interface CopilotWelcomeProps {
   onQuestionClick?: (question: string) => void
@@ -21,9 +22,9 @@ export function CopilotWelcome({ onQuestionClick, mode = 'ask' }: CopilotWelcome
   ]
 
   const agentMaxQuestions = [
-    'Build me a complex workflow with advanced features',
-    'Optimize my entire workflow architecture',
-    'Create a comprehensive automation system',
+    'Help me build a workflow',
+    'Help me optimize my workflow',
+    'Help me debug my workflow',
   ]
 
   const exampleQuestions = mode === 'ask' ? askQuestions : mode === 'agent' ? agentQuestions : agentMaxQuestions

@@ -56,6 +56,8 @@ export interface ThinkingContentBlock {
   type: 'thinking'
   content: string
   timestamp: number
+  duration?: number // Duration in milliseconds for display
+  startTime?: number // Start time for calculating duration
 }
 
 export interface ToolCallContentBlock {

@@ -22,6 +22,7 @@ export const SERVER_TOOL_IDS = {
   SEARCH_ONLINE: 'search_online',
   PLAN: 'plan',
   REASON: 'reason',
+  GET_BLOCK_BEST_PRACTICES: 'get_block_best_practices',
 } as const
 
 export type ServerToolId = (typeof SERVER_TOOL_IDS)[keyof typeof SERVER_TOOL_IDS]
@@ -315,6 +316,39 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     schema: {
       name: SERVER_TOOL_IDS.REASON,
       description: 'Reason through a complex problem',
+    },
+    requiresInterrupt: false,
+  },
+
+  [SERVER_TOOL_IDS.GET_BLOCK_BEST_PRACTICES]: {
+    id: SERVER_TOOL_IDS.GET_BLOCK_BEST_PRACTICES,
+    displayConfig: {
+      states: {
+        executing: { displayName: 'Processing metadata', icon: 'spinner' },
+        success: { displayName: 'Processed metadata', icon: 'lightbulb' },
+        rejected: { displayName: 'Skipped processing metadata', icon: 'skip' },
+        errored: { displayName: 'Failed to process metadata', icon: 'error' },
+        aborted: { displayName: 'Metadata processing aborted', icon: 'x' },
+      },
+    },
+    schema: {
+      name: SERVER_TOOL_IDS.GET_BLOCK_BEST_PRACTICES,
+      description: 'Get best practices and usage guidelines for workflow blocks and tools',
+      parameters: {
+        type: 'object',
+        properties: {
+          block_types: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional list of specific block types to get best practices for (e.g., "llm", "function", "loop")',
+          },
+          category: {
+            type: 'string',
+            description: 'Optional category filter (e.g., "performance", "security", "debugging")',
+          },
+        },
+        required: [],
+      },
     },
     requiresInterrupt: false,
   },

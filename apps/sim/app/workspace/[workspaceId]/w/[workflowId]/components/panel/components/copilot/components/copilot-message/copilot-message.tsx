@@ -584,6 +584,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               key={`thinking-${index}-${block.timestamp || index}`}
               content={block.content}
               isStreaming={isStreamingThinking}
+              duration={block.duration}
+              startTime={block.startTime}
             />
           )
         }

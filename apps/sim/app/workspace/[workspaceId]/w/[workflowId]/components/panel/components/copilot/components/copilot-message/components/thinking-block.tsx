@@ -7,24 +7,29 @@ import { cn } from '@/lib/utils'
 interface ThinkingBlockProps {
   content: string
   isStreaming?: boolean
+  duration?: number // Persisted duration from content block
+  startTime?: number // Persisted start time from content block
 }
 
-export function ThinkingBlock({ content, isStreaming = false }: ThinkingBlockProps) {
+export function ThinkingBlock({ content, isStreaming = false, duration: persistedDuration, startTime: persistedStartTime }: ThinkingBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false)
-  const [duration, setDuration] = useState(0)
-  const [startTime] = useState(Date.now())
+  const [duration, setDuration] = useState(persistedDuration || 0)
+  const [startTime] = useState(persistedStartTime || Date.now())
   
   useEffect(() => {
-    if (isStreaming) {
+    if (isStreaming && !persistedDuration) {
       const interval = setInterval(() => {
         setDuration(Date.now() - startTime)
       }, 100)
       return () => clearInterval(interval)
+    } else if (persistedDuration) {
+      // Use persisted duration
+      setDuration(persistedDuration)
     } else {
       // Set final duration when streaming stops
       setDuration(Date.now() - startTime)
     }
-  }, [isStreaming, startTime])
+  }, [isStreaming, startTime, persistedDuration])
   
   // Format duration
   const formatDuration = (ms: number) => {
