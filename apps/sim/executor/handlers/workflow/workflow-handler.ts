@@ -116,8 +116,8 @@ export class WorkflowBlockHandler implements BlockHandler {
       )
 
       // If the child workflow failed, throw an error to trigger proper error handling in the parent
-      if (mappedResult.success === false) {
-        const childError = mappedResult.error || 'Unknown error'
+      if ((mappedResult as any).success === false) {
+        const childError = (mappedResult as any).error || 'Unknown error'
         throw new Error(`Error in child workflow "${childWorkflowName}": ${childError}`)
       }
 
@@ -229,7 +229,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     childWorkflowId: string,
     childWorkflowName: string,
     duration: number
-  ): Record<string, any> {
+  ): BlockOutput {
     const success = childResult.success !== false
 
     // If child workflow failed, return minimal output
