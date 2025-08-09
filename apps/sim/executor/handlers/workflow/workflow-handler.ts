@@ -108,7 +108,20 @@ export class WorkflowBlockHandler implements BlockHandler {
       logger.info(`Child workflow ${childWorkflowName} completed in ${Math.round(duration)}ms`)
 
       // Map child workflow output to parent block output
-      return this.mapChildOutputToParent(result, workflowId, childWorkflowName, duration)
+      const mappedResult = this.mapChildOutputToParent(
+        result,
+        workflowId,
+        childWorkflowName,
+        duration
+      )
+
+      // If the child workflow failed, throw an error to trigger proper error handling in the parent
+      if (mappedResult.success === false) {
+        const childError = mappedResult.error || 'Unknown error'
+        throw new Error(`Error in child workflow "${childWorkflowName}": ${childError}`)
+      }
+
+      return mappedResult
     } catch (error: any) {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
 
@@ -121,11 +134,15 @@ export class WorkflowBlockHandler implements BlockHandler {
       const workflowMetadata = workflows[workflowId]
       const childWorkflowName = workflowMetadata?.name || workflowId
 
-      return {
-        success: false,
-        error: error.message || 'Child workflow execution failed',
-        childWorkflowName: childWorkflowName,
-      } as Record<string, any>
+      // Enhance error message with child workflow context
+      const originalError = error.message || 'Unknown error'
+
+      // Check if error message already has child workflow context to avoid duplication
+      if (originalError.startsWith('Error in child workflow')) {
+        throw error // Re-throw as-is to avoid duplication
+      }
+
+      throw new Error(`Error in child workflow "${childWorkflowName}": ${originalError}`)
     }
   }
 
@@ -212,7 +229,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     childWorkflowId: string,
     childWorkflowName: string,
     duration: number
-  ): BlockOutput {
+  ): Record<string, any> {
     const success = childResult.success !== false
 
     // If child workflow failed, return minimal output

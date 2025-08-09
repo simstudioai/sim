@@ -107,15 +107,13 @@ describe('WorkflowBlockHandler', () => {
 
       // Simulate a cycle by adding the execution to the stack
 
-      ;(WorkflowBlockHandler as any).executionStack.add('parent-workflow-id_sub_child-workflow-id')
+      ;(WorkflowBlockHandler as any).executionStack.add(
+        'parent-workflow-id_sub_child-workflow-id_workflow-block-1'
+      )
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Cyclic workflow dependency detected: parent-workflow-id_sub_child-workflow-id',
-        childWorkflowName: 'child-workflow-id',
-      })
+      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+        'Error in child workflow "child-workflow-id": Cyclic workflow dependency detected: parent-workflow-id_sub_child-workflow-id_workflow-block-1'
+      )
     })
 
     it('should enforce maximum depth limit', async () => {
@@ -128,13 +126,9 @@ describe('WorkflowBlockHandler', () => {
           'level1_sub_level2_sub_level3_sub_level4_sub_level5_sub_level6_sub_level7_sub_level8_sub_level9_sub_level10_sub_level11',
       }
 
-      const result = await handler.execute(mockBlock, inputs, deepContext)
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Maximum workflow nesting depth of 10 exceeded',
-        childWorkflowName: 'child-workflow-id',
-      })
+      await expect(handler.execute(mockBlock, inputs, deepContext)).rejects.toThrow(
+        'Error in child workflow "child-workflow-id": Maximum workflow nesting depth of 10 exceeded'
+      )
     })
 
     it('should handle child workflow not found', async () => {
@@ -146,13 +140,9 @@ describe('WorkflowBlockHandler', () => {
         statusText: 'Not Found',
       })
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Child workflow non-existent-workflow not found',
-        childWorkflowName: 'non-existent-workflow',
-      })
+      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+        'Error in child workflow "non-existent-workflow": Child workflow non-existent-workflow not found'
+      )
     })
 
     it('should handle fetch errors gracefully', async () => {
@@ -160,13 +150,9 @@ describe('WorkflowBlockHandler', () => {
 
       mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Child workflow child-workflow-id not found',
-        childWorkflowName: 'child-workflow-id',
-      })
+      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+        'Error in child workflow "child-workflow-id": Child workflow child-workflow-id not found'
+      )
     })
   })
 
