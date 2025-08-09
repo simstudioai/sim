@@ -37,6 +37,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const userInputRef = useRef<UserInputRef>(null)
   const [showCheckpoints] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [todosCollapsed, setTodosCollapsed] = useState(false)
   const lastWorkflowIdRef = useRef<string | null>(null)
   const hasMountedRef = useRef(false)
 
@@ -200,6 +201,29 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       scrollToBottom()
     }
   }, [isInitialized, messages.length, scrollToBottom])
+  
+  // Track previous sending state to detect when stream completes
+  const wasSendingRef = useRef(false)
+  
+  // Auto-collapse todos when stream completes
+  useEffect(() => {
+    if (wasSendingRef.current && !isSendingMessage && showPlanTodos) {
+      // Stream just completed, collapse the todos
+      setTodosCollapsed(true)
+    }
+    wasSendingRef.current = isSendingMessage
+  }, [isSendingMessage, showPlanTodos])
+  
+  // Reset collapsed state when todos first appear
+  useEffect(() => {
+    if (showPlanTodos && planTodos.length > 0) {
+      // Check if this is the first time todos are showing
+      // (only expand if currently sending a message, meaning new todos are being created)
+      if (isSendingMessage) {
+        setTodosCollapsed(false)
+      }
+    }
+  }, [showPlanTodos, planTodos.length, isSendingMessage])
 
   // Cleanup on component unmount (page refresh, navigation, etc.)
   useEffect(() => {
@@ -256,11 +280,25 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     [handleStartNewChat]
   )
 
+  // Handle abort action
+  const handleAbort = useCallback(() => {
+    abortMessage()
+    // Collapse todos when aborting
+    if (showPlanTodos) {
+      setTodosCollapsed(true)
+    }
+  }, [abortMessage, showPlanTodos])
+  
   // Handle message submission
   const handleSubmit = useCallback(
     async (query: string, fileAttachments?: MessageFileAttachment[]) => {
       if (!query || isSendingMessage || !activeWorkflowId) return
 
+      // Hide todos when sending a new message
+      if (showPlanTodos) {
+        closePlanTodos()
+      }
+      
       try {
         await sendMessage(query, { stream: true, fileAttachments })
         logger.info(
@@ -272,7 +310,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
         logger.error('Failed to send message:', error)
       }
     },
-    [isSendingMessage, activeWorkflowId, sendMessage]
+    [isSendingMessage, activeWorkflowId, sendMessage, showPlanTodos, closePlanTodos]
   )
 
   return (
@@ -334,6 +372,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
             {!showCheckpoints && showPlanTodos && (
               <TodoList
                 todos={planTodos}
+                collapsed={todosCollapsed}
                 onClose={closePlanTodos}
               />
             )}
@@ -343,7 +382,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
               <UserInput
                 ref={userInputRef}
                 onSubmit={handleSubmit}
-                onAbort={abortMessage}
+                onAbort={handleAbort}
                 disabled={!activeWorkflowId}
                 isLoading={isSendingMessage}
                 isAborting={isAborting}

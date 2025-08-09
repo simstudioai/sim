@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { Check, ChevronDown, ChevronRight, ListTodo, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -14,15 +14,22 @@ export interface TodoItem {
 interface TodoListProps {
   todos: TodoItem[]
   onClose?: () => void
+  collapsed?: boolean
   className?: string
 }
 
 export const TodoList = memo(function TodoList({
   todos,
   onClose,
+  collapsed = false,
   className,
 }: TodoListProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(collapsed)
+  
+  // Sync collapsed prop with internal state
+  useEffect(() => {
+    setIsCollapsed(collapsed)
+  }, [collapsed])
   
   if (!todos || todos.length === 0) {
     return null
