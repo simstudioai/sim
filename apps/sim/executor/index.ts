@@ -1277,7 +1277,10 @@ export class Executor {
         }
       })
 
-      setActiveBlocks(activeBlockIds)
+      // Only manage active blocks for parent executions
+      if (!this.isChildExecution) {
+        setActiveBlocks(activeBlockIds)
+      }
 
       const settledResults = await Promise.allSettled(
         blockIds.map((blockId) => this.executeBlock(blockId, context))
@@ -1323,7 +1326,10 @@ export class Executor {
       return results
     } catch (error) {
       // If there's an uncaught error, clear all active blocks as a safety measure
-      setActiveBlocks(new Set())
+      // Only manage active blocks for parent executions
+      if (!this.isChildExecution) {
+        setActiveBlocks(new Set())
+      }
       throw error
     }
   }
@@ -1440,27 +1446,30 @@ export class Executor {
 
       // Remove this block from active blocks immediately after execution
       // This ensures the pulse effect stops as soon as the block completes
-      useExecutionStore.setState((state) => {
-        const updatedActiveBlockIds = new Set(state.activeBlockIds)
-        updatedActiveBlockIds.delete(blockId)
+      // Only manage active blocks for parent executions
+      if (!this.isChildExecution) {
+        useExecutionStore.setState((state) => {
+          const updatedActiveBlockIds = new Set(state.activeBlockIds)
+          updatedActiveBlockIds.delete(blockId)
 
-        // For virtual blocks, also check if we should remove the actual block ID
-        if (parallelInfo) {
-          // Check if there are any other virtual blocks for the same actual block still active
-          const hasOtherVirtualBlocks = Array.from(state.activeBlockIds).some((activeId) => {
-            if (activeId === blockId) return false // Skip the current block we're removing
-            const mapping = context.parallelBlockMapping?.get(activeId)
-            return mapping && mapping.originalBlockId === parallelInfo.originalBlockId
-          })
+          // For virtual blocks, also check if we should remove the actual block ID
+          if (parallelInfo) {
+            // Check if there are any other virtual blocks for the same actual block still active
+            const hasOtherVirtualBlocks = Array.from(state.activeBlockIds).some((activeId) => {
+              if (activeId === blockId) return false // Skip the current block we're removing
+              const mapping = context.parallelBlockMapping?.get(activeId)
+              return mapping && mapping.originalBlockId === parallelInfo.originalBlockId
+            })
 
-          // If no other virtual blocks are active for this actual block, remove the actual block ID too
-          if (!hasOtherVirtualBlocks) {
-            updatedActiveBlockIds.delete(parallelInfo.originalBlockId)
+            // If no other virtual blocks are active for this actual block, remove the actual block ID too
+            if (!hasOtherVirtualBlocks) {
+              updatedActiveBlockIds.delete(parallelInfo.originalBlockId)
+            }
           }
-        }
 
-        return { activeBlockIds: updatedActiveBlockIds }
-      })
+          return { activeBlockIds: updatedActiveBlockIds }
+        })
+      }
 
       if (
         rawOutput &&
@@ -1602,27 +1611,30 @@ export class Executor {
       return output
     } catch (error: any) {
       // Remove this block from active blocks if there's an error
-      useExecutionStore.setState((state) => {
-        const updatedActiveBlockIds = new Set(state.activeBlockIds)
-        updatedActiveBlockIds.delete(blockId)
+      // Only manage active blocks for parent executions
+      if (!this.isChildExecution) {
+        useExecutionStore.setState((state) => {
+          const updatedActiveBlockIds = new Set(state.activeBlockIds)
+          updatedActiveBlockIds.delete(blockId)
 
-        // For virtual blocks, also check if we should remove the actual block ID
-        if (parallelInfo) {
-          // Check if there are any other virtual blocks for the same actual block still active
-          const hasOtherVirtualBlocks = Array.from(state.activeBlockIds).some((activeId) => {
-            if (activeId === blockId) return false // Skip the current block we're removing
-            const mapping = context.parallelBlockMapping?.get(activeId)
-            return mapping && mapping.originalBlockId === parallelInfo.originalBlockId
-          })
+          // For virtual blocks, also check if we should remove the actual block ID
+          if (parallelInfo) {
+            // Check if there are any other virtual blocks for the same actual block still active
+            const hasOtherVirtualBlocks = Array.from(state.activeBlockIds).some((activeId) => {
+              if (activeId === blockId) return false // Skip the current block we're removing
+              const mapping = context.parallelBlockMapping?.get(activeId)
+              return mapping && mapping.originalBlockId === parallelInfo.originalBlockId
+            })
 
-          // If no other virtual blocks are active for this actual block, remove the actual block ID too
-          if (!hasOtherVirtualBlocks) {
-            updatedActiveBlockIds.delete(parallelInfo.originalBlockId)
+            // If no other virtual blocks are active for this actual block, remove the actual block ID too
+            if (!hasOtherVirtualBlocks) {
+              updatedActiveBlockIds.delete(parallelInfo.originalBlockId)
+            }
           }
-        }
 
-        return { activeBlockIds: updatedActiveBlockIds }
-      })
+          return { activeBlockIds: updatedActiveBlockIds }
+        })
+      }
 
       blockLog.success = false
       blockLog.error =
