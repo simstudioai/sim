@@ -171,11 +171,6 @@ const PermissionsTableSkeleton = React.memo(() => (
 
 PermissionsTableSkeleton.displayName = 'PermissionsTableSkeleton'
 
-const getStatusBadgeStyles = (status: 'sent' | 'member' | 'modified'): string => {
-  // Use consistent gray styling for all statuses to align with modal design
-  return 'inline-flex items-center rounded-[8px] bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-}
-
 const PermissionsTable = ({
   userPermissions,
   onPermissionChange,
@@ -314,12 +309,12 @@ const PermissionsTable = ({
                   <div className='flex items-center gap-2'>
                     <span className='font-medium text-card-foreground text-sm'>{user.email}</span>
                     {isPendingInvitation && (
-                      <span className='inline-flex items-center rounded-[8px] bg-blue-100 px-2 py-1 font-medium text-blue-700 text-xs dark:bg-blue-900/30 dark:text-blue-400'>
+                      <span className='inline-flex items-center rounded-[8px] bg-gray-100 px-2 py-1 font-medium text-gray-700 text-xs dark:bg-gray-800 dark:text-gray-300'>
                         Sent
                       </span>
                     )}
                     {hasChanges && (
-                      <span className='inline-flex items-center rounded-[8px] bg-orange-100 px-2 py-1 font-medium text-orange-700 text-xs dark:bg-orange-900/30 dark:text-orange-400'>
+                      <span className='inline-flex items-center rounded-[8px] bg-gray-100 px-2 py-1 font-medium text-gray-700 text-xs dark:bg-gray-800 dark:text-gray-300'>
                         Modified
                       </span>
                     )}
