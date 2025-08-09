@@ -30,6 +30,8 @@ vi.mock('@/lib/env', () => ({
   env: {
     OPENAI_API_KEY: 'test-api-key',
   },
+  isTruthy: (value: string | boolean | number | undefined) =>
+    typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value),
 }))
 
 vi.mock('@/lib/documents/utils', () => ({

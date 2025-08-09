@@ -15,7 +15,11 @@ vi.mock('drizzle-orm', () => ({
   sql: (strings: TemplateStringsArray, ...expr: any[]) => ({ strings, expr }),
 }))
 
-vi.mock('@/lib/env', () => ({ env: { OPENAI_API_KEY: 'test-key' } }))
+vi.mock('@/lib/env', () => ({
+  env: { OPENAI_API_KEY: 'test-key' },
+  isTruthy: (value: string | boolean | number | undefined) =>
+    typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value),
+}))
 
 vi.mock('@/lib/documents/utils', () => ({
   retryWithExponentialBackoff: (fn: any) => fn(),

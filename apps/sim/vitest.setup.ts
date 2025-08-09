@@ -50,6 +50,7 @@ vi.mock('@/blocks/registry', () => ({
   })),
   getAllBlocks: vi.fn(() => ({})),
 }))
+
 const originalConsoleError = console.error
 const originalConsoleWarn = console.warn
 
