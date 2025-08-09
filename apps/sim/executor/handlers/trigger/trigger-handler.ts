@@ -55,9 +55,7 @@ export class TriggerBlockHandler implements BlockHandler {
           // FIRST: Copy all existing top-level properties (like 'event', 'message', etc.)
           // This ensures that properties already flattened in webhook utils are preserved
           for (const [key, value] of Object.entries(starterOutput)) {
-            if (key !== 'webhook' && key !== provider && typeof value === 'object' && value !== null) {
-              result[key] = value
-            } else if (key !== 'webhook' && key !== provider) {
+            if (key !== 'webhook' && key !== provider) {
               result[key] = value
             }
           }
@@ -87,7 +85,10 @@ export class TriggerBlockHandler implements BlockHandler {
             // Extract all provider properties to root level
             for (const [key, value] of Object.entries(providerData)) {
               if (typeof value === 'object' && value !== null) {
-                result[key] = value
+                // Don't overwrite existing top-level properties
+                if (!result[key]) {
+                  result[key] = value
+                }
               }
             }
 
@@ -102,6 +103,9 @@ export class TriggerBlockHandler implements BlockHandler {
             provider,
             resultKeys: Object.keys(result),
             hasMessage: !!result.message,
+            hasEvent: !!result.event,
+            hasText: !!result.text,
+            textValue: result.text,
           })
 
           return result

@@ -125,6 +125,15 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       condition: { field: 'operation', value: ['write_chat', 'write_channel'] },
       required: true,
     },
+    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
+    {
+      id: 'triggerConfig',
+      title: 'Trigger Configuration',
+      type: 'trigger-config',
+      layout: 'full',
+      triggerProvider: 'microsoftteams',
+      availableTriggers: ['microsoftteams_webhook'],
+    },
   ],
   tools: {
     access: [
