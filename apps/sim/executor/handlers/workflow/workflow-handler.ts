@@ -46,8 +46,8 @@ export class WorkflowBlockHandler implements BlockHandler {
         throw new Error(`Maximum workflow nesting depth of ${MAX_WORKFLOW_DEPTH} exceeded`)
       }
 
-      // Check for cycles
-      const executionId = `${context.workflowId}_sub_${workflowId}`
+      // Check for cycles - include block ID to differentiate parallel executions
+      const executionId = `${context.workflowId}_sub_${workflowId}_${block.id}`
       if (WorkflowBlockHandler.executionStack.has(executionId)) {
         throw new Error(`Cyclic workflow dependency detected: ${executionId}`)
       }
@@ -110,7 +110,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
 
       // Clean up execution stack in case of error
-      const executionId = `${context.workflowId}_sub_${workflowId}`
+      const executionId = `${context.workflowId}_sub_${workflowId}_${block.id}`
       WorkflowBlockHandler.executionStack.delete(executionId)
 
       // Get workflow name for error reporting
