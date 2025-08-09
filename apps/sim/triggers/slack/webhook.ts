@@ -21,41 +21,43 @@ export const slackWebhookTrigger: TriggerConfig = {
   },
 
   outputs: {
-    event_type: {
-      type: 'string',
-      description: 'Type of Slack event (e.g., app_mention, message)',
-    },
-    channel: {
-      type: 'string',
-      description: 'Slack channel ID where the event occurred',
-    },
-    channel_name: {
-      type: 'string',
-      description: 'Human-readable channel name',
-    },
-    user: {
-      type: 'string',
-      description: 'User ID who triggered the event',
-    },
-    user_name: {
-      type: 'string',
-      description: 'Username who triggered the event',
-    },
-    text: {
-      type: 'string',
-      description: 'Message text content',
-    },
-    timestamp: {
-      type: 'string',
-      description: 'Event timestamp',
-    },
-    team_id: {
-      type: 'string',
-      description: 'Slack workspace/team ID',
-    },
-    event_id: {
-      type: 'string',
-      description: 'Unique event identifier',
+    event: {
+      event_type: {
+        type: 'string',
+        description: 'Type of Slack event (e.g., app_mention, message)',
+      },
+      channel: {
+        type: 'string',
+        description: 'Slack channel ID where the event occurred',
+      },
+      channel_name: {
+        type: 'string',
+        description: 'Human-readable channel name',
+      },
+      user: {
+        type: 'string',
+        description: 'User ID who triggered the event',
+      },
+      user_name: {
+        type: 'string',
+        description: 'Username who triggered the event',
+      },
+      text: {
+        type: 'string',
+        description: 'Message text content',
+      },
+      timestamp: {
+        type: 'string',
+        description: 'Event timestamp',
+      },
+      team_id: {
+        type: 'string',
+        description: 'Slack workspace/team ID',
+      },
+      event_id: {
+        type: 'string',
+        description: 'Unique event identifier',
+      },
     },
   },
 
