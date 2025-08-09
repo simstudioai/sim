@@ -178,11 +178,18 @@ export function DeployModal({
 
   useEffect(() => {
     async function fetchDeploymentInfo() {
+      // If not open or not deployed, clear info and stop
       if (!open || !workflowId || !isDeployed) {
         setDeploymentInfo(null)
         if (!open) {
           setIsLoading(false)
         }
+        return
+      }
+
+      // If we already have deploymentInfo (e.g., just deployed and set locally), avoid overriding it
+      if (deploymentInfo?.isDeployed && !needsRedeployment) {
+        setIsLoading(false)
         return
       }
 
@@ -215,7 +222,7 @@ export function DeployModal({
     }
 
     fetchDeploymentInfo()
-  }, [open, workflowId, isDeployed, needsRedeployment])
+  }, [open, workflowId, isDeployed, needsRedeployment, deploymentInfo?.isDeployed])
 
   const onDeploy = async (data: DeployFormValues) => {
     setApiDeployError(null)
@@ -239,13 +246,13 @@ export function DeployModal({
         throw new Error(errorData.error || 'Failed to deploy workflow')
       }
 
-      const { isDeployed: newDeployStatus, deployedAt } = await response.json()
+      const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
 
       setDeploymentStatus(
         workflowId,
         newDeployStatus,
         deployedAt ? new Date(deployedAt) : undefined,
-        data.apiKey
+        apiKey || data.apiKey
       )
 
       setNeedsRedeployment(false)
@@ -258,9 +265,9 @@ export function DeployModal({
       const newDeploymentInfo = {
         isDeployed: true,
         deployedAt: deployedAt,
-        apiKey: data.apiKey,
+        apiKey: apiKey || data.apiKey,
         endpoint,
-        exampleCommand: `curl -X POST -H "X-API-Key: ${data.apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`,
+        exampleCommand: `curl -X POST -H "X-API-Key: ${apiKey || data.apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`,
         needsRedeployment: false,
       }
 
@@ -331,6 +338,9 @@ export function DeployModal({
       }
 
       await refetchDeployedState()
+
+      // Ensure modal status updates immediately
+      setDeploymentInfo((prev) => (prev ? { ...prev, needsRedeployment: false } : prev))
     } catch (error: any) {
       logger.error('Error redeploying workflow:', { error })
     } finally {
@@ -437,7 +447,9 @@ export function DeployModal({
                   {isDeployed ? (
                     <DeploymentInfo
                       isLoading={isLoading}
-                      deploymentInfo={deploymentInfo}
+                      deploymentInfo={
+                        deploymentInfo ? { ...deploymentInfo, needsRedeployment } : null
+                      }
                       onRedeploy={handleRedeploy}
                       onUndeploy={handleUndeploy}
                       isSubmitting={isSubmitting}
@@ -464,6 +476,7 @@ export function DeployModal({
                           onSubmit={onDeploy}
                           getInputFormatExample={getInputFormatExample}
                           onApiKeyCreated={fetchApiKeys}
+                          formId='deploy-api-form'
                         />
                       </div>
                     </>
@@ -494,8 +507,8 @@ export function DeployModal({
             </Button>
 
             <Button
-              type='button'
-              onClick={() => onDeploy({ apiKey: apiKeys.length > 0 ? apiKeys[0].key : '' })}
+              type='submit'
+              form='deploy-api-form'
               disabled={isSubmitting || (!keysLoaded && !apiKeys.length)}
               className={cn(
                 'gap-2 font-medium',
