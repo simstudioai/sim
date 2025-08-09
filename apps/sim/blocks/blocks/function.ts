@@ -80,7 +80,10 @@ try {
     timeout: { type: 'number', description: 'Execution timeout' },
   },
   outputs: {
-    result: { type: 'any', description: 'Execution result' },
-    stdout: { type: 'string', description: 'Console output' },
+    result: { type: 'json', description: 'Return value from the executed JavaScript function' },
+    stdout: {
+      type: 'string',
+      description: 'Console log output and debug messages from function execution',
+    },
   },
 }

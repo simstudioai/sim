@@ -80,6 +80,14 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
     }),
   },
 
+  outputs: {
+    content: { type: 'string', description: 'Summary of found events count' },
+    metadata: {
+      type: 'json',
+      description: 'List of events with pagination tokens and event details',
+    },
+  },
+
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorData = await response.json()

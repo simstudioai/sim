@@ -20,6 +20,8 @@ export const env = createEnv({
     BETTER_AUTH_URL:                      z.string().url(),                     // Base URL for Better Auth service
     BETTER_AUTH_SECRET:                   z.string().min(32),                   // Secret key for Better Auth JWT signing
     DISABLE_REGISTRATION:                 z.boolean().optional(),               // Flag to disable new user registration
+    ALLOWED_LOGIN_EMAILS:                 z.string().optional(),                // Comma-separated list of allowed email addresses for login
+    ALLOWED_LOGIN_DOMAINS:                z.string().optional(),                // Comma-separated list of allowed email domains for login
     ENCRYPTION_KEY:                       z.string().min(32),                   // Key for encrypting sensitive data
     INTERNAL_API_SECRET:                  z.string().min(32),                   // Secret for internal API authentication
     SIM_AGENT_API_KEY:                    z.string().min(1).optional(),         // Secret for internal sim agent API authentication
@@ -95,6 +97,7 @@ export const env = createEnv({
     S3_BUCKET_NAME:                       z.string().optional(),                // S3 bucket for general file storage
     S3_LOGS_BUCKET_NAME:                  z.string().optional(),                // S3 bucket for storing logs
     S3_KB_BUCKET_NAME:                    z.string().optional(),                // S3 bucket for knowledge base files
+    S3_EXECUTION_FILES_BUCKET_NAME:       z.string().optional(),                // S3 bucket for workflow execution files
     S3_CHAT_BUCKET_NAME:                  z.string().optional(),                // S3 bucket for chat logos
     S3_COPILOT_BUCKET_NAME:               z.string().optional(),                // S3 bucket for copilot files
 
@@ -104,6 +107,7 @@ export const env = createEnv({
     AZURE_CONNECTION_STRING:              z.string().optional(),                // Azure storage connection string
     AZURE_STORAGE_CONTAINER_NAME:         z.string().optional(),                // Azure container for general files
     AZURE_STORAGE_KB_CONTAINER_NAME:      z.string().optional(),                // Azure container for knowledge base files
+    AZURE_STORAGE_EXECUTION_FILES_CONTAINER_NAME: z.string().optional(),        // Azure container for workflow execution files
     AZURE_STORAGE_CHAT_CONTAINER_NAME:    z.string().optional(),                // Azure container for chat logos
     AZURE_STORAGE_COPILOT_CONTAINER_NAME: z.string().optional(),                // Azure container for copilot files
 

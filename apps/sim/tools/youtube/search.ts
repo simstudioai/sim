@@ -27,6 +27,32 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
       description: 'YouTube API Key',
     },
   },
+
+  outputs: {
+    items: {
+      type: 'array',
+      description: 'Array of YouTube videos matching the search query',
+      items: {
+        type: 'object',
+        properties: {
+          videoId: { type: 'string', description: 'YouTube video ID' },
+          title: { type: 'string', description: 'Video title' },
+          description: { type: 'string', description: 'Video description' },
+          thumbnail: { type: 'string', description: 'Video thumbnail URL' },
+        },
+      },
+    },
+    totalResults: {
+      type: 'number',
+      description: 'Total number of search results available',
+    },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token for accessing the next page of results',
+      optional: true,
+    },
+  },
+
   request: {
     url: (params: YouTubeSearchParams) => {
       let url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&key=${params.apiKey}&q=${encodeURIComponent(

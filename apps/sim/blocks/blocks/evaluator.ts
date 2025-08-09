@@ -315,7 +315,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
   outputs: {
     content: { type: 'string', description: 'Evaluation results' },
     model: { type: 'string', description: 'Model used' },
-    tokens: { type: 'any', description: 'Token usage' },
-    cost: { type: 'any', description: 'Cost information' },
+    tokens: { type: 'json', description: 'Token usage' },
+    cost: { type: 'json', description: 'Cost information' },
   } as any,
 }

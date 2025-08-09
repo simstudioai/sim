@@ -65,7 +65,6 @@ Upload a file to OneDrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the OneDrive API |
 | `fileName` | string | Yes | The name of the file to upload |
 | `content` | string | Yes | The content of the file to upload |
 | `folderSelector` | string | No | Select the folder to upload the file to |
@@ -75,8 +74,8 @@ Upload a file to OneDrive
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `file` | json | The OneDrive file object, including details such as id, name, size, and more. |
-| `files` | json | An array of OneDrive file objects, each containing details such as id, name, size, and more. |
+| `success` | boolean | Whether the file was uploaded successfully |
+| `file` | object | The uploaded file object with metadata including id, name, webViewLink, webContentLink, and timestamps |
 
 ### `onedrive_create_folder`
 
@@ -86,7 +85,6 @@ Create a new folder in OneDrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the OneDrive API |
 | `folderName` | string | Yes | Name of the folder to create |
 | `folderSelector` | string | No | Select the parent folder to create the folder in |
 | `folderId` | string | No | ID of the parent folder \(internal use\) |
@@ -95,8 +93,8 @@ Create a new folder in OneDrive
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `file` | json | The OneDrive file object, including details such as id, name, size, and more. |
-| `files` | json | An array of OneDrive file objects, each containing details such as id, name, size, and more. |
+| `success` | boolean | Whether the folder was created successfully |
+| `file` | object | The created folder object with metadata including id, name, webViewLink, and timestamps |
 
 ### `onedrive_list`
 
@@ -106,7 +104,6 @@ List files and folders in OneDrive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the OneDrive API |
 | `folderSelector` | string | No | Select the folder to list files from |
 | `folderId` | string | No | The ID of the folder to list files from \(internal use\) |
 | `query` | string | No | A query to filter the files |
@@ -116,8 +113,9 @@ List files and folders in OneDrive
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `file` | json | The OneDrive file object, including details such as id, name, size, and more. |
-| `files` | json | An array of OneDrive file objects, each containing details such as id, name, size, and more. |
+| `success` | boolean | Whether files were listed successfully |
+| `files` | array | Array of file and folder objects with metadata |
+| `nextPageToken` | string | Token for retrieving the next page of results \(optional\) |
 
 
 

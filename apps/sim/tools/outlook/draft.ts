@@ -37,6 +37,27 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
       visibility: 'user-or-llm',
       description: 'Email body content',
     },
+    cc: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'CC recipients (comma-separated)',
+    },
+    bcc: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'BCC recipients (comma-separated)',
+    },
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Email draft creation success status' },
+    messageId: { type: 'string', description: 'Unique identifier for the drafted email' },
+    status: { type: 'string', description: 'Draft status of the email' },
+    subject: { type: 'string', description: 'Subject of the drafted email' },
+    timestamp: { type: 'string', description: 'Timestamp when draft was created' },
+    message: { type: 'string', description: 'Success or error message' },
   },
 
   request: {
@@ -56,20 +77,38 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
       }
     },
     body: (params: OutlookDraftParams): Record<string, any> => {
-      return {
+      // Helper function to parse comma-separated emails
+      const parseEmails = (emailString?: string) => {
+        if (!emailString) return []
+        return emailString
+          .split(',')
+          .map((email) => email.trim())
+          .filter((email) => email.length > 0)
+          .map((email) => ({ emailAddress: { address: email } }))
+      }
+
+      const message: any = {
         subject: params.subject,
         body: {
           contentType: 'Text',
           content: params.body,
         },
-        toRecipients: [
-          {
-            emailAddress: {
-              address: params.to,
-            },
-          },
-        ],
+        toRecipients: parseEmails(params.to),
       }
+
+      // Add CC if provided
+      const ccRecipients = parseEmails(params.cc)
+      if (ccRecipients.length > 0) {
+        message.ccRecipients = ccRecipients
+      }
+
+      // Add BCC if provided
+      const bccRecipients = parseEmails(params.bcc)
+      if (bccRecipients.length > 0) {
+        message.bccRecipients = bccRecipients
+      }
+
+      return message
     },
   },
   transformResponse: async (response) => {

@@ -18,6 +18,7 @@ import { ExaBlock } from '@/blocks/blocks/exa'
 import { FileBlock } from '@/blocks/blocks/file'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
 import { FunctionBlock } from '@/blocks/blocks/function'
+import { GenericWebhookBlock } from '@/blocks/blocks/generic_webhook'
 import { GitHubBlock } from '@/blocks/blocks/github'
 import { GmailBlock } from '@/blocks/blocks/gmail'
 import { GoogleSearchBlock } from '@/blocks/blocks/google'
@@ -91,6 +92,7 @@ export const registry: Record<string, BlockConfig> = {
   firecrawl: FirecrawlBlock,
   file: FileBlock,
   function: FunctionBlock,
+  generic_webhook: GenericWebhookBlock,
   github: GitHubBlock,
   gmail: GmailBlock,
   google_calendar: GoogleCalendarBlock,

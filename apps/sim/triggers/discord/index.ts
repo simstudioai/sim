@@ -1,0 +1,1 @@
+export { discordWebhookTrigger } from './webhook'

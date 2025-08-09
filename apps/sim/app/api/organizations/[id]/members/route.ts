@@ -5,7 +5,7 @@ import { getEmailSubject, renderInvitationEmail } from '@/components/emails/rend
 import { getSession } from '@/lib/auth'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { sendEmail } from '@/lib/email/mailer'
-import { validateAndNormalizeEmail } from '@/lib/email/utils'
+import { quickValidateEmail } from '@/lib/email/validation'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
@@ -139,9 +139,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Validate and normalize email
-    const { isValid, normalized: normalizedEmail } = validateAndNormalizeEmail(email)
-    if (!isValid) {
-      return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
+    const normalizedEmail = email.trim().toLowerCase()
+    const validation = quickValidateEmail(normalizedEmail)
+    if (!validation.isValid) {
+      return NextResponse.json(
+        { error: validation.reason || 'Invalid email format' },
+        { status: 400 }
+      )
     }
 
     // Verify user has admin access

@@ -108,7 +108,6 @@ Read data from a Microsoft Excel spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Microsoft Excel API |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to read from |
 | `range` | string | No | The range of cells to read from |
 
@@ -116,14 +115,8 @@ Read data from a Microsoft Excel spreadsheet
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `data` | json | Sheet data |
-| `metadata` | json | Operation metadata |
-| `updatedRange` | string | Updated range |
-| `updatedRows` | number | Updated rows count |
-| `updatedColumns` | number | Updated columns count |
-| `updatedCells` | number | Updated cells count |
-| `index` | number | Row index |
-| `values` | json | Table values |
+| `success` | boolean | Operation success status |
+| `output` | object | Excel spreadsheet data and metadata |
 
 ### `microsoft_excel_write`
 
@@ -133,7 +126,6 @@ Write data to a Microsoft Excel spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Microsoft Excel API |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to write to |
 | `range` | string | No | The range of cells to write to |
 | `values` | array | Yes | The data to write to the spreadsheet |
@@ -144,14 +136,8 @@ Write data to a Microsoft Excel spreadsheet
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `data` | json | Sheet data |
-| `metadata` | json | Operation metadata |
-| `updatedRange` | string | Updated range |
-| `updatedRows` | number | Updated rows count |
-| `updatedColumns` | number | Updated columns count |
-| `updatedCells` | number | Updated cells count |
-| `index` | number | Row index |
-| `values` | json | Table values |
+| `success` | boolean | Operation success status |
+| `output` | object | Write operation results and metadata |
 
 ### `microsoft_excel_table_add`
 
@@ -161,7 +147,6 @@ Add new rows to a Microsoft Excel table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Microsoft Excel API |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet containing the table |
 | `tableName` | string | Yes | The name of the table to add rows to |
 | `values` | array | Yes | The data to add to the table \(array of arrays or array of objects\) |
@@ -170,14 +155,8 @@ Add new rows to a Microsoft Excel table
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `data` | json | Sheet data |
-| `metadata` | json | Operation metadata |
-| `updatedRange` | string | Updated range |
-| `updatedRows` | number | Updated rows count |
-| `updatedColumns` | number | Updated columns count |
-| `updatedCells` | number | Updated cells count |
-| `index` | number | Row index |
-| `values` | json | Table values |
+| `success` | boolean | Operation success status |
+| `output` | object | Table add operation results and metadata |
 
 
 

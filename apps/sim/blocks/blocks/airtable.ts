@@ -98,6 +98,15 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       condition: { field: 'operation', value: 'update' },
       required: true,
     },
+    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
+    {
+      id: 'triggerConfig',
+      title: 'Trigger Configuration',
+      type: 'trigger-config',
+      layout: 'full',
+      triggerProvider: 'airtable',
+      availableTriggers: ['airtable_webhook'],
+    },
   ],
   tools: {
     access: [
@@ -176,5 +185,21 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
     records: { type: 'json', description: 'Retrieved record data' }, // Optional: for list, create, updateMultiple
     record: { type: 'json', description: 'Single record data' }, // Optional: for get, update single
     metadata: { type: 'json', description: 'Operation metadata' }, // Required: present in all responses
+    // Trigger outputs
+    event_type: { type: 'string', description: 'Type of Airtable event' },
+    base_id: { type: 'string', description: 'Airtable base identifier' },
+    table_id: { type: 'string', description: 'Airtable table identifier' },
+    record_id: { type: 'string', description: 'Record identifier that was modified' },
+    record_data: {
+      type: 'string',
+      description: 'Complete record data (when Include Full Record Data is enabled)',
+    },
+    changed_fields: { type: 'string', description: 'Fields that were changed in the record' },
+    webhook_id: { type: 'string', description: 'Unique webhook identifier' },
+    timestamp: { type: 'string', description: 'Event timestamp' },
+  },
+  triggers: {
+    enabled: true,
+    available: ['airtable_webhook'],
   },
 }

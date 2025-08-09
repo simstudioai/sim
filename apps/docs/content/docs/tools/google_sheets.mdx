@@ -110,7 +110,6 @@ Read data from a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Google Sheets API |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to read from |
 | `range` | string | No | The range of cells to read from |
 
@@ -118,13 +117,8 @@ Read data from a Google Sheets spreadsheet
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `data` | json | Sheet data |
-| `metadata` | json | Operation metadata |
-| `updatedRange` | string | Updated range |
-| `updatedRows` | number | Updated rows count |
-| `updatedColumns` | number | Updated columns count |
-| `updatedCells` | number | Updated cells count |
-| `tableRange` | string | Table range |
+| `data` | json | Sheet data including range and cell values |
+| `metadata` | json | Spreadsheet metadata including ID and URL |
 
 ### `google_sheets_write`
 
@@ -134,7 +128,6 @@ Write data to a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Google Sheets API |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to write to |
 | `range` | string | No | The range of cells to write to |
 | `values` | array | Yes | The data to write to the spreadsheet |
@@ -145,13 +138,11 @@ Write data to a Google Sheets spreadsheet
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `data` | json | Sheet data |
-| `metadata` | json | Operation metadata |
-| `updatedRange` | string | Updated range |
-| `updatedRows` | number | Updated rows count |
-| `updatedColumns` | number | Updated columns count |
-| `updatedCells` | number | Updated cells count |
-| `tableRange` | string | Table range |
+| `updatedRange` | string | Range of cells that were updated |
+| `updatedRows` | number | Number of rows updated |
+| `updatedColumns` | number | Number of columns updated |
+| `updatedCells` | number | Number of cells updated |
+| `metadata` | json | Spreadsheet metadata including ID and URL |
 
 ### `google_sheets_update`
 
@@ -161,7 +152,6 @@ Update data in a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Google Sheets API |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to update |
 | `range` | string | No | The range of cells to update |
 | `values` | array | Yes | The data to update in the spreadsheet |
@@ -172,13 +162,11 @@ Update data in a Google Sheets spreadsheet
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `data` | json | Sheet data |
-| `metadata` | json | Operation metadata |
-| `updatedRange` | string | Updated range |
-| `updatedRows` | number | Updated rows count |
-| `updatedColumns` | number | Updated columns count |
-| `updatedCells` | number | Updated cells count |
-| `tableRange` | string | Table range |
+| `updatedRange` | string | Range of cells that were updated |
+| `updatedRows` | number | Number of rows updated |
+| `updatedColumns` | number | Number of columns updated |
+| `updatedCells` | number | Number of cells updated |
+| `metadata` | json | Spreadsheet metadata including ID and URL |
 
 ### `google_sheets_append`
 
@@ -188,7 +176,6 @@ Append data to the end of a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Google Sheets API |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to append to |
 | `range` | string | No | The range of cells to append after |
 | `values` | array | Yes | The data to append to the spreadsheet |
@@ -200,13 +187,12 @@ Append data to the end of a Google Sheets spreadsheet
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `data` | json | Sheet data |
-| `metadata` | json | Operation metadata |
-| `updatedRange` | string | Updated range |
-| `updatedRows` | number | Updated rows count |
-| `updatedColumns` | number | Updated columns count |
-| `updatedCells` | number | Updated cells count |
-| `tableRange` | string | Table range |
+| `tableRange` | string | Range of the table where data was appended |
+| `updatedRange` | string | Range of cells that were updated |
+| `updatedRows` | number | Number of rows updated |
+| `updatedColumns` | number | Number of columns updated |
+| `updatedCells` | number | Number of cells updated |
+| `metadata` | json | Spreadsheet metadata including ID and URL |
 
 
 

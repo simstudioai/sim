@@ -101,6 +101,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           horizontalHandles?: boolean
           isWide?: boolean
           advancedMode?: boolean
+          triggerMode?: boolean
           height?: number
         }
       ) => {
@@ -127,6 +128,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 horizontalHandles: blockProperties?.horizontalHandles ?? true,
                 isWide: blockProperties?.isWide ?? false,
                 advancedMode: blockProperties?.advancedMode ?? false,
+                triggerMode: blockProperties?.triggerMode ?? false,
                 height: blockProperties?.height ?? 0,
                 data: nodeData,
               },
@@ -177,6 +179,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               horizontalHandles: blockProperties?.horizontalHandles ?? true,
               isWide: blockProperties?.isWide ?? false,
               advancedMode: blockProperties?.advancedMode ?? false,
+              triggerMode: blockProperties?.triggerMode ?? false,
               height: blockProperties?.height ?? 0,
               data: nodeData,
             },
@@ -746,6 +749,22 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Note: Socket.IO handles real-time sync automatically
       },
 
+      setBlockTriggerMode: (id: string, triggerMode: boolean) => {
+        set((state) => ({
+          blocks: {
+            ...state.blocks,
+            [id]: {
+              ...state.blocks[id],
+              triggerMode,
+            },
+          },
+          edges: [...state.edges],
+          loops: { ...state.loops },
+        }))
+        get().updateLastSaved()
+        // Note: Socket.IO handles real-time sync automatically
+      },
+
       updateBlockHeight: (id: string, height: number) => {
         set((state) => ({
           blocks: {
@@ -988,6 +1007,85 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         get().triggerUpdate()
+        // Note: Socket.IO handles real-time sync automatically
+      },
+
+      toggleBlockTriggerMode: (id: string) => {
+        const block = get().blocks[id]
+        if (!block) return
+
+        const newTriggerMode = !block.triggerMode
+
+        // When switching TO trigger mode, remove all incoming connections
+        let filteredEdges = [...get().edges]
+        if (newTriggerMode) {
+          // Remove edges where this block is the target
+          filteredEdges = filteredEdges.filter((edge) => edge.target !== id)
+          logger.info(
+            `Removed ${get().edges.length - filteredEdges.length} incoming connections for trigger mode`,
+            {
+              blockId: id,
+              blockType: block.type,
+            }
+          )
+        }
+
+        const newState = {
+          blocks: {
+            ...get().blocks,
+            [id]: {
+              ...block,
+              triggerMode: newTriggerMode,
+            },
+          },
+          edges: filteredEdges,
+          loops: { ...get().loops },
+          parallels: { ...get().parallels },
+        }
+
+        set(newState)
+        pushHistory(set, get, newState, `Toggle trigger mode for ${block.type} block`)
+        get().updateLastSaved()
+
+        // Handle webhook enable/disable when toggling trigger mode
+        const handleWebhookToggle = async () => {
+          try {
+            const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+            if (!activeWorkflowId) return
+
+            // Check if there's a webhook for this block
+            const response = await fetch(
+              `/api/webhooks?workflowId=${activeWorkflowId}&blockId=${id}`
+            )
+            if (response.ok) {
+              const data = await response.json()
+              if (data.webhooks && data.webhooks.length > 0) {
+                const webhook = data.webhooks[0].webhook
+
+                // Update webhook's isActive status based on trigger mode
+                const updateResponse = await fetch(`/api/webhooks/${webhook.id}`, {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    isActive: newTriggerMode,
+                  }),
+                })
+
+                if (!updateResponse.ok) {
+                  console.error('Failed to update webhook status')
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error toggling webhook status:', error)
+          }
+        }
+
+        // Handle webhook toggle asynchronously
+        handleWebhookToggle()
+
         // Note: Socket.IO handles real-time sync automatically
       },
 

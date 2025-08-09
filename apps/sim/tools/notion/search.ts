@@ -37,6 +37,17 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
       description: 'Number of results to return (default: 100, max: 100)',
     },
   },
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Formatted list of search results including pages and databases',
+    },
+    metadata: {
+      type: 'object',
+      description:
+        'Search metadata including total results count, pagination info, and raw results array',
+    },
+  },
 
   request: {
     url: () => 'https://api.notion.com/v1/search',

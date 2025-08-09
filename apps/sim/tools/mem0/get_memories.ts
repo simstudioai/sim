@@ -45,6 +45,17 @@ export const mem0GetMemoriesTool: ToolConfig = {
       description: 'Your Mem0 API key',
     },
   },
+
+  outputs: {
+    memories: {
+      type: 'array',
+      description: 'Array of retrieved memory objects',
+    },
+    ids: {
+      type: 'array',
+      description: 'Array of memory IDs that were retrieved',
+    },
+  },
   request: {
     url: (params: Record<string, any>) => {
       // For a specific memory ID, use the get single memory endpoint

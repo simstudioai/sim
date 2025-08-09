@@ -105,4 +105,37 @@ export const discordGetMessagesTool: ToolConfig<
     logger.error('Error retrieving Discord messages', { error })
     return `Error retrieving Discord messages: ${error instanceof Error ? error.message : String(error)}`
   },
+
+  outputs: {
+    message: { type: 'string', description: 'Success or error message' },
+    messages: {
+      type: 'array',
+      description: 'Array of Discord messages with full metadata',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Message ID' },
+          content: { type: 'string', description: 'Message content' },
+          channel_id: { type: 'string', description: 'Channel ID' },
+          author: {
+            type: 'object',
+            description: 'Message author information',
+            properties: {
+              id: { type: 'string', description: 'Author user ID' },
+              username: { type: 'string', description: 'Author username' },
+              avatar: { type: 'string', description: 'Author avatar hash' },
+              bot: { type: 'boolean', description: 'Whether author is a bot' },
+            },
+          },
+          timestamp: { type: 'string', description: 'Message timestamp' },
+          edited_timestamp: { type: 'string', description: 'Message edited timestamp' },
+          embeds: { type: 'array', description: 'Message embeds' },
+          attachments: { type: 'array', description: 'Message attachments' },
+          mentions: { type: 'array', description: 'User mentions in message' },
+          mention_roles: { type: 'array', description: 'Role mentions in message' },
+          mention_everyone: { type: 'boolean', description: 'Whether message mentions everyone' },
+        },
+      },
+    },
+  },
 }

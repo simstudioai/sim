@@ -262,9 +262,47 @@ export async function getPresignedUrlWithConfig(
  * @param key Blob name
  * @returns File buffer
  */
-export async function downloadFromBlob(key: string) {
-  const blobServiceClient = getBlobServiceClient()
-  const containerClient = blobServiceClient.getContainerClient(BLOB_CONFIG.containerName)
+export async function downloadFromBlob(key: string): Promise<Buffer>
+
+/**
+ * Download a file from Azure Blob Storage with custom configuration
+ * @param key Blob name
+ * @param customConfig Custom Blob configuration
+ * @returns File buffer
+ */
+export async function downloadFromBlob(key: string, customConfig: CustomBlobConfig): Promise<Buffer>
+
+export async function downloadFromBlob(
+  key: string,
+  customConfig?: CustomBlobConfig
+): Promise<Buffer> {
+  let blobServiceClient: BlobServiceClient
+  let containerName: string
+
+  if (customConfig) {
+    // Use custom configuration
+    if (customConfig.connectionString) {
+      blobServiceClient = BlobServiceClient.fromConnectionString(customConfig.connectionString)
+    } else if (customConfig.accountName && customConfig.accountKey) {
+      const credential = new StorageSharedKeyCredential(
+        customConfig.accountName,
+        customConfig.accountKey
+      )
+      blobServiceClient = new BlobServiceClient(
+        `https://${customConfig.accountName}.blob.core.windows.net`,
+        credential
+      )
+    } else {
+      throw new Error('Invalid custom blob configuration')
+    }
+    containerName = customConfig.containerName
+  } else {
+    // Use default configuration
+    blobServiceClient = getBlobServiceClient()
+    containerName = BLOB_CONFIG.containerName
+  }
+
+  const containerClient = blobServiceClient.getContainerClient(containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
   const downloadBlockBlobResponse = await blockBlobClient.download()
@@ -280,9 +318,43 @@ export async function downloadFromBlob(key: string) {
  * Delete a file from Azure Blob Storage
  * @param key Blob name
  */
-export async function deleteFromBlob(key: string) {
-  const blobServiceClient = getBlobServiceClient()
-  const containerClient = blobServiceClient.getContainerClient(BLOB_CONFIG.containerName)
+export async function deleteFromBlob(key: string): Promise<void>
+
+/**
+ * Delete a file from Azure Blob Storage with custom configuration
+ * @param key Blob name
+ * @param customConfig Custom Blob configuration
+ */
+export async function deleteFromBlob(key: string, customConfig: CustomBlobConfig): Promise<void>
+
+export async function deleteFromBlob(key: string, customConfig?: CustomBlobConfig): Promise<void> {
+  let blobServiceClient: BlobServiceClient
+  let containerName: string
+
+  if (customConfig) {
+    // Use custom configuration
+    if (customConfig.connectionString) {
+      blobServiceClient = BlobServiceClient.fromConnectionString(customConfig.connectionString)
+    } else if (customConfig.accountName && customConfig.accountKey) {
+      const credential = new StorageSharedKeyCredential(
+        customConfig.accountName,
+        customConfig.accountKey
+      )
+      blobServiceClient = new BlobServiceClient(
+        `https://${customConfig.accountName}.blob.core.windows.net`,
+        credential
+      )
+    } else {
+      throw new Error('Invalid custom blob configuration')
+    }
+    containerName = customConfig.containerName
+  } else {
+    // Use default configuration
+    blobServiceClient = getBlobServiceClient()
+    containerName = BLOB_CONFIG.containerName
+  }
+
+  const containerClient = blobServiceClient.getContainerClient(containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
   await blockBlobClient.delete()

@@ -29,22 +29,9 @@ interface BlockConfig {
   longDescription?: string
   category: string
   bgColor?: string
-  icon?: any
-  subBlocks?: Array<{
-    id: string
-    title?: string
-    placeholder?: string
-    type?: string
-    layout?: string
-    required?: boolean
-    options?: Array<{ label: string; id: string }>
-    [key: string]: any
-  }>
-  inputs?: Record<string, any>
   outputs?: Record<string, any>
   tools?: {
     access?: string[]
-    config?: any
   }
   [key: string]: any
 }
@@ -111,8 +98,7 @@ function extractIcons(): Record<string, string> {
 // Function to extract block configuration from file content
 function extractBlockConfig(fileContent: string): BlockConfig | null {
   try {
-    // Match the block name and type from imports and export statement
-    const _typeMatch = fileContent.match(/type\s+(\w+)Response\s*=/)
+    // Extract the block name from export statement
     const exportMatch = fileContent.match(/export\s+const\s+(\w+)Block\s*:/)
 
     if (!exportMatch) {
@@ -243,8 +229,6 @@ function extractIconName(content: string): string | null {
   return iconMatch ? iconMatch[1] : null
 }
 
-// Helper to extract subBlocks array
-
 // Updated function to extract outputs with a simpler and more reliable approach
 function extractOutputs(content: string): Record<string, any> {
   // Look for the outputs section using balanced brace matching
@@ -348,112 +332,6 @@ function extractOutputs(content: string): Record<string, any> {
         return outputs
       }
     }
-
-    // Fallback: Try to extract fields from the old nested format
-    const fieldMatches = outputsContent.match(/(\w+)\s*:\s*{([^}]+)}/g)
-
-    if (fieldMatches && fieldMatches.length > 0) {
-      fieldMatches.forEach((fieldMatch) => {
-        const fieldNameMatch = fieldMatch.match(/(\w+)\s*:/)
-        if (fieldNameMatch) {
-          const fieldName = fieldNameMatch[1]
-
-          // Check if there's a type with a nested structure
-          const typeMatch = fieldMatch.match(/type\s*:\s*{([^}]+)}/)
-          if (typeMatch) {
-            // Handle nested type object
-            const typeContent = typeMatch[1]
-            const properties: Record<string, any> = {}
-
-            // Extract property types from the type object - handle cases with comments
-            // const propertyMatches = typeContent.match(/(\w+)\s*:\s*['"]([^'"]+)['"]/g)
-            const propertyMatches = typeContent.match(
-              /(\w+)\s*:\s*['"](.*?)['"](?:\s*,)?(?:\s*\/\/[^\n]*)?/g
-            )
-            if (propertyMatches) {
-              propertyMatches.forEach((propMatch) => {
-                // Extract the property name and type, ignoring any trailing comments
-                const propParts = propMatch.match(/(\w+)\s*:\s*['"](.*?)['"]/)
-                if (propParts) {
-                  const propName = propParts[1]
-                  const propType = propParts[2]
-
-                  // Look for an inline comment that might contain a description
-                  const commentMatch = propMatch.match(/\/\/\s*(.+)$/)
-                  const description = commentMatch
-                    ? commentMatch[1].trim()
-                    : `${propName} of the ${fieldName}`
-
-                  properties[propName] = {
-                    type: propType,
-                    description: description,
-                  }
-                }
-              })
-            }
-
-            // Add the field with properties
-            outputs[fieldName] = {
-              properties,
-              description: `${fieldName} from the block execution`,
-            }
-          } else {
-            // Try to extract a simple type definition
-            const simpleTypeMatch = fieldMatch.match(/type\s*:\s*['"]([^'"]+)['"]/)
-            if (simpleTypeMatch) {
-              outputs[fieldName] = {
-                type: simpleTypeMatch[1],
-                description: `${fieldName} output from the block`,
-              }
-            }
-          }
-        }
-      })
-    }
-
-    // If we parsed anything, return it
-    if (Object.keys(outputs).length > 0) {
-      return outputs
-    }
-  }
-
-  // Fallback to the original method for backward compatibility
-  const outputsSection = content.match(/outputs\s*:\s*{([^}]*response[^}]*)}(?:\s*,|\s*})/s)
-
-  if (outputsSection) {
-    // Find the response type definition
-    const responseTypeMatch = content.match(/response\s*:\s*{\s*type\s*:\s*{([^}]*)}/s)
-
-    if (responseTypeMatch) {
-      const typeContent = responseTypeMatch[1]
-
-      // Extract all field: 'type' pairs regardless of comments or formatting
-      const fieldMatches = typeContent.match(/(\w+)\s*:\s*['"](.*?)['"]/g)
-
-      if (fieldMatches && fieldMatches.length > 0) {
-        const typeFields: Record<string, string> = {}
-
-        // Process each field match
-        fieldMatches.forEach((match) => {
-          const fieldParts = match.match(/(\w+)\s*:\s*['"](.*?)['"]/)
-          if (fieldParts) {
-            const fieldName = fieldParts[1]
-            const fieldType = fieldParts[2]
-            typeFields[fieldName] = fieldType
-          }
-        })
-
-        // If we have any fields, return them in the expected structure
-        if (Object.keys(typeFields).length > 0) {
-          const result = {
-            response: {
-              type: typeFields,
-            },
-          }
-          return result
-        }
-      }
-    }
   }
 
   return {}
@@ -483,16 +361,16 @@ function extractToolsAccess(content: string): string[] {
 // Function to extract tool information from file content
 function extractToolInfo(
   toolName: string,
-  fileContent: string,
-  filePath = ''
+  fileContent: string
 ): {
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
   outputs: Record<string, any>
 } | null {
   try {
-    // Extract tool config section - Simplified regex to match any *Tool export pattern
-    const toolConfigRegex = /export const \w+Tool\s*[=<][^{]*{[\s\S]*?params\s*:\s*{([\s\S]*?)}/im
+    // Extract tool config section - Match params until the next top-level property
+    const toolConfigRegex =
+      /params\s*:\s*{([\s\S]*?)},?\s*(?:outputs|oauth|request|directExecution|postProcess|transformResponse|transformError)/
     const toolConfigMatch = fileContent.match(toolConfigRegex)
 
     // Extract description
@@ -506,14 +384,38 @@ function extractToolInfo(
     if (toolConfigMatch) {
       const paramsContent = toolConfigMatch[1]
 
-      // More robust approach to extract parameters
+      // More robust approach to extract parameters with balanced brace matching
       // Extract each parameter block completely
-      const paramBlocksRegex = /(\w+)\s*:\s*{([^}]+)}/g
+      const paramBlocksRegex = /(\w+)\s*:\s*{/g
       let paramMatch
+      const paramPositions: Array<{ name: string; start: number; content: string }> = []
 
       while ((paramMatch = paramBlocksRegex.exec(paramsContent)) !== null) {
         const paramName = paramMatch[1]
-        const paramBlock = paramMatch[2]
+        const startPos = paramMatch.index + paramMatch[0].length - 1 // Position of opening brace
+
+        // Find matching closing brace using balanced counting
+        let braceCount = 1
+        let endPos = startPos + 1
+
+        while (endPos < paramsContent.length && braceCount > 0) {
+          if (paramsContent[endPos] === '{') {
+            braceCount++
+          } else if (paramsContent[endPos] === '}') {
+            braceCount--
+          }
+          endPos++
+        }
+
+        if (braceCount === 0) {
+          const paramBlock = paramsContent.substring(startPos + 1, endPos - 1).trim()
+          paramPositions.push({ name: paramName, start: startPos, content: paramBlock })
+        }
+      }
+
+      for (const param of paramPositions) {
+        const paramName = param.name
+        const paramBlock = param.content
 
         // Skip the accessToken parameter as it's handled automatically by the OAuth flow
         // Also skip any params parameter which isn't a real input
@@ -526,13 +428,19 @@ function extractToolInfo(
         const requiredMatch = paramBlock.match(/required\s*:\s*(true|false)/)
 
         // More careful extraction of description with handling for multiline descriptions
-        let descriptionMatch = paramBlock.match(/description\s*:\s*'(.*?)'/)
+        let descriptionMatch = paramBlock.match(/description\s*:\s*'(.*?)'(?=\s*[,}])/s)
         if (!descriptionMatch) {
-          descriptionMatch = paramBlock.match(/description\s*:\s*"(.*?)"/)
+          descriptionMatch = paramBlock.match(/description\s*:\s*"(.*?)"(?=\s*[,}])/s)
         }
         if (!descriptionMatch) {
           // Try for template literals if the description uses backticks
-          descriptionMatch = paramBlock.match(/description\s*:\s*`([^`]+)`/)
+          descriptionMatch = paramBlock.match(/description\s*:\s*`([^`]+)`/s)
+        }
+        if (!descriptionMatch) {
+          // Handle multi-line descriptions without ending quote on same line
+          descriptionMatch = paramBlock.match(
+            /description\s*:\s*['"]([^'"]*(?:\n[^'"]*)*?)['"](?=\s*[,}])/s
+          )
         }
 
         params.push({
@@ -544,115 +452,16 @@ function extractToolInfo(
       }
     }
 
-    // If no params were found with the first method, try a more direct regex approach
-    if (params.length === 0) {
-      const paramRegex =
-        /(\w+)\s*:\s*{(?:[^{}]|{[^{}]*})*type\s*:\s*['"](.*?)['"](?:[^{}]|{[^{}]*})*required\s*:\s*(true|false)(?:[^{}]|{[^{}]*})*description\s*:\s*['"](.*?)['"](?:[^{}]|{[^{}]*})*}/g
-      let match
-
-      while ((match = paramRegex.exec(fileContent)) !== null) {
-        // Skip the accessToken parameter and any params parameter
-        if (match[1] === 'params' || match[1] === 'tools') continue
-
-        params.push({
-          name: match[1],
-          type: match[2],
-          required: match[3] === 'true',
-          description: match[4] || 'No description',
-        })
-      }
-    }
-
-    // Extract output structure from transformResponse
+    // First priority: Extract outputs from the new outputs field in ToolConfig
     let outputs: Record<string, any> = {}
-    const outputRegex = /transformResponse[\s\S]*?return\s*{[\s\S]*?output\s*:\s*{([^}]*)/
-    const outputMatch = fileContent.match(outputRegex)
+    const outputsFieldRegex =
+      /outputs\s*:\s*{([\s\S]*?)}\s*,?\s*(?:oauth|params|request|directExecution|postProcess|transformResponse|transformError|$|\})/
+    const outputsFieldMatch = fileContent.match(outputsFieldRegex)
 
-    if (outputMatch) {
-      const outputContent = outputMatch[1]
-      // Try to parse the output structure based on the content
-      outputs = parseOutputStructure(toolName, outputContent)
-    }
-
-    // If we couldn't extract outputs from transformResponse, try an alternative approach
-    if (Object.keys(outputs).length === 0) {
-      // Look for output in successful response in transformResponse
-      const successOutputRegex =
-        /success\s*:\s*true,\s*output\s*:\s*(\{[^}]*\}|\w+(\.\w+)+\s*\|\|\s*\{[^}]*\}|\w+(\.\w+)+\.map\s*\()/
-      const successOutputMatch = fileContent.match(successOutputRegex)
-
-      if (successOutputMatch) {
-        const outputExpression = successOutputMatch[1].trim()
-
-        // Handle case where output is something like "data.data || {}"
-        if (outputExpression.includes('||')) {
-          outputs.data = 'json'
-        }
-        // Handle array mapping like "data.issues.map(...)"
-        else if (outputExpression.includes('.map')) {
-          // Try to extract the array object being mapped
-          const arrayMapMatch = outputExpression.match(/(\w+(?:\.\w+)+)\.map/)
-          if (arrayMapMatch) {
-            const arrayPath = arrayMapMatch[1]
-            // Get the base object being mapped to an array
-            const arrayObject = arrayPath.split('.').pop()
-            if (arrayObject) {
-              outputs[arrayObject] = 'Array of mapped items'
-            }
-          } else {
-            // Fallback if we can't extract the exact array object
-            outputs.items = 'Array of mapped items'
-          }
-        }
-        // Handle direct object assignment like "output: { field1, field2 }"
-        else if (outputExpression.startsWith('{')) {
-          const fieldMatches = outputExpression.match(/(\w+)\s*:/g)
-          if (fieldMatches) {
-            fieldMatches.forEach((match) => {
-              const fieldName = match.trim().replace(':', '')
-              outputs[fieldName] = 'Dynamic output field'
-            })
-          }
-        }
-        // Check for data.X patterns like "data.data"
-        else if (outputExpression.includes('.')) {
-          const fieldName = outputExpression.split('.').pop()
-          if (fieldName) {
-            outputs[fieldName] = 'json'
-          }
-        }
-      }
-    }
-
-    // Try to extract TypeScript interface for outputs as a fallback
-    if (Object.keys(outputs).length === 0) {
-      const interfaceRegex = new RegExp(
-        `interface\\s+${toolName.replace(/_/g, '')}Response\\s*{[\\s\\S]*?output\\s*:\\s*{([\\s\\S]*?)}[\\s\\S]*?}`
-      )
-      const interfaceMatch = fileContent.match(interfaceRegex)
-
-      if (interfaceMatch) {
-        const interfaceContent = interfaceMatch[1]
-        outputs = parseOutputStructure(toolName, interfaceContent)
-      }
-    }
-
-    // Look for TypeScript types in a types.ts file if available
-    if (Object.keys(outputs).length === 0 && filePath) {
-      const toolDir = path.dirname(filePath)
-      const typesPath = path.join(toolDir, 'types.ts')
-      if (fs.existsSync(typesPath)) {
-        const typesContent = fs.readFileSync(typesPath, 'utf-8')
-        const responseTypeRegex = new RegExp(
-          `interface\\s+${toolName.replace(/_/g, '')}Response\\s*extends\\s+\\w+\\s*{\\s*output\\s*:\\s*{([\\s\\S]*?)}\\s*}`,
-          'i'
-        )
-        const responseTypeMatch = typesContent.match(responseTypeRegex)
-
-        if (responseTypeMatch) {
-          outputs = parseOutputStructure(toolName, responseTypeMatch[1])
-        }
-      }
+    if (outputsFieldMatch) {
+      const outputsContent = outputsFieldMatch[1]
+      outputs = parseToolOutputsField(outputsContent)
+      console.log(`Found tool outputs field for ${toolName}:`, Object.keys(outputs))
     }
 
     return {
@@ -666,81 +475,318 @@ function extractToolInfo(
   }
 }
 
-// Update the parseOutputStructure function to better handle nested objects
-function parseOutputStructure(toolName: string, outputContent: string): Record<string, any> {
+// Helper function to recursively format output structure for documentation
+function formatOutputStructure(outputs: Record<string, any>, indentLevel = 0): string {
+  let result = ''
+
+  for (const [key, output] of Object.entries(outputs)) {
+    let type = 'unknown'
+    let description = `${key} output from the tool`
+
+    if (typeof output === 'object' && output !== null) {
+      if (output.type) {
+        type = output.type
+      }
+
+      if (output.description) {
+        description = output.description
+      }
+    }
+
+    // Escape special characters in the description
+    const escapedDescription = description
+      .replace(/\|/g, '\\|')
+      .replace(/\{/g, '\\{')
+      .replace(/\}/g, '\\}')
+      .replace(/\(/g, '\\(')
+      .replace(/\)/g, '\\)')
+      .replace(/\[/g, '\\[')
+      .replace(/\]/g, '\\]')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+
+    // Create prefix based on nesting level with visual hierarchy
+    let prefix = ''
+    if (indentLevel === 1) {
+      prefix = '↳ '
+    } else if (indentLevel >= 2) {
+      // For deeper nesting (like array items), use indented arrows
+      prefix = '  ↳ '
+    }
+
+    // For arrays, expand nested items
+    if (typeof output === 'object' && output !== null && output.type === 'array') {
+      result += `| ${prefix}\`${key}\` | ${type} | ${escapedDescription} |\n`
+
+      // Handle array items with properties (nested TWO more levels to show it's inside the array)
+      if (output.items?.properties) {
+        // Create a visual separator to show these are array item properties
+        const arrayItemsResult = formatOutputStructure(output.items.properties, indentLevel + 2)
+        result += arrayItemsResult
+      }
+    }
+    // For objects, expand properties
+    else if (
+      typeof output === 'object' &&
+      output !== null &&
+      output.properties &&
+      (output.type === 'object' || output.type === 'json')
+    ) {
+      result += `| ${prefix}\`${key}\` | ${type} | ${escapedDescription} |\n`
+
+      const nestedResult = formatOutputStructure(output.properties, indentLevel + 1)
+      result += nestedResult
+    }
+    // For simple types, show with prefix if nested
+    else {
+      result += `| ${prefix}\`${key}\` | ${type} | ${escapedDescription} |\n`
+    }
+  }
+
+  return result
+}
+
+// New function to parse the structured outputs field from ToolConfig
+function parseToolOutputsField(outputsContent: string): Record<string, any> {
   const outputs: Record<string, any> = {}
 
-  // Try to extract field declarations with their types
-  const fieldRegex = /(\w+)\s*:([^,}]+)/g
-  let fieldMatch
-
-  while ((fieldMatch = fieldRegex.exec(outputContent)) !== null) {
-    const fieldName = fieldMatch[1].trim()
-
-    // Determine a good description based on field name
-    let description = 'Dynamic output field'
-
-    if (fieldName === 'results' || fieldName === 'memories' || fieldName === 'searchResults') {
-      description = `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} from the operation`
-    } else if (fieldName === 'ids') {
-      description = 'IDs of created or retrieved resources'
-    } else if (fieldName === 'answer') {
-      description = 'Generated answer text'
-    } else if (fieldName === 'citations') {
-      description = 'References used to generate the answer'
+  // Calculate nesting levels for all braces first
+  const braces: Array<{ type: 'open' | 'close'; pos: number; level: number }> = []
+  for (let i = 0; i < outputsContent.length; i++) {
+    if (outputsContent[i] === '{') {
+      braces.push({ type: 'open', pos: i, level: 0 })
+    } else if (outputsContent[i] === '}') {
+      braces.push({ type: 'close', pos: i, level: 0 })
     }
-
-    outputs[fieldName] = description
   }
 
-  const shorthandRegex = /(?:^\s*|[,{]\s*)([A-Za-z_][\w]*)\s*(?=,|})/g
-  let shorthandMatch
-
-  while ((shorthandMatch = shorthandRegex.exec(outputContent)) !== null) {
-    const fieldName = shorthandMatch[1].trim()
-
-    // Ignore fields already captured or those that are part of key/value pairs
-    if (outputs[fieldName]) continue
-
-    // Provide the same heuristic descriptions as above
-    let description = 'Dynamic output field'
-
-    if (fieldName === 'results' || fieldName === 'memories' || fieldName === 'searchResults') {
-      description = `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} from the operation`
-    } else if (fieldName === 'ids') {
-      description = 'IDs of created or retrieved resources'
-    } else if (fieldName === 'answer') {
-      description = 'Generated answer text'
-    } else if (fieldName === 'citations') {
-      description = 'References used to generate the answer'
-    }
-
-    outputs[fieldName] = description
-  }
-
-  // Try to identify common patterns based on tool types
-  if (Object.keys(outputs).length === 0) {
-    if (toolName.includes('_search')) {
-      outputs.results = 'Array of search results'
-    } else if (toolName.includes('_answer')) {
-      outputs.answer = 'Generated answer text'
-      outputs.citations = 'References used to generate the answer'
-    } else if (toolName.includes('_add')) {
-      outputs.ids = 'IDs of created resources'
-    } else if (toolName.includes('_get')) {
-      outputs.data = 'Retrieved data'
+  // Calculate actual nesting levels
+  let currentLevel = 0
+  for (const brace of braces) {
+    if (brace.type === 'open') {
+      brace.level = currentLevel
+      currentLevel++
     } else {
-      // Try to extract field names from the output content with a simpler regex
-      const simpleFieldsRegex = /(\w+)\s*:/g
-      let simpleFieldMatch
+      currentLevel--
+      brace.level = currentLevel
+    }
+  }
 
-      while ((simpleFieldMatch = simpleFieldsRegex.exec(outputContent)) !== null) {
-        outputs[simpleFieldMatch[1]] = 'Dynamic output field'
+  // Find field definitions and their nesting levels
+  const fieldStartRegex = /(\w+)\s*:\s*{/g
+  let match
+  const fieldPositions: Array<{ name: string; start: number; end: number; level: number }> = []
+
+  while ((match = fieldStartRegex.exec(outputsContent)) !== null) {
+    const fieldName = match[1]
+    const bracePos = match.index + match[0].length - 1
+
+    // Find the corresponding opening brace to determine nesting level
+    const openBrace = braces.find((b) => b.type === 'open' && b.pos === bracePos)
+    if (openBrace) {
+      // Find the matching closing brace
+      let braceCount = 1
+      let endPos = bracePos + 1
+
+      while (endPos < outputsContent.length && braceCount > 0) {
+        if (outputsContent[endPos] === '{') {
+          braceCount++
+        } else if (outputsContent[endPos] === '}') {
+          braceCount--
+        }
+        endPos++
+      }
+
+      fieldPositions.push({
+        name: fieldName,
+        start: bracePos,
+        end: endPos,
+        level: openBrace.level,
+      })
+    }
+  }
+
+  // Only process level 0 fields (top-level outputs)
+  const topLevelFields = fieldPositions.filter((f) => f.level === 0)
+
+  topLevelFields.forEach((field) => {
+    const fieldContent = outputsContent.substring(field.start + 1, field.end - 1).trim()
+
+    // Parse the field content
+    const parsedField = parseFieldContent(fieldContent)
+    if (parsedField) {
+      outputs[field.name] = parsedField
+    }
+  })
+
+  return outputs
+}
+
+// Helper function to parse individual field content with support for nested structures
+function parseFieldContent(fieldContent: string): any {
+  // Extract type and description
+  const typeMatch = fieldContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
+  const descMatch = fieldContent.match(/description\s*:\s*['"`]([^'"`\n]+)['"`]/)
+
+  if (!typeMatch) return null
+
+  const fieldType = typeMatch[1]
+  const description = descMatch ? descMatch[1] : ''
+
+  const result: any = {
+    type: fieldType,
+    description: description,
+  }
+
+  // Check for properties (nested objects) - only for object types, not arrays
+  if (fieldType === 'object' || fieldType === 'json') {
+    const propertiesRegex = /properties\s*:\s*{/
+    const propertiesStart = fieldContent.search(propertiesRegex)
+
+    if (propertiesStart !== -1) {
+      const braceStart = fieldContent.indexOf('{', propertiesStart)
+      let braceCount = 1
+      let braceEnd = braceStart + 1
+
+      // Find matching closing brace
+      while (braceEnd < fieldContent.length && braceCount > 0) {
+        if (fieldContent[braceEnd] === '{') braceCount++
+        else if (fieldContent[braceEnd] === '}') braceCount--
+        braceEnd++
+      }
+
+      if (braceCount === 0) {
+        const propertiesContent = fieldContent.substring(braceStart + 1, braceEnd - 1).trim()
+        result.properties = parsePropertiesContent(propertiesContent)
       }
     }
   }
 
-  return outputs
+  // Check for items (array items) - ensure balanced brace matching
+  const itemsRegex = /items\s*:\s*{/
+  const itemsStart = fieldContent.search(itemsRegex)
+
+  if (itemsStart !== -1) {
+    const braceStart = fieldContent.indexOf('{', itemsStart)
+    let braceCount = 1
+    let braceEnd = braceStart + 1
+
+    // Find matching closing brace
+    while (braceEnd < fieldContent.length && braceCount > 0) {
+      if (fieldContent[braceEnd] === '{') braceCount++
+      else if (fieldContent[braceEnd] === '}') braceCount--
+      braceEnd++
+    }
+
+    if (braceCount === 0) {
+      const itemsContent = fieldContent.substring(braceStart + 1, braceEnd - 1).trim()
+      const itemsType = itemsContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
+
+      // Only look for description before any properties block to avoid picking up nested property descriptions
+      const propertiesStart = itemsContent.search(/properties\s*:\s*{/)
+      const searchContent =
+        propertiesStart >= 0 ? itemsContent.substring(0, propertiesStart) : itemsContent
+      const itemsDesc = searchContent.match(/description\s*:\s*['"`]([^'"`\n]+)['"`]/)
+
+      result.items = {
+        type: itemsType ? itemsType[1] : 'object',
+        description: itemsDesc ? itemsDesc[1] : '',
+      }
+
+      // Check if items have properties
+      const itemsPropertiesRegex = /properties\s*:\s*{/
+      const itemsPropsStart = itemsContent.search(itemsPropertiesRegex)
+
+      if (itemsPropsStart !== -1) {
+        const propsBraceStart = itemsContent.indexOf('{', itemsPropsStart)
+        let propsBraceCount = 1
+        let propsBraceEnd = propsBraceStart + 1
+
+        while (propsBraceEnd < itemsContent.length && propsBraceCount > 0) {
+          if (itemsContent[propsBraceEnd] === '{') propsBraceCount++
+          else if (itemsContent[propsBraceEnd] === '}') propsBraceCount--
+          propsBraceEnd++
+        }
+
+        if (propsBraceCount === 0) {
+          const itemsPropsContent = itemsContent
+            .substring(propsBraceStart + 1, propsBraceEnd - 1)
+            .trim()
+          result.items.properties = parsePropertiesContent(itemsPropsContent)
+        }
+      }
+    }
+  }
+
+  return result
+}
+
+// Helper function to parse properties content recursively
+function parsePropertiesContent(propertiesContent: string): Record<string, any> {
+  const properties: Record<string, any> = {}
+
+  // Find property definitions using balanced brace matching, but exclude type-only definitions
+  const propStartRegex = /(\w+)\s*:\s*{/g
+  let match
+  const propPositions: Array<{ name: string; start: number; content: string }> = []
+
+  while ((match = propStartRegex.exec(propertiesContent)) !== null) {
+    const propName = match[1]
+
+    // Skip structural keywords that should never be treated as property names
+    if (propName === 'items' || propName === 'properties') {
+      continue
+    }
+
+    const startPos = match.index + match[0].length - 1 // Position of opening brace
+
+    // Find the matching closing brace
+    let braceCount = 1
+    let endPos = startPos + 1
+
+    while (endPos < propertiesContent.length && braceCount > 0) {
+      if (propertiesContent[endPos] === '{') {
+        braceCount++
+      } else if (propertiesContent[endPos] === '}') {
+        braceCount--
+      }
+      endPos++
+    }
+
+    if (braceCount === 0) {
+      const propContent = propertiesContent.substring(startPos + 1, endPos - 1).trim()
+
+      // Skip if this is just a type definition (contains only 'type' field) rather than a real property
+      // This happens with array items definitions like: items: { type: 'string' }
+      // More precise check: only skip if it ONLY has 'type' and nothing else meaningful
+      const hasDescription = /description\s*:\s*/.test(propContent)
+      const hasProperties = /properties\s*:\s*{/.test(propContent)
+      const hasItems = /items\s*:\s*{/.test(propContent)
+      const isTypeOnly =
+        !hasDescription &&
+        !hasProperties &&
+        !hasItems &&
+        /^type\s*:\s*['"].*?['"]\s*,?\s*$/.test(propContent)
+
+      if (!isTypeOnly) {
+        propPositions.push({
+          name: propName,
+          start: startPos,
+          content: propContent,
+        })
+      }
+    }
+  }
+
+  // Process the actual property definitions
+  propPositions.forEach((prop) => {
+    const parsedProp = parseFieldContent(prop.content)
+    if (parsedProp) {
+      properties[prop.name] = parsedProp
+    }
+  })
+
+  return properties
 }
 
 // Find and extract information about a tool
@@ -784,14 +830,6 @@ async function getToolInfo(toolName: string): Promise<{
     // Most common pattern: suffix.ts file in the prefix directory
     possibleLocations.push(path.join(rootDir, `apps/sim/tools/${toolPrefix}/${toolSuffix}.ts`))
 
-    // Try underscore version if suffix has multiple parts
-    if (toolSuffix.includes('_')) {
-      const underscoreSuffix = toolSuffix.replace(/_/g, '_')
-      possibleLocations.push(
-        path.join(rootDir, `apps/sim/tools/${toolPrefix}/${underscoreSuffix}.ts`)
-      )
-    }
-
     // Try camelCase version of suffix
     const camelCaseSuffix = toolSuffix
       .split('_')
@@ -803,35 +841,12 @@ async function getToolInfo(toolName: string): Promise<{
     possibleLocations.push(path.join(rootDir, `apps/sim/tools/${toolPrefix}/index.ts`))
 
     // Try to find the tool definition file
-    let toolFilePath = ''
     let toolFileContent = ''
 
     for (const location of possibleLocations) {
       if (fs.existsSync(location)) {
-        toolFilePath = location
         toolFileContent = fs.readFileSync(location, 'utf-8')
         break
-      }
-    }
-
-    // If not found, search in tool-specific directory
-    if (!toolFileContent) {
-      const toolsDir = path.join(rootDir, 'apps/tools')
-      if (fs.existsSync(path.join(toolsDir, toolPrefix))) {
-        const dirPath = path.join(toolsDir, toolPrefix)
-        const files = fs.readdirSync(dirPath).filter((file) => file.endsWith('.ts'))
-
-        for (const file of files) {
-          const filePath = path.join(dirPath, file)
-          const content = fs.readFileSync(filePath, 'utf-8')
-
-          // Check if this file contains the tool id
-          if (content.includes(`id: '${toolName}'`) || content.includes(`id: "${toolName}"`)) {
-            toolFilePath = filePath
-            toolFileContent = content
-            break
-          }
-        }
       }
     }
 
@@ -841,7 +856,7 @@ async function getToolInfo(toolName: string): Promise<{
     }
 
     // Extract tool information from the file
-    return extractToolInfo(toolName, toolFileContent, toolFilePath)
+    return extractToolInfo(toolName, toolFileContent)
   } catch (error) {
     console.error(`Error getting info for tool ${toolName}:`, error)
     return null
@@ -896,9 +911,6 @@ function mergeWithManualContent(
       },
       usage: {
         regex: /## Usage Instructions/,
-      },
-      configuration: {
-        regex: /## Configuration/,
       },
       outputs: {
         regex: /## Outputs/,
@@ -1011,7 +1023,7 @@ async function generateMarkdownForBlock(
     bgColor,
     iconName,
     outputs = {},
-    tools = { access: [], config: {} },
+    tools = { access: [] },
   } = blockConfig
 
   // Get SVG icon if available
@@ -1138,48 +1150,47 @@ async function generateMarkdownForBlock(
         // Add Output Parameters section for the tool
         toolsSection += '\n#### Output\n\n'
 
-        // Prefer block outputs over tool outputs if available, since block outputs have better descriptions
-        const outputsToUse = Object.keys(outputs).length > 0 ? outputs : toolInfo.outputs
+        // Always prefer tool-specific outputs over block outputs for accuracy
+        if (Object.keys(toolInfo.outputs).length > 0) {
+          // Use tool-specific outputs (most accurate)
+          toolsSection += '| Parameter | Type | Description |\n'
+          toolsSection += '| --------- | ---- | ----------- |\n'
 
-        if (Object.keys(outputsToUse).length > 0) {
-          // Use block outputs if available, otherwise tool outputs
-          if (Object.keys(outputs).length > 0) {
-            // Generate table with block outputs (which have descriptions)
-            toolsSection += '| Parameter | Type | Description |\n'
-            toolsSection += '| --------- | ---- | ----------- |\n'
+          // Use the enhanced formatOutputStructure function to handle nested structures
+          toolsSection += formatOutputStructure(toolInfo.outputs)
+        } else if (Object.keys(outputs).length > 0) {
+          // Fallback to block outputs only if no tool outputs are available
+          toolsSection += '| Parameter | Type | Description |\n'
+          toolsSection += '| --------- | ---- | ----------- |\n'
 
-            for (const [key, output] of Object.entries(outputs)) {
-              let type = 'string'
-              let description = `${key} output from the tool`
+          for (const [key, output] of Object.entries(outputs)) {
+            let type = 'string'
+            let description = `${key} output from the tool`
 
-              if (typeof output === 'string') {
-                type = output
-              } else if (typeof output === 'object' && output !== null) {
-                if ('type' in output && typeof output.type === 'string') {
-                  type = output.type
-                }
-                if ('description' in output && typeof output.description === 'string') {
-                  description = output.description
-                }
+            if (typeof output === 'string') {
+              type = output
+            } else if (typeof output === 'object' && output !== null) {
+              if ('type' in output && typeof output.type === 'string') {
+                type = output.type
               }
-
-              // Escape special characters in the description
-              const escapedDescription = description
-                .replace(/\|/g, '\\|')
-                .replace(/\{/g, '\\{')
-                .replace(/\}/g, '\\}')
-                .replace(/\(/g, '\\(')
-                .replace(/\)/g, '\\)')
-                .replace(/\[/g, '\\[')
-                .replace(/\]/g, '\\]')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-
-              toolsSection += `| \`${key}\` | ${type} | ${escapedDescription} |\n`
+              if ('description' in output && typeof output.description === 'string') {
+                description = output.description
+              }
             }
-          } else {
-            // Use dynamically extracted tool outputs as fallback
-            toolsSection += generateMarkdownTable(toolInfo.outputs)
+
+            // Escape special characters in the description
+            const escapedDescription = description
+              .replace(/\|/g, '\\|')
+              .replace(/\{/g, '\\{')
+              .replace(/\}/g, '\\}')
+              .replace(/\(/g, '\\(')
+              .replace(/\)/g, '\\)')
+              .replace(/\[/g, '\\[')
+              .replace(/\]/g, '\\]')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+
+            toolsSection += `| \`${key}\` | ${type} | ${escapedDescription} |\n`
           }
         } else {
           toolsSection += 'This tool does not produce any outputs.\n'
@@ -1286,34 +1297,3 @@ generateAllBlockDocs()
     console.error('Fatal error:', error)
     process.exit(1)
   })
-
-function generateMarkdownTable(outputs: Record<string, string>): string {
-  let table = ''
-  table += '| Parameter | Type | Description |\n'
-  table += '| --------- | ---- | ----------- |\n'
-
-  for (const [key, value] of Object.entries(outputs)) {
-    // Try to determine a reasonable type from the value description
-    let inferredType = 'string'
-    if (value.toLowerCase().includes('array')) inferredType = 'array'
-    if (value.toLowerCase().includes('json')) inferredType = 'json'
-    if (value.toLowerCase().includes('number')) inferredType = 'number'
-    if (value.toLowerCase().includes('boolean')) inferredType = 'boolean'
-
-    // Escape special characters in the description
-    const escapedDescription = value
-      .replace(/\|/g, '\\|')
-      .replace(/\{/g, '\\{')
-      .replace(/\}/g, '\\}')
-      .replace(/\(/g, '\\(')
-      .replace(/\)/g, '\\)')
-      .replace(/\[/g, '\\[')
-      .replace(/\]/g, '\\]')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-
-    table += `| \`${key}\` | ${inferredType} | ${escapedDescription} |\n`
-  }
-
-  return table
-}

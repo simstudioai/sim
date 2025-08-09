@@ -38,9 +38,10 @@ spec:
         - name: migrations
           image: {{ include "sim.image" (dict "context" . "image" .Values.migrations.image) }}
           imagePullPolicy: {{ .Values.migrations.image.pullPolicy }}
-          command: ["/bin/bash", "-c"]
+          command: ["/bin/sh", "-c"]
           args:
             - |
+              cd /app/apps/sim
               export DATABASE_URL="{{ include "sim.databaseUrl" . }}"
               bun run db:migrate
           {{- if .Values.postgresql.enabled }}
@@ -67,10 +68,10 @@ spec:
             - name: DATABASE_URL
               value: {{ include "sim.databaseUrl" . | quote }}
             - name: SOCKET_SERVER_URL
-              value: {{ include "sim.socketServerUrl" . | quote }}
+              value: {{ .Values.app.env.SOCKET_SERVER_URL | default "http://localhost:3002" | quote }}
             - name: OLLAMA_URL
               value: {{ include "sim.ollamaUrl" . | quote }}
-            {{- range $key, $value := .Values.app.env }}
+            {{- range $key, $value := omit .Values.app.env "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}

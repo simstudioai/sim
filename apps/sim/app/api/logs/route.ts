@@ -95,6 +95,7 @@ export async function GET(request: NextRequest) {
           totalOutputCost: workflowExecutionLogs.totalOutputCost,
           totalTokens: workflowExecutionLogs.totalTokens,
           metadata: workflowExecutionLogs.metadata,
+          files: workflowExecutionLogs.files,
           createdAt: workflowExecutionLogs.createdAt,
           workflowName: workflow.name,
           workflowDescription: workflow.description,
@@ -334,6 +335,7 @@ export async function GET(request: NextRequest) {
           duration: log.totalDurationMs ? `${log.totalDurationMs}ms` : null,
           trigger: log.trigger,
           createdAt: log.startedAt.toISOString(),
+          files: log.files || undefined,
           workflow: params.includeWorkflow ? workflow : undefined,
           metadata: {
             totalDuration: log.totalDurationMs,

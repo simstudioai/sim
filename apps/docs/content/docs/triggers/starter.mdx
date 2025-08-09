@@ -50,7 +50,7 @@ Choose your input method from the dropdown:
         <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/chat-input.mp4"></video>
       </div>
       
-      <p className="text-sm text-gray-600">Chat with your workflow and access both input text and conversation ID for context-aware responses.</p>
+      <p className="text-sm text-gray-600">Chat with your workflow and access input text, conversation ID, and uploaded files for context-aware responses.</p>
     </div>
   </Tab>
 </Tabs>
@@ -60,13 +60,15 @@ Choose your input method from the dropdown:
 In Chat mode, access user input and conversation context through special variables:
 
 ```yaml
-# Reference the chat input and conversation ID in your workflow
+# Reference the chat input, conversation ID, and files in your workflow
 user_message: "<start.input>"
 conversation_id: "<start.conversationId>"
+uploaded_files: "<start.files>"
 ```
 
 - **`<start.input>`** - Contains the user's message text
 - **`<start.conversationId>`** - Unique identifier for the conversation thread
+- **`<start.files>`** - Array of files uploaded by the user (if any)
 
 ## API Execution
 

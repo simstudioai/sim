@@ -41,6 +41,13 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
     },
   },
 
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'The extracted content from the URL, processed into clean, LLM-friendly text',
+    },
+  },
+
   request: {
     url: (params: ReadUrlParams) => {
       return `https://r.jina.ai/https://${params.url.replace(/^https?:\/\//, '')}`

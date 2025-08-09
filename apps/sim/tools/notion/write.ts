@@ -31,6 +31,12 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
       description: 'The content to append to the page',
     },
   },
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Success message confirming content was appended to page',
+    },
+  },
 
   request: {
     url: (params: NotionWriteParams) => {

@@ -26,6 +26,17 @@ export const mem0AddMemoriesTool: ToolConfig = {
       description: 'Your Mem0 API key',
     },
   },
+
+  outputs: {
+    ids: {
+      type: 'array',
+      description: 'Array of memory IDs that were created',
+    },
+    memories: {
+      type: 'array',
+      description: 'Array of memory objects that were created',
+    },
+  },
   request: {
     url: 'https://api.mem0.ai/v1/memories/',
     method: 'POST',

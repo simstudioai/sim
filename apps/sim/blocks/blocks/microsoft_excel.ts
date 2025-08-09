@@ -197,13 +197,19 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
     valueInputOption: { type: 'string', description: 'Value input option' },
   },
   outputs: {
-    data: { type: 'json', description: 'Sheet data' },
-    metadata: { type: 'json', description: 'Operation metadata' },
-    updatedRange: { type: 'string', description: 'Updated range' },
-    updatedRows: { type: 'number', description: 'Updated rows count' },
-    updatedColumns: { type: 'number', description: 'Updated columns count' },
-    updatedCells: { type: 'number', description: 'Updated cells count' },
-    index: { type: 'number', description: 'Row index' },
-    values: { type: 'json', description: 'Table values' },
+    data: { type: 'json', description: 'Excel range data with sheet information and cell values' },
+    metadata: {
+      type: 'json',
+      description: 'Spreadsheet metadata including ID, URL, and sheet details',
+    },
+    updatedRange: { type: 'string', description: 'The range that was updated (write operations)' },
+    updatedRows: { type: 'number', description: 'Number of rows updated (write operations)' },
+    updatedColumns: { type: 'number', description: 'Number of columns updated (write operations)' },
+    updatedCells: {
+      type: 'number',
+      description: 'Total number of cells updated (write operations)',
+    },
+    index: { type: 'number', description: 'Row index for table add operations' },
+    values: { type: 'json', description: 'Cell values array for table add operations' },
   },
 }

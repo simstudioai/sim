@@ -57,8 +57,9 @@ Add a new memory to the database or append to existing memory with the same ID.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `memories` | any | Memory data |
-| `id` | string | Memory identifier |
+| `success` | boolean | Whether the memory was added successfully |
+| `memories` | array | Array of memory objects including the new or updated memory |
+| `error` | string | Error message if operation failed |
 
 ### `memory_get`
 
@@ -74,8 +75,10 @@ Retrieve a specific memory by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `memories` | any | Memory data |
-| `id` | string | Memory identifier |
+| `success` | boolean | Whether the memory was retrieved successfully |
+| `memories` | array | Array of memory data for the requested ID |
+| `message` | string | Success or error message |
+| `error` | string | Error message if operation failed |
 
 ### `memory_get_all`
 
@@ -90,8 +93,10 @@ Retrieve all memories from the database
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `memories` | any | Memory data |
-| `id` | string | Memory identifier |
+| `success` | boolean | Whether all memories were retrieved successfully |
+| `memories` | array | Array of all memory objects with keys, types, and data |
+| `message` | string | Success or error message |
+| `error` | string | Error message if operation failed |
 
 ### `memory_delete`
 
@@ -107,8 +112,9 @@ Delete a specific memory by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `memories` | any | Memory data |
-| `id` | string | Memory identifier |
+| `success` | boolean | Whether the memory was deleted successfully |
+| `message` | string | Success or error message |
+| `error` | string | Error message if operation failed |
 
 
 

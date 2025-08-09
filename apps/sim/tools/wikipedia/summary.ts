@@ -20,6 +20,21 @@ export const pageSummaryTool: ToolConfig<WikipediaPageSummaryParams, WikipediaPa
       },
     },
 
+    outputs: {
+      summary: {
+        type: 'object',
+        description: 'Wikipedia page summary and metadata',
+        properties: {
+          title: { type: 'string', description: 'Page title' },
+          extract: { type: 'string', description: 'Page extract/summary text' },
+          description: { type: 'string', description: 'Short page description', optional: true },
+          thumbnail: { type: 'object', description: 'Thumbnail image data', optional: true },
+          content_urls: { type: 'object', description: 'URLs to access the page' },
+          pageid: { type: 'number', description: 'Wikipedia page ID' },
+        },
+      },
+    },
+
     request: {
       url: (params: WikipediaPageSummaryParams) => {
         const encodedTitle = encodeURIComponent(params.pageTitle.replace(/ /g, '_'))

@@ -162,6 +162,7 @@ export const workflowBlocks = pgTable(
     horizontalHandles: boolean('horizontal_handles').notNull().default(true),
     isWide: boolean('is_wide').notNull().default(false),
     advancedMode: boolean('advanced_mode').notNull().default(false),
+    triggerMode: boolean('trigger_mode').notNull().default(false),
     height: decimal('height').notNull().default('0'),
 
     subBlocks: jsonb('sub_blocks').notNull().default('{}'),
@@ -300,6 +301,7 @@ export const workflowExecutionLogs = pgTable(
     totalTokens: integer('total_tokens'),
 
     metadata: jsonb('metadata').notNull().default('{}'),
+    files: jsonb('files'), // File metadata for execution files
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
@@ -717,7 +719,7 @@ export const knowledgeBase = pgTable(
     // Chunking configuration stored as JSON for flexibility
     chunkingConfig: json('chunking_config')
       .notNull()
-      .default('{"maxSize": 1024, "minSize": 100, "overlap": 200}'),
+      .default('{"maxSize": 1024, "minSize": 1, "overlap": 200}'),
 
     // Soft delete support
     deletedAt: timestamp('deleted_at'),

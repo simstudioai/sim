@@ -2,6 +2,20 @@ import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 /**
+ * User-facing file object with simplified interface
+ */
+export interface UserFile {
+  id: string
+  name: string
+  url: string
+  size: number
+  type: string
+  key: string
+  uploadedAt: string
+  expiresAt: string
+}
+
+/**
  * Standardized block output format that ensures compatibility with the execution engine.
  */
 export interface NormalizedBlockOutput {
@@ -18,6 +32,8 @@ export interface NormalizedBlockOutput {
     list: any[]
     count: number
   }
+  // File fields
+  files?: UserFile[] // Binary files/attachments from this block
   // Path selection fields
   selectedPath?: {
     blockId: string
@@ -81,6 +97,8 @@ export interface BlockState {
  */
 export interface ExecutionContext {
   workflowId: string // Unique identifier for this workflow execution
+  workspaceId?: string // Workspace ID for file storage scoping
+  executionId?: string // Unique execution ID for file storage scoping
   blockStates: Map<string, BlockState>
   blockLogs: BlockLog[] // Chronological log of block executions
   metadata: ExecutionMetadata // Timing metadata for the execution

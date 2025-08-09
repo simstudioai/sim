@@ -11,5 +11,5 @@ export default defineConfig({
       maxAttempts: 1,
     },
   },
-  dirs: ['./trigger'],
+  dirs: ['./background'],
 })

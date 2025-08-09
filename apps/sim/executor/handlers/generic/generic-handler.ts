@@ -29,10 +29,16 @@ export class GenericBlockHandler implements BlockHandler {
     }
 
     try {
-      const result = await executeTool(block.config.tool, {
-        ...inputs,
-        _context: { workflowId: context.workflowId },
-      })
+      const result = await executeTool(
+        block.config.tool,
+        {
+          ...inputs,
+          _context: { workflowId: context.workflowId },
+        },
+        false, // skipProxy
+        false, // skipPostProcess
+        context // execution context for file processing
+      )
 
       if (!result.success) {
         const errorDetails = []

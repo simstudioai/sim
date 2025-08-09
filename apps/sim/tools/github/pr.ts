@@ -93,4 +93,38 @@ URL: ${pr.html_url}`
   transformError: (error) => {
     return error instanceof Error ? error.message : 'Failed to fetch PR details'
   },
+
+  outputs: {
+    content: { type: 'string', description: 'Human-readable PR summary' },
+    metadata: {
+      type: 'object',
+      description: 'Detailed PR metadata including file changes',
+      properties: {
+        number: { type: 'number', description: 'Pull request number' },
+        title: { type: 'string', description: 'PR title' },
+        state: { type: 'string', description: 'PR state (open/closed/merged)' },
+        html_url: { type: 'string', description: 'GitHub web URL' },
+        diff_url: { type: 'string', description: 'Raw diff URL' },
+        created_at: { type: 'string', description: 'Creation timestamp' },
+        updated_at: { type: 'string', description: 'Last update timestamp' },
+        files: {
+          type: 'array',
+          description: 'Files changed in the PR',
+          items: {
+            type: 'object',
+            properties: {
+              filename: { type: 'string', description: 'File path' },
+              additions: { type: 'number', description: 'Lines added' },
+              deletions: { type: 'number', description: 'Lines deleted' },
+              changes: { type: 'number', description: 'Total changes' },
+              patch: { type: 'string', description: 'File diff patch' },
+              blob_url: { type: 'string', description: 'GitHub blob URL' },
+              raw_url: { type: 'string', description: 'Raw file URL' },
+              status: { type: 'string', description: 'Change type (added/modified/deleted)' },
+            },
+          },
+        },
+      },
+    },
+  },
 }

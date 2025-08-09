@@ -8,8 +8,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
+import { quickValidateEmail } from '@/lib/email/validation'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
+
+const logger = createLogger('SignupForm')
 
 const PASSWORD_VALIDATIONS = {
   minLength: { regex: /.{8,}/, message: 'Password must be at least 8 characters long.' },
@@ -51,31 +55,20 @@ const NAME_VALIDATIONS = {
   },
 }
 
-const EMAIL_VALIDATIONS = {
-  required: {
-    test: (value: string) => Boolean(value && typeof value === 'string'),
-    message: 'Email is required.',
-  },
-  notEmpty: {
-    test: (value: string) => value.trim().length > 0,
-    message: 'Email cannot be empty.',
-  },
-  maxLength: {
-    test: (value: string) => value.length <= 254,
-    message: 'Email must be less than 254 characters.',
-  },
-  basicFormat: {
-    regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-    message: 'Please enter a valid email address.',
-  },
-  noSpaces: {
-    regex: /^[^\s]*$/,
-    message: 'Email cannot contain spaces.',
-  },
-  validStart: {
-    regex: /^[a-zA-Z0-9]/,
-    message: 'Email must start with a letter or number.',
-  },
+const validateEmailField = (emailValue: string): string[] => {
+  const errors: string[] = []
+
+  if (!emailValue || !emailValue.trim()) {
+    errors.push('Email is required.')
+    return errors
+  }
+
+  const validation = quickValidateEmail(emailValue.trim().toLowerCase())
+  if (!validation.isValid) {
+    errors.push(validation.reason || 'Please enter a valid email address.')
+  }
+
+  return errors
 }
 
 function SignupFormContent({
@@ -188,39 +181,6 @@ function SignupFormContent({
     return errors
   }
 
-  // Validate email and return array of error messages
-  const validateEmail = (emailValue: string): string[] => {
-    const errors: string[] = []
-
-    if (!EMAIL_VALIDATIONS.required.test(emailValue)) {
-      errors.push(EMAIL_VALIDATIONS.required.message)
-      return errors // Return early for required field
-    }
-
-    if (!EMAIL_VALIDATIONS.notEmpty.test(emailValue)) {
-      errors.push(EMAIL_VALIDATIONS.notEmpty.message)
-      return errors // Return early for empty field
-    }
-
-    if (!EMAIL_VALIDATIONS.maxLength.test(emailValue)) {
-      errors.push(EMAIL_VALIDATIONS.maxLength.message)
-    }
-
-    if (!EMAIL_VALIDATIONS.noSpaces.regex.test(emailValue)) {
-      errors.push(EMAIL_VALIDATIONS.noSpaces.message)
-    }
-
-    if (!EMAIL_VALIDATIONS.validStart.regex.test(emailValue)) {
-      errors.push(EMAIL_VALIDATIONS.validStart.message)
-    }
-
-    if (!EMAIL_VALIDATIONS.basicFormat.regex.test(emailValue)) {
-      errors.push(EMAIL_VALIDATIONS.basicFormat.message)
-    }
-
-    return errors
-  }
-
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newPassword = e.target.value
     setPassword(newPassword)
@@ -246,7 +206,7 @@ function SignupFormContent({
     setEmail(newEmail)
 
     // Silently validate but don't show errors until submit
-    const errors = validateEmail(newEmail)
+    const errors = validateEmailField(newEmail)
     setEmailErrors(errors)
     setShowEmailValidationError(false)
 
@@ -271,7 +231,7 @@ function SignupFormContent({
     setShowNameValidationError(nameValidationErrors.length > 0)
 
     // Validate email on submit
-    const emailValidationErrors = validateEmail(emailValue)
+    const emailValidationErrors = validateEmailField(emailValue)
     setEmailErrors(emailValidationErrors)
     setShowEmailValidationError(emailValidationErrors.length > 0)
 
@@ -324,7 +284,7 @@ function SignupFormContent({
         },
         {
           onError: (ctx) => {
-            console.error('Signup error:', ctx.error)
+            logger.error('Signup error:', ctx.error)
             const errorMessage: string[] = ['Failed to create account']
 
             if (ctx.error.code?.includes('USER_ALREADY_EXISTS')) {
@@ -370,30 +330,37 @@ function SignupFormContent({
         return
       }
 
-      // Handle invitation flow redirect
-      if (isInviteFlow && redirectUrl) {
-        router.push(redirectUrl)
-        return
+      // For new signups, always require verification
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('verificationEmail', emailValue)
+        localStorage.setItem('has_logged_in_before', 'true')
+
+        // Set cookie flag for middleware check
+        document.cookie = 'requiresEmailVerification=true; path=/; max-age=900; SameSite=Lax' // 15 min expiry
+        document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax'
+
+        // Store invitation flow state if applicable
+        if (isInviteFlow && redirectUrl) {
+          sessionStorage.setItem('inviteRedirectUrl', redirectUrl)
+          sessionStorage.setItem('isInviteFlow', 'true')
+        }
       }
 
+      // Send verification OTP manually
       try {
         await client.emailOtp.sendVerificationOtp({
           email: emailValue,
           type: 'email-verification',
         })
-      } catch (err) {
-        console.error('Failed to send verification OTP:', err)
+      } catch (otpError) {
+        logger.error('Failed to send OTP:', otpError)
+        // Continue anyway - user can use resend button
       }
 
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('verificationEmail', emailValue)
-        localStorage.setItem('has_logged_in_before', 'true')
-        document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax' // 1 year expiry
-      }
-
+      // Always redirect to verification for new signups
       router.push('/verify?fromSignup=true')
     } catch (error) {
-      console.error('Signup error:', error)
+      logger.error('Signup error:', error)
       setIsLoading(false)
     }
   }

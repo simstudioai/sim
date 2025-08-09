@@ -67,6 +67,12 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
     },
   },
 
+  outputs: {
+    canvas_id: { type: 'string', description: 'ID of the created canvas' },
+    channel: { type: 'string', description: 'Channel where canvas was created' },
+    title: { type: 'string', description: 'Title of the canvas' },
+  },
+
   request: {
     url: 'https://slack.com/api/canvases.create',
     method: 'POST',

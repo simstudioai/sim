@@ -63,6 +63,13 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
     },
   },
 
+  outputs: {
+    success: { type: 'boolean', description: 'Email send success status' },
+    status: { type: 'string', description: 'Delivery status of the email' },
+    timestamp: { type: 'string', description: 'Timestamp when email was sent' },
+    message: { type: 'string', description: 'Success or error message' },
+  },
+
   request: {
     url: (params) => {
       // If replying to a specific message, use the reply endpoint

@@ -37,6 +37,16 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
       description: 'Optional content to add to the page upon creation',
     },
   },
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Success message confirming page creation',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Page metadata including title, page ID, URL, and timestamps',
+    },
+  },
 
   request: {
     url: () => 'https://api.notion.com/v1/pages',

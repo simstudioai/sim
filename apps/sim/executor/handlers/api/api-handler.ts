@@ -93,10 +93,16 @@ export class ApiBlockHandler implements BlockHandler {
         JSON.stringify(processedInputs.body, null, 2)
       )
 
-      const result = await executeTool(block.config.tool, {
-        ...processedInputs,
-        _context: { workflowId: context.workflowId },
-      })
+      const result = await executeTool(
+        block.config.tool,
+        {
+          ...processedInputs,
+          _context: { workflowId: context.workflowId },
+        },
+        false, // skipProxy
+        false, // skipPostProcess
+        context // execution context for file processing
+      )
 
       if (!result.success) {
         const errorDetails = []

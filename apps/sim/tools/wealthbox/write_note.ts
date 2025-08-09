@@ -107,6 +107,26 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
       visibility: 'user-only',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Created or updated note data and metadata',
+      properties: {
+        note: { type: 'object', description: 'Raw note data from Wealthbox' },
+        success: { type: 'boolean', description: 'Operation success indicator' },
+        metadata: {
+          type: 'object',
+          description: 'Operation metadata',
+          properties: {
+            operation: { type: 'string', description: 'The operation performed' },
+            itemId: { type: 'string', description: 'ID of the created/updated note' },
+            itemType: { type: 'string', description: 'Type of item (note)' },
+          },
+        },
+      },
+    },
+  },
   request: {
     url: 'https://api.crmworkspace.com/v1/notes',
     method: 'POST',

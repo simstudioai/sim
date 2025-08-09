@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
+import type { ExecutionContext } from '@/executor/types'
 import type { OAuthTokenPayload, ToolConfig, ToolResponse } from '@/tools/types'
 import {
   formatRequestParams,
@@ -10,12 +11,63 @@ import {
 
 const logger = createLogger('Tools')
 
+/**
+ * Process file outputs for a tool result if execution context is available
+ * Uses dynamic imports to avoid client-side bundling issues
+ */
+async function processFileOutputs(
+  result: ToolResponse,
+  tool: ToolConfig,
+  executionContext?: ExecutionContext
+): Promise<ToolResponse> {
+  // Skip file processing if no execution context or not successful
+  if (!executionContext || !result.success) {
+    return result
+  }
+
+  // Skip file processing on client-side (no Node.js modules available)
+  if (typeof window !== 'undefined') {
+    return result
+  }
+
+  try {
+    // Dynamic import to avoid client-side bundling issues
+    const { FileToolProcessor } = await import('@/executor/utils/file-tool-processor')
+
+    // Check if tool has file outputs
+    if (!FileToolProcessor.hasFileOutputs(tool)) {
+      return result
+    }
+
+    logger.info(`File processing for tool ${tool.id}: checking outputs`, Object.keys(result.output))
+    const processedOutput = await FileToolProcessor.processToolOutputs(
+      result.output,
+      tool,
+      executionContext
+    )
+    logger.info(
+      `File processing for tool ${tool.id}: processed outputs`,
+      Object.keys(processedOutput)
+    )
+
+    return {
+      ...result,
+      output: processedOutput,
+    }
+  } catch (error) {
+    logger.error(`Error processing file outputs for tool ${tool.id}:`, error)
+    // Return original result if file processing fails
+    return result
+  }
+}
+
 // Execute a tool by calling either the proxy for external APIs or directly for internal routes
 export async function executeTool(
   toolId: string,
   params: Record<string, any>,
   skipProxy = false,
-  skipPostProcess = false
+  skipPostProcess = false,
+  executionContext?: ExecutionContext
 ): Promise<ToolResponse> {
   // Capture start time for precise timing
   const startTime = new Date()
@@ -124,38 +176,23 @@ export async function executeTool(
           const duration = endTime.getTime() - startTime.getTime()
 
           // Apply post-processing if available and not skipped
+          let finalResult = directResult
           if (tool.postProcess && directResult.success && !skipPostProcess) {
             try {
-              const postProcessResult = await tool.postProcess(
-                directResult,
-                contextParams,
-                executeTool
-              )
-              return {
-                ...postProcessResult,
-                timing: {
-                  startTime: startTimeISO,
-                  endTime: endTimeISO,
-                  duration,
-                },
-              }
+              finalResult = await tool.postProcess(directResult, contextParams, executeTool)
             } catch (error) {
               logger.error(`[${requestId}] Post-processing error for ${toolId}:`, {
                 error: error instanceof Error ? error.message : String(error),
               })
-              return {
-                ...directResult,
-                timing: {
-                  startTime: startTimeISO,
-                  endTime: endTimeISO,
-                  duration,
-                },
-              }
+              finalResult = directResult
             }
           }
 
+          // Process file outputs if execution context is available
+          finalResult = await processFileOutputs(finalResult, tool, executionContext)
+
           return {
-            ...directResult,
+            ...finalResult,
             timing: {
               startTime: startTimeISO,
               endTime: endTimeISO,
@@ -177,48 +214,27 @@ export async function executeTool(
       const result = await handleInternalRequest(toolId, tool, contextParams)
 
       // Apply post-processing if available and not skipped
+      let finalResult = result
       if (tool.postProcess && result.success && !skipPostProcess) {
         try {
-          const postProcessResult = await tool.postProcess(result, contextParams, executeTool)
-
-          // Add timing data to the post-processed result
-          const endTime = new Date()
-          const endTimeISO = endTime.toISOString()
-          const duration = endTime.getTime() - startTime.getTime()
-          return {
-            ...postProcessResult,
-            timing: {
-              startTime: startTimeISO,
-              endTime: endTimeISO,
-              duration,
-            },
-          }
+          finalResult = await tool.postProcess(result, contextParams, executeTool)
         } catch (error) {
           logger.error(`[${requestId}] Post-processing error for ${toolId}:`, {
             error: error instanceof Error ? error.message : String(error),
           })
-          // Return original result if post-processing fails
-          // Still include timing data
-          const endTime = new Date()
-          const endTimeISO = endTime.toISOString()
-          const duration = endTime.getTime() - startTime.getTime()
-          return {
-            ...result,
-            timing: {
-              startTime: startTimeISO,
-              endTime: endTimeISO,
-              duration,
-            },
-          }
+          finalResult = result
         }
       }
+
+      // Process file outputs if execution context is available
+      finalResult = await processFileOutputs(finalResult, tool, executionContext)
 
       // Add timing data to the result
       const endTime = new Date()
       const endTimeISO = endTime.toISOString()
       const duration = endTime.getTime() - startTime.getTime()
       return {
-        ...result,
+        ...finalResult,
         timing: {
           startTime: startTimeISO,
           endTime: endTimeISO,
@@ -228,50 +244,30 @@ export async function executeTool(
     }
 
     // For external APIs, use the proxy
-    const result = await handleProxyRequest(toolId, contextParams)
+    const result = await handleProxyRequest(toolId, contextParams, executionContext)
 
     // Apply post-processing if available and not skipped
+    let finalResult = result
     if (tool.postProcess && result.success && !skipPostProcess) {
       try {
-        const postProcessResult = await tool.postProcess(result, contextParams, executeTool)
-
-        // Add timing data to the post-processed result
-        const endTime = new Date()
-        const endTimeISO = endTime.toISOString()
-        const duration = endTime.getTime() - startTime.getTime()
-        return {
-          ...postProcessResult,
-          timing: {
-            startTime: startTimeISO,
-            endTime: endTimeISO,
-            duration,
-          },
-        }
+        finalResult = await tool.postProcess(result, contextParams, executeTool)
       } catch (error) {
         logger.error(`[${requestId}] Post-processing error for ${toolId}:`, {
           error: error instanceof Error ? error.message : String(error),
         })
-        // Return original result if post-processing fails, but include timing data
-        const endTime = new Date()
-        const endTimeISO = endTime.toISOString()
-        const duration = endTime.getTime() - startTime.getTime()
-        return {
-          ...result,
-          timing: {
-            startTime: startTimeISO,
-            endTime: endTimeISO,
-            duration,
-          },
-        }
+        finalResult = result
       }
     }
+
+    // Process file outputs if execution context is available
+    finalResult = await processFileOutputs(finalResult, tool, executionContext)
 
     // Add timing data to the result
     const endTime = new Date()
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - startTime.getTime()
     return {
-      ...result,
+      ...finalResult,
       timing: {
         startTime: startTimeISO,
         endTime: endTimeISO,
@@ -592,7 +588,8 @@ function validateClientSideParams(
  */
 async function handleProxyRequest(
   toolId: string,
-  params: Record<string, any>
+  params: Record<string, any>,
+  executionContext?: ExecutionContext
 ): Promise<ToolResponse> {
   const requestId = crypto.randomUUID().slice(0, 8)
 
@@ -603,7 +600,7 @@ async function handleProxyRequest(
     const response = await fetch(proxyUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ toolId, params }),
+      body: JSON.stringify({ toolId, params, executionContext }),
     })
 
     if (!response.ok) {

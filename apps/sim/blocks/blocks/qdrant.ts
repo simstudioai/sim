@@ -198,9 +198,9 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
   },
 
   outputs: {
-    matches: { type: 'any', description: 'Search matches' },
-    upsertedCount: { type: 'any', description: 'Upserted count' },
-    data: { type: 'any', description: 'Response data' },
-    status: { type: 'any', description: 'Operation status' },
+    matches: { type: 'json', description: 'Search matches' },
+    upsertedCount: { type: 'number', description: 'Upserted count' },
+    data: { type: 'json', description: 'Response data' },
+    status: { type: 'string', description: 'Operation status' },
   },
 }

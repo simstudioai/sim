@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, Code, Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
+import { BookOpen, Code, Info, RectangleHorizontal, RectangleVertical, Zap } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, validateName } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
@@ -149,12 +149,14 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const blockWebhookStatus = !!(hasWebhookProvider && hasWebhookPath)
 
   const blockAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
+  const blockTriggerMode = useWorkflowStore((state) => state.blocks[id]?.triggerMode ?? false)
 
   // Collaborative workflow actions
   const {
     collaborativeUpdateBlockName,
     collaborativeToggleBlockWide,
     collaborativeToggleBlockAdvancedMode,
+    collaborativeToggleBlockTriggerMode,
   } = useCollaborativeWorkflow()
 
   // Workflow store actions
@@ -394,10 +396,23 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
 
     const isAdvancedMode = useWorkflowStore.getState().blocks[blockId]?.advancedMode ?? false
+    const isTriggerMode = useWorkflowStore.getState().blocks[blockId]?.triggerMode ?? false
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
       if (block.hidden) return false
+
+      // Special handling for trigger mode
+      if (block.type === ('trigger-config' as SubBlockType)) {
+        // Show trigger-config blocks when in trigger mode OR for pure trigger blocks
+        const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
+        return isTriggerMode || isPureTriggerBlock
+      }
+
+      if (isTriggerMode && block.type !== ('trigger-config' as SubBlockType)) {
+        // In trigger mode, hide all non-trigger-config blocks
+        return false
+      }
 
       // Filter by mode if specified
       if (block.mode) {
@@ -550,8 +565,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         )}
 
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
-        {/* Connection Blocks - Don't show for trigger blocks or starter blocks */}
-        {config.category !== 'triggers' && type !== 'starter' && (
+        {/* Connection Blocks - Don't show for trigger blocks, starter blocks, or blocks in trigger mode */}
+        {config.category !== 'triggers' && type !== 'starter' && !blockTriggerMode && (
           <ConnectionBlocks
             blockId={id}
             setIsConnecting={setIsConnecting}
@@ -560,8 +575,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           />
         )}
 
-        {/* Input Handle - Don't show for trigger blocks or starter blocks */}
-        {config.category !== 'triggers' && type !== 'starter' && (
+        {/* Input Handle - Don't show for trigger blocks, starter blocks, or blocks in trigger mode */}
+        {config.category !== 'triggers' && type !== 'starter' && !blockTriggerMode && (
           <Handle
             type='target'
             position={horizontalHandles ? Position.Left : Position.Top}
@@ -751,6 +766,40 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 </TooltipContent>
               </Tooltip>
             )}
+            {/* Trigger Mode Button - Show for hybrid blocks that support triggers (not pure trigger blocks) */}
+            {config.triggers?.enabled && config.category !== 'triggers' && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    onClick={() => {
+                      if (userPermissions.canEdit) {
+                        // Toggle trigger mode using collaborative function
+                        collaborativeToggleBlockTriggerMode(id)
+                      }
+                    }}
+                    className={cn(
+                      'h-7 p-1 text-gray-500',
+                      blockTriggerMode && 'text-[#22C55E]',
+                      !userPermissions.canEdit && 'cursor-not-allowed opacity-50'
+                    )}
+                    disabled={!userPermissions.canEdit}
+                  >
+                    <Zap className='h-5 w-5' />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side='top'>
+                  {!userPermissions.canEdit
+                    ? userPermissions.isOfflineMode
+                      ? 'Connection lost - please refresh'
+                      : 'Read-only mode'
+                    : blockTriggerMode
+                      ? 'Switch to Action Mode'
+                      : 'Switch to Trigger Mode'}
+                </TooltipContent>
+              </Tooltip>
+            )}
             {config.docsLink ? (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -925,8 +974,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               isValidConnection={(connection) => connection.target !== id}
             />
 
-            {/* Error Handle - Don't show for trigger blocks or starter blocks */}
-            {config.category !== 'triggers' && type !== 'starter' && (
+            {/* Error Handle - Don't show for trigger blocks, starter blocks, or blocks in trigger mode */}
+            {config.category !== 'triggers' && type !== 'starter' && !blockTriggerMode && (
               <Handle
                 type='source'
                 position={horizontalHandles ? Position.Right : Position.Bottom}

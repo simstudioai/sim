@@ -47,6 +47,34 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
     },
   },
 
+  outputs: {
+    subreddit: {
+      type: 'string',
+      description: 'Name of the subreddit where posts were fetched from',
+    },
+    posts: {
+      type: 'array',
+      description: 'Array of posts with title, author, URL, score, comments count, and metadata',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Post ID' },
+          title: { type: 'string', description: 'Post title' },
+          author: { type: 'string', description: 'Author username' },
+          url: { type: 'string', description: 'Post URL' },
+          permalink: { type: 'string', description: 'Reddit permalink' },
+          score: { type: 'number', description: 'Post score (upvotes - downvotes)' },
+          num_comments: { type: 'number', description: 'Number of comments' },
+          created_utc: { type: 'number', description: 'Creation timestamp (UTC)' },
+          is_self: { type: 'boolean', description: 'Whether this is a text post' },
+          selftext: { type: 'string', description: 'Text content for self posts' },
+          thumbnail: { type: 'string', description: 'Thumbnail URL' },
+          subreddit: { type: 'string', description: 'Subreddit name' },
+        },
+      },
+    },
+  },
+
   request: {
     url: (params: RedditPostsParams) => {
       // Sanitize inputs

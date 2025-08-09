@@ -204,13 +204,17 @@ export const webhookExecution = task({
       }
 
       // Create executor and execute
-      const executor = new Executor(
-        serializedWorkflow,
-        processedBlockStates,
-        decryptedEnvVars,
-        input || {},
-        workflowVariables
-      )
+      const executor = new Executor({
+        workflow: serializedWorkflow,
+        currentBlockStates: processedBlockStates,
+        envVarValues: decryptedEnvVars,
+        workflowInput: input || {},
+        workflowVariables,
+        contextExtensions: {
+          executionId,
+          workspaceId: '', // TODO: Get from workflow if needed - see comment on line 103
+        },
+      })
 
       // Set up logging on the executor
       loggingSession.setupExecutor(executor)

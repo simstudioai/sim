@@ -39,6 +39,7 @@ export const WebhookBlock: BlockConfig = {
   category: 'triggers',
   icon: WebhookIcon,
   bgColor: '#10B981', // Green color for triggers
+  hideFromToolbar: true, // Hidden for backwards compatibility - use generic webhook trigger instead
 
   subBlocks: [
     {

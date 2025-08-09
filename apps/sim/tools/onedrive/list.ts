@@ -54,6 +54,14 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
       description: 'The number of files to return',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Whether files were listed successfully' },
+    files: { type: 'array', description: 'Array of file and folder objects with metadata' },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token for retrieving the next page of results (optional)',
+    },
+  },
   request: {
     url: (params) => {
       // Use specific folder if provided, otherwise use root

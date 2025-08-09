@@ -83,4 +83,23 @@ export const airtableUpdateMultipleRecordsTool: ToolConfig<
     // logger.error('Airtable tool error:', error)
     return `Failed to update multiple Airtable records: ${error.message || 'Unknown error'}`
   },
+
+  outputs: {
+    records: {
+      type: 'json',
+      description: 'Array of updated Airtable records',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          createdTime: { type: 'string' },
+          fields: { type: 'object' },
+        },
+      },
+    },
+    metadata: {
+      type: 'json',
+      description: 'Operation metadata including record count and updated record IDs',
+    },
+  },
 }

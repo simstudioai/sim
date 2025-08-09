@@ -8,6 +8,7 @@
  * resolving inputs and dependencies, and managing errors.
  */
 import { afterEach, beforeEach, describe, expect, vi } from 'vitest'
+import type { BlockOutput, ParamType } from '@/blocks/types'
 import { Executor } from '@/executor'
 import {
   createMinimalWorkflow,
@@ -186,6 +187,61 @@ describe('Executor', () => {
         'Starter block must have at least one outgoing connection'
       )
     })
+
+    it.concurrent(
+      'should NOT throw error if starter block has no outgoing connections but has trigger blocks',
+      () => {
+        const workflow = createMinimalWorkflow()
+        workflow.connections = []
+
+        // Add a trigger block (webhook trigger)
+        workflow.blocks.push({
+          id: 'webhook-trigger',
+          position: { x: 0, y: 0 },
+          metadata: {
+            category: 'triggers',
+            id: 'webhook',
+          },
+          config: {
+            tool: 'webhook',
+            params: {},
+          },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+        })
+
+        expect(() => new Executor(workflow)).not.toThrow()
+      }
+    )
+
+    it.concurrent(
+      'should NOT throw error if starter block has no outgoing connections but has triggerMode block',
+      () => {
+        const workflow = createMinimalWorkflow()
+        workflow.connections = []
+
+        // Add a block with triggerMode enabled
+        workflow.blocks.push({
+          id: 'gmail-trigger',
+          position: { x: 0, y: 0 },
+          metadata: {
+            id: 'gmail',
+          },
+          config: {
+            tool: 'gmail',
+            params: {
+              triggerMode: true,
+            },
+          },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+        })
+
+        expect(() => new Executor(workflow)).not.toThrow()
+      }
+    )
 
     it.concurrent('should throw error if connection references non-existent source block', () => {
       const workflow = createMinimalWorkflow()
@@ -974,29 +1030,33 @@ describe('Executor', () => {
       async () => {
         // Create a workflow with two parallel agents
         const workflow = {
+          version: '1.0',
           blocks: [
             {
               id: 'starter',
+              position: { x: 0, y: 0 },
               metadata: { id: BlockType.STARTER },
-              subBlocks: {},
+              config: { tool: 'starter', params: {} },
+              inputs: {},
+              outputs: {},
               enabled: true,
             },
             {
               id: 'agent1',
+              position: { x: 100, y: 0 },
               metadata: { id: BlockType.AGENT, name: 'Agent 1' },
-              subBlocks: {
-                model: { value: 'gpt-4o' },
-                input: { value: 'Hello' },
-              },
+              config: { tool: 'agent', params: { model: 'gpt-4o', input: 'Hello' } },
+              inputs: {},
+              outputs: {},
               enabled: true,
             },
             {
               id: 'agent2',
+              position: { x: 200, y: 0 },
               metadata: { id: BlockType.AGENT, name: 'Agent 2' },
-              subBlocks: {
-                model: { value: 'gpt-4o' },
-                input: { value: 'Hello' },
-              },
+              config: { tool: 'agent', params: { model: 'gpt-4o', input: 'Hello' } },
+              inputs: {},
+              outputs: {},
               enabled: true,
             },
           ],
@@ -1004,8 +1064,8 @@ describe('Executor', () => {
             { source: 'starter', sourceHandle: 'out', target: 'agent1', targetHandle: 'in' },
             { source: 'starter', sourceHandle: 'out', target: 'agent2', targetHandle: 'in' },
           ],
-          loops: [],
-          parallels: [],
+          loops: {},
+          parallels: {},
         }
 
         const executor = new Executor(workflow)
@@ -1053,5 +1113,56 @@ describe('Executor', () => {
         // This tests our Promise.allSettled() behavior
       }
     )
+  })
+
+  /**
+   * Trigger handler integration tests
+   */
+  describe('trigger block handling', () => {
+    it.concurrent('should not interfere with regular tool blocks', async () => {
+      const workflow = {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'starter',
+            position: { x: -100, y: 0 },
+            metadata: { id: BlockType.STARTER, name: 'Starter Block' },
+            config: { tool: 'starter', params: {} },
+            inputs: {} as Record<string, ParamType>,
+            outputs: {} as Record<string, BlockOutput>,
+            enabled: true,
+          },
+          {
+            id: 'api-block',
+            position: { x: 0, y: 0 },
+            metadata: { id: BlockType.API, name: 'API Block', category: 'tools' },
+            config: { tool: 'api', params: {} },
+            inputs: { url: 'string' as ParamType },
+            outputs: { response: 'json' as BlockOutput },
+            enabled: true,
+          },
+        ],
+        connections: [{ source: 'starter', target: 'api-block' }],
+        loops: {},
+      }
+
+      const executor = new Executor({
+        workflow,
+        workflowInput: { url: 'https://api.example.com' },
+      })
+
+      // The TriggerBlockHandler should NOT handle regular tool blocks
+      expect(
+        (executor as any).blockHandlers[0].canHandle({
+          id: 'api-block',
+          metadata: { id: BlockType.API, category: 'tools' },
+          config: { tool: 'api', params: {} },
+          position: { x: 0, y: 0 },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+        })
+      ).toBe(false)
+    })
   })
 })

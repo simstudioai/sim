@@ -26,7 +26,9 @@ describe('File Upload API Route', () => {
 
   beforeEach(() => {
     vi.resetModules()
-    vi.doMock('@/lib/uploads/setup.server', () => ({}))
+    vi.doMock('@/lib/uploads/setup.server', () => ({
+      UPLOAD_DIR_SERVER: '/tmp/test-uploads',
+    }))
   })
 
   afterEach(() => {
@@ -52,6 +54,12 @@ describe('File Upload API Route', () => {
     const response = await POST(req)
     const data = await response.json()
 
+    // Log error details if test fails
+    if (response.status !== 200) {
+      console.error('Upload failed with status:', response.status)
+      console.error('Error response:', data)
+    }
+
     expect(response.status).toBe(200)
     expect(data).toHaveProperty('path')
     expect(data.path).toMatch(/\/api\/files\/serve\/.*\.txt$/)
@@ -59,8 +67,9 @@ describe('File Upload API Route', () => {
     expect(data).toHaveProperty('size')
     expect(data).toHaveProperty('type', 'text/plain')
 
-    const fs = await import('fs/promises')
-    expect(fs.writeFile).toHaveBeenCalled()
+    // Verify the upload function was called (we're mocking at the uploadFile level)
+    const { uploadFile } = await import('@/lib/uploads')
+    expect(uploadFile).toHaveBeenCalled()
   })
 
   it('should upload a file to S3 when in S3 mode', async () => {

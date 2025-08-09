@@ -121,11 +121,11 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
   outputs: {
     // Scrape output
     markdown: { type: 'string', description: 'Page content markdown' },
-    html: { type: 'any', description: 'Raw HTML content' },
+    html: { type: 'string', description: 'Raw HTML content' },
     metadata: { type: 'json', description: 'Page metadata' },
     // Search output
     data: { type: 'json', description: 'Search results data' },
-    warning: { type: 'any', description: 'Warning messages' },
+    warning: { type: 'string', description: 'Warning messages' },
     // Crawl output
     pages: { type: 'json', description: 'Crawled pages data' },
     total: { type: 'number', description: 'Total pages found' },

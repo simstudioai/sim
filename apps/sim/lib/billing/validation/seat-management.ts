@@ -1,5 +1,6 @@
 import { and, count, eq } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { invitation, member, organization, subscription, user, userStats } from '@/db/schema'
@@ -208,8 +209,9 @@ export async function validateBulkInvitations(
   try {
     // Remove duplicates and validate email format
     const uniqueEmails = [...new Set(emailList)]
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    const validEmails = uniqueEmails.filter((email) => emailRegex.test(email))
+    const validEmails = uniqueEmails.filter(
+      (email) => quickValidateEmail(email.trim().toLowerCase()).isValid
+    )
     const duplicateEmails = emailList.filter((email, index) => emailList.indexOf(email) !== index)
 
     // Check for existing members

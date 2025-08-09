@@ -47,6 +47,14 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     },
   },
 
+  outputs: {
+    searchResults: {
+      type: 'array',
+      description:
+        'Search results with titles, links, snippets, and type-specific metadata (date for news, rating for places, imageUrl for images)',
+    },
+  },
+
   request: {
     url: (params) => `https://google.serper.dev/${params.type || 'search'}`,
     method: 'POST',

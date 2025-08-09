@@ -9,6 +9,13 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 const logger = createLogger('InputResolver')
 
 /**
+ * Helper function to resolve property access
+ */
+function resolvePropertyAccess(obj: any, property: string): any {
+  return obj[property]
+}
+
+/**
  * Resolves input values for blocks by handling references and variable substitution.
  */
 export class InputResolver {
@@ -516,7 +523,32 @@ export class InputResolver {
                 throw new Error(`Invalid path "${part}" in "${path}" for starter block.`)
               }
 
-              replacementValue = replacementValue[part]
+              // Handle array indexing syntax like "files[0]" or "items[1]"
+              const arrayMatch = part.match(/^([^[]+)\[(\d+)\]$/)
+              if (arrayMatch) {
+                const [, arrayName, indexStr] = arrayMatch
+                const index = Number.parseInt(indexStr, 10)
+
+                // First access the array property
+                const arrayValue = replacementValue[arrayName]
+                if (!Array.isArray(arrayValue)) {
+                  throw new Error(
+                    `Property "${arrayName}" is not an array in path "${path}" for starter block.`
+                  )
+                }
+
+                // Then access the array element
+                if (index < 0 || index >= arrayValue.length) {
+                  throw new Error(
+                    `Array index ${index} is out of bounds for "${arrayName}" (length: ${arrayValue.length}) in path "${path}" for starter block.`
+                  )
+                }
+
+                replacementValue = arrayValue[index]
+              } else {
+                // Regular property access with FileReference mapping
+                replacementValue = resolvePropertyAccess(replacementValue, part)
+              }
 
               if (replacementValue === undefined) {
                 logger.warn(
@@ -699,7 +731,32 @@ export class InputResolver {
           )
         }
 
-        replacementValue = replacementValue[part]
+        // Handle array indexing syntax like "files[0]" or "items[1]"
+        const arrayMatch = part.match(/^([^[]+)\[(\d+)\]$/)
+        if (arrayMatch) {
+          const [, arrayName, indexStr] = arrayMatch
+          const index = Number.parseInt(indexStr, 10)
+
+          // First access the array property
+          const arrayValue = replacementValue[arrayName]
+          if (!Array.isArray(arrayValue)) {
+            throw new Error(
+              `Property "${arrayName}" is not an array in path "${path}" for block "${sourceBlock.metadata?.name || sourceBlock.id}".`
+            )
+          }
+
+          // Then access the array element
+          if (index < 0 || index >= arrayValue.length) {
+            throw new Error(
+              `Array index ${index} is out of bounds for "${arrayName}" (length: ${arrayValue.length}) in path "${path}" for block "${sourceBlock.metadata?.name || sourceBlock.id}".`
+            )
+          }
+
+          replacementValue = arrayValue[index]
+        } else {
+          // Regular property access with FileReference mapping
+          replacementValue = resolvePropertyAccess(replacementValue, part)
+        }
 
         if (replacementValue === undefined) {
           throw new Error(

@@ -99,6 +99,6 @@ export const TranslateBlock: BlockConfig = {
   outputs: {
     content: { type: 'string', description: 'Translated text' },
     model: { type: 'string', description: 'Model used' },
-    tokens: { type: 'any', description: 'Token usage' },
+    tokens: { type: 'json', description: 'Token usage' },
   },
 }

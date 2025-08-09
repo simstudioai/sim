@@ -1,6 +1,6 @@
 ---
 title: Gmail
-description: Send Gmail
+description: Send Gmail or trigger workflows from Gmail events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -51,7 +51,7 @@ In Sim, the Gmail integration enables your agents to send, read, and search emai
 
 ## Usage Instructions
 
-Integrate Gmail functionality to send email messages within your workflow. Automate email communications and process email content using OAuth authentication.
+Comprehensive Gmail integration with OAuth authentication. Send email messages, read email content, and trigger workflows from Gmail events like new emails and label changes.
 
 
 
@@ -65,17 +65,18 @@ Send emails using Gmail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Gmail API |
 | `to` | string | Yes | Recipient email address |
 | `subject` | string | Yes | Email subject |
 | `body` | string | Yes | Email body content |
+| `cc` | string | No | CC recipients \(comma-separated\) |
+| `bcc` | string | No | BCC recipients \(comma-separated\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Response content |
-| `metadata` | json | Email metadata |
+| `content` | string | Success message |
+| `metadata` | object | Email metadata |
 
 ### `gmail_draft`
 
@@ -85,17 +86,18 @@ Draft emails using Gmail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Gmail API |
 | `to` | string | Yes | Recipient email address |
 | `subject` | string | Yes | Email subject |
 | `body` | string | Yes | Email body content |
+| `cc` | string | No | CC recipients \(comma-separated\) |
+| `bcc` | string | No | BCC recipients \(comma-separated\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Response content |
-| `metadata` | json | Email metadata |
+| `content` | string | Success message |
+| `metadata` | object | Draft metadata |
 
 ### `gmail_read`
 
@@ -105,18 +107,19 @@ Read emails from Gmail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Gmail API |
 | `messageId` | string | No | ID of the message to read |
 | `folder` | string | No | Folder/label to read emails from |
 | `unreadOnly` | boolean | No | Only retrieve unread messages |
 | `maxResults` | number | No | Maximum number of messages to retrieve \(default: 1, max: 10\) |
+| `includeAttachments` | boolean | No | Download and include email attachments |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Response content |
-| `metadata` | json | Email metadata |
+| `content` | string | Text content of the email |
+| `metadata` | json | Metadata of the email |
+| `attachments` | file[] | Attachments of the email |
 
 ### `gmail_search`
 
@@ -126,7 +129,6 @@ Search emails in Gmail
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Gmail API |
 | `query` | string | Yes | Search query for emails |
 | `maxResults` | number | No | Maximum number of results to return |
 
@@ -134,8 +136,8 @@ Search emails in Gmail
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Response content |
-| `metadata` | json | Email metadata |
+| `content` | string | Search results summary |
+| `metadata` | object | Search metadata |
 
 
 

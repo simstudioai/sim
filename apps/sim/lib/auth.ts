@@ -21,6 +21,7 @@ import {
 } from '@/components/emails/render-email'
 import { getBaseURL } from '@/lib/auth-client'
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
+import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
 import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -165,7 +166,7 @@ export const auth = betterAuth({
       const html = await renderPasswordResetEmail(username, url)
 
       const result = await resend.emails.send({
-        from: `Sim <team@${getEmailDomain()}>`,
+        from: `Sim <team@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
         to: user.email,
         subject: getEmailSubject('reset-password'),
         html,
@@ -180,6 +181,39 @@ export const auth = betterAuth({
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path.startsWith('/sign-up') && isTruthy(env.DISABLE_REGISTRATION))
         throw new Error('Registration is disabled, please contact your admin.')
+
+      // Check email and domain whitelist for sign-in and sign-up
+      if (
+        (ctx.path.startsWith('/sign-in') || ctx.path.startsWith('/sign-up')) &&
+        (env.ALLOWED_LOGIN_EMAILS || env.ALLOWED_LOGIN_DOMAINS)
+      ) {
+        const requestEmail = ctx.body?.email?.toLowerCase()
+
+        if (requestEmail) {
+          let isAllowed = false
+
+          // Check specific email whitelist
+          if (env.ALLOWED_LOGIN_EMAILS) {
+            const allowedEmails = env.ALLOWED_LOGIN_EMAILS.split(',').map((email) =>
+              email.trim().toLowerCase()
+            )
+            isAllowed = allowedEmails.includes(requestEmail)
+          }
+
+          // Check domain whitelist if not already allowed
+          if (!isAllowed && env.ALLOWED_LOGIN_DOMAINS) {
+            const allowedDomains = env.ALLOWED_LOGIN_DOMAINS.split(',').map((domain) =>
+              domain.trim().toLowerCase()
+            )
+            const emailDomain = requestEmail.split('@')[1]
+            isAllowed = emailDomain && allowedDomains.includes(emailDomain)
+          }
+
+          if (!isAllowed) {
+            throw new Error('Access restricted. Please contact your administrator.')
+          }
+        }
+      }
 
       return
     }),
@@ -204,12 +238,27 @@ export const auth = betterAuth({
             throw new Error('Email is required')
           }
 
+          // Validate email before sending OTP
+          const validation = quickValidateEmail(data.email)
+          if (!validation.isValid) {
+            logger.warn('Email validation failed', {
+              email: data.email,
+              reason: validation.reason,
+              checks: validation.checks,
+            })
+            throw new Error(
+              validation.reason ||
+                "We are unable to deliver the verification email to that address. Please make sure it's valid and able to receive emails."
+            )
+          }
+
           // In development with no RESEND_API_KEY, log verification code
           if (!validResendAPIKEY) {
             logger.info('🔑 VERIFICATION CODE FOR LOGIN/SIGNUP', {
               email: data.email,
               otp: data.otp,
               type: data.type,
+              validation: validation.checks,
             })
             return
           }
@@ -218,7 +267,7 @@ export const auth = betterAuth({
 
           // In production, send an actual email
           const result = await resend.emails.send({
-            from: `Sim <onboarding@${getEmailDomain()}>`,
+            from: `Sim <onboarding@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
             to: data.email,
             subject: getEmailSubject(data.type),
             html,
@@ -1479,7 +1528,7 @@ export const auth = betterAuth({
                 )
 
                 await resend.emails.send({
-                  from: `Sim <team@${getEmailDomain()}>`,
+                  from: `Sim <team@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
                   to: invitation.email,
                   subject: `${inviterName} has invited you to join ${organization.name} on Sim`,
                   html,

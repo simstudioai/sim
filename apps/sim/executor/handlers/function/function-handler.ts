@@ -40,14 +40,20 @@ export class FunctionBlockHandler implements BlockHandler {
     }
 
     // Directly use the function_execute tool which calls the API route
-    const result = await executeTool('function_execute', {
-      code: codeContent,
-      timeout: inputs.timeout || 5000,
-      envVars: context.environmentVariables || {},
-      blockData: blockData, // Pass block data for variable resolution
-      blockNameMapping: blockNameMapping, // Pass block name to ID mapping
-      _context: { workflowId: context.workflowId },
-    })
+    const result = await executeTool(
+      'function_execute',
+      {
+        code: codeContent,
+        timeout: inputs.timeout || 5000,
+        envVars: context.environmentVariables || {},
+        blockData: blockData, // Pass block data for variable resolution
+        blockNameMapping: blockNameMapping, // Pass block name to ID mapping
+        _context: { workflowId: context.workflowId },
+      },
+      false, // skipProxy
+      false, // skipPostProcess
+      context // execution context for file processing
+    )
 
     if (!result.success) {
       throw new Error(result.error || 'Function execution failed')

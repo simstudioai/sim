@@ -33,6 +33,7 @@ interface ExecutorOptions {
     edges?: Array<{ source: string; target: string }>
     onStream?: (streamingExecution: StreamingExecution) => Promise<void>
     executionId?: string
+    workspaceId?: string
   }
 }
 
@@ -44,7 +45,7 @@ interface DebugValidationResult {
 
 export function useWorkflowExecution() {
   const currentWorkflow = useCurrentWorkflow()
-  const { activeWorkflowId } = useWorkflowRegistry()
+  const { activeWorkflowId, workflows } = useWorkflowRegistry()
   const { toggleConsole } = useConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
   const { isDebugModeEnabled } = useGeneralStore()
@@ -246,6 +247,14 @@ export function useWorkflowExecution() {
     async (workflowInput?: any, enableDebug = false) => {
       if (!activeWorkflowId) return
 
+      // Get workspaceId from workflow metadata
+      const workspaceId = workflows[activeWorkflowId]?.workspaceId
+
+      if (!workspaceId) {
+        logger.error('Cannot execute workflow without workspaceId')
+        return
+      }
+
       // Reset execution result and set execution state
       setExecutionResult(null)
       setIsExecuting(true)
@@ -267,6 +276,78 @@ export function useWorkflowExecution() {
             const executionId = uuidv4()
             const streamedContent = new Map<string, string>()
             const streamReadingPromises: Promise<void>[] = []
+
+            // Handle file uploads if present
+            const uploadedFiles: any[] = []
+            console.log('Checking for files to upload:', workflowInput.files)
+            if (workflowInput.files && Array.isArray(workflowInput.files)) {
+              try {
+                console.log('Processing files for upload:', workflowInput.files.length)
+
+                for (const fileData of workflowInput.files) {
+                  console.log('Uploading file:', fileData.name, fileData.size)
+                  console.log('File data:', fileData)
+
+                  // Create FormData for upload
+                  const formData = new FormData()
+                  formData.append('file', fileData.file)
+                  formData.append('workflowId', activeWorkflowId)
+                  formData.append('executionId', executionId)
+                  formData.append('workspaceId', workspaceId)
+
+                  // Upload the file
+                  const response = await fetch('/api/files/upload', {
+                    method: 'POST',
+                    body: formData,
+                  })
+
+                  if (response.ok) {
+                    const uploadResult = await response.json()
+                    console.log('Upload successful:', uploadResult)
+
+                    // Convert upload result to clean UserFile format
+                    const processUploadResult = (result: any) => ({
+                      id:
+                        result.id ||
+                        `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                      name: result.name,
+                      url: result.url,
+                      size: result.size,
+                      type: result.type,
+                      key: result.key,
+                      uploadedAt: result.uploadedAt,
+                      expiresAt: result.expiresAt,
+                    })
+
+                    // The API returns the file directly for single uploads
+                    // or { files: [...] } for multiple uploads
+                    if (uploadResult.files && Array.isArray(uploadResult.files)) {
+                      uploadedFiles.push(...uploadResult.files.map(processUploadResult))
+                    } else if (uploadResult.path || uploadResult.url) {
+                      // Single file upload - the result IS the file object
+                      uploadedFiles.push(processUploadResult(uploadResult))
+                    } else {
+                      console.error('Unexpected upload response format:', uploadResult)
+                    }
+                  } else {
+                    const errorText = await response.text()
+                    console.error(
+                      `Failed to upload file ${fileData.name}:`,
+                      response.status,
+                      errorText
+                    )
+                  }
+                }
+
+                console.log('All files processed. Uploaded files:', uploadedFiles)
+                // Update workflow input with uploaded files
+                workflowInput.files = uploadedFiles
+              } catch (error) {
+                console.error('Error uploading files:', error)
+                // Continue execution even if file upload fails
+                workflowInput.files = []
+              }
+            }
 
             const onStream = async (streamingExecution: StreamingExecution) => {
               const promise = (async () => {
@@ -558,6 +639,9 @@ export function useWorkflowExecution() {
       selectedOutputIds = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
     }
 
+    // Get workspaceId from workflow metadata
+    const workspaceId = activeWorkflowId ? workflows[activeWorkflowId]?.workspaceId : undefined
+
     // Create executor options
     const executorOptions: ExecutorOptions = {
       workflow,
@@ -574,6 +658,7 @@ export function useWorkflowExecution() {
         })),
         onStream,
         executionId,
+        workspaceId,
       },
     }
 

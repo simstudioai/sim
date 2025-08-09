@@ -24,6 +24,14 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       description: 'Content for agent memory',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the memory was added successfully' },
+    memories: {
+      type: 'array',
+      description: 'Array of memory objects including the new or updated memory',
+    },
+    error: { type: 'string', description: 'Error message if operation failed' },
+  },
   request: {
     url: '/api/memory',
     method: 'POST',

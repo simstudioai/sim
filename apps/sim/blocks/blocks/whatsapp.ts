@@ -60,8 +60,19 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
     accessToken: { type: 'string', description: 'WhatsApp access token' },
   },
   outputs: {
+    // Send operation outputs
     success: { type: 'boolean', description: 'Send success status' },
-    messageId: { type: 'any', description: 'Message identifier' },
-    error: { type: 'any', description: 'Error information' },
+    messageId: { type: 'string', description: 'WhatsApp message identifier' },
+    error: { type: 'string', description: 'Error information if sending fails' },
+    // Webhook trigger outputs
+    from: { type: 'string', description: 'Sender phone number' },
+    to: { type: 'string', description: 'Recipient phone number' },
+    text: { type: 'string', description: 'Message text content' },
+    timestamp: { type: 'string', description: 'Message timestamp' },
+    type: { type: 'string', description: 'Message type (text, image, etc.)' },
+  },
+  triggers: {
+    enabled: true,
+    available: ['whatsapp_webhook'],
   },
 }

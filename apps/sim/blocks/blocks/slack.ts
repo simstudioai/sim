@@ -5,9 +5,9 @@ import type { SlackResponse } from '@/tools/slack/types'
 export const SlackBlock: BlockConfig<SlackResponse> = {
   type: 'slack',
   name: 'Slack',
-  description: 'Send messages to Slack',
+  description: 'Send messages to Slack or trigger workflows from Slack events',
   longDescription:
-    "Comprehensive Slack integration with OAuth authentication. Send formatted messages using Slack's mrkdwn syntax.",
+    "Comprehensive Slack integration with OAuth authentication. Send formatted messages using Slack's mrkdwn syntax or trigger workflows from Slack events like mentions and messages.",
   docsLink: 'https://docs.sim.ai/tools/slack',
   category: 'tools',
   bgColor: '#611f69',
@@ -151,6 +151,15 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         value: 'read',
       },
     },
+    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
+    {
+      id: 'triggerConfig',
+      title: 'Trigger Configuration',
+      type: 'trigger-config',
+      layout: 'full',
+      triggerProvider: 'slack',
+      availableTriggers: ['slack_webhook'],
+    },
   ],
   tools: {
     access: ['slack_message', 'slack_canvas', 'slack_message_reader'],
@@ -257,10 +266,30 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     oldest: { type: 'string', description: 'Oldest timestamp' },
   },
   outputs: {
-    ts: { type: 'string', description: 'Message timestamp' },
-    channel: { type: 'string', description: 'Channel identifier' },
-    canvas_id: { type: 'string', description: 'Canvas identifier' },
+    // slack_message outputs
+    ts: { type: 'string', description: 'Message timestamp returned by Slack API' },
+    channel: { type: 'string', description: 'Channel identifier where message was sent' },
+
+    // slack_canvas outputs
+    canvas_id: { type: 'string', description: 'Canvas identifier for created canvases' },
     title: { type: 'string', description: 'Canvas title' },
-    messages: { type: 'json', description: 'Message data' },
+
+    // slack_message_reader outputs
+    messages: {
+      type: 'json',
+      description: 'Array of message objects',
+    },
+
+    // Trigger outputs (when used as webhook trigger)
+    event_type: { type: 'string', description: 'Type of Slack event that triggered the workflow' },
+    channel_name: { type: 'string', description: 'Human-readable channel name' },
+    user_name: { type: 'string', description: 'Username who triggered the event' },
+    team_id: { type: 'string', description: 'Slack workspace/team ID' },
+    event_id: { type: 'string', description: 'Unique event identifier for the trigger' },
+  },
+  // New: Trigger capabilities
+  triggers: {
+    enabled: true,
+    available: ['slack_webhook'],
   },
 }

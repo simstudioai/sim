@@ -63,6 +63,17 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       description: 'Mistral API key (MISTRAL_API_KEY)',
     },
   },
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the PDF was parsed successfully' },
+    content: {
+      type: 'string',
+      description: 'Extracted content in the requested format (markdown, text, or JSON)',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Processing metadata including jobId, fileType, pageCount, and usage info',
+    },
+  },
 
   request: {
     url: 'https://api.mistral.ai/v1/ocr',
@@ -93,10 +104,10 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
         if (
           typeof params.fileUpload === 'object' &&
           params.fileUpload !== null &&
-          params.fileUpload.path
+          (params.fileUpload.url || params.fileUpload.path)
         ) {
-          // Get the full URL to the file
-          let uploadedFilePath = params.fileUpload.path
+          // Get the full URL to the file - prefer url over path for UserFile compatibility
+          let uploadedFilePath = params.fileUpload.url || params.fileUpload.path
 
           // Make sure the file path is an absolute URL
           if (uploadedFilePath.startsWith('/')) {

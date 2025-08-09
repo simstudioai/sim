@@ -111,7 +111,13 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
     file: { type: 'json', description: 'Uploaded file data' },
   },
   outputs: {
-    files: { type: 'json', description: 'Parsed file data' },
-    combinedContent: { type: 'string', description: 'Combined file content' },
+    files: {
+      type: 'json',
+      description: 'Array of parsed file objects with content, metadata, and file properties',
+    },
+    combinedContent: {
+      type: 'string',
+      description: 'All file contents merged into a single text string',
+    },
   },
 }

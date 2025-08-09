@@ -1,3 +1,4 @@
+// Provider tools - handled separately
 import {
   airtableCreateRecordsTool,
   airtableGetRecordTool,
@@ -311,4 +312,6 @@ export const tools: Record<string, ToolConfig> = {
   sharepoint_create_page: sharepointCreatePageTool,
   sharepoint_read_page: sharepointReadPageTool,
   sharepoint_list_sites: sharepointListSitesTool,
+  // Provider chat tools
+  // Provider chat tools - handled separately in agent blocks
 }

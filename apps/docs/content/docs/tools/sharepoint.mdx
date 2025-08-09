@@ -75,7 +75,6 @@ Create a new page in a SharePoint site
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the SharePoint API |
 | `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `siteSelector` | string | No | Select the SharePoint site |
 | `pageName` | string | Yes | The name of the page to create |
@@ -86,7 +85,7 @@ Create a new page in a SharePoint site
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sites` | json | An array of SharePoint site objects, each containing details such as id, name, and more. |
+| `page` | object | Created SharePoint page information |
 
 ### `sharepoint_read_page`
 
@@ -96,7 +95,6 @@ Read a specific page from a SharePoint site
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the SharePoint API |
 | `siteSelector` | string | No | Select the SharePoint site |
 | `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `pageId` | string | No | The ID of the page to read |
@@ -107,7 +105,7 @@ Read a specific page from a SharePoint site
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sites` | json | An array of SharePoint site objects, each containing details such as id, name, and more. |
+| `page` | object | Information about the SharePoint page |
 
 ### `sharepoint_list_sites`
 
@@ -117,7 +115,6 @@ List details of all SharePoint sites
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the SharePoint API |
 | `siteSelector` | string | No | Select the SharePoint site |
 | `groupId` | string | No | The group ID for accessing a group team site |
 
@@ -125,7 +122,7 @@ List details of all SharePoint sites
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sites` | json | An array of SharePoint site objects, each containing details such as id, name, and more. |
+| `site` | object | Information about the current SharePoint site |
 
 
 
