@@ -190,6 +190,10 @@ const initialState = {
   // Revert state management
   revertState: null as { messageId: string; messageContent: string } | null, // Track which message we reverted from
   inputValue: '', // Control the input field
+  
+  // Todo list state (from plan tool)
+  planTodos: [],
+  showPlanTodos: false,
 }
 
 /**
@@ -830,6 +834,21 @@ const sseHandlers: Record<string, SSEHandler> = {
 
       // NEW LOGIC: Use centralized state management
       setToolCallState(toolCall, 'success', { result: parsedResult })
+      
+      // Check if this is the plan tool and extract todos
+      if (toolCall.name === 'plan' && parsedResult?.todoList) {
+        const todos = parsedResult.todoList.map((item: any, index: number) => ({
+          id: item.id || `todo-${index}`,
+          content: typeof item === 'string' ? item : item.content,
+          completed: false
+        }))
+        
+        // Set the todos in the store
+        const store = get()
+        if (store.setPlanTodos) {
+          store.setPlanTodos(todos)
+        }
+      }
 
       // Handle tools with ready_for_review state
       if (toolSupportsReadyForReview(toolCall.name)) {
@@ -1163,6 +1182,21 @@ const sseHandlers: Record<string, SSEHandler> = {
         // Handle tools with ready_for_review state immediately
         if (toolSupportsReadyForReview(context.toolCallBuffer.name)) {
           processWorkflowToolResult(context.toolCallBuffer, context.toolCallBuffer.input, get)
+        }
+        
+        // Check if this is the plan tool and extract todos
+        if (context.toolCallBuffer.name === 'plan' && context.toolCallBuffer.input?.todoList) {
+          const todos = context.toolCallBuffer.input.todoList.map((item: any, index: number) => ({
+            id: item.id || `todo-${index}`,
+            content: typeof item === 'string' ? item : item.content,
+            completed: false
+          }))
+          
+          // Set the todos in the store
+          const store = get()
+          if (store.setPlanTodos) {
+            store.setPlanTodos(todos)
+          }
         }
 
         // Update both contentBlocks and toolCalls atomically before UI update
@@ -2989,6 +3023,23 @@ export const useCopilotStore = create<CopilotStore>()(
 
       clearRevertState: () => {
         set({ revertState: null })
+      },
+      
+      // Todo list actions
+      setPlanTodos: (todos) => {
+        set({ planTodos: todos, showPlanTodos: true })
+      },
+      
+      togglePlanTodo: (id) => {
+        set((state) => ({
+          planTodos: state.planTodos.map(todo =>
+            todo.id === id ? { ...todo, completed: !todo.completed } : todo
+          )
+        }))
+      },
+      
+      closePlanTodos: () => {
+        set({ showPlanTodos: false })
       },
 
       // Update the diff store with proposed workflow changes

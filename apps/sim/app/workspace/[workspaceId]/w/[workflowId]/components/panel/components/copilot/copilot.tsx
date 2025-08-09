@@ -10,6 +10,7 @@ import {
   CheckpointPanel,
   CopilotMessage,
   CopilotWelcome,
+  TodoList,
   UserInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
 import type {
@@ -56,11 +57,15 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     isAborting,
     mode,
     inputValue,
+    planTodos,
+    showPlanTodos,
     sendMessage,
     abortMessage,
     createNewChat,
     setMode,
     setInputValue,
+    togglePlanTodo,
+    closePlanTodos,
     chatsLoadedForWorkflow,
     setWorkflowId: setCopilotWorkflowId,
     loadChats,
@@ -326,6 +331,15 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
               </div>
             )}
 
+            {/* Todo list from plan tool */}
+            {!showCheckpoints && showPlanTodos && (
+              <TodoList
+                todos={planTodos}
+                onToggleTodo={togglePlanTodo}
+                onClose={closePlanTodos}
+              />
+            )}
+            
             {/* Input area with integrated mode selector */}
             {!showCheckpoints && (
               <UserInput
