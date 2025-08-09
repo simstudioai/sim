@@ -9,8 +9,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
 import { quickValidateEmail } from '@/lib/email/validation'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
+
+const logger = createLogger('SignupForm')
 
 const PASSWORD_VALIDATIONS = {
   minLength: { regex: /.{8,}/, message: 'Password must be at least 8 characters long.' },
@@ -281,7 +284,7 @@ function SignupFormContent({
         },
         {
           onError: (ctx) => {
-            console.error('Signup error:', ctx.error)
+            logger.error('Signup error:', ctx.error)
             const errorMessage: string[] = ['Failed to create account']
 
             if (ctx.error.code?.includes('USER_ALREADY_EXISTS')) {
@@ -343,10 +346,21 @@ function SignupFormContent({
         }
       }
 
+      // Send verification OTP manually
+      try {
+        await client.emailOtp.sendVerificationOtp({
+          email: emailValue,
+          type: 'email-verification',
+        })
+      } catch (otpError) {
+        logger.error('Failed to send OTP:', otpError)
+        // Continue anyway - user can use resend button
+      }
+
       // Always redirect to verification for new signups
       router.push('/verify?fromSignup=true')
     } catch (error) {
-      console.error('Signup error:', error)
+      logger.error('Signup error:', error)
       setIsLoading(false)
     }
   }
