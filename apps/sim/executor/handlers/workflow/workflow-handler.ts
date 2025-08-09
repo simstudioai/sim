@@ -90,6 +90,9 @@ export class WorkflowBlockHandler implements BlockHandler {
         workflowInput: childWorkflowInput,
         envVarValues: context.environmentVariables,
         workflowVariables: childWorkflow.variables || {},
+        contextExtensions: {
+          isChildExecution: true, // Prevent child executor from managing global state
+        },
       })
 
       const startTime = performance.now()

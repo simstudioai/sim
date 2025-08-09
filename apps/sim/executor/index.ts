@@ -72,6 +72,7 @@ export class Executor {
   private contextExtensions: any = {}
   private actualWorkflow: SerializedWorkflow
   private isCancelled = false
+  private isChildExecution = false
 
   constructor(
     private workflowParam:
@@ -89,6 +90,7 @@ export class Executor {
             onStream?: (streamingExecution: StreamingExecution) => Promise<void>
             executionId?: string
             workspaceId?: string
+            isChildExecution?: boolean
           }
         },
     private initialBlockStates: Record<string, BlockOutput> = {},
@@ -108,6 +110,7 @@ export class Executor {
       // Store context extensions for streaming and output selection
       if (options.contextExtensions) {
         this.contextExtensions = options.contextExtensions
+        this.isChildExecution = options.contextExtensions.isChildExecution || false
 
         if (this.contextExtensions.stream) {
           logger.info('Executor initialized with streaming enabled', {
@@ -204,10 +207,13 @@ export class Executor {
     const context = this.createExecutionContext(workflowId, startTime, startBlockId)
 
     try {
-      setIsExecuting(true)
+      // Only manage global execution state for parent executions
+      if (!this.isChildExecution) {
+        setIsExecuting(true)
 
-      if (this.isDebugging) {
-        setIsDebugging(true)
+        if (this.isDebugging) {
+          setIsDebugging(true)
+        }
       }
 
       let hasMoreLayers = true
@@ -492,7 +498,8 @@ export class Executor {
         logs: context.blockLogs,
       }
     } finally {
-      if (!this.isDebugging) {
+      // Only reset global state for parent executions
+      if (!this.isChildExecution && !this.isDebugging) {
         reset()
       }
     }
