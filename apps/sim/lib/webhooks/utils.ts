@@ -411,7 +411,94 @@ export function formatWebhookInput(
     }
   }
 
-  // Generic format for Slack and other providers
+  if (foundWebhook.provider === 'slack') {
+    // Slack input formatting logic - check for valid event
+    const event = body?.event
+    
+    if (event && body?.type === 'event_callback') {
+      // Extract event text with fallbacks for different event types
+      let input = ''
+      
+      if (event.text) {
+        input = event.text
+      } else if (event.type === 'app_mention') {
+        input = 'App mention received'
+      } else {
+        input = 'Slack event received'
+      }
+
+      // Create the event object for easier access
+      const eventObj = {
+        event_type: event.type || '',
+        channel: event.channel || '',
+        channel_name: '', // Could be resolved via additional API calls if needed
+        user: event.user || '',
+        user_name: '', // Could be resolved via additional API calls if needed  
+        text: event.text || '',
+        timestamp: event.ts || event.event_ts || '',
+        team_id: body.team_id || event.team || '',
+        event_id: body.event_id || '',
+      }
+
+      return {
+        input, // Primary workflow input - the event content
+
+        // // // Top-level properties for backward compatibility with <blockName.event> syntax
+        event: eventObj,
+
+        // Keep the nested structure for the new slack.event.text syntax
+        slack: {
+          event: eventObj,
+        },
+        webhook: {
+          data: {
+            provider: 'slack',
+            path: foundWebhook.path,
+            providerConfig: foundWebhook.providerConfig,
+            payload: body,
+            headers: Object.fromEntries(request.headers.entries()),
+            method: request.method,
+          },
+        },
+        workflowId: foundWorkflow.id,
+      }
+    }
+
+    // Fallback for unknown Slack event types
+    logger.warn('Unknown Slack event type', {
+      type: body?.type,
+      hasEvent: !!body?.event,
+      bodyKeys: Object.keys(body || {}),
+    })
+
+    return {
+      input: 'Slack webhook received',
+      slack: {
+        event: {
+          event_type: body?.event?.type || body?.type || 'unknown',
+          channel: body?.event?.channel || '',
+          user: body?.event?.user || '',
+          text: body?.event?.text || '',
+          timestamp: body?.event?.ts || '',
+          team_id: body?.team_id || '',
+          event_id: body?.event_id || '',
+        },
+      },
+      webhook: {
+        data: {
+          provider: 'slack',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
+  // Generic format for other providers
   return {
     webhook: {
       data: {

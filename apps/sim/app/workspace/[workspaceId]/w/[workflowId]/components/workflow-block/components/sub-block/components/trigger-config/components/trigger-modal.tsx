@@ -159,7 +159,7 @@ export function TriggerModal({
 
     if (finalPath) {
       const baseUrl = window.location.origin
-      setWebhookUrl(`${baseUrl}/api/webhooks/trigger${finalPath}`)
+      setWebhookUrl(`${baseUrl}/api/webhooks/trigger/${finalPath}`)
     }
   }, [triggerPath, triggerDef.provider, triggerDef.requiresCredentials, triggerDef.webhook])
 

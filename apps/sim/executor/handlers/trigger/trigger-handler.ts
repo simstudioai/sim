@@ -52,14 +52,27 @@ export class TriggerBlockHandler implements BlockHandler {
             input: starterOutput.input,
           }
 
-          // Generic extraction logic based on common webhook patterns
+          // FIRST: Copy all existing top-level properties (like 'event', 'message', etc.)
+          // This ensures that properties already flattened in webhook utils are preserved
+          for (const [key, value] of Object.entries(starterOutput)) {
+            if (key !== 'webhook' && key !== provider && typeof value === 'object' && value !== null) {
+              result[key] = value
+            } else if (key !== 'webhook' && key !== provider) {
+              result[key] = value
+            }
+          }
+
+          // SECOND: Generic extraction logic based on common webhook patterns
           // Pattern 1: Provider-specific nested object (telegram, microsoftteams, etc.)
           if (provider && starterOutput[provider]) {
             // Copy all properties from provider object to root level for direct access
             const providerData = starterOutput[provider]
             for (const [key, value] of Object.entries(providerData)) {
               if (typeof value === 'object' && value !== null) {
-                result[key] = value
+                // Don't overwrite existing top-level properties
+                if (!result[key]) {
+                  result[key] = value
+                }
               }
             }
 
