@@ -121,9 +121,13 @@ export function useVerification({
       if (response && !response.error) {
         setIsVerified(true)
 
-        // Clear email from sessionStorage after successful verification
+        // Clear verification requirements and session storage
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('verificationEmail')
+
+          // Clear the verification requirement flag
+          document.cookie =
+            'requiresEmailVerification=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
 
           // Also clear invite-related items
           if (isInviteFlow) {
@@ -223,6 +227,11 @@ export function useVerification({
       // Auto-verify and redirect in development/docker environments
       if (isDevOrDocker || !hasResendKey) {
         setIsVerified(true)
+
+        // Clear verification requirement cookie (same as manual verification)
+        document.cookie =
+          'requiresEmailVerification=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+
         const timeoutId = setTimeout(() => {
           router.push('/workspace')
         }, 1000)

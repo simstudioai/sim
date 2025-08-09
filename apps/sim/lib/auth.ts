@@ -21,6 +21,7 @@ import {
 } from '@/components/emails/render-email'
 import { getBaseURL } from '@/lib/auth-client'
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
+import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
 import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -156,7 +157,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
-    sendVerificationOnSignUp: false,
+    sendVerificationOnSignUp: true,
     throwOnMissingCredentials: true,
     throwOnInvalidCredentials: true,
     sendResetPassword: async ({ user, url, token }, request) => {
@@ -237,12 +238,27 @@ export const auth = betterAuth({
             throw new Error('Email is required')
           }
 
+          // Validate email before sending OTP
+          const validation = quickValidateEmail(data.email)
+          if (!validation.isValid) {
+            logger.warn('Email validation failed', {
+              email: data.email,
+              reason: validation.reason,
+              checks: validation.checks,
+            })
+            throw new Error(
+              validation.reason ||
+                "We are unable to deliver the verification email to that address. Please make sure it's valid and able to receive emails."
+            )
+          }
+
           // In development with no RESEND_API_KEY, log verification code
           if (!validResendAPIKEY) {
             logger.info('🔑 VERIFICATION CODE FOR LOGIN/SIGNUP', {
               email: data.email,
               otp: data.otp,
               type: data.type,
+              validation: validation.checks,
             })
             return
           }

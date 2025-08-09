@@ -94,10 +94,10 @@ describe('LoginPage', () => {
       const emailInput = screen.getByPlaceholderText(/enter your email/i)
       const passwordInput = screen.getByPlaceholderText(/enter your password/i)
 
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+      fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
       fireEvent.change(passwordInput, { target: { value: 'password123' } })
 
-      expect(emailInput).toHaveValue('test@example.com')
+      expect(emailInput).toHaveValue('user@company.com')
       expect(passwordInput).toHaveValue('password123')
     })
 
@@ -117,7 +117,7 @@ describe('LoginPage', () => {
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
       await act(async () => {
-        fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+        fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
         fireEvent.change(passwordInput, { target: { value: 'password123' } })
         fireEvent.click(submitButton)
       })
@@ -140,14 +140,14 @@ describe('LoginPage', () => {
       const passwordInput = screen.getByPlaceholderText(/enter your password/i)
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+      fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
       fireEvent.change(passwordInput, { target: { value: 'password123' } })
       fireEvent.click(submitButton)
 
       await waitFor(() => {
         expect(mockSignIn).toHaveBeenCalledWith(
           {
-            email: 'test@example.com',
+            email: 'user@company.com',
             password: 'password123',
             callbackURL: '/workspace',
           },
@@ -181,7 +181,7 @@ describe('LoginPage', () => {
       const passwordInput = screen.getByPlaceholderText(/enter your password/i)
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+      fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
       fireEvent.change(passwordInput, { target: { value: 'wrongpassword' } })
       fireEvent.click(submitButton)
 
@@ -242,13 +242,13 @@ describe('LoginPage', () => {
       const passwordInput = screen.getByPlaceholderText(/enter your password/i)
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+      fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
       fireEvent.change(passwordInput, { target: { value: 'password123' } })
       fireEvent.click(submitButton)
 
       await waitFor(() => {
         expect(mockSendOtp).toHaveBeenCalledWith({
-          email: 'test@example.com',
+          email: 'user@company.com',
           type: 'email-verification',
         })
         expect(mockRouter.push).toHaveBeenCalledWith('/verify')

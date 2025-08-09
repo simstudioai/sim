@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
-import { validateAndNormalizeEmail } from '@/lib/email/utils'
+import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { PermissionType } from '@/lib/permissions/utils'
 import { cn } from '@/lib/utils'
@@ -475,7 +475,9 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     (email: string) => {
       if (!email.trim()) return false
 
-      const { isValid, normalized } = validateAndNormalizeEmail(email)
+      const normalized = email.trim().toLowerCase()
+      const validation = quickValidateEmail(normalized)
+      const isValid = validation.isValid
 
       if (emails.includes(normalized) || invalidEmails.includes(normalized)) {
         return false

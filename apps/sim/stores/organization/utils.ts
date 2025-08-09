@@ -1,3 +1,4 @@
+import { quickValidateEmail } from '@/lib/email/validation'
 import type { Organization } from '@/stores/organization/types'
 
 /**
@@ -32,5 +33,5 @@ export function validateSlug(slug: string): boolean {
  * Validate email format
  */
 export function validateEmail(email: string): boolean {
-  return email.includes('@') && email.trim().length > 0
+  return quickValidateEmail(email.trim().toLowerCase()).isValid
 }
