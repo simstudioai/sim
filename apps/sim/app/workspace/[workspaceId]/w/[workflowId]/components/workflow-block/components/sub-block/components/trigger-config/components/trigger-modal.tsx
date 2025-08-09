@@ -152,9 +152,8 @@ export function TriggerModal({
 
     // If no path exists, generate one automatically
     if (!finalPath) {
-      const timestamp = Date.now()
-      const randomId = Math.random().toString(36).substring(2, 8)
-      finalPath = `/${triggerDef.provider}/${timestamp}-${randomId}`
+      // Use UUID format consistent with other webhooks
+      finalPath = crypto.randomUUID()
       setGeneratedPath(finalPath)
     }
 

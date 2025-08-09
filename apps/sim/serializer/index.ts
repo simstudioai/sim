@@ -225,6 +225,15 @@ export class Serializer {
     // This catches missing API keys, credentials, and other user-provided values early
     // Fields that are user-or-llm will be validated later after parameter merging
 
+    // Skip validation if the block is in trigger mode
+    if (block.triggerMode || blockConfig.category === 'triggers') {
+      logger.info('Skipping validation for block in trigger mode', {
+        blockId: block.id,
+        blockType: block.type,
+      })
+      return
+    }
+
     // Get the tool configuration to check parameter visibility
     const toolAccess = blockConfig.tools?.access
     if (!toolAccess || toolAccess.length === 0) {
