@@ -525,12 +525,15 @@ function setToolCallState(
         toolCall.result = result
       }
       
-      // If this tool had a todo-id, mark it as completed
-      if (toolCall.todoId || toolCall.input?.['todo-id']) {
-        const todoId = toolCall.todoId || toolCall.input?.['todo-id']
+      // Handle array of todoIds
+      const successTodoIds = toolCall.todoIds || toolCall.input?.['todo-ids']
+      
+      if (successTodoIds && Array.isArray(successTodoIds)) {
         const store = useCopilotStore.getState()
         if (store.updatePlanTodoStatus) {
-          store.updatePlanTodoStatus(todoId, 'completed')
+          successTodoIds.forEach(todoId => {
+            store.updatePlanTodoStatus(todoId, 'completed')
+          })
         }
       }
 
@@ -547,14 +550,15 @@ function setToolCallState(
         toolCall.error = error
       }
       
-      // If this tool had a todo-id, reset it to not executed state
-      if (toolCall.todoId || toolCall.input?.['todo-id']) {
-        const todoId = toolCall.todoId || toolCall.input?.['todo-id']
+      // Handle array of todoIds
+      const errorTodoIds = toolCall.todoIds || toolCall.input?.['todo-ids']
+      
+      if (errorTodoIds && Array.isArray(errorTodoIds)) {
         const store = useCopilotStore.getState()
-        // Reset the todo to not executing and not completed
+        // Reset the todos to not executing and not completed
         store.setPlanTodos(
           store.planTodos.map((todo: any) =>
-            todo.id === todoId ? { ...todo, executing: false, completed: false } : todo
+            errorTodoIds.includes(todo.id) ? { ...todo, executing: false, completed: false } : todo
           )
         )
       }
@@ -562,16 +566,19 @@ function setToolCallState(
 
     case 'executing':
       // Tool is now executing
-      // If this tool has a todo-id, mark it as executing
-      if (toolCall.todoId || toolCall.input?.['todo-id']) {
-        const todoId = toolCall.todoId || toolCall.input?.['todo-id']
+      // Handle array of todoIds
+      const executingTodoIds = toolCall.todoIds || toolCall.input?.['todo-ids']
+      
+      if (executingTodoIds && Array.isArray(executingTodoIds)) {
         const store = useCopilotStore.getState()
         if (store.updatePlanTodoStatus) {
-          store.updatePlanTodoStatus(todoId, 'executing')
+          executingTodoIds.forEach(todoId => {
+            store.updatePlanTodoStatus(todoId, 'executing')
+          })
         }
-        // Store the todo-id on the toolCall for later reference
-        if (!toolCall.todoId) {
-          toolCall.todoId = todoId
+        // Store the todo-ids on the toolCall for later reference
+        if (!toolCall.todoIds) {
+          toolCall.todoIds = executingTodoIds
         }
       }
       break
@@ -592,14 +599,15 @@ function setToolCallState(
         toolCall.error = error
       }
       
-      // If this tool had a todo-id, reset it to not executed state
-      if (toolCall.todoId || toolCall.input?.['todo-id']) {
-        const todoId = toolCall.todoId || toolCall.input?.['todo-id']
+      // Handle array of todoIds
+      const rejectedTodoIds = toolCall.todoIds || toolCall.input?.['todo-ids']
+      
+      if (rejectedTodoIds && Array.isArray(rejectedTodoIds)) {
         const store = useCopilotStore.getState()
-        // Reset the todo to not executing and not completed
+        // Reset the todos to not executing and not completed
         store.setPlanTodos(
           store.planTodos.map((todo: any) =>
-            todo.id === todoId ? { ...todo, executing: false, completed: false } : todo
+            rejectedTodoIds.includes(todo.id) ? { ...todo, executing: false, completed: false } : todo
           )
         )
       }
@@ -616,14 +624,15 @@ function setToolCallState(
       toolCall.endTime = Date.now()
       toolCall.duration = toolCall.endTime - toolCall.startTime
       
-      // If this tool had a todo-id, reset it to not executed state
-      if (toolCall.todoId || toolCall.input?.['todo-id']) {
-        const todoId = toolCall.todoId || toolCall.input?.['todo-id']
+      // Handle array of todoIds
+      const abortedTodoIds = toolCall.todoIds || toolCall.input?.['todo-ids']
+      
+      if (abortedTodoIds && Array.isArray(abortedTodoIds)) {
         const store = useCopilotStore.getState()
-        // Reset the todo to not executing and not completed
+        // Reset the todos to not executing and not completed
         store.setPlanTodos(
           store.planTodos.map((todo: any) =>
-            todo.id === todoId ? { ...todo, executing: false, completed: false } : todo
+            abortedTodoIds.includes(todo.id) ? { ...todo, executing: false, completed: false } : todo
           )
         )
       }
@@ -899,8 +908,8 @@ const sseHandlers: Record<string, SSEHandler> = {
       setToolCallState(toolCall, 'success', { result: parsedResult })
       
       // Check if this is the plan tool and extract todos
-      if (toolCall.name === 'plan' && parsedResult?.todoList) {
-        const todos = parsedResult.todoList.map((item: any, index: number) => ({
+      if (toolCall.name === 'plan' && parsedResult?.todoListUser) {
+        const todos = parsedResult.todoListUser.map((item: any, index: number) => ({
           id: item.id || `todo-${index}`,
           content: typeof item === 'string' ? item : item.content,
           completed: false,
@@ -914,12 +923,14 @@ const sseHandlers: Record<string, SSEHandler> = {
         }
       }
       
-      // Check if this tool had a todo-id - mark it as completed on success
-      if (toolCall.todoId || toolCall.input?.['todo-id']) {
-        const todoId = toolCall.todoId || toolCall.input?.['todo-id']
+      // Check if this tool had todo-ids - mark them as completed on success
+      const successTodoIds = toolCall.todoIds || toolCall.input?.['todo-ids']
+      if (successTodoIds && Array.isArray(successTodoIds)) {
         const store = get()
         if (store.updatePlanTodoStatus) {
-          store.updatePlanTodoStatus(todoId, 'completed')
+          successTodoIds.forEach(todoId => {
+            store.updatePlanTodoStatus(todoId, 'completed')
+          })
         }
       }
 
@@ -939,14 +950,14 @@ const sseHandlers: Record<string, SSEHandler> = {
 
       setToolCallState(toolCall, targetState, { error: errorMessage })
       
-      // If this tool had a todo-id, reset it from executing state
-      if (toolCall.todoId || toolCall.input?.['todo-id']) {
-        const todoId = toolCall.todoId || toolCall.input?.['todo-id']
+      // If this tool had todo-ids, reset them from executing state
+      const errorTodoIds = toolCall.todoIds || toolCall.input?.['todo-ids']
+      if (errorTodoIds && Array.isArray(errorTodoIds)) {
         const store = get()
-        // Reset the todo to not executing and not completed
+        // Reset the todos to not executing and not completed
         if (store.planTodos) {
           const updatedTodos = store.planTodos.map((todo: any) =>
-            todo.id === todoId ? { ...todo, executing: false, completed: false } : todo
+            errorTodoIds.includes(todo.id) ? { ...todo, executing: false, completed: false } : todo
           )
           set({ planTodos: updatedTodos })
         }
@@ -1194,15 +1205,19 @@ const sseHandlers: Record<string, SSEHandler> = {
 
       toolCall.state = 'executing'
       
-      // Check if this tool has a todo-id parameter - mark it as executing
-      if (toolCall.input?.['todo-id']) {
-        const todoId = toolCall.input['todo-id']
-        const store = get()
-        if (store.updatePlanTodoStatus) {
-          store.updatePlanTodoStatus(todoId, 'executing')
+      // Check if this tool has todo-ids parameter - mark them as executing
+      if (toolCall.input?.['todo-ids']) {
+        const todoIds = toolCall.input['todo-ids']
+        if (Array.isArray(todoIds)) {
+          const store = get()
+          if (store.updatePlanTodoStatus) {
+            todoIds.forEach(todoId => {
+              store.updatePlanTodoStatus(todoId, 'executing')
+            })
+          }
+          // Store the todo-ids on the toolCall for later reference
+          toolCall.todoIds = todoIds
         }
-        // Store the todo-id on the toolCall for later reference
-        toolCall.todoId = todoId
       }
 
       // Update both contentBlocks and toolCalls atomically before UI update
@@ -1282,8 +1297,8 @@ const sseHandlers: Record<string, SSEHandler> = {
         }
         
         // Check if this is the plan tool and extract todos
-        if (context.toolCallBuffer.name === 'plan' && context.toolCallBuffer.input?.todoList) {
-          const todos = context.toolCallBuffer.input.todoList.map((item: any, index: number) => ({
+        if (context.toolCallBuffer.name === 'plan' && context.toolCallBuffer.input?.todoListUser) {
+          const todos = context.toolCallBuffer.input.todoListUser.map((item: any, index: number) => ({
             id: item.id || `todo-${index}`,
             content: typeof item === 'string' ? item : item.content,
             completed: false,
@@ -1297,15 +1312,19 @@ const sseHandlers: Record<string, SSEHandler> = {
           }
         }
         
-        // Check if this tool has a todo-id parameter - mark it as executing
-        if (context.toolCallBuffer.input?.['todo-id']) {
-          const todoId = context.toolCallBuffer.input['todo-id']
-          const store = get()
-          if (store.updatePlanTodoStatus) {
-            store.updatePlanTodoStatus(todoId, 'executing')
+        // Check if this tool has todo-ids parameter - mark them as executing
+        if (context.toolCallBuffer.input?.['todo-ids']) {
+          const todoIds = context.toolCallBuffer.input['todo-ids']
+          if (Array.isArray(todoIds)) {
+            const store = get()
+            if (store.updatePlanTodoStatus) {
+              todoIds.forEach(todoId => {
+                store.updatePlanTodoStatus(todoId, 'executing')
+              })
+            }
+            // Store the todo-ids on the toolCall for later reference
+            context.toolCallBuffer.todoIds = todoIds
           }
-          // Store the todo-id on the toolCall for later reference
-          context.toolCallBuffer.todoId = todoId
         }
 
         // Update both contentBlocks and toolCalls atomically before UI update
