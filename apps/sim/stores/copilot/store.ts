@@ -1863,6 +1863,9 @@ export const useCopilotStore = create<CopilotStore>()(
         set({
           currentChat: chat,
           messages: ensureToolCallDisplayNames(chat.messages || []),
+          // Clear todos when switching chats
+          planTodos: [],
+          showPlanTodos: false,
         })
 
         try {
@@ -1931,6 +1934,8 @@ export const useCopilotStore = create<CopilotStore>()(
           currentChat: null,
           messages: [],
           messageCheckpoints: {}, // Clear checkpoints when creating new chat
+          planTodos: [], // Clear todos when creating new chat
+          showPlanTodos: false,
         })
         logger.info('🆕 Cleared chat state for new conversation')
       },
@@ -3075,6 +3080,9 @@ export const useCopilotStore = create<CopilotStore>()(
           // Invalidate cache since we have a new chat
           chatsLastLoadedAt: null,
           chatsLoadedForWorkflow: null,
+          // Clear todos when creating new chat
+          planTodos: [],
+          showPlanTodos: false,
         })
         logger.info(`Created new chat from streaming response: ${newChatId}`)
       },

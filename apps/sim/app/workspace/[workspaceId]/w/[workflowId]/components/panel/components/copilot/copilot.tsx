@@ -65,7 +65,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     createNewChat,
     setMode,
     setInputValue,
-    closePlanTodos,
     chatsLoadedForWorkflow,
     setWorkflowId: setCopilotWorkflowId,
     loadChats,
@@ -205,14 +204,22 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   // Track previous sending state to detect when stream completes
   const wasSendingRef = useRef(false)
   
-  // Auto-collapse todos when stream completes
+  // Auto-collapse todos and remove uncompleted ones when stream completes
   useEffect(() => {
     if (wasSendingRef.current && !isSendingMessage && showPlanTodos) {
-      // Stream just completed, collapse the todos
+      // Stream just completed, collapse the todos and filter out uncompleted ones
       setTodosCollapsed(true)
+      
+      // Remove any uncompleted todos
+      const completedTodos = planTodos.filter(todo => todo.completed === true)
+      if (completedTodos.length !== planTodos.length) {
+        // Only update if there are uncompleted todos to remove
+        const store = useCopilotStore.getState()
+        store.setPlanTodos(completedTodos)
+      }
     }
     wasSendingRef.current = isSendingMessage
-  }, [isSendingMessage, showPlanTodos])
+  }, [isSendingMessage, showPlanTodos, planTodos])
   
   // Reset collapsed state when todos first appear
   useEffect(() => {
@@ -294,9 +301,10 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     async (query: string, fileAttachments?: MessageFileAttachment[]) => {
       if (!query || isSendingMessage || !activeWorkflowId) return
 
-      // Hide todos when sending a new message
+      // Clear todos when sending a new message
       if (showPlanTodos) {
-        closePlanTodos()
+        const store = useCopilotStore.getState()
+        store.setPlanTodos([])
       }
       
       try {
@@ -310,7 +318,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
         logger.error('Failed to send message:', error)
       }
     },
-    [isSendingMessage, activeWorkflowId, sendMessage, showPlanTodos, closePlanTodos]
+    [isSendingMessage, activeWorkflowId, sendMessage, showPlanTodos]
   )
 
   return (
@@ -373,7 +381,10 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
               <TodoList
                 todos={planTodos}
                 collapsed={todosCollapsed}
-                onClose={closePlanTodos}
+                onClose={() => {
+                  const store = useCopilotStore.getState()
+                  store.setPlanTodos([])
+                }}
               />
             )}
             
