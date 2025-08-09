@@ -206,7 +206,7 @@ export interface CopilotState {
   inputValue: string // Control the input field
   
   // Todo list state (from plan tool)
-  planTodos: Array<{ id: string; content: string; completed?: boolean }>
+  planTodos: Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>
   showPlanTodos: boolean
 }
 
@@ -265,8 +265,8 @@ export interface CopilotActions {
   clearRevertState: () => void
   
   // Todo list actions
-  setPlanTodos: (todos: Array<{ id: string; content: string; completed?: boolean }>) => void
-  togglePlanTodo: (id: string) => void
+  setPlanTodos: (todos: Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>) => void
+  updatePlanTodoStatus: (id: string, status: 'executing' | 'completed') => void
   closePlanTodos: () => void
 
   // Internal helpers (not exposed publicly)

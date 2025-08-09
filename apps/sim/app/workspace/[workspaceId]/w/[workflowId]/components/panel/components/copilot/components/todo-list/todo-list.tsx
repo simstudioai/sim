@@ -1,25 +1,24 @@
 'use client'
 
 import { memo, useState } from 'react'
-import { Check, ChevronDown, ChevronRight, ListTodo, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, ListTodo, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface TodoItem {
   id: string
   content: string
   completed?: boolean
+  executing?: boolean
 }
 
 interface TodoListProps {
   todos: TodoItem[]
-  onToggleTodo?: (id: string) => void
   onClose?: () => void
   className?: string
 }
 
 export const TodoList = memo(function TodoList({
   todos,
-  onToggleTodo,
   onClose,
   className,
 }: TodoListProps) {
@@ -94,20 +93,22 @@ export const TodoList = memo(function TodoList({
                 index !== todos.length - 1 && 'border-b border-gray-50 dark:border-gray-800'
               )}
             >
-              <button
-                onClick={() => onToggleTodo?.(todo.id)}
+              <div
                 className={cn(
-                  'mt-0.5 flex-shrink-0 w-4 h-4 rounded border transition-all',
-                  todo.completed
+                  'mt-0.5 flex-shrink-0 w-4 h-4 rounded border transition-all flex items-center justify-center',
+                  todo.executing
+                    ? 'border-blue-400 dark:border-blue-500'
+                    : todo.completed
                     ? 'bg-blue-500 border-blue-500'
-                    : 'border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                    : 'border-gray-300 dark:border-gray-600'
                 )}
-                aria-label={todo.completed ? 'Mark as incomplete' : 'Mark as complete'}
               >
-                {todo.completed && (
+                {todo.executing ? (
+                  <Loader2 className='h-3 w-3 text-blue-500 animate-spin' />
+                ) : todo.completed ? (
                   <Check className='h-3 w-3 text-white' strokeWidth={3} />
-                )}
-              </button>
+                ) : null}
+              </div>
               
               <span
                 className={cn(

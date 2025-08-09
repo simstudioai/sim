@@ -840,13 +840,23 @@ const sseHandlers: Record<string, SSEHandler> = {
         const todos = parsedResult.todoList.map((item: any, index: number) => ({
           id: item.id || `todo-${index}`,
           content: typeof item === 'string' ? item : item.content,
-          completed: false
+          completed: false,
+          executing: false
         }))
         
         // Set the todos in the store
         const store = get()
         if (store.setPlanTodos) {
           store.setPlanTodos(todos)
+        }
+      }
+      
+      // Check if this tool had a todo-id - mark it as completed on success
+      if (toolCall.todoId || toolCall.input?.['todo-id']) {
+        const todoId = toolCall.todoId || toolCall.input?.['todo-id']
+        const store = get()
+        if (store.updatePlanTodoStatus) {
+          store.updatePlanTodoStatus(todoId, 'completed')
         }
       }
 
@@ -865,6 +875,19 @@ const sseHandlers: Record<string, SSEHandler> = {
       const targetState = failedDependency === true ? 'rejected' : 'errored'
 
       setToolCallState(toolCall, targetState, { error: errorMessage })
+      
+      // If this tool had a todo-id, reset it from executing state
+      if (toolCall.todoId || toolCall.input?.['todo-id']) {
+        const todoId = toolCall.todoId || toolCall.input?.['todo-id']
+        const store = get()
+        // Reset the todo to not executing and not completed
+        if (store.planTodos) {
+          const updatedTodos = store.planTodos.map((todo: any) =>
+            todo.id === todoId ? { ...todo, executing: false, completed: false } : todo
+          )
+          set({ planTodos: updatedTodos })
+        }
+      }
 
       // COMMENTED OUT OLD LOGIC:
       // handleToolFailure(toolCall, result || 'Tool execution failed')
@@ -1107,6 +1130,17 @@ const sseHandlers: Record<string, SSEHandler> = {
       }
 
       toolCall.state = 'executing'
+      
+      // Check if this tool has a todo-id parameter - mark it as executing
+      if (toolCall.input?.['todo-id']) {
+        const todoId = toolCall.input['todo-id']
+        const store = get()
+        if (store.updatePlanTodoStatus) {
+          store.updatePlanTodoStatus(todoId, 'executing')
+        }
+        // Store the todo-id on the toolCall for later reference
+        toolCall.todoId = todoId
+      }
 
       // Update both contentBlocks and toolCalls atomically before UI update
       updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
@@ -1189,7 +1223,8 @@ const sseHandlers: Record<string, SSEHandler> = {
           const todos = context.toolCallBuffer.input.todoList.map((item: any, index: number) => ({
             id: item.id || `todo-${index}`,
             content: typeof item === 'string' ? item : item.content,
-            completed: false
+            completed: false,
+            executing: false
           }))
           
           // Set the todos in the store
@@ -1197,6 +1232,17 @@ const sseHandlers: Record<string, SSEHandler> = {
           if (store.setPlanTodos) {
             store.setPlanTodos(todos)
           }
+        }
+        
+        // Check if this tool has a todo-id parameter - mark it as executing
+        if (context.toolCallBuffer.input?.['todo-id']) {
+          const todoId = context.toolCallBuffer.input['todo-id']
+          const store = get()
+          if (store.updatePlanTodoStatus) {
+            store.updatePlanTodoStatus(todoId, 'executing')
+          }
+          // Store the todo-id on the toolCall for later reference
+          context.toolCallBuffer.todoId = todoId
         }
 
         // Update both contentBlocks and toolCalls atomically before UI update
@@ -3030,10 +3076,12 @@ export const useCopilotStore = create<CopilotStore>()(
         set({ planTodos: todos, showPlanTodos: true })
       },
       
-      togglePlanTodo: (id) => {
+      updatePlanTodoStatus: (id, status) => {
         set((state) => ({
           planTodos: state.planTodos.map(todo =>
-            todo.id === id ? { ...todo, completed: !todo.completed } : todo
+            todo.id === id 
+              ? { ...todo, executing: status === 'executing', completed: status === 'completed' }
+              : todo
           )
         }))
       },

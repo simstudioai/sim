@@ -64,7 +64,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     createNewChat,
     setMode,
     setInputValue,
-    togglePlanTodo,
     closePlanTodos,
     chatsLoadedForWorkflow,
     setWorkflowId: setCopilotWorkflowId,
@@ -335,7 +334,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
             {!showCheckpoints && showPlanTodos && (
               <TodoList
                 todos={planTodos}
-                onToggleTodo={togglePlanTodo}
                 onClose={closePlanTodos}
               />
             )}
