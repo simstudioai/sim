@@ -343,6 +343,17 @@ function SignupFormContent({
         }
       }
 
+      // Send verification OTP manually
+      try {
+        await client.emailOtp.sendVerificationOtp({
+          email: emailValue,
+          type: 'email-verification',
+        })
+      } catch (otpError) {
+        console.error('Failed to send OTP:', otpError)
+        // Continue anyway - user can use resend button
+      }
+
       // Always redirect to verification for new signups
       router.push('/verify?fromSignup=true')
     } catch (error) {
