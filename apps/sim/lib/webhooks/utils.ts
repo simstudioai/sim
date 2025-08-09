@@ -367,6 +367,19 @@ export function formatWebhookInput(
 
     return {
       input: messageText, // Primary workflow input - the message text
+      
+      // Top-level properties for backward compatibility with <blockName.text> syntax
+      type: body?.type || 'message',
+      id: messageId,
+      timestamp,
+      localTimestamp: body?.localTimestamp || '',
+      serviceUrl: body?.serviceUrl || '',
+      channelId: body?.channelId || '',
+      from_id: from.id || '',
+      from_name: from.name || '',
+      conversation_id: conversation.id || '',
+      text: messageText,
+      
       microsoftteams: {
         message: {
           id: messageId,
