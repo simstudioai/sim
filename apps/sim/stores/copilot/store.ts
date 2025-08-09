@@ -524,6 +524,15 @@ function setToolCallState(
       if (result !== undefined) {
         toolCall.result = result
       }
+      
+      // If this tool had a todo-id, mark it as completed
+      if (toolCall.todoId || toolCall.input?.['todo-id']) {
+        const todoId = toolCall.todoId || toolCall.input?.['todo-id']
+        const store = useCopilotStore.getState()
+        if (store.updatePlanTodoStatus) {
+          store.updatePlanTodoStatus(todoId, 'completed')
+        }
+      }
 
       // Check if tool supports ready_for_review state instead of hard-coding tool names
       if (toolSupportsReadyForReview(toolCall.name)) {
@@ -537,10 +546,34 @@ function setToolCallState(
       if (error) {
         toolCall.error = error
       }
+      
+      // If this tool had a todo-id, reset it to not executed state
+      if (toolCall.todoId || toolCall.input?.['todo-id']) {
+        const todoId = toolCall.todoId || toolCall.input?.['todo-id']
+        const store = useCopilotStore.getState()
+        // Reset the todo to not executing and not completed
+        store.setPlanTodos(
+          store.planTodos.map((todo: any) =>
+            todo.id === todoId ? { ...todo, executing: false, completed: false } : todo
+          )
+        )
+      }
       break
 
     case 'executing':
       // Tool is now executing
+      // If this tool has a todo-id, mark it as executing
+      if (toolCall.todoId || toolCall.input?.['todo-id']) {
+        const todoId = toolCall.todoId || toolCall.input?.['todo-id']
+        const store = useCopilotStore.getState()
+        if (store.updatePlanTodoStatus) {
+          store.updatePlanTodoStatus(todoId, 'executing')
+        }
+        // Store the todo-id on the toolCall for later reference
+        if (!toolCall.todoId) {
+          toolCall.todoId = todoId
+        }
+      }
       break
 
     case 'pending':
@@ -558,12 +591,42 @@ function setToolCallState(
       if (error) {
         toolCall.error = error
       }
+      
+      // If this tool had a todo-id, reset it to not executed state
+      if (toolCall.todoId || toolCall.input?.['todo-id']) {
+        const todoId = toolCall.todoId || toolCall.input?.['todo-id']
+        const store = useCopilotStore.getState()
+        // Reset the todo to not executing and not completed
+        store.setPlanTodos(
+          store.planTodos.map((todo: any) =>
+            todo.id === todoId ? { ...todo, executing: false, completed: false } : todo
+          )
+        )
+      }
       break
 
     case 'background':
       // Tool execution moved to background - this is a terminal state
       toolCall.endTime = Date.now()
       toolCall.duration = toolCall.endTime - toolCall.startTime
+      break
+      
+    case 'aborted':
+      // Tool was aborted
+      toolCall.endTime = Date.now()
+      toolCall.duration = toolCall.endTime - toolCall.startTime
+      
+      // If this tool had a todo-id, reset it to not executed state
+      if (toolCall.todoId || toolCall.input?.['todo-id']) {
+        const todoId = toolCall.todoId || toolCall.input?.['todo-id']
+        const store = useCopilotStore.getState()
+        // Reset the todo to not executing and not completed
+        store.setPlanTodos(
+          store.planTodos.map((todo: any) =>
+            todo.id === todoId ? { ...todo, executing: false, completed: false } : todo
+          )
+        )
+      }
       break
   }
 
