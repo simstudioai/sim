@@ -46,8 +46,8 @@ export class WorkflowBlockHandler implements BlockHandler {
         throw new Error(`Maximum workflow nesting depth of ${MAX_WORKFLOW_DEPTH} exceeded`)
       }
 
-      // Check for cycles
-      const executionId = `${context.workflowId}_sub_${workflowId}`
+      // Check for cycles - include block ID to differentiate parallel executions
+      const executionId = `${context.workflowId}_sub_${workflowId}_${block.id}`
       if (WorkflowBlockHandler.executionStack.has(executionId)) {
         throw new Error(`Cyclic workflow dependency detected: ${executionId}`)
       }
@@ -90,6 +90,9 @@ export class WorkflowBlockHandler implements BlockHandler {
         workflowInput: childWorkflowInput,
         envVarValues: context.environmentVariables,
         workflowVariables: childWorkflow.variables || {},
+        contextExtensions: {
+          isChildExecution: true, // Prevent child executor from managing global state
+        },
       })
 
       const startTime = performance.now()
@@ -105,12 +108,25 @@ export class WorkflowBlockHandler implements BlockHandler {
       logger.info(`Child workflow ${childWorkflowName} completed in ${Math.round(duration)}ms`)
 
       // Map child workflow output to parent block output
-      return this.mapChildOutputToParent(result, workflowId, childWorkflowName, duration)
+      const mappedResult = this.mapChildOutputToParent(
+        result,
+        workflowId,
+        childWorkflowName,
+        duration
+      )
+
+      // If the child workflow failed, throw an error to trigger proper error handling in the parent
+      if ((mappedResult as any).success === false) {
+        const childError = (mappedResult as any).error || 'Unknown error'
+        throw new Error(`Error in child workflow "${childWorkflowName}": ${childError}`)
+      }
+
+      return mappedResult
     } catch (error: any) {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
 
       // Clean up execution stack in case of error
-      const executionId = `${context.workflowId}_sub_${workflowId}`
+      const executionId = `${context.workflowId}_sub_${workflowId}_${block.id}`
       WorkflowBlockHandler.executionStack.delete(executionId)
 
       // Get workflow name for error reporting
@@ -118,11 +134,15 @@ export class WorkflowBlockHandler implements BlockHandler {
       const workflowMetadata = workflows[workflowId]
       const childWorkflowName = workflowMetadata?.name || workflowId
 
-      return {
-        success: false,
-        error: error.message || 'Child workflow execution failed',
-        childWorkflowName: childWorkflowName,
-      } as Record<string, any>
+      // Enhance error message with child workflow context
+      const originalError = error.message || 'Unknown error'
+
+      // Check if error message already has child workflow context to avoid duplication
+      if (originalError.startsWith('Error in child workflow')) {
+        throw error // Re-throw as-is to avoid duplication
+      }
+
+      throw new Error(`Error in child workflow "${childWorkflowName}": ${originalError}`)
     }
   }
 
