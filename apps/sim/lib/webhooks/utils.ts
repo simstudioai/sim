@@ -223,55 +223,81 @@ export function formatWebhookInput(
         input = 'Message received'
       }
 
+      // Create the message object for easier access
+      const messageObj = {
+        id: message.message_id,
+        text: message.text,
+        caption: message.caption,
+        date: message.date,
+        messageType: message.photo
+          ? 'photo'
+          : message.document
+            ? 'document'
+            : message.audio
+              ? 'audio'
+              : message.video
+                ? 'video'
+                : message.voice
+                  ? 'voice'
+                  : message.sticker
+                    ? 'sticker'
+                    : message.location
+                      ? 'location'
+                      : message.contact
+                        ? 'contact'
+                        : message.poll
+                          ? 'poll'
+                          : 'text',
+        raw: message,
+      }
+
+      // Create sender object
+      const senderObj = message.from
+        ? {
+            id: message.from.id,
+            firstName: message.from.first_name,
+            lastName: message.from.last_name,
+            username: message.from.username,
+            languageCode: message.from.language_code,
+            isBot: message.from.is_bot,
+          }
+        : null
+
+      // Create chat object
+      const chatObj = message.chat
+        ? {
+            id: message.chat.id,
+            type: message.chat.type,
+            title: message.chat.title,
+            username: message.chat.username,
+            firstName: message.chat.first_name,
+            lastName: message.chat.last_name,
+          }
+        : null
+
       return {
         input, // Primary workflow input - the message content
+
+        // NEW: Top-level properties for backward compatibility with <blockName.message> syntax
+        message: messageObj,
+        sender: senderObj,
+        chat: chatObj,
+        updateId: body.update_id,
+        updateType: body.message
+          ? 'message'
+          : body.edited_message
+            ? 'edited_message'
+            : body.channel_post
+              ? 'channel_post'
+              : body.edited_channel_post
+                ? 'edited_channel_post'
+                : 'unknown',
+
+        // Keep the nested structure for the new telegram.message.text syntax
         telegram: {
-          message: {
-            id: message.message_id,
-            text: message.text,
-            caption: message.caption,
-            date: message.date,
-            messageType: message.photo
-              ? 'photo'
-              : message.document
-                ? 'document'
-                : message.audio
-                  ? 'audio'
-                  : message.video
-                    ? 'video'
-                    : message.voice
-                      ? 'voice'
-                      : message.sticker
-                        ? 'sticker'
-                        : message.location
-                          ? 'location'
-                          : message.contact
-                            ? 'contact'
-                            : message.poll
-                              ? 'poll'
-                              : 'text',
-            raw: message,
-          },
-          sender: message.from
-            ? {
-                id: message.from.id,
-                firstName: message.from.first_name,
-                lastName: message.from.last_name,
-                username: message.from.username,
-                languageCode: message.from.language_code,
-                isBot: message.from.is_bot,
-              }
-            : null,
-          chat: message.chat
-            ? {
-                id: message.chat.id,
-                type: message.chat.type,
-                title: message.chat.title,
-                username: message.chat.username,
-                firstName: message.chat.first_name,
-                lastName: message.chat.last_name,
-              }
-            : null,
+          message: messageObj,
+          sender: senderObj,
+          chat: chatObj,
           updateId: body.update_id,
           updateType: body.message
             ? 'message'

@@ -23,14 +23,85 @@ export class TriggerBlockHandler implements BlockHandler {
   async execute(
     block: SerializedBlock,
     inputs: Record<string, any>,
-    _context: ExecutionContext
+    context: ExecutionContext
   ): Promise<any> {
     logger.info(`Executing trigger block: ${block.id} (Type: ${block.metadata?.id})`)
 
-    // Trigger blocks don't execute anything - they just pass through their input data
-    // The input data comes from the webhook execution context or initial workflow inputs
+    // For trigger blocks, return the starter block's output which contains the workflow input
+    // This ensures webhook data like message, sender, chat, etc. are accessible
+    const starterBlock = context.workflow?.blocks?.find((b) => b.metadata?.id === 'starter')
+    if (starterBlock) {
+      const starterState = context.blockStates.get(starterBlock.id)
+      if (starterState?.output && Object.keys(starterState.output).length > 0) {
+        const starterOutput = starterState.output
 
-    // For trigger blocks, return the inputs directly - these contain the webhook/trigger data
+        // Generic handling for webhook triggers - extract provider-specific data
+        // Check if this is a webhook execution with nested structure
+        if (starterOutput.webhook?.data) {
+          const webhookData = starterOutput.webhook.data
+          const provider = webhookData.provider
+
+          logger.debug(`Processing webhook trigger for block ${block.id}`, {
+            provider,
+            blockType: block.metadata?.id,
+          })
+
+          // Extract the flattened properties that should be at root level
+          const result: any = {
+            // Always keep the input at root level
+            input: starterOutput.input,
+          }
+
+          // Generic extraction logic based on common webhook patterns
+          // Pattern 1: Provider-specific nested object (telegram, microsoftteams, etc.)
+          if (provider && starterOutput[provider]) {
+            // Copy all properties from provider object to root level for direct access
+            const providerData = starterOutput[provider]
+            for (const [key, value] of Object.entries(providerData)) {
+              if (typeof value === 'object' && value !== null) {
+                result[key] = value
+              }
+            }
+
+            // Keep nested structure for backwards compatibility
+            result[provider] = providerData
+          }
+
+          // Pattern 2: Provider data directly in webhook.data (based on actual structure)
+          else if (provider && webhookData[provider]) {
+            const providerData = webhookData[provider]
+
+            // Extract all provider properties to root level
+            for (const [key, value] of Object.entries(providerData)) {
+              if (typeof value === 'object' && value !== null) {
+                result[key] = value
+              }
+            }
+
+            // Keep nested structure for backwards compatibility
+            result[provider] = providerData
+          }
+
+          // Always keep webhook metadata
+          if (starterOutput.webhook) result.webhook = starterOutput.webhook
+
+          logger.debug(`Processed webhook data for trigger block ${block.id}`, {
+            provider,
+            resultKeys: Object.keys(result),
+            hasMessage: !!result.message,
+          })
+
+          return result
+        }
+
+        logger.debug(`Returning starter block output for trigger block ${block.id}`, {
+          starterOutputKeys: Object.keys(starterOutput),
+        })
+        return starterOutput
+      }
+    }
+
+    // Fallback to resolved inputs if no starter block output
     if (inputs && Object.keys(inputs).length > 0) {
       logger.debug(`Returning trigger inputs for block ${block.id}`, {
         inputKeys: Object.keys(inputs),
