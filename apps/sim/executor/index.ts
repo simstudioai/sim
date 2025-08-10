@@ -1508,6 +1508,43 @@ export class Executor {
         // Skip console logging for infrastructure blocks like loops and parallels
         // For streaming blocks, we'll add the console entry after stream processing
         if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
+          // Determine iteration context for this block
+          let iterationCurrent: number | undefined
+          let iterationTotal: number | undefined
+          let iterationType: 'loop' | 'parallel' | undefined
+          const blockName = block.metadata?.name || 'Unnamed Block'
+
+          if (parallelInfo) {
+            // This is a parallel iteration
+            const parallelState = context.parallelExecutions?.get(parallelInfo.parallelId)
+            iterationCurrent = parallelInfo.iterationIndex + 1
+            iterationTotal = parallelState?.parallelCount
+            iterationType = 'parallel'
+          } else {
+            // Check if this block is inside a loop
+            const containingLoopId = this.resolver.loopsByBlockId?.get(block.id)
+            if (containingLoopId) {
+              const currentIteration = context.loopIterations.get(containingLoopId)
+              const loop = context.workflow?.loops?.[containingLoopId]
+              if (currentIteration !== undefined && loop) {
+                iterationCurrent = currentIteration
+                if (loop.loopType === 'forEach') {
+                  // For forEach loops, get the total from the items
+                  const forEachItems = context.loopItems.get(`${containingLoopId}_items`)
+                  if (forEachItems) {
+                    iterationTotal = Array.isArray(forEachItems)
+                      ? forEachItems.length
+                      : Object.keys(forEachItems).length
+                  }
+                } else {
+                  // For regular loops, use the iterations count
+                  iterationTotal = loop.iterations || 5
+                }
+                iterationType = 'loop'
+              }
+            }
+          }
+
           addConsole({
             input: blockLog.input,
             output: blockLog.output,
@@ -1518,12 +1555,11 @@ export class Executor {
             workflowId: context.workflowId,
             blockId: parallelInfo ? blockId : block.id,
             executionId: this.contextExtensions.executionId,
-            blockName: parallelInfo
-              ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${
-                  parallelInfo.iterationIndex + 1
-                })`
-              : block.metadata?.name || 'Unnamed Block',
+            blockName,
             blockType: block.metadata?.id || 'unknown',
+            iterationCurrent,
+            iterationTotal,
+            iterationType,
           })
         }
 
@@ -1578,6 +1614,43 @@ export class Executor {
 
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
+        // Determine iteration context for this block
+        let iterationCurrent: number | undefined
+        let iterationTotal: number | undefined
+        let iterationType: 'loop' | 'parallel' | undefined
+        const blockName = block.metadata?.name || 'Unnamed Block'
+
+        if (parallelInfo) {
+          // This is a parallel iteration
+          const parallelState = context.parallelExecutions?.get(parallelInfo.parallelId)
+          iterationCurrent = parallelInfo.iterationIndex + 1
+          iterationTotal = parallelState?.parallelCount
+          iterationType = 'parallel'
+        } else {
+          // Check if this block is inside a loop
+          const containingLoopId = this.resolver.getContainingLoopId(block.id)
+          if (containingLoopId) {
+            const currentIteration = context.loopIterations.get(containingLoopId)
+            const loop = context.workflow?.loops?.[containingLoopId]
+            if (currentIteration !== undefined && loop) {
+              iterationCurrent = currentIteration
+              if (loop.loopType === 'forEach') {
+                // For forEach loops, get the total from the items
+                const forEachItems = context.loopItems.get(`${containingLoopId}_items`)
+                if (forEachItems) {
+                  iterationTotal = Array.isArray(forEachItems)
+                    ? forEachItems.length
+                    : Object.keys(forEachItems).length
+                }
+              } else {
+                // For regular loops, use the iterations count
+                iterationTotal = loop.iterations || 5
+              }
+              iterationType = 'loop'
+            }
+          }
+        }
+
         addConsole({
           input: blockLog.input,
           output: blockLog.output,
@@ -1588,12 +1661,11 @@ export class Executor {
           workflowId: context.workflowId,
           blockId: parallelInfo ? blockId : block.id,
           executionId: this.contextExtensions.executionId,
-          blockName: parallelInfo
-            ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${
-                parallelInfo.iterationIndex + 1
-              })`
-            : block.metadata?.name || 'Unnamed Block',
+          blockName,
           blockType: block.metadata?.id || 'unknown',
+          iterationCurrent,
+          iterationTotal,
+          iterationType,
         })
       }
 
@@ -1649,6 +1721,43 @@ export class Executor {
 
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
+        // Determine iteration context for this block
+        let iterationCurrent: number | undefined
+        let iterationTotal: number | undefined
+        let iterationType: 'loop' | 'parallel' | undefined
+        const blockName = block.metadata?.name || 'Unnamed Block'
+
+        if (parallelInfo) {
+          // This is a parallel iteration
+          const parallelState = context.parallelExecutions?.get(parallelInfo.parallelId)
+          iterationCurrent = parallelInfo.iterationIndex + 1
+          iterationTotal = parallelState?.parallelCount
+          iterationType = 'parallel'
+        } else {
+          // Check if this block is inside a loop
+          const containingLoopId = this.resolver.getContainingLoopId(block.id)
+          if (containingLoopId) {
+            const currentIteration = context.loopIterations.get(containingLoopId)
+            const loop = context.workflow?.loops?.[containingLoopId]
+            if (currentIteration !== undefined && loop) {
+              iterationCurrent = currentIteration
+              if (loop.loopType === 'forEach') {
+                // For forEach loops, get the total from the items
+                const forEachItems = context.loopItems.get(`${containingLoopId}_items`)
+                if (forEachItems) {
+                  iterationTotal = Array.isArray(forEachItems)
+                    ? forEachItems.length
+                    : Object.keys(forEachItems).length
+                }
+              } else {
+                // For regular loops, use the iterations count
+                iterationTotal = loop.iterations || 5
+              }
+              iterationType = 'loop'
+            }
+          }
+        }
+
         addConsole({
           input: blockLog.input,
           output: {},
@@ -1662,10 +1771,11 @@ export class Executor {
           workflowId: context.workflowId,
           blockId: parallelInfo ? blockId : block.id,
           executionId: this.contextExtensions.executionId,
-          blockName: parallelInfo
-            ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${parallelInfo.iterationIndex + 1})`
-            : block.metadata?.name || 'Unnamed Block',
+          blockName,
           blockType: block.metadata?.id || 'unknown',
+          iterationCurrent,
+          iterationTotal,
+          iterationType,
         })
       }
 

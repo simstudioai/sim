@@ -1845,4 +1845,13 @@ export class InputResolver {
 
     return value
   }
+
+  /**
+   * Get the containing loop ID for a block
+   * @param blockId - The ID of the block
+   * @returns The containing loop ID or undefined if not in a loop
+   */
+  getContainingLoopId(blockId: string): string | undefined {
+    return this.loopsByBlockId.get(blockId)
+  }
 }

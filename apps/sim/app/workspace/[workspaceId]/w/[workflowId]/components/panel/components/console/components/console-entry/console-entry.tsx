@@ -417,6 +417,14 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
             {entry.startedAt ? format(new Date(entry.startedAt), 'HH:mm:ss') : 'N/A'}
           </span>
         </div>
+        {/* Iteration tag - only show if iteration context exists */}
+        {entry.iterationCurrent !== undefined && entry.iterationTotal !== undefined && (
+          <div className='flex h-5 items-center rounded-lg bg-secondary px-2'>
+            <span className='font-normal text-muted-foreground text-xs leading-normal'>
+              {entry.iterationCurrent}/{entry.iterationTotal}
+            </span>
+          </div>
+        )}
         {/* Input/Output tags - only show if input data exists */}
         {hasInputData && (
           <>
