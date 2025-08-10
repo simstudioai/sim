@@ -33,16 +33,8 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
     },
   },
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Insert operation results',
-      properties: {
-        message: { type: 'string', description: 'Operation status message' },
-        results: { type: 'array', description: 'Array of inserted records' },
-      },
-    },
-    error: { type: 'string', description: 'Error message if the operation failed' },
+    message: { type: 'string', description: 'Operation status message' },
+    results: { type: 'array', description: 'Array of inserted records' },
   },
   request: {
     url: (params) => `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`,

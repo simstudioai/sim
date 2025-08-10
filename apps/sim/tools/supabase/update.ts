@@ -39,16 +39,8 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
     },
   },
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Update operation results',
-      properties: {
-        message: { type: 'string', description: 'Operation status message' },
-        results: { type: 'array', description: 'Array of updated records' },
-      },
-    },
-    error: { type: 'string', description: 'Error message if the operation failed' },
+    message: { type: 'string', description: 'Operation status message' },
+    results: { type: 'array', description: 'Array of updated records' },
   },
   request: {
     url: (params) => {

@@ -33,16 +33,8 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
     },
   },
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Delete operation results',
-      properties: {
-        message: { type: 'string', description: 'Operation status message' },
-        results: { type: 'array', description: 'Array of deleted records' },
-      },
-    },
-    error: { type: 'string', description: 'Error message if the operation failed' },
+    message: { type: 'string', description: 'Operation status message' },
+    results: { type: 'array', description: 'Array of deleted records' },
   },
   request: {
     url: (params) => {

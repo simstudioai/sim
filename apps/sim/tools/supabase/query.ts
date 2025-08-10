@@ -45,16 +45,8 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
     },
   },
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Query operation results',
-      properties: {
-        message: { type: 'string', description: 'Operation status message' },
-        results: { type: 'array', description: 'Array of records returned from the query' },
-      },
-    },
-    error: { type: 'string', description: 'Error message if the operation failed' },
+    message: { type: 'string', description: 'Operation status message' },
+    results: { type: 'array', description: 'Array of records returned from the query' },
   },
   request: {
     url: (params) => {
