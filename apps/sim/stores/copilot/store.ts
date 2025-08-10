@@ -435,13 +435,24 @@ function processWorkflowToolResult(toolCall: any, result: any, get: () => Copilo
     toolCall.input?.yamlContent ||
     toolCall.input?.data?.yamlContent
 
+  // For build_workflow tool, also extract workflowState if available
+  const workflowState = result?.workflowState || result?.data?.workflowState
+
   if (yamlContent) {
     logger.info(`Setting preview YAML from ${toolCall.name} tool`, {
       yamlLength: yamlContent.length,
       yamlPreview: yamlContent.substring(0, 100),
+      hasWorkflowState: !!workflowState,
     })
     get().setPreviewYaml(yamlContent)
-    get().updateDiffStore(yamlContent, toolCall.name)
+    
+    // For build_workflow, use the workflowState directly if available
+    if (toolCall.name === 'build_workflow' && workflowState) {
+      logger.info('Using workflowState directly for build_workflow tool')
+      get().updateDiffStoreWithWorkflowState(workflowState, toolCall.name)
+    } else {
+      get().updateDiffStore(yamlContent, toolCall.name)
+    }
   } else {
     logger.warn(`No yamlContent found in ${toolCall.name} result`, {
       resultKeys: Object.keys(result || {}),
@@ -524,18 +535,6 @@ function setToolCallState(
       if (result !== undefined) {
         toolCall.result = result
       }
-      
-      // Handle array of todoIds
-      const successTodoIds = toolCall.todoIds || toolCall.input?.['todo-ids']
-      
-      if (successTodoIds && Array.isArray(successTodoIds)) {
-        const store = useCopilotStore.getState()
-        if (store.updatePlanTodoStatus) {
-          successTodoIds.forEach(todoId => {
-            store.updatePlanTodoStatus(todoId, 'completed')
-          })
-        }
-      }
 
       // Check if tool supports ready_for_review state instead of hard-coding tool names
       if (toolSupportsReadyForReview(toolCall.name)) {
@@ -549,38 +548,10 @@ function setToolCallState(
       if (error) {
         toolCall.error = error
       }
-      
-      // Handle array of todoIds
-      const errorTodoIds = toolCall.todoIds || toolCall.input?.['todo-ids']
-      
-      if (errorTodoIds && Array.isArray(errorTodoIds)) {
-        const store = useCopilotStore.getState()
-        // Reset the todos to not executing and not completed
-        store.setPlanTodos(
-          store.planTodos.map((todo: any) =>
-            errorTodoIds.includes(todo.id) ? { ...todo, executing: false, completed: false } : todo
-          )
-        )
-      }
       break
 
     case 'executing':
       // Tool is now executing
-      // Handle array of todoIds
-      const executingTodoIds = toolCall.todoIds || toolCall.input?.['todo-ids']
-      
-      if (executingTodoIds && Array.isArray(executingTodoIds)) {
-        const store = useCopilotStore.getState()
-        if (store.updatePlanTodoStatus) {
-          executingTodoIds.forEach(todoId => {
-            store.updatePlanTodoStatus(todoId, 'executing')
-          })
-        }
-        // Store the todo-ids on the toolCall for later reference
-        if (!toolCall.todoIds) {
-          toolCall.todoIds = executingTodoIds
-        }
-      }
       break
 
     case 'pending':
@@ -598,19 +569,6 @@ function setToolCallState(
       if (error) {
         toolCall.error = error
       }
-      
-      // Handle array of todoIds
-      const rejectedTodoIds = toolCall.todoIds || toolCall.input?.['todo-ids']
-      
-      if (rejectedTodoIds && Array.isArray(rejectedTodoIds)) {
-        const store = useCopilotStore.getState()
-        // Reset the todos to not executing and not completed
-        store.setPlanTodos(
-          store.planTodos.map((todo: any) =>
-            rejectedTodoIds.includes(todo.id) ? { ...todo, executing: false, completed: false } : todo
-          )
-        )
-      }
       break
 
     case 'background':
@@ -623,19 +581,13 @@ function setToolCallState(
       // Tool was aborted
       toolCall.endTime = Date.now()
       toolCall.duration = toolCall.endTime - toolCall.startTime
-      
-      // Handle array of todoIds
-      const abortedTodoIds = toolCall.todoIds || toolCall.input?.['todo-ids']
-      
-      if (abortedTodoIds && Array.isArray(abortedTodoIds)) {
-        const store = useCopilotStore.getState()
-        // Reset the todos to not executing and not completed
-        store.setPlanTodos(
-          store.planTodos.map((todo: any) =>
-            abortedTodoIds.includes(todo.id) ? { ...todo, executing: false, completed: false } : todo
-          )
-        )
+      if (error) {
+        toolCall.error = error
       }
+      break
+
+    default:
+      logger.warn(`Unknown tool state: ${newState}`)
       break
   }
 
@@ -908,8 +860,8 @@ const sseHandlers: Record<string, SSEHandler> = {
       setToolCallState(toolCall, 'success', { result: parsedResult })
       
       // Check if this is the plan tool and extract todos
-      if (toolCall.name === 'plan' && parsedResult?.todoListUser) {
-        const todos = parsedResult.todoListUser.map((item: any, index: number) => ({
+      if (toolCall.name === 'plan' && parsedResult?.todoList) {
+        const todos = parsedResult.todoList.map((item: any, index: number) => ({
           id: item.id || `todo-${index}`,
           content: typeof item === 'string' ? item : item.content,
           completed: false,
@@ -923,15 +875,20 @@ const sseHandlers: Record<string, SSEHandler> = {
         }
       }
       
-      // Check if this tool had todo-ids - mark them as completed on success
-      const successTodoIds = toolCall.todoIds || toolCall.input?.['todo-ids']
-      if (successTodoIds && Array.isArray(successTodoIds)) {
-        const store = get()
-        if (store.updatePlanTodoStatus) {
-          successTodoIds.forEach(todoId => {
+      // Check if this is the checkoff_todo tool and mark the todo as complete
+      if (toolCall.name === 'checkoff_todo') {
+        // Check various possible locations for the todo ID
+        const todoId = toolCall.input?.id || toolCall.input?.todoId || 
+                       parsedResult?.todoId || parsedResult?.id
+        if (todoId) {
+          const store = get()
+          if (store.updatePlanTodoStatus) {
             store.updatePlanTodoStatus(todoId, 'completed')
-          })
+          }
         }
+        
+        // Mark this tool as hidden from UI
+        toolCall.hidden = true
       }
 
       // Handle tools with ready_for_review state
@@ -949,19 +906,6 @@ const sseHandlers: Record<string, SSEHandler> = {
       const targetState = failedDependency === true ? 'rejected' : 'errored'
 
       setToolCallState(toolCall, targetState, { error: errorMessage })
-      
-      // If this tool had todo-ids, reset them from executing state
-      const errorTodoIds = toolCall.todoIds || toolCall.input?.['todo-ids']
-      if (errorTodoIds && Array.isArray(errorTodoIds)) {
-        const store = get()
-        // Reset the todos to not executing and not completed
-        if (store.planTodos) {
-          const updatedTodos = store.planTodos.map((todo: any) =>
-            errorTodoIds.includes(todo.id) ? { ...todo, executing: false, completed: false } : todo
-          )
-          set({ planTodos: updatedTodos })
-        }
-      }
 
       // COMMENTED OUT OLD LOGIC:
       // handleToolFailure(toolCall, result || 'Tool execution failed')
@@ -1153,6 +1097,11 @@ const sseHandlers: Record<string, SSEHandler> = {
     }
 
     const toolCall = createToolCall(toolData.id, toolData.name, toolData.arguments)
+    
+    // Mark checkoff_todo as hidden from the start
+    if (toolData.name === 'checkoff_todo') {
+      toolCall.hidden = true
+    }
 
     context.toolCalls.push(toolCall)
 
@@ -1205,19 +1154,9 @@ const sseHandlers: Record<string, SSEHandler> = {
 
       toolCall.state = 'executing'
       
-      // Check if this tool has todo-ids parameter - mark them as executing
-      if (toolCall.input?.['todo-ids']) {
-        const todoIds = toolCall.input['todo-ids']
-        if (Array.isArray(todoIds)) {
-          const store = get()
-          if (store.updatePlanTodoStatus) {
-            todoIds.forEach(todoId => {
-              store.updatePlanTodoStatus(todoId, 'executing')
-            })
-          }
-          // Store the todo-ids on the toolCall for later reference
-          toolCall.todoIds = todoIds
-        }
+      // Mark checkoff_todo as hidden
+      if (toolCall.name === 'checkoff_todo') {
+        toolCall.hidden = true
       }
 
       // Update both contentBlocks and toolCalls atomically before UI update
@@ -1246,6 +1185,11 @@ const sseHandlers: Record<string, SSEHandler> = {
 
       const toolCall = createToolCall(data.content_block.id, data.content_block.name)
       toolCall.partialInput = ''
+      
+      // Mark checkoff_todo as hidden from the start
+      if (data.content_block.name === 'checkoff_todo') {
+        toolCall.hidden = true
+      }
 
       context.toolCallBuffer = toolCall
       context.toolCalls.push(toolCall)
@@ -1297,8 +1241,8 @@ const sseHandlers: Record<string, SSEHandler> = {
         }
         
         // Check if this is the plan tool and extract todos
-        if (context.toolCallBuffer.name === 'plan' && context.toolCallBuffer.input?.todoListUser) {
-          const todos = context.toolCallBuffer.input.todoListUser.map((item: any, index: number) => ({
+        if (context.toolCallBuffer.name === 'plan' && context.toolCallBuffer.input?.todoList) {
+          const todos = context.toolCallBuffer.input.todoList.map((item: any, index: number) => ({
             id: item.id || `todo-${index}`,
             content: typeof item === 'string' ? item : item.content,
             completed: false,
@@ -1312,19 +1256,19 @@ const sseHandlers: Record<string, SSEHandler> = {
           }
         }
         
-        // Check if this tool has todo-ids parameter - mark them as executing
-        if (context.toolCallBuffer.input?.['todo-ids']) {
-          const todoIds = context.toolCallBuffer.input['todo-ids']
-          if (Array.isArray(todoIds)) {
+        // Check if this is the checkoff_todo tool and mark the todo as complete
+        if (context.toolCallBuffer.name === 'checkoff_todo') {
+          // Check both input.id and input.todoId for compatibility
+          const todoId = context.toolCallBuffer.input?.id || context.toolCallBuffer.input?.todoId
+          if (todoId) {
             const store = get()
             if (store.updatePlanTodoStatus) {
-              todoIds.forEach(todoId => {
-                store.updatePlanTodoStatus(todoId, 'executing')
-              })
+              store.updatePlanTodoStatus(todoId, 'completed')
             }
-            // Store the todo-ids on the toolCall for later reference
-            context.toolCallBuffer.todoIds = todoIds
           }
+          
+          // Mark this tool as hidden from UI
+          context.toolCallBuffer.hidden = true
         }
 
         // Update both contentBlocks and toolCalls atomically before UI update
@@ -3271,6 +3215,59 @@ export const useCopilotStore = create<CopilotStore>()(
           if (currentChat?.previewYaml) {
             logger.info('Preview YAML is set, user can still view it despite diff error')
           }
+        }
+      },
+
+      updateDiffStoreWithWorkflowState: async (workflowState: any, toolName?: string) => {
+        // Check if we're in an aborted state before updating diff
+        const { abortController } = get()
+        if (abortController?.signal.aborted) {
+          logger.info('🚫 Skipping diff update - request was aborted')
+          return
+        }
+
+        try {
+          // Import diff store dynamically to avoid circular dependencies
+          const { useWorkflowDiffStore } = await import('@/stores/workflow-diff')
+
+          logger.info('📊 Updating diff store with workflowState directly', {
+            blockCount: Object.keys(workflowState.blocks).length,
+            edgeCount: workflowState.edges.length,
+            toolName: toolName || 'unknown',
+          })
+
+          // Check current diff store state before update
+          const diffStoreBefore = useWorkflowDiffStore.getState()
+          logger.info('Diff store state before workflowState update:', {
+            isShowingDiff: diffStoreBefore.isShowingDiff,
+            isDiffReady: diffStoreBefore.isDiffReady,
+            hasDiffWorkflow: !!diffStoreBefore.diffWorkflow,
+          })
+
+          // Direct assignment to the diff store for build_workflow
+          logger.info('Using direct workflowState assignment for build tool')
+          useWorkflowDiffStore.setState({
+            diffWorkflow: workflowState,
+            isDiffReady: true,
+            isShowingDiff: false, // Let user decide when to show diff
+          })
+
+          // Check diff store state after update
+          const diffStoreAfter = useWorkflowDiffStore.getState()
+          logger.info('Diff store state after workflowState update:', {
+            isShowingDiff: diffStoreAfter.isShowingDiff,
+            isDiffReady: diffStoreAfter.isDiffReady,
+            hasDiffWorkflow: !!diffStoreAfter.diffWorkflow,
+            diffWorkflowBlockCount: diffStoreAfter.diffWorkflow
+              ? Object.keys(diffStoreAfter.diffWorkflow.blocks).length
+              : 0,
+          })
+
+          logger.info('Successfully updated diff store with workflowState')
+        } catch (error) {
+          logger.error('Failed to update diff store with workflowState:', error)
+          // Show error to user
+          console.error('[Copilot] Error updating diff store with workflowState:', error)
         }
       },
     }),

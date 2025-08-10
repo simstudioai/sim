@@ -54,10 +54,10 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_USER_WORKFLOW,
     displayConfig: {
       states: {
-        executing: { displayName: 'Analyzing workflow', icon: 'spinner' },
-        success: { displayName: 'Analyzed workflow', icon: 'workflow' },
-        rejected: { displayName: 'Skipped workflow analysis', icon: 'skip' },
-        errored: { displayName: 'Failed to analyze workflow', icon: 'error' },
+        executing: { displayName: 'Analyzing your workflow', icon: 'spinner' },
+        success: { displayName: 'Analyzed your workflow', icon: 'workflow' },
+        rejected: { displayName: 'Skipped analyzing your workflow', icon: 'skip' },
+        errored: { displayName: 'Failed to analyze your workflow', icon: 'error' },
         aborted: { displayName: 'Workflow analysis aborted', icon: 'x' },
       },
     },
@@ -72,13 +72,13 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.BUILD_WORKFLOW,
     displayConfig: {
       states: {
-        ready_for_review: { displayName: 'Workflow ready for review', icon: 'network' },
-        executing: { displayName: 'Building workflow', icon: 'spinner' },
-        success: { displayName: 'Built workflow', icon: 'network' },
-        rejected: { displayName: 'Workflow changes not applied', icon: 'skip' },
-        errored: { displayName: 'Failed to build workflow', icon: 'error' },
+        ready_for_review: { displayName: 'Workflow ready for review', icon: 'grid2x2' },
+        executing: { displayName: 'Building your workflow', icon: 'spinner' },
+        success: { displayName: 'Built your workflow', icon: 'grid2x2' },
+        rejected: { displayName: 'Workflow changes not applied', icon: 'grid2x2X' },
+        errored: { displayName: 'Failed to build your workflow', icon: 'error' },
         aborted: { displayName: 'Workflow build aborted', icon: 'x' },
-        accepted: { displayName: 'Built workflow', icon: 'network' },
+        accepted: { displayName: 'Built your workflow', icon: 'grid2x2Check' },
       },
     },
     schema: {
@@ -92,13 +92,13 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.EDIT_WORKFLOW,
     displayConfig: {
       states: {
-        ready_for_review: { displayName: 'Workflow changes ready for review', icon: 'network' },
-        executing: { displayName: 'Editing workflow', icon: 'spinner' },
-        success: { displayName: 'Edited workflow', icon: 'network' },
-        rejected: { displayName: 'Workflow changes not applied', icon: 'skip' },
-        errored: { displayName: 'Failed to edit workflow', icon: 'error' },
+        ready_for_review: { displayName: 'Workflow changes ready for review', icon: 'grid2x2' },
+        executing: { displayName: 'Editing your workflow', icon: 'spinner' },
+        success: { displayName: 'Edited your workflow', icon: 'grid2x2' },
+        rejected: { displayName: 'Workflow changes not applied', icon: 'grid2x2X' },
+        errored: { displayName: 'Failed to edit your workflow', icon: 'error' },
         aborted: { displayName: 'Workflow edit aborted', icon: 'x' },
-        accepted: { displayName: 'Edited workflow', icon: 'network' },
+        accepted: { displayName: 'Edited your workflow', icon: 'grid2x2Check' },
       },
     },
     schema: {
@@ -112,11 +112,11 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_BLOCKS_AND_TOOLS,
     displayConfig: {
       states: {
-        executing: { displayName: 'Getting block information', icon: 'spinner' },
-        success: { displayName: 'Retrieved block information', icon: 'blocks' },
-        rejected: { displayName: 'Skipped getting block information', icon: 'skip' },
-        errored: { displayName: 'Failed to get block information', icon: 'error' },
-        aborted: { displayName: 'Block information retrieval aborted', icon: 'x' },
+        executing: { displayName: 'Exploring available options', icon: 'spinner' },
+        success: { displayName: 'Explored available options', icon: 'blocks' },
+        rejected: { displayName: 'Skipped exploring options', icon: 'skip' },
+        errored: { displayName: 'Failed to explore options', icon: 'error' },
+        aborted: { displayName: 'Options exploration aborted', icon: 'x' },
       },
     },
     schema: {
@@ -130,11 +130,11 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_BLOCKS_METADATA,
     displayConfig: {
       states: {
-        executing: { displayName: 'Getting block metadata', icon: 'spinner' },
-        success: { displayName: 'Retrieved block metadata', icon: 'blocks' },
-        rejected: { displayName: 'Skipped getting block metadata', icon: 'skip' },
-        errored: { displayName: 'Failed to get block metadata', icon: 'error' },
-        aborted: { displayName: 'Block metadata retrieval aborted', icon: 'x' },
+        executing: { displayName: 'Evaluating workflow options', icon: 'spinner' },
+        success: { displayName: 'Evaluated workflow options', icon: 'betweenHorizontalEnd' },
+        rejected: { displayName: 'Skipped evaluating workflow options', icon: 'skip' },
+        errored: { displayName: 'Failed to evaluate workflow options', icon: 'error' },
+        aborted: { displayName: 'Options evaluation aborted', icon: 'x' },
       },
     },
     schema: {
@@ -166,11 +166,11 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_EDIT_WORKFLOW_EXAMPLES,
     displayConfig: {
       states: {
-        executing: { displayName: 'Viewing workflow examples', icon: 'spinner' },
-        success: { displayName: 'Viewed workflow examples', icon: 'gitbranch' },
-        rejected: { displayName: 'Skipped workflow examples', icon: 'skip' },
-        errored: { displayName: 'Failed to view workflow examples', icon: 'error' },
-        aborted: { displayName: 'Workflow examples viewing aborted', icon: 'x' },
+        executing: { displayName: 'Optimizing edit approach', icon: 'spinner' },
+        success: { displayName: 'Optimized edit approach', icon: 'gitbranch' },
+        rejected: { displayName: 'Skipped optimizing edit approach', icon: 'skip' },
+        errored: { displayName: 'Failed to optimize edit approach', icon: 'error' },
+        aborted: { displayName: 'Edit approach optimization aborted', icon: 'x' },
       },
     },
     schema: {
@@ -184,11 +184,11 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_BUILD_WORKFLOW_EXAMPLES,
     displayConfig: {
       states: {
-        executing: { displayName: 'Viewing workflow examples', icon: 'spinner' },
-        success: { displayName: 'Viewed workflow examples', icon: 'gitbranch' },
-        rejected: { displayName: 'Skipped workflow examples', icon: 'skip' },
-        errored: { displayName: 'Failed to view workflow examples', icon: 'error' },
-        aborted: { displayName: 'Workflow examples viewing aborted', icon: 'x' },
+        executing: { displayName: 'Discovering workflow patterns', icon: 'spinner' },
+        success: { displayName: 'Discovered workflow patterns', icon: 'gitbranch' },
+        rejected: { displayName: 'Skipped discovering patterns', icon: 'skip' },
+        errored: { displayName: 'Failed to discover patterns', icon: 'error' },
+        aborted: { displayName: 'Discovering patterns aborted', icon: 'x' },
       },
     },
     schema: {
@@ -288,11 +288,11 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.PLAN,
     displayConfig: {
       states: {
-        executing: { displayName: 'Planning', icon: 'spinner' },
-        success: { displayName: 'Finished planning', icon: 'listTodo' },
-        rejected: { displayName: 'Skipped planning', icon: 'skip' },
-        errored: { displayName: 'Planning failed', icon: 'error' },
-        aborted: { displayName: 'Planning aborted', icon: 'x' },
+        executing: { displayName: 'Crafting an approach', icon: 'spinner' },
+        success: { displayName: 'Crafted a plan', icon: 'listTodo' },
+        rejected: { displayName: 'Skipped crafting a plan', icon: 'skip' },
+        errored: { displayName: 'Failed to craft a plan', icon: 'error' },
+        aborted: { displayName: 'Crafting a plan aborted', icon: 'x' },
       },
     },
     schema: {
@@ -324,11 +324,11 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_BLOCK_BEST_PRACTICES,
     displayConfig: {
       states: {
-        executing: { displayName: 'Processing metadata', icon: 'spinner' },
-        success: { displayName: 'Processed metadata', icon: 'lightbulb' },
-        rejected: { displayName: 'Skipped processing metadata', icon: 'skip' },
-        errored: { displayName: 'Failed to process metadata', icon: 'error' },
-        aborted: { displayName: 'Metadata processing aborted', icon: 'x' },
+        executing: { displayName: 'Reviewing recommendations', icon: 'spinner' },
+        success: { displayName: 'Reviewed recommendations', icon: 'network' },
+        rejected: { displayName: 'Skipped recommendations review', icon: 'skip' },
+        errored: { displayName: 'Failed to review recommendations', icon: 'error' },
+        aborted: { displayName: 'Recommendations review aborted', icon: 'x' },
       },
     },
     schema: {

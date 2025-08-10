@@ -41,6 +41,7 @@ export interface CopilotToolCall {
   result?: any
   error?: string | { message: string }
   timestamp?: string
+  hidden?: boolean // Hide tool from UI rendering (e.g., checkoff_todo)
 }
 
 /**
@@ -277,6 +278,7 @@ export interface CopilotActions {
   ) => Promise<void>
   handleNewChatCreation: (newChatId: string) => Promise<void>
   updateDiffStore: (yamlContent: string, toolName?: string) => Promise<void>
+  updateDiffStoreWithWorkflowState: (workflowState: any, toolName?: string) => Promise<void>
 }
 
 /**
