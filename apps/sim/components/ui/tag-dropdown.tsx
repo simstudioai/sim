@@ -539,8 +539,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const containingLoopBlock = blocks[loopId]
       if (containingLoopBlock) {
         const loopBlockName = containingLoopBlock.name || containingLoopBlock.type
-        const normalizedLoopBlockName = normalizeBlockName(loopBlockName)
-        contextualTags.push(`${normalizedLoopBlockName}.results`)
 
         loopBlockGroup = {
           blockName: loopBlockName,
@@ -565,8 +563,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const containingParallelBlock = blocks[parallelId]
       if (containingParallelBlock) {
         const parallelBlockName = containingParallelBlock.name || containingParallelBlock.type
-        const normalizedParallelBlockName = normalizeBlockName(parallelBlockName)
-        contextualTags.push(`${normalizedParallelBlockName}.results`)
 
         parallelBlockGroup = {
           blockName: parallelBlockName,
@@ -803,11 +799,23 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           })
         } else {
           const path = tagParts.slice(1).join('.')
-          directTags.push({
-            key: path || group.blockName,
-            display: path || group.blockName,
-            fullTag: tag,
-          })
+          // Handle contextual tags for loop/parallel blocks (single words like 'index', 'currentItem')
+          if (
+            (group.blockType === 'loop' || group.blockType === 'parallel') &&
+            tagParts.length === 1
+          ) {
+            directTags.push({
+              key: tag,
+              display: tag,
+              fullTag: tag,
+            })
+          } else {
+            directTags.push({
+              key: path || group.blockName,
+              display: path || group.blockName,
+              fullTag: tag,
+            })
+          }
         }
       })
 
