@@ -1522,7 +1522,7 @@ export class Executor {
             iterationType = 'parallel'
           } else {
             // Check if this block is inside a loop
-            const containingLoopId = this.resolver.loopsByBlockId?.get(block.id)
+            const containingLoopId = this.resolver.getContainingLoopId(block.id)
             if (containingLoopId) {
               const currentIteration = context.loopIterations.get(containingLoopId)
               const loop = context.workflow?.loops?.[containingLoopId]
