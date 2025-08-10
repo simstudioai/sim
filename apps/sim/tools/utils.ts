@@ -159,16 +159,6 @@ export function validateRequiredParametersAfterMerge(
   }
 }
 
-// Check if we're running in the browser
-function isBrowser(): boolean {
-  return typeof window !== 'undefined'
-}
-
-// Check if Freestyle is available
-function isFreestyleAvailable(): boolean {
-  return isBrowser() && !!window.crossOriginIsolated
-}
-
 /**
  * Creates parameter schema from custom tool schema
  */
@@ -208,7 +198,7 @@ export function createParamSchema(customTool: any): Record<string, any> {
  * @param getStore Optional function to get the store (useful for testing)
  */
 export function getClientEnvVars(getStore?: () => any): Record<string, string> {
-  if (!isBrowser()) return {}
+  if (typeof window === 'undefined') return {}
 
   try {
     // Allow injecting the store for testing
@@ -327,81 +317,6 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
       method: 'POST',
       headers: () => ({ 'Content-Type': 'application/json' }),
       body: createCustomToolRequestBody(customTool, true),
-    },
-
-    // Direct execution support for browser environment with Freestyle
-    directExecution: async (params: Record<string, any>) => {
-      // If there's no code, we can't execute directly
-      if (!customTool.code) {
-        return {
-          success: false,
-          output: {},
-          error: 'No code provided for tool execution',
-        }
-      }
-
-      // If we're in a browser with Freestyle available, use it
-      if (isFreestyleAvailable()) {
-        try {
-          // Get environment variables from the store
-          const envStore = useEnvironmentStore.getState()
-          const envVars = envStore.getAllVariables()
-
-          // Create a merged params object that includes environment variables
-          const mergedParams = { ...params }
-
-          // Add environment variables to the params
-          Object.entries(envVars).forEach(([key, variable]) => {
-            if (mergedParams[key] === undefined && variable.value) {
-              mergedParams[key] = variable.value
-            }
-          })
-
-          // Resolve environment variables and tags in the code
-          let resolvedCode = customTool.code
-
-          // Resolve environment variables with {{var_name}} syntax
-          const envVarMatches = resolvedCode.match(/\{\{([^}]+)\}\}/g) || []
-          for (const match of envVarMatches) {
-            const varName = match.slice(2, -2).trim()
-            // Look for the variable in our environment store first, then in params
-            const envVar = envVars[varName]
-            const varValue = envVar ? envVar.value : mergedParams[varName] || ''
-
-            resolvedCode = resolvedCode.replaceAll(match, varValue)
-          }
-
-          // Resolve tags with <tag_name> syntax
-          const tagMatches = resolvedCode.match(/<([^>]+)>/g) || []
-          for (const match of tagMatches) {
-            const tagName = match.slice(1, -1).trim()
-            const tagValue = mergedParams[tagName] || ''
-            resolvedCode = resolvedCode.replace(match, tagValue)
-          }
-
-          // Dynamically import Freestyle to execute code
-          const { executeCode } = await import('@/lib/freestyle')
-
-          const result = await executeCode(resolvedCode, mergedParams)
-
-          if (!result.success) {
-            throw new Error(result.error || 'Freestyle execution failed')
-          }
-
-          return {
-            success: true,
-            output: result.output.result || result.output,
-            error: undefined,
-          }
-        } catch (error: any) {
-          logger.warn('Freestyle execution failed, falling back to API:', error.message)
-          // Fall back to API route if Freestyle fails
-          return undefined
-        }
-      }
-
-      // No Freestyle or not in browser, return undefined to use regular API route
-      return undefined
     },
 
     // Standard response handling for custom tools

@@ -1,10 +1,6 @@
 import type { ToolConfig } from '@/tools/types'
 import type { WealthboxWriteParams, WealthboxWriteResponse } from '@/tools/wealthbox/types'
-import {
-  formatNoteResponse,
-  handleApiError,
-  validateAndBuildNoteBody,
-} from '@/tools/wealthbox/utils'
+import { formatNoteResponse, validateAndBuildNoteBody } from '@/tools/wealthbox/utils'
 
 export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxWriteResponse> = {
   id: 'wealthbox_write_note',
@@ -69,32 +65,7 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
       return validateAndBuildNoteBody(params)
     },
   },
-  directExecution: async (params: WealthboxWriteParams) => {
-    // Validate access token
-    if (!params.accessToken) {
-      throw new Error('Access token is required')
-    }
-
-    const body = validateAndBuildNoteBody(params)
-
-    const response = await fetch('https://api.crmworkspace.com/v1/notes', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      handleApiError(response, errorText)
-    }
-
-    const data = await response.json()
-    return formatNoteResponse(data)
-  },
-  transformResponse: async (response: Response, params?: WealthboxWriteParams) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
     return formatNoteResponse(data)
   },

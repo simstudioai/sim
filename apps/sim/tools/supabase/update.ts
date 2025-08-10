@@ -51,17 +51,7 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
     error: { type: 'string', description: 'Error message if the operation failed' },
   },
   request: {
-    url: (params) => `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`,
-    method: 'PATCH',
-    headers: (params) => ({
-      apikey: params.apiKey,
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-    }),
-  },
-  directExecution: async (params: SupabaseUpdateParams) => {
-    try {
+    url: (params) => {
       // Construct the URL for the Supabase REST API with select to return updated data
       let url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`
 
@@ -70,59 +60,16 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
         url += `&${params.filter.trim()}`
       }
 
-      // Fetch the data
-      const response = await fetch(url, {
-        method: 'PATCH',
-        headers: {
-          apikey: params.apiKey,
-          Authorization: `Bearer ${params.apiKey}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=representation',
-        },
-        body: JSON.stringify(params.data),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Error from Supabase: ${response.status} ${errorText}`)
-      }
-
-      // Handle potentially empty response from update operations
-      const text = await response.text()
-      let data
-
-      if (text?.trim()) {
-        try {
-          data = JSON.parse(text)
-        } catch (e) {
-          // If we can't parse it, just use the text
-          data = text
-        }
-      } else {
-        // Empty response means successful update
-        data = []
-      }
-
-      const updatedCount = Array.isArray(data) ? data.length : text ? 1 : 0
-
-      return {
-        success: true,
-        output: {
-          message: `Successfully updated ${updatedCount === 0 ? 'row(s)' : `${updatedCount} row(s)`} in ${params.table}`,
-          results: data,
-        },
-        error: undefined,
-      }
-    } catch (error) {
-      return {
-        success: false,
-        output: {
-          message: `Error updating rows in Supabase: ${error instanceof Error ? error.message : String(error)}`,
-          results: null,
-        },
-        error: error instanceof Error ? error.message : String(error),
-      }
-    }
+      return url
+    },
+    method: 'PATCH',
+    headers: (params) => ({
+      apikey: params.apiKey,
+      Authorization: `Bearer ${params.apiKey}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    }),
+    body: (params) => params.data,
   },
   transformResponse: async (response: Response) => {
     // Handle potentially empty response from update operations

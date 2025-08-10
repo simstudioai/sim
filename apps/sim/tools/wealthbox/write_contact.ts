@@ -1,9 +1,6 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WealthboxWriteParams, WealthboxWriteResponse } from '@/tools/wealthbox/types'
 import { validateAndBuildContactBody } from '@/tools/wealthbox/utils'
-
-const logger = createLogger('WealthboxWriteContact')
 
 export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, WealthboxWriteResponse> = {
   id: 'wealthbox_write_contact',
@@ -80,86 +77,7 @@ export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, Wealthb
       return validateAndBuildContactBody(params)
     },
   },
-  directExecution: async (params: WealthboxWriteParams) => {
-    // Validate access token
-    if (!params.accessToken) {
-      throw new Error('Access token is required')
-    }
-
-    const body = validateAndBuildContactBody(params)
-
-    const response = await fetch('https://api.crmworkspace.com/v1/contacts', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error(
-        `Wealthbox contact write API error: ${response.status} ${response.statusText}`,
-        errorText
-      )
-      throw new Error(
-        `Failed to create Wealthbox contact: ${response.status} ${response.statusText} - ${errorText}`
-      )
-    }
-
-    const data = await response.json()
-
-    if (!data) {
-      return {
-        success: true,
-        output: {
-          contact: undefined,
-          metadata: {
-            operation: 'write_contact' as const,
-            itemType: 'contact' as const,
-          },
-        },
-      }
-    }
-
-    // Format contact information into readable content
-    const contact = data
-    let content = `Contact created: ${contact.first_name || ''} ${contact.last_name || ''}`.trim()
-
-    if (contact.background_information) {
-      content += `\nBackground: ${contact.background_information}`
-    }
-
-    if (contact.email_addresses && contact.email_addresses.length > 0) {
-      content += '\nEmail Addresses:'
-      contact.email_addresses.forEach((email: any) => {
-        content += `\n  - ${email.address}${email.principal ? ' (Primary)' : ''} (${email.kind})`
-      })
-    }
-
-    if (contact.phone_numbers && contact.phone_numbers.length > 0) {
-      content += '\nPhone Numbers:'
-      contact.phone_numbers.forEach((phone: any) => {
-        content += `\n  - ${phone.address}${phone.extension ? ` ext. ${phone.extension}` : ''}${phone.principal ? ' (Primary)' : ''} (${phone.kind})`
-      })
-    }
-
-    return {
-      success: true,
-      output: {
-        content,
-        contact,
-        success: true,
-        metadata: {
-          operation: 'write_contact' as const,
-          contactId: contact.id?.toString() || '',
-          itemType: 'contact' as const,
-        },
-      },
-    }
-  },
-  transformResponse: async (response: Response, params?: WealthboxWriteParams) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     // Format contact information into readable content

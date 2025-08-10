@@ -165,50 +165,6 @@ export async function executeTool(
       }
     }
 
-    // For any tool with direct execution capability, try it first
-    if (tool.directExecution) {
-      try {
-        const directResult = await tool.directExecution(contextParams)
-        if (directResult) {
-          // Add timing data to the result
-          const endTime = new Date()
-          const endTimeISO = endTime.toISOString()
-          const duration = endTime.getTime() - startTime.getTime()
-
-          // Apply post-processing if available and not skipped
-          let finalResult = directResult
-          if (tool.postProcess && directResult.success && !skipPostProcess) {
-            try {
-              finalResult = await tool.postProcess(directResult, contextParams, executeTool)
-            } catch (error) {
-              logger.error(`[${requestId}] Post-processing error for ${toolId}:`, {
-                error: error instanceof Error ? error.message : String(error),
-              })
-              finalResult = directResult
-            }
-          }
-
-          // Process file outputs if execution context is available
-          finalResult = await processFileOutputs(finalResult, tool, executionContext)
-
-          return {
-            ...finalResult,
-            timing: {
-              startTime: startTimeISO,
-              endTime: endTimeISO,
-              duration,
-            },
-          }
-        }
-        // If directExecution returns undefined, fall back to API route
-      } catch (error: any) {
-        logger.warn(`[${requestId}] Direct execution failed for ${toolId}, falling back to API:`, {
-          error: error instanceof Error ? error.message : String(error),
-        })
-        // Fall back to API route if direct execution fails
-      }
-    }
-
     // For internal routes or when skipProxy is true, call the API directly
     // Internal routes are automatically detected by checking if URL starts with /api/
     const endpointUrl =
@@ -284,15 +240,6 @@ export async function executeTool(
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     })
-
-    // Get the tool for potential future use
-    let transformTool: ToolConfig | undefined
-    if (toolId.startsWith('custom_')) {
-      const workflowId = params._context?.workflowId
-      transformTool = await getToolAsync(toolId, workflowId)
-    } else {
-      transformTool = getTool(toolId)
-    }
 
     // Default error handling
     let errorMessage = 'Unknown error occurred'

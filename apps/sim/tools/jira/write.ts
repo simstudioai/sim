@@ -1,5 +1,4 @@
 import type { JiraWriteParams, JiraWriteResponse } from '@/tools/jira/types'
-import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
@@ -93,84 +92,30 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     },
   },
 
-  directExecution: async (params) => {
-    // Pre-fetch the cloudId if not provided
-    if (!params.cloudId) {
-      params.cloudId = await getJiraCloudId(params.domain, params.accessToken)
-    }
-    return undefined // Let the regular request handling take over
-  },
-
   request: {
-    url: (params) => {
-      const { domain, cloudId } = params
-      if (!domain || !cloudId) {
-        throw new Error('Domain and cloudId are required')
-      }
-
-      const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue`
-
-      return url
-    },
+    url: '/api/tools/jira/write',
     method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      Accept: 'application/json',
+    headers: () => ({
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      // Validate required fields
-      if (!params.projectId) {
-        throw new Error('Project ID is required')
+      // Pass all parameters to the internal API route
+      return {
+        domain: params.domain,
+        accessToken: params.accessToken,
+        projectId: params.projectId,
+        summary: params.summary,
+        description: params.description,
+        priority: params.priority,
+        assignee: params.assignee,
+        cloudId: params.cloudId,
+        issueType: params.issueType,
+        parent: params.parent,
       }
-      if (!params.summary) {
-        throw new Error('Summary is required')
-      }
-      if (!params.issueType) {
-        throw new Error('Issue type is required')
-      }
-
-      // Construct fields object with only the necessary fields
-      const fields: Record<string, any> = {
-        project: {
-          id: params.projectId,
-        },
-        issuetype: {
-          name: params.issueType,
-        },
-        summary: params.summary, // Use the summary field directly
-      }
-
-      // Only add description if it exists
-      if (params.description) {
-        fields.description = {
-          type: 'doc',
-          version: 1,
-          content: [
-            {
-              type: 'paragraph',
-              content: [
-                {
-                  type: 'text',
-                  text: params.description,
-                },
-              ],
-            },
-          ],
-        }
-      }
-
-      // Only add parent if it exists
-      if (params.parent) {
-        fields.parent = params.parent
-      }
-
-      const body = { fields }
-      return body
     },
   },
 
-  transformResponse: async (response: Response, params?: JiraWriteParams) => {
+  transformResponse: async (response: Response) => {
     const responseText = await response.text()
 
     if (!responseText) {
@@ -187,15 +132,22 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     }
 
     const data = JSON.parse(responseText)
+
+    // The internal API route already returns the correct format
+    if (data.success && data.output) {
+      return data
+    }
+
+    // Fallback for unexpected response format
     return {
-      success: true,
-      output: {
+      success: data.success || false,
+      output: data.output || {
         ts: new Date().toISOString(),
-        issueKey: data.key || 'unknown',
-        summary: data.fields?.summary || 'Issue created',
-        success: true,
-        url: `https://${params?.domain}/browse/${data.key}`,
+        issueKey: 'unknown',
+        summary: 'Issue created',
+        success: false,
       },
+      error: data.error,
     }
   },
 }

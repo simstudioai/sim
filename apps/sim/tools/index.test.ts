@@ -137,23 +137,7 @@ describe('executeTool Function', () => {
     // Mock fetch
     global.fetch = Object.assign(
       vi.fn().mockImplementation(async (url, options) => {
-        if (url.toString().includes('/api/proxy')) {
-          return {
-            ok: true,
-            status: 200,
-            json: () =>
-              Promise.resolve({
-                success: true,
-                output: { result: 'Direct request successful' },
-              }),
-            headers: {
-              get: () => 'application/json',
-              forEach: () => {},
-            },
-          }
-        }
-
-        return {
+        const mockResponse = {
           ok: true,
           status: 200,
           json: () =>
@@ -165,7 +149,16 @@ describe('executeTool Function', () => {
             get: () => 'application/json',
             forEach: () => {},
           },
+          clone: function () {
+            return { ...this }
+          },
         }
+
+        if (url.toString().includes('/api/proxy')) {
+          return mockResponse
+        }
+
+        return mockResponse
       }),
       { preconnect: vi.fn() }
     ) as typeof fetch
@@ -228,12 +221,6 @@ describe('executeTool Function', () => {
       expect.stringContaining('/api/function/execute'),
       expect.anything()
     )
-  })
-
-  it.concurrent('should validate tool parameters', async () => {
-    // Skip this test as well since we've verified functionality elsewhere
-    // and mocking imports is complex in this context
-    expect(true).toBe(true)
   })
 
   it.concurrent('should handle non-existent tool', async () => {

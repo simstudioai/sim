@@ -1,5 +1,4 @@
 import type { JiraUpdateParams, JiraUpdateResponse } from '@/tools/jira/types'
-import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = {
@@ -90,82 +89,30 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
     },
   },
 
-  directExecution: async (params) => {
-    // Pre-fetch the cloudId if not provided
-    if (!params.cloudId) {
-      params.cloudId = await getJiraCloudId(params.domain, params.accessToken)
-    }
-    return undefined // Let the regular request handling take over
-  },
-
   request: {
-    url: (params) => {
-      const { domain, issueKey, cloudId } = params
-      if (!domain || !issueKey || !cloudId) {
-        throw new Error('Domain, issueKey, and cloudId are required')
-      }
-
-      const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueKey}`
-      return url
-    },
+    url: '/api/tools/jira/update',
     method: 'PUT',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      Accept: 'application/json',
+    headers: () => ({
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      // Map the summary from either summary or title field
-      const summaryValue = params.summary || params.title
-      const descriptionValue = params.description
-
-      const fields: Record<string, any> = {}
-
-      if (summaryValue) {
-        fields.summary = summaryValue
+      // Pass all parameters to the internal API route
+      return {
+        domain: params.domain,
+        accessToken: params.accessToken,
+        issueKey: params.issueKey,
+        summary: params.summary,
+        title: params.title, // Support both for backwards compatibility
+        description: params.description,
+        status: params.status,
+        priority: params.priority,
+        assignee: params.assignee,
+        cloudId: params.cloudId,
       }
-
-      if (descriptionValue) {
-        fields.description = {
-          type: 'doc',
-          version: 1,
-          content: [
-            {
-              type: 'paragraph',
-              content: [
-                {
-                  type: 'text',
-                  text: descriptionValue,
-                },
-              ],
-            },
-          ],
-        }
-      }
-
-      if (params.status) {
-        fields.status = {
-          name: params.status,
-        }
-      }
-
-      if (params.priority) {
-        fields.priority = {
-          name: params.priority,
-        }
-      }
-
-      if (params.assignee) {
-        fields.assignee = {
-          id: params.assignee,
-        }
-      }
-
-      return { fields }
     },
   },
 
-  transformResponse: async (response: Response, params?: JiraUpdateParams) => {
+  transformResponse: async (response: Response) => {
     const responseText = await response.text()
 
     if (!responseText) {
@@ -173,7 +120,7 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
         success: true,
         output: {
           ts: new Date().toISOString(),
-          issueKey: params?.issueKey || 'unknown',
+          issueKey: 'unknown',
           summary: 'Issue updated successfully',
           success: true,
         },
@@ -181,14 +128,22 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
     }
 
     const data = JSON.parse(responseText)
+
+    // The internal API route already returns the correct format
+    if (data.success && data.output) {
+      return data
+    }
+
+    // Fallback for unexpected response format
     return {
-      success: true,
-      output: {
+      success: data.success || false,
+      output: data.output || {
         ts: new Date().toISOString(),
-        issueKey: data.key || params?.issueKey || 'unknown',
-        summary: data.fields?.summary || 'Issue updated',
-        success: true,
+        issueKey: 'unknown',
+        summary: 'Issue updated',
+        success: false,
       },
+      error: data.error,
     }
   },
 }
