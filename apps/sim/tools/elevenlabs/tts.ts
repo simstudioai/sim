@@ -49,7 +49,6 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
       voiceId: params.voiceId,
       modelId: params.modelId || 'eleven_monolingual_v1',
     }),
-    isInternalRoute: true,
   },
 
   transformResponse: async (response: Response) => {

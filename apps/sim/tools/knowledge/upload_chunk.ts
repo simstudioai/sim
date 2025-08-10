@@ -72,7 +72,6 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
 
       return requestBody
     },
-    isInternalRoute: true,
   },
   transformResponse: async (response): Promise<KnowledgeUploadChunkResponse> => {
     const result = await response.json()

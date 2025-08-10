@@ -33,7 +33,6 @@ export const workflowExecutorTool: ToolConfig<
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => params,
-    isInternalRoute: true,
   },
   transformResponse: async (response: any) => {
     logger.info('Workflow executor tool response received', { response })

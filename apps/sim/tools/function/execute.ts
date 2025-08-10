@@ -68,7 +68,6 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         isCustomTool: params.isCustomTool || false,
       }
     },
-    isInternalRoute: true,
   },
 
   transformResponse: async (response: Response): Promise<CodeExecutionOutput> => {

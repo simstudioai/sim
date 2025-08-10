@@ -327,7 +327,6 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
       method: 'POST',
       headers: () => ({ 'Content-Type': 'application/json' }),
       body: createCustomToolRequestBody(customTool, true),
-      isInternalRoute: true,
     },
 
     // Direct execution support for browser environment with Freestyle
@@ -479,7 +478,6 @@ async function getCustomTool(
         method: 'POST',
         headers: () => ({ 'Content-Type': 'application/json' }),
         body: createCustomToolRequestBody(customTool, false, workflowId),
-        isInternalRoute: true,
       },
 
       // Same response handling as client-side

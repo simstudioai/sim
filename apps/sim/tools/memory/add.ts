@@ -85,7 +85,6 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
 
       return body
     },
-    isInternalRoute: true,
   },
   transformResponse: async (response): Promise<MemoryResponse> => {
     const result = await response.json()

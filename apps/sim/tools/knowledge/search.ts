@@ -117,7 +117,6 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
 
       return requestBody
     },
-    isInternalRoute: true,
   },
   transformResponse: async (response): Promise<KnowledgeSearchResponse> => {
     const result = await response.json()

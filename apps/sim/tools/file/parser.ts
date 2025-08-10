@@ -87,7 +87,6 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
         fileType: determinedFileType,
       }
     },
-    isInternalRoute: true,
   },
 
   transformResponse: async (response: Response): Promise<FileParserOutput> => {

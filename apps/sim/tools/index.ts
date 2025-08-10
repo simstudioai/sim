@@ -210,7 +210,12 @@ export async function executeTool(
     }
 
     // For internal routes or when skipProxy is true, call the API directly
-    if (tool.request.isInternalRoute || skipProxy) {
+    // Internal routes are automatically detected by checking if URL starts with /api/
+    const endpointUrl =
+      typeof tool.request.url === 'function' ? tool.request.url(contextParams) : tool.request.url
+    const isInternalRoute = endpointUrl.startsWith('/api/')
+
+    if (isInternalRoute || skipProxy) {
       const result = await handleInternalRequest(toolId, tool, contextParams)
 
       // Apply post-processing if available and not skipped

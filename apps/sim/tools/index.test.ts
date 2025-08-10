@@ -295,6 +295,268 @@ describe('executeTool Function', () => {
   })
 })
 
+describe('Automatic Internal Route Detection', () => {
+  let cleanupEnvVars: () => void
+
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+    cleanupEnvVars = mockEnvironmentVariables({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+    })
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+    cleanupEnvVars()
+  })
+
+  it.concurrent(
+    'should detect internal routes (URLs starting with /api/) and call them directly',
+    async () => {
+      // Mock a tool with an internal route
+      const mockTool = {
+        id: 'test_internal_tool',
+        name: 'Test Internal Tool',
+        description: 'A test tool with internal route',
+        version: '1.0.0',
+        params: {},
+        request: {
+          url: '/api/test/endpoint',
+          method: 'POST',
+          headers: () => ({ 'Content-Type': 'application/json' }),
+        },
+        transformResponse: vi.fn().mockResolvedValue({
+          success: true,
+          output: { result: 'Internal route success' },
+        }),
+      }
+
+      // Mock the tool registry to include our test tool
+      const originalTools = { ...tools }
+      ;(tools as any).test_internal_tool = mockTool
+
+      // Mock fetch for the internal API call
+      global.fetch = Object.assign(
+        vi.fn().mockImplementation(async (url) => {
+          // Should call the internal API directly, not the proxy
+          expect(url).toBe('http://localhost:3000/api/test/endpoint')
+          return {
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ success: true, data: 'test' }),
+            clone: vi.fn().mockReturnThis(),
+          }
+        }),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('test_internal_tool', {}, false)
+
+      expect(result.success).toBe(true)
+      expect(result.output.result).toBe('Internal route success')
+      expect(mockTool.transformResponse).toHaveBeenCalled()
+
+      // Restore original tools
+      Object.assign(tools, originalTools)
+    }
+  )
+
+  it.concurrent('should detect external routes (full URLs) and use proxy', async () => {
+    // Mock a tool with an external route
+    const mockTool = {
+      id: 'test_external_tool',
+      name: 'Test External Tool',
+      description: 'A test tool with external route',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: 'https://api.example.com/endpoint',
+        method: 'GET',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+    }
+
+    // Mock the tool registry to include our test tool
+    const originalTools = { ...tools }
+    ;(tools as any).test_external_tool = mockTool
+
+    // Mock fetch for the proxy call
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async (url) => {
+        // Should call the proxy, not the external API directly
+        expect(url).toBe('http://localhost:3000/api/proxy')
+        return {
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              success: true,
+              output: { result: 'External route via proxy' },
+            }),
+        }
+      }),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('test_external_tool', {}, false)
+
+    expect(result.success).toBe(true)
+    expect(result.output.result).toBe('External route via proxy')
+
+    // Restore original tools
+    Object.assign(tools, originalTools)
+  })
+
+  it.concurrent('should handle dynamic URLs that resolve to internal routes', async () => {
+    // Mock a tool with a dynamic URL function that returns internal route
+    const mockTool = {
+      id: 'test_dynamic_internal',
+      name: 'Test Dynamic Internal Tool',
+      description: 'A test tool with dynamic internal route',
+      version: '1.0.0',
+      params: {
+        resourceId: { type: 'string', required: true },
+      },
+      request: {
+        url: (params: any) => `/api/resources/${params.resourceId}`,
+        method: 'GET',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'Dynamic internal route success' },
+      }),
+    }
+
+    // Mock the tool registry to include our test tool
+    const originalTools = { ...tools }
+    ;(tools as any).test_dynamic_internal = mockTool
+
+    // Mock fetch for the internal API call
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async (url) => {
+        // Should call the internal API directly with the resolved dynamic URL
+        expect(url).toBe('http://localhost:3000/api/resources/123')
+        return {
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ success: true, data: 'test' }),
+          clone: vi.fn().mockReturnThis(),
+        }
+      }),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('test_dynamic_internal', { resourceId: '123' }, false)
+
+    expect(result.success).toBe(true)
+    expect(result.output.result).toBe('Dynamic internal route success')
+    expect(mockTool.transformResponse).toHaveBeenCalled()
+
+    // Restore original tools
+    Object.assign(tools, originalTools)
+  })
+
+  it.concurrent('should handle dynamic URLs that resolve to external routes', async () => {
+    // Mock a tool with a dynamic URL function that returns external route
+    const mockTool = {
+      id: 'test_dynamic_external',
+      name: 'Test Dynamic External Tool',
+      description: 'A test tool with dynamic external route',
+      version: '1.0.0',
+      params: {
+        endpoint: { type: 'string', required: true },
+      },
+      request: {
+        url: (params: any) => `https://api.external.com/${params.endpoint}`,
+        method: 'GET',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+    }
+
+    // Mock the tool registry to include our test tool
+    const originalTools = { ...tools }
+    ;(tools as any).test_dynamic_external = mockTool
+
+    // Mock fetch for the proxy call
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async (url) => {
+        // Should call the proxy, not the external API directly
+        expect(url).toBe('http://localhost:3000/api/proxy')
+        return {
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              success: true,
+              output: { result: 'Dynamic external route via proxy' },
+            }),
+        }
+      }),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('test_dynamic_external', { endpoint: 'users' }, false)
+
+    expect(result.success).toBe(true)
+    expect(result.output.result).toBe('Dynamic external route via proxy')
+
+    // Restore original tools
+    Object.assign(tools, originalTools)
+  })
+
+  it.concurrent(
+    'should respect skipProxy parameter and call internal routes directly even for external URLs',
+    async () => {
+      // Mock a tool with an external route
+      const mockTool = {
+        id: 'test_skip_proxy',
+        name: 'Test Skip Proxy Tool',
+        description: 'A test tool to verify skipProxy behavior',
+        version: '1.0.0',
+        params: {},
+        request: {
+          url: 'https://api.example.com/endpoint',
+          method: 'GET',
+          headers: () => ({ 'Content-Type': 'application/json' }),
+        },
+        transformResponse: vi.fn().mockResolvedValue({
+          success: true,
+          output: { result: 'Skipped proxy, called directly' },
+        }),
+      }
+
+      // Mock the tool registry to include our test tool
+      const originalTools = { ...tools }
+      ;(tools as any).test_skip_proxy = mockTool
+
+      // Mock fetch for the direct call (bypassing proxy)
+      global.fetch = Object.assign(
+        vi.fn().mockImplementation(async (url) => {
+          // Should call the external URL directly when skipProxy=true
+          expect(url).toBe('https://api.example.com/endpoint')
+          return {
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ success: true, data: 'test' }),
+            clone: vi.fn().mockReturnThis(),
+          }
+        }),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+
+      const result = await executeTool('test_skip_proxy', {}, true) // skipProxy = true
+
+      expect(result.success).toBe(true)
+      expect(result.output.result).toBe('Skipped proxy, called directly')
+      expect(mockTool.transformResponse).toHaveBeenCalled()
+
+      // Restore original tools
+      Object.assign(tools, originalTools)
+    }
+  )
+})
+
 describe('Centralized Error Handling', () => {
   let cleanupEnvVars: () => void
 

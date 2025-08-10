@@ -84,7 +84,6 @@ export interface ToolConfig<P = any, R = any> {
     method: HttpMethod
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any>
-    isInternalRoute?: boolean // Whether this is an internal API route
   }
 
   // Direct execution in browser (optional) - bypasses HTTP request

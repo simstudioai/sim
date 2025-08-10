@@ -168,7 +168,6 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
 
       return requestBody
     },
-    isInternalRoute: true,
   },
   transformResponse: async (response): Promise<KnowledgeCreateDocumentResponse> => {
     const result = await response.json()

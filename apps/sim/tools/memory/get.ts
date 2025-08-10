@@ -45,7 +45,6 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    isInternalRoute: true,
   },
   transformResponse: async (response): Promise<MemoryResponse> => {
     const result = await response.json()
