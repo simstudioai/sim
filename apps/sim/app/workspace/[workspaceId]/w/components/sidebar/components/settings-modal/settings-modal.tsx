@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
 import { client } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
@@ -86,25 +85,14 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='flex h-[70vh] flex-col gap-0 p-0 sm:max-w-[800px]' hideCloseButton>
+      <DialogContent className='flex h-[70vh] flex-col gap-0 p-0 sm:max-w-[800px]'>
         <DialogHeader className='border-b px-6 py-4'>
-          <div className='flex items-center justify-between'>
-            <DialogTitle className='font-medium text-lg'>Settings</DialogTitle>
-            <Button
-              variant='ghost'
-              size='icon'
-              className='h-8 w-8 p-0'
-              onClick={() => onOpenChange(false)}
-            >
-              <X className='h-4 w-4' />
-              <span className='sr-only'>Close</span>
-            </Button>
-          </div>
+          <DialogTitle className='font-medium text-lg'>Settings</DialogTitle>
         </DialogHeader>
 
         <div className='flex min-h-0 flex-1'>
           {/* Navigation Sidebar */}
-          <div className='w-[200px] border-r'>
+          <div className='w-[180px]'>
             <SettingsNavigation
               activeSection={activeSection}
               onSectionChange={setActiveSection}
