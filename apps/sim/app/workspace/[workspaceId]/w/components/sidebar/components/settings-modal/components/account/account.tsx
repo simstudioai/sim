@@ -207,11 +207,7 @@ export function Account({ onOpenChange }: AccountProps) {
   )
 
   return (
-    <div className='space-y-6 p-6'>
-      <div>
-        <h3 className='mb-4 font-medium text-lg'>Account</h3>
-      </div>
-
+    <div className='px-6 pt-4 pb-2'>
       {/* Account Dropdown Component */}
       <div className='max-w-xs'>
         <div className='relative'>
