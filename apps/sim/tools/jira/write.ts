@@ -80,17 +80,6 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
       description: 'Type of issue to create (e.g., Task, Story)',
     },
   },
-  outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description:
-        'Created Jira issue details with timestamp, issue key, summary, success status, and URL',
-    },
-  },
 
   request: {
     url: '/api/tools/jira/write',
@@ -149,5 +138,17 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
       },
       error: data.error,
     }
+  },
+
+  outputs: {
+    success: {
+      type: 'boolean',
+      description: 'Operation success status',
+    },
+    output: {
+      type: 'object',
+      description:
+        'Created Jira issue details with timestamp, issue key, summary, success status, and URL',
+    },
   },
 }

@@ -1,8 +1,5 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type { DiscordGetMessagesParams, DiscordGetMessagesResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('DiscordGetMessages')
 
 export const discordGetMessagesTool: ToolConfig<
   DiscordGetMessagesParams,

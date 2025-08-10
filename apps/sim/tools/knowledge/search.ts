@@ -6,6 +6,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
   name: 'Knowledge Search',
   description: 'Search for similar content in a knowledge base using vector similarity',
   version: '1.0.0',
+
   params: {
     knowledgeBaseId: {
       type: 'string',
@@ -26,37 +27,6 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       type: 'any',
       required: false,
       description: 'Array of tag filters with tagName and tagValue properties',
-    },
-  },
-
-  outputs: {
-    results: {
-      type: 'array',
-      description: 'Array of search results from the knowledge base',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          content: { type: 'string' },
-          documentId: { type: 'string' },
-          chunkIndex: { type: 'number' },
-          similarity: { type: 'number' },
-          metadata: { type: 'object' },
-        },
-      },
-    },
-    query: {
-      type: 'string',
-      description: 'The search query that was executed',
-    },
-    totalResults: {
-      type: 'number',
-      description: 'Total number of results found',
-    },
-    cost: {
-      type: 'object',
-      description: 'Cost information for the search operation',
-      optional: true,
     },
   },
 
@@ -131,5 +101,36 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         cost: data.cost,
       },
     }
+  },
+
+  outputs: {
+    results: {
+      type: 'array',
+      description: 'Array of search results from the knowledge base',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          content: { type: 'string' },
+          documentId: { type: 'string' },
+          chunkIndex: { type: 'number' },
+          similarity: { type: 'number' },
+          metadata: { type: 'object' },
+        },
+      },
+    },
+    query: {
+      type: 'string',
+      description: 'The search query that was executed',
+    },
+    totalResults: {
+      type: 'number',
+      description: 'Total number of results found',
+    },
+    cost: {
+      type: 'object',
+      description: 'Cost information for the search operation',
+      optional: true,
+    },
   },
 }

@@ -10,6 +10,7 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
   name: 'List OneDrive Files',
   description: 'List files and folders in OneDrive',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'onedrive',
@@ -22,6 +23,7 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
       'offline_access',
     ],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -54,14 +56,7 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
       description: 'The number of files to return',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Whether files were listed successfully' },
-    files: { type: 'array', description: 'Array of file and folder objects with metadata' },
-    nextPageToken: {
-      type: 'string',
-      description: 'Token for retrieving the next page of results (optional)',
-    },
-  },
+
   request: {
     url: (params) => {
       // Use specific folder if provided, otherwise use root
@@ -96,6 +91,7 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
       Authorization: `Bearer ${params.accessToken}`,
     }),
   },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
@@ -117,5 +113,14 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
         nextPageToken: data['@odata.nextLink'] || undefined,
       },
     }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Whether files were listed successfully' },
+    files: { type: 'array', description: 'Array of file and folder objects with metadata' },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token for retrieving the next page of results (optional)',
+    },
   },
 }

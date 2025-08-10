@@ -1,12 +1,9 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type {
   DiscordGetUserParams,
   DiscordGetUserResponse,
   DiscordUser,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('DiscordGetUser')
 
 export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUserResponse> = {
   id: 'discord_get_user',

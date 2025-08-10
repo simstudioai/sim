@@ -51,14 +51,6 @@ export const getTool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetRespo
     }),
   },
 
-  outputs: {
-    content: { type: 'string', description: 'Event retrieval confirmation message' },
-    metadata: {
-      type: 'json',
-      description: 'Event details including ID, status, times, and attendees',
-    },
-  },
-
   transformResponse: async (response: Response) => {
     const data: GoogleCalendarApiEventResponse = await response.json()
 
@@ -81,5 +73,13 @@ export const getTool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetRespo
         },
       },
     }
+  },
+
+  outputs: {
+    content: { type: 'string', description: 'Event retrieval confirmation message' },
+    metadata: {
+      type: 'json',
+      description: 'Event details including ID, status, times, and attendees',
+    },
   },
 }

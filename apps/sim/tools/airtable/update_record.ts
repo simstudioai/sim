@@ -1,8 +1,6 @@
 import type { AirtableUpdateParams, AirtableUpdateResponse } from '@/tools/airtable/types'
 import type { ToolConfig } from '@/tools/types'
 
-// import { logger } from '@/utils/logger' // Removed logger due to import issues
-
 export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, AirtableUpdateResponse> = {
   id: 'airtable_update_record',
   name: 'Airtable Update Record',
@@ -56,7 +54,6 @@ export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, Airtable
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    // Body should contain { fields: {...} } and optionally { typecast: true }
     body: (params) => ({ fields: params.fields }),
   },
 

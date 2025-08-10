@@ -8,7 +8,8 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
   id: 'wealthbox_read_contact',
   name: 'Read Wealthbox Contact',
   description: 'Read content from a Wealthbox contact',
-  version: '1.1',
+  version: '1.0.0',
+
   params: {
     accessToken: {
       type: 'string',
@@ -23,26 +24,7 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
       description: 'The ID of the contact to read',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Contact data and metadata',
-      properties: {
-        content: { type: 'string', description: 'Formatted contact information' },
-        contact: { type: 'object', description: 'Raw contact data from Wealthbox' },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-          properties: {
-            operation: { type: 'string', description: 'The operation performed' },
-            contactId: { type: 'string', description: 'ID of the contact' },
-            itemType: { type: 'string', description: 'Type of item (contact)' },
-          },
-        },
-      },
-    },
-  },
+
   request: {
     url: (params) => {
       const contactId = params.contactId?.trim()
@@ -64,6 +46,7 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
       }
     },
   },
+
   transformResponse: async (response: Response, params?: WealthboxReadParams) => {
     const data = await response.json()
 
@@ -105,5 +88,26 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
         },
       },
     }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Contact data and metadata',
+      properties: {
+        content: { type: 'string', description: 'Formatted contact information' },
+        contact: { type: 'object', description: 'Raw contact data from Wealthbox' },
+        metadata: {
+          type: 'object',
+          description: 'Operation metadata',
+          properties: {
+            operation: { type: 'string', description: 'The operation performed' },
+            contactId: { type: 'string', description: 'ID of the contact' },
+            itemType: { type: 'string', description: 'Type of item (contact)' },
+          },
+        },
+      },
+    },
   },
 }

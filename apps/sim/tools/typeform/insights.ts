@@ -9,6 +9,7 @@ export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsRe
   name: 'Typeform Insights',
   description: 'Retrieve insights and analytics for Typeform forms',
   version: '1.0.0',
+
   params: {
     formId: {
       type: 'string',
@@ -23,6 +24,27 @@ export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsRe
       description: 'Typeform Personal Access Token',
     },
   },
+
+  request: {
+    url: (params: TypeformInsightsParams) => {
+      const encodedFormId = encodeURIComponent(params.formId)
+      return `https://api.typeform.com/insights/${encodedFormId}/summary`
+    },
+    method: 'GET',
+    headers: (params) => ({
+      Authorization: `Bearer ${params.apiKey}`,
+      'Content-Type': 'application/json',
+    }),
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: true,
+      output: data,
+    }
+  },
+
   outputs: {
     fields: {
       type: 'array',
@@ -81,23 +103,5 @@ export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsRe
       },
       description: 'Form-level analytics and performance data',
     },
-  },
-  request: {
-    url: (params: TypeformInsightsParams) => {
-      const encodedFormId = encodeURIComponent(params.formId)
-      return `https://api.typeform.com/insights/${encodedFormId}/summary`
-    },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
-    }),
-  },
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
-    return {
-      success: true,
-      output: data,
-    }
   },
 }

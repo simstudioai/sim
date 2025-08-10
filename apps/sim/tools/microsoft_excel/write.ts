@@ -9,11 +9,13 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
   name: 'Write to Microsoft Excel',
   description: 'Write data to a Microsoft Excel spreadsheet',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'microsoft-excel',
     additionalScopes: [],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -52,27 +54,7 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
       description: 'Whether to include the written values in the response',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Write operation results and metadata',
-      properties: {
-        updatedRange: { type: 'string', description: 'The range that was updated' },
-        updatedRows: { type: 'number', description: 'Number of rows that were updated' },
-        updatedColumns: { type: 'number', description: 'Number of columns that were updated' },
-        updatedCells: { type: 'number', description: 'Number of cells that were updated' },
-        metadata: {
-          type: 'object',
-          description: 'Spreadsheet metadata',
-          properties: {
-            spreadsheetId: { type: 'string', description: 'The ID of the spreadsheet' },
-            spreadsheetUrl: { type: 'string', description: 'URL to access the spreadsheet' },
-          },
-        },
-      },
-    },
-  },
+
   request: {
     url: (params) => {
       const rangeInput = params.range?.trim()
@@ -148,6 +130,7 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
       return body
     },
   },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
@@ -175,5 +158,27 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
     }
 
     return result
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Write operation results and metadata',
+      properties: {
+        updatedRange: { type: 'string', description: 'The range that was updated' },
+        updatedRows: { type: 'number', description: 'Number of rows that were updated' },
+        updatedColumns: { type: 'number', description: 'Number of columns that were updated' },
+        updatedCells: { type: 'number', description: 'Number of cells that were updated' },
+        metadata: {
+          type: 'object',
+          description: 'Spreadsheet metadata',
+          properties: {
+            spreadsheetId: { type: 'string', description: 'The ID of the spreadsheet' },
+            spreadsheetUrl: { type: 'string', description: 'URL to access the spreadsheet' },
+          },
+        },
+      },
+    },
   },
 }

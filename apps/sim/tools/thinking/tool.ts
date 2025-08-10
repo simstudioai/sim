@@ -18,14 +18,6 @@ export const thinkingTool: ToolConfig<ThinkingToolParams, ThinkingToolResponse> 
     },
   },
 
-  outputs: {
-    acknowledgedThought: {
-      type: 'string',
-      description: 'The thought that was processed and acknowledged',
-    },
-  },
-
-  // Request configuration for the thinking tool API endpoint
   request: {
     url: '/api/tools/thinking',
     method: 'POST',
@@ -37,9 +29,15 @@ export const thinkingTool: ToolConfig<ThinkingToolParams, ThinkingToolResponse> 
     }),
   },
 
-  // Transform the API response to match our expected format
   transformResponse: async (response: Response): Promise<ThinkingToolResponse> => {
     const data = await response.json()
     return data
+  },
+
+  outputs: {
+    acknowledgedThought: {
+      type: 'string',
+      description: 'The thought that was processed and acknowledged',
+    },
   },
 }

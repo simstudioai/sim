@@ -6,11 +6,13 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
   name: 'Notion Page Updater',
   description: 'Update properties of a Notion page',
   version: '1.0.0',
+
   oauth: {
     required: true,
     provider: 'notion',
     additionalScopes: ['workspace.content', 'page.write'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -29,16 +31,6 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
       required: true,
       visibility: 'user-or-llm',
       description: 'JSON object of properties to update',
-    },
-  },
-  outputs: {
-    content: {
-      type: 'string',
-      description: 'Success message confirming page properties update',
-    },
-    metadata: {
-      type: 'object',
-      description: 'Page metadata including title, page ID, URL, and update timestamps',
     },
   },
 
@@ -94,5 +86,16 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
         },
       },
     }
+  },
+
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Success message confirming page properties update',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Page metadata including title, page ID, URL, and update timestamps',
+    },
   },
 }

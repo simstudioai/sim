@@ -1,4 +1,5 @@
 import type { GoogleDocsReadResponse, GoogleDocsToolParams } from '@/tools/google_docs/types'
+import { extractTextFromDocument } from '@/tools/google_docs/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> = {
@@ -6,11 +7,13 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
   name: 'Read Google Docs Document',
   description: 'Read content from a Google Docs document',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'google-docs',
     additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -25,6 +28,7 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
       description: 'The ID of the document to read',
     },
   },
+
   request: {
     url: (params) => {
       // Ensure documentId is valid
@@ -46,11 +50,6 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
-  },
-
-  outputs: {
-    content: { type: 'string', description: 'Extracted document text content' },
-    metadata: { type: 'json', description: 'Document metadata including ID, title, and URL' },
   },
 
   transformResponse: async (response: Response) => {
@@ -78,43 +77,9 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
       },
     }
   },
-}
 
-// Helper function to extract text content from Google Docs document structure
-function extractTextFromDocument(document: any): string {
-  let text = ''
-
-  if (!document.body || !document.body.content) {
-    return text
-  }
-
-  // Process each structural element in the document
-  for (const element of document.body.content) {
-    if (element.paragraph) {
-      for (const paragraphElement of element.paragraph.elements) {
-        if (paragraphElement.textRun?.content) {
-          text += paragraphElement.textRun.content
-        }
-      }
-    } else if (element.table) {
-      // Process tables if needed
-      for (const tableRow of element.table.tableRows) {
-        for (const tableCell of tableRow.tableCells) {
-          if (tableCell.content) {
-            for (const cellContent of tableCell.content) {
-              if (cellContent.paragraph) {
-                for (const paragraphElement of cellContent.paragraph.elements) {
-                  if (paragraphElement.textRun?.content) {
-                    text += paragraphElement.textRun.content
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return text
+  outputs: {
+    content: { type: 'string', description: 'Extracted document text content' },
+    metadata: { type: 'json', description: 'Document metadata including ID, title, and URL' },
+  },
 }

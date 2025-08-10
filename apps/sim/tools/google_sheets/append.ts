@@ -9,11 +9,13 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
   name: 'Append to Google Sheets',
   description: 'Append data to the end of a Google Sheets spreadsheet',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'google-sheets',
     additionalScopes: [],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -58,6 +60,7 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
       description: 'Whether to include the appended values in the response',
     },
   },
+
   request: {
     url: (params) => {
       // If range is not provided, use a default range for the first sheet
@@ -177,15 +180,6 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
     },
   },
 
-  outputs: {
-    tableRange: { type: 'string', description: 'Range of the table where data was appended' },
-    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
-    updatedRows: { type: 'number', description: 'Number of rows updated' },
-    updatedColumns: { type: 'number', description: 'Number of columns updated' },
-    updatedCells: { type: 'number', description: 'Number of cells updated' },
-    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
-  },
-
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
@@ -216,5 +210,14 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
     }
 
     return result
+  },
+
+  outputs: {
+    tableRange: { type: 'string', description: 'Range of the table where data was appended' },
+    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
+    updatedRows: { type: 'number', description: 'Number of rows updated' },
+    updatedColumns: { type: 'number', description: 'Number of columns updated' },
+    updatedCells: { type: 'number', description: 'Number of cells updated' },
+    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
   },
 }

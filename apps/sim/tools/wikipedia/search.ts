@@ -22,29 +22,6 @@ export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchRespon
     },
   },
 
-  outputs: {
-    searchResults: {
-      type: 'array',
-      description: 'Array of matching Wikipedia pages',
-      items: {
-        type: 'object',
-        properties: {
-          title: { type: 'string' },
-          excerpt: { type: 'string' },
-          url: { type: 'string' },
-        },
-      },
-    },
-    totalHits: {
-      type: 'number',
-      description: 'Total number of search results found',
-    },
-    query: {
-      type: 'string',
-      description: 'The search query that was executed',
-    },
-  },
-
   request: {
     url: (params: WikipediaSearchParams) => {
       const baseUrl = 'https://en.wikipedia.org/w/api.php'
@@ -92,5 +69,28 @@ export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchRespon
         query: searchTerm,
       },
     }
+  },
+
+  outputs: {
+    searchResults: {
+      type: 'array',
+      description: 'Array of matching Wikipedia pages',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          excerpt: { type: 'string' },
+          url: { type: 'string' },
+        },
+      },
+    },
+    totalHits: {
+      type: 'number',
+      description: 'Total number of search results found',
+    },
+    query: {
+      type: 'string',
+      description: 'The search query that was executed',
+    },
   },
 }

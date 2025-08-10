@@ -36,12 +36,6 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
       description: 'JSON schema defining the structure of the data to extract',
     },
   },
-  outputs: {
-    data: {
-      type: 'object',
-      description: 'Extracted structured data matching the provided schema',
-    },
-  },
 
   request: {
     url: '/api/tools/stagehand/extract',
@@ -63,5 +57,12 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
       success: true,
       output: data.data || {},
     }
+  },
+
+  outputs: {
+    data: {
+      type: 'object',
+      description: 'Extracted structured data matching the provided schema',
+    },
   },
 }

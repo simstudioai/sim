@@ -9,6 +9,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
   name: 'Upload to OneDrive',
   description: 'Upload a file to OneDrive',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'onedrive',
@@ -21,6 +22,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       'offline_access',
     ],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -53,14 +55,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       description: 'The ID of the folder to upload the file to (internal use)',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Whether the file was uploaded successfully' },
-    file: {
-      type: 'object',
-      description:
-        'The uploaded file object with metadata including id, name, webViewLink, webContentLink, and timestamps',
-    },
-  },
+
   request: {
     url: (params) => {
       let fileName = params.fileName || 'untitled'
@@ -86,6 +81,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
     }),
     body: (params) => (params.content || '') as unknown as Record<string, unknown>,
   },
+
   transformResponse: async (response: Response, params?: OneDriveToolParams) => {
     // Microsoft Graph API returns the file metadata directly
     const fileData = await response.json()
@@ -111,5 +107,14 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
         },
       },
     }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the file was uploaded successfully' },
+    file: {
+      type: 'object',
+      description:
+        'The uploaded file object with metadata including id, name, webViewLink, webContentLink, and timestamps',
+    },
   },
 }

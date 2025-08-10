@@ -6,11 +6,13 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
   name: 'Jira Bulk Read',
   description: 'Retrieve multiple Jira issues in bulk',
   version: '1.0.0',
+
   oauth: {
     required: true,
     provider: 'jira',
     additionalScopes: ['read:jira-work', 'read:jira-user', 'read:me', 'offline_access'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -37,16 +39,7 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
       description: 'Jira cloud ID',
     },
   },
-  outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'array',
-      description: 'Array of Jira issues with summary, description, created and updated timestamps',
-    },
-  },
+
   request: {
     url: (params: JiraRetrieveBulkParams) => {
       if (params.cloudId) {
@@ -62,6 +55,7 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
     }),
     body: (params: JiraRetrieveBulkParams) => ({}),
   },
+
   transformResponse: async (response: Response, params?: JiraRetrieveBulkParams) => {
     // If we don't have a cloudId, we need to fetch it first
     if (!params?.cloudId) {
@@ -166,5 +160,16 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
         updated: issue.fields.updated,
       })),
     }
+  },
+
+  outputs: {
+    success: {
+      type: 'boolean',
+      description: 'Operation success status',
+    },
+    output: {
+      type: 'array',
+      description: 'Array of Jira issues with summary, description, created and updated timestamps',
+    },
   },
 }

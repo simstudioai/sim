@@ -13,11 +13,13 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
   name: 'Create SharePoint Page',
   description: 'Create a new page in a SharePoint site',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'sharepoint',
     additionalScopes: ['openid', 'profile', 'email', 'Sites.ReadWrite.All', 'offline_access'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -56,21 +58,7 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
       description: 'The content of the page',
     },
   },
-  outputs: {
-    page: {
-      type: 'object',
-      description: 'Created SharePoint page information',
-      properties: {
-        id: { type: 'string', description: 'The unique ID of the created page' },
-        name: { type: 'string', description: 'The name of the created page' },
-        title: { type: 'string', description: 'The title of the created page' },
-        webUrl: { type: 'string', description: 'The URL to access the page' },
-        pageLayout: { type: 'string', description: 'The layout type of the page' },
-        createdDateTime: { type: 'string', description: 'When the page was created' },
-        lastModifiedDateTime: { type: 'string', description: 'When the page was last modified' },
-      },
-    },
-  },
+
   request: {
     url: (params) => {
       // Use specific site if provided, otherwise use root site
@@ -129,6 +117,7 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
       return pageData
     },
   },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
@@ -152,5 +141,21 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
         },
       },
     }
+  },
+
+  outputs: {
+    page: {
+      type: 'object',
+      description: 'Created SharePoint page information',
+      properties: {
+        id: { type: 'string', description: 'The unique ID of the created page' },
+        name: { type: 'string', description: 'The name of the created page' },
+        title: { type: 'string', description: 'The title of the created page' },
+        webUrl: { type: 'string', description: 'The URL to access the page' },
+        pageLayout: { type: 'string', description: 'The layout type of the page' },
+        createdDateTime: { type: 'string', description: 'When the page was created' },
+        lastModifiedDateTime: { type: 'string', description: 'When the page was last modified' },
+      },
+    },
   },
 }

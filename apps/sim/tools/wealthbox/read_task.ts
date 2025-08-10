@@ -1,14 +1,12 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WealthboxReadParams, WealthboxReadResponse } from '@/tools/wealthbox/types'
-
-const logger = createLogger('WealthboxReadTask')
 
 export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxReadResponse> = {
   id: 'wealthbox_read_task',
   name: 'Read Wealthbox Task',
   description: 'Read content from a Wealthbox task',
-  version: '1.1',
+  version: '1.0.0',
+
   params: {
     accessToken: {
       type: 'string',
@@ -23,26 +21,7 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
       visibility: 'user-only',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Task data and metadata',
-      properties: {
-        content: { type: 'string', description: 'Formatted task information' },
-        task: { type: 'object', description: 'Raw task data from Wealthbox' },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-          properties: {
-            operation: { type: 'string', description: 'The operation performed' },
-            taskId: { type: 'string', description: 'ID of the task' },
-            itemType: { type: 'string', description: 'Type of item (task)' },
-          },
-        },
-      },
-    },
-  },
+
   request: {
     url: (params) => {
       const taskId = params.taskId?.trim()
@@ -64,6 +43,7 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
       }
     },
   },
+
   transformResponse: async (response: Response, params?: WealthboxReadParams) => {
     const data = await response.json()
 
@@ -110,5 +90,26 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
         },
       },
     }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Task data and metadata',
+      properties: {
+        content: { type: 'string', description: 'Formatted task information' },
+        task: { type: 'object', description: 'Raw task data from Wealthbox' },
+        metadata: {
+          type: 'object',
+          description: 'Operation metadata',
+          properties: {
+            operation: { type: 'string', description: 'The operation performed' },
+            taskId: { type: 'string', description: 'ID of the task' },
+            itemType: { type: 'string', description: 'Type of item (task)' },
+          },
+        },
+      },
+    },
   },
 }

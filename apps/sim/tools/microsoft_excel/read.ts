@@ -9,11 +9,13 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
   name: 'Read from Microsoft Excel',
   description: 'Read data from a Microsoft Excel spreadsheet',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'microsoft-excel',
     additionalScopes: [],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -34,31 +36,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       description: 'The range of cells to read from',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Excel spreadsheet data and metadata',
-      properties: {
-        data: {
-          type: 'object',
-          description: 'Range data from the spreadsheet',
-          properties: {
-            range: { type: 'string', description: 'The range that was read' },
-            values: { type: 'array', description: 'Array of rows containing cell values' },
-          },
-        },
-        metadata: {
-          type: 'object',
-          description: 'Spreadsheet metadata',
-          properties: {
-            spreadsheetId: { type: 'string', description: 'The ID of the spreadsheet' },
-            spreadsheetUrl: { type: 'string', description: 'URL to access the spreadsheet' },
-          },
-        },
-      },
-    },
-  },
+
   request: {
     url: (params) => {
       const spreadsheetId = params.spreadsheetId?.trim()
@@ -93,6 +71,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       }
     },
   },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
@@ -120,5 +99,31 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
     }
 
     return result
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Excel spreadsheet data and metadata',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Range data from the spreadsheet',
+          properties: {
+            range: { type: 'string', description: 'The range that was read' },
+            values: { type: 'array', description: 'Array of rows containing cell values' },
+          },
+        },
+        metadata: {
+          type: 'object',
+          description: 'Spreadsheet metadata',
+          properties: {
+            spreadsheetId: { type: 'string', description: 'The ID of the spreadsheet' },
+            spreadsheetUrl: { type: 'string', description: 'URL to access the spreadsheet' },
+          },
+        },
+      },
+    },
   },
 }

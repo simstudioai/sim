@@ -6,11 +6,13 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
   name: 'Write to Google Sheets',
   description: 'Write data to a Google Sheets spreadsheet',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'google-sheets',
     additionalScopes: [],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -49,6 +51,7 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
       description: 'Whether to include the written values in the response',
     },
   },
+
   request: {
     url: (params) => {
       // If range is not provided, use a default range for the first sheet, second row to preserve headers
@@ -128,14 +131,6 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
     },
   },
 
-  outputs: {
-    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
-    updatedRows: { type: 'number', description: 'Number of rows updated' },
-    updatedColumns: { type: 'number', description: 'Number of columns updated' },
-    updatedCells: { type: 'number', description: 'Number of cells updated' },
-    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
-  },
-
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
@@ -165,5 +160,13 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
     }
 
     return result
+  },
+
+  outputs: {
+    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
+    updatedRows: { type: 'number', description: 'Number of rows updated' },
+    updatedColumns: { type: 'number', description: 'Number of columns updated' },
+    updatedCells: { type: 'number', description: 'Number of cells updated' },
+    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
   },
 }

@@ -6,6 +6,7 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
   name: 'Supabase Update Row',
   description: 'Update rows in a Supabase table based on filter criteria',
   version: '1.0',
+
   params: {
     projectId: {
       type: 'string',
@@ -38,10 +39,7 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
       description: 'Your Supabase service role secret key',
     },
   },
-  outputs: {
-    message: { type: 'string', description: 'Operation status message' },
-    results: { type: 'array', description: 'Array of updated records' },
-  },
+
   request: {
     url: (params) => {
       // Construct the URL for the Supabase REST API with select to return updated data
@@ -63,6 +61,7 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
     }),
     body: (params) => params.data,
   },
+
   transformResponse: async (response: Response) => {
     // Handle potentially empty response from update operations
     const text = await response.text()
@@ -90,5 +89,10 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
       },
       error: undefined,
     }
+  },
+
+  outputs: {
+    message: { type: 'string', description: 'Operation status message' },
+    results: { type: 'array', description: 'Array of updated records' },
   },
 }

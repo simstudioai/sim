@@ -46,14 +46,6 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
     },
   },
 
-  outputs: {
-    results: {
-      type: 'array',
-      description:
-        'Array of companies matching the search criteria, each containing domain, name, headcount, technologies, and email_count',
-    },
-  },
-
   request: {
     url: (params) => {
       // Validate that at least one search parameter is provided
@@ -111,5 +103,13 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
           })) || [],
       },
     }
+  },
+
+  outputs: {
+    results: {
+      type: 'array',
+      description:
+        'Array of companies matching the search criteria, each containing domain, name, headcount, technologies, and email_count',
+    },
   },
 }

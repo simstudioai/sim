@@ -15,11 +15,13 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
   name: 'Read SharePoint Page',
   description: 'Read a specific page from a SharePoint site',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'sharepoint',
     additionalScopes: ['openid', 'profile', 'email', 'Sites.Read.All', 'offline_access'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -59,64 +61,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
         'Maximum number of pages to return when listing all pages (default: 10, max: 50)',
     },
   },
-  outputs: {
-    page: {
-      type: 'object',
-      description: 'Information about the SharePoint page',
-      properties: {
-        id: { type: 'string', description: 'The unique ID of the page' },
-        name: { type: 'string', description: 'The name of the page' },
-        title: { type: 'string', description: 'The title of the page' },
-        webUrl: { type: 'string', description: 'The URL to access the page' },
-        pageLayout: { type: 'string', description: 'The layout type of the page' },
-        createdDateTime: { type: 'string', description: 'When the page was created' },
-        lastModifiedDateTime: { type: 'string', description: 'When the page was last modified' },
-      },
-    },
-    pages: {
-      type: 'array',
-      description: 'List of SharePoint pages',
-      items: {
-        type: 'object',
-        properties: {
-          page: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'The unique ID of the page' },
-              name: { type: 'string', description: 'The name of the page' },
-              title: { type: 'string', description: 'The title of the page' },
-              webUrl: { type: 'string', description: 'The URL to access the page' },
-              pageLayout: { type: 'string', description: 'The layout type of the page' },
-              createdDateTime: { type: 'string', description: 'When the page was created' },
-              lastModifiedDateTime: {
-                type: 'string',
-                description: 'When the page was last modified',
-              },
-            },
-          },
-          content: {
-            type: 'object',
-            properties: {
-              content: { type: 'string', description: 'Extracted text content from the page' },
-              canvasLayout: {
-                type: 'object',
-                description: 'Raw SharePoint canvas layout structure',
-              },
-            },
-          },
-        },
-      },
-    },
-    content: {
-      type: 'object',
-      description: 'Content of the SharePoint page',
-      properties: {
-        content: { type: 'string', description: 'Extracted text content from the page' },
-        canvasLayout: { type: 'object', description: 'Raw SharePoint canvas layout structure' },
-      },
-    },
-    totalPages: { type: 'number', description: 'Total number of pages found' },
-  },
+
   request: {
     url: (params) => {
       // Use specific site if provided, otherwise use root site
@@ -178,6 +123,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       Accept: 'application/json',
     }),
   },
+
   transformResponse: async (response: Response, params) => {
     const data: GraphApiResponse = await response.json()
 
@@ -374,5 +320,64 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
         totalPages: pagesWithContent.length,
       },
     }
+  },
+
+  outputs: {
+    page: {
+      type: 'object',
+      description: 'Information about the SharePoint page',
+      properties: {
+        id: { type: 'string', description: 'The unique ID of the page' },
+        name: { type: 'string', description: 'The name of the page' },
+        title: { type: 'string', description: 'The title of the page' },
+        webUrl: { type: 'string', description: 'The URL to access the page' },
+        pageLayout: { type: 'string', description: 'The layout type of the page' },
+        createdDateTime: { type: 'string', description: 'When the page was created' },
+        lastModifiedDateTime: { type: 'string', description: 'When the page was last modified' },
+      },
+    },
+    pages: {
+      type: 'array',
+      description: 'List of SharePoint pages',
+      items: {
+        type: 'object',
+        properties: {
+          page: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'The unique ID of the page' },
+              name: { type: 'string', description: 'The name of the page' },
+              title: { type: 'string', description: 'The title of the page' },
+              webUrl: { type: 'string', description: 'The URL to access the page' },
+              pageLayout: { type: 'string', description: 'The layout type of the page' },
+              createdDateTime: { type: 'string', description: 'When the page was created' },
+              lastModifiedDateTime: {
+                type: 'string',
+                description: 'When the page was last modified',
+              },
+            },
+          },
+          content: {
+            type: 'object',
+            properties: {
+              content: { type: 'string', description: 'Extracted text content from the page' },
+              canvasLayout: {
+                type: 'object',
+                description: 'Raw SharePoint canvas layout structure',
+              },
+            },
+          },
+        },
+      },
+    },
+    content: {
+      type: 'object',
+      description: 'Content of the SharePoint page',
+      properties: {
+        content: { type: 'string', description: 'Extracted text content from the page' },
+        canvasLayout: { type: 'object', description: 'Raw SharePoint canvas layout structure' },
+      },
+    },
+    totalPages: { type: 'number', description: 'Total number of pages found' },
   },
 }

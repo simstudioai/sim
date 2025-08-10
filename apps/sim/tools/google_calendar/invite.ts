@@ -56,17 +56,6 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
     },
   },
 
-  outputs: {
-    content: {
-      type: 'string',
-      description: 'Attendee invitation confirmation message with email delivery status',
-    },
-    metadata: {
-      type: 'json',
-      description: 'Updated event metadata including attendee list and details',
-    },
-  },
-
   request: {
     url: (params: GoogleCalendarInviteParams) => {
       const calendarId = params.calendarId || 'primary'
@@ -252,5 +241,16 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
         },
       },
     }
+  },
+
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Attendee invitation confirmation message with email delivery status',
+    },
+    metadata: {
+      type: 'json',
+      description: 'Updated event metadata including attendee list and details',
+    },
   },
 }

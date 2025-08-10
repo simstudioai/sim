@@ -41,26 +41,6 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
     },
   },
 
-  outputs: {
-    email: {
-      type: 'string',
-      description: 'The found email address',
-    },
-    score: {
-      type: 'number',
-      description: 'Confidence score for the found email address',
-    },
-    sources: {
-      type: 'array',
-      description:
-        'Array of sources where the email was found, each containing domain, uri, extracted_on, last_seen_on, and still_on_page',
-    },
-    verification: {
-      type: 'object',
-      description: 'Verification information containing date and status',
-    },
-  },
-
   request: {
     url: (params) => {
       const url = new URL('https://api.hunter.io/v2/email-finder')
@@ -91,5 +71,25 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
         verification: data.data?.verification || {},
       },
     }
+  },
+
+  outputs: {
+    email: {
+      type: 'string',
+      description: 'The found email address',
+    },
+    score: {
+      type: 'number',
+      description: 'Confidence score for the found email address',
+    },
+    sources: {
+      type: 'array',
+      description:
+        'Array of sources where the email was found, each containing domain, uri, extracted_on, last_seen_on, and still_on_page',
+    },
+    verification: {
+      type: 'object',
+      description: 'Verification information containing date and status',
+    },
   },
 }

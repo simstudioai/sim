@@ -1,12 +1,9 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type {
   DiscordMessage,
   DiscordSendMessageParams,
   DiscordSendMessageResponse,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('DiscordSendMessage')
 
 export const discordSendMessageTool: ToolConfig<
   DiscordSendMessageParams,

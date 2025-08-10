@@ -38,28 +38,6 @@ export const findSimilarLinksTool: ToolConfig<
     },
   },
 
-  outputs: {
-    similarLinks: {
-      type: 'array',
-      description: 'Similar links found with titles, URLs, and text snippets',
-      items: {
-        type: 'object',
-        properties: {
-          title: { type: 'string', description: 'The title of the similar webpage' },
-          url: { type: 'string', description: 'The URL of the similar webpage' },
-          text: {
-            type: 'string',
-            description: 'Text snippet or full content from the similar webpage',
-          },
-          score: {
-            type: 'number',
-            description: 'Similarity score indicating how similar the page is',
-          },
-        },
-      },
-    },
-  },
-
   request: {
     url: 'https://api.exa.ai/findSimilar',
     method: 'POST',
@@ -100,5 +78,27 @@ export const findSimilarLinksTool: ToolConfig<
         })),
       },
     }
+  },
+
+  outputs: {
+    similarLinks: {
+      type: 'array',
+      description: 'Similar links found with titles, URLs, and text snippets',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'The title of the similar webpage' },
+          url: { type: 'string', description: 'The URL of the similar webpage' },
+          text: {
+            type: 'string',
+            description: 'Text snippet or full content from the similar webpage',
+          },
+          score: {
+            type: 'number',
+            description: 'Similarity score indicating how similar the page is',
+          },
+        },
+      },
+    },
   },
 }

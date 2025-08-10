@@ -6,6 +6,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
   name: 'Supabase Query',
   description: 'Query data from a Supabase table',
   version: '1.0',
+
   params: {
     projectId: {
       type: 'string',
@@ -44,10 +45,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
       description: 'Your Supabase service role secret key',
     },
   },
-  outputs: {
-    message: { type: 'string', description: 'Operation status message' },
-    results: { type: 'array', description: 'Array of records returned from the query' },
-  },
+
   request: {
     url: (params) => {
       // Construct the URL for the Supabase REST API
@@ -79,6 +77,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
       Authorization: `Bearer ${params.apiKey}`,
     }),
   },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
@@ -90,5 +89,10 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
       },
       error: undefined,
     }
+  },
+
+  outputs: {
+    message: { type: 'string', description: 'Operation status message' },
+    results: { type: 'array', description: 'Array of records returned from the query' },
   },
 }

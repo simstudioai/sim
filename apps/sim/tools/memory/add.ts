@@ -6,6 +6,7 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
   name: 'Add Memory',
   description: 'Add a new memory to the database or append to existing memory with the same ID.',
   version: '1.0.0',
+
   params: {
     id: {
       type: 'string',
@@ -24,14 +25,7 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       description: 'Content for agent memory',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Whether the memory was added successfully' },
-    memories: {
-      type: 'array',
-      description: 'Array of memory objects including the new or updated memory',
-    },
-    error: { type: 'string', description: 'Error message if operation failed' },
-  },
+
   request: {
     url: '/api/memory',
     method: 'POST',
@@ -86,6 +80,7 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       return body
     },
   },
+
   transformResponse: async (response): Promise<MemoryResponse> => {
     const result = await response.json()
     const data = result.data || result
@@ -99,5 +94,14 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
         memories,
       },
     }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the memory was added successfully' },
+    memories: {
+      type: 'array',
+      description: 'Array of memory objects including the new or updated memory',
+    },
+    error: { type: 'string', description: 'Error message if operation failed' },
   },
 }

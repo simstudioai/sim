@@ -6,6 +6,7 @@ export const mem0GetMemoriesTool: ToolConfig = {
   name: 'Get Memories',
   description: 'Retrieve memories from Mem0 by ID or filter criteria',
   version: '1.0.0',
+
   params: {
     userId: {
       type: 'string',
@@ -46,16 +47,6 @@ export const mem0GetMemoriesTool: ToolConfig = {
     },
   },
 
-  outputs: {
-    memories: {
-      type: 'array',
-      description: 'Array of retrieved memory objects',
-    },
-    ids: {
-      type: 'array',
-      description: 'Array of memory IDs that were retrieved',
-    },
-  },
   request: {
     url: (params: Record<string, any>) => {
       // For a specific memory ID, use the get single memory endpoint
@@ -113,6 +104,7 @@ export const mem0GetMemoriesTool: ToolConfig = {
       return body
     },
   },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
     const memories = Array.isArray(data) ? data : [data]
@@ -125,5 +117,16 @@ export const mem0GetMemoriesTool: ToolConfig = {
         ids,
       },
     }
+  },
+
+  outputs: {
+    memories: {
+      type: 'array',
+      description: 'Array of retrieved memory objects',
+    },
+    ids: {
+      type: 'array',
+      description: 'Array of memory IDs that were retrieved',
+    },
   },
 }

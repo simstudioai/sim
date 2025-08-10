@@ -11,7 +11,8 @@ export const s3GetObjectTool: ToolConfig = {
   id: 's3_get_object',
   name: 'S3 Get Object',
   description: 'Retrieve an object from an AWS S3 bucket',
-  version: '2.0.0',
+  version: '1.0.0',
+
   params: {
     accessKeyId: {
       type: 'string',
@@ -33,16 +34,6 @@ export const s3GetObjectTool: ToolConfig = {
     },
   },
 
-  outputs: {
-    url: {
-      type: 'string',
-      description: 'Pre-signed URL for downloading the S3 object',
-    },
-    metadata: {
-      type: 'object',
-      description: 'File metadata including type, size, name, and last modified date',
-    },
-  },
   request: {
     url: (params) => {
       try {
@@ -107,6 +98,7 @@ export const s3GetObjectTool: ToolConfig = {
       }
     },
   },
+
   transformResponse: async (response: Response, params) => {
     // Parse S3 URI if not already parsed
     if (!params.bucketName || !params.region || !params.objectKey) {
@@ -137,5 +129,16 @@ export const s3GetObjectTool: ToolConfig = {
         },
       },
     }
+  },
+
+  outputs: {
+    url: {
+      type: 'string',
+      description: 'Pre-signed URL for downloading the S3 object',
+    },
+    metadata: {
+      type: 'object',
+      description: 'File metadata including type, size, name, and last modified date',
+    },
   },
 }

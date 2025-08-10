@@ -31,29 +31,6 @@ export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
     },
   },
 
-  outputs: {
-    user: {
-      type: 'object',
-      description: 'X user profile information',
-      properties: {
-        id: { type: 'string', description: 'User ID' },
-        username: { type: 'string', description: 'Username without @ symbol' },
-        name: { type: 'string', description: 'Display name' },
-        description: { type: 'string', description: 'User bio/description', optional: true },
-        verified: { type: 'boolean', description: 'Whether the user is verified' },
-        metrics: {
-          type: 'object',
-          description: 'User statistics',
-          properties: {
-            followersCount: { type: 'number', description: 'Number of followers' },
-            followingCount: { type: 'number', description: 'Number of users following' },
-            tweetCount: { type: 'number', description: 'Total number of tweets' },
-          },
-        },
-      },
-    },
-  },
-
   request: {
     url: (params) => {
       const username = encodeURIComponent(params.username)
@@ -138,5 +115,28 @@ export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
       })
       throw error
     }
+  },
+
+  outputs: {
+    user: {
+      type: 'object',
+      description: 'X user profile information',
+      properties: {
+        id: { type: 'string', description: 'User ID' },
+        username: { type: 'string', description: 'Username without @ symbol' },
+        name: { type: 'string', description: 'Display name' },
+        description: { type: 'string', description: 'User bio/description', optional: true },
+        verified: { type: 'boolean', description: 'Whether the user is verified' },
+        metrics: {
+          type: 'object',
+          description: 'User statistics',
+          properties: {
+            followersCount: { type: 'number', description: 'Number of followers' },
+            followingCount: { type: 'number', description: 'Number of users following' },
+            tweetCount: { type: 'number', description: 'Total number of tweets' },
+          },
+        },
+      },
+    },
   },
 }

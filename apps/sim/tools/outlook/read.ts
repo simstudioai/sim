@@ -17,6 +17,7 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
     required: true,
     provider: 'outlook',
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -38,12 +39,6 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
     },
   },
 
-  outputs: {
-    success: { type: 'boolean', description: 'Email read operation success status' },
-    messageCount: { type: 'number', description: 'Number of emails retrieved' },
-    messages: { type: 'array', description: 'Array of email message objects' },
-    message: { type: 'string', description: 'Success or status message' },
-  },
   request: {
     url: (params) => {
       // Set max results (default to 1 for simplicity, max 10) with no negative values
@@ -71,6 +66,7 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
       }
     },
   },
+
   transformResponse: async (response: Response) => {
     const data: OutlookMessagesResponse = await response.json()
 
@@ -128,5 +124,12 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
         results: cleanedMessages,
       },
     }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Email read operation success status' },
+    messageCount: { type: 'number', description: 'Number of emails retrieved' },
+    messages: { type: 'array', description: 'Array of email message objects' },
+    message: { type: 'string', description: 'Success or status message' },
   },
 }

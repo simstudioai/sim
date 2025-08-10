@@ -11,11 +11,13 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
   name: 'Read Notion Database',
   description: 'Read database information and structure from Notion',
   version: '1.0.0',
+
   oauth: {
     required: true,
     provider: 'notion',
     additionalScopes: ['workspace.content', 'database.read'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -28,16 +30,6 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
       required: true,
       visibility: 'user-only',
       description: 'The ID of the Notion database to read',
-    },
-  },
-  outputs: {
-    content: {
-      type: 'string',
-      description: 'Database information including title, properties schema, and metadata',
-    },
-    metadata: {
-      type: 'object',
-      description: 'Database metadata including title, ID, URL, timestamps, and properties schema',
     },
   },
 
@@ -103,5 +95,16 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
         },
       },
     }
+  },
+
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Database information including title, properties schema, and metadata',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Database metadata including title, ID, URL, timestamps, and properties schema',
+    },
   },
 }

@@ -68,23 +68,6 @@ export const slackMessageReaderTool: ToolConfig<
     },
   },
 
-  outputs: {
-    messages: {
-      type: 'array',
-      description: 'Array of message objects from the channel',
-      items: {
-        type: 'object',
-        properties: {
-          ts: { type: 'string' },
-          text: { type: 'string' },
-          user: { type: 'string' },
-          type: { type: 'string' },
-          subtype: { type: 'string' },
-        },
-      },
-    },
-  },
-
   request: {
     url: (params: SlackMessageReaderParams) => {
       const url = new URL('https://slack.com/api/conversations.history')
@@ -125,5 +108,22 @@ export const slackMessageReaderTool: ToolConfig<
         messages,
       },
     }
+  },
+
+  outputs: {
+    messages: {
+      type: 'array',
+      description: 'Array of message objects from the channel',
+      items: {
+        type: 'object',
+        properties: {
+          ts: { type: 'string' },
+          text: { type: 'string' },
+          user: { type: 'string' },
+          type: { type: 'string' },
+          subtype: { type: 'string' },
+        },
+      },
+    },
   },
 }

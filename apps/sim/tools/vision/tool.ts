@@ -35,33 +35,6 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
     },
   },
 
-  outputs: {
-    content: {
-      type: 'string',
-      description: 'The analyzed content and description of the image',
-    },
-    model: {
-      type: 'string',
-      description: 'The vision model that was used for analysis',
-      optional: true,
-    },
-    tokens: {
-      type: 'number',
-      description: 'Total tokens used for the analysis',
-      optional: true,
-    },
-    usage: {
-      type: 'object',
-      description: 'Detailed token usage breakdown',
-      optional: true,
-      properties: {
-        input_tokens: { type: 'number', description: 'Tokens used for input processing' },
-        output_tokens: { type: 'number', description: 'Tokens used for response generation' },
-        total_tokens: { type: 'number', description: 'Total tokens consumed' },
-      },
-    },
-  },
-
   request: {
     method: 'POST',
     url: (params) => {
@@ -152,5 +125,32 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
           : undefined,
       },
     }
+  },
+
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'The analyzed content and description of the image',
+    },
+    model: {
+      type: 'string',
+      description: 'The vision model that was used for analysis',
+      optional: true,
+    },
+    tokens: {
+      type: 'number',
+      description: 'Total tokens used for the analysis',
+      optional: true,
+    },
+    usage: {
+      type: 'object',
+      description: 'Detailed token usage breakdown',
+      optional: true,
+      properties: {
+        input_tokens: { type: 'number', description: 'Tokens used for input processing' },
+        output_tokens: { type: 'number', description: 'Tokens used for response generation' },
+        total_tokens: { type: 'number', description: 'Total tokens consumed' },
+      },
+    },
   },
 }

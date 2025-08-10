@@ -9,11 +9,13 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
   id: 'microsoft_teams_read_chat',
   name: 'Read Microsoft Teams Chat',
   description: 'Read content from a Microsoft Teams chat',
-  version: '1.1',
+  version: '1.0',
+
   oauth: {
     required: true,
     provider: 'microsoft-teams',
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -27,16 +29,6 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       visibility: 'user-only',
       description: 'The ID of the chat to read from',
     },
-  },
-
-  outputs: {
-    success: { type: 'boolean', description: 'Teams chat read operation success status' },
-    messageCount: { type: 'number', description: 'Number of messages retrieved from chat' },
-    chatId: { type: 'string', description: 'ID of the chat that was read from' },
-    messages: { type: 'array', description: 'Array of chat message objects' },
-    attachmentCount: { type: 'number', description: 'Total number of attachments found' },
-    attachmentTypes: { type: 'array', description: 'Types of attachments found' },
-    content: { type: 'string', description: 'Formatted content of chat messages' },
   },
 
   request: {
@@ -61,6 +53,7 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       }
     },
   },
+
   transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
     const data = await response.json()
 
@@ -145,5 +138,15 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
         metadata,
       },
     }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Teams chat read operation success status' },
+    messageCount: { type: 'number', description: 'Number of messages retrieved from chat' },
+    chatId: { type: 'string', description: 'ID of the chat that was read from' },
+    messages: { type: 'array', description: 'Array of chat message objects' },
+    attachmentCount: { type: 'number', description: 'Total number of attachments found' },
+    attachmentTypes: { type: 'array', description: 'Types of attachments found' },
+    content: { type: 'string', description: 'Formatted content of chat messages' },
   },
 }

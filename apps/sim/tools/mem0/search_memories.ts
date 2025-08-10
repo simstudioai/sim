@@ -7,6 +7,7 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
   name: 'Search Memories',
   description: 'Search for memories in Mem0 using semantic search',
   version: '1.0.0',
+
   params: {
     userId: {
       type: 'string',
@@ -35,16 +36,6 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
     },
   },
 
-  outputs: {
-    searchResults: {
-      type: 'array',
-      description: 'Array of search results with memory data, each containing id, data, and score',
-    },
-    ids: {
-      type: 'array',
-      description: 'Array of memory IDs found in the search results',
-    },
-  },
   request: {
     url: 'https://api.mem0.ai/v2/memories/search/',
     method: 'POST',
@@ -65,6 +56,7 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
       return body
     },
   },
+
   transformResponse: async (response) => {
     const data = await response.json()
 
@@ -102,5 +94,16 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
         searchResults: [],
       },
     }
+  },
+
+  outputs: {
+    searchResults: {
+      type: 'array',
+      description: 'Array of search results with memory data, each containing id, data, and score',
+    },
+    ids: {
+      type: 'array',
+      description: 'Array of memory IDs found in the search results',
+    },
   },
 }

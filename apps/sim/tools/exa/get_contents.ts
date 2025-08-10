@@ -36,22 +36,6 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
     },
   },
 
-  outputs: {
-    results: {
-      type: 'array',
-      description: 'Retrieved content from URLs with title, text, and summaries',
-      items: {
-        type: 'object',
-        properties: {
-          url: { type: 'string', description: 'The URL that content was retrieved from' },
-          title: { type: 'string', description: 'The title of the webpage' },
-          text: { type: 'string', description: 'The full text content of the webpage' },
-          summary: { type: 'string', description: 'AI-generated summary of the webpage content' },
-        },
-      },
-    },
-  },
-
   request: {
     url: 'https://api.exa.ai/contents',
     method: 'POST',
@@ -101,5 +85,21 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
         })),
       },
     }
+  },
+
+  outputs: {
+    results: {
+      type: 'array',
+      description: 'Retrieved content from URLs with title, text, and summaries',
+      items: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'The URL that content was retrieved from' },
+          title: { type: 'string', description: 'The title of the webpage' },
+          text: { type: 'string', description: 'The full text content of the webpage' },
+          summary: { type: 'string', description: 'AI-generated summary of the webpage content' },
+        },
+      },
+    },
   },
 }

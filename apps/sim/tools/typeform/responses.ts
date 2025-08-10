@@ -6,6 +6,7 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
   name: 'Typeform Responses',
   description: 'Retrieve form responses from Typeform',
   version: '1.0.0',
+
   params: {
     formId: {
       type: 'string',
@@ -44,6 +45,7 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
       description: 'Filter by completion status (true/false)',
     },
   },
+
   request: {
     url: (params: TypeformResponsesParams) => {
       const url = `https://api.typeform.com/forms/${params.formId}/responses`
@@ -74,6 +76,7 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
       'Content-Type': 'application/json',
     }),
   },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
 

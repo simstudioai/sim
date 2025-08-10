@@ -12,11 +12,13 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
   id: 'microsoft_teams_read_channel',
   name: 'Read Microsoft Teams Channel',
   description: 'Read content from a Microsoft Teams channel',
-  version: '1.1',
+  version: '1.0',
+
   oauth: {
     required: true,
     provider: 'microsoft-teams',
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -36,17 +38,6 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       visibility: 'user-only',
       description: 'The ID of the channel to read from',
     },
-  },
-
-  outputs: {
-    success: { type: 'boolean', description: 'Teams channel read operation success status' },
-    messageCount: { type: 'number', description: 'Number of messages retrieved from channel' },
-    teamId: { type: 'string', description: 'ID of the team that was read from' },
-    channelId: { type: 'string', description: 'ID of the channel that was read from' },
-    messages: { type: 'array', description: 'Array of channel message objects' },
-    attachmentCount: { type: 'number', description: 'Total number of attachments found' },
-    attachmentTypes: { type: 'array', description: 'Types of attachments found' },
-    content: { type: 'string', description: 'Formatted content of channel messages' },
   },
 
   request: {
@@ -82,6 +73,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       }
     },
   },
+
   transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
     const data = await response.json()
 
@@ -186,5 +178,16 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
         metadata,
       },
     }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Teams channel read operation success status' },
+    messageCount: { type: 'number', description: 'Number of messages retrieved from channel' },
+    teamId: { type: 'string', description: 'ID of the team that was read from' },
+    channelId: { type: 'string', description: 'ID of the channel that was read from' },
+    messages: { type: 'array', description: 'Array of channel message objects' },
+    attachmentCount: { type: 'number', description: 'Total number of attachments found' },
+    attachmentTypes: { type: 'array', description: 'Types of attachments found' },
+    content: { type: 'string', description: 'Formatted content of channel messages' },
   },
 }

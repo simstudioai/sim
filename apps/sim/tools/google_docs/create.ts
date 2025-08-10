@@ -9,11 +9,13 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
   name: 'Create Google Docs Document',
   description: 'Create a new Google Docs document',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'google-docs',
     additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -46,6 +48,7 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
       description: 'The ID of the folder to create the document in (internal use)',
     },
   },
+
   request: {
     url: () => {
       return 'https://www.googleapis.com/drive/v3/files'
@@ -81,6 +84,7 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
       return requestBody
     },
   },
+
   postProcess: async (result, params, executeTool) => {
     if (!result.success) {
       return result
@@ -113,13 +117,6 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
     return result
   },
 
-  outputs: {
-    metadata: {
-      type: 'json',
-      description: 'Created document metadata including ID, title, and URL',
-    },
-  },
-
   transformResponse: async (response: Response) => {
     try {
       // Get the response data
@@ -148,5 +145,12 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
       })
       throw error
     }
+  },
+
+  outputs: {
+    metadata: {
+      type: 'json',
+      description: 'Created document metadata including ID, title, and URL',
+    },
   },
 }

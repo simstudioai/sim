@@ -6,6 +6,7 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
   name: 'Supabase Get Row',
   description: 'Get a single row from a Supabase table based on filter criteria',
   version: '1.0',
+
   params: {
     projectId: {
       type: 'string',
@@ -32,10 +33,7 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
       description: 'Your Supabase service role secret key',
     },
   },
-  outputs: {
-    message: { type: 'string', description: 'Operation status message' },
-    results: { type: 'object', description: 'The row data if found, null if not found' },
-  },
+
   request: {
     url: (params) => {
       // Construct the URL for the Supabase REST API
@@ -57,6 +55,7 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
       Authorization: `Bearer ${params.apiKey}`,
     }),
   },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
     const row = data.length > 0 ? data[0] : null
@@ -69,5 +68,10 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
       },
       error: undefined,
     }
+  },
+
+  outputs: {
+    message: { type: 'string', description: 'Operation status message' },
+    results: { type: 'object', description: 'The row data if found, null if not found' },
   },
 }

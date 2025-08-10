@@ -9,11 +9,13 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
   name: 'Update Google Sheets',
   description: 'Update data in a Google Sheets spreadsheet',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'google-sheets',
     additionalScopes: [],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -52,6 +54,7 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
       description: 'Whether to include the updated values in the response',
     },
   },
+
   request: {
     url: (params) => {
       // If range is not provided, use a default range for the first sheet, second row to preserve headers
@@ -131,14 +134,6 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
     },
   },
 
-  outputs: {
-    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
-    updatedRows: { type: 'number', description: 'Number of rows updated' },
-    updatedColumns: { type: 'number', description: 'Number of columns updated' },
-    updatedCells: { type: 'number', description: 'Number of cells updated' },
-    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
-  },
-
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
@@ -168,5 +163,13 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
     }
 
     return result
+  },
+
+  outputs: {
+    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
+    updatedRows: { type: 'number', description: 'Number of rows updated' },
+    updatedColumns: { type: 'number', description: 'Number of columns updated' },
+    updatedCells: { type: 'number', description: 'Number of cells updated' },
+    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
   },
 }

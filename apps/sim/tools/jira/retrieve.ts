@@ -12,6 +12,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     provider: 'jira',
     additionalScopes: ['read:jira-work', 'read:jira-user', 'read:me', 'offline_access'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -44,17 +45,6 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
       visibility: 'user-only',
       description:
         'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
-    },
-  },
-  outputs: {
-    success: {
-      type: 'boolean',
-      description: 'Operation success status',
-    },
-    output: {
-      type: 'object',
-      description:
-        'Jira issue details with issue key, summary, description, created and updated timestamps',
     },
   },
 
@@ -121,5 +111,17 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
         updated: data.fields.updated,
       },
     }
+  },
+
+  outputs: {
+    success: {
+      type: 'boolean',
+      description: 'Operation success status',
+    },
+    output: {
+      type: 'object',
+      description:
+        'Jira issue details with issue key, summary, description, created and updated timestamps',
+    },
   },
 }

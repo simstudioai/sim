@@ -6,6 +6,7 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
   name: 'Get Memory',
   description: 'Retrieve a specific memory by its ID',
   version: '1.0.0',
+
   params: {
     id: {
       type: 'string',
@@ -13,12 +14,7 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       description: 'Identifier for the memory to retrieve',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Whether the memory was retrieved successfully' },
-    memories: { type: 'array', description: 'Array of memory data for the requested ID' },
-    message: { type: 'string', description: 'Success or error message' },
-    error: { type: 'string', description: 'Error message if operation failed' },
-  },
+
   request: {
     url: (params): any => {
       // Get workflowId from context (set by workflow execution)
@@ -46,6 +42,7 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       'Content-Type': 'application/json',
     }),
   },
+
   transformResponse: async (response): Promise<MemoryResponse> => {
     const result = await response.json()
     const data = result.data || result
@@ -57,5 +54,12 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
         message: 'Memory retrieved successfully',
       },
     }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the memory was retrieved successfully' },
+    memories: { type: 'array', description: 'Array of memory data for the requested ID' },
+    message: { type: 'string', description: 'Success or error message' },
+    error: { type: 'string', description: 'Error message if operation failed' },
   },
 }

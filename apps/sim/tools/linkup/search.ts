@@ -38,18 +38,6 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
     },
   },
 
-  outputs: {
-    answer: {
-      type: 'string',
-      description: 'The sourced answer to the search query',
-    },
-    sources: {
-      type: 'array',
-      description:
-        'Array of sources used to compile the answer, each containing name, url, and snippet',
-    },
-  },
-
   request: {
     url: 'https://api.linkup.so/v1/search',
     method: 'POST',
@@ -80,5 +68,17 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
         sources: data.sources,
       },
     }
+  },
+
+  outputs: {
+    answer: {
+      type: 'string',
+      description: 'The sourced answer to the search query',
+    },
+    sources: {
+      type: 'array',
+      description:
+        'Array of sources used to compile the answer, each containing name, url, and snippet',
+    },
   },
 }

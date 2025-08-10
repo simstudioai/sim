@@ -58,17 +58,6 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
     },
   },
 
-  outputs: {
-    data: {
-      type: 'array',
-      description: 'Vector search results with ID, score, payload, and optional vector data',
-    },
-    status: {
-      type: 'string',
-      description: 'Status of the search operation',
-    },
-  },
-
   request: {
     method: 'POST',
     url: (params) =>
@@ -95,5 +84,16 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
         status: data.status,
       },
     }
+  },
+
+  outputs: {
+    data: {
+      type: 'array',
+      description: 'Vector search results with ID, score, payload, and optional vector data',
+    },
+    status: {
+      type: 'string',
+      description: 'Status of the search operation',
+    },
   },
 }

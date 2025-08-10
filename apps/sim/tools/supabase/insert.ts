@@ -6,6 +6,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
   name: 'Supabase Insert',
   description: 'Insert data into a Supabase table',
   version: '1.0',
+
   params: {
     projectId: {
       type: 'string',
@@ -32,10 +33,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       description: 'Your Supabase service role secret key',
     },
   },
-  outputs: {
-    message: { type: 'string', description: 'Operation status message' },
-    results: { type: 'array', description: 'Array of inserted records' },
-  },
+
   request: {
     url: (params) => `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`,
     method: 'POST',
@@ -53,6 +51,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       return dataToSend
     },
   },
+
   transformResponse: async (response: Response) => {
     // Handle empty response case
     const text = await response.text()
@@ -77,5 +76,10 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       },
       error: undefined,
     }
+  },
+
+  outputs: {
+    message: { type: 'string', description: 'Operation status message' },
+    results: { type: 'array', description: 'Array of inserted records' },
   },
 }

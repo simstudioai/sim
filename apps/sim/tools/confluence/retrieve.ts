@@ -1,4 +1,5 @@
 import type { ConfluenceRetrieveParams, ConfluenceRetrieveResponse } from '@/tools/confluence/types'
+import { transformPageData } from '@/tools/confluence/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const confluenceRetrieveTool: ToolConfig<
@@ -13,13 +14,6 @@ export const confluenceRetrieveTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'confluence',
-  },
-
-  outputs: {
-    ts: { type: 'string', description: 'Timestamp of retrieval' },
-    pageId: { type: 'string', description: 'Confluence page ID' },
-    content: { type: 'string', description: 'Page content with HTML tags stripped' },
-    title: { type: 'string', description: 'Page title' },
   },
 
   params: {
@@ -76,34 +70,11 @@ export const confluenceRetrieveTool: ToolConfig<
     const data = await response.json()
     return transformPageData(data)
   },
-}
 
-function transformPageData(data: any) {
-  // Get content from wherever we can find it
-  const content =
-    data.body?.view?.value ||
-    data.body?.storage?.value ||
-    data.body?.atlas_doc_format?.value ||
-    data.content ||
-    data.description ||
-    `Content for page ${data.title || 'Unknown'}`
-
-  const cleanContent = content
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  return {
-    success: true,
-    output: {
-      ts: new Date().toISOString(),
-      pageId: data.id || '',
-      content: cleanContent,
-      title: data.title || '',
-    },
-  }
+  outputs: {
+    ts: { type: 'string', description: 'Timestamp of retrieval' },
+    pageId: { type: 'string', description: 'Confluence page ID' },
+    content: { type: 'string', description: 'Page content with HTML tags stripped' },
+    title: { type: 'string', description: 'Page title' },
+  },
 }

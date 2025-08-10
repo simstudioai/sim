@@ -6,6 +6,7 @@ export const mem0AddMemoriesTool: ToolConfig = {
   name: 'Add Memories',
   description: 'Add memories to Mem0 for persistent storage and retrieval',
   version: '1.0.0',
+
   params: {
     userId: {
       type: 'string',
@@ -27,16 +28,6 @@ export const mem0AddMemoriesTool: ToolConfig = {
     },
   },
 
-  outputs: {
-    ids: {
-      type: 'array',
-      description: 'Array of memory IDs that were created',
-    },
-    memories: {
-      type: 'array',
-      description: 'Array of memory objects that were created',
-    },
-  },
   request: {
     url: 'https://api.mem0.ai/v1/memories/',
     method: 'POST',
@@ -76,6 +67,7 @@ export const mem0AddMemoriesTool: ToolConfig = {
       return body
     },
   },
+
   transformResponse: async (response) => {
     const data = await response.json()
 
@@ -121,5 +113,16 @@ export const mem0AddMemoriesTool: ToolConfig = {
         memories: Array.isArray(data) ? data : [data],
       },
     }
+  },
+
+  outputs: {
+    ids: {
+      type: 'array',
+      description: 'Array of memory IDs that were created',
+    },
+    memories: {
+      type: 'array',
+      description: 'Array of memory objects that were created',
+    },
   },
 }

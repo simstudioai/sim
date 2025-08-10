@@ -6,11 +6,13 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
   name: 'Read from Google Sheets',
   description: 'Read data from a Google Sheets spreadsheet',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'google-sheets',
     additionalScopes: [],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -31,6 +33,7 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
       description: 'The range of cells to read from',
     },
   },
+
   request: {
     url: (params) => {
       // Ensure spreadsheetId is valid
@@ -58,11 +61,6 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
-  },
-
-  outputs: {
-    data: { type: 'json', description: 'Sheet data including range and cell values' },
-    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
   },
 
   transformResponse: async (response: Response) => {
@@ -95,5 +93,10 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
     }
 
     return result
+  },
+
+  outputs: {
+    data: { type: 'json', description: 'Sheet data including range and cell values' },
+    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
   },
 }

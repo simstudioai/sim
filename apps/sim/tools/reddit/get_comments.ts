@@ -12,6 +12,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
     provider: 'reddit',
     additionalScopes: ['read'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -43,42 +44,6 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
       required: false,
       visibility: 'user-only',
       description: 'Maximum number of comments to return (default: 50, max: 100)',
-    },
-  },
-
-  outputs: {
-    post: {
-      type: 'object',
-      description: 'Post information including ID, title, author, content, and metadata',
-      properties: {
-        id: { type: 'string', description: 'Post ID' },
-        title: { type: 'string', description: 'Post title' },
-        author: { type: 'string', description: 'Post author' },
-        selftext: { type: 'string', description: 'Post text content' },
-        score: { type: 'number', description: 'Post score' },
-        created_utc: { type: 'number', description: 'Creation timestamp' },
-        permalink: { type: 'string', description: 'Reddit permalink' },
-      },
-    },
-    comments: {
-      type: 'array',
-      description: 'Nested comments with author, body, score, timestamps, and replies',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Comment ID' },
-          author: { type: 'string', description: 'Comment author' },
-          body: { type: 'string', description: 'Comment text' },
-          score: { type: 'number', description: 'Comment score' },
-          created_utc: { type: 'number', description: 'Creation timestamp' },
-          permalink: { type: 'string', description: 'Comment permalink' },
-          replies: {
-            type: 'array',
-            description: 'Nested reply comments',
-            items: { type: 'object', description: 'Nested comment with same structure' },
-          },
-        },
-      },
     },
   },
 
@@ -163,5 +128,41 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
         comments: comments,
       },
     }
+  },
+
+  outputs: {
+    post: {
+      type: 'object',
+      description: 'Post information including ID, title, author, content, and metadata',
+      properties: {
+        id: { type: 'string', description: 'Post ID' },
+        title: { type: 'string', description: 'Post title' },
+        author: { type: 'string', description: 'Post author' },
+        selftext: { type: 'string', description: 'Post text content' },
+        score: { type: 'number', description: 'Post score' },
+        created_utc: { type: 'number', description: 'Creation timestamp' },
+        permalink: { type: 'string', description: 'Reddit permalink' },
+      },
+    },
+    comments: {
+      type: 'array',
+      description: 'Nested comments with author, body, score, timestamps, and replies',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Comment ID' },
+          author: { type: 'string', description: 'Comment author' },
+          body: { type: 'string', description: 'Comment text' },
+          score: { type: 'number', description: 'Comment score' },
+          created_utc: { type: 'number', description: 'Creation timestamp' },
+          permalink: { type: 'string', description: 'Comment permalink' },
+          replies: {
+            type: 'array',
+            description: 'Nested reply comments',
+            items: { type: 'object', description: 'Nested comment with same structure' },
+          },
+        },
+      },
+    },
   },
 }

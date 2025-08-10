@@ -145,4 +145,9 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       output,
     }
   },
+
+  outputs: {
+    files: { type: 'array', description: 'Array of parsed files' },
+    combinedContent: { type: 'string', description: 'Combined content of all parsed files' },
+  },
 }

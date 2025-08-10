@@ -1,12 +1,9 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type {
   DiscordGetServerParams,
   DiscordGetServerResponse,
   DiscordGuild,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('DiscordGetServer')
 
 export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGetServerResponse> = {
   id: 'discord_get_server',

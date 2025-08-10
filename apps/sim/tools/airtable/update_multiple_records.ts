@@ -4,8 +4,6 @@ import type {
 } from '@/tools/airtable/types'
 import type { ToolConfig } from '@/tools/types'
 
-// import { logger } from '@/utils/logger' // Removed logger due to import issues
-
 export const airtableUpdateMultipleRecordsTool: ToolConfig<
   AirtableUpdateMultipleParams,
   AirtableUpdateMultipleResponse
@@ -44,9 +42,7 @@ export const airtableUpdateMultipleRecordsTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description: 'Array of records to update, each with an `id` and a `fields` object',
-      // Example: [{ id: "rec123", fields: { "Status": "Done" } }, { id: "rec456", fields: { "Priority": "High" } }]
     },
-    // TODO: Add typecast, performUpsert parameters
   },
 
   request: {
@@ -57,7 +53,6 @@ export const airtableUpdateMultipleRecordsTool: ToolConfig<
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    // Body should contain { records: [...] } and optionally { typecast: true, performUpsert: {...} }
     body: (params) => ({ records: params.records }),
   },
 

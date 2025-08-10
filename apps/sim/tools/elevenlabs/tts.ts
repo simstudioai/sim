@@ -1,8 +1,5 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type { ElevenLabsTtsParams, ElevenLabsTtsResponse } from '@/tools/elevenlabs/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('ElevenLabsTool')
 
 export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsResponse> = {
   id: 'elevenlabs_tts',
@@ -60,5 +57,9 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
         audioUrl: data.audioUrl,
       },
     }
+  },
+
+  outputs: {
+    audioUrl: { type: 'string', description: 'The URL of the generated audio' },
   },
 }

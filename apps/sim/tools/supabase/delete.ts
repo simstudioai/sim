@@ -6,6 +6,7 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
   name: 'Supabase Delete Row',
   description: 'Delete rows from a Supabase table based on filter criteria',
   version: '1.0',
+
   params: {
     projectId: {
       type: 'string',
@@ -32,10 +33,7 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
       description: 'Your Supabase service role secret key',
     },
   },
-  outputs: {
-    message: { type: 'string', description: 'Operation status message' },
-    results: { type: 'array', description: 'Array of deleted records' },
-  },
+
   request: {
     url: (params) => {
       // Construct the URL for the Supabase REST API with select to return deleted data
@@ -59,6 +57,7 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
       Prefer: 'return=representation',
     }),
   },
+
   transformResponse: async (response: Response) => {
     // Handle empty response from delete operations
     const text = await response.text()
@@ -86,5 +85,10 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
       },
       error: undefined,
     }
+  },
+
+  outputs: {
+    message: { type: 'string', description: 'Operation status message' },
+    results: { type: 'array', description: 'Array of deleted records' },
   },
 }

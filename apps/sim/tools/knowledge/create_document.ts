@@ -6,6 +6,7 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
   name: 'Knowledge Create Document',
   description: 'Create a new document in a knowledge base',
   version: '1.0.0',
+
   params: {
     knowledgeBaseId: {
       type: 'string',
@@ -61,29 +62,6 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       type: 'array',
       required: false,
       description: 'Structured tag data with names, types, and values',
-    },
-  },
-
-  outputs: {
-    data: {
-      type: 'object',
-      description: 'Information about the created document',
-      properties: {
-        id: { type: 'string', description: 'Document ID' },
-        name: { type: 'string', description: 'Document name' },
-        type: { type: 'string', description: 'Document type' },
-        enabled: { type: 'boolean', description: 'Whether the document is enabled' },
-        createdAt: { type: 'string', description: 'Creation timestamp' },
-        updatedAt: { type: 'string', description: 'Last update timestamp' },
-      },
-    },
-    message: {
-      type: 'string',
-      description: 'Success or error message describing the operation result',
-    },
-    documentId: {
-      type: 'string',
-      description: 'ID of the created document',
     },
   },
 
@@ -169,6 +147,7 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       return requestBody
     },
   },
+
   transformResponse: async (response): Promise<KnowledgeCreateDocumentResponse> => {
     const result = await response.json()
     const data = result.data || result
@@ -196,5 +175,28 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
         documentId: firstDocument?.documentId || firstDocument?.id || '',
       },
     }
+  },
+
+  outputs: {
+    data: {
+      type: 'object',
+      description: 'Information about the created document',
+      properties: {
+        id: { type: 'string', description: 'Document ID' },
+        name: { type: 'string', description: 'Document name' },
+        type: { type: 'string', description: 'Document type' },
+        enabled: { type: 'boolean', description: 'Whether the document is enabled' },
+        createdAt: { type: 'string', description: 'Creation timestamp' },
+        updatedAt: { type: 'string', description: 'Last update timestamp' },
+      },
+    },
+    message: {
+      type: 'string',
+      description: 'Success or error message describing the operation result',
+    },
+    documentId: {
+      type: 'string',
+      description: 'ID of the created document',
+    },
   },
 }

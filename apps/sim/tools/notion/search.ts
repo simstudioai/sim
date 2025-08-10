@@ -7,11 +7,13 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
   name: 'Search Notion Workspace',
   description: 'Search across all pages and databases in Notion workspace',
   version: '1.0.0',
+
   oauth: {
     required: true,
     provider: 'notion',
     additionalScopes: ['workspace.content', 'page.read'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -36,17 +38,6 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
       required: false,
       visibility: 'user-only',
       description: 'Number of results to return (default: 100, max: 100)',
-    },
-  },
-  outputs: {
-    content: {
-      type: 'string',
-      description: 'Formatted list of search results including pages and databases',
-    },
-    metadata: {
-      type: 'object',
-      description:
-        'Search metadata including total results count, pagination info, and raw results array',
     },
   },
 
@@ -129,5 +120,17 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
         },
       },
     }
+  },
+
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Formatted list of search results including pages and databases',
+    },
+    metadata: {
+      type: 'object',
+      description:
+        'Search metadata including total results count, pagination info, and raw results array',
+    },
   },
 }

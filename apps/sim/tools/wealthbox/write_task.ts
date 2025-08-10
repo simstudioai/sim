@@ -6,7 +6,8 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
   id: 'wealthbox_write_task',
   name: 'Write Wealthbox Task',
   description: 'Create or update a Wealthbox task',
-  version: '1.1',
+  version: '1.0.0',
+
   params: {
     accessToken: {
       type: 'string',
@@ -40,26 +41,7 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
       visibility: 'user-or-llm',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Created or updated task data and metadata',
-      properties: {
-        task: { type: 'object', description: 'Raw task data from Wealthbox' },
-        success: { type: 'boolean', description: 'Operation success indicator' },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-          properties: {
-            operation: { type: 'string', description: 'The operation performed' },
-            itemId: { type: 'string', description: 'ID of the created/updated task' },
-            itemType: { type: 'string', description: 'Type of item (task)' },
-          },
-        },
-      },
-    },
-  },
+
   request: {
     url: (params) => {
       const taskId = params.taskId?.trim()
@@ -83,8 +65,30 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
       return validateAndBuildTaskBody(params)
     },
   },
+
   transformResponse: async (response: Response, params?: WealthboxWriteParams) => {
     const data = await response.json()
     return formatTaskResponse(data, params)
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Created or updated task data and metadata',
+      properties: {
+        task: { type: 'object', description: 'Raw task data from Wealthbox' },
+        success: { type: 'boolean', description: 'Operation success indicator' },
+        metadata: {
+          type: 'object',
+          description: 'Operation metadata',
+          properties: {
+            operation: { type: 'string', description: 'The operation performed' },
+            itemId: { type: 'string', description: 'ID of the created/updated task' },
+            itemType: { type: 'string', description: 'Type of item (task)' },
+          },
+        },
+      },
+    },
   },
 }

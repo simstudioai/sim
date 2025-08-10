@@ -40,18 +40,6 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
     },
   },
 
-  outputs: {
-    subreddit: {
-      type: 'string',
-      description: 'Name of the subreddit where hot posts were fetched from',
-    },
-    posts: {
-      type: 'array',
-      description:
-        'Array of hot posts with title, author, URL, score, comments count, and metadata',
-    },
-  },
-
   request: {
     url: (params) => {
       // Sanitize inputs and enforce limits
@@ -110,5 +98,17 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
         posts,
       },
     }
+  },
+
+  outputs: {
+    subreddit: {
+      type: 'string',
+      description: 'Name of the subreddit where hot posts were fetched from',
+    },
+    posts: {
+      type: 'array',
+      description:
+        'Array of hot posts with title, author, URL, score, comments count, and metadata',
+    },
   },
 }

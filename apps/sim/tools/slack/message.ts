@@ -53,11 +53,6 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
     },
   },
 
-  outputs: {
-    ts: { type: 'string', description: 'Message timestamp' },
-    channel: { type: 'string', description: 'Channel ID where message was sent' },
-  },
-
   request: {
     url: 'https://slack.com/api/chat.postMessage',
     method: 'POST',
@@ -84,5 +79,10 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
         channel: data.channel,
       },
     }
+  },
+
+  outputs: {
+    ts: { type: 'string', description: 'Message timestamp' },
+    channel: { type: 'string', description: 'Channel ID where message was sent' },
   },
 }

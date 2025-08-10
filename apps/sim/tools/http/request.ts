@@ -51,29 +51,6 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     },
   },
 
-  outputs: {
-    data: {
-      type: 'json',
-      description: 'Response data from the HTTP request (JSON object, text, or other format)',
-    },
-    status: {
-      type: 'number',
-      description: 'HTTP status code of the response (e.g., 200, 404, 500)',
-    },
-    headers: {
-      type: 'object',
-      description: 'Response headers as key-value pairs',
-      properties: {
-        'content-type': {
-          type: 'string',
-          description: 'Content type of the response',
-          optional: true,
-        },
-        'content-length': { type: 'string', description: 'Content length', optional: true },
-      },
-    },
-  },
-
   request: {
     url: (params: RequestParams) => {
       // Process the URL first to handle path/query params
@@ -206,5 +183,28 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       },
       error: response.ok ? undefined : `HTTP error ${response.status}: ${response.statusText}`,
     }
+  },
+
+  outputs: {
+    data: {
+      type: 'json',
+      description: 'Response data from the HTTP request (JSON object, text, or other format)',
+    },
+    status: {
+      type: 'number',
+      description: 'HTTP status code of the response (e.g., 200, 404, 500)',
+    },
+    headers: {
+      type: 'object',
+      description: 'Response headers as key-value pairs',
+      properties: {
+        'content-type': {
+          type: 'string',
+          description: 'Content type of the response',
+          optional: true,
+        },
+        'content-length': { type: 'string', description: 'Content length', optional: true },
+      },
+    },
   },
 }

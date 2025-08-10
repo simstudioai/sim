@@ -6,16 +6,9 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
   name: 'Get All Memories',
   description: 'Retrieve all memories from the database',
   version: '1.0.0',
+
   params: {},
-  outputs: {
-    success: { type: 'boolean', description: 'Whether all memories were retrieved successfully' },
-    memories: {
-      type: 'array',
-      description: 'Array of all memory objects with keys, types, and data',
-    },
-    message: { type: 'string', description: 'Success or error message' },
-    error: { type: 'string', description: 'Error message if operation failed' },
-  },
+
   request: {
     url: (params): any => {
       // Get workflowId from context (set by workflow execution)
@@ -43,6 +36,7 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
       'Content-Type': 'application/json',
     }),
   },
+
   transformResponse: async (response): Promise<MemoryResponse> => {
     const result = await response.json()
 
@@ -64,5 +58,15 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
         message: 'Memories retrieved successfully',
       },
     }
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Whether all memories were retrieved successfully' },
+    memories: {
+      type: 'array',
+      description: 'Array of all memory objects with keys, types, and data',
+    },
+    message: { type: 'string', description: 'Success or error message' },
+    error: { type: 'string', description: 'Error message if operation failed' },
   },
 }

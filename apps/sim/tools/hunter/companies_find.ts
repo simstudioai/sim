@@ -22,18 +22,6 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
     },
   },
 
-  outputs: {
-    person: {
-      type: 'object',
-      description: 'Person information (undefined for companies_find tool)',
-    },
-    company: {
-      type: 'object',
-      description:
-        'Company information including name, domain, industry, size, country, linkedin, and twitter',
-    },
-  },
-
   request: {
     url: (params) => {
       const url = new URL('https://api.hunter.io/v2/companies/find')
@@ -68,5 +56,17 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
           : undefined,
       },
     }
+  },
+
+  outputs: {
+    person: {
+      type: 'object',
+      description: 'Person information (undefined for companies_find tool)',
+    },
+    company: {
+      type: 'object',
+      description:
+        'Company information including name, domain, industry, size, country, linkedin, and twitter',
+    },
   },
 }

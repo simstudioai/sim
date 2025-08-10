@@ -6,7 +6,8 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
   id: 'wealthbox_write_note',
   name: 'Write Wealthbox Note',
   description: 'Create or update a Wealthbox note',
-  version: '1.1',
+  version: '1.0.0',
+
   params: {
     accessToken: {
       type: 'string',
@@ -27,6 +28,31 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
       visibility: 'user-only',
     },
   },
+
+  request: {
+    url: 'https://api.crmworkspace.com/v1/notes',
+    method: 'POST',
+    headers: (params) => {
+      // Validate access token
+      if (!params.accessToken) {
+        throw new Error('Access token is required')
+      }
+
+      return {
+        Authorization: `Bearer ${params.accessToken}`,
+        'Content-Type': 'application/json',
+      }
+    },
+    body: (params) => {
+      return validateAndBuildNoteBody(params)
+    },
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return formatNoteResponse(data)
+  },
+
   outputs: {
     success: { type: 'boolean', description: 'Operation success status' },
     output: {
@@ -46,27 +72,5 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
         },
       },
     },
-  },
-  request: {
-    url: 'https://api.crmworkspace.com/v1/notes',
-    method: 'POST',
-    headers: (params) => {
-      // Validate access token
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
-      }
-    },
-    body: (params) => {
-      return validateAndBuildNoteBody(params)
-    },
-  },
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
-    return formatNoteResponse(data)
   },
 }

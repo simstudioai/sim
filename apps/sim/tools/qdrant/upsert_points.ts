@@ -33,17 +33,6 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
     },
   },
 
-  outputs: {
-    status: {
-      type: 'string',
-      description: 'Status of the upsert operation',
-    },
-    data: {
-      type: 'object',
-      description: 'Result data from the upsert operation',
-    },
-  },
-
   request: {
     method: 'PUT',
     url: (params) => `${params.url.replace(/\/$/, '')}/collections/${params.collection}/points`,
@@ -63,5 +52,16 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
         data: data.result,
       },
     }
+  },
+
+  outputs: {
+    status: {
+      type: 'string',
+      description: 'Status of the upsert operation',
+    },
+    data: {
+      type: 'object',
+      description: 'Result data from the upsert operation',
+    },
   },
 }

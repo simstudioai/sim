@@ -16,11 +16,13 @@ export const createTaskTool: ToolConfig<
   name: 'Create Microsoft Planner Task',
   description: 'Create a new task in Microsoft Planner',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'microsoft-planner',
     additionalScopes: [],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -65,11 +67,7 @@ export const createTaskTool: ToolConfig<
       description: 'The bucket ID to place the task in',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Whether the task was created successfully' },
-    task: { type: 'object', description: 'The created task object with all properties' },
-    metadata: { type: 'object', description: 'Metadata including planId, taskId, and taskUrl' },
-  },
+
   request: {
     url: () => 'https://graph.microsoft.com/v1.0/planner/tasks',
     method: 'POST',
@@ -117,6 +115,7 @@ export const createTaskTool: ToolConfig<
       return body
     },
   },
+
   transformResponse: async (response: Response) => {
     const task = await response.json()
     logger.info('Created task:', task)
@@ -134,5 +133,11 @@ export const createTaskTool: ToolConfig<
     }
 
     return result
+  },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the task was created successfully' },
+    task: { type: 'object', description: 'The created task object with all properties' },
+    metadata: { type: 'object', description: 'Metadata including planId, taskId, and taskUrl' },
   },
 }

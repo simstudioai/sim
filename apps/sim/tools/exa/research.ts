@@ -34,24 +34,6 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
     },
   },
 
-  outputs: {
-    research: {
-      type: 'array',
-      description: 'Comprehensive research findings with citations and summaries',
-      items: {
-        type: 'object',
-        properties: {
-          title: { type: 'string' },
-          url: { type: 'string' },
-          summary: { type: 'string' },
-          text: { type: 'string' },
-          publishedDate: { type: 'string' },
-          author: { type: 'string' },
-          score: { type: 'number' },
-        },
-      },
-    },
-  },
   request: {
     url: 'https://api.exa.ai/research/v0/tasks',
     method: 'POST',
@@ -91,6 +73,7 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
       return body
     },
   },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
@@ -177,5 +160,24 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
       success: false,
       error: `Research task did not complete within the maximum polling time (${MAX_POLL_TIME_MS / 1000}s)`,
     }
+  },
+
+  outputs: {
+    research: {
+      type: 'array',
+      description: 'Comprehensive research findings with citations and summaries',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          url: { type: 'string' },
+          summary: { type: 'string' },
+          text: { type: 'string' },
+          publishedDate: { type: 'string' },
+          author: { type: 'string' },
+          score: { type: 'number' },
+        },
+      },
+    },
   },
 }
