@@ -132,14 +132,7 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (data.error) {
-      throw new Error(data.error.message || 'Unknown error occurred')
-    }
-
     const result = data.content?.[0]?.text || data.choices?.[0]?.message?.content
-    if (!result) {
-      throw new Error('No output content in response')
-    }
 
     return {
       success: true,
@@ -161,9 +154,7 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
     }
   },
 
-  transformError: (error) => {
-    const message = error.error?.message || error.message
-    const code = error.error?.type || error.code
-    return `${message} (${code})`
+  transformError: (error: Error) => {
+    return `Vision API Error: ${error.message || 'Unknown error'}`
   },
 }

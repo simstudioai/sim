@@ -139,7 +139,7 @@ describe('Function Execute Tool', () => {
       // Check error handling
       expect(result.success).toBe(false)
       expect(result.error).toBeDefined()
-      expect(result.error).toBe('Syntax error in code')
+      expect(result.error).toBe('Code Execution Error: Syntax error in code')
     })
 
     it.concurrent('should handle timeout errors', async () => {
@@ -160,7 +160,7 @@ describe('Function Execute Tool', () => {
 
       // Check error handling
       expect(result.success).toBe(false)
-      expect(result.error).toBe('Code execution timed out')
+      expect(result.error).toBe('Code Execution Error: Code execution timed out')
     })
   })
 
@@ -268,7 +268,7 @@ describe('Function Execute Tool', () => {
       // Check that the tool properly captures error
       expect(result.success).toBe(false)
       expect(result.error).toBe(
-        'Reference Error: Line 1: `return undefinedVar` - undefinedVar is not defined'
+        'Code Execution Error: Reference Error: Line 1: `return undefinedVar` - undefinedVar is not defined'
       )
     })
 
@@ -296,7 +296,7 @@ describe('Function Execute Tool', () => {
 
       // Check that error information is available
       expect(result.success).toBe(false)
-      expect(result.error).toBe('Syntax Error: Line 2 - Invalid syntax')
+      expect(result.error).toBe('Code Execution Error: Syntax Error: Line 2 - Invalid syntax')
 
       // Note: In this test framework, debug information would be available in the response object, but the tool transforms it into the error message
     })
@@ -322,7 +322,7 @@ describe('Function Execute Tool', () => {
 
       // Check error handling without line info
       expect(result.success).toBe(false)
-      expect(result.error).toBe('Generic error message')
+      expect(result.error).toBe('Code Execution Error: Generic error message')
     })
 
     it.concurrent('should provide line-specific error message when available', async () => {

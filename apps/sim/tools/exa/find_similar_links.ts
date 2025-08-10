@@ -90,10 +90,6 @@ export const findSimilarLinksTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.message || data.error || 'Failed to find similar links')
-    }
-
     return {
       success: true,
       output: {
@@ -107,7 +103,7 @@ export const findSimilarLinksTool: ToolConfig<
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while finding similar links'
+  transformError: (error: Error) => {
+    return `Exa API Error: ${error.message}`
   },
 }

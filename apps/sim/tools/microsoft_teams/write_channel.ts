@@ -99,11 +99,6 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
     },
   },
   transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to write Microsoft Teams channel message: ${errorText}`)
-    }
-
     const data = await response.json()
 
     // Create document metadata from the response
@@ -124,23 +119,7 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
       },
     }
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
-
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while writing Microsoft Teams channel message'
+  transformError: (error: Error) => {
+    return `Microsoft Teams API Error: ${error.message}`
   },
 }

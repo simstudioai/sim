@@ -48,43 +48,18 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
     isInternalRoute: true,
   },
   transformResponse: async (response): Promise<MemoryResponse> => {
-    try {
-      const result = await response.json()
+    const result = await response.json()
+    const data = result.data || result
 
-      if (!response.ok) {
-        const errorMessage = result.error?.message || 'Failed to retrieve memory'
-        throw new Error(errorMessage)
-      }
-
-      const data = result.data || result
-
-      return {
-        success: true,
-        output: {
-          memories: data.data,
-          message: 'Memory retrieved successfully',
-        },
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        output: {
-          memories: undefined,
-          message: `Failed to retrieve memory: ${error.message || 'Unknown error'}`,
-        },
-        error: `Failed to retrieve memory: ${error.message || 'Unknown error'}`,
-      }
+    return {
+      success: true,
+      output: {
+        memories: data.data,
+        message: 'Memory retrieved successfully',
+      },
     }
   },
-  transformError: async (error): Promise<MemoryResponse> => {
-    const errorMessage = `Memory retrieval failed: ${error.message || 'Unknown error'}`
-    return {
-      success: false,
-      output: {
-        memories: undefined,
-        message: errorMessage,
-      },
-      error: errorMessage,
-    }
+  transformError: (error: Error) => {
+    return `Memory API Error: ${error.message}`
   },
 }

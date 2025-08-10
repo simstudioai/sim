@@ -95,61 +95,17 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
   },
 
   transformResponse: async (response) => {
-    try {
-      const data = await response.json()
-
-      if (!response.ok) {
-        logger.error('Failed Stagehand agent response', {
-          status: response.status,
-          error: data.error,
-        })
-
-        return {
-          success: false,
-          output: {
-            agentResult: {
-              success: false,
-              completed: false,
-              message: data.error || 'Failed to execute agent task using Stagehand',
-              actions: [],
-            },
-          },
-          error: data.error || 'Failed to execute agent task using Stagehand',
-        }
-      }
-
-      logger.info('Successful Stagehand agent response', {
-        agentSuccess: data.agentResult?.success,
-        hasStructuredOutput: !!data.structuredOutput,
-      })
-
-      return {
-        success: true,
-        output: {
-          agentResult: data.agentResult,
-          structuredOutput: data.structuredOutput || {},
-        },
-      }
-    } catch (error) {
-      logger.error('Error processing Stagehand agent response', { error })
-      return {
-        success: false,
-        output: {
-          agentResult: {
-            success: false,
-            completed: false,
-            message: 'Failed to process agent response',
-            actions: [],
-          },
-        },
-        error: 'Failed to process agent response',
-      }
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        agentResult: data.agentResult,
+        structuredOutput: data.structuredOutput || {},
+      },
     }
   },
 
-  // Handle errors
-  transformError: (error) => {
-    logger.error('Stagehand agent error', { error })
-    return error instanceof Error ? error.message : 'Unknown error during agent execution'
+  transformError: (error: Error) => {
+    return `Stagehand API Error: ${error.message || 'Unknown error'}`
   },
 }

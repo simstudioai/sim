@@ -120,50 +120,20 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
     isInternalRoute: true,
   },
   transformResponse: async (response): Promise<KnowledgeSearchResponse> => {
-    try {
-      const result = await response.json()
-
-      if (!response.ok) {
-        const errorMessage = result.error || result.message || 'Failed to perform search'
-        throw new Error(errorMessage)
-      }
-
-      const data = result.data || result
-
-      return {
-        success: true,
-        output: {
-          results: data.results || [],
-          query: data.query,
-          totalResults: data.totalResults || 0,
-          cost: data.cost,
-        },
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        output: {
-          results: [],
-          query: '',
-          totalResults: 0,
-          cost: undefined,
-        },
-        error: error.message || 'Failed to perform vector search',
-      }
-    }
-  },
-  transformError: async (error): Promise<KnowledgeSearchResponse> => {
-    const errorMessage = error.message || 'Failed to perform search'
+    const result = await response.json()
+    const data = result.data || result
 
     return {
-      success: false,
+      success: true,
       output: {
-        results: [],
-        query: '',
-        totalResults: 0,
-        cost: undefined,
+        results: data.results || [],
+        query: data.query,
+        totalResults: data.totalResults || 0,
+        cost: data.cost,
       },
-      error: errorMessage,
     }
+  },
+  transformError: (error: Error) => {
+    return `Knowledge API Error: ${error.message}`
   },
 }

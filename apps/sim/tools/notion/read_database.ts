@@ -66,11 +66,6 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Notion API error: ${errorData.message || 'Unknown error'}`)
-    }
-
     const data = await response.json()
 
     // Extract database title
@@ -80,7 +75,7 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
     const properties = data.properties || {}
     const propertyList = Object.entries(properties)
       .map(([name, prop]: [string, any]) => `  ${name}: ${prop.type}`)
-      .join('\\n')
+      .join('\n')
 
     const content = [
       `Database: ${title}`,
@@ -92,7 +87,7 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
       `URL: ${data.url}`,
       `Created: ${data.created_time ? new Date(data.created_time).toLocaleDateString() : 'Unknown'}`,
       `Last edited: ${data.last_edited_time ? new Date(data.last_edited_time).toLocaleDateString() : 'Unknown'}`,
-    ].join('\\n')
+    ].join('\n')
 
     return {
       success: true,
@@ -110,7 +105,7 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to read Notion database'
+  transformError: (error: Error) => {
+    return `Notion API Error: ${error.message}`
   },
 }

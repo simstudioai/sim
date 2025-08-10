@@ -79,10 +79,6 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to perform search')
-    }
-
     const searchType = response.url.split('/').pop() || 'search'
     let searchResults: SearchResult[] = []
 
@@ -134,7 +130,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while performing the search'
+  transformError: (error: Error) => {
+    return `Serper API Error: ${error.message || 'Unknown error'}`
   },
 }

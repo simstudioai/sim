@@ -178,11 +178,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
       throw error
     }
   },
-  transformError: (error) => {
-    logger.error('Download error', {
-      message: error.message,
-      stack: error.stack,
-    })
-    return error.message || 'An error occurred while getting content from Google Drive'
+  transformError: (error: Error) => {
+    return `Google Drive API Error: ${error.message}`
   },
 }

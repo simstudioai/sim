@@ -54,11 +54,6 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to read Google Docs document: ${errorText}`)
-    }
-
     const data = await response.json()
 
     // Extract document content from the response
@@ -83,24 +78,8 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
       },
     }
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
-
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while reading Google Docs document'
+  transformError: (error: Error) => {
+    return `Google Docs API Error: ${error.message}`
   },
 }
 

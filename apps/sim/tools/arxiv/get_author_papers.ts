@@ -77,10 +77,6 @@ export const getAuthorPapersTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      throw new Error(`ArXiv API error: ${response.status} ${response.statusText}`)
-    }
-
     const xmlText = await response.text()
 
     // Parse XML response
@@ -97,9 +93,7 @@ export const getAuthorPapersTool: ToolConfig<
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while searching for author papers on ArXiv'
+  transformError: (error: Error) => {
+    return `arXiv API Error: ${error.message}`
   },
 }

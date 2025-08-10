@@ -161,12 +161,6 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(
-        data.errors?.[0]?.details || data.message || 'Failed to perform Hunter domain search'
-      )
-    }
-
     return {
       success: true,
       output: {
@@ -209,9 +203,7 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while performing the Hunter domain search'
+  transformError: (error: Error) => {
+    return `Hunter API Error: ${error.message}`
   },
 }

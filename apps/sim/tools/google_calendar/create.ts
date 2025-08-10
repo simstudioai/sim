@@ -157,11 +157,6 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error?.message || 'Failed to create calendar event')
-    }
-
     const data: GoogleCalendarApiEventResponse = await response.json()
 
     return {
@@ -185,19 +180,7 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
     }
   },
 
-  transformError: (error) => {
-    if (error.error?.message) {
-      if (error.error.message.includes('invalid authentication credentials')) {
-        return 'Invalid or expired access token. Please reauthenticate.'
-      }
-      if (error.error.message.includes('quota')) {
-        return 'Google Calendar API quota exceeded. Please try again later.'
-      }
-      if (error.error.message.includes('Calendar not found')) {
-        return 'Calendar not found. Please check the calendar ID.'
-      }
-      return error.error.message
-    }
-    return error.message || 'An unexpected error occurred while creating the calendar event'
+  transformError: (error: Error) => {
+    return `Google Calendar API Error: ${error.message}`
   },
 }

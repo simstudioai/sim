@@ -141,76 +141,30 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
     },
   },
 
-  transformResponse: async (response, params) => {
-    try {
-      // Check if the response was successful
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        console.error('Hugging Face API error:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData,
-          url: response.url,
-        })
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
 
-        const errorMessage = errorData
-          ? `API error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`
-          : `API error: ${response.status} ${response.statusText}`
-
-        throw new Error(errorMessage)
-      }
-
-      const data = await response.json()
-
-      // Validate response structure
-      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-        console.error('Invalid Hugging Face response format:', data)
-        throw new Error('Invalid response format from Hugging Face API')
-      }
-
-      return {
-        success: true,
-        output: {
-          content: data.choices[0].message.content,
-          model: data.model || params?.model || 'unknown',
-          usage: data.usage
-            ? {
-                prompt_tokens: data.usage.prompt_tokens || 0,
-                completion_tokens: data.usage.completion_tokens || 0,
-                total_tokens: data.usage.total_tokens || 0,
-              }
-            : {
-                prompt_tokens: 0,
-                completion_tokens: 0,
-                total_tokens: 0,
-              },
-        },
-      }
-    } catch (error: any) {
-      console.error('Failed to process Hugging Face response:', error)
-      throw error
+    return {
+      success: true,
+      output: {
+        content: data.choices?.[0]?.message?.content || '',
+        model: data.model || 'unknown',
+        usage: data.usage
+          ? {
+              prompt_tokens: data.usage.prompt_tokens || 0,
+              completion_tokens: data.usage.completion_tokens || 0,
+              total_tokens: data.usage.total_tokens || 0,
+            }
+          : {
+              prompt_tokens: 0,
+              completion_tokens: 0,
+              total_tokens: 0,
+            },
+      },
     }
   },
 
-  transformError: (error) => {
-    let errorMessage = 'Unknown error occurred'
-
-    if (error) {
-      if (typeof error === 'string') {
-        errorMessage = error
-      } else if (error.message) {
-        errorMessage = error.message
-      } else if (error.error) {
-        errorMessage = error.error
-      } else {
-        try {
-          errorMessage = JSON.stringify(error)
-        } catch (e) {
-          errorMessage = 'Error occurred but could not be serialized'
-        }
-      }
-    }
-
-    return `Hugging Face chat completion failed: ${errorMessage}`
+  transformError: (error: Error) => {
+    return `Hugging Face API Error: ${error.message}`
   },
 }

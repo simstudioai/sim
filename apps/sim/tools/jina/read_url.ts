@@ -82,7 +82,7 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to read URL'
+  transformError: (error: Error) => {
+    return `Jina API Error: ${error.message}`
   },
 }

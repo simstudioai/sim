@@ -70,10 +70,6 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.message || data.error || 'Failed to generate answer')
-    }
-
     return {
       success: true,
       output: {
@@ -89,7 +85,7 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while generating an answer'
+  transformError: (error: Error) => {
+    return `Exa API Error: ${error.message}`
   },
 }

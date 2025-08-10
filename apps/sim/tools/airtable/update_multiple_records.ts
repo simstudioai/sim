@@ -63,10 +63,6 @@ export const airtableUpdateMultipleRecordsTool: ToolConfig<
 
   transformResponse: async (response) => {
     const data = await response.json()
-    if (!response.ok) {
-      // logger.error('Airtable API error:', data)
-      throw new Error(data.error?.message || 'Failed to update Airtable records')
-    }
     return {
       success: true,
       output: {
@@ -79,9 +75,8 @@ export const airtableUpdateMultipleRecordsTool: ToolConfig<
     }
   },
 
-  transformError: (error: any) => {
-    // logger.error('Airtable tool error:', error)
-    return `Failed to update multiple Airtable records: ${error.message || 'Unknown error'}`
+  transformError: (error: Error) => {
+    return `Airtable API Error: ${error.message}`
   },
 
   outputs: {

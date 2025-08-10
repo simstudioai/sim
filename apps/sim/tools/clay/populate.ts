@@ -53,15 +53,8 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
 
     if (contentType?.includes('application/json')) {
       data = await response.json()
-      if (!data.ok) {
-        throw new Error(data.error || 'Clay API error')
-      }
     } else {
-      // Handle text response
       data = await response.text()
-      if (data !== 'OK' && !response.ok) {
-        throw new Error(data || 'Clay API error')
-      }
     }
 
     return {
@@ -72,8 +65,7 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
     }
   },
 
-  transformError: (error: any) => {
-    const message = error.message || 'Clay populate failed'
-    return message
+  transformError: (error: Error) => {
+    return `Clay API Error: ${error.message}`
   },
 }

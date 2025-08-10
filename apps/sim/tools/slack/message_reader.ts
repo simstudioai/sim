@@ -110,9 +110,6 @@ export const slackMessageReaderTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    if (!data.ok) {
-      throw new Error(data.error || 'Slack Message Reader API error')
-    }
 
     const messages = (data.messages || []).map((message: any) => ({
       ts: message.ts,
@@ -130,8 +127,7 @@ export const slackMessageReaderTool: ToolConfig<
     }
   },
 
-  transformError: (error: any) => {
-    const message = error.message || 'Slack message reading failed'
-    return message
+  transformError: (error: Error) => {
+    return `Slack API Error: ${error.message || 'Unknown error'}`
   },
 }

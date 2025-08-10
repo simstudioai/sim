@@ -95,7 +95,7 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
       },
     }
   },
-  transformError: (error) => {
-    return error.message || 'An error occurred while creating folder in Google Drive'
+  transformError: (error: Error) => {
+    return `Google Drive API Error: ${error.message}`
   },
 }

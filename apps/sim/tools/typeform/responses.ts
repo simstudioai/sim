@@ -75,47 +75,14 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
     }),
   },
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      let errorMessage = response.statusText || 'Unknown error'
+    const data = await response.json()
 
-      try {
-        const errorData = await response.json()
-        if (errorData?.message) {
-          errorMessage = errorData.message
-        } else if (errorData?.description) {
-          errorMessage = errorData.description
-        } else if (typeof errorData === 'string') {
-          errorMessage = errorData
-        }
-      } catch (_e) {
-        // If we can't parse the error as JSON, just use the status text
-      }
-
-      throw new Error(`Typeform API error (${response.status}): ${errorMessage}`)
-    }
-
-    try {
-      const data = await response.json()
-
-      return {
-        success: true,
-        output: data,
-      }
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Typeform response: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
+    return {
+      success: true,
+      output: data,
     }
   },
-  transformError: (error) => {
-    if (error instanceof Error) {
-      return `Failed to retrieve Typeform responses: ${error.message}`
-    }
-
-    if (typeof error === 'object' && error !== null) {
-      return `Failed to retrieve Typeform responses: ${JSON.stringify(error)}`
-    }
-
-    return 'Failed to retrieve Typeform responses: An unknown error occurred'
+  transformError: (error: Error) => {
+    return `Typeform API Error: ${error.message || 'Unknown error'}`
   },
 }

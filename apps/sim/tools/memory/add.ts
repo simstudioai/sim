@@ -88,41 +88,20 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
     isInternalRoute: true,
   },
   transformResponse: async (response): Promise<MemoryResponse> => {
-    try {
-      const result = await response.json()
-      const errorMessage = result.error?.message || 'Failed to add memory'
+    const result = await response.json()
+    const data = result.data || result
 
-      const data = result.data || result
+    // For agent memories, return the full array of message objects
+    const memories = Array.isArray(data.data) ? data.data : [data.data]
 
-      // For agent memories, return the full array of message objects
-      const memories = Array.isArray(data.data) ? data.data : [data.data]
-
-      return {
-        success: true,
-        output: {
-          memories,
-        },
-        error: errorMessage,
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        output: {
-          memories: undefined,
-        },
-        error,
-      }
+    return {
+      success: true,
+      output: {
+        memories,
+      },
     }
   },
-  transformError: async (error): Promise<MemoryResponse> => {
-    const errorMessage = `Memory operation failed: ${error.message || 'Unknown error occurred'}`
-    return {
-      success: false,
-      output: {
-        memories: undefined,
-        message: `Memory operation failed: ${error.message || 'Unknown error occurred'}`,
-      },
-      error: errorMessage,
-    }
+  transformError: (error: Error) => {
+    return `Memory API Error: ${error.message}`
   },
 }

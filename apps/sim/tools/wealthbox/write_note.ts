@@ -171,31 +171,10 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
     return formatNoteResponse(data)
   },
   transformResponse: async (response: Response, params?: WealthboxWriteParams) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      handleApiError(response, errorText)
-    }
-
     const data = await response.json()
     return formatNoteResponse(data)
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
-
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while writing Wealthbox note'
+  transformError: (error: Error) => {
+    return `Wealthbox API Error: ${error.message || 'Unknown error'}`
   },
 }

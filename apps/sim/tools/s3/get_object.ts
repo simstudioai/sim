@@ -108,54 +108,38 @@ export const s3GetObjectTool: ToolConfig = {
     },
   },
   transformResponse: async (response: Response, params) => {
-    try {
-      if (!response.ok) {
-        throw new Error(`S3 request failed: ${response.status} ${response.statusText}`)
-      }
-
-      // Parse S3 URI if not already parsed
-      if (!params.bucketName || !params.region || !params.objectKey) {
-        const { bucketName, region, objectKey } = parseS3Uri(params.s3Uri)
-        params.bucketName = bucketName
-        params.region = region
-        params.objectKey = objectKey
-      }
-
-      // Get file metadata
-      const contentType = response.headers.get('content-type') || 'application/octet-stream'
-      const contentLength = Number.parseInt(response.headers.get('content-length') || '0', 10)
-      const lastModified = response.headers.get('last-modified') || new Date().toISOString()
-      const fileName = params.objectKey.split('/').pop() || params.objectKey
-
-      // Generate pre-signed URL for download
-      const url = generatePresignedUrl(params, 3600)
-
-      return {
-        success: true,
-        output: {
-          url,
-          metadata: {
-            fileType: contentType,
-            size: contentLength,
-            name: fileName,
-            lastModified: lastModified,
-          },
-        },
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      return {
-        success: false,
-        output: {
-          url: '',
-          metadata: {
-            fileType: 'error',
-            size: 0,
-            name: params.objectKey?.split('/').pop() || 'unknown',
-            error: errorMessage,
-          },
-        },
-      }
+    // Parse S3 URI if not already parsed
+    if (!params.bucketName || !params.region || !params.objectKey) {
+      const { bucketName, region, objectKey } = parseS3Uri(params.s3Uri)
+      params.bucketName = bucketName
+      params.region = region
+      params.objectKey = objectKey
     }
+
+    // Get file metadata
+    const contentType = response.headers.get('content-type') || 'application/octet-stream'
+    const contentLength = Number.parseInt(response.headers.get('content-length') || '0', 10)
+    const lastModified = response.headers.get('last-modified') || new Date().toISOString()
+    const fileName = params.objectKey.split('/').pop() || params.objectKey
+
+    // Generate pre-signed URL for download
+    const url = generatePresignedUrl(params, 3600)
+
+    return {
+      success: true,
+      output: {
+        url,
+        metadata: {
+          fileType: contentType,
+          size: contentLength,
+          name: fileName,
+          lastModified: lastModified,
+        },
+      },
+    }
+  },
+
+  transformError: (error: Error) => {
+    return `S3 API Error: ${error.message || 'Unknown error'}`
   },
 }

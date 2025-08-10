@@ -111,48 +111,22 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
   },
 
   transformResponse: async (response) => {
-    try {
-      // Check if the response was successful
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        console.error('Perplexity API error:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData,
-        })
-
-        const errorMessage = errorData
-          ? JSON.stringify(errorData)
-          : `API error: ${response.status} ${response.statusText}`
-
-        throw new Error(errorMessage)
-      }
-
-      const data = await response.json()
-
-      // Validate response structure
-      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-        console.error('Invalid Perplexity response format:', data)
-        throw new Error('Invalid response format from Perplexity API')
-      }
-
-      return {
-        success: true,
-        output: {
-          content: data.choices[0].message.content,
-          model: data.model,
-          usage: {
-            prompt_tokens: data.usage.prompt_tokens,
-            completion_tokens: data.usage.completion_tokens,
-            total_tokens: data.usage.total_tokens,
-          },
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        content: data.choices[0].message.content,
+        model: data.model,
+        usage: {
+          prompt_tokens: data.usage.prompt_tokens,
+          completion_tokens: data.usage.completion_tokens,
+          total_tokens: data.usage.total_tokens,
         },
-      }
-    } catch (error: any) {
-      console.error('Failed to process Perplexity response:', error)
-      throw error
+      },
     }
   },
 
-  transformError: (error) => `Perplexity chat completion failed: ${error.message}`,
+  transformError: (error: Error) => {
+    return `Perplexity API Error: ${error.message}`
+  },
 }

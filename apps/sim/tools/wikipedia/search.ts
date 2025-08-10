@@ -71,16 +71,7 @@ export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchRespon
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      throw new Error(`Wikipedia search API error: ${response.status} ${response.statusText}`)
-    }
-
     const data = await response.json()
-
-    // OpenSearch API returns [searchTerm, titles[], descriptions[], urls[]]
-    if (!Array.isArray(data) || data.length < 4) {
-      throw new Error('Invalid OpenSearch response format')
-    }
 
     const [searchTerm, titles, descriptions, urls] = data
     const searchResults = titles.map((title: string, index: number) => ({
@@ -104,7 +95,7 @@ export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchRespon
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while searching Wikipedia'
+  transformError: (error: Error) => {
+    return `Wikipedia API Error: ${error.message || 'Unknown error'}`
   },
 }

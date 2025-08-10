@@ -82,10 +82,6 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
   transformResponse: async (response: Response, params) => {
     const existingEvent = await response.json()
 
-    if (!response.ok) {
-      throw new Error(existingEvent.error?.message || 'Failed to fetch existing event')
-    }
-
     // Validate required fields exist
     if (!existingEvent.start || !existingEvent.end || !existingEvent.summary) {
       throw new Error('Existing event is missing required fields (start, end, or summary)')
@@ -258,30 +254,7 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
     }
   },
 
-  transformError: (error) => {
-    if (error.error?.message) {
-      if (error.error.message.includes('invalid authentication credentials')) {
-        return 'Invalid or expired access token. Please reauthenticate.'
-      }
-      if (error.error.message.includes('quota')) {
-        return 'Google Calendar API quota exceeded. Please try again later.'
-      }
-      if (error.error.message.includes('Calendar not found')) {
-        return 'Calendar not found. Please check the calendar ID.'
-      }
-      if (
-        error.error.message.includes('Event not found') ||
-        error.error.message.includes('Not Found')
-      ) {
-        return 'Event not found. Please check the event ID.'
-      }
-      if (error.error.message.includes('Failed to fetch existing event')) {
-        return `Unable to retrieve existing event details: ${error.error.message}`
-      }
-      return error.error.message
-    }
-    return (
-      error.message || 'An unexpected error occurred while inviting attendees to the calendar event'
-    )
+  transformError: (error: Error) => {
+    return `Google Calendar API Error: ${error.message}`
   },
 }

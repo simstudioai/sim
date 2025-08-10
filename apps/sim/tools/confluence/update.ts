@@ -100,19 +100,6 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
-      console.error('Update tool error response:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorData,
-      })
-      console.error(
-        errorData?.error ||
-          `Failed to update Confluence page: ${response.status} ${response.statusText}`
-      )
-    }
-
     const data = await response.json()
     return {
       success: true,
@@ -126,7 +113,7 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
     }
   },
 
-  transformError: (error: any) => {
-    return error.message || 'Failed to update Confluence page'
+  transformError: (error: Error) => {
+    return `Confluence API Error: ${error.message}`
   },
 }

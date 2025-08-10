@@ -68,9 +68,6 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
   },
   transformResponse: async (response: Response): Promise<YouTubeSearchResponse> => {
     const data = await response.json()
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'YouTube API error')
-    }
     const items = (data.items || []).map((item: any) => ({
       videoId: item.id?.videoId,
       title: item.snippet?.title,
@@ -90,9 +87,7 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
       },
     }
   },
-  transformError: (error: any): string => {
-    const message = error.error?.message || error.message || 'YouTube search failed'
-    const code = error.error?.code || error.code
-    return `${message} (${code})`
+  transformError: (error: Error) => {
+    return `YouTube API Error: ${error.message}`
   },
 }

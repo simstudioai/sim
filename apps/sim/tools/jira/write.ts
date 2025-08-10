@@ -171,71 +171,35 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
   },
 
   transformResponse: async (response: Response, params?: JiraWriteParams) => {
-    // Log the response details for debugging
     const responseText = await response.text()
 
-    if (!response.ok) {
-      try {
-        if (responseText) {
-          const data = JSON.parse(responseText)
-          throw new Error(
-            data.errorMessages?.[0] ||
-              data.errors?.[Object.keys(data.errors)[0]] ||
-              data.message ||
-              'Failed to create Jira issue'
-          )
-        }
-        throw new Error(`Request failed with status ${response.status}: ${response.statusText}`)
-      } catch (e) {
-        if (e instanceof SyntaxError) {
-          // If we can't parse the response as JSON, return the raw text
-          throw new Error(`Jira API error (${response.status}): ${responseText}`)
-        }
-        throw e
-      }
-    }
-
-    // For successful responses
-    try {
-      if (!responseText) {
-        return {
-          success: true,
-          output: {
-            ts: new Date().toISOString(),
-            issueKey: 'unknown',
-            summary: 'Issue created successfully',
-            success: true,
-            url: '',
-          },
-        }
-      }
-
-      const data = JSON.parse(responseText)
-      return {
-        success: true,
-        output: {
-          ts: new Date().toISOString(),
-          issueKey: data.key || 'unknown',
-          summary: data.fields?.summary || 'Issue created',
-          success: true,
-          url: `https://${params?.domain}/browse/${data.key}`,
-        },
-      }
-    } catch (_e) {
+    if (!responseText) {
       return {
         success: true,
         output: {
           ts: new Date().toISOString(),
           issueKey: 'unknown',
-          summary: 'Issue created (response parsing failed)',
+          summary: 'Issue created successfully',
           success: true,
           url: '',
         },
       }
     }
+
+    const data = JSON.parse(responseText)
+    return {
+      success: true,
+      output: {
+        ts: new Date().toISOString(),
+        issueKey: data.key || 'unknown',
+        summary: data.fields?.summary || 'Issue created',
+        success: true,
+        url: `https://${params?.domain}/browse/${data.key}`,
+      },
+    }
   },
 
-  transformError: (error: any) => {
-    return error.message || 'Failed to create Jira issue'
+  transformError: (error: Error) => {
+    return `Jira API Error: ${error.message}`
   },
 }

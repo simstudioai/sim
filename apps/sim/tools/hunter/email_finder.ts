@@ -83,12 +83,6 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(
-        data.errors?.[0]?.details || data.message || 'Failed to perform Hunter email finder'
-      )
-    }
-
     return {
       success: true,
       output: {
@@ -100,9 +94,7 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while performing the Hunter email finder'
+  transformError: (error: Error) => {
+    return `Hunter API Error: ${error.message}`
   },
 }

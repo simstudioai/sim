@@ -121,19 +121,6 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      let errorText = ''
-      try {
-        const responseClone = response.clone()
-        const responseText = await responseClone.text()
-        errorText = responseText
-      } catch (_e) {
-        errorText = 'Unable to read error response'
-      }
-
-      throw new Error(`Failed to create Google Docs document (${response.status}): ${errorText}`)
-    }
-
     try {
       // Get the response data
       const responseText = await response.text()
@@ -162,23 +149,7 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
       throw error
     }
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
-
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while creating Google Docs document'
+  transformError: (error: Error) => {
+    return `Google Docs API Error: ${error.message}`
   },
 }

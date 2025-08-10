@@ -49,13 +49,6 @@ export const pageContentTool: ToolConfig<WikipediaPageContentParams, WikipediaPa
     },
 
     transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Wikipedia page not found')
-        }
-        throw new Error(`Wikipedia API error: ${response.status} ${response.statusText}`)
-      }
-
       const html = await response.text()
 
       // Extract metadata from response headers
@@ -79,9 +72,7 @@ export const pageContentTool: ToolConfig<WikipediaPageContentParams, WikipediaPa
       }
     },
 
-    transformError: (error) => {
-      return error instanceof Error
-        ? error.message
-        : 'An error occurred while retrieving the Wikipedia page content'
+    transformError: (error: Error) => {
+      return `Wikipedia API Error: ${error.message || 'Unknown error'}`
     },
   }

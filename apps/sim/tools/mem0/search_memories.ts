@@ -66,66 +66,44 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
     },
   },
   transformResponse: async (response) => {
-    try {
-      // Get raw response for debugging
-      const responseText = await response.clone().text()
+    const data = await response.json()
 
-      // Parse the response
-      const data = JSON.parse(responseText)
-
-      // Handle empty results
-      if (!data || (Array.isArray(data) && data.length === 0)) {
-        return {
-          success: true,
-          output: {
-            searchResults: [],
-            ids: [],
-          },
-        }
-      }
-
-      // For array results (standard format)
-      if (Array.isArray(data)) {
-        const searchResults = data.map((item) => ({
-          id: item.id,
-          data: { memory: item.memory || '' },
-          score: item.score || 0,
-        }))
-
-        const ids = data.map((item) => item.id).filter(Boolean)
-
-        return {
-          success: true,
-          output: {
-            searchResults,
-            ids,
-          },
-        }
-      }
-
-      // Fallback for unexpected response format
+    if (!data || (Array.isArray(data) && data.length === 0)) {
       return {
         success: true,
         output: {
           searchResults: [],
-        },
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        output: {
-          error: `Failed to process search response: ${error.message}`,
+          ids: [],
         },
       }
     }
-  },
-  transformError: async (error) => {
+
+    if (Array.isArray(data)) {
+      const searchResults = data.map((item) => ({
+        id: item.id,
+        data: { memory: item.memory || '' },
+        score: item.score || 0,
+      }))
+
+      const ids = data.map((item) => item.id).filter(Boolean)
+
+      return {
+        success: true,
+        output: {
+          searchResults,
+          ids,
+        },
+      }
+    }
+
     return {
-      success: false,
+      success: true,
       output: {
-        ids: [],
         searchResults: [],
       },
     }
+  },
+  transformError: (error: Error) => {
+    return `Mem0 API Error: ${error.message}`
   },
 }

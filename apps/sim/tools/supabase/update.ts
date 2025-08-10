@@ -125,11 +125,6 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
     }
   },
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to update rows in Supabase')
-    }
-
     // Handle potentially empty response from update operations
     const text = await response.text()
     let data
@@ -157,7 +152,7 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
       error: undefined,
     }
   },
-  transformError: (error: any) => {
-    return error.message || 'An error occurred while updating rows in Supabase'
+  transformError: (error: Error) => {
+    return `Supabase API Error: ${error.message || 'Unknown error'}`
   },
 }

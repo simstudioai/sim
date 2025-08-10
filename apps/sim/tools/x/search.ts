@@ -192,22 +192,7 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
     }
   },
 
-  transformError: (error) => {
-    // Log the full error object for debugging
-    console.error('X Search API Error:', JSON.stringify(error, null, 2))
-
-    if (error.title === 'Unauthorized') {
-      return 'Invalid or expired access token. Please reconnect your X account.'
-    }
-    if (error.title === 'Invalid Request') {
-      return 'Invalid search query. Please check your search parameters.'
-    }
-    if (error.status === 429) {
-      return 'Rate limit exceeded. Please try again later.'
-    }
-    if (error.detail && typeof error.detail === 'string') {
-      return `X API error: ${error.detail}`
-    }
-    return error.detail || error.message || 'An error occurred while searching X'
+  transformError: (error: Error) => {
+    return `X API Error: ${error.message || 'Unknown error'}`
   },
 }

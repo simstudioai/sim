@@ -58,34 +58,14 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
   },
 
   transformResponse: async (response) => {
-    try {
-      const data = await response.json()
-
-      if (!response.ok) {
-        return {
-          success: false,
-          output: {},
-          error: data.error || 'Failed to extract data using Stagehand',
-        }
-      }
-
-      return {
-        success: true,
-        output: data.data || {},
-      }
-    } catch (error) {
-      logger.error('Error processing Stagehand extraction response', { error })
-      return {
-        success: false,
-        output: {},
-        error: 'Failed to process extraction response',
-      }
+    const data = await response.json()
+    return {
+      success: true,
+      output: data.data || {},
     }
   },
 
-  // Handle errors
-  transformError: (error) => {
-    logger.error('Stagehand extraction error', { error })
-    return error instanceof Error ? error.message : 'Unknown error during extraction'
+  transformError: (error: Error) => {
+    return `Stagehand API Error: ${error.message || 'Unknown error'}`
   },
 }

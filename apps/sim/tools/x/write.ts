@@ -121,13 +121,7 @@ export const xWriteTool: ToolConfig<XWriteParams, XWriteResponse> = {
     }
   },
 
-  transformError: (error) => {
-    if (error.title === 'Unauthorized') {
-      return 'Invalid or expired access token. Please reconnect your X account.'
-    }
-    if (error.title === 'Forbidden') {
-      return 'You do not have permission to post tweets. Ensure your X app has tweet.write scope.'
-    }
-    return error.detail || 'An unexpected error occurred while posting to X'
+  transformError: (error: Error) => {
+    return `X API Error: ${error.message || 'Unknown error'}`
   },
 }

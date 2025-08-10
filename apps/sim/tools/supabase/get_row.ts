@@ -104,11 +104,6 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
     }
   },
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to get row from Supabase')
-    }
-
     const data = await response.json()
     const row = data.length > 0 ? data[0] : null
 
@@ -121,7 +116,7 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
       error: undefined,
     }
   },
-  transformError: (error: any) => {
-    return error.message || 'An error occurred while getting row from Supabase'
+  transformError: (error: Error) => {
+    return `Supabase API Error: ${error.message || 'Unknown error'}`
   },
 }

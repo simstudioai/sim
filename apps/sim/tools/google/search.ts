@@ -88,11 +88,6 @@ export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = 
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error?.message || 'Failed to perform Google search')
-    }
-
     const data = await response.json()
 
     return {
@@ -109,9 +104,7 @@ export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = 
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while performing the Google search'
+  transformError: (error: Error) => {
+    return `Google API Error: ${error.message}`
   },
 }

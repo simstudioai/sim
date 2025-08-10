@@ -87,54 +87,32 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
     body: (params) => (params.content || '') as unknown as Record<string, unknown>,
   },
   transformResponse: async (response: Response, params?: OneDriveToolParams) => {
-    try {
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        logger.error('Failed to upload file to OneDrive', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData,
-        })
-        throw new Error(errorData.error?.message || 'Failed to upload file to OneDrive')
-      }
+    // Microsoft Graph API returns the file metadata directly
+    const fileData = await response.json()
 
-      // Microsoft Graph API returns the file metadata directly
-      const fileData = await response.json()
+    logger.info('Successfully uploaded file to OneDrive', {
+      fileId: fileData.id,
+      fileName: fileData.name,
+    })
 
-      logger.info('Successfully uploaded file to OneDrive', {
-        fileId: fileData.id,
-        fileName: fileData.name,
-      })
-
-      return {
-        success: true,
-        output: {
-          file: {
-            id: fileData.id,
-            name: fileData.name,
-            mimeType: fileData.file?.mimeType || params?.mimeType || 'text/plain',
-            webViewLink: fileData.webUrl,
-            webContentLink: fileData['@microsoft.graph.downloadUrl'],
-            size: fileData.size,
-            createdTime: fileData.createdDateTime,
-            modifiedTime: fileData.lastModifiedDateTime,
-            parentReference: fileData.parentReference,
-          },
+    return {
+      success: true,
+      output: {
+        file: {
+          id: fileData.id,
+          name: fileData.name,
+          mimeType: fileData.file?.mimeType || params?.mimeType || 'text/plain',
+          webViewLink: fileData.webUrl,
+          webContentLink: fileData['@microsoft.graph.downloadUrl'],
+          size: fileData.size,
+          createdTime: fileData.createdDateTime,
+          modifiedTime: fileData.lastModifiedDateTime,
+          parentReference: fileData.parentReference,
         },
-      }
-    } catch (error: any) {
-      logger.error('Error in upload transformation', {
-        error: error.message,
-        stack: error.stack,
-      })
-      throw error
+      },
     }
   },
-  transformError: (error) => {
-    logger.error('Upload error', {
-      error: error.message,
-      stack: error.stack,
-    })
-    return error.message || 'An error occurred while uploading to OneDrive'
+  transformError: (error: Error) => {
+    return `OneDrive API Error: ${error.message}`
   },
 }

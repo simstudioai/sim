@@ -78,10 +78,6 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to extract content')
-    }
-
     return {
       success: true,
       output: {
@@ -92,7 +88,7 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while extracting content'
+  transformError: (error: Error) => {
+    return `Tavily API Error: ${error.message || 'Unknown error'}`
   },
 }

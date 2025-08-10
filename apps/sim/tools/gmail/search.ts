@@ -80,10 +80,6 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
   transformResponse: async (response, params) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to search emails')
-    }
-
     if (!data.messages || data.messages.length === 0) {
       return {
         success: true,
@@ -151,17 +147,8 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
     }
   },
 
-  transformError: (error) => {
-    if (error.error?.message) {
-      if (error.error.message.includes('invalid authentication credentials')) {
-        return 'Invalid or expired access token. Please reauthenticate.'
-      }
-      if (error.error.message.includes('quota')) {
-        return 'Gmail API quota exceeded. Please try again later.'
-      }
-      return error.error.message
-    }
-    return error.message || 'An unexpected error occurred while searching emails'
+  transformError: (error: Error) => {
+    return `Gmail API Error: ${error.message}`
   },
 }
 

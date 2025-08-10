@@ -122,13 +122,7 @@ export const mem0AddMemoriesTool: ToolConfig = {
       },
     }
   },
-  transformError: async (error) => {
-    return {
-      success: false,
-      output: {
-        ids: [],
-        memories: [],
-      },
-    }
+  transformError: (error: Error) => {
+    return `Mem0 API Error: ${error.message}`
   },
 }

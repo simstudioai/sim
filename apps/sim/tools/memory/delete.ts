@@ -47,38 +47,16 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
     isInternalRoute: true,
   },
   transformResponse: async (response): Promise<MemoryResponse> => {
-    try {
-      const result = await response.json()
+    const result = await response.json()
 
-      if (!response.ok) {
-        const errorMessage = result.error?.message || 'Failed to delete memory'
-        throw new Error(errorMessage)
-      }
-
-      return {
-        success: true,
-        output: {
-          message: 'Memory deleted successfully.',
-        },
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        output: {
-          message: `Failed to delete memory: ${error.message || 'Unknown error'}`,
-        },
-        error: `Failed to delete memory: ${error.message || 'Unknown error'}`,
-      }
+    return {
+      success: true,
+      output: {
+        message: 'Memory deleted successfully.',
+      },
     }
   },
-  transformError: async (error): Promise<MemoryResponse> => {
-    const errorMessage = `Memory deletion failed: ${error.message || 'Unknown error'}`
-    return {
-      success: false,
-      output: {
-        message: errorMessage,
-      },
-      error: errorMessage,
-    }
+  transformError: (error: Error) => {
+    return `Memory API Error: ${error.message}`
   },
 }

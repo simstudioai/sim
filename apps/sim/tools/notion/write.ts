@@ -87,7 +87,7 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to append content to Notion page'
+  transformError: (error: Error) => {
+    return `Notion API Error: ${error.message}`
   },
 }

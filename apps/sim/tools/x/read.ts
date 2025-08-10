@@ -116,13 +116,7 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
     }
   },
 
-  transformError: (error) => {
-    if (error.title === 'Unauthorized') {
-      return 'Invalid or expired access token. Please reconnect your X account.'
-    }
-    if (error.title === 'Not Found') {
-      return 'The specified tweet was not found.'
-    }
-    return error.detail || 'An unexpected error occurred while reading from X'
+  transformError: (error: Error) => {
+    return `X API Error: ${error.message || 'Unknown error'}`
   },
 }

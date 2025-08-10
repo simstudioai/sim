@@ -181,16 +181,6 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
   transformResponse: async (response: Response, params) => {
     const data: GraphApiResponse = await response.json()
 
-    if (!response.ok) {
-      logger.error('SharePoint API error', {
-        status: response.status,
-        statusText: response.statusText,
-        error: data.error,
-        data,
-      })
-      throw new Error(data.error?.message || 'Failed to read SharePoint page')
-    }
-
     logger.info('SharePoint API response', {
       pageId: params?.pageId,
       pageName: params?.pageName,
@@ -225,15 +215,23 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
     }
     // Multiple pages or search by name
     if (!data.value || data.value.length === 0) {
-      logger.error('No pages found', {
+      logger.info('No pages found', {
         searchName: params?.pageName,
         siteId: params?.siteId || params?.siteSelector || 'root',
         totalResults: data.value?.length || 0,
       })
-      const errorMessage = params?.pageName
+      const message = params?.pageName
         ? `Page with name '${params?.pageName}' not found. Make sure the page exists and you have access to it. Note: SharePoint page names typically include the .aspx extension.`
         : 'No pages found on this SharePoint site.'
-      throw new Error(errorMessage)
+      return {
+        success: true,
+        output: {
+          content: {
+            content: message,
+            canvasLayout: null,
+          },
+        },
+      }
     }
 
     logger.info('Found pages', {
@@ -377,7 +375,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       },
     }
   },
-  transformError: (error) => {
-    return error.message || 'An error occurred while reading the SharePoint page'
+  transformError: (error: Error) => {
+    return `SharePoint API Error: ${error.message || 'Unknown error'}`
   },
 }

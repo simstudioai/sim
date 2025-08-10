@@ -52,15 +52,6 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      // Extract specific error message from Hunter.io API
-      const errorMessage =
-        data.errors?.[0]?.details ||
-        data.message ||
-        `HTTP ${response.status}: Failed to find company data`
-      throw new Error(errorMessage)
-    }
-
     return {
       success: true,
       output: {
@@ -80,11 +71,7 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
     }
   },
 
-  transformError: (error) => {
-    if (error instanceof Error) {
-      // Return the exact error message from the API
-      return error.message
-    }
-    return 'An unexpected error occurred while finding company data'
+  transformError: (error: Error) => {
+    return `Hunter API Error: ${error.message}`
   },
 }

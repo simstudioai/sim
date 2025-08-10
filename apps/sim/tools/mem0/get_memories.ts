@@ -113,43 +113,20 @@ export const mem0GetMemoriesTool: ToolConfig = {
       return body
     },
   },
-  transformResponse: async (response, params) => {
-    try {
-      // Get raw response for debugging
-      const responseText = await response.clone().text()
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    const memories = Array.isArray(data) ? data : [data]
+    const ids = memories.map((memory) => memory.id).filter(Boolean)
 
-      // Parse the response
-      const data = JSON.parse(responseText)
-
-      // Format the memories for display
-      const memories = Array.isArray(data) ? data : [data]
-
-      // Extract IDs if available
-      const ids = memories.map((memory) => memory.id).filter(Boolean)
-
-      return {
-        success: true,
-        output: {
-          memories,
-          ids,
-        },
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        output: {
-          error: `Failed to process get memories response: ${error.message}`,
-        },
-      }
-    }
-  },
-  transformError: async (error) => {
     return {
-      success: false,
+      success: true,
       output: {
-        ids: [],
-        memories: [],
+        memories,
+        ids,
       },
     }
+  },
+  transformError: (error: Error) => {
+    return `Mem0 API Error: ${error.message}`
   },
 }

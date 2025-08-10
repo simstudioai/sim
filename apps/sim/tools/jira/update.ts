@@ -166,70 +166,33 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
   },
 
   transformResponse: async (response: Response, params?: JiraUpdateParams) => {
-    // Log the response details for debugging
     const responseText = await response.text()
 
-    if (!response.ok) {
-      try {
-        if (responseText) {
-          const data = JSON.parse(responseText)
-          throw new Error(
-            data.errorMessages?.[0] ||
-              data.errors?.[Object.keys(data.errors)[0]] ||
-              data.message ||
-              'Failed to update Jira issue'
-          )
-        }
-        throw new Error(`Request failed with status ${response.status}: ${response.statusText}`)
-      } catch (e) {
-        if (e instanceof SyntaxError) {
-          // If we can't parse the response as JSON, return the raw text
-          throw new Error(`Jira API error (${response.status}): ${responseText}`)
-        }
-        throw e
-      }
-    }
-
-    // For successful responses
-    try {
-      if (!responseText) {
-        // Some successful PUT requests might return no content
-        return {
-          success: true,
-          output: {
-            ts: new Date().toISOString(),
-            issueKey: params?.issueKey || 'unknown',
-            summary: 'Issue updated successfully',
-            success: true,
-          },
-        }
-      }
-
-      const data = JSON.parse(responseText)
-      return {
-        success: true,
-        output: {
-          ts: new Date().toISOString(),
-          issueKey: data.key || params?.issueKey || 'unknown',
-          summary: data.fields?.summary || 'Issue updated',
-          success: true,
-        },
-      }
-    } catch (_e) {
-      // If we can't parse the response but it was successful, still return success
+    if (!responseText) {
       return {
         success: true,
         output: {
           ts: new Date().toISOString(),
           issueKey: params?.issueKey || 'unknown',
-          summary: 'Issue updated (response parsing failed)',
+          summary: 'Issue updated successfully',
           success: true,
         },
       }
     }
+
+    const data = JSON.parse(responseText)
+    return {
+      success: true,
+      output: {
+        ts: new Date().toISOString(),
+        issueKey: data.key || params?.issueKey || 'unknown',
+        summary: data.fields?.summary || 'Issue updated',
+        success: true,
+      },
+    }
   },
 
-  transformError: (error: any) => {
-    return error.message || 'Failed to update Jira issue'
+  transformError: (error: Error) => {
+    return `Jira API Error: ${error.message}`
   },
 }

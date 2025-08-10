@@ -36,10 +36,6 @@ export const randomPageTool: ToolConfig<Record<string, never>, WikipediaRandomPa
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      throw new Error(`Wikipedia random page API error: ${response.status} ${response.statusText}`)
-    }
-
     const data = await response.json()
 
     return {
@@ -61,9 +57,7 @@ export const randomPageTool: ToolConfig<Record<string, never>, WikipediaRandomPa
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while retrieving a random Wikipedia page'
+  transformError: (error: Error) => {
+    return `Wikipedia API Error: ${error.message || 'Unknown error'}`
   },
 }

@@ -65,32 +65,7 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
     },
   },
   transformResponse: async (response: Response, params?: WealthboxReadParams) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error(
-        `Wealthbox contact API error: ${response.status} ${response.statusText}`,
-        errorText
-      )
-      throw new Error(
-        `Failed to read Wealthbox contact: ${response.status} ${response.statusText} - ${errorText}`
-      )
-    }
-
     const data = await response.json()
-
-    if (!data) {
-      return {
-        success: true,
-        output: {
-          contact: undefined,
-          metadata: {
-            operation: 'read_contact' as const,
-            contactId: params?.contactId || '',
-            itemType: 'contact' as const,
-          },
-        },
-      }
-    }
 
     // Format contact information into readable content
     const contact = data
@@ -131,23 +106,7 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
       },
     }
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
-
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while reading Wealthbox contact'
+  transformError: (error: Error) => {
+    return `Wealthbox API Error: ${error.message || 'Unknown error'}`
   },
 }

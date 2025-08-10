@@ -102,15 +102,6 @@ export const emailVerifierTool: ToolConfig<HunterEmailVerifierParams, HunterEmai
     transformResponse: async (response: Response) => {
       const data = await response.json()
 
-      if (!response.ok) {
-        // Extract specific error message from Hunter.io API
-        const errorMessage =
-          data.errors?.[0]?.details ||
-          data.message ||
-          `HTTP ${response.status}: Failed to verify email`
-        throw new Error(errorMessage)
-      }
-
       return {
         success: true,
         output: {
@@ -132,11 +123,7 @@ export const emailVerifierTool: ToolConfig<HunterEmailVerifierParams, HunterEmai
       }
     },
 
-    transformError: (error) => {
-      if (error instanceof Error) {
-        // Return the exact error message from the API
-        return error.message
-      }
-      return 'An unexpected error occurred while verifying email'
+    transformError: (error: Error) => {
+      return `Hunter API Error: ${error.message}`
     },
   }

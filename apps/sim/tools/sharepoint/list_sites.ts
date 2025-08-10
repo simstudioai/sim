@@ -114,10 +114,6 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
   transformResponse: async (response: Response, params) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to read SharePoint site(s)')
-    }
-
     // Check if this is a search result (multiple sites) or single site
     if (data.value && Array.isArray(data.value)) {
       // Multiple sites from search
@@ -155,7 +151,7 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
       },
     }
   },
-  transformError: (error) => {
-    return error.message || 'An error occurred while reading the SharePoint site'
+  transformError: (error: Error) => {
+    return `SharePoint API Error: ${error.message || 'Unknown error'}`
   },
 }

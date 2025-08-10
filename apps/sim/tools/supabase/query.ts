@@ -123,11 +123,6 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
     }
   },
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to query data from Supabase')
-    }
-
     const data = await response.json()
 
     return {
@@ -139,7 +134,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
       error: undefined,
     }
   },
-  transformError: (error: any) => {
-    return error.message || 'An error occurred while querying Supabase'
+  transformError: (error: Error) => {
+    return `Supabase API Error: ${error.message || 'Unknown error'}`
   },
 }

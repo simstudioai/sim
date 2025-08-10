@@ -149,11 +149,6 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
     },
   },
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to write data to Microsoft Excel: ${errorText}`)
-    }
-
     const data = await response.json()
 
     const urlParts = response.url.split('/drive/items/')
@@ -181,20 +176,7 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
 
     return result
   },
-  transformError: (error) => {
-    if (error instanceof Error) {
-      return error.message
-    }
-
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    return 'An error occurred while writing to Microsoft Excel'
+  transformError: (error: Error) => {
+    return `Microsoft Excel API Error: ${error.message}`
   },
 }

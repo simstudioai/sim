@@ -99,12 +99,6 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(
-        data.errors?.[0]?.details || data.message || 'Failed to perform Hunter discover'
-      )
-    }
-
     return {
       success: true,
       output: {
@@ -120,9 +114,7 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while performing the Hunter discover'
+  transformError: (error: Error) => {
+    return `Hunter API Error: ${error.message}`
   },
 }

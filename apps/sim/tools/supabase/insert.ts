@@ -110,11 +110,6 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
     }
   },
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to insert data into Supabase')
-    }
-
     // Handle empty response case
     const text = await response.text()
     if (!text || text.trim() === '') {
@@ -139,7 +134,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       error: undefined,
     }
   },
-  transformError: (error: any) => {
-    return error.message || 'An error occurred while inserting data into Supabase'
+  transformError: (error: Error) => {
+    return `Supabase API Error: ${error.message || 'Unknown error'}`
   },
 }

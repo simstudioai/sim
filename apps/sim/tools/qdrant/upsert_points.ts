@@ -65,19 +65,7 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
     }
   },
 
-  transformError: (error: any): string => {
-    if (error.error && typeof error.error === 'string') {
-      return error.error
-    }
-    if (error.status?.error) {
-      return error.status.error
-    }
-    if (error.message) {
-      return error.message
-    }
-    if (typeof error === 'string') {
-      return error
-    }
-    return 'Qdrant upsert failed'
+  transformError: (error: Error) => {
+    return `Qdrant API Error: ${error.message || 'Unknown error'}`
   },
 }

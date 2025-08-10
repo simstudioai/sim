@@ -53,10 +53,6 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText}`)
-    }
-
     const data = await response.json()
 
     return {
@@ -67,8 +63,8 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
     }
   },
 
-  transformError: (error) => {
+  transformError: (error: Error) => {
     logger.error('ElevenLabs TTS error:', error)
-    return `Error generating speech: ${error instanceof Error ? error.message : String(error)}`
+    return `ElevenLabs TTS API Error: ${error.message}`
   },
 }

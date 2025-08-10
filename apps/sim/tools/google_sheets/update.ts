@@ -140,11 +140,6 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to update data in Google Sheets: ${errorText}`)
-    }
-
     const data = await response.json()
 
     // Extract spreadsheet ID from the URL
@@ -174,23 +169,7 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
 
     return result
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
-
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while updating Google Sheets'
+  transformError: (error: Error) => {
+    return `Google Sheets API Error: ${error.message}`
   },
 }

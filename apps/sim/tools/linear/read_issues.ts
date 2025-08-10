@@ -87,13 +87,6 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
   },
   transformResponse: async (response) => {
     const data = await response.json()
-    if (data.errors) {
-      return {
-        success: false,
-        output: { issues: [] },
-        error: data.errors.map((e: any) => e.message).join('; '),
-      }
-    }
     return {
       success: true,
       output: {
@@ -108,23 +101,7 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
       },
     }
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
-
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'Failed to fetch Linear issues'
+  transformError: (error: Error) => {
+    return `Linear API Error: ${error.message}`
   },
 }

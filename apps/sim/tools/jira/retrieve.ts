@@ -76,85 +76,25 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
   },
 
   transformResponse: async (response: Response, params?: JiraRetrieveParams) => {
-    if (!params) {
-      throw new Error('Parameters are required for Jira issue retrieval')
-    }
+    // If we don't have a cloudId, we need to fetch it first
+    if (!params?.cloudId) {
+      const accessibleResources = await response.json()
+      const normalizedInput = `https://${params?.domain}`.toLowerCase()
+      const matchedResource = accessibleResources.find(
+        (r: any) => r.url.toLowerCase() === normalizedInput
+      )
 
-    try {
-      // If we don't have a cloudId, we need to fetch it first
-      if (!params.cloudId) {
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => null)
-          throw new Error(
-            errorData?.message ||
-              `Failed to fetch accessible resources: ${response.status} ${response.statusText}`
-          )
-        }
+      // Now fetch the actual issue with the found cloudId
+      const issueUrl = `https://api.atlassian.com/ex/jira/${matchedResource.id}/rest/api/3/issue/${params?.issueKey}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog`
+      const issueResponse = await fetch(issueUrl, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${params?.accessToken}`,
+        },
+      })
 
-        const accessibleResources = await response.json()
-        if (!Array.isArray(accessibleResources) || accessibleResources.length === 0) {
-          throw new Error('No accessible Jira resources found for this account')
-        }
-
-        const normalizedInput = `https://${params.domain}`.toLowerCase()
-        const matchedResource = accessibleResources.find(
-          (r) => r.url.toLowerCase() === normalizedInput
-        )
-
-        if (!matchedResource) {
-          throw new Error(`Could not find matching Jira site for domain: ${params.domain}`)
-        }
-
-        // Now fetch the actual issue with the found cloudId
-        const issueUrl = `https://api.atlassian.com/ex/jira/${matchedResource.id}/rest/api/3/issue/${params.issueKey}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog`
-        const issueResponse = await fetch(issueUrl, {
-          method: 'GET',
-          headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${params.accessToken}`,
-          },
-        })
-
-        if (!issueResponse.ok) {
-          const errorData = await issueResponse.json().catch(() => null)
-          throw new Error(
-            errorData?.message ||
-              `Failed to retrieve Jira issue: ${issueResponse.status} ${issueResponse.statusText}`
-          )
-        }
-
-        const data = await issueResponse.json()
-        if (!data || !data.fields) {
-          throw new Error('Invalid response format from Jira API')
-        }
-
-        return {
-          success: true,
-          output: {
-            ts: new Date().toISOString(),
-            issueKey: data.key,
-            summary: data.fields.summary,
-            description: data.fields.description,
-            created: data.fields.created,
-            updated: data.fields.updated,
-          },
-        }
-      }
-
-      // If we have a cloudId, this response is the issue data
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        throw new Error(
-          errorData?.message ||
-            `Failed to retrieve Jira issue: ${response.status} ${response.statusText}`
-        )
-      }
-
-      const data = await response.json()
-      if (!data || !data.fields) {
-        throw new Error('Invalid response format from Jira API')
-      }
-
+      const data = await issueResponse.json()
       return {
         success: true,
         output: {
@@ -166,12 +106,24 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
           updated: data.fields.updated,
         },
       }
-    } catch (error) {
-      throw error instanceof Error ? error : new Error(String(error))
+    }
+
+    // If we have a cloudId, this response is the issue data
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        ts: new Date().toISOString(),
+        issueKey: data.key,
+        summary: data.fields.summary,
+        description: data.fields.description,
+        created: data.fields.created,
+        updated: data.fields.updated,
+      },
     }
   },
 
-  transformError: (error: any) => {
-    return error.message || 'Failed to retrieve Jira issue'
+  transformError: (error: Error) => {
+    return `Jira API Error: ${error.message}`
   },
 }

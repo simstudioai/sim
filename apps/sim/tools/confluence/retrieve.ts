@@ -73,29 +73,16 @@ export const confluenceRetrieveTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
-      throw new Error(
-        errorData?.error ||
-          `Failed to retrieve Confluence page: ${response.status} ${response.statusText}`
-      )
-    }
-
     const data = await response.json()
     return transformPageData(data)
   },
 
-  transformError: (error: any) => {
-    return error.message || 'Failed to retrieve Confluence page'
+  transformError: (error: Error) => {
+    return `Confluence API Error: ${error.message}`
   },
 }
 
 function transformPageData(data: any) {
-  // More lenient check - only require id and title
-  if (!data || !data.id || !data.title) {
-    throw new Error('Invalid response format from Confluence API - missing required fields')
-  }
-
   // Get content from wherever we can find it
   const content =
     data.body?.view?.value ||
@@ -103,7 +90,7 @@ function transformPageData(data: any) {
     data.body?.atlas_doc_format?.value ||
     data.content ||
     data.description ||
-    `Content for page ${data.title}`
+    `Content for page ${data.title || 'Unknown'}`
 
   const cleanContent = content
     .replace(/<[^>]*>/g, '')
@@ -118,9 +105,9 @@ function transformPageData(data: any) {
     success: true,
     output: {
       ts: new Date().toISOString(),
-      pageId: data.id,
+      pageId: data.id || '',
       content: cleanContent,
-      title: data.title,
+      title: data.title || '',
     },
   }
 }

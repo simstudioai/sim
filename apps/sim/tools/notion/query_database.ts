@@ -130,11 +130,6 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Notion API error: ${errorData.message || 'Unknown error'}`)
-    }
-
     const data = await response.json()
     const results = data.results || []
 
@@ -168,8 +163,8 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to query Notion database'
+  transformError: (error: Error) => {
+    return `Notion API Error: ${error.message}`
   },
 }
 

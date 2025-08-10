@@ -112,11 +112,6 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Notion API error: ${errorData.message || 'Unknown error'}`)
-    }
-
     const data = await response.json()
 
     // Extract database title
@@ -153,7 +148,7 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to create Notion database'
+  transformError: (error: Error) => {
+    return `Notion API Error: ${error.message}`
   },
 }

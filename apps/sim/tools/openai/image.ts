@@ -215,11 +215,7 @@ export const imageTool: ToolConfig = {
       throw error
     }
   },
-  transformError: (error) => {
-    logger.error('Image generation error:', error)
-    if (error.response?.data?.error?.message) {
-      return error.response.data.error.message
-    }
-    return error.message || 'Failed to generate image'
+  transformError: (error: Error) => {
+    return `OpenAI API Error: ${error.message}`
   },
 }

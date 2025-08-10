@@ -68,10 +68,6 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to perform search')
-    }
-
     return {
       success: true,
       output: {
@@ -87,7 +83,7 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while performing the search'
+  transformError: (error: Error) => {
+    return `Tavily API Error: ${error.message || 'Unknown error'}`
   },
 }

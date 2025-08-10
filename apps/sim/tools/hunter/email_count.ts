@@ -83,12 +83,6 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(
-        data.errors?.[0]?.details || data.message || 'Failed to perform Hunter email count'
-      )
-    }
-
     return {
       success: true,
       output: {
@@ -116,9 +110,7 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while performing the Hunter email count'
+  transformError: (error: Error) => {
+    return `Hunter API Error: ${error.message}`
   },
 }

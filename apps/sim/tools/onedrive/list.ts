@@ -99,10 +99,6 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to list OneDrive files')
-    }
-
     return {
       success: true,
       output: {
@@ -122,7 +118,7 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
       },
     }
   },
-  transformError: (error) => {
-    return error.message || 'An error occurred while listing OneDrive files'
+  transformError: (error: Error) => {
+    return `OneDrive API Error: ${error.message}`
   },
 }

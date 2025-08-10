@@ -132,19 +132,6 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      logger.error('SharePoint page creation failed', {
-        status: response.status,
-        statusText: response.statusText,
-        error: data.error,
-        data,
-      })
-      throw new Error(
-        data.error?.message ||
-          `Failed to create SharePoint page: ${response.status} ${response.statusText}`
-      )
-    }
-
     logger.info('SharePoint page created successfully', {
       pageId: data.id,
       pageName: data.name,
@@ -166,7 +153,7 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
       },
     }
   },
-  transformError: (error) => {
-    return error.message || 'An error occurred while creating the SharePoint page'
+  transformError: (error: Error) => {
+    return `SharePoint API Error: ${error.message || 'Unknown error'}`
   },
 }

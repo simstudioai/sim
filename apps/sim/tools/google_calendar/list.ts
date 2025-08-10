@@ -89,11 +89,6 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error?.message || 'Failed to list calendar events')
-    }
-
     const data: GoogleCalendarApiListResponse = await response.json()
     const events = data.items || []
     const eventsCount = events.length
@@ -124,19 +119,7 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
     }
   },
 
-  transformError: (error) => {
-    if (error.error?.message) {
-      if (error.error.message.includes('invalid authentication credentials')) {
-        return 'Invalid or expired access token. Please reauthenticate.'
-      }
-      if (error.error.message.includes('quota')) {
-        return 'Google Calendar API quota exceeded. Please try again later.'
-      }
-      if (error.error.message.includes('Calendar not found')) {
-        return 'Calendar not found. Please check the calendar ID.'
-      }
-      return error.error.message
-    }
-    return error.message || 'An unexpected error occurred while listing calendar events'
+  transformError: (error: Error) => {
+    return `Google Calendar API Error: ${error.message}`
   },
 }

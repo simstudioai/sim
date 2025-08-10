@@ -99,7 +99,7 @@ export interface ToolConfig<P = any, R = any> {
 
   // Response handling
   transformResponse?: (response: Response, params?: P) => Promise<R>
-  transformError?: (error: any) => string | Promise<R>
+  transformError?: (error: Error) => string | Promise<R>
 }
 
 export interface TableRow {

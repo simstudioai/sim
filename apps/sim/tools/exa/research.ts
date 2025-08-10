@@ -95,10 +95,6 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.message || data.error || 'Failed to create research task')
-    }
-
     return {
       success: true,
       output: {
@@ -183,14 +179,7 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
       error: `Research task did not complete within the maximum polling time (${MAX_POLL_TIME_MS / 1000}s)`,
     }
   },
-  transformError: (error) => {
-    const errorMessage = error?.message || ''
-    if (errorMessage.includes('401')) {
-      return new Error('Invalid API key. Please check your Exa AI API key.')
-    }
-    if (errorMessage.includes('429')) {
-      return new Error('Rate limit exceeded. Please try again later.')
-    }
-    return error
+  transformError: (error: Error) => {
+    return `Exa API Error: ${error.message}`
   },
 }

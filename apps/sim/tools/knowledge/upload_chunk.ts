@@ -75,74 +75,29 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
     isInternalRoute: true,
   },
   transformResponse: async (response): Promise<KnowledgeUploadChunkResponse> => {
-    try {
-      const result = await response.json()
+    const result = await response.json()
+    const data = result.data || result
 
-      if (!response.ok) {
-        const errorMessage = result.error?.message || result.message || 'Failed to upload chunk'
-        throw new Error(errorMessage)
-      }
-
-      const data = result.data || result
-
-      return {
-        success: true,
-        output: {
-          data: {
-            id: data.id,
-            chunkIndex: data.chunkIndex || 0,
-            content: data.content,
-            contentLength: data.contentLength || data.content?.length || 0,
-            tokenCount: data.tokenCount || 0,
-            enabled: data.enabled !== undefined ? data.enabled : true,
-            createdAt: data.createdAt,
-            updatedAt: data.updatedAt,
-          },
-          message: `Successfully uploaded chunk to document`,
-          documentId: data.documentId,
-          cost: data.cost,
-        },
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        output: {
-          data: {
-            id: '',
-            chunkIndex: 0,
-            content: '',
-            contentLength: 0,
-            tokenCount: 0,
-            enabled: true,
-            createdAt: '',
-            updatedAt: '',
-          },
-          message: `Failed to upload chunk: ${error.message || 'Unknown error'}`,
-          documentId: '',
-        },
-        error: `Failed to upload chunk: ${error.message || 'Unknown error'}`,
-      }
-    }
-  },
-  transformError: async (error): Promise<KnowledgeUploadChunkResponse> => {
-    const errorMessage = `Failed to upload chunk: ${error.message || 'Unknown error'}`
     return {
-      success: false,
+      success: true,
       output: {
         data: {
-          id: '',
-          chunkIndex: 0,
-          content: '',
-          contentLength: 0,
-          tokenCount: 0,
-          enabled: true,
-          createdAt: '',
-          updatedAt: '',
+          id: data.id,
+          chunkIndex: data.chunkIndex || 0,
+          content: data.content,
+          contentLength: data.contentLength || data.content?.length || 0,
+          tokenCount: data.tokenCount || 0,
+          enabled: data.enabled !== undefined ? data.enabled : true,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
         },
-        message: errorMessage,
-        documentId: '',
+        message: `Successfully uploaded chunk to document`,
+        documentId: data.documentId,
+        cost: data.cost,
       },
-      error: errorMessage,
     }
+  },
+  transformError: (error: Error) => {
+    return `Knowledge API Error: ${error.message}`
   },
 }

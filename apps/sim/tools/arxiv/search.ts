@@ -107,10 +107,6 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      throw new Error(`ArXiv API error: ${response.status} ${response.statusText}`)
-    }
-
     const xmlText = await response.text()
 
     // Parse XML response
@@ -127,7 +123,7 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while searching ArXiv'
+  transformError: (error: Error) => {
+    return `ArXiv API Error: ${error.message}`
   },
 }

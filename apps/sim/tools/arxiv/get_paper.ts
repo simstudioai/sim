@@ -63,30 +63,18 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      throw new Error(`ArXiv API error: ${response.status} ${response.statusText}`)
-    }
-
     const xmlText = await response.text()
-
-    // Parse XML response
     const papers = parseArxivXML(xmlText)
-
-    if (papers.length === 0) {
-      throw new Error('Paper not found')
-    }
 
     return {
       success: true,
       output: {
-        paper: papers[0],
+        paper: papers[0] || null,
       },
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while retrieving the ArXiv paper'
+  transformError: (error: Error) => {
+    return `arXiv API Error: ${error.message}`
   },
 }

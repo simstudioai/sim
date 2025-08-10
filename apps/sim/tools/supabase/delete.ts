@@ -120,11 +120,6 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
     }
   },
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to delete rows from Supabase')
-    }
-
     // Handle empty response from delete operations
     const text = await response.text()
     let data
@@ -152,7 +147,7 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
       error: undefined,
     }
   },
-  transformError: (error: any) => {
-    return error.message || 'An error occurred while deleting rows from Supabase'
+  transformError: (error: Error) => {
+    return `Supabase API Error: ${error.message || 'Unknown error'}`
   },
 }

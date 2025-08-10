@@ -91,10 +91,6 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.message || data.error || 'Failed to retrieve webpage contents')
-    }
-
     return {
       success: true,
       output: {
@@ -108,9 +104,7 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while retrieving webpage contents'
+  transformError: (error: Error) => {
+    return `Exa API Error: ${error.message}`
   },
 }

@@ -93,11 +93,6 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Notion API error: ${errorData.message || 'Unknown error'}`)
-    }
-
     const data = await response.json()
     const results = data.results || []
 
@@ -135,8 +130,8 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to search Notion workspace'
+  transformError: (error: Error) => {
+    return `Notion API Error: ${error.message}`
   },
 }
 

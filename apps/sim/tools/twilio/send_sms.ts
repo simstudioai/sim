@@ -100,13 +100,6 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
   transformResponse: async (response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      const errorMessage =
-        data.error?.message || data.message || `Failed to send SMS (HTTP ${response.status})`
-      logger.error('Twilio API error:', data)
-      throw new Error(errorMessage)
-    }
-
     logger.info('Twilio Response:', data)
     logger.info('Twilio Response type:', typeof data)
     return {
@@ -120,8 +113,7 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
     }
   },
 
-  transformError: (error) => {
-    logger.error('Twilio tool error:', { error })
-    return `SMS sending failed: ${error.message || 'Unknown error occurred'}`
+  transformError: (error: Error) => {
+    return `Twilio API Error: ${error.message || 'Unknown error'}`
   },
 }

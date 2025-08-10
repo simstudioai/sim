@@ -68,10 +68,6 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
     },
   },
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      throw new Error(data.error?.message || 'Failed to create folder in OneDrive')
-    }
     const data = await response.json()
 
     return {
@@ -90,7 +86,7 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
       },
     }
   },
-  transformError: (error) => {
-    return error.message || 'An error occurred while creating folder in OneDrive'
+  transformError: (error: Error) => {
+    return `OneDrive API Error: ${error.message}`
   },
 }

@@ -65,41 +65,7 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
     },
   },
   transformResponse: async (response: Response, params?: WealthboxReadParams) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error(`Wealthbox note API error: ${response.status} ${response.statusText}`, errorText)
-
-      // Provide more specific error messages
-      if (response.status === 404) {
-        throw new Error(
-          `Note with ID ${params?.noteId} not found. Please check the note ID and try again.`
-        )
-      }
-      if (response.status === 403) {
-        throw new Error(
-          `Access denied to note with ID ${params?.noteId}. Please check your permissions.`
-        )
-      }
-      throw new Error(
-        `Failed to read Wealthbox note: ${response.status} ${response.statusText} - ${errorText}`
-      )
-    }
-
     const data = await response.json()
-
-    if (!data) {
-      return {
-        success: false,
-        output: {
-          note: undefined,
-          metadata: {
-            operation: 'read_note' as const,
-            noteId: params?.noteId || '',
-            itemType: 'note' as const,
-          },
-        },
-      }
-    }
 
     // Format note information into readable content
     const note = data
@@ -144,23 +110,7 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
       },
     }
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
-
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while reading Wealthbox note'
+  transformError: (error: Error) => {
+    return `Wealthbox API Error: ${error.message || 'Unknown error'}`
   },
 }

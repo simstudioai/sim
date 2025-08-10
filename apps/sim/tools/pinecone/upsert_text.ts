@@ -102,5 +102,7 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
     }
   },
 
-  transformError: (error) => `Pinecone text upsert failed: ${error.message}`,
+  transformError: (error: Error) => {
+    return `Pinecone API Error: ${error.message}`
+  },
 }

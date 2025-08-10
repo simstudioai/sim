@@ -103,9 +103,6 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
     transformResponse: async (response) => {
       const data = await response.json()
       const issue = data.data.issueCreate.issue
-      if (!issue) {
-        throw new Error('Failed to create issue: No issue returned from Linear API')
-      }
       return {
         success: true,
         output: {
@@ -120,20 +117,7 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
         },
       }
     },
-    transformError: (error) => {
-      if (error instanceof Error) {
-        return error.message
-      }
-
-      if (typeof error === 'object' && error !== null) {
-        if (error.error) {
-          return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-        }
-        if (error.message) {
-          return error.message
-        }
-      }
-
-      return 'Failed to create Linear issue'
+    transformError: (error: Error) => {
+      return `Linear API Error: ${error.message}`
     },
   }

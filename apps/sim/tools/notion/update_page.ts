@@ -66,11 +66,6 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Failed to update Notion page: ${errorData.message || 'Unknown error'}`)
-    }
-
     const data = await response.json()
     let pageTitle = 'Untitled'
 
@@ -101,7 +96,7 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to update Notion page properties'
+  transformError: (error: Error) => {
+    return `Notion API Error: ${error.message}`
   },
 }

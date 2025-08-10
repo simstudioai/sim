@@ -75,21 +75,13 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
       }
     },
   },
-  transformResponse: async (response: Response, params) => {
-    if (!response.ok) {
-      const errorJson = await response.json().catch(() => ({ error: response.statusText }))
-      const errorText =
-        errorJson.error && typeof errorJson.error === 'object'
-          ? errorJson.error.message || JSON.stringify(errorJson.error)
-          : errorJson.error || response.statusText
-      throw new Error(`Failed to read Microsoft Planner tasks: ${errorText}`)
-    }
-
+  transformResponse: async (response: Response) => {
     const data = await response.json()
     logger.info('Raw response data:', data)
 
     // Handle single task vs multiple tasks response format
-    const rawTasks = params?.taskId ? [data] : data.value || []
+    // Check if data is a single task object or has a 'value' property for multiple tasks
+    const rawTasks = data.value ? data.value : Array.isArray(data) ? data : [data]
 
     // Filter tasks to only include useful fields
     const tasks = rawTasks.map((task: any) => ({
@@ -111,44 +103,19 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
       output: {
         tasks,
         metadata: {
-          planId: params?.planId || '',
-          userId: params?.planId ? undefined : 'me',
-          planUrl: params?.planId
-            ? `https://graph.microsoft.com/v1.0/planner/plans/${params.planId}`
-            : undefined,
+          planId: tasks.length > 0 ? tasks[0].planId : '',
+          userId: data.value ? undefined : 'me',
+          planUrl:
+            tasks.length > 0
+              ? `https://graph.microsoft.com/v1.0/planner/plans/${tasks[0].planId}`
+              : undefined,
         },
       },
     }
 
     return result
   },
-  transformError: (error) => {
-    if (error instanceof Error) {
-      return error.message
-    }
-
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        if (typeof error.error === 'string') {
-          return error.error
-        }
-        if (typeof error.error === 'object' && error.error.message) {
-          return error.error.message
-        }
-        return JSON.stringify(error.error)
-      }
-
-      if (error.message) {
-        return error.message
-      }
-
-      try {
-        return `Microsoft Planner API error: ${JSON.stringify(error)}`
-      } catch (_e) {
-        return 'Microsoft Planner API error: Unable to parse error details'
-      }
-    }
-
-    return 'An error occurred while reading Microsoft Planner tasks'
+  transformError: (error: Error) => {
+    return `Microsoft Planner API Error: ${error.message}`
   },
 }

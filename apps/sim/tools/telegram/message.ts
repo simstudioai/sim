@@ -55,17 +55,13 @@ export const telegramMessageTool: ToolConfig<TelegramMessageParams, TelegramMess
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    if (!data.ok) {
-      throw new Error(data.description || 'Telegram API error')
-    }
     return {
       success: true,
       output: data.result,
     }
   },
 
-  transformError: (error: any) => {
-    const message = error.message || 'Telegram message failed'
-    return message
+  transformError: (error: Error) => {
+    return `Telegram API Error: ${error.message || 'Unknown error'}`
   },
 }

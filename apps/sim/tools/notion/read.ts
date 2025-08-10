@@ -60,11 +60,6 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
   },
 
   transformResponse: async (response: Response, params?: NotionReadParams) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Notion API error: ${errorData.message || 'Unknown error'}`)
-    }
-
     const data = await response.json()
     let pageTitle = 'Untitled'
 
@@ -178,7 +173,7 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to read Notion page'
+  transformError: (error: Error) => {
+    return `Notion API Error: ${error.message}`
   },
 }

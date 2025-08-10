@@ -117,11 +117,6 @@ export const tableAddTool: ToolConfig<
     },
   },
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to add rows to Microsoft Excel table: ${errorText}`)
-    }
-
     const data = await response.json()
 
     const urlParts = response.url.split('/drive/items/')
@@ -146,20 +141,7 @@ export const tableAddTool: ToolConfig<
 
     return result
   },
-  transformError: (error) => {
-    if (error instanceof Error) {
-      return error.message
-    }
-
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    return 'An error occurred while adding rows to Microsoft Excel table'
+  transformError: (error: Error) => {
+    return `Microsoft Excel API Error: ${error.message}`
   },
 }

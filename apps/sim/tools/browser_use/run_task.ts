@@ -109,14 +109,6 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      if (response.status === 422) {
-        const errorData = await response.json()
-        throw new Error(JSON.stringify(errorData))
-      }
-      throw new Error(`Request failed with status ${response.status}`)
-    }
-
     const data = (await response.json()) as { id: string }
     return {
       success: true,
@@ -242,19 +234,7 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
     }
   },
 
-  transformError: (error) => {
-    try {
-      const errorData = JSON.parse(error.message)
-      if (errorData.detail && Array.isArray(errorData.detail)) {
-        const formattedError = errorData.detail
-          .map((item: any) => `${item.loc.join('.')}: ${item.msg}`)
-          .join(', ')
-        return `Validation error: ${formattedError}`
-      }
-    } catch {
-      // Not a JSON string, use the regular error message
-    }
-
-    return `Failed to run BrowserUse task: ${error.message || 'Unknown error'}`
+  transformError: (error: Error) => {
+    return `BrowserUse API Error: ${error.message}`
   },
 }

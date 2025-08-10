@@ -72,25 +72,6 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
     }),
   },
   transformResponse: async (response: Response, params?: TypeformFilesParams) => {
-    if (!response.ok) {
-      let errorMessage = response.statusText || 'Unknown error'
-
-      try {
-        const errorData = await response.json()
-        if (errorData?.message) {
-          errorMessage = errorData.message
-        } else if (errorData?.description) {
-          errorMessage = errorData.description
-        } else if (typeof errorData === 'string') {
-          errorMessage = errorData
-        }
-      } catch (_e) {
-        // If we can't parse the error as JSON, just use the status text
-      }
-
-      throw new Error(`Typeform API error (${response.status}): ${errorMessage}`)
-    }
-
     // For file downloads, we get the file directly
     const contentType = response.headers.get('content-type') || 'application/octet-stream'
     const contentDisposition = response.headers.get('content-disposition') || ''
@@ -128,15 +109,7 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
       },
     }
   },
-  transformError: (error) => {
-    if (error instanceof Error) {
-      return `Failed to retrieve Typeform file: ${error.message}`
-    }
-
-    if (typeof error === 'object' && error !== null) {
-      return `Failed to retrieve Typeform file: ${JSON.stringify(error)}`
-    }
-
-    return 'Failed to retrieve Typeform file: An unknown error occurred'
+  transformError: (error: Error) => {
+    return `Typeform API Error: ${error.message || 'Unknown error'}`
   },
 }
