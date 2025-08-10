@@ -191,8 +191,4 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Jira API Error: ${error.message}`
-  },
 }

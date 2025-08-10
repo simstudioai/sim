@@ -62,9 +62,4 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
       },
     }
   },
-
-  transformError: (error: Error) => {
-    logger.error('ElevenLabs TTS error:', error)
-    return `ElevenLabs TTS API Error: ${error.message}`
-  },
 }

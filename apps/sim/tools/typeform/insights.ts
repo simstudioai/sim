@@ -100,7 +100,4 @@ export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsRe
       output: data,
     }
   },
-  transformError: (error: Error) => {
-    return `Typeform API Error: ${error.message || 'Unknown error'}`
-  },
 }

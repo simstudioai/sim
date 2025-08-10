@@ -74,10 +74,6 @@ export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, Airtable
     }
   },
 
-  transformError: (error: Error) => {
-    return `Airtable API Error: ${error.message}`
-  },
-
   outputs: {
     record: {
       type: 'json',

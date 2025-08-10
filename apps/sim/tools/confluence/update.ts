@@ -112,8 +112,4 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Confluence API Error: ${error.message}`
-  },
 }

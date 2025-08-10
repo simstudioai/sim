@@ -82,7 +82,4 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
       output: data,
     }
   },
-  transformError: (error: Error) => {
-    return `Typeform API Error: ${error.message || 'Unknown error'}`
-  },
 }

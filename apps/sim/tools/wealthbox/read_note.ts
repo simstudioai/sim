@@ -110,7 +110,4 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Wealthbox API Error: ${error.message || 'Unknown error'}`
-  },
 }

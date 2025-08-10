@@ -2,24 +2,10 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-// Copilot-specific tools are now handled in @/lib/copilot/tools.ts
 import { tools } from '@/tools/registry'
 import type { TableRow, ToolConfig, ToolResponse } from '@/tools/types'
 
-// Workflow tools moved to copilot system
-
 const logger = createLogger('ToolsUtils')
-
-// Internal-only tools (not exposed to users in workflows)
-// Note: All copilot-specific tools are now handled in @/lib/copilot/tools.ts
-const internalTools: Record<string, ToolConfig> = {
-  // No internal tools remain - all have been moved to copilot system
-}
-
-// Export the list of internal tool IDs for filtering purposes
-export const getInternalToolIds = (): Set<string> => {
-  return new Set(Object.keys(internalTools))
-}
 
 /**
  * Transforms a table from the store format to a key-value object
@@ -103,41 +89,9 @@ export async function executeRequest(
         errorContent = { message: externalResponse.statusText }
       }
 
-      // Use the tool's error transformer or a default message
-      if (tool.transformError) {
-        try {
-          const errorResult = tool.transformError(errorContent)
-
-          // Handle both string and Promise return types
-          if (typeof errorResult === 'string') {
-            throw new Error(errorResult)
-          }
-          // It's a Promise, await it
-          const transformedError = await errorResult
-          // If it's a string or has an error property, use it
-          if (typeof transformedError === 'string') {
-            throw new Error(transformedError)
-          }
-          if (
-            transformedError &&
-            typeof transformedError === 'object' &&
-            'error' in transformedError
-          ) {
-            throw new Error(transformedError.error || 'Tool returned an error')
-          }
-          // Fallback
-          throw new Error('Tool returned an error')
-        } catch (e) {
-          if (e instanceof Error) {
-            throw e
-          }
-          throw new Error(`${toolId} API error: ${externalResponse.statusText}`)
-        }
-      } else {
-        const error = errorContent.message || `${toolId} API error: ${externalResponse.statusText}`
-        logger.error(`${toolId} error:`, { error })
-        throw new Error(error)
-      }
+      const error = errorContent.message || `${toolId} API error: ${externalResponse.statusText}`
+      logger.error(`${toolId} error:`, { error })
+      throw new Error(error)
     }
 
     const transformResponse =
@@ -309,10 +263,6 @@ export function createCustomToolRequestBody(
 
 // Get a tool by its ID
 export function getTool(toolId: string): ToolConfig | undefined {
-  // Check for internal tools first
-  const internalTool = internalTools[toolId]
-  if (internalTool) return internalTool
-
   // Check for built-in tools
   const builtInTool = tools[toolId]
   if (builtInTool) return builtInTool
@@ -346,10 +296,6 @@ export async function getToolAsync(
   toolId: string,
   workflowId?: string
 ): Promise<ToolConfig | undefined> {
-  // Check for internal tools first
-  const internalTool = internalTools[toolId]
-  if (internalTool) return internalTool
-
   // Check for built-in tools
   const builtInTool = tools[toolId]
   if (builtInTool) return builtInTool
@@ -460,7 +406,7 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
     },
 
     // Standard response handling for custom tools
-    transformResponse: async (response: Response, params: Record<string, any>) => {
+    transformResponse: async (response: Response) => {
       const data = await response.json()
 
       if (!data.success) {
@@ -473,8 +419,6 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
         error: undefined,
       }
     },
-    transformError: async (error: any) =>
-      `Custom tool execution error: ${error.message || 'Unknown error'}`,
   }
 }
 
@@ -539,7 +483,7 @@ async function getCustomTool(
       },
 
       // Same response handling as client-side
-      transformResponse: async (response: Response, params: Record<string, any>) => {
+      transformResponse: async (response: Response) => {
         const data = await response.json()
 
         if (!data.success) {
@@ -552,8 +496,6 @@ async function getCustomTool(
           error: undefined,
         }
       },
-      transformError: async (error: any) =>
-        `Custom tool execution error: ${error.message || 'Unknown error'}`,
     }
   } catch (error) {
     logger.error(`Error fetching custom tool ${identifier} from API:`, error)

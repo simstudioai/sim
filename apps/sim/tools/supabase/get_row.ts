@@ -116,7 +116,4 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
       error: undefined,
     }
   },
-  transformError: (error: Error) => {
-    return `Supabase API Error: ${error.message || 'Unknown error'}`
-  },
 }

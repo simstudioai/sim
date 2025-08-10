@@ -111,8 +111,4 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Reddit API Error: ${error.message || 'Unknown error'}`
-  },
 }

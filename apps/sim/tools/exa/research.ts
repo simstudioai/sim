@@ -55,7 +55,6 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
   request: {
     url: 'https://api.exa.ai/research/v0/tasks',
     method: 'POST',
-    isInternalRoute: false,
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
@@ -178,8 +177,5 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
       success: false,
       error: `Research task did not complete within the maximum polling time (${MAX_POLL_TIME_MS / 1000}s)`,
     }
-  },
-  transformError: (error: Error) => {
-    return `Exa API Error: ${error.message}`
   },
 }

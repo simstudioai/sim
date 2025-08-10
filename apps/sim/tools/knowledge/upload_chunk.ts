@@ -97,7 +97,4 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Knowledge API Error: ${error.message}`
-  },
 }

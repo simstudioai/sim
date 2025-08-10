@@ -78,9 +78,6 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Google Docs API Error: ${error.message}`
-  },
 }
 
 // Helper function to extract text content from Google Docs document structure

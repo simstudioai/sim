@@ -151,7 +151,4 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
       },
     }
   },
-  transformError: (error: Error) => {
-    return `SharePoint API Error: ${error.message || 'Unknown error'}`
-  },
 }

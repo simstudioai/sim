@@ -202,7 +202,4 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
       throw error
     }
   },
-  transformError: (error: Error) => {
-    return `Google Drive API Error: ${error.message}`
-  },
 }

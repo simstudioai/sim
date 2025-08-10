@@ -252,8 +252,4 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarTo
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Google Calendar API Error: ${error.message}`
-  },
 }

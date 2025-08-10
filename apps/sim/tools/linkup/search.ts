@@ -81,8 +81,4 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Linkup API Error: ${error.message}`
-  },
 }

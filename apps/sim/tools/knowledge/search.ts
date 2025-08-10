@@ -133,7 +133,4 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Knowledge API Error: ${error.message}`
-  },
 }

@@ -153,8 +153,4 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Vision API Error: ${error.message || 'Unknown error'}`
-  },
 }

@@ -122,8 +122,4 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `ArXiv API Error: ${error.message}`
-  },
 }

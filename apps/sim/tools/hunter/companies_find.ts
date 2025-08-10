@@ -43,7 +43,6 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
       return url.toString()
     },
     method: 'GET',
-    isInternalRoute: false,
     headers: () => ({
       'Content-Type': 'application/json',
     }),
@@ -69,9 +68,5 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
           : undefined,
       },
     }
-  },
-
-  transformError: (error: Error) => {
-    return `Hunter API Error: ${error.message}`
   },
 }

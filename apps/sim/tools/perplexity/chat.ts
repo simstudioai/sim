@@ -125,8 +125,4 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Perplexity API Error: ${error.message}`
-  },
 }

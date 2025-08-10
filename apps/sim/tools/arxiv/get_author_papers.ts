@@ -92,8 +92,4 @@ export const getAuthorPapersTool: ToolConfig<
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `arXiv API Error: ${error.message}`
-  },
 }

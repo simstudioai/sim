@@ -152,7 +152,6 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
       return url.toString()
     },
     method: 'GET',
-    isInternalRoute: false,
     headers: () => ({
       'Content-Type': 'application/json',
     }),
@@ -201,9 +200,5 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
           })) || [],
       },
     }
-  },
-
-  transformError: (error: Error) => {
-    return `Hunter API Error: ${error.message}`
   },
 }

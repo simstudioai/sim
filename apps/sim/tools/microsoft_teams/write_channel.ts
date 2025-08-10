@@ -119,7 +119,4 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Microsoft Teams API Error: ${error.message}`
-  },
 }

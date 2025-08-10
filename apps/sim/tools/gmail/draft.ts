@@ -124,8 +124,4 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Gmail API Error: ${error.message}`
-  },
 }

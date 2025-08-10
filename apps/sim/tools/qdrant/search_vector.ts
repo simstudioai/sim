@@ -96,8 +96,4 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Qdrant API Error: ${error.message || 'Unknown error'}`
-  },
 }

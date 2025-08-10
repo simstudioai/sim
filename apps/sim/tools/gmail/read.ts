@@ -248,10 +248,6 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Gmail API Error: ${error.message}`
-  },
 }
 
 // Helper function to process a Gmail message

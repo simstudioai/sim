@@ -82,8 +82,4 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Tavily API Error: ${error.message || 'Unknown error'}`
-  },
 }

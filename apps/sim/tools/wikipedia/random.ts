@@ -32,7 +32,6 @@ export const randomPageTool: ToolConfig<Record<string, never>, WikipediaRandomPa
       'User-Agent': 'SimStudio/1.0 (https://sim.ai)',
       Accept: 'application/json',
     }),
-    isInternalRoute: false,
   },
 
   transformResponse: async (response: Response) => {
@@ -55,9 +54,5 @@ export const randomPageTool: ToolConfig<Record<string, never>, WikipediaRandomPa
         },
       },
     }
-  },
-
-  transformError: (error: Error) => {
-    return `Wikipedia API Error: ${error.message || 'Unknown error'}`
   },
 }

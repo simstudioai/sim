@@ -233,8 +233,4 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
       error: `Task did not complete within the maximum polling time (${MAX_POLL_TIME_MS / 1000}s)`,
     }
   },
-
-  transformError: (error: Error) => {
-    return `BrowserUse API Error: ${error.message}`
-  },
 }

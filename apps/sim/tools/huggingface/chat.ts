@@ -163,8 +163,4 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Hugging Face API Error: ${error.message}`
-  },
 }

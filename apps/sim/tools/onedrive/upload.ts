@@ -112,7 +112,4 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       },
     }
   },
-  transformError: (error: Error) => {
-    return `OneDrive API Error: ${error.message}`
-  },
 }

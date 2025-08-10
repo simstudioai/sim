@@ -121,7 +121,4 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
 
     return result
   },
-  transformError: (error: Error) => {
-    return `Microsoft Excel API Error: ${error.message}`
-  },
 }

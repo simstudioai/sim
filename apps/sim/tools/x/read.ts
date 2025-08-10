@@ -115,8 +115,4 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `X API Error: ${error.message || 'Unknown error'}`
-  },
 }

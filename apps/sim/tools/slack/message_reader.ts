@@ -126,8 +126,4 @@ export const slackMessageReaderTool: ToolConfig<
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Slack API Error: ${error.message || 'Unknown error'}`
-  },
 }

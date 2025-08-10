@@ -87,8 +87,4 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Tavily API Error: ${error.message || 'Unknown error'}`
-  },
 }

@@ -82,8 +82,4 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Code Execution Error: ${error.message}`
-  },
 }

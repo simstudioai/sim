@@ -96,7 +96,4 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
 
     return result
   },
-  transformError: (error: Error) => {
-    return `Google Sheets API Error: ${error.message}`
-  },
 }

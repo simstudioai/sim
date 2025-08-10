@@ -198,8 +198,4 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Jira API Error: ${error.message}`
-  },
 }

@@ -172,8 +172,4 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Notion API Error: ${error.message}`
-  },
 }

@@ -56,7 +56,4 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Memory API Error: ${error.message}`
-  },
 }

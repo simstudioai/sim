@@ -112,8 +112,4 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
       error: undefined,
     }
   },
-
-  transformError: (error: Error) => {
-    return `Twilio API Error: ${error.message || 'Unknown error'}`
-  },
 }

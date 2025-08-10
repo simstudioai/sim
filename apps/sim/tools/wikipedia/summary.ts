@@ -45,7 +45,6 @@ export const pageSummaryTool: ToolConfig<WikipediaPageSummaryParams, WikipediaPa
         'User-Agent': 'SimStudio/1.0 (https://sim.ai)',
         Accept: 'application/json',
       }),
-      isInternalRoute: false,
     },
 
     transformResponse: async (response: Response) => {
@@ -76,9 +75,5 @@ export const pageSummaryTool: ToolConfig<WikipediaPageSummaryParams, WikipediaPa
           },
         },
       }
-    },
-
-    transformError: (error: Error) => {
-      return `Wikipedia API Error: ${error.message || 'Unknown error'}`
     },
   }

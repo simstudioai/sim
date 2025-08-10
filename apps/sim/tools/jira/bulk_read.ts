@@ -167,7 +167,4 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
       })),
     }
   },
-  transformError: (error: Error) => {
-    return `Jira API Error: ${error.message}`
-  },
 }

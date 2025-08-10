@@ -50,7 +50,6 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
   request: {
     url: 'https://api.exa.ai/answer',
     method: 'POST',
-    isInternalRoute: false,
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
@@ -83,9 +82,5 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
           })) || [],
       },
     }
-  },
-
-  transformError: (error: Error) => {
-    return `Exa API Error: ${error.message}`
   },
 }

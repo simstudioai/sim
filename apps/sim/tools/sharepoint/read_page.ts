@@ -375,7 +375,4 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       },
     }
   },
-  transformError: (error: Error) => {
-    return `SharePoint API Error: ${error.message || 'Unknown error'}`
-  },
 }

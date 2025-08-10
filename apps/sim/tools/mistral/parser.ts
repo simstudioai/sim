@@ -406,8 +406,4 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       throw error
     }
   },
-
-  transformError: (error: Error) => {
-    return `Mistral API Error: ${error.message}`
-  },
 }

@@ -280,7 +280,7 @@ export async function executeTool(
       stack: error instanceof Error ? error.stack : undefined,
     })
 
-    // Get the tool for error transformation
+    // Get the tool for potential future use
     let transformTool: ToolConfig | undefined
     if (toolId.startsWith('custom_')) {
       const workflowId = params._context?.workflowId
@@ -289,98 +289,7 @@ export async function executeTool(
       transformTool = getTool(toolId)
     }
 
-    // Use the tool's error transformer if available
-    if (transformTool?.transformError) {
-      try {
-        const errorToTransform = error instanceof Error ? error : new Error(String(error))
-        const errorResult = transformTool.transformError(errorToTransform)
-
-        // Handle both string and Promise return types
-        if (typeof errorResult === 'string') {
-          const endTime = new Date()
-          const endTimeISO = endTime.toISOString()
-          const duration = endTime.getTime() - startTime.getTime()
-          return {
-            success: false,
-            output: {},
-            error: errorResult,
-            timing: {
-              startTime: startTimeISO,
-              endTime: endTimeISO,
-              duration,
-            },
-          }
-        }
-
-        // It's a Promise, await it
-        const transformedError = await errorResult
-
-        // Add timing to transformed result
-        const endTime = new Date()
-        const endTimeISO = endTime.toISOString()
-        const duration = endTime.getTime() - startTime.getTime()
-
-        if (typeof transformedError === 'string') {
-          return {
-            success: false,
-            output: {},
-            error: transformedError,
-            timing: {
-              startTime: startTimeISO,
-              endTime: endTimeISO,
-              duration,
-            },
-          }
-        }
-
-        if (transformedError && typeof transformedError === 'object') {
-          // If it's already a ToolResponse, add timing and return
-          if ('success' in transformedError) {
-            return {
-              ...transformedError,
-              timing: {
-                startTime: startTimeISO,
-                endTime: endTimeISO,
-                duration,
-              },
-            }
-          }
-
-          // If it has an error property, use it
-          if ('error' in transformedError) {
-            return {
-              success: false,
-              output: {},
-              error: transformedError.error,
-              timing: {
-                startTime: startTimeISO,
-                endTime: endTimeISO,
-                duration,
-              },
-            }
-          }
-        }
-
-        // Fallback
-        return {
-          success: false,
-          output: {},
-          error: 'Unknown error',
-          timing: {
-            startTime: startTimeISO,
-            endTime: endTimeISO,
-            duration,
-          },
-        }
-      } catch (transformError) {
-        logger.error(`[${requestId}] Error transform failed for ${toolId}:`, {
-          error: transformError instanceof Error ? transformError.message : String(transformError),
-        })
-        // Fall through to default error handling
-      }
-    }
-
-    // Default error handling when no transformError or transformError fails
+    // Default error handling
     let errorMessage = 'Unknown error occurred'
     let errorDetails = {}
 
@@ -556,15 +465,36 @@ async function handleInternalRequest(
     const { isError, errorInfo } = isErrorResponse(responseForErrorCheck, responseData)
 
     if (isError) {
-      // Handle error case with transformError if available
+      // Handle error case
       const errorToTransform = new Error(
-        errorInfo?.data?.details?.[0]?.message || // Generic details array
-          errorInfo?.data?.errors?.[0]?.details || // Hunter API pattern
-          errorInfo?.data?.message || // Notion/Discord/GitHub/Twilio pattern
+        // GraphQL errors (Linear API)
+        errorInfo?.data?.errors?.[0]?.message ||
+          // X/Twitter API specific pattern
+          errorInfo?.data?.errors?.[0]?.detail ||
+          // Generic details array
+          errorInfo?.data?.details?.[0]?.message ||
+          // Hunter API pattern
+          errorInfo?.data?.errors?.[0]?.details ||
+          // Direct errors array (when errors[0] is a string or simple object)
+          (Array.isArray(errorInfo?.data?.errors)
+            ? typeof errorInfo.data.errors[0] === 'string'
+              ? errorInfo.data.errors[0]
+              : errorInfo.data.errors[0]?.message
+            : undefined) ||
+          // Notion/Discord/GitHub/Twilio pattern
+          errorInfo?.data?.message ||
+          // SOAP/XML fault patterns
+          errorInfo?.data?.fault?.faultstring ||
+          errorInfo?.data?.faultstring ||
+          // Microsoft/OAuth error descriptions
+          errorInfo?.data?.error_description ||
+          // Airtable/Google fallback pattern
           (typeof errorInfo?.data?.error === 'object'
             ? errorInfo?.data?.error?.message || JSON.stringify(errorInfo?.data?.error)
-            : errorInfo?.data?.error) || // Airtable/Google/Twilio fallback pattern
-          errorInfo?.statusText || // HTTP status text fallback
+            : errorInfo?.data?.error) ||
+          // HTTP status text fallback
+          errorInfo?.statusText ||
+          // Final fallback
           `Request failed with status ${errorInfo?.status || 'unknown'}`
       )
 
@@ -607,7 +537,7 @@ async function handleInternalRequest(
       error: error instanceof Error ? error.message : String(error),
     })
 
-    // Let the error bubble up to be handled by transformError in the main executeTool function
+    // Let the error bubble up to be handled in the main executeTool function
     throw error
   }
 }
@@ -704,12 +634,21 @@ async function handleProxyRequest(
       try {
         // Try to parse as JSON for more details
         const errorJson = JSON.parse(errorText)
-        if (errorJson.error) {
-          errorMessage =
-            typeof errorJson.error === 'string'
-              ? errorJson.error
-              : `API Error: ${response.status} ${response.statusText}`
-        }
+        // Enhanced error extraction to match internal API patterns
+        errorMessage =
+          // Primary error patterns
+          errorJson.errors?.[0]?.message ||
+          errorJson.errors?.[0]?.detail ||
+          errorJson.error?.message ||
+          (typeof errorJson.error === 'string' ? errorJson.error : undefined) ||
+          errorJson.message ||
+          errorJson.error_description ||
+          errorJson.fault?.faultstring ||
+          errorJson.faultstring ||
+          // Fallback
+          (typeof errorJson.error === 'object'
+            ? `API Error: ${response.status} ${response.statusText}`
+            : `HTTP error ${response.status}: ${response.statusText}`)
       } catch (parseError) {
         // If not JSON, use the raw text
         if (errorText) {

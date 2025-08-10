@@ -146,8 +146,4 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       output,
     }
   },
-
-  transformError: (error: Error) => {
-    return `File parsing failed: ${error.message}`
-  },
 }

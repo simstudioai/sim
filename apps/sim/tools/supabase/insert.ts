@@ -134,7 +134,4 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       error: undefined,
     }
   },
-  transformError: (error: Error) => {
-    return `Supabase API Error: ${error.message || 'Unknown error'}`
-  },
 }

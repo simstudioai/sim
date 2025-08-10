@@ -146,10 +146,6 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
       }
     }
   },
-
-  transformError: (error: Error) => {
-    return `Gmail API Error: ${error.message}`
-  },
 }
 
 // Helper function to process a message for summary (without full content)

@@ -103,7 +103,4 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Mem0 API Error: ${error.message}`
-  },
 }

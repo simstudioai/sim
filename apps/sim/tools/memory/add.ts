@@ -101,7 +101,4 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Memory API Error: ${error.message}`
-  },
 }

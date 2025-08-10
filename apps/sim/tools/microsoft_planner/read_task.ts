@@ -115,7 +115,4 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
 
     return result
   },
-  transformError: (error: Error) => {
-    return `Microsoft Planner API Error: ${error.message}`
-  },
 }

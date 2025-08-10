@@ -75,10 +75,6 @@ export const airtableUpdateMultipleRecordsTool: ToolConfig<
     }
   },
 
-  transformError: (error: Error) => {
-    return `Airtable API Error: ${error.message}`
-  },
-
   outputs: {
     records: {
       type: 'json',

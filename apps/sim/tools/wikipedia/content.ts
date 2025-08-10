@@ -45,7 +45,6 @@ export const pageContentTool: ToolConfig<WikipediaPageContentParams, WikipediaPa
         Accept:
           'text/html; charset=utf-8; profile="https://www.mediawiki.org/wiki/Specs/HTML/2.1.0"',
       }),
-      isInternalRoute: false,
     },
 
     transformResponse: async (response: Response) => {
@@ -70,9 +69,5 @@ export const pageContentTool: ToolConfig<WikipediaPageContentParams, WikipediaPa
           },
         },
       }
-    },
-
-    transformError: (error: Error) => {
-      return `Wikipedia API Error: ${error.message || 'Unknown error'}`
     },
   }

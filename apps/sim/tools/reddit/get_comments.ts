@@ -164,8 +164,4 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Reddit API Error: ${error.message || 'Unknown error'}`
-  },
 }

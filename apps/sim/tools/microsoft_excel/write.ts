@@ -176,7 +176,4 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
 
     return result
   },
-  transformError: (error: Error) => {
-    return `Microsoft Excel API Error: ${error.message}`
-  },
 }

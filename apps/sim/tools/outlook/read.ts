@@ -129,7 +129,4 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Outlook API Error: ${error.message}`
-  },
 }

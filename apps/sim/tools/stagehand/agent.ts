@@ -104,8 +104,4 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Stagehand API Error: ${error.message || 'Unknown error'}`
-  },
 }

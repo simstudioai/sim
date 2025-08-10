@@ -102,7 +102,4 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Microsoft Teams API Error: ${error.message}`
-  },
 }

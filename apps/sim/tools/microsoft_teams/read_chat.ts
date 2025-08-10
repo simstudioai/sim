@@ -146,7 +146,4 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Microsoft Teams API Error: ${error.message}`
-  },
 }

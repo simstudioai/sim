@@ -191,8 +191,4 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `X API Error: ${error.message || 'Unknown error'}`
-  },
 }

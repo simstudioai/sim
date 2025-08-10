@@ -150,8 +150,4 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Notion API Error: ${error.message}`
-  },
 }

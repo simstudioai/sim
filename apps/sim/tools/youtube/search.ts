@@ -87,7 +87,4 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
       },
     }
   },
-  transformError: (error: Error) => {
-    return `YouTube API Error: ${error.message}`
-  },
 }

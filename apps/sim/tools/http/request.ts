@@ -360,8 +360,4 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `HTTP Request Error: ${error.message}`
-  },
 }

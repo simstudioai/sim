@@ -101,7 +101,4 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Linear API Error: ${error.message}`
-  },
 }

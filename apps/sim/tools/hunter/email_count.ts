@@ -74,7 +74,6 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
       return url.toString()
     },
     method: 'GET',
-    isInternalRoute: false,
     headers: () => ({
       'Content-Type': 'application/json',
     }),
@@ -108,9 +107,5 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
         },
       },
     }
-  },
-
-  transformError: (error: Error) => {
-    return `Hunter API Error: ${error.message}`
   },
 }

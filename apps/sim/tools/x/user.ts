@@ -139,32 +139,4 @@ export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
       throw error
     }
   },
-
-  transformError: (error) => {
-    if (error.status === 429) {
-      return 'X API rate limit exceeded. Please try again later.'
-    }
-    if (error.title === 'Unauthorized') {
-      return 'Invalid or expired access token. Please reconnect your X account.'
-    }
-    if (error.title === 'Not Found') {
-      return 'The specified user was not found.'
-    }
-    if (error.detail) {
-      // Remove the square brackets from the error message if present
-      const cleanedDetail = error.detail.replace(/\[(.*?)\]/, '$1')
-      return `X API error: ${cleanedDetail}`
-    }
-
-    // Extract the message from the error object
-    const errorMessage =
-      error.message || 'An unexpected error occurred while fetching user data from X'
-
-    if (errorMessage.includes('rate limit')) {
-      return 'X API rate limit exceeded. Please try again later or use a different X account.'
-    }
-
-    // Clean any brackets from the error message
-    return errorMessage.replace(/\[(.*?)\]/g, '$1')
-  },
 }

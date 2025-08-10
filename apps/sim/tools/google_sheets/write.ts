@@ -166,7 +166,4 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
 
     return result
   },
-  transformError: (error: Error) => {
-    return `Google Sheets API Error: ${error.message}`
-  },
 }

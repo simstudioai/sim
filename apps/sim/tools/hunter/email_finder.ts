@@ -74,7 +74,6 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
       return url.toString()
     },
     method: 'GET',
-    isInternalRoute: false,
     headers: () => ({
       'Content-Type': 'application/json',
     }),
@@ -92,9 +91,5 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
         verification: data.data?.verification || {},
       },
     }
-  },
-
-  transformError: (error: Error) => {
-    return `Hunter API Error: ${error.message}`
   },
 }

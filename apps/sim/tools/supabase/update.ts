@@ -152,7 +152,4 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
       error: undefined,
     }
   },
-  transformError: (error: Error) => {
-    return `Supabase API Error: ${error.message || 'Unknown error'}`
-  },
 }

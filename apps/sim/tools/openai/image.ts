@@ -215,7 +215,4 @@ export const imageTool: ToolConfig = {
       throw error
     }
   },
-  transformError: (error: Error) => {
-    return `OpenAI API Error: ${error.message}`
-  },
 }

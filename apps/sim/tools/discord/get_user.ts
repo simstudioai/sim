@@ -57,10 +57,6 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
     }
   },
 
-  transformError: (error: Error) => {
-    return `Discord API Error: ${error.message}`
-  },
-
   outputs: {
     message: { type: 'string', description: 'Success or error message' },
     data: {

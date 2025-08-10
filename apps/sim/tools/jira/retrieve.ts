@@ -122,8 +122,4 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Jira API Error: ${error.message}`
-  },
 }

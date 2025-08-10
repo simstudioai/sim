@@ -83,10 +83,6 @@ export const airtableListRecordsTool: ToolConfig<AirtableListParams, AirtableLis
     }
   },
 
-  transformError: (error: Error) => {
-    return `Airtable API Error: ${error.message}`
-  },
-
   outputs: {
     records: {
       type: 'json',

@@ -253,8 +253,4 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Google Calendar API Error: ${error.message}`
-  },
 }

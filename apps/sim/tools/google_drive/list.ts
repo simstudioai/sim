@@ -119,7 +119,4 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Google Drive API Error: ${error.message}`
-  },
 }

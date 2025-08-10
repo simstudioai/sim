@@ -118,8 +118,4 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Google Calendar API Error: ${error.message}`
-  },
 }

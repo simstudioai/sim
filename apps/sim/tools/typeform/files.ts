@@ -109,7 +109,4 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Typeform API Error: ${error.message || 'Unknown error'}`
-  },
 }

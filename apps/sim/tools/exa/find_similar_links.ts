@@ -63,7 +63,6 @@ export const findSimilarLinksTool: ToolConfig<
   request: {
     url: 'https://api.exa.ai/findSimilar',
     method: 'POST',
-    isInternalRoute: false,
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
@@ -101,9 +100,5 @@ export const findSimilarLinksTool: ToolConfig<
         })),
       },
     }
-  },
-
-  transformError: (error: Error) => {
-    return `Exa API Error: ${error.message}`
   },
 }

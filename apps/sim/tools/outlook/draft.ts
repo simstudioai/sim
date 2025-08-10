@@ -128,8 +128,4 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Outlook API Error: ${error.message}`
-  },
 }

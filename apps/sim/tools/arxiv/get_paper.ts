@@ -73,8 +73,4 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `arXiv API Error: ${error.message}`
-  },
 }

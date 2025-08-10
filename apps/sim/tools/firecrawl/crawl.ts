@@ -41,7 +41,6 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
   request: {
     url: 'https://api.firecrawl.dev/v1/crawl',
     method: 'POST',
-    isInternalRoute: false,
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
@@ -135,9 +134,6 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       success: false,
       error: `Crawl job did not complete within the maximum polling time (${MAX_POLL_TIME_MS / 1000}s)`,
     }
-  },
-  transformError: (error: Error) => {
-    return `Firecrawl API Error: ${error.message}`
   },
 
   outputs: {

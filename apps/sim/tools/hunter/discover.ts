@@ -74,7 +74,6 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
       return url.toString()
     },
     method: 'POST',
-    isInternalRoute: false,
     headers: () => ({
       'Content-Type': 'application/json',
     }),
@@ -112,9 +111,5 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
           })) || [],
       },
     }
-  },
-
-  transformError: (error: Error) => {
-    return `Hunter API Error: ${error.message}`
   },
 }

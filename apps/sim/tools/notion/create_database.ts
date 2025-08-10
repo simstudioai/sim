@@ -147,8 +147,4 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Notion API Error: ${error.message}`
-  },
 }

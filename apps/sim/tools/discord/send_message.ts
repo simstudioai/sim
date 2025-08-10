@@ -85,10 +85,6 @@ export const discordSendMessageTool: ToolConfig<
     }
   },
 
-  transformError: (error: Error): string => {
-    return `Discord API Error: ${error.message}`
-  },
-
   outputs: {
     message: { type: 'string', description: 'Success or error message' },
     data: {

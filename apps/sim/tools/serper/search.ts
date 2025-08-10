@@ -129,8 +129,4 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Serper API Error: ${error.message || 'Unknown error'}`
-  },
 }

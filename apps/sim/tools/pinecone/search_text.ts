@@ -147,8 +147,4 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Pinecone API Error: ${error.message}`
-  },
 }

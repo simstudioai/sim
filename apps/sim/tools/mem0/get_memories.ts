@@ -126,7 +126,4 @@ export const mem0GetMemoriesTool: ToolConfig = {
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Mem0 API Error: ${error.message}`
-  },
 }

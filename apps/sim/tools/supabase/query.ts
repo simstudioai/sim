@@ -134,7 +134,4 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
       error: undefined,
     }
   },
-  transformError: (error: Error) => {
-    return `Supabase API Error: ${error.message || 'Unknown error'}`
-  },
 }

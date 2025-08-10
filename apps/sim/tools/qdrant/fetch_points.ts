@@ -81,8 +81,4 @@ export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Qdrant API Error: ${error.message || 'Unknown error'}`
-  },
 }

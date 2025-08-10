@@ -217,7 +217,4 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
 
     return result
   },
-  transformError: (error: Error) => {
-    return `Google Sheets API Error: ${error.message}`
-  },
 }

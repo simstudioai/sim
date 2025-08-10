@@ -111,7 +111,4 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Wealthbox API Error: ${error.message || 'Unknown error'}`
-  },
 }

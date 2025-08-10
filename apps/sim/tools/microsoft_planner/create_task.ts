@@ -135,7 +135,4 @@ export const createTaskTool: ToolConfig<
 
     return result
   },
-  transformError: (error: Error) => {
-    return `Microsoft Planner API Error: ${error.message}`
-  },
 }

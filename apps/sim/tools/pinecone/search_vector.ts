@@ -106,8 +106,4 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Pinecone API Error: ${error.message}`
-  },
 }

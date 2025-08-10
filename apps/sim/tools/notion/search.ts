@@ -1,4 +1,5 @@
 import type { NotionResponse, NotionSearchParams } from '@/tools/notion/types'
+import { extractTitleFromItem } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = {
@@ -100,7 +101,7 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
     const content = results
       .map((item: any, index: number) => {
         const objectType = item.object === 'page' ? 'Page' : 'Database'
-        const title = extractTitle(item)
+        const title = extractTitleFromItem(item)
         const url = item.url || ''
         const lastEdited = item.last_edited_time
           ? new Date(item.last_edited_time).toLocaleDateString()
@@ -129,29 +130,4 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Notion API Error: ${error.message}`
-  },
-}
-
-// Helper function to extract title from page or database
-function extractTitle(item: any): string {
-  if (item.object === 'page') {
-    // For pages, check properties first
-    if (item.properties?.title?.title && Array.isArray(item.properties.title.title)) {
-      const title = item.properties.title.title.map((t: any) => t.plain_text || '').join('')
-      if (title) return title
-    }
-    // Fallback to page title
-    return item.title || 'Untitled Page'
-  }
-  if (item.object === 'database') {
-    // For databases, get title from title array
-    if (item.title && Array.isArray(item.title)) {
-      return item.title.map((t: any) => t.plain_text || '').join('') || 'Untitled Database'
-    }
-    return 'Untitled Database'
-  }
-  return 'Untitled'
 }

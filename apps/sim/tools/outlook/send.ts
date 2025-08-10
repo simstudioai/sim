@@ -173,8 +173,4 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Outlook API Error: ${error.message}`
-  },
 }

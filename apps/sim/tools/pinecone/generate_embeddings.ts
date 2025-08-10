@@ -80,8 +80,4 @@ export const generateEmbeddingsTool: ToolConfig<
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Pinecone API Error: ${error.message || 'Unknown error'}`
-  },
 }

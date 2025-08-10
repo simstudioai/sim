@@ -138,8 +138,4 @@ export const s3GetObjectTool: ToolConfig = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `S3 API Error: ${error.message || 'Unknown error'}`
-  },
 }

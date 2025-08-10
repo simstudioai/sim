@@ -198,7 +198,4 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Knowledge API Error: ${error.message}`
-  },
 }

@@ -81,8 +81,4 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Jina API Error: ${error.message}`
-  },
 }

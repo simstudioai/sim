@@ -153,7 +153,4 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
       },
     }
   },
-  transformError: (error: Error) => {
-    return `SharePoint API Error: ${error.message || 'Unknown error'}`
-  },
 }

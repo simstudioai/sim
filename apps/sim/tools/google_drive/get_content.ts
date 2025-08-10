@@ -178,7 +178,4 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
       throw error
     }
   },
-  transformError: (error: Error) => {
-    return `Google Drive API Error: ${error.message}`
-  },
 }

@@ -149,7 +149,4 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
       throw error
     }
   },
-  transformError: (error: Error) => {
-    return `Google Docs API Error: ${error.message}`
-  },
 }

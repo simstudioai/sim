@@ -104,8 +104,4 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Notion API Error: ${error.message}`
-  },
 }

@@ -169,7 +169,4 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
 
     return result
   },
-  transformError: (error: Error) => {
-    return `Google Sheets API Error: ${error.message}`
-  },
 }

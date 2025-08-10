@@ -55,7 +55,6 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
   request: {
     url: 'https://api.exa.ai/contents',
     method: 'POST',
-    isInternalRoute: false,
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
@@ -102,9 +101,5 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
         })),
       },
     }
-  },
-
-  transformError: (error: Error) => {
-    return `Exa API Error: ${error.message}`
   },
 }

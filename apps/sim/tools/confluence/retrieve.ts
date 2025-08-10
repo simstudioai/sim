@@ -76,10 +76,6 @@ export const confluenceRetrieveTool: ToolConfig<
     const data = await response.json()
     return transformPageData(data)
   },
-
-  transformError: (error: Error) => {
-    return `Confluence API Error: ${error.message}`
-  },
 }
 
 function transformPageData(data: any) {

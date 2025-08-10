@@ -121,7 +121,4 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
       },
     }
   },
-  transformError: (error: Error) => {
-    return `Google Docs API Error: ${error.message}`
-  },
 }

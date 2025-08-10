@@ -55,10 +55,6 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
     }
   },
 
-  transformError: (error: Error) => {
-    return `Firecrawl API Error: ${error.message}`
-  },
-
   outputs: {
     markdown: { type: 'string', description: 'Page content in markdown format' },
     html: { type: 'string', description: 'Raw HTML content of the page' },

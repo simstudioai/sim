@@ -118,7 +118,4 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
       },
     }
   },
-  transformError: (error: Error) => {
-    return `OneDrive API Error: ${error.message}`
-  },
 }

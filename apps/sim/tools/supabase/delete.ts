@@ -147,7 +147,4 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
       error: undefined,
     }
   },
-  transformError: (error: Error) => {
-    return `Supabase API Error: ${error.message || 'Unknown error'}`
-  },
 }

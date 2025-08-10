@@ -140,4 +140,16 @@ export interface WealthboxWriteParams {
   priority?: 'Low' | 'Medium' | 'High'
 }
 
+export interface WealthboxTaskRequestBody {
+  name: string
+  due_date: string
+  description?: string // Add this field
+  complete?: boolean
+  category?: number
+  linked_to?: Array<{
+    id: number
+    type: string
+  }>
+}
+
 export type WealthboxResponse = WealthboxReadResponse | WealthboxWriteResponse

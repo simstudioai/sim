@@ -64,8 +64,4 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
       output: data.data || {},
     }
   },
-
-  transformError: (error: Error) => {
-    return `Stagehand API Error: ${error.message || 'Unknown error'}`
-  },
 }

@@ -1,86 +1,10 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WealthboxWriteParams, WealthboxWriteResponse } from '@/tools/wealthbox/types'
-
-const logger = createLogger('WealthboxWriteNote')
-
-// Utility function to validate parameters and build note body
-const validateAndBuildNoteBody = (params: WealthboxWriteParams): Record<string, any> => {
-  // Handle content conversion - stringify if not already a string
-  let content: string
-
-  if (params.content === null || params.content === undefined) {
-    throw new Error('Note content is required')
-  }
-
-  if (typeof params.content === 'string') {
-    content = params.content
-  } else {
-    content = JSON.stringify(params.content)
-  }
-
-  content = content.trim()
-
-  if (!content) {
-    throw new Error('Note content is required')
-  }
-
-  const body: Record<string, any> = {
-    content: content,
-  }
-
-  // Handle contact linking
-  if (params.contactId?.trim()) {
-    body.linked_to = [
-      {
-        id: Number.parseInt(params.contactId.trim()),
-        type: 'Contact',
-      },
-    ]
-  }
-
-  return body
-}
-
-// Utility function to handle API errors
-const handleApiError = (response: Response, errorText: string): never => {
-  logger.error(
-    `Wealthbox note write API error: ${response.status} ${response.statusText}`,
-    errorText
-  )
-  throw new Error(
-    `Failed to create Wealthbox note: ${response.status} ${response.statusText} - ${errorText}`
-  )
-}
-
-// Utility function to format note response
-const formatNoteResponse = (data: any): WealthboxWriteResponse => {
-  if (!data) {
-    return {
-      success: false,
-      output: {
-        note: undefined,
-        metadata: {
-          operation: 'write_note' as const,
-          itemType: 'note' as const,
-        },
-      },
-    }
-  }
-
-  return {
-    success: true,
-    output: {
-      note: data,
-      success: true,
-      metadata: {
-        operation: 'write_note' as const,
-        itemId: data.id?.toString() || '',
-        itemType: 'note' as const,
-      },
-    },
-  }
-}
+import {
+  formatNoteResponse,
+  handleApiError,
+  validateAndBuildNoteBody,
+} from '@/tools/wealthbox/utils'
 
 export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxWriteResponse> = {
   id: 'wealthbox_write_note',
@@ -173,8 +97,5 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
   transformResponse: async (response: Response, params?: WealthboxWriteParams) => {
     const data = await response.json()
     return formatNoteResponse(data)
-  },
-  transformError: (error: Error) => {
-    return `Wealthbox API Error: ${error.message || 'Unknown error'}`
   },
 }

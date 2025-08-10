@@ -120,8 +120,4 @@ export const xWriteTool: ToolConfig<XWriteParams, XWriteResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `X API Error: ${error.message || 'Unknown error'}`
-  },
 }

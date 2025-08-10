@@ -60,8 +60,4 @@ export const telegramMessageTool: ToolConfig<TelegramMessageParams, TelegramMess
       output: data.result,
     }
   },
-
-  transformError: (error: Error) => {
-    return `Telegram API Error: ${error.message || 'Unknown error'}`
-  },
 }

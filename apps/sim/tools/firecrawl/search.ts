@@ -46,10 +46,6 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     }
   },
 
-  transformError: (error: Error) => {
-    return `Firecrawl API Error: ${error.message}`
-  },
-
   outputs: {
     data: {
       type: 'array',

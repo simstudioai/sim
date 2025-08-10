@@ -85,8 +85,4 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Slack API Error: ${error.message || 'Unknown error'}`
-  },
 }

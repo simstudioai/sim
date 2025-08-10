@@ -128,10 +128,6 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
     }
   },
 
-  transformError: (error: Error) => {
-    return `GitHub API Error: ${error.message}`
-  },
-
   outputs: {
     content: { type: 'string', description: 'Human-readable commit summary' },
     metadata: {

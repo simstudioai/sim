@@ -93,7 +93,6 @@ export const emailVerifierTool: ToolConfig<HunterEmailVerifierParams, HunterEmai
         return url.toString()
       },
       method: 'GET',
-      isInternalRoute: false,
       headers: () => ({
         'Content-Type': 'application/json',
       }),
@@ -121,9 +120,5 @@ export const emailVerifierTool: ToolConfig<HunterEmailVerifierParams, HunterEmai
           sources: data.data?.sources || [],
         },
       }
-    },
-
-    transformError: (error: Error) => {
-      return `Hunter API Error: ${error.message}`
     },
   }

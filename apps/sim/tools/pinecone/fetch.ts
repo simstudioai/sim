@@ -108,8 +108,4 @@ export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Pinecone API Error: ${error.message}`
-  },
 }

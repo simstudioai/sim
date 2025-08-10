@@ -82,8 +82,4 @@ export const embeddingsTool: ToolConfig<OpenAIEmbeddingsParams> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `OpenAI API Error: ${error.message}`
-  },
 }

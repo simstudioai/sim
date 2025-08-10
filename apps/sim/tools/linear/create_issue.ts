@@ -117,7 +117,4 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
         },
       }
     },
-    transformError: (error: Error) => {
-      return `Linear API Error: ${error.message}`
-    },
   }

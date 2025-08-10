@@ -103,8 +103,4 @@ export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = 
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Google API Error: ${error.message}`
-  },
 }

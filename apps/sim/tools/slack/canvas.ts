@@ -113,8 +113,4 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Slack API Error: ${error.message || 'Unknown error'}`
-  },
 }

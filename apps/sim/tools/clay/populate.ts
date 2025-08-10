@@ -64,8 +64,4 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Clay API Error: ${error.message}`
-  },
 }

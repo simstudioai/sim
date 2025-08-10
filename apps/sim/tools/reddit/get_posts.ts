@@ -141,8 +141,4 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Reddit API Error: ${error.message || 'Unknown error'}`
-  },
 }

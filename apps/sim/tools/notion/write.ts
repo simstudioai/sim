@@ -86,8 +86,4 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
       },
     }
   },
-
-  transformError: (error: Error) => {
-    return `Notion API Error: ${error.message}`
-  },
 }

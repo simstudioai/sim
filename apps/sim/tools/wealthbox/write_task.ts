@@ -1,82 +1,10 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WealthboxWriteParams, WealthboxWriteResponse } from '@/tools/wealthbox/types'
+import { formatTaskResponse, validateAndBuildTaskBody } from '@/tools/wealthbox/utils'
 
 const logger = createLogger('WealthboxWriteTask')
 
-// Interface for Wealthbox task request body to replace Record<string, any>
-interface WealthboxTaskRequestBody {
-  name: string
-  due_date: string
-  description?: string // Add this field
-  complete?: boolean
-  category?: number
-  linked_to?: Array<{
-    id: number
-    type: string
-  }>
-}
-
-// Utility function to safely convert to string and trim
-const safeStringify = (value: any): string => {
-  if (value === null || value === undefined) {
-    return ''
-  }
-
-  if (typeof value === 'string') {
-    return value
-  }
-
-  return JSON.stringify(value)
-}
-
-// Utility function to validate parameters and build task body
-const validateAndBuildTaskBody = (params: WealthboxWriteParams): WealthboxTaskRequestBody => {
-  // Validate required fields with safe stringification
-  const title = safeStringify(params.title).trim()
-  const dueDate = safeStringify(params.dueDate).trim()
-
-  if (!title) {
-    throw new Error('Task title is required')
-  }
-  if (!dueDate) {
-    throw new Error('Due date is required')
-  }
-
-  const body: WealthboxTaskRequestBody = {
-    name: title,
-    due_date: dueDate,
-  }
-
-  // Add optional fields with safe stringification
-  const description = safeStringify(params.description).trim()
-  if (description) {
-    body.description = description
-  }
-
-  if (params.complete !== undefined) {
-    body.complete = params.complete
-  }
-
-  if (params.category !== undefined) {
-    body.category = params.category
-  }
-
-  // Handle contact linking with safe stringification
-  const contactId = safeStringify(params.contactId).trim()
-  if (contactId) {
-    body.linked_to = [
-      {
-        id: Number.parseInt(contactId),
-        type: 'Contact',
-      },
-    ]
-  }
-
-  return body
-}
-
-// Utility function to handle API errors
 const handleApiError = (response: Response, errorText: string): never => {
   logger.error(
     `Wealthbox task write API error: ${response.status} ${response.statusText}`,
@@ -85,35 +13,6 @@ const handleApiError = (response: Response, errorText: string): never => {
   throw new Error(
     `Failed to write Wealthbox task: ${response.status} ${response.statusText} - ${errorText}`
   )
-}
-
-// Utility function to format task response
-const formatTaskResponse = (data: any, params?: WealthboxWriteParams): WealthboxWriteResponse => {
-  if (!data) {
-    return {
-      success: false,
-      output: {
-        task: undefined,
-        metadata: {
-          operation: 'write_task' as const,
-          itemType: 'task' as const,
-        },
-      },
-    }
-  }
-
-  return {
-    success: true,
-    output: {
-      task: data,
-      success: true,
-      metadata: {
-        operation: 'write_task' as const,
-        itemId: data.id?.toString() || params?.taskId || '',
-        itemType: 'task' as const,
-      },
-    },
-  }
 }
 
 export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxWriteResponse> = {
@@ -236,8 +135,5 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
   transformResponse: async (response: Response, params?: WealthboxWriteParams) => {
     const data = await response.json()
     return formatTaskResponse(data, params)
-  },
-  transformError: (error: Error) => {
-    return `Wealthbox API Error: ${error.message || 'Unknown error'}`
   },
 }

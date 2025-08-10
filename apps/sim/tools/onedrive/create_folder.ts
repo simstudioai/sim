@@ -86,7 +86,4 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
       },
     }
   },
-  transformError: (error: Error) => {
-    return `OneDrive API Error: ${error.message}`
-  },
 }
