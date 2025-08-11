@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { getUserUsageLimit } from '@/lib/billing/core/usage'
-import { isProd } from '@/lib/environment'
+import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { userStats } from '@/db/schema'
@@ -24,8 +24,8 @@ interface UsageData {
  */
 export async function checkUsageStatus(userId: string): Promise<UsageData> {
   try {
-    // In development, always return permissive limits
-    if (!isProd) {
+    // If billing is disabled, always return permissive limits
+    if (!isBillingEnabled) {
       // Get actual usage from the database for display purposes
       const statsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
       const currentUsage =
@@ -115,8 +115,8 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
  */
 export async function checkAndNotifyUsage(userId: string): Promise<void> {
   try {
-    // Skip usage notifications in development
-    if (!isProd) {
+    // Skip usage notifications if billing is disabled
+    if (!isBillingEnabled) {
       return
     }
 
@@ -182,8 +182,8 @@ export async function checkServerSideUsageLimits(userId: string): Promise<{
   message?: string
 }> {
   try {
-    // In development, always allow execution
-    if (!isProd) {
+    // If billing is disabled, always allow execution
+    if (!isBillingEnabled) {
       return {
         isExceeded: false,
         currentUsage: 0,

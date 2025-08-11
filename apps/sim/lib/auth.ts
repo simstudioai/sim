@@ -23,7 +23,7 @@ import { getBaseURL } from '@/lib/auth-client'
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
-import { isProd } from '@/lib/environment'
+import { isBillingEnabled, isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'
@@ -1160,8 +1160,8 @@ export const auth = betterAuth({
         },
       ],
     }),
-    // Only include the Stripe plugin in production
-    ...(isProd && stripeClient
+    // Only include the Stripe plugin when billing is enabled
+    ...(isBillingEnabled && stripeClient
       ? [
           stripe({
             stripeClient,
