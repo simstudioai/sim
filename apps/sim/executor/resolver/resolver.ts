@@ -12,7 +12,47 @@ const logger = createLogger('InputResolver')
  * Helper function to resolve property access
  */
 function resolvePropertyAccess(obj: any, property: string): any {
-  return obj[property]
+  // Direct property access
+  const directValue = obj?.[property]
+  if (directValue !== undefined) {
+    return directValue
+  }
+  
+  // Special handling for GitHub webhook objects that might not be accessible at root level
+  const githubObjects = ['repository', 'sender', 'pusher', 'commits', 'head_commit']
+  if (githubObjects.includes(property) && obj && typeof obj === 'object') {
+    
+    // Try accessing from nested github object (fallback for webhook structure)
+    if (obj.github && obj.github[property] !== undefined) {
+      return obj.github[property]
+    }
+    
+    // Try accessing from webhook payload (another fallback)
+    if (obj.webhook?.data?.payload && obj.webhook.data.payload[property] !== undefined) {
+      return obj.webhook.data.payload[property]
+    }
+    
+    // For commits specifically, try parsing JSON string version
+    if (property === 'commits' && typeof obj.commits === 'string') {
+      try {
+        return JSON.parse(obj.commits)
+      } catch (e) {
+        // If parsing fails, return the string version
+        return obj.commits
+      }
+    }
+    
+    // Try case-insensitive lookup as last resort
+    if (obj && typeof obj === 'object') {
+      const keys = Object.keys(obj)
+      const matchingKey = keys.find(key => key.toLowerCase() === property.toLowerCase())
+      if (matchingKey && obj[matchingKey] !== undefined) {
+        return obj[matchingKey]
+      }
+    }
+  }
+  
+  return undefined
 }
 
 /**
