@@ -12,7 +12,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import {
   AirtableConfig,
   DeleteConfirmDialog,
-  DiscordConfig,
   GenericConfig,
   GithubConfig,
   GmailConfig,
@@ -83,8 +82,7 @@ export function WebhookModal({
   // Provider-specific state
   const [whatsappVerificationToken, setWhatsappVerificationToken] = useState('')
   const [githubContentType, setGithubContentType] = useState('application/json')
-  const [discordWebhookName, setDiscordWebhookName] = useState('')
-  const [discordAvatarUrl, setDiscordAvatarUrl] = useState('')
+
   const [slackSigningSecret, setSlackSigningSecret] = useState('')
   const [telegramBotToken, setTelegramBotToken] = useState('')
   // Microsoft Teams-specific state
@@ -106,8 +104,7 @@ export function WebhookModal({
     secretHeaderName: '',
     requireAuth: false,
     allowedIps: '',
-    discordWebhookName: '',
-    discordAvatarUrl: '',
+
     airtableWebhookSecret: '',
     airtableBaseId: '',
     airtableTableId: '',
@@ -184,18 +181,6 @@ export function WebhookModal({
                 const contentType = config.contentType || 'application/json'
                 setGithubContentType(contentType)
                 setOriginalValues((prev) => ({ ...prev, githubContentType: contentType }))
-              } else if (webhookProvider === 'discord') {
-                const webhookName = config.webhookName || ''
-                const avatarUrl = config.avatarUrl || ''
-
-                setDiscordWebhookName(webhookName)
-                setDiscordAvatarUrl(avatarUrl)
-
-                setOriginalValues((prev) => ({
-                  ...prev,
-                  discordWebhookName: webhookName,
-                  discordAvatarUrl: avatarUrl,
-                }))
               } else if (webhookProvider === 'generic') {
                 // Set general webhook configuration
                 const token = config.token || ''
@@ -328,9 +313,6 @@ export function WebhookModal({
       (webhookProvider === 'whatsapp' &&
         whatsappVerificationToken !== originalValues.whatsappVerificationToken) ||
       (webhookProvider === 'github' && githubContentType !== originalValues.githubContentType) ||
-      (webhookProvider === 'discord' &&
-        (discordWebhookName !== originalValues.discordWebhookName ||
-          discordAvatarUrl !== originalValues.discordAvatarUrl)) ||
       (webhookProvider === 'generic' &&
         (generalToken !== originalValues.generalToken ||
           secretHeaderName !== originalValues.secretHeaderName ||
@@ -357,8 +339,6 @@ export function WebhookModal({
     webhookProvider,
     whatsappVerificationToken,
     githubContentType,
-    discordWebhookName,
-    discordAvatarUrl,
     generalToken,
     secretHeaderName,
     requireAuth,
@@ -393,9 +373,7 @@ export function WebhookModal({
       case 'github':
         isValid = generalToken.trim() !== ''
         break
-      case 'discord':
-        isValid = discordWebhookName.trim() !== ''
-        break
+
       case 'telegram':
         isValid = telegramBotToken.trim() !== ''
         break
@@ -442,11 +420,6 @@ export function WebhookModal({
         return { verificationToken: whatsappVerificationToken }
       case 'github':
         return { contentType: githubContentType }
-      case 'discord':
-        return {
-          webhookName: discordWebhookName || undefined,
-          avatarUrl: discordAvatarUrl || undefined,
-        }
       case 'stripe':
         return {}
       case 'gmail':
@@ -539,8 +512,6 @@ export function WebhookModal({
             secretHeaderName,
             requireAuth,
             allowedIps,
-            discordWebhookName,
-            discordAvatarUrl,
             slackSigningSecret,
             airtableWebhookSecret,
             airtableBaseId,
@@ -738,20 +709,7 @@ export function WebhookModal({
             setIncludeRawEmail={setIncludeRawEmail}
           />
         )
-      case 'discord':
-        return (
-          <DiscordConfig
-            webhookName={discordWebhookName}
-            setWebhookName={setDiscordWebhookName}
-            avatarUrl={discordAvatarUrl}
-            setAvatarUrl={setDiscordAvatarUrl}
-            isLoadingToken={isLoadingToken}
-            testResult={testResult}
-            copied={copied}
-            copyToClipboard={copyToClipboard}
-            testWebhook={testWebhook}
-          />
-        )
+
       case 'stripe':
         return (
           <StripeConfig

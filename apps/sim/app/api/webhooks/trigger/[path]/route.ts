@@ -100,20 +100,41 @@ export async function POST(
     return new NextResponse('Failed to read request body', { status: 400 })
   }
 
-  // Parse the body as JSON
+  // Parse the body - handle both JSON and form-encoded payloads
   let body: any
   try {
-    body = JSON.parse(rawBody)
+    // Check content type to handle both JSON and form-encoded payloads
+    const contentType = request.headers.get('content-type') || ''
+
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      // GitHub sends form-encoded data with JSON in the 'payload' field
+      const formData = new URLSearchParams(rawBody)
+      const payloadString = formData.get('payload')
+
+      if (!payloadString) {
+        logger.warn(`[${requestId}] No payload field found in form-encoded data`)
+        return new NextResponse('Missing payload field', { status: 400 })
+      }
+
+      body = JSON.parse(payloadString)
+      logger.debug(`[${requestId}] Parsed form-encoded GitHub webhook payload`)
+    } else {
+      // Default to JSON parsing
+      body = JSON.parse(rawBody)
+      logger.debug(`[${requestId}] Parsed JSON webhook payload`)
+    }
 
     if (Object.keys(body).length === 0) {
       logger.warn(`[${requestId}] Rejecting empty JSON object`)
       return new NextResponse('Empty JSON payload', { status: 400 })
     }
   } catch (parseError) {
-    logger.error(`[${requestId}] Failed to parse JSON body`, {
+    logger.error(`[${requestId}] Failed to parse webhook body`, {
       error: parseError instanceof Error ? parseError.message : String(parseError),
+      contentType: request.headers.get('content-type'),
+      bodyPreview: `${rawBody?.slice(0, 100)}...`,
     })
-    return new NextResponse('Invalid JSON payload', { status: 400 })
+    return new NextResponse('Invalid payload format', { status: 400 })
   }
 
   // Handle Slack challenge
