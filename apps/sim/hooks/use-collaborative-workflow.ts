@@ -6,6 +6,7 @@ import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import { useSocket } from '@/contexts/socket-context'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -23,8 +24,10 @@ export function useCollaborativeWorkflow() {
     leaveWorkflow,
     emitWorkflowOperation,
     emitSubblockUpdate,
+    emitVariableUpdate,
     onWorkflowOperation,
     onSubblockUpdate,
+    onVariableUpdate,
     onUserJoined,
     onUserLeft,
     onWorkflowDeleted,
@@ -36,6 +39,7 @@ export function useCollaborativeWorkflow() {
   const { activeWorkflowId } = useWorkflowRegistry()
   const workflowStore = useWorkflowStore()
   const subBlockStore = useSubBlockStore()
+  const variablesStore = useVariablesStore()
   const { data: session } = useSession()
   const { isShowingDiff } = useWorkflowDiffStore()
 
@@ -53,6 +57,7 @@ export function useCollaborativeWorkflow() {
     confirmOperation,
     failOperation,
     cancelOperationsForBlock,
+    cancelOperationsForVariable,
   } = useOperationQueue()
 
   // Clear position timestamps when switching workflows
@@ -73,8 +78,13 @@ export function useCollaborativeWorkflow() {
 
   // Register emit functions with operation queue store
   useEffect(() => {
-    registerEmitFunctions(emitWorkflowOperation, emitSubblockUpdate, currentWorkflowId)
-  }, [emitWorkflowOperation, emitSubblockUpdate, currentWorkflowId])
+    registerEmitFunctions(
+      emitWorkflowOperation,
+      emitSubblockUpdate,
+      emitVariableUpdate,
+      currentWorkflowId
+    )
+  }, [emitWorkflowOperation, emitSubblockUpdate, emitVariableUpdate, currentWorkflowId])
 
   useEffect(() => {
     const handleWorkflowOperation = (data: any) => {
@@ -232,6 +242,26 @@ export function useCollaborativeWorkflow() {
               }
               break
           }
+        } else if (target === 'variable') {
+          switch (operation) {
+            case 'add':
+              variablesStore.addVariable(
+                {
+                  workflowId: payload.workflowId,
+                  name: payload.name,
+                  type: payload.type,
+                  value: payload.value,
+                },
+                payload.id
+              )
+              break
+            case 'remove':
+              variablesStore.deleteVariable(payload.variableId)
+              break
+            case 'duplicate':
+              variablesStore.duplicateVariable(payload.sourceVariableId, payload.id)
+              break
+          }
         }
       } catch (error) {
         logger.error('Error applying remote operation:', error)
@@ -254,6 +284,30 @@ export function useCollaborativeWorkflow() {
         subBlockStore.setValue(blockId, subblockId, value)
       } catch (error) {
         logger.error('Error applying remote subblock update:', error)
+      } finally {
+        isApplyingRemoteChange.current = false
+      }
+    }
+
+    const handleVariableUpdate = (data: any) => {
+      const { variableId, field, value, userId } = data
+
+      if (isApplyingRemoteChange.current) return
+
+      logger.info(`Received variable update from user ${userId}: ${variableId}.${field}`)
+
+      isApplyingRemoteChange.current = true
+
+      try {
+        if (field === 'name') {
+          variablesStore.updateVariable(variableId, { name: value })
+        } else if (field === 'value') {
+          variablesStore.updateVariable(variableId, { value })
+        } else if (field === 'type') {
+          variablesStore.updateVariable(variableId, { type: value })
+        }
+      } catch (error) {
+        logger.error('Error applying remote variable update:', error)
       } finally {
         isApplyingRemoteChange.current = false
       }
@@ -364,6 +418,7 @@ export function useCollaborativeWorkflow() {
     // Register event handlers
     onWorkflowOperation(handleWorkflowOperation)
     onSubblockUpdate(handleSubblockUpdate)
+    onVariableUpdate(handleVariableUpdate)
     onUserJoined(handleUserJoined)
     onUserLeft(handleUserLeft)
     onWorkflowDeleted(handleWorkflowDeleted)
@@ -377,6 +432,7 @@ export function useCollaborativeWorkflow() {
   }, [
     onWorkflowOperation,
     onSubblockUpdate,
+    onVariableUpdate,
     onUserJoined,
     onUserLeft,
     onWorkflowDeleted,
@@ -385,6 +441,7 @@ export function useCollaborativeWorkflow() {
     onOperationFailed,
     workflowStore,
     subBlockStore,
+    variablesStore,
     activeWorkflowId,
     confirmOperation,
     failOperation,
@@ -1094,6 +1151,72 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, workflowStore]
   )
 
+  const collaborativeUpdateVariable = useCallback(
+    (variableId: string, field: 'name' | 'value' | 'type', value: any) => {
+      executeQueuedOperation('variable-update', 'variable', { variableId, field, value }, () => {
+        if (field === 'name') {
+          variablesStore.updateVariable(variableId, { name: value })
+        } else if (field === 'value') {
+          variablesStore.updateVariable(variableId, { value })
+        } else if (field === 'type') {
+          variablesStore.updateVariable(variableId, { type: value })
+        }
+      })
+    },
+    [executeQueuedOperation, variablesStore]
+  )
+
+  const collaborativeAddVariable = useCallback(
+    (variableData: { name: string; type: any; value: any; workflowId: string }) => {
+      const id = crypto.randomUUID()
+      variablesStore.addVariable(variableData, id)
+      const processedVariable = useVariablesStore.getState().variables[id]
+
+      if (processedVariable) {
+        const payloadWithProcessedName = {
+          ...variableData,
+          id,
+          name: processedVariable.name,
+        }
+
+        executeQueuedOperation('add', 'variable', payloadWithProcessedName, () => {})
+      }
+
+      return id
+    },
+    [executeQueuedOperation, variablesStore]
+  )
+
+  const collaborativeDeleteVariable = useCallback(
+    (variableId: string) => {
+      cancelOperationsForVariable(variableId)
+
+      executeQueuedOperation('remove', 'variable', { variableId }, () => {
+        variablesStore.deleteVariable(variableId)
+      })
+    },
+    [executeQueuedOperation, variablesStore, cancelOperationsForVariable]
+  )
+
+  const collaborativeDuplicateVariable = useCallback(
+    (variableId: string) => {
+      const newId = crypto.randomUUID()
+      const sourceVariable = useVariablesStore.getState().variables[variableId]
+      if (!sourceVariable) return null
+
+      executeQueuedOperation(
+        'duplicate',
+        'variable',
+        { sourceVariableId: variableId, id: newId },
+        () => {
+          variablesStore.duplicateVariable(variableId, newId)
+        }
+      )
+      return newId
+    },
+    [executeQueuedOperation, variablesStore]
+  )
+
   return {
     // Connection status
     isConnected,
@@ -1121,6 +1244,12 @@ export function useCollaborativeWorkflow() {
     collaborativeRemoveEdge,
     collaborativeSetSubblockValue,
     collaborativeSetTagSelection,
+
+    // Collaborative variable operations
+    collaborativeUpdateVariable,
+    collaborativeAddVariable,
+    collaborativeDeleteVariable,
+    collaborativeDuplicateVariable,
 
     // Collaborative loop/parallel operations
     collaborativeUpdateLoopType,
