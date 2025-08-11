@@ -352,12 +352,15 @@ async function createAirtableWebhookSubscription(
       return // Cannot proceed without base/table IDs
     }
 
-    const accessToken = await getOAuthToken(userId, 'airtable') // Use 'airtable' as the providerId key
+    const accessToken = await getOAuthToken(userId, 'airtable')
     if (!accessToken) {
       logger.warn(
         `[${requestId}] Could not retrieve Airtable access token for user ${userId}. Cannot create webhook in Airtable.`
       )
-      return
+      // Instead of silently returning, throw an error with clear user guidance
+      throw new Error(
+        'Airtable account connection required. Please connect your Airtable account in the trigger configuration and try again.'
+      )
     }
 
     const requestOrigin = new URL(request.url).origin
