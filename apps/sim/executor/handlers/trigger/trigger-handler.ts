@@ -115,12 +115,12 @@ export class TriggerBlockHandler implements BlockHandler {
             if (provider === 'github') {
               // Comprehensive GitHub object extraction from multiple possible sources
               const githubObjects = ['repository', 'sender', 'pusher', 'commits', 'head_commit']
-              
+
               for (const objName of githubObjects) {
                 if (!result[objName]) {
                   // Try multiple sources for the object
                   let objectValue = null
-                  
+
                   // Source 1: Direct from provider data
                   if (providerData[objName]) {
                     objectValue = providerData[objName]
@@ -138,7 +138,7 @@ export class TriggerBlockHandler implements BlockHandler {
                       objectValue = result.commits
                     }
                   }
-                  
+
                   // Store the object if found
                   if (objectValue !== null && objectValue !== undefined) {
                     result[objName] = objectValue
