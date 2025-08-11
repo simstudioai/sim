@@ -165,7 +165,11 @@ export const webhookExecution = task({
         }
 
         // Get the processed Airtable input
-        const airtableInput = await fetchAndProcessAirtablePayloads(webhookData, mockWorkflow, requestId)
+        const airtableInput = await fetchAndProcessAirtablePayloads(
+          webhookData,
+          mockWorkflow,
+          requestId
+        )
 
         // If we got input (changes), execute the workflow like other providers
         if (airtableInput) {
@@ -231,24 +235,23 @@ export const webhookExecution = task({
             executedAt: new Date().toISOString(),
             provider: payload.provider,
           }
-        } else {
-          // No changes to process
-          logger.info(`[${requestId}] No Airtable changes to process`)
-          
-          await loggingSession.safeComplete({
-            endedAt: new Date().toISOString(),
-            totalDurationMs: 0,
-            finalOutput: { message: 'No Airtable changes to process' },
-            traceSpans: [],
-          })
+        }
+        // No changes to process
+        logger.info(`[${requestId}] No Airtable changes to process`)
 
-          return {
-            success: true,
-            workflowId: payload.workflowId,
-            executionId,
-            output: { message: 'No Airtable changes to process' },
-            executedAt: new Date().toISOString(),
-          }
+        await loggingSession.safeComplete({
+          endedAt: new Date().toISOString(),
+          totalDurationMs: 0,
+          finalOutput: { message: 'No Airtable changes to process' },
+          traceSpans: [],
+        })
+
+        return {
+          success: true,
+          workflowId: payload.workflowId,
+          executionId,
+          output: { message: 'No Airtable changes to process' },
+          executedAt: new Date().toISOString(),
         }
       }
 
