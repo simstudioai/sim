@@ -65,7 +65,7 @@ export class TriggerBlockHandler implements BlockHandler {
           if (provider && starterOutput[provider]) {
             // Copy all properties from provider object to root level for direct access
             const providerData = starterOutput[provider]
-            
+
             // Enhanced debug logging for GitHub provider
             if (provider === 'github') {
               logger.debug(`Processing GitHub webhook data for block ${block.id}`, {
@@ -78,7 +78,7 @@ export class TriggerBlockHandler implements BlockHandler {
                 hasAfter: 'after' in providerData,
               })
             }
-            
+
             for (const [key, value] of Object.entries(providerData)) {
               // Special handling for GitHub provider - copy all properties
               if (provider === 'github') {
@@ -110,17 +110,42 @@ export class TriggerBlockHandler implements BlockHandler {
 
             // Keep nested structure for backwards compatibility
             result[provider] = providerData
-            
+
             // Special handling for GitHub complex objects that might not be copied by the main loop
             if (provider === 'github') {
-              // Ensure repository and sender objects are available at root level
-              const complexObjects = ['repository', 'sender', 'pusher']
-              for (const objName of complexObjects) {
-                if (!result[objName] && providerData[objName]) {
-                  result[objName] = providerData[objName]
+              // Comprehensive GitHub object extraction from multiple possible sources
+              const githubObjects = ['repository', 'sender', 'pusher', 'commits', 'head_commit']
+              
+              for (const objName of githubObjects) {
+                if (!result[objName]) {
+                  // Try multiple sources for the object
+                  let objectValue = null
+                  
+                  // Source 1: Direct from provider data
+                  if (providerData[objName]) {
+                    objectValue = providerData[objName]
+                  }
+                  // Source 2: From webhook payload (raw GitHub webhook)
+                  else if (starterOutput.webhook?.data?.payload?.[objName]) {
+                    objectValue = starterOutput.webhook.data.payload[objName]
+                  }
+                  // Source 3: For commits, try parsing JSON string version
+                  else if (objName === 'commits' && typeof result.commits === 'string') {
+                    try {
+                      objectValue = JSON.parse(result.commits)
+                    } catch (e) {
+                      // Keep as string if parsing fails
+                      objectValue = result.commits
+                    }
+                  }
+                  
+                  // Store the object if found
+                  if (objectValue !== null && objectValue !== undefined) {
+                    result[objName] = objectValue
+                  }
                 }
               }
-              
+
               logger.debug(`GitHub trigger result after processing`, {
                 resultKeys: Object.keys(result),
                 hasRepository: 'repository' in result,
