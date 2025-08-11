@@ -609,8 +609,9 @@ export function formatWebhookInput(
     return {
       input, // Primary workflow input
 
-      // Raw GitHub webhook body for direct field access
-      body: body,
+      // Make all GitHub webhook fields available at root level for direct access
+      // This allows users to access: ref, repository, sender, commits, etc.
+      ...body,
 
       // Top-level properties for backward compatibility
       ...githubData,
