@@ -65,17 +65,52 @@ export class TriggerBlockHandler implements BlockHandler {
           if (provider && starterOutput[provider]) {
             // Copy all properties from provider object to root level for direct access
             const providerData = starterOutput[provider]
+            
+            // Enhanced debug logging for GitHub provider
+            if (provider === 'github') {
+              logger.debug(`Processing GitHub webhook data for block ${block.id}`, {
+                providerDataKeys: Object.keys(providerData),
+                hasRepository: 'repository' in providerData,
+                repositoryType: typeof providerData.repository,
+                repositoryKeys: providerData.repository ? Object.keys(providerData.repository) : [],
+                hasRef: 'ref' in providerData,
+                hasBefore: 'before' in providerData,
+                hasAfter: 'after' in providerData,
+              })
+            }
+            
             for (const [key, value] of Object.entries(providerData)) {
-              if (typeof value === 'object' && value !== null) {
-                // Don't overwrite existing top-level properties
+              // Special handling for GitHub provider - copy all properties
+              if (provider === 'github') {
+                // For GitHub, copy all properties (objects and primitives) to root level
                 if (!result[key]) {
                   result[key] = value
+                }
+              } else {
+                // For other providers, keep existing logic (only copy objects)
+                if (typeof value === 'object' && value !== null) {
+                  // Don't overwrite existing top-level properties
+                  if (!result[key]) {
+                    result[key] = value
+                  }
                 }
               }
             }
 
             // Keep nested structure for backwards compatibility
             result[provider] = providerData
+            
+            // Final verification for GitHub
+            if (provider === 'github') {
+              logger.debug(`GitHub trigger result after processing`, {
+                resultKeys: Object.keys(result),
+                hasRepository: 'repository' in result,
+                repositoryType: typeof result.repository,
+                hasRef: 'ref' in result,
+                hasBefore: 'before' in result,
+                hasAfter: 'after' in result,
+              })
+            }
           }
 
           // Pattern 2: Provider data directly in webhook.data (based on actual structure)
