@@ -46,9 +46,6 @@ export function Variables() {
   // Get variables for the current workflow
   const workflowVariables = activeWorkflowId ? getVariablesByWorkflowId(activeWorkflowId) : []
 
-  // Variables are now loaded automatically by the workflow registry
-  // No separate loading needed
-
   // Track editor references
   const editorRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
@@ -61,13 +58,11 @@ export function Variables() {
     collaborativeUpdateVariable(variableId, 'name', validatedName)
   }
 
-  // Auto-save when variables are added/edited
   const handleAddVariable = () => {
     if (!activeWorkflowId) return
 
-    // Create a default variable - naming is handled in the store
     const id = collaborativeAddVariable({
-      name: '', // Store will generate an appropriate name
+      name: '',
       type: 'string',
       value: '',
       workflowId: activeWorkflowId,
@@ -127,13 +122,10 @@ export function Variables() {
     }
   }
 
-  // Handle editor value changes - store exactly what user types
   const handleEditorChange = (variable: Variable, newValue: string) => {
-    // Store the raw value directly, no parsing or formatting
     collaborativeUpdateVariable(variable.id, 'value', newValue)
   }
 
-  // Only track focus state for UI purposes
   const handleEditorBlur = (variableId: string) => {
     setActiveEditors((prev) => ({
       ...prev,
@@ -141,7 +133,6 @@ export function Variables() {
     }))
   }
 
-  // Track when editor becomes active
   const handleEditorFocus = (variableId: string) => {
     setActiveEditors((prev) => ({
       ...prev,
@@ -149,20 +140,14 @@ export function Variables() {
     }))
   }
 
-  // Always return raw value without any formatting
   const formatValue = (variable: Variable) => {
     if (variable.value === '') return ''
 
-    // Always return raw value exactly as typed
     return typeof variable.value === 'string' ? variable.value : JSON.stringify(variable.value)
   }
 
-  // Get validation status based on type and value
   const getValidationStatus = (variable: Variable): string | undefined => {
-    // Empty values don't need validation
     if (variable.value === '') return undefined
-
-    // Otherwise validate based on type
     switch (variable.type) {
       case 'number':
         return Number.isNaN(Number(variable.value)) ? 'Not a valid number' : undefined
@@ -172,49 +157,38 @@ export function Variables() {
           : undefined
       case 'object':
         try {
-          // Handle both JavaScript and JSON syntax
           const valueToEvaluate = String(variable.value).trim()
 
-          // Basic security check to prevent arbitrary code execution
           if (!valueToEvaluate.startsWith('{') || !valueToEvaluate.endsWith('}')) {
             return 'Not a valid object format'
           }
 
-          // Use Function constructor to safely evaluate the object expression
-          // This is safer than eval() and handles all JS object literal syntax
           const parsed = new Function(`return ${valueToEvaluate}`)()
 
-          // Verify it's actually an object (not array or null)
           if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
             return 'Not a valid object'
           }
 
-          return undefined // Valid object
+          return undefined
         } catch (e) {
           logger.info('Object parsing error:', e)
           return 'Invalid object syntax'
         }
       case 'array':
         try {
-          // Use actual JavaScript evaluation instead of trying to convert to JSON
-          // This properly handles all valid JS array syntax including mixed types
           const valueToEvaluate = String(variable.value).trim()
 
-          // Basic security check to prevent arbitrary code execution
           if (!valueToEvaluate.startsWith('[') || !valueToEvaluate.endsWith(']')) {
             return 'Not a valid array format'
           }
 
-          // Use Function constructor to safely evaluate the array expression
-          // This is safer than eval() and handles all JS array syntax correctly
           const parsed = new Function(`return ${valueToEvaluate}`)()
 
-          // Verify it's actually an array
           if (!Array.isArray(parsed)) {
             return 'Not a valid array'
           }
 
-          return undefined // Valid array
+          return undefined
         } catch (e) {
           logger.info('Array parsing error:', e)
           return 'Invalid array syntax'
@@ -224,9 +198,7 @@ export function Variables() {
     }
   }
 
-  // Clear editor refs when variables change
   useEffect(() => {
-    // Clean up any references to deleted variables
     Object.keys(editorRefs.current).forEach((id) => {
       if (!workflowVariables.some((v) => v.id === id)) {
         delete editorRefs.current[id]
