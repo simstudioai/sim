@@ -51,31 +51,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { chatId, messages } = UpdateMessagesSchema.parse(body)
 
-    logger.info(`[${tracker.requestId}] Updating chat messages`, {
-      userId,
-      chatId,
-      messageCount: messages.length,
-    })
-
-    // Log the full messages array being persisted in update-messages
-    logger.info(`[${tracker.requestId}] Full messages array being persisted via update-messages:`, {
-      chatId,
-      messageCount: messages.length,
-      messages: messages.map((msg, index) => ({
-        index,
-        id: msg.id,
-        role: msg.role,
-        contentLength: msg.content?.length || 0,
-        hasToolCalls: !!msg.toolCalls && msg.toolCalls.length > 0,
-        toolCallsCount: msg.toolCalls?.length || 0,
-        toolCallNames: msg.toolCalls?.map((tc: any) => tc.name) || [],
-        timestamp: msg.timestamp,
-        hasFileAttachments: !!msg.fileAttachments && msg.fileAttachments.length > 0,
-        fileAttachmentsCount: msg.fileAttachments?.length || 0
-      })),
-      fullMessages: JSON.stringify(messages, null, 2)
-    })
-
     // Verify that the chat belongs to the user
     const [chat] = await db
       .select()

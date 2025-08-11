@@ -327,36 +327,6 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Start title generation in parallel if this is a new chat with first message
-    if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
-      logger.info(`[${tracker.requestId}] Will start parallel title generation inside stream`)
-    }
-
-    // Log the full messages array being sent to the LLM
-    logger.info(`[${tracker.requestId}] Full messages array being sent to LLM:`, {
-      messageCount: messages.length,
-      messages: messages.map((msg, index) => ({
-        index,
-        role: msg.role,
-        contentType: Array.isArray(msg.content) ? 'array' : 'string',
-        contentLength: Array.isArray(msg.content) 
-          ? msg.content.reduce((total, item) => total + (item.text?.length || 0), 0)
-          : msg.content?.length || 0,
-        hasContent: !!msg.content,
-        isFileContent: Array.isArray(msg.content) && msg.content.some(item => item.type !== 'text'),
-        fileContentTypes: Array.isArray(msg.content) 
-          ? msg.content.filter(item => item.type !== 'text').map(item => item.type)
-          : []
-      })),
-      fullMessages: JSON.stringify(messages, null, 2)
-    })
-
-    // Forward to sim agent API
-    logger.info(`[${tracker.requestId}] Sending request to sim agent API`, {
-      messageCount: messages.length,
-      endpoint: `${SIM_AGENT_API_URL}/api/chat-completion-streaming`,
-    })
-
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
       headers: {
