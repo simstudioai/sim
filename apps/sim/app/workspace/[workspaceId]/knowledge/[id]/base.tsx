@@ -1121,7 +1121,7 @@ export function KnowledgeBase({
                               key={page}
                               onClick={() => goToPage(page)}
                               disabled={isLoadingDocuments}
-                              className={`font-medium text-sm transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 ${
+                              className={`font-medium text-sm transition-colors hover:text-foreground disabled:opacity-50 ${
                                 page === currentPage ? 'text-foreground' : 'text-muted-foreground'
                               }`}
                             >
