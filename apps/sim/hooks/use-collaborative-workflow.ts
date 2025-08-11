@@ -937,36 +937,6 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, workflowStore, subBlockStore, activeWorkflowId]
   )
 
-  const collaborativeUpdateLoopCount = useCallback(
-    (loopId: string, count: number) => {
-      // Get current state BEFORE making changes
-      const currentBlock = workflowStore.blocks[loopId]
-      if (!currentBlock || currentBlock.type !== 'loop') return
-
-      // Find child nodes before state changes
-      const childNodes = Object.values(workflowStore.blocks)
-        .filter((b) => b.data?.parentId === loopId)
-        .map((b) => b.id)
-
-      // Get current values to preserve them
-      const currentLoopType = currentBlock.data?.loopType || 'for'
-      const currentCollection = currentBlock.data?.collection || ''
-
-      const config = {
-        id: loopId,
-        nodes: childNodes,
-        iterations: count,
-        loopType: currentLoopType,
-        forEachItems: currentCollection,
-      }
-
-      executeQueuedOperation('update', 'subflow', { id: loopId, type: 'loop', config }, () =>
-        workflowStore.updateLoopCount(loopId, count)
-      )
-    },
-    [executeQueuedOperation, workflowStore]
-  )
-
   const collaborativeUpdateLoopType = useCallback(
     (loopId: string, loopType: 'for' | 'forEach') => {
       const currentBlock = workflowStore.blocks[loopId]
@@ -989,93 +959,6 @@ export function useCollaborativeWorkflow() {
 
       executeQueuedOperation('update', 'subflow', { id: loopId, type: 'loop', config }, () =>
         workflowStore.updateLoopType(loopId, loopType)
-      )
-    },
-    [executeQueuedOperation, workflowStore]
-  )
-
-  const collaborativeUpdateLoopCollection = useCallback(
-    (loopId: string, collection: string) => {
-      const currentBlock = workflowStore.blocks[loopId]
-      if (!currentBlock || currentBlock.type !== 'loop') return
-
-      const childNodes = Object.values(workflowStore.blocks)
-        .filter((b) => b.data?.parentId === loopId)
-        .map((b) => b.id)
-
-      const currentIterations = currentBlock.data?.count || 5
-      const currentLoopType = currentBlock.data?.loopType || 'for'
-
-      const config = {
-        id: loopId,
-        nodes: childNodes,
-        iterations: currentIterations,
-        loopType: currentLoopType,
-        forEachItems: collection,
-      }
-
-      executeQueuedOperation('update', 'subflow', { id: loopId, type: 'loop', config }, () =>
-        workflowStore.updateLoopCollection(loopId, collection)
-      )
-    },
-    [executeQueuedOperation, workflowStore]
-  )
-
-  const collaborativeUpdateParallelCount = useCallback(
-    (parallelId: string, count: number) => {
-      const currentBlock = workflowStore.blocks[parallelId]
-      if (!currentBlock || currentBlock.type !== 'parallel') return
-
-      const childNodes = Object.values(workflowStore.blocks)
-        .filter((b) => b.data?.parentId === parallelId)
-        .map((b) => b.id)
-
-      const currentDistribution = currentBlock.data?.collection || ''
-      const currentParallelType = currentBlock.data?.parallelType || 'collection'
-
-      const config = {
-        id: parallelId,
-        nodes: childNodes,
-        count: Math.max(1, Math.min(20, count)), // Clamp between 1-20
-        distribution: currentDistribution,
-        parallelType: currentParallelType,
-      }
-
-      executeQueuedOperation(
-        'update',
-        'subflow',
-        { id: parallelId, type: 'parallel', config },
-        () => workflowStore.updateParallelCount(parallelId, count)
-      )
-    },
-    [executeQueuedOperation, workflowStore]
-  )
-
-  const collaborativeUpdateParallelCollection = useCallback(
-    (parallelId: string, collection: string) => {
-      const currentBlock = workflowStore.blocks[parallelId]
-      if (!currentBlock || currentBlock.type !== 'parallel') return
-
-      const childNodes = Object.values(workflowStore.blocks)
-        .filter((b) => b.data?.parentId === parallelId)
-        .map((b) => b.id)
-
-      const currentCount = currentBlock.data?.count || 5
-      const currentParallelType = currentBlock.data?.parallelType || 'collection'
-
-      const config = {
-        id: parallelId,
-        nodes: childNodes,
-        count: currentCount,
-        distribution: collection,
-        parallelType: currentParallelType,
-      }
-
-      executeQueuedOperation(
-        'update',
-        'subflow',
-        { id: parallelId, type: 'parallel', config },
-        () => workflowStore.updateParallelCollection(parallelId, collection)
       )
     },
     [executeQueuedOperation, workflowStore]
@@ -1122,6 +1005,95 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, workflowStore]
   )
 
+  // Unified iteration management functions - count and collection only
+  const collaborativeUpdateIterationCount = useCallback(
+    (nodeId: string, iterationType: 'loop' | 'parallel', count: number) => {
+      const currentBlock = workflowStore.blocks[nodeId]
+      if (!currentBlock || currentBlock.type !== iterationType) return
+
+      const childNodes = Object.values(workflowStore.blocks)
+        .filter((b) => b.data?.parentId === nodeId)
+        .map((b) => b.id)
+
+      if (iterationType === 'loop') {
+        const currentLoopType = currentBlock.data?.loopType || 'for'
+        const currentCollection = currentBlock.data?.collection || ''
+
+        const config = {
+          id: nodeId,
+          nodes: childNodes,
+          iterations: Math.max(1, Math.min(100, count)), // Clamp between 1-100 for loops
+          loopType: currentLoopType,
+          forEachItems: currentCollection,
+        }
+
+        executeQueuedOperation('update', 'subflow', { id: nodeId, type: 'loop', config }, () =>
+          workflowStore.updateLoopCount(nodeId, count)
+        )
+      } else {
+        const currentDistribution = currentBlock.data?.collection || ''
+        const currentParallelType = currentBlock.data?.parallelType || 'count'
+
+        const config = {
+          id: nodeId,
+          nodes: childNodes,
+          count: Math.max(1, Math.min(20, count)), // Clamp between 1-20 for parallels
+          distribution: currentDistribution,
+          parallelType: currentParallelType,
+        }
+
+        executeQueuedOperation('update', 'subflow', { id: nodeId, type: 'parallel', config }, () =>
+          workflowStore.updateParallelCount(nodeId, count)
+        )
+      }
+    },
+    [executeQueuedOperation, workflowStore]
+  )
+
+  const collaborativeUpdateIterationCollection = useCallback(
+    (nodeId: string, iterationType: 'loop' | 'parallel', collection: string) => {
+      const currentBlock = workflowStore.blocks[nodeId]
+      if (!currentBlock || currentBlock.type !== iterationType) return
+
+      const childNodes = Object.values(workflowStore.blocks)
+        .filter((b) => b.data?.parentId === nodeId)
+        .map((b) => b.id)
+
+      if (iterationType === 'loop') {
+        const currentIterations = currentBlock.data?.count || 5
+        const currentLoopType = currentBlock.data?.loopType || 'for'
+
+        const config = {
+          id: nodeId,
+          nodes: childNodes,
+          iterations: currentIterations,
+          loopType: currentLoopType,
+          forEachItems: collection,
+        }
+
+        executeQueuedOperation('update', 'subflow', { id: nodeId, type: 'loop', config }, () =>
+          workflowStore.updateLoopCollection(nodeId, collection)
+        )
+      } else {
+        const currentCount = currentBlock.data?.count || 5
+        const currentParallelType = currentBlock.data?.parallelType || 'count'
+
+        const config = {
+          id: nodeId,
+          nodes: childNodes,
+          count: currentCount,
+          distribution: collection,
+          parallelType: currentParallelType,
+        }
+
+        executeQueuedOperation('update', 'subflow', { id: nodeId, type: 'parallel', config }, () =>
+          workflowStore.updateParallelCollection(nodeId, collection)
+        )
+      }
+    },
+    [executeQueuedOperation, workflowStore]
+  )
+
   return {
     // Connection status
     isConnected,
@@ -1151,12 +1123,12 @@ export function useCollaborativeWorkflow() {
     collaborativeSetTagSelection,
 
     // Collaborative loop/parallel operations
-    collaborativeUpdateLoopCount,
     collaborativeUpdateLoopType,
-    collaborativeUpdateLoopCollection,
-    collaborativeUpdateParallelCount,
-    collaborativeUpdateParallelCollection,
     collaborativeUpdateParallelType,
+
+    // Unified iteration operations
+    collaborativeUpdateIterationCount,
+    collaborativeUpdateIterationCollection,
 
     // Direct access to stores for non-collaborative operations
     workflowStore,

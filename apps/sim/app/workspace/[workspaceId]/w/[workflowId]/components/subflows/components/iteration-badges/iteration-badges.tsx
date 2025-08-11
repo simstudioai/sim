@@ -12,150 +12,174 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 
-interface ParallelNodeData {
+type IterationType = 'loop' | 'parallel'
+type LoopType = 'for' | 'forEach'
+type ParallelType = 'count' | 'collection'
+
+interface IterationNodeData {
   width?: number
   height?: number
   parentId?: string
   state?: string
   type?: string
   extent?: 'parent'
-  parallelType?: 'count' | 'collection'
+  loopType?: LoopType
+  parallelType?: ParallelType
+  // Common
   count?: number
   collection?: string | any[] | Record<string, any>
   isPreview?: boolean
   executionState?: {
-    currentExecution: number
+    currentIteration?: number
+    currentExecution?: number
     isExecuting: boolean
     startTime: number | null
     endTime: number | null
   }
 }
 
-interface ParallelBadgesProps {
+interface IterationBadgesProps {
   nodeId: string
-  data: ParallelNodeData
+  data: IterationNodeData
+  iterationType: IterationType
 }
 
-export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
-  // Check if this is preview mode
+const CONFIG = {
+  loop: {
+    typeLabels: { for: 'For Loop', forEach: 'For Each' },
+    typeKey: 'loopType' as const,
+    storeKey: 'loops' as const,
+    maxIterations: 100,
+    configKeys: {
+      iterations: 'iterations' as const,
+      items: 'forEachItems' as const,
+    },
+  },
+  parallel: {
+    typeLabels: { count: 'Parallel Count', collection: 'Parallel Each' },
+    typeKey: 'parallelType' as const,
+    storeKey: 'parallels' as const,
+    maxIterations: 20,
+    configKeys: {
+      iterations: 'count' as const,
+      items: 'distribution' as const,
+    },
+  },
+} as const
+
+export function IterationBadges({ nodeId, data, iterationType }: IterationBadgesProps) {
+  const config = CONFIG[iterationType]
   const isPreview = data?.isPreview || false
 
-  // Get parallel configuration from the workflow store (single source of truth)
-  const { parallels } = useWorkflowStore()
-  const parallelConfig = parallels[nodeId]
+  // Get configuration from the workflow store
+  const store = useWorkflowStore()
+  const nodeConfig = store[config.storeKey][nodeId]
 
-  // Use parallel config as primary source, fallback to data for backward compatibility
-  const configCount = parallelConfig?.count ?? data?.count ?? 5
-  const configDistribution = parallelConfig?.distribution ?? data?.collection ?? ''
-  // For parallel type, use the block's parallelType data property as the source of truth
-  // Don't infer it from whether distribution exists, as that causes unwanted switching
-  const configParallelType = data?.parallelType || 'collection'
+  // Determine current type and values
+  const currentType = (data?.[config.typeKey] ||
+    (iterationType === 'loop' ? 'for' : 'count')) as any
+  const configIterations = (nodeConfig as any)?.[config.configKeys.iterations] ?? data?.count ?? 5
+  const configCollection = (nodeConfig as any)?.[config.configKeys.items] ?? data?.collection ?? ''
 
-  // Derive values directly from props - no useState needed for synchronized data
-  const parallelType = configParallelType
-  const iterations = configCount
-  const distributionString =
-    typeof configDistribution === 'string'
-      ? configDistribution
-      : JSON.stringify(configDistribution) || ''
+  const iterations = configIterations
+  const collectionString =
+    typeof configCollection === 'string' ? configCollection : JSON.stringify(configCollection) || ''
 
-  // Use actual values directly for display, temporary state only for active editing
+  // State management
   const [tempInputValue, setTempInputValue] = useState<string | null>(null)
   const inputValue = tempInputValue ?? iterations.toString()
-  const editorValue = distributionString
+  const editorValue = collectionString
   const [typePopoverOpen, setTypePopoverOpen] = useState(false)
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
   const [showTagDropdown, setShowTagDropdown] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
-  const editorContainerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const editorContainerRef = useRef<HTMLDivElement>(null)
 
   // Get collaborative functions
   const {
-    collaborativeUpdateParallelCount,
-    collaborativeUpdateParallelCollection,
+    collaborativeUpdateLoopType,
     collaborativeUpdateParallelType,
+    collaborativeUpdateIterationCount,
+    collaborativeUpdateIterationCollection,
   } = useCollaborativeWorkflow()
 
-  // Handle parallel type change
-  const handleParallelTypeChange = useCallback(
-    (newType: 'count' | 'collection') => {
-      if (isPreview) return // Don't allow changes in preview mode
-
-      // Use single collaborative function that handles all the state changes atomically
-      collaborativeUpdateParallelType(nodeId, newType)
-
+  // Handle type change
+  const handleTypeChange = useCallback(
+    (newType: any) => {
+      if (isPreview) return
+      if (iterationType === 'loop') {
+        collaborativeUpdateLoopType(nodeId, newType)
+      } else {
+        collaborativeUpdateParallelType(nodeId, newType)
+      }
       setTypePopoverOpen(false)
     },
-    [nodeId, collaborativeUpdateParallelType, isPreview]
+    [nodeId, iterationType, collaborativeUpdateLoopType, collaborativeUpdateParallelType, isPreview]
   )
 
   // Handle iterations input change
   const handleIterationsChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (isPreview) return // Don't allow changes in preview mode
-
+      if (isPreview) return
       const sanitizedValue = e.target.value.replace(/[^0-9]/g, '')
       const numValue = Number.parseInt(sanitizedValue)
 
       if (!Number.isNaN(numValue)) {
-        setTempInputValue(Math.min(20, numValue).toString())
+        setTempInputValue(Math.min(config.maxIterations, numValue).toString())
       } else {
         setTempInputValue(sanitizedValue)
       }
     },
-    [isPreview]
+    [isPreview, config.maxIterations]
   )
 
   // Handle iterations save
   const handleIterationsSave = useCallback(() => {
-    if (isPreview) return // Don't allow changes in preview mode
-
+    if (isPreview) return
     const value = Number.parseInt(inputValue)
 
     if (!Number.isNaN(value)) {
-      const newValue = Math.min(20, Math.max(1, value))
-      // Update the collaborative state - this will cause iterations to be derived from props
-      collaborativeUpdateParallelCount(nodeId, newValue)
+      const newValue = Math.min(config.maxIterations, Math.max(1, value))
+      collaborativeUpdateIterationCount(nodeId, iterationType, newValue)
     }
-    // Clear temporary input state to show the actual value
     setTempInputValue(null)
     setConfigPopoverOpen(false)
-  }, [inputValue, nodeId, collaborativeUpdateParallelCount, isPreview])
+  }, [
+    inputValue,
+    nodeId,
+    iterationType,
+    collaborativeUpdateIterationCount,
+    isPreview,
+    config.maxIterations,
+  ])
 
-  // Handle editor change and check for tag trigger
+  // Handle editor change
   const handleEditorChange = useCallback(
     (value: string) => {
-      if (isPreview) return // Don't allow changes in preview mode
+      if (isPreview) return
+      collaborativeUpdateIterationCollection(nodeId, iterationType, value)
 
-      // Update collaborative state directly - no local state needed
-      collaborativeUpdateParallelCollection(nodeId, value)
-
-      // Get the textarea element and cursor position
       const textarea = editorContainerRef.current?.querySelector('textarea')
       if (textarea) {
         textareaRef.current = textarea
-        const position = textarea.selectionStart || 0
-        setCursorPosition(position)
+        const cursorPos = textarea.selectionStart || 0
+        setCursorPosition(cursorPos)
 
-        // Check for tag trigger
-        const tagTrigger = checkTagTrigger(value, position)
-        setShowTagDropdown(tagTrigger.show)
+        const triggerCheck = checkTagTrigger(value, cursorPos)
+        setShowTagDropdown(triggerCheck.show)
       }
     },
-    [nodeId, collaborativeUpdateParallelCollection, isPreview]
+    [nodeId, iterationType, collaborativeUpdateIterationCollection, isPreview]
   )
 
   // Handle tag selection
   const handleTagSelect = useCallback(
     (newValue: string) => {
-      if (isPreview) return // Don't allow changes in preview mode
-
-      // Update collaborative state directly - no local state needed
-      collaborativeUpdateParallelCollection(nodeId, newValue)
+      if (isPreview) return
+      collaborativeUpdateIterationCollection(nodeId, iterationType, newValue)
       setShowTagDropdown(false)
 
-      // Focus back on the editor after selection
       setTimeout(() => {
         const textarea = textareaRef.current
         if (textarea) {
@@ -163,19 +187,20 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
         }
       }, 0)
     },
-    [nodeId, collaborativeUpdateParallelCollection, isPreview]
+    [nodeId, iterationType, collaborativeUpdateIterationCollection, isPreview]
   )
 
-  // Handle key events
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      setShowTagDropdown(false)
-    }
-  }, [])
+  // Determine if we're in count mode or collection mode
+  const isCountMode =
+    (iterationType === 'loop' && currentType === 'for') ||
+    (iterationType === 'parallel' && currentType === 'count')
+
+  // Get type options
+  const typeOptions = Object.entries(config.typeLabels)
 
   return (
     <div className='-top-9 absolute right-0 left-0 z-10 flex justify-between'>
-      {/* Parallel Type Badge */}
+      {/* Type Badge */}
       <Popover
         open={!isPreview && typePopoverOpen}
         onOpenChange={isPreview ? undefined : setTypePopoverOpen}
@@ -190,40 +215,36 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
             )}
             style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
           >
-            {parallelType === 'count' ? 'Parallel Count' : 'Parallel Each'}
+            {config.typeLabels[currentType as keyof typeof config.typeLabels]}
             {!isPreview && <ChevronDown className='h-3 w-3 text-muted-foreground' />}
           </Badge>
         </PopoverTrigger>
         {!isPreview && (
           <PopoverContent className='w-48 p-3' align='center' onClick={(e) => e.stopPropagation()}>
             <div className='space-y-2'>
-              <div className='font-medium text-muted-foreground text-xs'>Parallel Type</div>
+              <div className='font-medium text-muted-foreground text-xs'>
+                {iterationType === 'loop' ? 'Loop Type' : 'Parallel Type'}
+              </div>
               <div className='space-y-1'>
-                <div
-                  className={cn(
-                    'flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5',
-                    parallelType === 'count' ? 'bg-accent' : 'hover:bg-accent/50'
-                  )}
-                  onClick={() => handleParallelTypeChange('count')}
-                >
-                  <span className='text-sm'>Parallel Count</span>
-                </div>
-                <div
-                  className={cn(
-                    'flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5',
-                    parallelType === 'collection' ? 'bg-accent' : 'hover:bg-accent/50'
-                  )}
-                  onClick={() => handleParallelTypeChange('collection')}
-                >
-                  <span className='text-sm'>Parallel Each</span>
-                </div>
+                {typeOptions.map(([typeValue, typeLabel]) => (
+                  <div
+                    key={typeValue}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5',
+                      currentType === typeValue ? 'bg-accent' : 'hover:bg-accent/50'
+                    )}
+                    onClick={() => handleTypeChange(typeValue)}
+                  >
+                    <span className='text-sm'>{typeLabel}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </PopoverContent>
         )}
       </Popover>
 
-      {/* Iterations/Collection Badge */}
+      {/* Configuration Badge */}
       <Popover
         open={!isPreview && configPopoverOpen}
         onOpenChange={isPreview ? undefined : setConfigPopoverOpen}
@@ -238,24 +259,25 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
             )}
             style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
           >
-            {parallelType === 'count' ? `Iterations: ${iterations}` : 'Items'}
+            {isCountMode ? `Iterations: ${iterations}` : 'Items'}
             {!isPreview && <ChevronDown className='h-3 w-3 text-muted-foreground' />}
           </Badge>
         </PopoverTrigger>
         {!isPreview && (
           <PopoverContent
-            className={cn('p-3', parallelType !== 'count' ? 'w-72' : 'w-48')}
+            className={cn('p-3', !isCountMode ? 'w-72' : 'w-48')}
             align='center'
             onClick={(e) => e.stopPropagation()}
-            onKeyDown={handleKeyDown}
           >
             <div className='space-y-2'>
               <div className='font-medium text-muted-foreground text-xs'>
-                {parallelType === 'count' ? 'Parallel Iterations' : 'Parallel Items'}
+                {isCountMode
+                  ? `${iterationType === 'loop' ? 'Loop' : 'Parallel'} Iterations`
+                  : `${iterationType === 'loop' ? 'Collection' : 'Parallel'} Items`}
               </div>
 
-              {parallelType === 'count' ? (
-                // Number input for count-based parallel
+              {isCountMode ? (
+                // Number input for count-based mode
                 <div className='flex items-center gap-2'>
                   <Input
                     type='text'
@@ -268,12 +290,9 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
                   />
                 </div>
               ) : (
-                // Code editor for collection-based parallel
-                <div className='relative'>
-                  <div
-                    ref={editorContainerRef}
-                    className='relative min-h-[80px] rounded-md border border-input bg-background px-3 pt-2 pb-3 font-mono text-sm'
-                  >
+                // Code editor for collection-based mode
+                <div ref={editorContainerRef} className='relative'>
+                  <div className='relative min-h-[80px] rounded-md border border-input bg-background px-3 pt-2 pb-3 font-mono text-sm'>
                     {editorValue === '' && (
                       <div className='pointer-events-none absolute top-[8.5px] left-3 select-none text-muted-foreground/50'>
                         ['item1', 'item2', 'item3']
@@ -290,16 +309,10 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
                       }}
                       className='w-full focus:outline-none'
                       textareaClassName='focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap'
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          setShowTagDropdown(false)
-                        }
-                      }}
                     />
                   </div>
                   <div className='mt-2 text-[10px] text-muted-foreground'>
-                    Array or object to use for parallel execution. Type "{'<'}" to reference other
-                    blocks.
+                    Array or object to iterate over. Type "{'<'}" to reference other blocks.
                   </div>
                   {showTagDropdown && (
                     <TagDropdown
@@ -315,9 +328,9 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
                 </div>
               )}
 
-              {parallelType === 'count' && (
+              {isCountMode && (
                 <div className='text-[10px] text-muted-foreground'>
-                  Enter a number between 1 and 20
+                  Enter a number between 1 and {config.maxIterations}
                 </div>
               )}
             </div>
