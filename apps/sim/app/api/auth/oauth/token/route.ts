@@ -1,6 +1,9 @@
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getCredential, getUserId, refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { db } from '@/db'
+import { account } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,23 +29,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
-    // Determine the user ID based on the context
-    const userId = await getUserId(requestId, workflowId)
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: workflowId ? 'Workflow not found' : 'User not authenticated' },
-        { status: workflowId ? 404 : 401 }
-      )
-    }
-
-    // Get the credential from the database
-    const credential = await getCredential(requestId, credentialId, userId)
-
-    if (!credential) {
+    // Resolve the credential owner directly by id. This lets API/UI/webhooks run under
+    // whichever user owns the persisted credential, not necessarily the session user
+    // or workflow owner.
+    const creds = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    if (!creds.length) {
       logger.error(`[${requestId}] Credential not found: ${credentialId}`)
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
+    const credentialOwnerUserId = creds[0].userId
+
+    // Fetch the credential verifying it belongs to the resolved owner
+    const credential = await getCredential(requestId, credentialId, credentialOwnerUserId)
 
     try {
       // Refresh the token if needed

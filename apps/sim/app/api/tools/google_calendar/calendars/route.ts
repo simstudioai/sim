@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
     // Get the credential ID from the query params
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
+    const workflowId = searchParams.get('workflowId')
 
     if (!credentialId) {
       logger.warn(`[${requestId}] Missing credentialId parameter`)
@@ -56,17 +57,19 @@ export async function GET(request: NextRequest) {
 
     const credential = credentials[0]
 
-    // Check if the credential belongs to the user
-    if (credential.userId !== session.user.id) {
+    // Allow collaborator read when workflowId present; otherwise require ownership
+    const ownerUserId = credential.userId
+    const requesterUserId = session.user.id
+    if (ownerUserId !== requesterUserId && !workflowId) {
       logger.warn(`[${requestId}] Unauthorized credential access attempt`, {
-        credentialUserId: credential.userId,
-        requestUserId: session.user.id,
+        credentialUserId: ownerUserId,
+        requestUserId: requesterUserId,
       })
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
     // Refresh access token if needed using the utility function
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
+    const accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
 
     if (!accessToken) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })

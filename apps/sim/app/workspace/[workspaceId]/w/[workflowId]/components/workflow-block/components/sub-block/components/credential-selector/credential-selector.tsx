@@ -83,36 +83,7 @@ export function CredentialSelector({
         const data = await response.json()
         setCredentials(data.credentials)
 
-        // If we have a value but it's not in the credentials, reset it
-        if (selectedId && !data.credentials.some((cred: Credential) => cred.id === selectedId)) {
-          setSelectedId('')
-          if (!isPreview) {
-            setStoreValue('')
-          }
-        }
-
-        // Auto-select logic:
-        // 1. If we already have a valid selection, keep it
-        // 2. If there's a default credential, select it
-        // 3. If there's only one credential, select it
-        if (
-          (!selectedId || !data.credentials.some((cred: Credential) => cred.id === selectedId)) &&
-          data.credentials.length > 0
-        ) {
-          const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-          if (defaultCred) {
-            setSelectedId(defaultCred.id)
-            if (!isPreview) {
-              setStoreValue(defaultCred.id)
-            }
-          } else if (data.credentials.length === 1) {
-            // If only one credential, select it
-            setSelectedId(data.credentials[0].id)
-            if (!isPreview) {
-              setStoreValue(data.credentials[0].id)
-            }
-          }
-        }
+        // Do not auto-select or reset. We only show what's persisted.
       }
     } catch (error) {
       logger.error('Error fetching credentials:', { error })
@@ -156,6 +127,7 @@ export function CredentialSelector({
 
   // Get the selected credential
   const selectedCredential = credentials.find((cred) => cred.id === selectedId)
+  const isForeign = !!(selectedId && !selectedCredential)
 
   // Handle selection
   const handleSelect = (credentialId: string) => {
@@ -214,11 +186,17 @@ export function CredentialSelector({
           >
             <div className='flex max-w-[calc(100%-20px)] items-center gap-2 overflow-hidden'>
               {getProviderIcon(provider)}
-              {selectedCredential ? (
-                <span className='truncate font-normal'>{selectedCredential.name}</span>
-              ) : (
-                <span className='truncate text-muted-foreground'>{label}</span>
-              )}
+              <span
+                className={
+                  selectedCredential ? 'truncate font-normal' : 'truncate text-muted-foreground'
+                }
+              >
+                {selectedCredential
+                  ? selectedCredential.name
+                  : isForeign
+                    ? 'Saved by collaborator'
+                    : label}
+              </span>
             </div>
             <ChevronDown className='absolute right-3 h-4 w-4 shrink-0 opacity-50' />
           </Button>

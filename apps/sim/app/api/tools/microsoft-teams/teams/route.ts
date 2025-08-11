@@ -1,7 +1,10 @@
+import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { db } from '@/db'
+import { account } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,15 +23,24 @@ export async function POST(request: Request) {
     }
 
     try {
-      // Get the userId either from the session or from the workflowId
       const userId = session?.user?.id || ''
-
       if (!userId) {
         logger.error('No user ID found in session')
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
+      // Resolve credential owner
+      const creds = await db.select().from(account).where(eq(account.id, credential)).limit(1)
+      if (!creds.length) {
+        return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+      }
+      const ownerUserId = creds[0].userId
+      // If session doesn't own it and no workflow context, reject
+      if (ownerUserId !== userId && !workflowId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+      }
+      // Allow read-only resolution when a workflowId is present, even if session user isn't the owner
 
-      const accessToken = await refreshAccessTokenIfNeeded(credential, userId, workflowId)
+      const accessToken = await refreshAccessTokenIfNeeded(credential, ownerUserId, 'TeamsTeamsAPI')
 
       if (!accessToken) {
         logger.error('Failed to get access token', { credentialId: credential, userId })

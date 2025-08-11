@@ -46,6 +46,7 @@ interface JiraIssueSelectorProps {
   showPreview?: boolean
   onIssueInfoChange?: (issueInfo: JiraIssueInfo | null) => void
   projectId?: string
+  credentialId?: string
 }
 
 export function JiraIssueSelector({
@@ -60,11 +61,12 @@ export function JiraIssueSelector({
   showPreview = true,
   onIssueInfoChange,
   projectId,
+  credentialId,
 }: JiraIssueSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [issues, setIssues] = useState<JiraIssueInfo[]>([])
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedIssueId, setSelectedIssueId] = useState(value)
   const [selectedIssue, setSelectedIssue] = useState<JiraIssueInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -124,25 +126,6 @@ export function JiraIssueSelector({
       if (response.ok) {
         const data = await response.json()
         setCredentials(data.credentials)
-
-        // Auto-select logic for credentials
-        if (data.credentials.length > 0) {
-          // If we already have a selected credential ID, check if it's valid
-          if (
-            selectedCredentialId &&
-            data.credentials.some((cred: Credential) => cred.id === selectedCredentialId)
-          ) {
-            // Keep the current selection
-          } else {
-            // Otherwise, select the default or first credential
-            const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-            if (defaultCred) {
-              setSelectedCredentialId(defaultCred.id)
-            } else if (data.credentials.length === 1) {
-              setSelectedCredentialId(data.credentials[0].id)
-            }
-          }
-        }
       }
     } catch (error) {
       logger.error('Error fetching credentials:', error)
