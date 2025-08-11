@@ -105,17 +105,17 @@ export async function POST(
   try {
     // Check content type to handle both JSON and form-encoded payloads
     const contentType = request.headers.get('content-type') || ''
-    
+
     if (contentType.includes('application/x-www-form-urlencoded')) {
       // GitHub sends form-encoded data with JSON in the 'payload' field
       const formData = new URLSearchParams(rawBody)
       const payloadString = formData.get('payload')
-      
+
       if (!payloadString) {
         logger.warn(`[${requestId}] No payload field found in form-encoded data`)
         return new NextResponse('Missing payload field', { status: 400 })
       }
-      
+
       body = JSON.parse(payloadString)
       logger.debug(`[${requestId}] Parsed form-encoded GitHub webhook payload`)
     } else {
@@ -132,7 +132,7 @@ export async function POST(
     logger.error(`[${requestId}] Failed to parse webhook body`, {
       error: parseError instanceof Error ? parseError.message : String(parseError),
       contentType: request.headers.get('content-type'),
-      bodyPreview: rawBody?.slice(0, 100) + '...'
+      bodyPreview: `${rawBody?.slice(0, 100)}...`,
     })
     return new NextResponse('Invalid payload format', { status: 400 })
   }

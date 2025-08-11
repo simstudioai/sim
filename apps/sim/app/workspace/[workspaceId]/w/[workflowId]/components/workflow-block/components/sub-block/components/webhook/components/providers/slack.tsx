@@ -161,5 +161,3 @@ export function SlackConfig({
     </div>
   )
 }
-
-
