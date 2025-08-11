@@ -3,7 +3,6 @@ import { ExternalLink } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   AirtableIcon,
-  DiscordIcon,
   GithubIcon,
   GmailIcon,
   MicrosoftTeamsIcon,
@@ -44,11 +43,6 @@ export interface WhatsAppConfig {
 
 export interface GitHubConfig {
   contentType: string
-}
-
-export interface DiscordConfig {
-  webhookName?: string
-  avatarUrl?: string
 }
 
 export type StripeConfig = Record<string, never>
@@ -103,7 +97,6 @@ export interface MicrosoftTeamsConfig {
 export type ProviderConfig =
   | WhatsAppConfig
   | GitHubConfig
-  | DiscordConfig
   | StripeConfig
   | GeneralWebhookConfig
   | SlackConfig
@@ -219,25 +212,7 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
       },
     },
   },
-  discord: {
-    id: 'discord',
-    name: 'Discord',
-    icon: (props) => <DiscordIcon {...props} />,
-    configFields: {
-      webhookName: {
-        type: 'string',
-        label: 'Webhook Name',
-        placeholder: 'Enter a name for the webhook',
-        description: 'Custom name that will appear as the message sender in Discord.',
-      },
-      avatarUrl: {
-        type: 'string',
-        label: 'Avatar URL',
-        placeholder: 'https://example.com/avatar.png',
-        description: 'URL to an image that will be used as the webhook avatar.',
-      },
-    },
-  },
+
   stripe: {
     id: 'stripe',
     name: 'Stripe',

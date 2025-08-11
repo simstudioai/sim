@@ -374,7 +374,7 @@ export function formatWebhookInput(
 
     return {
       input: messageText, // Primary workflow input - the message text
-      
+
       // Top-level properties for backward compatibility with <blockName.text> syntax
       type: body?.type || 'message',
       id: messageId,
@@ -386,7 +386,7 @@ export function formatWebhookInput(
       from_name: from.name || '',
       conversation_id: conversation.id || '',
       text: messageText,
-      
+
       microsoftteams: {
         message: {
           id: messageId,
@@ -434,11 +434,11 @@ export function formatWebhookInput(
   if (foundWebhook.provider === 'slack') {
     // Slack input formatting logic - check for valid event
     const event = body?.event
-    
+
     if (event && body?.type === 'event_callback') {
       // Extract event text with fallbacks for different event types
       let input = ''
-      
+
       if (event.text) {
         input = event.text
       } else if (event.type === 'app_mention') {
@@ -453,7 +453,7 @@ export function formatWebhookInput(
         channel: event.channel || '',
         channel_name: '', // Could be resolved via additional API calls if needed
         user: event.user || '',
-        user_name: '', // Could be resolved via additional API calls if needed  
+        user_name: '', // Could be resolved via additional API calls if needed
         text: event.text || '',
         timestamp: event.ts || event.event_ts || '',
         team_id: body.team_id || event.team || '',

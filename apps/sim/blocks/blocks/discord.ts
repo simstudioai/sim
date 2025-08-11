@@ -108,14 +108,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       placeholder: 'Enter message content...',
       condition: { field: 'operation', value: 'discord_send_message' },
     },
-    {
-      id: 'triggerConfig',
-      title: 'Trigger Configuration',
-      type: 'trigger-config',
-      layout: 'full',
-      triggerProvider: 'discord',
-      availableTriggers: ['discord_webhook'],
-    },
   ],
   tools: {
     access: [
@@ -221,19 +213,5 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
   outputs: {
     message: { type: 'string', description: 'Message content' },
     data: { type: 'json', description: 'Response data' },
-    // Trigger outputs
-    content: { type: 'string', description: 'Message content from Discord webhook' },
-    username: { type: 'string', description: 'Username of the sender (if provided)' },
-    avatar_url: { type: 'string', description: 'Avatar URL of the sender (if provided)' },
-    timestamp: { type: 'string', description: 'Timestamp when the webhook was triggered' },
-    webhook_id: { type: 'string', description: 'Discord webhook identifier' },
-    webhook_token: { type: 'string', description: 'Discord webhook token' },
-    guild_id: { type: 'string', description: 'Discord server/guild ID' },
-    channel_id: { type: 'string', description: 'Discord channel ID where the event occurred' },
-    embeds: { type: 'string', description: 'Embedded content data (if any)' },
-  },
-  triggers: {
-    enabled: true,
-    available: ['discord_webhook'],
   },
 }
