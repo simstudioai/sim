@@ -3,7 +3,7 @@ import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateCreativeWorkflowName } from '@/lib/naming'
 import { API_ENDPOINTS } from '@/stores/constants'
-import { clearWorkflowVariablesTracking } from '@/stores/panel/variables/store'
+import { clearWorkflowVariablesTracking, useVariablesStore } from '@/stores/panel/variables/store'
 import type {
   DeploymentStatus,
   WorkflowMetadata,
@@ -92,6 +92,7 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
         description,
         color,
         state,
+        variables,
         createdAt,
         marketplaceData,
         workspaceId,
@@ -143,6 +144,16 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
           [id]: subblockValues,
         },
       }))
+
+      // Update variables store with workflow variables (if any)
+      if (variables && typeof variables === 'object') {
+        useVariablesStore.setState((state) => ({
+          variables: {
+            ...state.variables,
+            ...variables,
+          },
+        }))
+      }
     })
 
     // Update registry with loaded workflows and deployment statuses
