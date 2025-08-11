@@ -104,32 +104,30 @@ export class TriggerBlockHandler implements BlockHandler {
               const githubObjects = ['repository', 'sender', 'pusher', 'commits', 'head_commit']
 
               for (const objName of githubObjects) {
-                if (!result[objName]) {
-                  // Try multiple sources for the object
-                  let objectValue = null
+                // ALWAYS try to get the object, even if something exists (fix for conflicts)
+                let objectValue = null
 
-                  // Source 1: Direct from provider data
-                  if (providerData[objName]) {
-                    objectValue = providerData[objName]
+                // Source 1: Direct from provider data
+                if (providerData[objName]) {
+                  objectValue = providerData[objName]
+                }
+                // Source 2: From webhook payload (raw GitHub webhook)
+                else if (starterOutput.webhook?.data?.payload?.[objName]) {
+                  objectValue = starterOutput.webhook.data.payload[objName]
+                }
+                // Source 3: For commits, try parsing JSON string version if no object found
+                else if (objName === 'commits' && typeof result.commits === 'string') {
+                  try {
+                    objectValue = JSON.parse(result.commits)
+                  } catch (e) {
+                    // Keep as string if parsing fails
+                    objectValue = result.commits
                   }
-                  // Source 2: From webhook payload (raw GitHub webhook)
-                  else if (starterOutput.webhook?.data?.payload?.[objName]) {
-                    objectValue = starterOutput.webhook.data.payload[objName]
-                  }
-                  // Source 3: For commits, try parsing JSON string version
-                  else if (objName === 'commits' && typeof result.commits === 'string') {
-                    try {
-                      objectValue = JSON.parse(result.commits)
-                    } catch (e) {
-                      // Keep as string if parsing fails
-                      objectValue = result.commits
-                    }
-                  }
+                }
 
-                  // Store the object if found
-                  if (objectValue !== null && objectValue !== undefined) {
-                    result[objName] = objectValue
-                  }
+                // FORCE the object to root level (removed the !result[objName] condition)
+                if (objectValue !== null && objectValue !== undefined) {
+                  result[objName] = objectValue
                 }
               }
             }
