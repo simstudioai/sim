@@ -111,8 +111,16 @@ export class TriggerBlockHandler implements BlockHandler {
             // Keep nested structure for backwards compatibility
             result[provider] = providerData
             
-            // Final verification for GitHub
+            // Special handling for GitHub complex objects that might not be copied by the main loop
             if (provider === 'github') {
+              // Ensure repository and sender objects are available at root level
+              const complexObjects = ['repository', 'sender', 'pusher']
+              for (const objName of complexObjects) {
+                if (!result[objName] && providerData[objName]) {
+                  result[objName] = providerData[objName]
+                }
+              }
+              
               logger.debug(`GitHub trigger result after processing`, {
                 resultKeys: Object.keys(result),
                 hasRepository: 'repository' in result,
