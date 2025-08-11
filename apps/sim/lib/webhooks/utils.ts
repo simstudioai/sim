@@ -535,15 +535,15 @@ export function formatWebhookInput(
       action: action,
       delivery_id: delivery,
       
-      // Repository information
-      repository: repository.full_name || '',
+      // Repository information (avoid 'repository' to prevent conflict with the object)
+      repository_full_name: repository.full_name || '',
       repository_name: repository.name || '',
       repository_owner: repository.owner?.login || '',
       repository_id: repository.id || '',
       repository_url: repository.html_url || '',
       
-      // Sender information
-      sender: sender.login || '',
+      // Sender information (avoid 'sender' to prevent conflict with the object)
+      sender_login: sender.login || '',
       sender_id: sender.id || '',
       sender_type: sender.type || '',
       sender_url: sender.html_url || '',
