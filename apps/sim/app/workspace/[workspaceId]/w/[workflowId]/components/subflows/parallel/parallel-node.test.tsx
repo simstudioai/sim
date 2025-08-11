@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { LoopNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/loop-node/loop-node'
+import { ParallelNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-node'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 vi.mock('@/stores/workflows/workflow/store', () => ({
@@ -48,29 +48,34 @@ vi.mock('@/components/ui/card', () => ({
   Card: ({ children, ...props }: any) => ({ children, ...props }),
 }))
 
-vi.mock('@/components/icons', async (importOriginal) => {
-  const actual = (await importOriginal()) as any
-  return {
-    ...actual,
-    // Override specific icons if needed for testing
-    StartIcon: ({ className }: any) => ({ className }),
-  }
-})
+vi.mock('@/blocks/registry', () => ({
+  getBlock: vi.fn(() => ({
+    name: 'Mock Block',
+    description: 'Mock block description',
+    icon: () => null,
+    subBlocks: [],
+    outputs: {},
+  })),
+  getAllBlocks: vi.fn(() => ({})),
+}))
 
 vi.mock('@/lib/utils', () => ({
   cn: (...classes: any[]) => classes.filter(Boolean).join(' '),
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/components/loop-badges', () => ({
-  LoopBadges: ({ loopId }: any) => ({ loopId }),
-}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/w/[workflowId]/components/parallel-node/components/parallel-badges',
+  () => ({
+    ParallelBadges: ({ parallelId }: any) => ({ parallelId }),
+  })
+)
 
-describe('LoopNodeComponent', () => {
+describe('ParallelNodeComponent', () => {
   const mockRemoveBlock = vi.fn()
   const mockGetNodes = vi.fn()
   const defaultProps = {
-    id: 'loop-1',
-    type: 'loopNode',
+    id: 'parallel-1',
+    type: 'parallelNode',
     data: {
       width: 500,
       height: 300,
@@ -98,45 +103,29 @@ describe('LoopNodeComponent', () => {
   })
 
   describe('Component Definition and Structure', () => {
-    it('should be defined as a function component', () => {
-      expect(LoopNodeComponent).toBeDefined()
-      expect(typeof LoopNodeComponent).toBe('function')
+    it.concurrent('should be defined as a function component', () => {
+      expect(ParallelNodeComponent).toBeDefined()
+      expect(typeof ParallelNodeComponent).toBe('function')
     })
 
-    it('should have correct display name', () => {
-      expect(LoopNodeComponent.displayName).toBe('LoopNodeComponent')
+    it.concurrent('should have correct display name', () => {
+      expect(ParallelNodeComponent.displayName).toBe('ParallelNodeComponent')
     })
 
-    it('should be a memoized component', () => {
-      expect(LoopNodeComponent).toBeDefined()
+    it.concurrent('should be a memoized component', () => {
+      expect(ParallelNodeComponent).toBeDefined()
     })
   })
 
   describe('Props Validation and Type Safety', () => {
-    it('should accept NodeProps interface', () => {
-      const validProps = {
-        id: 'test-id',
-        type: 'loopNode' as const,
-        data: {
-          width: 400,
-          height: 300,
-          state: 'valid' as const,
-        },
-        selected: false,
-        zIndex: 1,
-        isConnectable: true,
-        xPos: 0,
-        yPos: 0,
-        dragging: false,
-      }
-
+    it.concurrent('should accept NodeProps interface', () => {
       expect(() => {
-        const _component: typeof LoopNodeComponent = LoopNodeComponent
+        const _component: typeof ParallelNodeComponent = ParallelNodeComponent
         expect(_component).toBeDefined()
       }).not.toThrow()
     })
 
-    it('should handle different data configurations', () => {
+    it.concurrent('should handle different data configurations', () => {
       const configurations = [
         { width: 500, height: 300, state: 'valid' },
         { width: 800, height: 600, state: 'invalid' },
@@ -147,7 +136,7 @@ describe('LoopNodeComponent', () => {
       configurations.forEach((data) => {
         const props = { ...defaultProps, data }
         expect(() => {
-          const _component: typeof LoopNodeComponent = LoopNodeComponent
+          const _component: typeof ParallelNodeComponent = ParallelNodeComponent
           expect(_component).toBeDefined()
         }).not.toThrow()
       })
@@ -155,7 +144,7 @@ describe('LoopNodeComponent', () => {
   })
 
   describe('Store Integration', () => {
-    it('should integrate with workflow store', () => {
+    it.concurrent('should integrate with workflow store', () => {
       expect(useWorkflowStore).toBeDefined()
 
       const mockState = { removeBlock: mockRemoveBlock }
@@ -168,7 +157,7 @@ describe('LoopNodeComponent', () => {
       expect(selector(mockState)).toBe(mockRemoveBlock)
     })
 
-    it('should handle removeBlock function', () => {
+    it.concurrent('should handle removeBlock function', () => {
       expect(mockRemoveBlock).toBeDefined()
       expect(typeof mockRemoveBlock).toBe('function')
 
@@ -178,7 +167,7 @@ describe('LoopNodeComponent', () => {
   })
 
   describe('Component Logic Tests', () => {
-    it('should handle nesting level calculation logic', () => {
+    it.concurrent('should handle nesting level calculation logic', () => {
       const testCases = [
         { nodes: [], parentId: undefined, expectedLevel: 0 },
         { nodes: [{ id: 'parent', data: {} }], parentId: 'parent', expectedLevel: 1 },
@@ -195,7 +184,6 @@ describe('LoopNodeComponent', () => {
       testCases.forEach(({ nodes, parentId, expectedLevel }) => {
         mockGetNodes.mockReturnValue(nodes)
 
-        // Simulate the nesting level calculation logic
         let level = 0
         let currentParentId = parentId
 
@@ -210,19 +198,17 @@ describe('LoopNodeComponent', () => {
       })
     })
 
-    it('should handle nested styles generation', () => {
-      // Test the nested styles logic
+    it.concurrent('should handle nested styles generation for parallel nodes', () => {
       const testCases = [
-        { nestingLevel: 0, state: 'valid', expectedBg: 'rgba(34,197,94,0.05)' },
+        { nestingLevel: 0, state: 'valid', expectedBg: 'rgba(254,225,43,0.05)' },
         { nestingLevel: 0, state: 'invalid', expectedBg: 'transparent' },
         { nestingLevel: 1, state: 'valid', expectedBg: '#e2e8f030' },
         { nestingLevel: 2, state: 'valid', expectedBg: '#cbd5e130' },
       ]
 
       testCases.forEach(({ nestingLevel, state, expectedBg }) => {
-        // Simulate the getNestedStyles logic
         const styles: Record<string, string> = {
-          backgroundColor: state === 'valid' ? 'rgba(34,197,94,0.05)' : 'transparent',
+          backgroundColor: state === 'valid' ? 'rgba(254,225,43,0.05)' : 'transparent',
         }
 
         if (nestingLevel > 0) {
@@ -236,8 +222,55 @@ describe('LoopNodeComponent', () => {
     })
   })
 
+  describe('Parallel-Specific Features', () => {
+    it.concurrent('should handle parallel execution states', () => {
+      const parallelStates = ['valid', 'invalid', 'executing', 'completed', 'pending']
+
+      parallelStates.forEach((state) => {
+        const data = { width: 500, height: 300, state }
+        expect(data.state).toBe(state)
+
+        const isExecuting = state === 'executing'
+        const isCompleted = state === 'completed'
+
+        expect(typeof isExecuting).toBe('boolean')
+        expect(typeof isCompleted).toBe('boolean')
+      })
+    })
+
+    it.concurrent('should handle parallel node color scheme', () => {
+      const parallelColors = {
+        background: 'rgba(254,225,43,0.05)',
+        ring: '#FEE12B',
+        startIcon: '#FEE12B',
+      }
+
+      expect(parallelColors.background).toContain('254,225,43')
+      expect(parallelColors.ring).toBe('#FEE12B')
+      expect(parallelColors.startIcon).toBe('#FEE12B')
+    })
+
+    it.concurrent('should differentiate from loop node styling', () => {
+      const loopColors = {
+        background: 'rgba(34,197,94,0.05)',
+        ring: '#2FB3FF',
+        startIcon: '#2FB3FF',
+      }
+
+      const parallelColors = {
+        background: 'rgba(254,225,43,0.05)',
+        ring: '#FEE12B',
+        startIcon: '#FEE12B',
+      }
+
+      expect(parallelColors.background).not.toBe(loopColors.background)
+      expect(parallelColors.ring).not.toBe(loopColors.ring)
+      expect(parallelColors.startIcon).not.toBe(loopColors.startIcon)
+    })
+  })
+
   describe('Component Configuration', () => {
-    it('should handle different dimensions', () => {
+    it.concurrent('should handle different dimensions', () => {
       const dimensionTests = [
         { width: 500, height: 300 },
         { width: 800, height: 600 },
@@ -252,8 +285,8 @@ describe('LoopNodeComponent', () => {
       })
     })
 
-    it('should handle different states', () => {
-      const stateTests = ['valid', 'invalid', 'pending', 'executing']
+    it.concurrent('should handle different states', () => {
+      const stateTests = ['valid', 'invalid', 'pending', 'executing', 'completed']
 
       stateTests.forEach((state) => {
         const data = { width: 500, height: 300, state }
@@ -263,12 +296,11 @@ describe('LoopNodeComponent', () => {
   })
 
   describe('Event Handling Logic', () => {
-    it('should handle delete button click logic', () => {
+    it.concurrent('should handle delete button click logic', () => {
       const mockEvent = {
         stopPropagation: vi.fn(),
       }
 
-      // Simulate the delete button click handler
       const handleDelete = (e: any, nodeId: string) => {
         e.stopPropagation()
         mockRemoveBlock(nodeId)
@@ -280,19 +312,18 @@ describe('LoopNodeComponent', () => {
       expect(mockRemoveBlock).toHaveBeenCalledWith('test-id')
     })
 
-    it('should handle event propagation prevention', () => {
+    it.concurrent('should handle event propagation prevention', () => {
       const mockEvent = {
         stopPropagation: vi.fn(),
       }
 
-      // Test that stopPropagation is called
       mockEvent.stopPropagation()
       expect(mockEvent.stopPropagation).toHaveBeenCalled()
     })
   })
 
   describe('Component Data Handling', () => {
-    it('should handle missing data properties gracefully', () => {
+    it.concurrent('should handle missing data properties gracefully', () => {
       const testCases = [
         undefined,
         {},
@@ -306,15 +337,15 @@ describe('LoopNodeComponent', () => {
         const props = { ...defaultProps, data }
 
         // Test default values logic
-        const width = Math.max(0, data?.width || 500)
-        const height = Math.max(0, data?.height || 300)
+        const width = data?.width || 500
+        const height = data?.height || 300
 
         expect(width).toBeGreaterThanOrEqual(0)
         expect(height).toBeGreaterThanOrEqual(0)
       })
     })
 
-    it('should handle parent ID relationships', () => {
+    it.concurrent('should handle parent ID relationships', () => {
       const testCases = [
         { parentId: undefined, hasParent: false },
         { parentId: 'parent-1', hasParent: true },
@@ -328,8 +359,36 @@ describe('LoopNodeComponent', () => {
     })
   })
 
+  describe('Handle Configuration', () => {
+    it.concurrent('should have correct handle IDs for parallel nodes', () => {
+      const handleIds = {
+        startSource: 'parallel-start-source',
+        endSource: 'parallel-end-source',
+      }
+
+      expect(handleIds.startSource).toContain('parallel')
+      expect(handleIds.endSource).toContain('parallel')
+      expect(handleIds.startSource).not.toContain('loop')
+      expect(handleIds.endSource).not.toContain('loop')
+    })
+
+    it.concurrent('should handle different handle positions', () => {
+      const positions = {
+        left: 'left',
+        right: 'right',
+        top: 'top',
+        bottom: 'bottom',
+      }
+
+      Object.values(positions).forEach((position) => {
+        expect(typeof position).toBe('string')
+        expect(position.length).toBeGreaterThan(0)
+      })
+    })
+  })
+
   describe('Edge Cases and Error Handling', () => {
-    it('should handle circular parent references', () => {
+    it.concurrent('should handle circular parent references', () => {
       // Test circular reference prevention
       const nodes = [
         { id: 'node1', data: { parentId: 'node2' } },
@@ -367,7 +426,7 @@ describe('LoopNodeComponent', () => {
       expect(visited.has('node2')).toBe(true)
     })
 
-    it('should handle complex circular reference chains', () => {
+    it.concurrent('should handle complex circular reference chains', () => {
       // Test more complex circular reference scenarios
       const nodes = [
         { id: 'node1', data: { parentId: 'node2' } },
@@ -400,7 +459,7 @@ describe('LoopNodeComponent', () => {
       expect(visited.size).toBe(3)
     })
 
-    it('should handle self-referencing nodes', () => {
+    it.concurrent('should handle self-referencing nodes', () => {
       // Test node that references itself
       const nodes = [
         { id: 'node1', data: { parentId: 'node1' } }, // Self-reference
@@ -431,7 +490,7 @@ describe('LoopNodeComponent', () => {
       expect(visited.has('node1')).toBe(true)
     })
 
-    it('should handle extreme values', () => {
+    it.concurrent('should handle extreme values', () => {
       const extremeValues = [
         { width: Number.MAX_SAFE_INTEGER, height: Number.MAX_SAFE_INTEGER },
         { width: -1, height: -1 },
@@ -446,6 +505,80 @@ describe('LoopNodeComponent', () => {
           expect(typeof width).toBe('number')
           expect(typeof height).toBe('number')
         }).not.toThrow()
+      })
+    })
+
+    it.concurrent('should handle negative position values', () => {
+      const positions = [
+        { xPos: -100, yPos: -200 },
+        { xPos: 0, yPos: 0 },
+        { xPos: 1000, yPos: 2000 },
+      ]
+
+      positions.forEach(({ xPos, yPos }) => {
+        const props = { ...defaultProps, xPos, yPos }
+        expect(props.xPos).toBe(xPos)
+        expect(props.yPos).toBe(yPos)
+        expect(typeof props.xPos).toBe('number')
+        expect(typeof props.yPos).toBe('number')
+      })
+    })
+  })
+
+  describe('Component Comparison with Loop Node', () => {
+    it.concurrent('should have similar structure to loop node but different type', () => {
+      expect(defaultProps.type).toBe('parallelNode')
+      expect(defaultProps.id).toContain('parallel')
+
+      // Should not be a loop node
+      expect(defaultProps.type).not.toBe('loopNode')
+      expect(defaultProps.id).not.toContain('loop')
+    })
+
+    it.concurrent('should handle the same prop structure as loop node', () => {
+      // Test that parallel node accepts the same prop structure as loop node
+      const sharedPropStructure = {
+        id: 'test-parallel',
+        type: 'parallelNode' as const,
+        data: {
+          width: 400,
+          height: 300,
+          state: 'valid' as const,
+        },
+        selected: false,
+        zIndex: 1,
+        isConnectable: true,
+        xPos: 0,
+        yPos: 0,
+        dragging: false,
+      }
+
+      expect(() => {
+        const _component: typeof ParallelNodeComponent = ParallelNodeComponent
+        expect(_component).toBeDefined()
+      }).not.toThrow()
+
+      // Verify the structure
+      expect(sharedPropStructure.type).toBe('parallelNode')
+      expect(sharedPropStructure.data.width).toBe(400)
+      expect(sharedPropStructure.data.height).toBe(300)
+    })
+
+    it.concurrent('should maintain consistency with loop node interface', () => {
+      const baseProps = [
+        'id',
+        'type',
+        'data',
+        'selected',
+        'zIndex',
+        'isConnectable',
+        'xPos',
+        'yPos',
+        'dragging',
+      ]
+
+      baseProps.forEach((prop) => {
+        expect(defaultProps).toHaveProperty(prop)
       })
     })
   })

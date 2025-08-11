@@ -9,7 +9,7 @@ export const ParallelTool = {
   bgColor: '#FEE12B',
   data: {
     label: 'Parallel',
-    parallelType: 'collection' as 'collection' | 'count',
+    parallelType: 'count' as 'collection' | 'count',
     count: 5,
     collection: '',
     extent: 'parent',
