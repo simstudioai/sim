@@ -66,19 +66,6 @@ export class TriggerBlockHandler implements BlockHandler {
             // Copy all properties from provider object to root level for direct access
             const providerData = starterOutput[provider]
 
-            // Enhanced debug logging for GitHub provider
-            if (provider === 'github') {
-              logger.debug(`Processing GitHub webhook data for block ${block.id}`, {
-                providerDataKeys: Object.keys(providerData),
-                hasRepository: 'repository' in providerData,
-                repositoryType: typeof providerData.repository,
-                repositoryKeys: providerData.repository ? Object.keys(providerData.repository) : [],
-                hasRef: 'ref' in providerData,
-                hasBefore: 'before' in providerData,
-                hasAfter: 'after' in providerData,
-              })
-            }
-
             for (const [key, value] of Object.entries(providerData)) {
               // Special handling for GitHub provider - copy all properties
               if (provider === 'github') {
@@ -145,15 +132,6 @@ export class TriggerBlockHandler implements BlockHandler {
                   }
                 }
               }
-
-              logger.debug(`GitHub trigger result after processing`, {
-                resultKeys: Object.keys(result),
-                hasRepository: 'repository' in result,
-                repositoryType: typeof result.repository,
-                hasRef: 'ref' in result,
-                hasBefore: 'before' in result,
-                hasAfter: 'after' in result,
-              })
             }
           }
 
@@ -201,15 +179,6 @@ export class TriggerBlockHandler implements BlockHandler {
 
           // Always keep webhook metadata
           if (starterOutput.webhook) result.webhook = starterOutput.webhook
-
-          logger.debug(`Processed webhook data for trigger block ${block.id}`, {
-            provider,
-            resultKeys: Object.keys(result),
-            hasMessage: !!result.message,
-            hasEvent: !!result.event,
-            hasText: !!result.text,
-            textValue: result.text,
-          })
 
           return result
         }
