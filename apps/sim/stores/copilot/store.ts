@@ -13,6 +13,7 @@ import type {
   MessageFileAttachment,
   WorkflowCheckpoint,
 } from './types'
+import { useWorkflowDiffStore } from '../workflow-diff/store'
 
 const logger = createLogger('CopilotStore')
 
@@ -1766,6 +1767,10 @@ export const useCopilotStore = create<CopilotStore>()(
           get().abortMessage()
         }
 
+        // Clear workflow diff store when switching workflows
+        const { clearDiff } = useWorkflowDiffStore.getState()
+        clearDiff()
+
         logger.info(`Setting workflow ID: ${workflowId}`)
 
         // Reset state when switching workflows, including chat cache and checkpoints
@@ -1791,6 +1796,11 @@ export const useCopilotStore = create<CopilotStore>()(
 
         if (!chatExists) {
           logger.info('Current chat does not belong to current workflow, clearing stale state')
+          
+          // Clear workflow diff store when clearing stale chat state
+          const { clearDiff } = useWorkflowDiffStore.getState()
+          clearDiff()
+          
           set({
             currentChat: null,
             messages: [],
@@ -1820,6 +1830,10 @@ export const useCopilotStore = create<CopilotStore>()(
             logger.info('🛑 Aborting ongoing copilot stream due to chat switch')
             get().abortMessage()
           }
+
+          // Clear workflow diff store when switching to a different chat
+          const { clearDiff } = useWorkflowDiffStore.getState()
+          clearDiff()
         }
 
         // Optimistically set the chat first
@@ -1891,6 +1905,10 @@ export const useCopilotStore = create<CopilotStore>()(
           logger.info('🛑 Aborting ongoing copilot stream due to new chat creation')
           get().abortMessage()
         }
+
+        // Clear workflow diff store when creating a new chat
+        const { clearDiff } = useWorkflowDiffStore.getState()
+        clearDiff()
 
         // Set state to null so backend creates a new chat on first message
         set({
