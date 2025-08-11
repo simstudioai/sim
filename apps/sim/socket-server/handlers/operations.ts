@@ -126,9 +126,8 @@ export function setupOperationsHandlers(
         return // Early return for position updates
       }
 
-      // Variable structural operations now persist server-side like blocks
       if (target === 'variable' && ['add', 'remove', 'duplicate'].includes(operation)) {
-        // Persist first, then broadcast - consistent with other operations
+        // Persist first, then broadcast
         await persistWorkflowOperation(workflowId, {
           operation,
           target,
