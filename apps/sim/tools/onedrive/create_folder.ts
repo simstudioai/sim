@@ -6,11 +6,13 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
   name: 'Create Folder in OneDrive',
   description: 'Create a new folder in OneDrive',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'onedrive',
     additionalScopes: [],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -37,14 +39,7 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
       description: 'ID of the parent folder (internal use)',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Whether the folder was created successfully' },
-    file: {
-      type: 'object',
-      description:
-        'The created folder object with metadata including id, name, webViewLink, and timestamps',
-    },
-  },
+
   request: {
     url: (params) => {
       // Use specific parent folder URL if parentId is provided
@@ -67,11 +62,8 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
       }
     },
   },
+
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      throw new Error(data.error?.message || 'Failed to create folder in OneDrive')
-    }
     const data = await response.json()
 
     return {
@@ -90,7 +82,13 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
       },
     }
   },
-  transformError: (error) => {
-    return error.message || 'An error occurred while creating folder in OneDrive'
+
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the folder was created successfully' },
+    file: {
+      type: 'object',
+      description:
+        'The created folder object with metadata including id, name, webViewLink, and timestamps',
+    },
   },
 }

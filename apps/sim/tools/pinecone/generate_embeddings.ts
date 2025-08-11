@@ -31,25 +31,6 @@ export const generateEmbeddingsTool: ToolConfig<
     },
   },
 
-  outputs: {
-    data: {
-      type: 'array',
-      description: 'Generated embeddings data with values and vector type',
-    },
-    model: {
-      type: 'string',
-      description: 'Model used for generating embeddings',
-    },
-    vector_type: {
-      type: 'string',
-      description: 'Type of vector generated (dense/sparse)',
-    },
-    usage: {
-      type: 'object',
-      description: 'Usage statistics for embeddings generation',
-    },
-  },
-
   request: {
     method: 'POST',
     url: () => 'https://api.pinecone.io/embed',
@@ -81,5 +62,22 @@ export const generateEmbeddingsTool: ToolConfig<
     }
   },
 
-  transformError: (error) => `Pinecone embeddings generation failed: ${error.message}`,
+  outputs: {
+    data: {
+      type: 'array',
+      description: 'Generated embeddings data with values and vector type',
+    },
+    model: {
+      type: 'string',
+      description: 'Model used for generating embeddings',
+    },
+    vector_type: {
+      type: 'string',
+      description: 'Type of vector generated (dense/sparse)',
+    },
+    usage: {
+      type: 'object',
+      description: 'Usage statistics for embeddings generation',
+    },
+  },
 }

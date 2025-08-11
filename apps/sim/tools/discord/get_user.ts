@@ -1,13 +1,9 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type {
-  DiscordAPIError,
   DiscordGetUserParams,
   DiscordGetUserResponse,
   DiscordUser,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('DiscordGetUser')
 
 export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUserResponse> = {
   id: 'discord_get_user',
@@ -47,36 +43,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
   },
 
   transformResponse: async (response) => {
-    if (!response.ok) {
-      let errorMessage = `Failed to get Discord user: ${response.status} ${response.statusText}`
-
-      try {
-        const errorData = (await response.json()) as DiscordAPIError
-        errorMessage = `Failed to get Discord user: ${errorData.message || response.statusText}`
-        logger.error('Discord API error', { status: response.status, error: errorData })
-      } catch (e) {
-        logger.error('Error parsing Discord API response', { status: response.status, error: e })
-      }
-
-      return {
-        success: false,
-        output: {
-          message: errorMessage,
-        },
-        error: errorMessage,
-      }
-    }
-
-    let data: DiscordUser
-    try {
-      data = await response.clone().json()
-    } catch (_e) {
-      return {
-        success: false,
-        error: 'Failed to parse user data',
-        output: { message: 'Failed to parse user data' },
-      }
-    }
+    const data: DiscordUser = await response.json()
 
     return {
       success: true,
@@ -85,11 +52,6 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
         data,
       },
     }
-  },
-
-  transformError: (error) => {
-    logger.error('Error retrieving Discord user information', { error })
-    return `Error retrieving Discord user information: ${error.error}`
   },
 
   outputs: {

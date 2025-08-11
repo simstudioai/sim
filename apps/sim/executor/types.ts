@@ -271,14 +271,6 @@ export interface Tool<P = any, O = Record<string, any>> {
     output: O
     error?: string
   }>
-
-  transformError?: (error: any) =>
-    | string
-    | Promise<{
-        success: boolean
-        output: O
-        error?: string
-      }> // Function to format error messages
 }
 
 /**

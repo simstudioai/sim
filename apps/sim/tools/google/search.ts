@@ -34,6 +34,46 @@ export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = 
     },
   },
 
+  request: {
+    url: (params: GoogleSearchParams) => {
+      const baseUrl = 'https://www.googleapis.com/customsearch/v1'
+      const searchParams = new URLSearchParams()
+
+      // Add required parameters
+      searchParams.append('key', params.apiKey)
+      searchParams.append('q', params.query)
+      searchParams.append('cx', params.searchEngineId)
+
+      // Add optional parameter
+      if (params.num) {
+        searchParams.append('num', params.num.toString())
+      }
+
+      return `${baseUrl}?${searchParams.toString()}`
+    },
+    method: 'GET',
+    headers: () => ({
+      'Content-Type': 'application/json',
+    }),
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
+        items: data.items || [],
+        searchInformation: data.searchInformation || {
+          totalResults: '0',
+          searchTime: 0,
+          formattedSearchTime: '0',
+          formattedTotalResults: '0',
+        },
+      },
+    }
+  },
+
   outputs: {
     items: {
       type: 'array',
@@ -62,56 +102,5 @@ export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = 
         },
       },
     },
-  },
-
-  request: {
-    url: (params: GoogleSearchParams) => {
-      const baseUrl = 'https://www.googleapis.com/customsearch/v1'
-      const searchParams = new URLSearchParams()
-
-      // Add required parameters
-      searchParams.append('key', params.apiKey)
-      searchParams.append('q', params.query)
-      searchParams.append('cx', params.searchEngineId)
-
-      // Add optional parameter
-      if (params.num) {
-        searchParams.append('num', params.num.toString())
-      }
-
-      return `${baseUrl}?${searchParams.toString()}`
-    },
-    method: 'GET',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-  },
-
-  transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error?.message || 'Failed to perform Google search')
-    }
-
-    const data = await response.json()
-
-    return {
-      success: true,
-      output: {
-        items: data.items || [],
-        searchInformation: data.searchInformation || {
-          totalResults: '0',
-          searchTime: 0,
-          formattedSearchTime: '0',
-          formattedTotalResults: '0',
-        },
-      },
-    }
-  },
-
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while performing the Google search'
   },
 }

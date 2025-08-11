@@ -40,18 +40,6 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
     },
   },
 
-  outputs: {
-    subreddit: {
-      type: 'string',
-      description: 'Name of the subreddit where hot posts were fetched from',
-    },
-    posts: {
-      type: 'array',
-      description:
-        'Array of hot posts with title, author, URL, score, comments count, and metadata',
-    },
-  },
-
   request: {
     url: (params) => {
       // Sanitize inputs and enforce limits
@@ -75,87 +63,52 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
   },
 
   transformResponse: async (response: Response, requestParams?: HotPostsParams) => {
-    try {
-      // Check if response is OK
-      if (!response.ok) {
-        if (response.status === 403 || response.status === 429) {
-          throw new Error('Reddit API access blocked or rate limited. Please try again later.')
-        }
-        throw new Error(`Reddit API returned ${response.status}: ${response.statusText}`)
-      }
+    const data = await response.json()
 
-      // Attempt to parse JSON
-      let data
-      try {
-        data = await response.json()
-      } catch (_error) {
-        throw new Error('Failed to parse Reddit API response: Response was not valid JSON')
-      }
-
-      // Check if response contains error
-      if (data.error || !data.data) {
-        throw new Error(data.message || 'Invalid response from Reddit API')
-      }
-
-      // Process the posts data with proper error handling
-      const posts: RedditPost[] = data.data.children.map((child: any) => {
-        const post = child.data || {}
-        return {
-          id: post.id || '',
-          title: post.title || '',
-          author: post.author || '[deleted]',
-          url: post.url || '',
-          permalink: post.permalink ? `https://www.reddit.com${post.permalink}` : '',
-          created_utc: post.created_utc || 0,
-          score: post.score || 0,
-          num_comments: post.num_comments || 0,
-          selftext: post.selftext || '',
-          thumbnail:
-            post.thumbnail !== 'self' && post.thumbnail !== 'default' ? post.thumbnail : undefined,
-          is_self: !!post.is_self,
-          subreddit: post.subreddit || requestParams?.subreddit || '',
-          subreddit_name_prefixed: post.subreddit_name_prefixed || '',
-        }
-      })
-
-      // Extract the subreddit name from the response data with fallback
-      const subreddit =
-        data.data?.children?.[0]?.data?.subreddit ||
-        (posts.length > 0 ? posts[0].subreddit : requestParams?.subreddit || '')
-
+    // Process the posts data with proper error handling
+    const posts: RedditPost[] = data.data.children.map((child: any) => {
+      const post = child.data || {}
       return {
-        success: true,
-        output: {
-          subreddit,
-          posts,
-        },
+        id: post.id || '',
+        title: post.title || '',
+        author: post.author || '[deleted]',
+        url: post.url || '',
+        permalink: post.permalink ? `https://www.reddit.com${post.permalink}` : '',
+        created_utc: post.created_utc || 0,
+        score: post.score || 0,
+        num_comments: post.num_comments || 0,
+        selftext: post.selftext || '',
+        thumbnail:
+          post.thumbnail !== 'self' && post.thumbnail !== 'default' ? post.thumbnail : undefined,
+        is_self: !!post.is_self,
+        subreddit: post.subreddit || requestParams?.subreddit || '',
+        subreddit_name_prefixed: post.subreddit_name_prefixed || '',
       }
-    } catch (error: any) {
-      const errorMessage = error.message || 'Unknown error'
-      return {
-        success: false,
-        output: {
-          subreddit: requestParams?.subreddit || '',
-          posts: [],
-        },
-        error: errorMessage,
-      }
+    })
+
+    // Extract the subreddit name from the response data with fallback
+    const subreddit =
+      data.data?.children?.[0]?.data?.subreddit ||
+      (posts.length > 0 ? posts[0].subreddit : requestParams?.subreddit || '')
+
+    return {
+      success: true,
+      output: {
+        subreddit,
+        posts,
+      },
     }
   },
 
-  transformError: (error): string => {
-    // Create detailed error message
-    let errorMessage = error.message || 'Unknown error'
-
-    if (errorMessage.includes('blocked') || errorMessage.includes('rate limited')) {
-      errorMessage = `Reddit access is currently unavailable: ${errorMessage}. Consider reducing request frequency or using the official Reddit API with authentication.`
-    }
-
-    if (errorMessage.includes('not valid JSON')) {
-      errorMessage =
-        'Unable to process Reddit response: Received non-JSON response, which typically happens when Reddit blocks automated access.'
-    }
-
-    return `Error fetching Reddit posts: ${errorMessage}`
+  outputs: {
+    subreddit: {
+      type: 'string',
+      description: 'Name of the subreddit where hot posts were fetched from',
+    },
+    posts: {
+      type: 'array',
+      description:
+        'Array of hot posts with title, author, URL, score, comments count, and metadata',
+    },
   },
 }

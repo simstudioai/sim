@@ -1,26 +1,12 @@
 import type { GmailSendParams, GmailToolResponse } from '@/tools/gmail/types'
+import { GMAIL_API_BASE } from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
-
-const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
 export const gmailSendTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
   id: 'gmail_send',
   name: 'Gmail Send',
   description: 'Send emails using Gmail',
   version: '1.0.0',
-
-  outputs: {
-    content: { type: 'string', description: 'Success message' },
-    metadata: {
-      type: 'object',
-      description: 'Email metadata',
-      properties: {
-        id: { type: 'string', description: 'Gmail message ID' },
-        threadId: { type: 'string', description: 'Gmail thread ID' },
-        labelIds: { type: 'array', items: { type: 'string' }, description: 'Email labels' },
-      },
-    },
-  },
 
   oauth: {
     required: true,
@@ -100,10 +86,6 @@ export const gmailSendTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
   transformResponse: async (response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to send email')
-    }
-
     return {
       success: true,
       output: {
@@ -117,16 +99,16 @@ export const gmailSendTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
     }
   },
 
-  transformError: (error) => {
-    if (error.error?.message) {
-      if (error.error.message.includes('invalid authentication credentials')) {
-        return 'Invalid or expired access token. Please reauthenticate.'
-      }
-      if (error.error.message.includes('quota')) {
-        return 'Gmail API quota exceeded. Please try again later.'
-      }
-      return error.error.message
-    }
-    return error.message || 'An unexpected error occurred while sending email'
+  outputs: {
+    content: { type: 'string', description: 'Success message' },
+    metadata: {
+      type: 'object',
+      description: 'Email metadata',
+      properties: {
+        id: { type: 'string', description: 'Gmail message ID' },
+        threadId: { type: 'string', description: 'Gmail thread ID' },
+        labelIds: { type: 'array', items: { type: 'string' }, description: 'Email labels' },
+      },
+    },
   },
 }

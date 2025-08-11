@@ -151,7 +151,7 @@ export class ToolTester<P = any, R = any> {
     this.mockFetch = createErrorFetch(errorMessage, status)
     global.fetch = Object.assign(this.mockFetch, { preconnect: vi.fn() }) as typeof fetch
 
-    // Create an error object that the transformError function can use
+    // Create an error object for direct error handling
     this.error = new Error(errorMessage)
     this.error.message = errorMessage
     this.error.status = status
@@ -170,7 +170,7 @@ export class ToolTester<P = any, R = any> {
     return this
   }
 
-  // Store the error for transformError to use
+  // Store the error for direct error handling
   private error: any = null
 
   /**
@@ -196,37 +196,23 @@ export class ToolTester<P = any, R = any> {
       })
 
       if (!response.ok) {
-        if (this.tool.transformError) {
-          // Create a more detailed error object that simulates a real error
-          const data = await response.json().catch(() => ({}))
+        // Extract error message directly from response
+        const data = await response.json().catch(() => ({}))
 
-          // Build an error object with all the needed properties
-          const error: any = new Error(data.error || data.message || 'Request failed')
-          error.response = response
-          error.status = response.status
-          error.data = data
+        // Extract meaningful error message from the response
+        let errorMessage = data.error || data.message || response.statusText || 'Request failed'
 
-          // Add the status code to the message to help with identifying the error type
-          if (response.status === 404) {
-            error.message = 'Not Found'
-          } else if (response.status === 401) {
-            error.message = 'Unauthorized'
-          }
-
-          // Use the tool's transformError which matches the real implementation
-          const errorMessage = await this.tool.transformError(error)
-          return {
-            success: false,
-            output: {},
-            error: errorMessage || error.message,
-          }
+        // Add specific error messages for common status codes
+        if (response.status === 404) {
+          errorMessage = data.error || data.message || 'Not Found'
+        } else if (response.status === 401) {
+          errorMessage = data.error || data.message || 'Unauthorized'
         }
 
-        // If there's no transformError function, return a generic error
         return {
           success: false,
           output: {},
-          error: `HTTP error ${response.status}`,
+          error: errorMessage,
         }
       }
 
@@ -234,19 +220,25 @@ export class ToolTester<P = any, R = any> {
       return await this.handleSuccessfulResponse(response, params)
     } catch (error) {
       // Handle thrown errors (network errors, etc.)
-      if (this.tool.transformError) {
-        const errorToUse = this.error || error
-        const errorMessage = await this.tool.transformError(errorToUse)
-        return {
-          success: false,
-          output: {},
-          error: typeof errorMessage === 'string' ? errorMessage : 'Network error',
-        }
+      const errorToUse = this.error || error
+
+      // Extract error message directly from error object
+      let errorMessage = 'Network error'
+
+      if (errorToUse instanceof Error) {
+        errorMessage = errorToUse.message
+      } else if (typeof errorToUse === 'string') {
+        errorMessage = errorToUse
+      } else if (errorToUse && typeof errorToUse === 'object') {
+        // Try to extract error message from error object structure
+        errorMessage =
+          errorToUse.error || errorToUse.message || errorToUse.statusText || 'Network error'
       }
+
       return {
         success: false,
         output: {},
-        error: error instanceof Error ? error.message : 'Network error',
+        error: errorMessage,
       }
     }
   }

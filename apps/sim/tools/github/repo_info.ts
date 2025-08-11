@@ -40,10 +40,6 @@ export const repoInfoTool: ToolConfig<BaseGitHubParams, RepoInfoResponse> = {
   },
 
   transformResponse: async (response) => {
-    if (!response.ok) {
-      throw new Error(`GitHub API error: ${response.statusText}`)
-    }
-
     const data = await response.json()
 
     // Create a human-readable content string
@@ -69,19 +65,6 @@ URL: ${data.html_url}`
         },
       },
     }
-  },
-
-  transformError: (error) => {
-    if (error instanceof Error) {
-      if (error.message.includes('404')) {
-        return 'Repository not found. Please check the owner and repository name.'
-      }
-      if (error.message.includes('401')) {
-        return 'Authentication failed. Please check your GitHub token.'
-      }
-      return error.message
-    }
-    return 'Failed to fetch repository information'
   },
 
   outputs: {

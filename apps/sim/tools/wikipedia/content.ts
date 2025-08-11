@@ -20,20 +20,6 @@ export const pageContentTool: ToolConfig<WikipediaPageContentParams, WikipediaPa
       },
     },
 
-    outputs: {
-      content: {
-        type: 'object',
-        description: 'Full HTML content and metadata of the Wikipedia page',
-        properties: {
-          title: { type: 'string', description: 'Page title' },
-          pageid: { type: 'number', description: 'Wikipedia page ID' },
-          html: { type: 'string', description: 'Full HTML content of the page' },
-          revision: { type: 'number', description: 'Page revision number' },
-          timestamp: { type: 'string', description: 'Last modified timestamp' },
-        },
-      },
-    },
-
     request: {
       url: (params: WikipediaPageContentParams) => {
         const encodedTitle = encodeURIComponent(params.pageTitle.replace(/ /g, '_'))
@@ -45,17 +31,9 @@ export const pageContentTool: ToolConfig<WikipediaPageContentParams, WikipediaPa
         Accept:
           'text/html; charset=utf-8; profile="https://www.mediawiki.org/wiki/Specs/HTML/2.1.0"',
       }),
-      isInternalRoute: false,
     },
 
     transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Wikipedia page not found')
-        }
-        throw new Error(`Wikipedia API error: ${response.status} ${response.statusText}`)
-      }
-
       const html = await response.text()
 
       // Extract metadata from response headers
@@ -79,9 +57,17 @@ export const pageContentTool: ToolConfig<WikipediaPageContentParams, WikipediaPa
       }
     },
 
-    transformError: (error) => {
-      return error instanceof Error
-        ? error.message
-        : 'An error occurred while retrieving the Wikipedia page content'
+    outputs: {
+      content: {
+        type: 'object',
+        description: 'Full HTML content and metadata of the Wikipedia page',
+        properties: {
+          title: { type: 'string', description: 'Page title' },
+          pageid: { type: 'number', description: 'Wikipedia page ID' },
+          html: { type: 'string', description: 'Full HTML content of the page' },
+          revision: { type: 'number', description: 'Page revision number' },
+          timestamp: { type: 'string', description: 'Last modified timestamp' },
+        },
+      },
     },
   }

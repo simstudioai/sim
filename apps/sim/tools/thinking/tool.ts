@@ -18,29 +18,26 @@ export const thinkingTool: ToolConfig<ThinkingToolParams, ThinkingToolResponse> 
     },
   },
 
+  request: {
+    url: '/api/tools/thinking',
+    method: 'POST',
+    headers: () => ({
+      'Content-Type': 'application/json',
+    }),
+    body: (params: ThinkingToolParams) => ({
+      thought: params.thought,
+    }),
+  },
+
+  transformResponse: async (response: Response): Promise<ThinkingToolResponse> => {
+    const data = await response.json()
+    return data
+  },
+
   outputs: {
     acknowledgedThought: {
       type: 'string',
       description: 'The thought that was processed and acknowledged',
     },
-  },
-
-  // Use directExecution as no external HTTP call is needed
-  directExecution: async (params: ThinkingToolParams): Promise<ThinkingToolResponse> => {
-    // Simply acknowledge the thought by returning it in the output
-    return {
-      success: true,
-      output: {
-        acknowledgedThought: params.thought,
-      },
-    }
-  },
-
-  // Request configuration is not needed due to directExecution, but the type requires it.
-  // Provide minimal valid configuration.
-  request: {
-    url: '', // Not used
-    method: 'POST', // Not used
-    headers: () => ({}), // Not used
   },
 }

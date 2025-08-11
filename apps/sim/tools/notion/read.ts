@@ -6,11 +6,13 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
   name: 'Notion Reader',
   description: 'Read content from a Notion page',
   version: '1.0.0',
+
   oauth: {
     required: true,
     provider: 'notion',
     additionalScopes: ['workspace.content', 'page.read'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -23,16 +25,6 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
       required: true,
       visibility: 'user-only',
       description: 'The ID of the Notion page to read',
-    },
-  },
-  outputs: {
-    content: {
-      type: 'string',
-      description: 'Page content in markdown format with headers, paragraphs, lists, and todos',
-    },
-    metadata: {
-      type: 'object',
-      description: 'Page metadata including title, URL, and timestamps',
     },
   },
 
@@ -60,11 +52,6 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
   },
 
   transformResponse: async (response: Response, params?: NotionReadParams) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Notion API error: ${errorData.message || 'Unknown error'}`)
-    }
-
     const data = await response.json()
     let pageTitle = 'Untitled'
 
@@ -178,7 +165,14 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to read Notion page'
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Page content in markdown format with headers, paragraphs, lists, and todos',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Page metadata including title, URL, and timestamps',
+    },
   },
 }

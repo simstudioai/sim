@@ -6,6 +6,7 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
   name: 'Supabase Delete Row',
   description: 'Delete rows from a Supabase table based on filter criteria',
   version: '1.0',
+
   params: {
     projectId: {
       type: 'string',
@@ -32,29 +33,9 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
       description: 'Your Supabase service role secret key',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Delete operation results',
-      properties: {
-        message: { type: 'string', description: 'Operation status message' },
-        results: { type: 'array', description: 'Array of deleted records' },
-      },
-    },
-    error: { type: 'string', description: 'Error message if the operation failed' },
-  },
+
   request: {
-    url: (params) => `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`,
-    method: 'DELETE',
-    headers: (params) => ({
-      apikey: params.apiKey,
-      Authorization: `Bearer ${params.apiKey}`,
-      Prefer: 'return=representation',
-    }),
-  },
-  directExecution: async (params: SupabaseDeleteParams) => {
-    try {
+    url: (params) => {
       // Construct the URL for the Supabase REST API with select to return deleted data
       let url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`
 
@@ -67,64 +48,17 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
         )
       }
 
-      // Fetch the data
-      const response = await fetch(url, {
-        method: 'DELETE',
-        headers: {
-          apikey: params.apiKey,
-          Authorization: `Bearer ${params.apiKey}`,
-          Prefer: 'return=representation',
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Error from Supabase: ${response.status} ${errorText}`)
-      }
-
-      // Handle empty response from delete operations
-      const text = await response.text()
-      let data
-
-      if (text?.trim()) {
-        try {
-          data = JSON.parse(text)
-        } catch (e) {
-          // If we can't parse it, just use the text
-          data = text
-        }
-      } else {
-        // Empty response means successful deletion
-        data = []
-      }
-
-      const deletedCount = Array.isArray(data) ? data.length : text ? 1 : 0
-
-      return {
-        success: true,
-        output: {
-          message: `Successfully deleted ${deletedCount === 0 ? 'row(s)' : `${deletedCount} row(s)`} from ${params.table}`,
-          results: data,
-        },
-        error: undefined,
-      }
-    } catch (error) {
-      return {
-        success: false,
-        output: {
-          message: `Error deleting rows from Supabase: ${error instanceof Error ? error.message : String(error)}`,
-          results: null,
-        },
-        error: error instanceof Error ? error.message : String(error),
-      }
-    }
+      return url
+    },
+    method: 'DELETE',
+    headers: (params) => ({
+      apikey: params.apiKey,
+      Authorization: `Bearer ${params.apiKey}`,
+      Prefer: 'return=representation',
+    }),
   },
-  transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to delete rows from Supabase')
-    }
 
+  transformResponse: async (response: Response) => {
     // Handle empty response from delete operations
     const text = await response.text()
     let data
@@ -152,7 +86,9 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
       error: undefined,
     }
   },
-  transformError: (error: any) => {
-    return error.message || 'An error occurred while deleting rows from Supabase'
+
+  outputs: {
+    message: { type: 'string', description: 'Operation status message' },
+    results: { type: 'array', description: 'Array of deleted records' },
   },
 }

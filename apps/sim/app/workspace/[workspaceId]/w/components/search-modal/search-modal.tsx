@@ -3,7 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden'
-import { BookOpen, Building2, LibraryBig, ScrollText, Search, Shapes, Workflow } from 'lucide-react'
+import {
+  BookOpen,
+  Building2,
+  LibraryBig,
+  RepeatIcon,
+  ScrollText,
+  Search,
+  Shapes,
+  SplitIcon,
+  Workflow,
+} from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -119,7 +129,7 @@ export function SearchModal({
     if (!isOnWorkflowPage) return []
 
     const allBlocks = getAllBlocks()
-    return allBlocks
+    const regularBlocks = allBlocks
       .filter(
         (block) =>
           block.type !== 'starter' &&
@@ -137,7 +147,28 @@ export function SearchModal({
           type: block.type,
         })
       )
-      .sort((a, b) => a.name.localeCompare(b.name))
+
+    // Add special blocks (loop and parallel)
+    const specialBlocks: BlockItem[] = [
+      {
+        id: 'loop',
+        name: 'Loop',
+        description: 'Create a Loop',
+        icon: RepeatIcon,
+        bgColor: '#2FB3FF',
+        type: 'loop',
+      },
+      {
+        id: 'parallel',
+        name: 'Parallel',
+        description: 'Parallel Execution',
+        icon: SplitIcon,
+        bgColor: '#FEE12B',
+        type: 'parallel',
+      },
+    ]
+
+    return [...regularBlocks, ...specialBlocks].sort((a, b) => a.name.localeCompare(b.name))
   }, [isOnWorkflowPage])
 
   // Get all available tools - only when on workflow page

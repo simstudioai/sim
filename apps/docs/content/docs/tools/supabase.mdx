@@ -101,8 +101,8 @@ Query data from a Supabase table
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Query operation results |
+| `message` | string | Operation status message |
+| `results` | array | Array of records returned from the query |
 
 ### `supabase_insert`
 
@@ -121,8 +121,8 @@ Insert data into a Supabase table
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Insert operation results |
+| `message` | string | Operation status message |
+| `results` | array | Array of inserted records |
 
 ### `supabase_get_row`
 
@@ -141,8 +141,8 @@ Get a single row from a Supabase table based on filter criteria
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Get row operation results |
+| `message` | string | Operation status message |
+| `results` | object | The row data if found, null if not found |
 
 ### `supabase_update`
 
@@ -162,8 +162,8 @@ Update rows in a Supabase table based on filter criteria
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Update operation results |
+| `message` | string | Operation status message |
+| `results` | array | Array of updated records |
 
 ### `supabase_delete`
 
@@ -182,8 +182,8 @@ Delete rows from a Supabase table based on filter criteria
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | object | Delete operation results |
+| `message` | string | Operation status message |
+| `results` | array | Array of deleted records |
 
 
 

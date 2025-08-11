@@ -47,34 +47,6 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
     },
   },
 
-  outputs: {
-    subreddit: {
-      type: 'string',
-      description: 'Name of the subreddit where posts were fetched from',
-    },
-    posts: {
-      type: 'array',
-      description: 'Array of posts with title, author, URL, score, comments count, and metadata',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Post ID' },
-          title: { type: 'string', description: 'Post title' },
-          author: { type: 'string', description: 'Author username' },
-          url: { type: 'string', description: 'Post URL' },
-          permalink: { type: 'string', description: 'Reddit permalink' },
-          score: { type: 'number', description: 'Post score (upvotes - downvotes)' },
-          num_comments: { type: 'number', description: 'Number of comments' },
-          created_utc: { type: 'number', description: 'Creation timestamp (UTC)' },
-          is_self: { type: 'boolean', description: 'Whether this is a text post' },
-          selftext: { type: 'string', description: 'Text content for self posts' },
-          thumbnail: { type: 'string', description: 'Thumbnail URL' },
-          subreddit: { type: 'string', description: 'Subreddit name' },
-        },
-      },
-    },
-  },
-
   request: {
     url: (params: RedditPostsParams) => {
       // Sanitize inputs
@@ -107,104 +79,66 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
   },
 
   transformResponse: async (response: Response, requestParams?: RedditPostsParams) => {
-    try {
-      // Check if response is OK
-      if (!response.ok) {
-        // Get response text for better error details
-        const errorText = await response.text()
-        console.error('Reddit API Error:', {
-          status: response.status,
-          statusText: response.statusText,
-          body: errorText,
-          url: response.url,
-        })
+    const data = await response.json()
 
-        if (response.status === 403 || response.status === 429) {
-          throw new Error('Reddit API access blocked or rate limited. Please try again later.')
+    // Extract subreddit name from response (with fallback)
+    const subredditName =
+      data.data?.children[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
+
+    // Transform posts data
+    const posts =
+      data.data?.children?.map((child: any) => {
+        const post = child.data || {}
+        return {
+          id: post.id || '',
+          title: post.title || '',
+          author: post.author || '[deleted]',
+          url: post.url || '',
+          permalink: post.permalink ? `https://www.reddit.com${post.permalink}` : '',
+          created_utc: post.created_utc || 0,
+          score: post.score || 0,
+          num_comments: post.num_comments || 0,
+          is_self: !!post.is_self,
+          selftext: post.selftext || '',
+          thumbnail: post.thumbnail || '',
+          subreddit: post.subreddit || subredditName,
         }
-        throw new Error(
-          `Reddit API returned ${response.status}: ${response.statusText}. Body: ${errorText}`
-        )
-      }
+      }) || []
 
-      // Attempt to parse JSON
-      let data
-      try {
-        data = await response.json()
-      } catch (error) {
-        const responseText = await response.text()
-        console.error('Failed to parse Reddit API response as JSON:', {
-          error: error instanceof Error ? error.message : String(error),
-          responseText,
-          contentType: response.headers.get('content-type'),
-        })
-        throw new Error(
-          `Failed to parse Reddit API response: Response was not valid JSON. Content: ${responseText}`
-        )
-      }
-
-      // Check if response contains error
-      if (data.error || !data.data) {
-        throw new Error(data.message || 'Invalid response from Reddit API')
-      }
-
-      // Extract subreddit name from response (with fallback)
-      const subredditName =
-        data.data?.children[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
-
-      // Transform posts data with proper error handling
-      const posts =
-        data.data?.children?.map((child: any) => {
-          const post = child.data || {}
-          return {
-            id: post.id || '',
-            title: post.title || '',
-            author: post.author || '[deleted]',
-            url: post.url || '',
-            permalink: post.permalink ? `https://www.reddit.com${post.permalink}` : '',
-            created_utc: post.created_utc || 0,
-            score: post.score || 0,
-            num_comments: post.num_comments || 0,
-            is_self: !!post.is_self,
-            selftext: post.selftext || '',
-            thumbnail: post.thumbnail || '',
-            subreddit: post.subreddit || subredditName,
-          }
-        }) || []
-
-      return {
-        success: true,
-        output: {
-          subreddit: subredditName,
-          posts,
-        },
-      }
-    } catch (error: any) {
-      const errorMessage = error.message || 'Unknown error'
-      return {
-        success: false,
-        output: {
-          subreddit: requestParams?.subreddit || 'unknown',
-          posts: [],
-        },
-        error: errorMessage,
-      }
+    return {
+      success: true,
+      output: {
+        subreddit: subredditName,
+        posts,
+      },
     }
   },
 
-  transformError: (error): string => {
-    // Create detailed error message
-    let errorMessage = error.message || 'Unknown error'
-
-    if (errorMessage.includes('blocked') || errorMessage.includes('rate limited')) {
-      errorMessage = `Reddit access is currently unavailable: ${errorMessage}. Consider reducing request frequency or using the official Reddit API with authentication.`
-    }
-
-    if (errorMessage.includes('not valid JSON')) {
-      errorMessage =
-        'Unable to process Reddit response: Received non-JSON response, which typically happens when Reddit blocks automated access.'
-    }
-
-    return `Error fetching Reddit posts: ${errorMessage}`
+  outputs: {
+    subreddit: {
+      type: 'string',
+      description: 'Name of the subreddit where posts were fetched from',
+    },
+    posts: {
+      type: 'array',
+      description: 'Array of posts with title, author, URL, score, comments count, and metadata',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Post ID' },
+          title: { type: 'string', description: 'Post title' },
+          author: { type: 'string', description: 'Author username' },
+          url: { type: 'string', description: 'Post URL' },
+          permalink: { type: 'string', description: 'Reddit permalink' },
+          score: { type: 'number', description: 'Post score (upvotes - downvotes)' },
+          num_comments: { type: 'number', description: 'Number of comments' },
+          created_utc: { type: 'number', description: 'Creation timestamp (UTC)' },
+          is_self: { type: 'boolean', description: 'Whether this is a text post' },
+          selftext: { type: 'string', description: 'Text content for self posts' },
+          thumbnail: { type: 'string', description: 'Thumbnail URL' },
+          subreddit: { type: 'string', description: 'Subreddit name' },
+        },
+      },
+    },
   },
 }

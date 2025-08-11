@@ -45,29 +45,7 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
       description: 'Perplexity API key',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Chat completion results',
-      properties: {
-        content: { type: 'string', description: 'Generated text content' },
-        model: { type: 'string', description: 'Model used for generation' },
-        usage: {
-          type: 'object',
-          description: 'Token usage information',
-          properties: {
-            prompt_tokens: { type: 'number', description: 'Number of tokens in the prompt' },
-            completion_tokens: {
-              type: 'number',
-              description: 'Number of tokens in the completion',
-            },
-            total_tokens: { type: 'number', description: 'Total number of tokens used' },
-          },
-        },
-      },
-    },
-  },
+
   request: {
     method: 'POST',
     url: () => 'https://api.perplexity.ai/chat/completions',
@@ -111,48 +89,42 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
   },
 
   transformResponse: async (response) => {
-    try {
-      // Check if the response was successful
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        console.error('Perplexity API error:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData,
-        })
-
-        const errorMessage = errorData
-          ? JSON.stringify(errorData)
-          : `API error: ${response.status} ${response.statusText}`
-
-        throw new Error(errorMessage)
-      }
-
-      const data = await response.json()
-
-      // Validate response structure
-      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-        console.error('Invalid Perplexity response format:', data)
-        throw new Error('Invalid response format from Perplexity API')
-      }
-
-      return {
-        success: true,
-        output: {
-          content: data.choices[0].message.content,
-          model: data.model,
-          usage: {
-            prompt_tokens: data.usage.prompt_tokens,
-            completion_tokens: data.usage.completion_tokens,
-            total_tokens: data.usage.total_tokens,
-          },
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        content: data.choices[0].message.content,
+        model: data.model,
+        usage: {
+          prompt_tokens: data.usage.prompt_tokens,
+          completion_tokens: data.usage.completion_tokens,
+          total_tokens: data.usage.total_tokens,
         },
-      }
-    } catch (error: any) {
-      console.error('Failed to process Perplexity response:', error)
-      throw error
+      },
     }
   },
 
-  transformError: (error) => `Perplexity chat completion failed: ${error.message}`,
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Chat completion results',
+      properties: {
+        content: { type: 'string', description: 'Generated text content' },
+        model: { type: 'string', description: 'Model used for generation' },
+        usage: {
+          type: 'object',
+          description: 'Token usage information',
+          properties: {
+            prompt_tokens: { type: 'number', description: 'Number of tokens in the prompt' },
+            completion_tokens: {
+              type: 'number',
+              description: 'Number of tokens in the completion',
+            },
+            total_tokens: { type: 'number', description: 'Total number of tokens used' },
+          },
+        },
+      },
+    },
+  },
 }

@@ -1,4 +1,5 @@
 import type { ConfluenceRetrieveParams, ConfluenceRetrieveResponse } from '@/tools/confluence/types'
+import { transformPageData } from '@/tools/confluence/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const confluenceRetrieveTool: ToolConfig<
@@ -13,13 +14,6 @@ export const confluenceRetrieveTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'confluence',
-  },
-
-  outputs: {
-    ts: { type: 'string', description: 'Timestamp of retrieval' },
-    pageId: { type: 'string', description: 'Confluence page ID' },
-    content: { type: 'string', description: 'Page content with HTML tags stripped' },
-    title: { type: 'string', description: 'Page title' },
   },
 
   params: {
@@ -73,54 +67,14 @@ export const confluenceRetrieveTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
-      throw new Error(
-        errorData?.error ||
-          `Failed to retrieve Confluence page: ${response.status} ${response.statusText}`
-      )
-    }
-
     const data = await response.json()
     return transformPageData(data)
   },
 
-  transformError: (error: any) => {
-    return error.message || 'Failed to retrieve Confluence page'
+  outputs: {
+    ts: { type: 'string', description: 'Timestamp of retrieval' },
+    pageId: { type: 'string', description: 'Confluence page ID' },
+    content: { type: 'string', description: 'Page content with HTML tags stripped' },
+    title: { type: 'string', description: 'Page title' },
   },
-}
-
-function transformPageData(data: any) {
-  // More lenient check - only require id and title
-  if (!data || !data.id || !data.title) {
-    throw new Error('Invalid response format from Confluence API - missing required fields')
-  }
-
-  // Get content from wherever we can find it
-  const content =
-    data.body?.view?.value ||
-    data.body?.storage?.value ||
-    data.body?.atlas_doc_format?.value ||
-    data.content ||
-    data.description ||
-    `Content for page ${data.title}`
-
-  const cleanContent = content
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  return {
-    success: true,
-    output: {
-      ts: new Date().toISOString(),
-      pageId: data.id,
-      content: cleanContent,
-      title: data.title,
-    },
-  }
 }

@@ -28,13 +28,7 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
       description: 'Auth token for Clay webhook authentication',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'json',
-      description: 'Clay populate operation results including response data from Clay webhook',
-    },
-  },
+
   request: {
     url: (params: ClayPopulateParams) => params.webhookURL,
     method: 'POST',
@@ -53,15 +47,8 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
 
     if (contentType?.includes('application/json')) {
       data = await response.json()
-      if (!data.ok) {
-        throw new Error(data.error || 'Clay API error')
-      }
     } else {
-      // Handle text response
       data = await response.text()
-      if (data !== 'OK' && !response.ok) {
-        throw new Error(data || 'Clay API error')
-      }
     }
 
     return {
@@ -72,8 +59,11 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
     }
   },
 
-  transformError: (error: any) => {
-    const message = error.message || 'Clay populate failed'
-    return message
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'json',
+      description: 'Clay populate operation results including response data from Clay webhook',
+    },
   },
 }

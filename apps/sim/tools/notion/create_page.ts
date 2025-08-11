@@ -6,11 +6,13 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
   name: 'Notion Page Creator',
   description: 'Create a new page in Notion',
   version: '1.0.0',
+
   oauth: {
     required: true,
     provider: 'notion',
     additionalScopes: ['workspace.content', 'page.write'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -35,16 +37,6 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
       required: false,
       visibility: 'user-or-llm',
       description: 'Optional content to add to the page upon creation',
-    },
-  },
-  outputs: {
-    content: {
-      type: 'string',
-      description: 'Success message confirming page creation',
-    },
-    metadata: {
-      type: 'object',
-      description: 'Page metadata including title, page ID, URL, and timestamps',
     },
   },
 
@@ -121,11 +113,6 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Failed to create Notion page: ${errorData.message || 'Unknown error'}`)
-    }
-
     const data = await response.json()
     let pageTitle = 'Untitled'
 
@@ -156,7 +143,14 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to create Notion page'
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Success message confirming page creation',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Page metadata including title, page ID, URL, and timestamps',
+    },
   },
 }

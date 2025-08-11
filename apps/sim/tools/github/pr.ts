@@ -90,10 +90,6 @@ URL: ${pr.html_url}`
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to fetch PR details'
-  },
-
   outputs: {
     content: { type: 'string', description: 'Human-readable PR summary' },
     metadata: {

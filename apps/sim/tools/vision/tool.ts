@@ -35,33 +35,6 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
     },
   },
 
-  outputs: {
-    content: {
-      type: 'string',
-      description: 'The analyzed content and description of the image',
-    },
-    model: {
-      type: 'string',
-      description: 'The vision model that was used for analysis',
-      optional: true,
-    },
-    tokens: {
-      type: 'number',
-      description: 'Total tokens used for the analysis',
-      optional: true,
-    },
-    usage: {
-      type: 'object',
-      description: 'Detailed token usage breakdown',
-      optional: true,
-      properties: {
-        input_tokens: { type: 'number', description: 'Tokens used for input processing' },
-        output_tokens: { type: 'number', description: 'Tokens used for response generation' },
-        total_tokens: { type: 'number', description: 'Total tokens consumed' },
-      },
-    },
-  },
-
   request: {
     method: 'POST',
     url: (params) => {
@@ -132,14 +105,7 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (data.error) {
-      throw new Error(data.error.message || 'Unknown error occurred')
-    }
-
     const result = data.content?.[0]?.text || data.choices?.[0]?.message?.content
-    if (!result) {
-      throw new Error('No output content in response')
-    }
 
     return {
       success: true,
@@ -161,9 +127,30 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
     }
   },
 
-  transformError: (error) => {
-    const message = error.error?.message || error.message
-    const code = error.error?.type || error.code
-    return `${message} (${code})`
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'The analyzed content and description of the image',
+    },
+    model: {
+      type: 'string',
+      description: 'The vision model that was used for analysis',
+      optional: true,
+    },
+    tokens: {
+      type: 'number',
+      description: 'Total tokens used for the analysis',
+      optional: true,
+    },
+    usage: {
+      type: 'object',
+      description: 'Detailed token usage breakdown',
+      optional: true,
+      properties: {
+        input_tokens: { type: 'number', description: 'Tokens used for input processing' },
+        output_tokens: { type: 'number', description: 'Tokens used for response generation' },
+        total_tokens: { type: 'number', description: 'Total tokens consumed' },
+      },
+    },
   },
 }

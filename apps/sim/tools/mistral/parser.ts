@@ -63,17 +63,6 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       description: 'Mistral API key (MISTRAL_API_KEY)',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Whether the PDF was parsed successfully' },
-    content: {
-      type: 'string',
-      description: 'Extracted content in the requested format (markdown, text, or JSON)',
-    },
-    metadata: {
-      type: 'object',
-      description: 'Processing metadata including jobId, fileType, pageCount, and usage info',
-    },
-  },
 
   request: {
     url: 'https://api.mistral.ai/v1/ocr',
@@ -259,14 +248,6 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
 
   transformResponse: async (response, params?) => {
     try {
-      // Verify response status
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(
-          `Mistral OCR API error: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`
-        )
-      }
-
       // Parse response data with proper error handling
       let ocrResult
       try {
@@ -415,107 +396,15 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
     }
   },
 
-  transformError: (error) => {
-    logger.error('Mistral OCR processing error:', error)
-
-    // Helper function to extract message from various error types
-    const getErrorMessage = (err: any): string => {
-      if (typeof err === 'string') return err
-      if (err instanceof Error) return err.message
-      if (err && typeof err === 'object') {
-        if (err.message) return String(err.message)
-        if (err.error) return typeof err.error === 'string' ? err.error : JSON.stringify(err.error)
-      }
-      return 'Unknown error'
-    }
-
-    // Get base error message
-    const errorMsg = getErrorMessage(error)
-
-    // Handle null reference errors which often occur with invalid PDF URLs
-    if (
-      errorMsg.includes('Cannot read properties of null') ||
-      (errorMsg.includes('null') && errorMsg.includes('length'))
-    ) {
-      return 'Mistral OCR Error: Invalid PDF document URL. The URL provided either does not point to a valid PDF file or the PDF cannot be accessed. Please ensure you provide a direct link to a publicly accessible PDF file with .pdf extension.'
-    }
-
-    // Handle common API error status codes
-    if (typeof error === 'object' && error !== null) {
-      const status = error.status || error.response?.status
-
-      if (status) {
-        switch (status) {
-          case 400:
-            return 'Mistral OCR Error: The request was invalid. Please check your PDF URL and parameters.'
-          case 401:
-            return 'Mistral OCR Error: Invalid API key. Please check your Mistral API key.'
-          case 403:
-            return 'Mistral OCR Error: Access forbidden. Your API key may not have permission to use the OCR service.'
-          case 404:
-            return 'Mistral OCR Error: The PDF document could not be found. Please check that the URL is accessible.'
-          case 413:
-            return 'Mistral OCR Error: The PDF document is too large for processing.'
-          case 415:
-            return 'Mistral OCR Error: Unsupported file format. Please ensure the URL points to a valid PDF document with a .pdf extension.'
-          case 429:
-            return 'Mistral OCR Error: Rate limit exceeded. Please try again later.'
-          case 500:
-          case 502:
-          case 503:
-          case 504:
-            return 'Mistral OCR Error: Service temporarily unavailable. Please try again later.'
-        }
-      }
-    }
-
-    // Handle common network and URL errors
-    if (errorMsg.includes('URL') || errorMsg.includes('protocol') || errorMsg.includes('http')) {
-      return 'Mistral OCR Error: Invalid PDF URL format. Please provide a complete URL starting with https:// to your PDF document (e.g., https://example.com/document.pdf).'
-    }
-
-    if (
-      errorMsg.includes('ETIMEDOUT') ||
-      errorMsg.includes('timeout') ||
-      errorMsg.includes('ECONNABORTED')
-    ) {
-      return 'Mistral OCR Error: The request timed out. The PDF document may be too large or the server is unresponsive.'
-    }
-
-    if (
-      errorMsg.includes('ENOTFOUND') ||
-      errorMsg.includes('ECONNREFUSED') ||
-      errorMsg.includes('ECONNRESET')
-    ) {
-      return 'Mistral OCR Error: Could not connect to the document URL. Please verify the document is accessible.'
-    }
-
-    if (
-      errorMsg.includes('JSON') ||
-      errorMsg.includes('Unexpected token') ||
-      errorMsg.includes('parse')
-    ) {
-      return 'Mistral OCR Error: Failed to parse the response from the OCR service.'
-    }
-
-    // PDF-specific error handling
-    if (errorMsg.toLowerCase().includes('pdf')) {
-      if (
-        errorMsg.toLowerCase().includes('invalid') ||
-        errorMsg.toLowerCase().includes('corrupted')
-      ) {
-        return 'Mistral OCR Error: The document appears to be an invalid or corrupted PDF. Please check that the URL points to a valid, properly formatted PDF document.'
-      }
-      if (
-        errorMsg.toLowerCase().includes('password') ||
-        errorMsg.toLowerCase().includes('protected') ||
-        errorMsg.toLowerCase().includes('encrypted')
-      ) {
-        return 'Mistral OCR Error: The PDF document appears to be password-protected or encrypted. The OCR service cannot process protected documents.'
-      }
-    }
-
-    // Default error message with the original error for context
-    return `Mistral OCR Error: Invalid PDF document or URL. Please ensure you provide a direct link to a valid PDF file. Technical details: ${errorMsg}`
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the PDF was parsed successfully' },
+    content: {
+      type: 'string',
+      description: 'Extracted content in the requested format (markdown, text, or JSON)',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Processing metadata including jobId, fileType, pageCount, and usage info',
+    },
   },
 }

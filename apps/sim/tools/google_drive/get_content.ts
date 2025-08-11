@@ -14,11 +14,13 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
   description:
     'Get content from a file in Google Drive (exports Google Workspace files automatically)',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'google-drive',
     additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -37,17 +39,6 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
       required: false,
       visibility: 'hidden',
       description: 'The MIME type to export Google Workspace files to (optional)',
-    },
-  },
-
-  outputs: {
-    content: {
-      type: 'string',
-      description: 'File content as text (Google Workspace files are exported)',
-    },
-    metadata: {
-      type: 'json',
-      description: 'File metadata including ID, name, MIME type, and links',
     },
   },
 
@@ -178,11 +169,15 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
       throw error
     }
   },
-  transformError: (error) => {
-    logger.error('Download error', {
-      message: error.message,
-      stack: error.stack,
-    })
-    return error.message || 'An error occurred while getting content from Google Drive'
+
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'File content as text (Google Workspace files are exported)',
+    },
+    metadata: {
+      type: 'json',
+      description: 'File metadata including ID, name, MIME type, and links',
+    },
   },
 }

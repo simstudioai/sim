@@ -20,21 +20,6 @@ export const pageSummaryTool: ToolConfig<WikipediaPageSummaryParams, WikipediaPa
       },
     },
 
-    outputs: {
-      summary: {
-        type: 'object',
-        description: 'Wikipedia page summary and metadata',
-        properties: {
-          title: { type: 'string', description: 'Page title' },
-          extract: { type: 'string', description: 'Page extract/summary text' },
-          description: { type: 'string', description: 'Short page description', optional: true },
-          thumbnail: { type: 'object', description: 'Thumbnail image data', optional: true },
-          content_urls: { type: 'object', description: 'URLs to access the page' },
-          pageid: { type: 'number', description: 'Wikipedia page ID' },
-        },
-      },
-    },
-
     request: {
       url: (params: WikipediaPageSummaryParams) => {
         const encodedTitle = encodeURIComponent(params.pageTitle.replace(/ /g, '_'))
@@ -45,17 +30,9 @@ export const pageSummaryTool: ToolConfig<WikipediaPageSummaryParams, WikipediaPa
         'User-Agent': 'SimStudio/1.0 (https://sim.ai)',
         Accept: 'application/json',
       }),
-      isInternalRoute: false,
     },
 
     transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Wikipedia page not found')
-        }
-        throw new Error(`Wikipedia API error: ${response.status} ${response.statusText}`)
-      }
-
       const data = await response.json()
 
       return {
@@ -85,9 +62,18 @@ export const pageSummaryTool: ToolConfig<WikipediaPageSummaryParams, WikipediaPa
       }
     },
 
-    transformError: (error) => {
-      return error instanceof Error
-        ? error.message
-        : 'An error occurred while retrieving the Wikipedia page summary'
+    outputs: {
+      summary: {
+        type: 'object',
+        description: 'Wikipedia page summary and metadata',
+        properties: {
+          title: { type: 'string', description: 'Page title' },
+          extract: { type: 'string', description: 'Page extract/summary text' },
+          description: { type: 'string', description: 'Short page description', optional: true },
+          thumbnail: { type: 'object', description: 'Thumbnail image data', optional: true },
+          content_urls: { type: 'object', description: 'URLs to access the page' },
+          pageid: { type: 'number', description: 'Wikipedia page ID' },
+        },
+      },
     },
   }

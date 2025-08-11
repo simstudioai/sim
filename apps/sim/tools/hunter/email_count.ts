@@ -34,30 +34,6 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
     },
   },
 
-  outputs: {
-    total: {
-      type: 'number',
-      description: 'Total number of email addresses found',
-    },
-    personal_emails: {
-      type: 'number',
-      description: 'Number of personal email addresses found',
-    },
-    generic_emails: {
-      type: 'number',
-      description: 'Number of generic email addresses found',
-    },
-    department: {
-      type: 'object',
-      description:
-        'Breakdown of email addresses by department (executive, it, finance, management, sales, legal, support, hr, marketing, communication)',
-    },
-    seniority: {
-      type: 'object',
-      description: 'Breakdown of email addresses by seniority level (junior, senior, executive)',
-    },
-  },
-
   request: {
     url: (params) => {
       if (!params.domain && !params.company) {
@@ -74,7 +50,6 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
       return url.toString()
     },
     method: 'GET',
-    isInternalRoute: false,
     headers: () => ({
       'Content-Type': 'application/json',
     }),
@@ -82,12 +57,6 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(
-        data.errors?.[0]?.details || data.message || 'Failed to perform Hunter email count'
-      )
-    }
 
     return {
       success: true,
@@ -116,9 +85,27 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while performing the Hunter email count'
+  outputs: {
+    total: {
+      type: 'number',
+      description: 'Total number of email addresses found',
+    },
+    personal_emails: {
+      type: 'number',
+      description: 'Number of personal email addresses found',
+    },
+    generic_emails: {
+      type: 'number',
+      description: 'Number of generic email addresses found',
+    },
+    department: {
+      type: 'object',
+      description:
+        'Breakdown of email addresses by department (executive, it, finance, management, sales, legal, support, hr, marketing, communication)',
+    },
+    seniority: {
+      type: 'object',
+      description: 'Breakdown of email addresses by seniority level (junior, senior, executive)',
+    },
   },
 }
