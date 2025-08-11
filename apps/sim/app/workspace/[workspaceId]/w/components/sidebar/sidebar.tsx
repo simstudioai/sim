@@ -681,8 +681,16 @@ export function Sidebar() {
         ) as HTMLElement
         if (activeWorkflow) {
           activeWorkflow.scrollIntoView({
-            block: 'nearest',
+            block: 'start',
           })
+
+          // Adjust scroll position to eliminate the small gap at the top
+          const scrollViewport = scrollContainer.querySelector(
+            '[data-radix-scroll-area-viewport]'
+          ) as HTMLElement
+          if (scrollViewport && scrollViewport.scrollTop > 0) {
+            scrollViewport.scrollTop = Math.max(0, scrollViewport.scrollTop - 8)
+          }
         }
       }
     }
