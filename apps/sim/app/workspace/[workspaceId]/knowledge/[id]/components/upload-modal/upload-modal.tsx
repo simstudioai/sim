@@ -160,7 +160,7 @@ export function UploadModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className='flex max-h-[90vh] max-w-2xl flex-col overflow-hidden'>
+      <DialogContent className='flex max-h-[95vh] max-w-2xl flex-col overflow-hidden'>
         <DialogHeader>
           <DialogTitle>Upload Documents</DialogTitle>
         </DialogHeader>
@@ -225,7 +225,7 @@ export function UploadModal({
                   </p>
                 </div>
 
-                <div className='max-h-40 space-y-2 overflow-auto'>
+                <div className='max-h-60 space-y-1.5 overflow-auto'>
                   {files.map((file, index) => {
                     const fileStatus = uploadProgress.fileStatuses?.[index]
                     const isCurrentlyUploading = fileStatus?.status === 'uploading'
@@ -233,7 +233,7 @@ export function UploadModal({
                     const isFailed = fileStatus?.status === 'failed'
 
                     return (
-                      <div key={index} className='space-y-2 rounded-md border p-3'>
+                      <div key={index} className='space-y-1.5 rounded-md border p-2'>
                         <div className='flex items-center justify-between'>
                           <div className='min-w-0 flex-1'>
                             <div className='flex items-center gap-2'>
@@ -242,11 +242,17 @@ export function UploadModal({
                               )}
                               {isCompleted && <Check className='h-4 w-4 text-green-500' />}
                               {isFailed && <X className='h-4 w-4 text-red-500' />}
-                              <p className='truncate font-medium text-sm'>{file.name}</p>
+                              {!isCurrentlyUploading && !isCompleted && !isFailed && (
+                                <div className='h-4 w-4' />
+                              )}
+                              <p className='truncate text-sm'>
+                                <span className='font-medium'>{file.name}</span>
+                                <span className='text-muted-foreground'>
+                                  {' '}
+                                  • {(file.size / 1024 / 1024).toFixed(2)} MB
+                                </span>
+                              </p>
                             </div>
-                            <p className='text-muted-foreground text-xs'>
-                              {(file.size / 1024 / 1024).toFixed(2)} MB
-                            </p>
                           </div>
                           <Button
                             type='button'

@@ -538,7 +538,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   }
 
   /**
-   * Upload files in batches with parallel processing
+   * Upload files with a constant pool of concurrent uploads
    */
   const uploadFilesInBatches = async (files: File[]): Promise<UploadedFile[]> => {
     const uploadedFiles: UploadedFile[] = []
@@ -557,99 +557,99 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       fileStatuses,
     }))
 
-    // Process files in batches
-    for (let i = 0; i < files.length; i += UPLOAD_CONFIG.BATCH_SIZE) {
-      const batch = files.slice(i, i + UPLOAD_CONFIG.BATCH_SIZE)
-      const batchIndexes = batch.map((_, idx) => i + idx)
+    // Create a queue of files to upload
+    const fileQueue = files.map((file, index) => ({ file, index }))
+    const activeUploads = new Map<number, Promise<any>>()
 
-      logger.info(
-        `Uploading batch ${Math.floor(i / UPLOAD_CONFIG.BATCH_SIZE) + 1}/${Math.ceil(files.length / UPLOAD_CONFIG.BATCH_SIZE)} (${batch.length} files)`
-      )
+    logger.info(
+      `Starting upload of ${files.length} files with concurrency ${UPLOAD_CONFIG.BATCH_SIZE}`
+    )
 
-      // Upload batch in parallel
-      const batchPromises = batch.map(async (file, batchIdx) => {
-        const fileIndex = i + batchIdx
-
-        // Mark file as uploading (only if not already processing)
-        setUploadProgress((prev) => {
-          const currentStatus = prev.fileStatuses?.[fileIndex]?.status
-          // Don't re-upload files that are already completed or currently uploading
-          if (currentStatus === 'completed' || currentStatus === 'uploading') {
-            return prev
-          }
-          return {
-            ...prev,
-            fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-              idx === fileIndex ? { ...fs, status: 'uploading' as const, progress: 0 } : fs
-            ),
-          }
-        })
-
-        try {
-          const result = await uploadSingleFileWithRetry(file, 0, fileIndex)
-
-          // Mark file as completed (with atomic update)
-          setUploadProgress((prev) => {
-            // Only mark as completed if still uploading (prevent race conditions)
-            if (prev.fileStatuses?.[fileIndex]?.status === 'uploading') {
-              return {
-                ...prev,
-                filesCompleted: prev.filesCompleted + 1,
-                fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-                  idx === fileIndex ? { ...fs, status: 'completed' as const, progress: 100 } : fs
-                ),
-              }
-            }
-            return prev
-          })
-
-          return { success: true, file, result }
-        } catch (error) {
-          // Mark file as failed (with atomic update)
-          setUploadProgress((prev) => {
-            // Only mark as failed if still uploading
-            if (prev.fileStatuses?.[fileIndex]?.status === 'uploading') {
-              return {
-                ...prev,
-                fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-                  idx === fileIndex
-                    ? {
-                        ...fs,
-                        status: 'failed' as const,
-                        error: error instanceof Error ? error.message : 'Upload failed',
-                      }
-                    : fs
-                ),
-              }
-            }
-            return prev
-          })
-
-          return {
-            success: false,
-            file,
-            error: error instanceof Error ? error : new Error(String(error)),
-          }
+    // Function to start an upload for a file
+    const startUpload = async (file: File, fileIndex: number) => {
+      // Mark file as uploading (only if not already processing)
+      setUploadProgress((prev) => {
+        const currentStatus = prev.fileStatuses?.[fileIndex]?.status
+        // Don't re-upload files that are already completed or currently uploading
+        if (currentStatus === 'completed' || currentStatus === 'uploading') {
+          return prev
+        }
+        return {
+          ...prev,
+          fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+            idx === fileIndex ? { ...fs, status: 'uploading' as const, progress: 0 } : fs
+          ),
         }
       })
 
-      const batchResults = await Promise.allSettled(batchPromises)
+      try {
+        const result = await uploadSingleFileWithRetry(file, 0, fileIndex)
 
-      // Process batch results
-      for (const result of batchResults) {
-        if (result.status === 'fulfilled') {
-          if (result.value.success) {
-            uploadedFiles.push(result.value.result as UploadedFile)
-          } else {
-            failedFiles.push({
-              file: result.value.file,
-              error: result.value.error as Error,
-            })
+        // Mark file as completed (with atomic update)
+        setUploadProgress((prev) => {
+          // Only mark as completed if still uploading (prevent race conditions)
+          if (prev.fileStatuses?.[fileIndex]?.status === 'uploading') {
+            return {
+              ...prev,
+              filesCompleted: prev.filesCompleted + 1,
+              fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+                idx === fileIndex ? { ...fs, status: 'completed' as const, progress: 100 } : fs
+              ),
+            }
           }
-        } else {
-          // This shouldn't happen with our error handling, but just in case
-          logger.error('Unexpected promise rejection:', result.reason)
+          return prev
+        })
+
+        uploadedFiles.push(result)
+        return { success: true, file, result }
+      } catch (error) {
+        // Mark file as failed (with atomic update)
+        setUploadProgress((prev) => {
+          // Only mark as failed if still uploading
+          if (prev.fileStatuses?.[fileIndex]?.status === 'uploading') {
+            return {
+              ...prev,
+              fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+                idx === fileIndex
+                  ? {
+                      ...fs,
+                      status: 'failed' as const,
+                      error: error instanceof Error ? error.message : 'Upload failed',
+                    }
+                  : fs
+              ),
+            }
+          }
+          return prev
+        })
+
+        failedFiles.push({
+          file,
+          error: error instanceof Error ? error : new Error(String(error)),
+        })
+
+        return {
+          success: false,
+          file,
+          error: error instanceof Error ? error : new Error(String(error)),
         }
+      }
+    }
+
+    // Process files with constant concurrency pool
+    while (fileQueue.length > 0 || activeUploads.size > 0) {
+      // Start new uploads up to the batch size limit
+      while (fileQueue.length > 0 && activeUploads.size < UPLOAD_CONFIG.BATCH_SIZE) {
+        const { file, index } = fileQueue.shift()!
+        const uploadPromise = startUpload(file, index).finally(() => {
+          activeUploads.delete(index)
+        })
+        activeUploads.set(index, uploadPromise)
+      }
+
+      // Wait for at least one upload to complete if we're at capacity or done with queue
+      if (activeUploads.size > 0) {
+        await Promise.race(Array.from(activeUploads.values()))
       }
     }
 
