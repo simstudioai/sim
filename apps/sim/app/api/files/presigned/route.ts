@@ -16,6 +16,7 @@ import {
   S3_KB_CONFIG,
 } from '@/lib/uploads/setup'
 import { createErrorResponse, createOptionsResponse } from '@/app/api/files/utils'
+import { getSession } from '@/lib/auth'
 
 const logger = createLogger('PresignedUploadAPI')
 
@@ -54,6 +55,11 @@ class ValidationError extends PresignedUrlError {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     let data: PresignedUrlRequest
     try {
       data = await request.json()
@@ -61,7 +67,7 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('Invalid JSON in request body')
     }
 
-    const { fileName, contentType, fileSize, userId, chatId } = data
+    const { fileName, contentType, fileSize } = data
 
     if (!fileName?.trim()) {
       throw new ValidationError('fileName is required and cannot be empty')
@@ -90,10 +96,13 @@ export async function POST(request: NextRequest) {
             ? 'copilot'
             : 'general'
 
-    // Validate copilot-specific requirements
+    // Evaluate user id from session for copilot uploads
+    const sessionUserId = session.user.id
+
+    // Validate copilot-specific requirements (use session user)
     if (uploadType === 'copilot') {
-      if (!userId?.trim()) {
-        throw new ValidationError('userId is required for copilot uploads')
+      if (!sessionUserId?.trim()) {
+        throw new ValidationError('Authenticated user session is required for copilot uploads')
       }
     }
 
@@ -108,9 +117,9 @@ export async function POST(request: NextRequest) {
 
     switch (storageProvider) {
       case 's3':
-        return await handleS3PresignedUrl(fileName, contentType, fileSize, uploadType, userId)
+        return await handleS3PresignedUrl(fileName, contentType, fileSize, uploadType, sessionUserId)
       case 'blob':
-        return await handleBlobPresignedUrl(fileName, contentType, fileSize, uploadType, userId)
+        return await handleBlobPresignedUrl(fileName, contentType, fileSize, uploadType, sessionUserId)
       default:
         throw new StorageConfigError(`Unknown storage provider: ${storageProvider}`)
     }

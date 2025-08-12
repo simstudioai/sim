@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
 import { S3_KB_CONFIG } from '@/lib/uploads/setup'
+import { getSession } from '@/lib/auth'
 
 const logger = createLogger('MultipartUploadAPI')
 
@@ -36,6 +37,11 @@ interface CompleteMultipartRequest {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const action = request.nextUrl.searchParams.get('action')
 
     if (!isUsingCloudStorage() || getStorageProvider() !== 's3') {

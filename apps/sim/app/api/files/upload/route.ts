@@ -7,6 +7,7 @@ import {
   createOptionsResponse,
   InvalidRequestError,
 } from '@/app/api/files/utils'
+import { getSession } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,11 @@ const logger = createLogger('FilesUploadAPI')
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const formData = await request.formData()
 
     // Check if multiple files are being uploaded or a single file
