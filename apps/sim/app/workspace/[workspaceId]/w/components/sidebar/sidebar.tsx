@@ -15,6 +15,8 @@ import {
   CreateMenu,
   FolderTree,
   HelpModal,
+  KnowledgeBaseTags,
+  KnowledgeTags,
   LogsFilters,
   SettingsModal,
   SubscriptionModal,
@@ -249,6 +251,41 @@ export function Sidebar() {
     const logsPageRegex = /^\/workspace\/[^/]+\/logs$/
     return logsPageRegex.test(pathname)
   }, [pathname])
+
+  // Check if we're on any knowledge base page (overview or document)
+  const isOnKnowledgePage = useMemo(() => {
+    // Pattern: /workspace/[workspaceId]/knowledge/[id] or /workspace/[workspaceId]/knowledge/[id]/[documentId]
+    const knowledgePageRegex = /^\/workspace\/[^/]+\/knowledge\/[^/]+/
+    return knowledgePageRegex.test(pathname)
+  }, [pathname])
+
+  // Extract knowledge base ID and document ID from the pathname
+  const { knowledgeBaseId, documentId } = useMemo(() => {
+    if (!isOnKnowledgePage) {
+      return { knowledgeBaseId: null, documentId: null }
+    }
+
+    // Handle both KB overview (/knowledge/[kbId]) and document page (/knowledge/[kbId]/[docId])
+    const kbOverviewMatch = pathname.match(/^\/workspace\/[^/]+\/knowledge\/([^/]+)$/)
+    const docPageMatch = pathname.match(/^\/workspace\/[^/]+\/knowledge\/([^/]+)\/([^/]+)$/)
+
+    if (docPageMatch) {
+      // Document page - has both kbId and docId
+      return {
+        knowledgeBaseId: docPageMatch[1],
+        documentId: docPageMatch[2],
+      }
+    }
+    if (kbOverviewMatch) {
+      // KB overview page - has only kbId
+      return {
+        knowledgeBaseId: kbOverviewMatch[1],
+        documentId: null,
+      }
+    }
+
+    return { knowledgeBaseId: null, documentId: null }
+  }, [pathname, isOnKnowledgePage])
 
   // Use optimized auto-scroll hook
   const { handleDragOver, stopScroll } = useAutoScroll(workflowScrollAreaRef)
@@ -1041,6 +1078,22 @@ export function Sidebar() {
         }}
       >
         <LogsFilters />
+      </div>
+
+      {/* Floating Knowledge Tags - Only on knowledge pages */}
+      <div
+        className={`pointer-events-auto fixed left-4 z-50 w-56 rounded-[10px] border bg-background shadow-xs ${
+          !isOnKnowledgePage || isSidebarCollapsed || !knowledgeBaseId ? 'hidden' : ''
+        }`}
+        style={{
+          top: `${toolbarTop}px`,
+          bottom: `${navigationBottom + SIDEBAR_HEIGHTS.NAVIGATION + SIDEBAR_GAP + (isBillingEnabled ? SIDEBAR_HEIGHTS.USAGE_INDICATOR + SIDEBAR_GAP : 0)}px`, // Navigation height + gap + UsageIndicator height + gap (if billing enabled)
+        }}
+      >
+        {knowledgeBaseId && documentId && (
+          <KnowledgeTags knowledgeBaseId={knowledgeBaseId} documentId={documentId} />
+        )}
+        {knowledgeBaseId && !documentId && <KnowledgeBaseTags knowledgeBaseId={knowledgeBaseId} />}
       </div>
 
       {/* Floating Usage Indicator - Only shown when billing enabled */}
