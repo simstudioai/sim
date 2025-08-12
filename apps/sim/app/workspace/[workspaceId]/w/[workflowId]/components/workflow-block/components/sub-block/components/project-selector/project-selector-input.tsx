@@ -21,7 +21,6 @@ import {
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 interface ProjectSelectorInputProps {
   blockId: string
@@ -40,34 +39,35 @@ export function ProjectSelectorInput({
   isPreview = false,
   previewValue,
 }: ProjectSelectorInputProps) {
-  const { getValue } = useSubBlockStore()
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const [_projectInfo, setProjectInfo] = useState<JiraProjectInfo | DiscordServerInfo | null>(null)
 
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+  // Reactive dependencies from store for Linear
+  const [linearCredential] = useSubBlockValue(blockId, 'credential')
+  const [linearTeamId] = useSubBlockValue(blockId, 'teamId')
 
   // Get provider-specific values
   const provider = subBlock.provider || 'jira'
   const isDiscord = provider === 'discord'
   const isLinear = provider === 'linear'
 
-  // For Jira, we need the domain
-  const domain = !isDiscord ? (getValue(blockId, 'domain') as string) || '' : ''
-  const botToken = isDiscord ? (getValue(blockId, 'botToken') as string) || '' : ''
+  // For Jira and Discord, we can keep existing behavior (not part of this fix)
+  const domain = ''
+  const botToken = ''
 
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
     if (isPreview && previewValue !== undefined) {
       setSelectedProjectId(previewValue)
+    } else if (typeof storeValue === 'string') {
+      setSelectedProjectId(storeValue)
     } else {
-      const value = getValue(blockId, subBlock.id)
-      if (value && typeof value === 'string') {
-        setSelectedProjectId(value)
-      }
+      setSelectedProjectId('')
     }
-  }, [blockId, subBlock.id, getValue, isPreview, previewValue])
+  }, [isPreview, previewValue, storeValue])
 
   // Handle project selection
   const handleProjectChange = (
@@ -139,15 +139,15 @@ export function ProjectSelectorInput({
                   onChange={(teamId: string, teamInfo?: LinearTeamInfo) => {
                     handleProjectChange(teamId, teamInfo)
                   }}
-                  credential={getValue(blockId, 'credential') as string}
+                  credential={(linearCredential as string) || ''}
                   label={subBlock.placeholder || 'Select Linear team'}
-                  disabled={disabled || !getValue(blockId, 'credential')}
+                  disabled={disabled || !(linearCredential as string)}
                   showPreview={true}
                 />
               ) : (
                 (() => {
-                  const credential = getValue(blockId, 'credential') as string
-                  const teamId = getValue(blockId, 'teamId') as string
+                  const credential = (linearCredential as string) || ''
+                  const teamId = (linearTeamId as string) || ''
                   const isDisabled = disabled || !credential || !teamId
                   return (
                     <LinearProjectSelector
@@ -165,7 +165,7 @@ export function ProjectSelectorInput({
               )}
             </div>
           </TooltipTrigger>
-          {!getValue(blockId, 'credential') && (
+          {!(linearCredential as string) && (
             <TooltipContent side='top'>
               <p>Please select a Linear account first</p>
             </TooltipContent>

@@ -75,6 +75,15 @@ export function JiraIssueSelector({
   const [error, setError] = useState<string | null>(null)
   const [cloudId, setCloudId] = useState<string | null>(null)
 
+  // Keep local credential state in sync with persisted credentialId prop
+  useEffect(() => {
+    if (credentialId && credentialId !== selectedCredentialId) {
+      setSelectedCredentialId(credentialId)
+    } else if (!credentialId && selectedCredentialId) {
+      setSelectedCredentialId('')
+    }
+  }, [credentialId, selectedCredentialId])
+
   // Handle search with debounce
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
