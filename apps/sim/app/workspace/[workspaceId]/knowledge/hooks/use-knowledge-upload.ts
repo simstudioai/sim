@@ -152,7 +152,11 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   /**
    * Upload a single file with retry logic
    */
-  const uploadSingleFileWithRetry = async (file: File, retryCount = 0, fileIndex?: number): Promise<UploadedFile> => {
+  const uploadSingleFileWithRetry = async (
+    file: File,
+    retryCount = 0,
+    fileIndex?: number
+  ): Promise<UploadedFile> => {
     try {
       // Create abort controller for timeout
       const controller = new AbortController()
@@ -237,7 +241,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
             fileSize: file.size,
           })
         }
-        
+
         // Reset progress to 0 before retry to indicate restart
         if (fileIndex !== undefined) {
           setUploadProgress((prev) => ({
@@ -247,7 +251,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
             ),
           }))
         }
-        
+
         await new Promise((resolve) => setTimeout(resolve, delay))
         return uploadSingleFileWithRetry(file, retryCount + 1, fileIndex)
       }
@@ -264,11 +268,15 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   /**
    * Upload file directly with timeout and progress tracking
    */
-  const uploadFileDirectly = async (file: File, presignedData: any, fileIndex?: number): Promise<UploadedFile> => {
+  const uploadFileDirectly = async (
+    file: File,
+    presignedData: any,
+    fileIndex?: number
+  ): Promise<UploadedFile> => {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()
       let isCompleted = false // Track if this upload has completed to prevent duplicate state updates
-      
+
       const timeoutId = setTimeout(() => {
         if (!isCompleted) {
           isCompleted = true
@@ -310,10 +318,12 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
               status: xhr.status,
               fileSize: file.size,
             })
-            reject(new DirectUploadError(
-              `Direct upload failed for ${file.name}: ${xhr.status} ${xhr.statusText}`,
-              { uploadResponse: xhr.statusText }
-            ))
+            reject(
+              new DirectUploadError(
+                `Direct upload failed for ${file.name}: ${xhr.status} ${xhr.statusText}`,
+                { uploadResponse: xhr.statusText }
+              )
+            )
           }
         }
       })
@@ -336,7 +346,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       // Start the upload
       xhr.open('PUT', presignedData.presignedUrl)
-      
+
       // Set headers
       xhr.setRequestHeader('Content-Type', file.type)
       if (presignedData.uploadHeaders) {
@@ -352,7 +362,11 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   /**
    * Upload large file in chunks (multipart upload)
    */
-  const uploadFileInChunks = async (file: File, presignedData: any, fileIndex?: number): Promise<UploadedFile> => {
+  const uploadFileInChunks = async (
+    file: File,
+    presignedData: any,
+    fileIndex?: number
+  ): Promise<UploadedFile> => {
     logger.info(
       `Uploading large file ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB) using multipart upload`
     )
@@ -531,14 +545,14 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     const failedFiles: Array<{ file: File; error: Error }> = []
 
     // Initialize file statuses
-    const fileStatuses: FileUploadStatus[] = files.map(file => ({
+    const fileStatuses: FileUploadStatus[] = files.map((file) => ({
       fileName: file.name,
       fileSize: file.size,
       status: 'pending' as const,
       progress: 0,
     }))
 
-    setUploadProgress(prev => ({
+    setUploadProgress((prev) => ({
       ...prev,
       fileStatuses,
     }))
@@ -555,7 +569,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       // Upload batch in parallel
       const batchPromises = batch.map(async (file, batchIdx) => {
         const fileIndex = i + batchIdx
-        
+
         // Mark file as uploading (only if not already processing)
         setUploadProgress((prev) => {
           const currentStatus = prev.fileStatuses?.[fileIndex]?.status
@@ -573,7 +587,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
         try {
           const result = await uploadSingleFileWithRetry(file, 0, fileIndex)
-          
+
           // Mark file as completed (with atomic update)
           setUploadProgress((prev) => {
             // Only mark as completed if still uploading (prevent race conditions)
@@ -588,7 +602,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
             }
             return prev
           })
-          
+
           return { success: true, file, result }
         } catch (error) {
           // Mark file as failed (with atomic update)
@@ -598,15 +612,19 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
               return {
                 ...prev,
                 fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-                  idx === fileIndex 
-                    ? { ...fs, status: 'failed' as const, error: error instanceof Error ? error.message : 'Upload failed' } 
+                  idx === fileIndex
+                    ? {
+                        ...fs,
+                        status: 'failed' as const,
+                        error: error instanceof Error ? error.message : 'Upload failed',
+                      }
                     : fs
                 ),
               }
             }
             return prev
           })
-          
+
           return {
             success: false,
             file,

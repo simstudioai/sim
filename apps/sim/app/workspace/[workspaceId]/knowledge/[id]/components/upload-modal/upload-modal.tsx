@@ -153,9 +153,10 @@ export function UploadModal({
   }
 
   // Calculate progress percentage
-  const progressPercentage = uploadProgress.totalFiles > 0 
-    ? Math.round((uploadProgress.filesCompleted / uploadProgress.totalFiles) * 100)
-    : 0
+  const progressPercentage =
+    uploadProgress.totalFiles > 0
+      ? Math.round((uploadProgress.filesCompleted / uploadProgress.totalFiles) * 100)
+      : 0
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -230,27 +231,18 @@ export function UploadModal({
                     const isCurrentlyUploading = fileStatus?.status === 'uploading'
                     const isCompleted = fileStatus?.status === 'completed'
                     const isFailed = fileStatus?.status === 'failed'
-                    
+
                     return (
-                      <div
-                        key={index}
-                        className='rounded-md border p-3 space-y-2'
-                      >
+                      <div key={index} className='space-y-2 rounded-md border p-3'>
                         <div className='flex items-center justify-between'>
                           <div className='min-w-0 flex-1'>
                             <div className='flex items-center gap-2'>
                               {isCurrentlyUploading && (
                                 <Loader2 className='h-4 w-4 animate-spin text-blue-500' />
                               )}
-                              {isCompleted && (
-                                <Check className='h-4 w-4 text-green-500' />
-                              )}
-                              {isFailed && (
-                                <X className='h-4 w-4 text-red-500' />
-                              )}
-                              <p className='truncate font-medium text-sm'>
-                                {file.name}
-                              </p>
+                              {isCompleted && <Check className='h-4 w-4 text-green-500' />}
+                              {isFailed && <X className='h-4 w-4 text-red-500' />}
+                              <p className='truncate font-medium text-sm'>{file.name}</p>
                             </div>
                             <p className='text-muted-foreground text-xs'>
                               {(file.size / 1024 / 1024).toFixed(2)} MB
