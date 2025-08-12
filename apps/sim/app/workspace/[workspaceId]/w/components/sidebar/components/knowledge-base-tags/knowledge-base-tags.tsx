@@ -125,13 +125,17 @@ export function KnowledgeBaseTags({ knowledgeBaseId }: KnowledgeBaseTagsProps) {
     )
   }
 
-  const handleDeleteTag = (tag: TagDefinition) => {
+  const handleDeleteTag = async (tag: TagDefinition) => {
     setSelectedTag(tag)
+    // Fetch fresh usage data before showing the delete dialog
+    await fetchTagUsage()
     setDeleteDialogOpen(true)
   }
 
-  const handleViewDocuments = (tag: TagDefinition) => {
+  const handleViewDocuments = async (tag: TagDefinition) => {
     setSelectedTag(tag)
+    // Fetch fresh usage data before showing the view documents dialog
+    await fetchTagUsage()
     setViewDocumentsDialogOpen(true)
   }
 
