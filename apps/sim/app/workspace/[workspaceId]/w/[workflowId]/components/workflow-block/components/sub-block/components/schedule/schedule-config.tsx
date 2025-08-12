@@ -141,7 +141,7 @@ export function ScheduleConfig({
     return (
       <>
         <div className='truncate font-normal text-sm'>{scheduleTiming}</div>
-        <div className='text-muted-foreground text-xs'>
+        <div className='text-muted-foreground text-xs text-wrap'>
           <div>Next run: {formatDateTime(new Date(nextRunAt), timezone)}</div>
           {lastRanAt && <div>Last run: {formatDateTime(new Date(lastRanAt), timezone)}</div>}
         </div>
