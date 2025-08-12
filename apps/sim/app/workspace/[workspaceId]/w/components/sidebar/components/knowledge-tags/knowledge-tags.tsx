@@ -21,10 +21,13 @@ import { MAX_TAG_SLOTS, TAG_SLOTS, type TagSlot } from '@/lib/constants/knowledg
 import { createLogger } from '@/lib/logs/console/logger'
 import type { DocumentTag } from '@/app/workspace/[workspaceId]/knowledge/components/document-tag-entry/document-tag-entry'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
+import {
+  type TagDefinition,
+  useKnowledgeBaseTagDefinitions,
+} from '@/hooks/use-knowledge-base-tag-definitions'
 import { useNextAvailableSlot } from '@/hooks/use-next-available-slot'
 import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/use-tag-definitions'
-import { useKnowledgeStore } from '@/stores/knowledge/store'
+import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 
 const logger = createLogger('KnowledgeTags')
 
@@ -61,7 +64,7 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
   const { tagDefinitions: kbTagDefinitions, fetchTagDefinitions: refreshTagDefinitions } = kbTagHook
 
   const [documentTags, setDocumentTags] = useState<DocumentTag[]>([])
-  const [documentData, setDocumentData] = useState<Record<string, any> | null>(null)
+  const [documentData, setDocumentData] = useState<DocumentData | null>(null)
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -77,7 +80,7 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
 
   // Function to build document tags from data and definitions
   const buildDocumentTags = useCallback(
-    (docData: Record<string, any>, definitions: any[], currentTags?: DocumentTag[]) => {
+    (docData: DocumentData, definitions: TagDefinition[], currentTags?: DocumentTag[]) => {
       const tags: DocumentTag[] = []
       const tagSlots = TAG_SLOTS
 
@@ -468,7 +471,7 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
                   return (
                     <div key={index} className='mb-1'>
                       <div
-                        className={`cursor-pointer rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] transition-colors hover:bg-muted dark:border-[#414141] dark:bg-[#202020] ${editingTagIndex === index ? 'space-y-2 p-2' : 'p-2'}`}
+                        className={`cursor-pointer rounded-[10px] border bg-card transition-colors hover:bg-muted ${editingTagIndex === index ? 'space-y-2 p-2' : 'p-2'}`}
                         onClick={() => userPermissions.canEdit && toggleTagEditor(index)}
                       >
                         {/* Always show the tag display */}
@@ -497,7 +500,7 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
 
                         {/* Show edit form when this tag is being edited */}
                         {editingTagIndex === index && (
-                          <div className='space-y-1.5'>
+                          <div className='space-y-1.5' onClick={(e) => e.stopPropagation()}>
                             <div className='space-y-1.5'>
                               <Label className='font-medium text-xs'>Tag Name</Label>
                               <div className='flex gap-1.5'>
@@ -532,7 +535,7 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent
                                       align='end'
-                                      className='w-[160px] rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[#202020]'
+                                      className='w-[160px] rounded-lg border bg-card shadow-xs'
                                     >
                                       {availableDefinitions.map((def) => (
                                         <DropdownMenuItem
@@ -619,7 +622,7 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
               </div>
 
               {documentTags.length === 0 && !isCreating && (
-                <div className='mb-1 rounded-[10px] border-[#E5E5E5] border-dashed bg-[#FFFFFF] p-3 text-center dark:border-[#414141] dark:bg-[#202020]'>
+                <div className='mb-1 rounded-[10px] border border-dashed bg-card p-3 text-center'>
                   <p className='text-muted-foreground text-xs'>No tags added yet.</p>
                 </div>
               )}
@@ -631,7 +634,7 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
                     variant='outline'
                     size='sm'
                     onClick={openTagCreator}
-                    className='w-full justify-start gap-2 rounded-[10px] border-[#E5E5E5] border-dashed bg-[#FFFFFF] text-muted-foreground hover:text-foreground dark:border-[#414141] dark:bg-[#202020]'
+                    className='w-full justify-start gap-2 rounded-[10px] border border-dashed bg-card text-muted-foreground hover:text-foreground'
                     disabled={
                       kbTagDefinitions.length >= MAX_TAG_SLOTS && availableDefinitions.length === 0
                     }
@@ -644,21 +647,19 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
 
               {/* Inline Tag Creation Form */}
               {isCreating && (
-                <div className='mb-1 w-full max-w-full space-y-2 rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] p-2 dark:border-[#414141] dark:bg-[#202020]'>
-                  {/* Create form header with X button */}
-                  <div className='flex items-center justify-between'>
-                    <div className='font-medium text-foreground text-sm'>New Tag</div>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={cancelEditing}
-                      className='h-6 w-6 p-0 text-muted-foreground hover:text-red-600'
-                    >
-                      <X className='h-3 w-3' />
-                    </Button>
-                  </div>
+                <div className='mb-1 w-full max-w-full space-y-2 rounded-[10px] border bg-card p-2'>
                   <div className='space-y-1.5'>
-                    <Label className='font-medium text-xs'>Tag Name</Label>
+                    <div className='flex items-center justify-between'>
+                      <Label className='font-medium text-xs'>Tag Name</Label>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={cancelEditing}
+                        className='h-6 w-6 p-0 text-muted-foreground hover:text-red-600'
+                      >
+                        <X className='h-3 w-3' />
+                      </Button>
+                    </div>
                     <div className='flex gap-1.5'>
                       <Input
                         value={editForm.displayName}
@@ -689,7 +690,7 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
                             align='end'
-                            className='w-[160px] rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[#202020]'
+                            className='w-[160px] rounded-lg border bg-card shadow-xs'
                           >
                             {availableDefinitions.map((def) => (
                               <DropdownMenuItem

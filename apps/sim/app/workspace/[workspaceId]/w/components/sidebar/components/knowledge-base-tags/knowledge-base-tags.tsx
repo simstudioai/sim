@@ -30,7 +30,10 @@ import { MAX_TAG_SLOTS } from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components/icons/document-icons'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
+import {
+  type TagDefinition,
+  useKnowledgeBaseTagDefinitions,
+} from '@/hooks/use-knowledge-base-tag-definitions'
 
 const logger = createLogger('KnowledgeBaseTags')
 
@@ -65,7 +68,7 @@ export function KnowledgeBaseTags({ knowledgeBaseId }: KnowledgeBaseTagsProps) {
   const userPermissions = useUserPermissionsContext()
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [selectedTag, setSelectedTag] = useState<any>(null)
+  const [selectedTag, setSelectedTag] = useState<TagDefinition | null>(null)
   const [viewDocumentsDialogOpen, setViewDocumentsDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [tagUsageData, setTagUsageData] = useState<TagUsageData[]>([])
@@ -122,12 +125,12 @@ export function KnowledgeBaseTags({ knowledgeBaseId }: KnowledgeBaseTagsProps) {
     )
   }
 
-  const handleDeleteTag = (tag: any) => {
+  const handleDeleteTag = (tag: TagDefinition) => {
     setSelectedTag(tag)
     setDeleteDialogOpen(true)
   }
 
-  const handleViewDocuments = (tag: any) => {
+  const handleViewDocuments = (tag: TagDefinition) => {
     setSelectedTag(tag)
     setViewDocumentsDialogOpen(true)
   }
@@ -276,7 +279,7 @@ export function KnowledgeBaseTags({ knowledgeBaseId }: KnowledgeBaseTagsProps) {
                 {/* Existing Tag Definitions */}
                 <div>
                   {kbTagDefinitions.length === 0 && !isCreating ? (
-                    <div className='mb-1 rounded-[10px] border-[#E5E5E5] border-dashed bg-[#FFFFFF] p-3 text-center dark:border-[#414141] dark:bg-[#202020]'>
+                    <div className='mb-1 rounded-[10px] border border-dashed bg-card p-3 text-center'>
                       <p className='text-muted-foreground text-xs'>
                         No tag definitions yet.
                         <br />
@@ -288,7 +291,7 @@ export function KnowledgeBaseTags({ knowledgeBaseId }: KnowledgeBaseTagsProps) {
                       const usage = getTagUsage(tag.displayName)
                       return (
                         <div key={tag.id} className='mb-1'>
-                          <div className='cursor-default rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] p-2 transition-colors dark:border-[#414141] dark:bg-[#202020]'>
+                          <div className='cursor-default rounded-[10px] border bg-card p-2 transition-colors'>
                             <div className='flex items-center justify-between text-sm'>
                               <div className='flex min-w-0 flex-1 items-center gap-2'>
                                 <div
@@ -311,7 +314,7 @@ export function KnowledgeBaseTags({ knowledgeBaseId }: KnowledgeBaseTagsProps) {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent
                                   align='end'
-                                  className='w-[180px] rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[#202020]'
+                                  className='w-[180px] rounded-lg border bg-card shadow-xs'
                                 >
                                   <DropdownMenuItem
                                     onClick={() => handleViewDocuments(tag)}
@@ -344,7 +347,7 @@ export function KnowledgeBaseTags({ knowledgeBaseId }: KnowledgeBaseTagsProps) {
                       variant='outline'
                       size='sm'
                       onClick={openTagCreator}
-                      className='w-full justify-start gap-2 rounded-[10px] border-[#E5E5E5] border-dashed bg-[#FFFFFF] text-muted-foreground hover:text-foreground dark:border-[#414141] dark:bg-[#202020]'
+                      className='w-full justify-start gap-2 rounded-[10px] border border-dashed bg-card text-muted-foreground hover:text-foreground'
                       disabled={kbTagDefinitions.length >= MAX_TAG_SLOTS}
                     >
                       <Plus className='h-4 w-4' />
@@ -355,21 +358,19 @@ export function KnowledgeBaseTags({ knowledgeBaseId }: KnowledgeBaseTagsProps) {
 
                 {/* Inline Tag Creation Form */}
                 {isCreating && (
-                  <div className='mb-1 w-full max-w-full space-y-2 rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] p-2 dark:border-[#414141] dark:bg-[#202020]'>
-                    {/* Create form header with X button */}
-                    <div className='flex items-center justify-between'>
-                      <div className='font-medium text-foreground text-sm'>New Tag Definition</div>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        onClick={cancelCreating}
-                        className='h-6 w-6 p-0 text-muted-foreground hover:text-red-600'
-                      >
-                        <X className='h-3 w-3' />
-                      </Button>
-                    </div>
+                  <div className='mb-1 w-full max-w-full space-y-2 rounded-[10px] border bg-card p-2'>
                     <div className='space-y-1.5'>
-                      <Label className='font-medium text-xs'>Tag Name</Label>
+                      <div className='flex items-center justify-between'>
+                        <Label className='font-medium text-xs'>Tag Name</Label>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          onClick={cancelCreating}
+                          className='h-6 w-6 p-0 text-muted-foreground hover:text-red-600'
+                        >
+                          <X className='h-3 w-3' />
+                        </Button>
+                      </div>
                       <Input
                         value={createForm.displayName}
                         onChange={(e) =>
