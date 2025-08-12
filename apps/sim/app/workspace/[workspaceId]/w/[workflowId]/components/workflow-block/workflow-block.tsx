@@ -157,28 +157,24 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     collaborativeToggleBlockWide,
     collaborativeToggleBlockAdvancedMode,
     collaborativeToggleBlockTriggerMode,
+    collaborativeSetSubblockValue,
   } = useCollaborativeWorkflow()
 
   // Clear credential-dependent fields when credential changes
+  const prevCredRef = useRef<string | undefined>(undefined)
   useEffect(() => {
     const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
     if (!activeWorkflowId) return
     const current = useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id]
     if (!current) return
     const cred = current.credential?.value as string | undefined
-    const prevRefKey = `__prevCredIdRef_${id}`
-    const anyGlobal = globalThis as any
-    const prevRef = anyGlobal[prevRefKey] || { current: cred }
-    anyGlobal[prevRefKey] = prevRef
-    if (prevRef.current !== cred) {
-      prevRef.current = cred
-      // naive clear: remove known dependent keys if present
+    if (prevCredRef.current !== cred) {
+      prevCredRef.current = cred
       const keys = Object.keys(current)
       const dependentKeys = keys.filter((k) => k !== 'credential')
-      const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
       dependentKeys.forEach((k) => collaborativeSetSubblockValue(id, k, ''))
     }
-  }, [id])
+  }, [id, collaborativeSetSubblockValue])
 
   // Workflow store actions
   const updateBlockHeight = useWorkflowStore((state) => state.updateBlockHeight)

@@ -248,7 +248,6 @@ export function GoogleDrivePicker({
       const url = new URL('/api/auth/oauth/token', window.location.origin)
       url.searchParams.set('credentialId', selectedCredentialId)
       // include workflowId if available via global registry (server adds session owner otherwise)
-      // We cannot import store here; picker runs client-side, so let server rely on session for GET; prefer POST when possible
       const response = await fetch(url.toString())
 
       if (!response.ok) {

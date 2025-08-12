@@ -1,10 +1,11 @@
 import { and, eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { OAuthService } from '@/lib/oauth/oauth'
 import { parseProvider } from '@/lib/oauth/oauth'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { account, user, workflow } from '@/db/schema'
 
@@ -31,24 +32,55 @@ export async function GET(request: NextRequest) {
     const workflowId = searchParams.get('workflowId')
     const credentialId = searchParams.get('credentialId')
 
-    // Resolve effective user id: workflow owner if workflowId provided; else session user
-    let effectiveUserId: string | undefined
+    // Authenticate requester (supports session, API key, internal JWT)
+    const authResult = await checkHybridAuth(request)
+    if (!authResult.success || !authResult.userId) {
+      logger.warn(`[${requestId}] Unauthenticated credentials request rejected`)
+      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
+    }
+    const requesterUserId = authResult.userId
+
+    // Resolve effective user id: workflow owner if workflowId provided (with access check); else requester
+    let effectiveUserId: string
     if (workflowId) {
+      // Load workflow owner and workspace for access control
       const rows = await db
-        .select({ userId: workflow.userId })
+        .select({ userId: workflow.userId, workspaceId: workflow.workspaceId })
         .from(workflow)
         .where(eq(workflow.id, workflowId))
         .limit(1)
-      effectiveUserId = rows[0]?.userId
-    }
 
-    if (!effectiveUserId) {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthenticated credentials request rejected`)
-        return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
+      if (!rows.length) {
+        logger.warn(`[${requestId}] Workflow not found for credentials request`, { workflowId })
+        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
-      effectiveUserId = session.user.id
+
+      const wf = rows[0]
+
+      if (requesterUserId !== wf.userId) {
+        if (!wf.workspaceId) {
+          logger.warn(
+            `[${requestId}] Forbidden - workflow has no workspace and requester is not owner`,
+            {
+              requesterUserId,
+            }
+          )
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+
+        const perm = await getUserEntityPermissions(requesterUserId, 'workspace', wf.workspaceId)
+        if (perm === null) {
+          logger.warn(`[${requestId}] Forbidden credentials request - no workspace access`, {
+            requesterUserId,
+            workspaceId: wf.workspaceId,
+          })
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+      }
+
+      effectiveUserId = wf.userId
+    } else {
+      effectiveUserId = requesterUserId
     }
 
     if (!providerParam && !credentialId) {
