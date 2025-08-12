@@ -148,6 +148,9 @@ export function LongInput({
     const newValue = e.target.value
     const newCursorPosition = e.target.selectionStart ?? 0
 
+    // Update cursor first to minimize state staleness for dropdown selection logic
+    setCursorPosition(newCursorPosition)
+
     // Update local content immediately
     setLocalContent(newValue)
 
@@ -157,8 +160,6 @@ export function LongInput({
       // Only update store when not in preview mode
       setStoreValue(newValue)
     }
-
-    setCursorPosition(newCursorPosition)
 
     // Check for environment variables trigger
     const envVarTrigger = checkEnvVarTrigger(newValue, newCursorPosition)

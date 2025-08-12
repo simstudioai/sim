@@ -869,8 +869,25 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   const handleTagSelect = useCallback(
     (tag: string, blockGroup?: BlockTagGroup) => {
-      const textBeforeCursor = inputValue.slice(0, cursorPosition)
-      const textAfterCursor = inputValue.slice(cursorPosition)
+      // Use the live DOM selection/value if available to avoid off-by-one state
+      // when users type and immediately confirm a selection.
+      let liveCursor = cursorPosition
+      let liveValue = inputValue
+
+      if (typeof window !== 'undefined' && document?.activeElement) {
+        const activeEl = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null
+        if (activeEl && typeof activeEl.selectionStart === 'number') {
+          liveCursor = activeEl.selectionStart ?? cursorPosition
+          // Prefer the active element value if present. This ensures we include the most
+          // recently typed character(s) that might not yet be reflected in React state.
+          if (typeof (activeEl as any).value === 'string') {
+            liveValue = (activeEl as any).value
+          }
+        }
+      }
+
+      const textBeforeCursor = liveValue.slice(0, liveCursor)
+      const textAfterCursor = liveValue.slice(liveCursor)
 
       const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
       if (lastOpenBracket === -1) return
