@@ -57,16 +57,13 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
   const { getNextAvailableSlot: getServerNextSlot } = useNextAvailableSlot(knowledgeBaseId)
 
   // Use the document-level hook since we have documentId
-  const { saveTagDefinitions } = documentTagHook
+  const { saveTagDefinitions, tagDefinitions, fetchTagDefinitions } = documentTagHook
   const { tagDefinitions: kbTagDefinitions, fetchTagDefinitions: refreshTagDefinitions } = kbTagHook
 
   const [documentTags, setDocumentTags] = useState<DocumentTag[]>([])
-  const [documentData, setDocumentData] = useState<any | null>(null)
+  const [documentData, setDocumentData] = useState<Record<string, any> | null>(null)
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  // Use tag definitions hook for custom labels
-  const { tagDefinitions, fetchTagDefinitions } = useTagDefinitions(knowledgeBaseId, documentId)
 
   // Inline editing state
   const [editingTagIndex, setEditingTagIndex] = useState<number | null>(null)
@@ -80,12 +77,12 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
 
   // Function to build document tags from data and definitions
   const buildDocumentTags = useCallback(
-    (docData: any, definitions: any[], currentTags?: DocumentTag[]) => {
+    (docData: Record<string, any>, definitions: any[], currentTags?: DocumentTag[]) => {
       const tags: DocumentTag[] = []
       const tagSlots = TAG_SLOTS
 
       tagSlots.forEach((slot) => {
-        const value = (docData as any)[slot] as string | null | undefined
+        const value = docData[slot] as string | null | undefined
         const definition = definitions.find((def) => def.tagSlot === slot)
         const currentTag = currentTags?.find((tag) => tag.slot === slot)
 
@@ -149,7 +146,7 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
 
         // Update the document in the store and local state
         updateDocumentInStore(knowledgeBaseId, documentId, tagData)
-        setDocumentData((prev: any) => (prev ? { ...prev, ...tagData } : null))
+        setDocumentData((prev) => (prev ? { ...prev, ...tagData } : null))
 
         // Refresh tag definitions to update the display
         await fetchTagDefinitions()
@@ -336,7 +333,6 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
     })
   }
 
-  // Cancel editing/creating
   // Get color for a tag based on its slot
   const getTagColor = (slot: string) => {
     // Extract slot number from slot string (e.g., "tag1" -> 1, "tag2" -> 2, etc.)
@@ -370,7 +366,7 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
         setError(null)
 
         const cachedDocuments = getCachedDocuments(knowledgeBaseId)
-        const cachedDoc = cachedDocuments?.documents?.find((d: any) => d.id === documentId)
+        const cachedDoc = cachedDocuments?.documents?.find((d) => d.id === documentId)
 
         if (cachedDoc) {
           setDocumentData(cachedDoc)
