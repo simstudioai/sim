@@ -15,6 +15,7 @@ import {
   CreateMenu,
   FolderTree,
   HelpModal,
+  KnowledgeTags,
   LogsFilters,
   SettingsModal,
   SubscriptionModal,
@@ -249,6 +250,26 @@ export function Sidebar() {
     const logsPageRegex = /^\/workspace\/[^/]+\/logs$/
     return logsPageRegex.test(pathname)
   }, [pathname])
+
+  // Check if we're on a knowledge base document page
+  const isOnKnowledgeDocumentPage = useMemo(() => {
+    // Pattern: /workspace/[workspaceId]/knowledge/[id]/[documentId]
+    const knowledgeDocumentPageRegex = /^\/workspace\/[^/]+\/knowledge\/[^/]+\/[^/]+$/
+    return knowledgeDocumentPageRegex.test(pathname)
+  }, [pathname])
+
+  // Extract knowledge base ID and document ID from the pathname
+  const { knowledgeBaseId, documentId } = useMemo(() => {
+    if (!isOnKnowledgeDocumentPage) {
+      return { knowledgeBaseId: null, documentId: null }
+    }
+
+    const match = pathname.match(/^\/workspace\/[^/]+\/knowledge\/([^/]+)\/([^/]+)$/)
+    return {
+      knowledgeBaseId: match?.[1] || null,
+      documentId: match?.[2] || null,
+    }
+  }, [pathname, isOnKnowledgeDocumentPage])
 
   // Use optimized auto-scroll hook
   const { handleDragOver, stopScroll } = useAutoScroll(workflowScrollAreaRef)
@@ -1041,6 +1062,23 @@ export function Sidebar() {
         }}
       >
         <LogsFilters />
+      </div>
+
+      {/* Floating Knowledge Tags - Only on knowledge document pages */}
+      <div
+        className={`pointer-events-auto fixed left-4 z-50 w-56 rounded-[10px] border bg-background shadow-xs ${
+          !isOnKnowledgeDocumentPage || isSidebarCollapsed || !knowledgeBaseId || !documentId
+            ? 'hidden'
+            : ''
+        }`}
+        style={{
+          top: `${toolbarTop}px`,
+          bottom: `${navigationBottom + SIDEBAR_HEIGHTS.NAVIGATION + SIDEBAR_GAP + (isBillingEnabled ? SIDEBAR_HEIGHTS.USAGE_INDICATOR + SIDEBAR_GAP : 0)}px`, // Navigation height + gap + UsageIndicator height + gap (if billing enabled)
+        }}
+      >
+        {knowledgeBaseId && documentId && (
+          <KnowledgeTags knowledgeBaseId={knowledgeBaseId} documentId={documentId} />
+        )}
       </div>
 
       {/* Floating Usage Indicator - Only shown when billing enabled */}

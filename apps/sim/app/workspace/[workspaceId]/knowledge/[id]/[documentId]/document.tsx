@@ -11,7 +11,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui'
-import { TAG_SLOTS } from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   CreateChunkModal,
@@ -21,13 +20,8 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { KnowledgeHeader, SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components'
-import {
-  type DocumentTag,
-  DocumentTagEntry,
-} from '@/app/workspace/[workspaceId]/knowledge/components/document-tag-entry/document-tag-entry'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
-import { useTagDefinitions } from '@/hooks/use-tag-definitions'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 
 const logger = createLogger('Document')
@@ -231,96 +225,10 @@ export function Document({
   const refreshChunks = showingSearch ? async () => {} : initialRefreshChunks
   const updateChunk = showingSearch ? (id: string, updates: any) => {} : initialUpdateChunk
 
-  const [documentTags, setDocumentTags] = useState<DocumentTag[]>([])
   const [documentData, setDocumentData] = useState<DocumentData | null>(null)
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Use tag definitions hook for custom labels
-  const { tagDefinitions, fetchTagDefinitions } = useTagDefinitions(knowledgeBaseId, documentId)
-
-  // Function to build document tags from data and definitions
-  const buildDocumentTags = useCallback(
-    (docData: DocumentData, definitions: any[], currentTags?: DocumentTag[]) => {
-      const tags: DocumentTag[] = []
-      const tagSlots = TAG_SLOTS
-
-      tagSlots.forEach((slot) => {
-        const value = (docData as any)[slot] as string | null | undefined
-        const definition = definitions.find((def) => def.tagSlot === slot)
-        const currentTag = currentTags?.find((tag) => tag.slot === slot)
-
-        // Only include tag if the document actually has a value for it
-        if (value?.trim()) {
-          tags.push({
-            slot,
-            // Preserve existing displayName if definition is not found yet
-            displayName: definition?.displayName || currentTag?.displayName || '',
-            fieldType: definition?.fieldType || currentTag?.fieldType || 'text',
-            value: value.trim(),
-          })
-        }
-      })
-
-      return tags
-    },
-    []
-  )
-
-  // Handle tag updates (local state only, no API calls)
-  const handleTagsChange = useCallback((newTags: DocumentTag[]) => {
-    // Only update local state, don't save to API
-    setDocumentTags(newTags)
-  }, [])
-
-  // Handle saving document tag values to the API
-  const handleSaveDocumentTags = useCallback(
-    async (tagsToSave: DocumentTag[]) => {
-      if (!documentData) return
-
-      try {
-        // Convert DocumentTag array to tag data for API
-        const tagData: Record<string, string> = {}
-        const tagSlots = TAG_SLOTS
-
-        // Clear all tags first
-        tagSlots.forEach((slot) => {
-          tagData[slot] = ''
-        })
-
-        // Set values from tagsToSave
-        tagsToSave.forEach((tag) => {
-          if (tag.value.trim()) {
-            tagData[tag.slot] = tag.value.trim()
-          }
-        })
-
-        // Update document via API
-        const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(tagData),
-        })
-
-        if (!response.ok) {
-          throw new Error('Failed to update document tags')
-        }
-
-        // Update the document in the store and local state
-        updateDocumentInStore(knowledgeBaseId, documentId, tagData)
-        setDocumentData((prev) => (prev ? { ...prev, ...tagData } : null))
-
-        // Refresh tag definitions to update the display
-        await fetchTagDefinitions()
-      } catch (error) {
-        logger.error('Error updating document tags:', error)
-        throw error // Re-throw so the component can handle it
-      }
-    },
-    [documentData, knowledgeBaseId, documentId, updateDocumentInStore, fetchTagDefinitions]
-  )
   const [isCreateChunkModalOpen, setIsCreateChunkModalOpen] = useState(false)
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -491,9 +399,6 @@ export function Document({
 
         if (cachedDoc) {
           setDocumentData(cachedDoc)
-          // Initialize tags from cached document
-          const initialTags = buildDocumentTags(cachedDoc, tagDefinitions)
-          setDocumentTags(initialTags)
           setIsLoadingDocument(false)
           return
         }
@@ -511,9 +416,6 @@ export function Document({
 
         if (result.success) {
           setDocumentData(result.data)
-          // Initialize tags from fetched document
-          const initialTags = buildDocumentTags(result.data, tagDefinitions, [])
-          setDocumentTags(initialTags)
         } else {
           throw new Error(result.error || 'Failed to fetch document')
         }
@@ -528,15 +430,7 @@ export function Document({
     if (knowledgeBaseId && documentId) {
       fetchDocument()
     }
-  }, [knowledgeBaseId, documentId, getCachedDocuments, buildDocumentTags])
-
-  // Separate effect to rebuild tags when tag definitions change (without re-fetching document)
-  useEffect(() => {
-    if (documentData) {
-      const rebuiltTags = buildDocumentTags(documentData, tagDefinitions, documentTags)
-      setDocumentTags(rebuiltTags)
-    }
-  }, [documentData, tagDefinitions, buildDocumentTags])
+  }, [knowledgeBaseId, documentId, getCachedDocuments])
 
   const knowledgeBase = getCachedKnowledgeBase(knowledgeBaseId)
   const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
@@ -798,19 +692,7 @@ export function Document({
                 </Button>
               </div>
 
-              {/* Document Tag Entry */}
-              {userPermissions.canEdit && (
-                <div className='mb-4 rounded-md border p-4'>
-                  <DocumentTagEntry
-                    tags={documentTags}
-                    onTagsChange={handleTagsChange}
-                    disabled={false}
-                    knowledgeBaseId={knowledgeBaseId}
-                    documentId={documentId}
-                    onSave={handleSaveDocumentTags}
-                  />
-                </div>
-              )}
+              {/* Document Tag Entry moved to sidebar */}
 
               {/* Error State for chunks */}
               {combinedError && (

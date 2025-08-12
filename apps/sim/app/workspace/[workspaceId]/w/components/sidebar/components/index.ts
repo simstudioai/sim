@@ -1,6 +1,7 @@
 export { CreateMenu } from './create-menu/create-menu'
 export { FolderTree } from './folder-tree/folder-tree'
 export { HelpModal } from './help-modal/help-modal'
+export { KnowledgeTags } from './knowledge-tags/knowledge-tags'
 export { LogsFilters } from './logs-filters/logs-filters'
 export { SettingsModal } from './settings-modal/settings-modal'
 export { SubscriptionModal } from './subscription-modal/subscription-modal'
