@@ -21,53 +21,55 @@ export const telegramWebhookTrigger: TriggerConfig = {
   },
 
   outputs: {
-    update_id: {
-      type: 'number',
-      description: 'Unique identifier for the update',
-    },
-    message_id: {
-      type: 'number',
-      description: 'Unique message identifier',
-    },
-    from_id: {
-      type: 'number',
-      description: 'User ID who sent the message',
-    },
-    from_username: {
-      type: 'string',
-      description: 'Username of the sender',
-    },
-    from_first_name: {
-      type: 'string',
-      description: 'First name of the sender',
-    },
-    from_last_name: {
-      type: 'string',
-      description: 'Last name of the sender',
-    },
-    chat_id: {
-      type: 'number',
-      description: 'Unique identifier for the chat',
-    },
-    chat_type: {
-      type: 'string',
-      description: 'Type of chat (private, group, supergroup, channel)',
-    },
-    chat_title: {
-      type: 'string',
-      description: 'Title of the chat (for groups and channels)',
-    },
-    text: {
-      type: 'string',
-      description: 'Message text content',
-    },
-    date: {
-      type: 'number',
-      description: 'Date the message was sent (Unix timestamp)',
-    },
-    entities: {
-      type: 'string',
-      description: 'Special entities in the message (mentions, hashtags, etc.) as JSON string',
+    message: {
+      update_id: {
+        type: 'number',
+        description: 'Unique identifier for the update',
+      },
+      message_id: {
+        type: 'number',
+        description: 'Unique message identifier',
+      },
+      from_id: {
+        type: 'number',
+        description: 'User ID who sent the message',
+      },
+      from_username: {
+        type: 'string',
+        description: 'Username of the sender',
+      },
+      from_first_name: {
+        type: 'string',
+        description: 'First name of the sender',
+      },
+      from_last_name: {
+        type: 'string',
+        description: 'Last name of the sender',
+      },
+      chat_id: {
+        type: 'number',
+        description: 'Unique identifier for the chat',
+      },
+      chat_type: {
+        type: 'string',
+        description: 'Type of chat (private, group, supergroup, channel)',
+      },
+      chat_title: {
+        type: 'string',
+        description: 'Title of the chat (for groups and channels)',
+      },
+      text: {
+        type: 'string',
+        description: 'Message text content',
+      },
+      date: {
+        type: 'number',
+        description: 'Date the message was sent (Unix timestamp)',
+      },
+      entities: {
+        type: 'string',
+        description: 'Special entities in the message (mentions, hashtags, etc.) as JSON string',
+      },
     },
   },
 

@@ -1,8 +1,5 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WhatsAppResponse, WhatsAppSendMessageParams } from '@/tools/whatsapp/types'
-
-const logger = createLogger('WhatsAppSendMessageTool')
 
 export const sendMessageTool: ToolConfig<WhatsAppSendMessageParams, WhatsAppResponse> = {
   id: 'whatsapp_send_message',
@@ -35,14 +32,6 @@ export const sendMessageTool: ToolConfig<WhatsAppSendMessageParams, WhatsAppResp
       visibility: 'user-only',
       description: 'WhatsApp Business API Access Token',
     },
-  },
-
-  outputs: {
-    success: { type: 'boolean', description: 'WhatsApp message send success status' },
-    messageId: { type: 'string', description: 'Unique WhatsApp message identifier' },
-    phoneNumber: { type: 'string', description: 'Recipient phone number' },
-    status: { type: 'string', description: 'Message delivery status' },
-    timestamp: { type: 'string', description: 'Message send timestamp' },
   },
 
   request: {
@@ -89,28 +78,26 @@ export const sendMessageTool: ToolConfig<WhatsAppSendMessageParams, WhatsAppResp
     },
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      const errorMessage =
-        data.error?.message || `Failed to send WhatsApp message (HTTP ${response.status})`
-      logger.error('WhatsApp API error:', data)
-      throw new Error(errorMessage)
-    }
 
     return {
       success: true,
       output: {
         success: true,
         messageId: data.messages?.[0]?.id,
+        phoneNumber: '',
+        status: '',
+        timestamp: '',
       },
-      error: undefined,
     }
   },
 
-  transformError: (error) => {
-    logger.error('WhatsApp tool error:', { error })
-    return `WhatsApp message failed: ${error.message || 'Unknown error occurred'}`
+  outputs: {
+    success: { type: 'boolean', description: 'WhatsApp message send success status' },
+    messageId: { type: 'string', description: 'Unique WhatsApp message identifier' },
+    phoneNumber: { type: 'string', description: 'Recipient phone number' },
+    status: { type: 'string', description: 'Message delivery status' },
+    timestamp: { type: 'string', description: 'Message send timestamp' },
   },
 }

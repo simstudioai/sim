@@ -26,9 +26,12 @@ import {
   TooltipTrigger,
 } from '@/components/ui'
 import { MAX_TAG_SLOTS, type TagSlot } from '@/lib/constants/knowledge'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 import { useNextAvailableSlot } from '@/hooks/use-next-available-slot'
 import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/use-tag-definitions'
+
+const logger = createLogger('DocumentTagEntry')
 
 export interface DocumentTag {
   slot: string
@@ -246,7 +249,7 @@ export function DocumentTagEntry({
 
       setModalOpen(false)
     } catch (error) {
-      console.error('Error saving tag:', error)
+      logger.error('Error saving tag:', error)
     }
   }
 

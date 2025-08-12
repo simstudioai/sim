@@ -22,29 +22,6 @@ export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchRespon
     },
   },
 
-  outputs: {
-    searchResults: {
-      type: 'array',
-      description: 'Array of matching Wikipedia pages',
-      items: {
-        type: 'object',
-        properties: {
-          title: { type: 'string' },
-          excerpt: { type: 'string' },
-          url: { type: 'string' },
-        },
-      },
-    },
-    totalHits: {
-      type: 'number',
-      description: 'Total number of search results found',
-    },
-    query: {
-      type: 'string',
-      description: 'The search query that was executed',
-    },
-  },
-
   request: {
     url: (params: WikipediaSearchParams) => {
       const baseUrl = 'https://en.wikipedia.org/w/api.php'
@@ -67,20 +44,10 @@ export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchRespon
       'User-Agent': 'SimStudio/1.0 (https://sim.ai)',
       Accept: 'application/json',
     }),
-    isInternalRoute: false,
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      throw new Error(`Wikipedia search API error: ${response.status} ${response.statusText}`)
-    }
-
     const data = await response.json()
-
-    // OpenSearch API returns [searchTerm, titles[], descriptions[], urls[]]
-    if (!Array.isArray(data) || data.length < 4) {
-      throw new Error('Invalid OpenSearch response format')
-    }
 
     const [searchTerm, titles, descriptions, urls] = data
     const searchResults = titles.map((title: string, index: number) => ({
@@ -104,7 +71,26 @@ export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchRespon
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while searching Wikipedia'
+  outputs: {
+    searchResults: {
+      type: 'array',
+      description: 'Array of matching Wikipedia pages',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          excerpt: { type: 'string' },
+          url: { type: 'string' },
+        },
+      },
+    },
+    totalHits: {
+      type: 'number',
+      description: 'Total number of search results found',
+    },
+    query: {
+      type: 'string',
+      description: 'The search query that was executed',
+    },
   },
 }

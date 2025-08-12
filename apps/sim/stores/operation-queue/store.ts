@@ -29,6 +29,7 @@ interface OperationQueueState {
   handleOperationTimeout: (operationId: string) => void
   processNextOperation: () => void
   cancelOperationsForBlock: (blockId: string) => void
+  cancelOperationsForVariable: (variableId: string) => void
 
   triggerOfflineMode: () => void
   clearError: () => void
@@ -37,6 +38,7 @@ interface OperationQueueState {
 const retryTimeouts = new Map<string, NodeJS.Timeout>()
 const operationTimeouts = new Map<string, NodeJS.Timeout>()
 const subblockDebounceTimeouts = new Map<string, NodeJS.Timeout>()
+const variableDebounceTimeouts = new Map<string, NodeJS.Timeout>()
 
 let emitWorkflowOperation:
   | ((operation: string, target: string, payload: any, operationId?: string) => void)
@@ -44,14 +46,19 @@ let emitWorkflowOperation:
 let emitSubblockUpdate:
   | ((blockId: string, subblockId: string, value: any, operationId?: string) => void)
   | null = null
+let emitVariableUpdate:
+  | ((variableId: string, field: string, value: any, operationId?: string) => void)
+  | null = null
 
 export function registerEmitFunctions(
   workflowEmit: (operation: string, target: string, payload: any, operationId?: string) => void,
   subblockEmit: (blockId: string, subblockId: string, value: any, operationId?: string) => void,
+  variableEmit: (variableId: string, field: string, value: any, operationId?: string) => void,
   workflowId: string | null
 ) {
   emitWorkflowOperation = workflowEmit
   emitSubblockUpdate = subblockEmit
+  emitVariableUpdate = variableEmit
 }
 
 export const useOperationQueueStore = create<OperationQueueState>((set, get) => ({
@@ -105,6 +112,54 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       }, 25) // 25ms debounce for subblock operations - optimized for collaborative editing
 
       subblockDebounceTimeouts.set(debounceKey, timeoutId)
+      return
+    }
+
+    // Handle debouncing for variable operations
+    if (
+      operation.operation.operation === 'variable-update' &&
+      operation.operation.target === 'variable' &&
+      !operation.immediate
+    ) {
+      const { variableId, field } = operation.operation.payload
+      const debounceKey = `${variableId}-${field}`
+
+      const existingTimeout = variableDebounceTimeouts.get(debounceKey)
+      if (existingTimeout) {
+        clearTimeout(existingTimeout)
+      }
+
+      set((state) => ({
+        operations: state.operations.filter(
+          (op) =>
+            !(
+              op.status === 'pending' &&
+              op.operation.operation === 'variable-update' &&
+              op.operation.target === 'variable' &&
+              op.operation.payload?.variableId === variableId &&
+              op.operation.payload?.field === field
+            )
+        ),
+      }))
+
+      const timeoutId = setTimeout(() => {
+        variableDebounceTimeouts.delete(debounceKey)
+
+        const queuedOp: QueuedOperation = {
+          ...operation,
+          timestamp: Date.now(),
+          retryCount: 0,
+          status: 'pending',
+        }
+
+        set((state) => ({
+          operations: [...state.operations, queuedOp],
+        }))
+
+        get().processNextOperation()
+      }, 25) // 25ms debounce for variable operations - same as subblocks
+
+      variableDebounceTimeouts.set(debounceKey, timeoutId)
       return
     }
 
@@ -201,6 +256,20 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       }
     }
 
+    // Clean up any debounce timeouts for variable operations
+    if (
+      operation?.operation.operation === 'variable-update' &&
+      operation.operation.target === 'variable'
+    ) {
+      const { variableId, field } = operation.operation.payload
+      const debounceKey = `${variableId}-${field}`
+      const debounceTimeout = variableDebounceTimeouts.get(debounceKey)
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout)
+        variableDebounceTimeouts.delete(debounceKey)
+      }
+    }
+
     logger.debug('Removing operation from queue', {
       operationId,
       remainingOps: newOperations.length,
@@ -237,6 +306,20 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       if (debounceTimeout) {
         clearTimeout(debounceTimeout)
         subblockDebounceTimeouts.delete(debounceKey)
+      }
+    }
+
+    // Clean up any debounce timeouts for variable operations
+    if (
+      operation.operation.operation === 'variable-update' &&
+      operation.operation.target === 'variable'
+    ) {
+      const { variableId, field } = operation.operation.payload
+      const debounceKey = `${variableId}-${field}`
+      const debounceTimeout = variableDebounceTimeouts.get(debounceKey)
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout)
+        variableDebounceTimeouts.delete(debounceKey)
       }
     }
 
@@ -333,6 +416,10 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       if (emitSubblockUpdate) {
         emitSubblockUpdate(payload.blockId, payload.subblockId, payload.value, nextOperation.id)
       }
+    } else if (op === 'variable-update' && target === 'variable') {
+      if (emitVariableUpdate) {
+        emitVariableUpdate(payload.variableId, payload.field, payload.value, nextOperation.id)
+      }
     } else {
       if (emitWorkflowOperation) {
         emitWorkflowOperation(op, target, payload, nextOperation.id)
@@ -411,6 +498,68 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     get().processNextOperation()
   },
 
+  cancelOperationsForVariable: (variableId: string) => {
+    logger.debug('Canceling all operations for variable', { variableId })
+
+    // Cancel all debounce timeouts for this variable
+    const keysToDelete: string[] = []
+    for (const [key, timeout] of variableDebounceTimeouts.entries()) {
+      if (key.startsWith(`${variableId}-`)) {
+        clearTimeout(timeout)
+        keysToDelete.push(key)
+      }
+    }
+    keysToDelete.forEach((key) => variableDebounceTimeouts.delete(key))
+
+    // Find and cancel operation timeouts for operations related to this variable
+    const state = get()
+    const operationsToCancel = state.operations.filter(
+      (op) =>
+        (op.operation.target === 'variable' && op.operation.payload?.variableId === variableId) ||
+        (op.operation.target === 'variable' &&
+          op.operation.payload?.sourceVariableId === variableId)
+    )
+
+    // Cancel timeouts for these operations
+    operationsToCancel.forEach((op) => {
+      const operationTimeout = operationTimeouts.get(op.id)
+      if (operationTimeout) {
+        clearTimeout(operationTimeout)
+        operationTimeouts.delete(op.id)
+      }
+
+      const retryTimeout = retryTimeouts.get(op.id)
+      if (retryTimeout) {
+        clearTimeout(retryTimeout)
+        retryTimeouts.delete(op.id)
+      }
+    })
+
+    // Remove all operations for this variable (both pending and processing)
+    const newOperations = state.operations.filter(
+      (op) =>
+        !(
+          (op.operation.target === 'variable' && op.operation.payload?.variableId === variableId) ||
+          (op.operation.target === 'variable' &&
+            op.operation.payload?.sourceVariableId === variableId)
+        )
+    )
+
+    set({
+      operations: newOperations,
+      isProcessing: false, // Reset processing state in case we removed the current operation
+    })
+
+    logger.debug('Cancelled operations for variable', {
+      variableId,
+      cancelledDebounceTimeouts: keysToDelete.length,
+      cancelledOperations: operationsToCancel.length,
+    })
+
+    // Process next operation if there are any remaining
+    get().processNextOperation()
+  },
+
   triggerOfflineMode: () => {
     logger.error('Operation failed after retries - triggering offline mode')
 
@@ -443,6 +592,7 @@ export function useOperationQueue() {
     failOperation: store.failOperation,
     processNextOperation: store.processNextOperation,
     cancelOperationsForBlock: store.cancelOperationsForBlock,
+    cancelOperationsForVariable: store.cancelOperationsForVariable,
     triggerOfflineMode: store.triggerOfflineMode,
     clearError: store.clearError,
   }

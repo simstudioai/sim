@@ -79,10 +79,46 @@ export const SubflowOperationSchema = z.object({
   operationId: z.string().optional(),
 })
 
+export const VariableOperationSchema = z.union([
+  z.object({
+    operation: z.literal('add'),
+    target: z.literal('variable'),
+    payload: z.object({
+      id: z.string(),
+      name: z.string(),
+      type: z.any(),
+      value: z.any(),
+      workflowId: z.string(),
+    }),
+    timestamp: z.number(),
+    operationId: z.string().optional(),
+  }),
+  z.object({
+    operation: z.literal('remove'),
+    target: z.literal('variable'),
+    payload: z.object({
+      variableId: z.string(),
+    }),
+    timestamp: z.number(),
+    operationId: z.string().optional(),
+  }),
+  z.object({
+    operation: z.literal('duplicate'),
+    target: z.literal('variable'),
+    payload: z.object({
+      sourceVariableId: z.string(),
+      id: z.string(),
+    }),
+    timestamp: z.number(),
+    operationId: z.string().optional(),
+  }),
+])
+
 export const WorkflowOperationSchema = z.union([
   BlockOperationSchema,
   EdgeOperationSchema,
   SubflowOperationSchema,
+  VariableOperationSchema,
 ])
 
 export { PositionSchema, AutoConnectEdgeSchema }

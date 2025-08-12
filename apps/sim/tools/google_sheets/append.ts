@@ -9,11 +9,13 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
   name: 'Append to Google Sheets',
   description: 'Append data to the end of a Google Sheets spreadsheet',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'google-sheets',
     additionalScopes: [],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -58,6 +60,7 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
       description: 'Whether to include the appended values in the response',
     },
   },
+
   request: {
     url: (params) => {
       // If range is not provided, use a default range for the first sheet
@@ -177,21 +180,7 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
     },
   },
 
-  outputs: {
-    tableRange: { type: 'string', description: 'Range of the table where data was appended' },
-    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
-    updatedRows: { type: 'number', description: 'Number of rows updated' },
-    updatedColumns: { type: 'number', description: 'Number of columns updated' },
-    updatedCells: { type: 'number', description: 'Number of cells updated' },
-    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
-  },
-
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to append data to Google Sheets: ${errorText}`)
-    }
-
     const data = await response.json()
 
     // Extract spreadsheet ID from the URL
@@ -222,23 +211,13 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
 
     return result
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
 
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while appending to Google Sheets'
+  outputs: {
+    tableRange: { type: 'string', description: 'Range of the table where data was appended' },
+    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
+    updatedRows: { type: 'number', description: 'Number of rows updated' },
+    updatedColumns: { type: 'number', description: 'Number of columns updated' },
+    updatedCells: { type: 'number', description: 'Number of cells updated' },
+    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
   },
 }

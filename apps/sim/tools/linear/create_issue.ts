@@ -7,10 +7,12 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
     name: 'Linear Issue Writer',
     description: 'Create a new issue in Linear',
     version: '1.0.0',
+
     oauth: {
       required: true,
       provider: 'linear',
     },
+
     params: {
       teamId: {
         type: 'string',
@@ -38,21 +40,6 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
       },
     },
 
-    outputs: {
-      issue: {
-        type: 'object',
-        description:
-          'The created issue containing id, title, description, state, teamId, and projectId',
-        properties: {
-          id: { type: 'string', description: 'Issue ID' },
-          title: { type: 'string', description: 'Issue title' },
-          description: { type: 'string', description: 'Issue description' },
-          state: { type: 'string', description: 'Issue state' },
-          teamId: { type: 'string', description: 'Team ID' },
-          projectId: { type: 'string', description: 'Project ID' },
-        },
-      },
-    },
     request: {
       url: 'https://api.linear.app/graphql',
       method: 'POST',
@@ -100,12 +87,10 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
         }
       },
     },
+
     transformResponse: async (response) => {
       const data = await response.json()
       const issue = data.data.issueCreate.issue
-      if (!issue) {
-        throw new Error('Failed to create issue: No issue returned from Linear API')
-      }
       return {
         success: true,
         output: {
@@ -120,20 +105,20 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
         },
       }
     },
-    transformError: (error) => {
-      if (error instanceof Error) {
-        return error.message
-      }
 
-      if (typeof error === 'object' && error !== null) {
-        if (error.error) {
-          return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-        }
-        if (error.message) {
-          return error.message
-        }
-      }
-
-      return 'Failed to create Linear issue'
+    outputs: {
+      issue: {
+        type: 'object',
+        description:
+          'The created issue containing id, title, description, state, teamId, and projectId',
+        properties: {
+          id: { type: 'string', description: 'Issue ID' },
+          title: { type: 'string', description: 'Issue title' },
+          description: { type: 'string', description: 'Issue description' },
+          state: { type: 'string', description: 'Issue state' },
+          teamId: { type: 'string', description: 'Team ID' },
+          projectId: { type: 'string', description: 'Project ID' },
+        },
+      },
     },
   }

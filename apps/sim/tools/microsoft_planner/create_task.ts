@@ -16,11 +16,13 @@ export const createTaskTool: ToolConfig<
   name: 'Create Microsoft Planner Task',
   description: 'Create a new task in Microsoft Planner',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'microsoft-planner',
     additionalScopes: [],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -65,11 +67,7 @@ export const createTaskTool: ToolConfig<
       description: 'The bucket ID to place the task in',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Whether the task was created successfully' },
-    task: { type: 'object', description: 'The created task object with all properties' },
-    metadata: { type: 'object', description: 'Metadata including planId, taskId, and taskUrl' },
-  },
+
   request: {
     url: () => 'https://graph.microsoft.com/v1.0/planner/tasks',
     method: 'POST',
@@ -117,50 +115,10 @@ export const createTaskTool: ToolConfig<
       return body
     },
   },
-  transformResponse: async (response: Response, params) => {
-    if (!response.ok) {
-      const errorJson = await response.json().catch(() => ({ error: response.statusText }))
-      const errorText =
-        errorJson.error && typeof errorJson.error === 'object'
-          ? errorJson.error.message || JSON.stringify(errorJson.error)
-          : errorJson.error || response.statusText
-      throw new Error(`Failed to create Microsoft Planner task: ${errorText}`)
-    }
 
+  transformResponse: async (response: Response) => {
     const task = await response.json()
     logger.info('Created task:', task)
-
-    // If description was provided, update the task details
-    if (params?.description && task.id) {
-      try {
-        const detailsUrl = `https://graph.microsoft.com/v1.0/planner/tasks/${task.id}/details`
-        // Get task details to get the ETag
-        const getDetailsResponse = await fetch(detailsUrl, {
-          headers: { Authorization: `Bearer ${params.accessToken}` },
-        })
-        const etag = getDetailsResponse.headers.get('ETag')
-
-        // Then update with correct ETag
-        const detailsResponse = await fetch(detailsUrl, {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${params.accessToken}`,
-            'Content-Type': 'application/json',
-            'If-Match': etag || '*', // Use actual ETag or '*' if not available
-          },
-          body: JSON.stringify({
-            description: params.description,
-          }),
-        })
-
-        if (detailsResponse.ok) {
-          const details = await detailsResponse.json()
-          task.details = details
-        }
-      } catch (error) {
-        logger.warn('Failed to update task description:', error)
-      }
-    }
 
     const result: MicrosoftPlannerCreateResponse = {
       success: true,
@@ -176,33 +134,10 @@ export const createTaskTool: ToolConfig<
 
     return result
   },
-  transformError: (error) => {
-    if (error instanceof Error) {
-      return error.message
-    }
 
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        if (typeof error.error === 'string') {
-          return error.error
-        }
-        if (typeof error.error === 'object' && error.error.message) {
-          return error.error.message
-        }
-        return JSON.stringify(error.error)
-      }
-
-      if (error.message) {
-        return error.message
-      }
-
-      try {
-        return `Microsoft Planner API error: ${JSON.stringify(error)}`
-      } catch (_e) {
-        return 'Microsoft Planner API error: Unable to parse error details'
-      }
-    }
-
-    return 'An error occurred while creating the Microsoft Planner task'
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the task was created successfully' },
+    task: { type: 'object', description: 'The created task object with all properties' },
+    metadata: { type: 'object', description: 'Metadata including planId, taskId, and taskUrl' },
   },
 }

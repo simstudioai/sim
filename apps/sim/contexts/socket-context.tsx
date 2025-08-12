@@ -50,12 +50,14 @@ interface SocketContextType {
     value: any,
     operationId?: string
   ) => void
+  emitVariableUpdate: (variableId: string, field: string, value: any, operationId?: string) => void
 
   emitCursorUpdate: (cursor: { x: number; y: number }) => void
   emitSelectionUpdate: (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => void
   // Event handlers for receiving real-time updates
   onWorkflowOperation: (handler: (data: any) => void) => void
   onSubblockUpdate: (handler: (data: any) => void) => void
+  onVariableUpdate: (handler: (data: any) => void) => void
 
   onCursorUpdate: (handler: (data: any) => void) => void
   onSelectionUpdate: (handler: (data: any) => void) => void
@@ -77,10 +79,12 @@ const SocketContext = createContext<SocketContextType>({
   leaveWorkflow: () => {},
   emitWorkflowOperation: () => {},
   emitSubblockUpdate: () => {},
+  emitVariableUpdate: () => {},
   emitCursorUpdate: () => {},
   emitSelectionUpdate: () => {},
   onWorkflowOperation: () => {},
   onSubblockUpdate: () => {},
+  onVariableUpdate: () => {},
   onCursorUpdate: () => {},
   onSelectionUpdate: () => {},
   onUserJoined: () => {},
@@ -113,6 +117,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const eventHandlers = useRef<{
     workflowOperation?: (data: any) => void
     subblockUpdate?: (data: any) => void
+    variableUpdate?: (data: any) => void
 
     cursorUpdate?: (data: any) => void
     selectionUpdate?: (data: any) => void
@@ -290,6 +295,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         // Subblock update events
         socketInstance.on('subblock-update', (data) => {
           eventHandlers.current.subblockUpdate?.(data)
+        })
+
+        // Variable update events
+        socketInstance.on('variable-update', (data) => {
+          eventHandlers.current.variableUpdate?.(data)
         })
 
         // Workflow deletion events
@@ -697,6 +707,30 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     [socket, currentWorkflowId]
   )
 
+  // Emit variable value updates
+  const emitVariableUpdate = useCallback(
+    (variableId: string, field: string, value: any, operationId?: string) => {
+      // Only emit if socket is connected and we're in a valid workflow room
+      if (socket && currentWorkflowId) {
+        socket.emit('variable-update', {
+          variableId,
+          field,
+          value,
+          timestamp: Date.now(),
+          operationId, // Include operation ID for queue tracking
+        })
+      } else {
+        logger.warn('Cannot emit variable update: no socket connection or workflow room', {
+          hasSocket: !!socket,
+          currentWorkflowId,
+          variableId,
+          field,
+        })
+      }
+    },
+    [socket, currentWorkflowId]
+  )
+
   // Cursor throttling optimized for database connection health
   const lastCursorEmit = useRef(0)
   const emitCursorUpdate = useCallback(
@@ -730,6 +764,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
   const onSubblockUpdate = useCallback((handler: (data: any) => void) => {
     eventHandlers.current.subblockUpdate = handler
+  }, [])
+
+  const onVariableUpdate = useCallback((handler: (data: any) => void) => {
+    eventHandlers.current.variableUpdate = handler
   }, [])
 
   const onCursorUpdate = useCallback((handler: (data: any) => void) => {
@@ -776,11 +814,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         leaveWorkflow,
         emitWorkflowOperation,
         emitSubblockUpdate,
+        emitVariableUpdate,
 
         emitCursorUpdate,
         emitSelectionUpdate,
         onWorkflowOperation,
         onSubblockUpdate,
+        onVariableUpdate,
 
         onCursorUpdate,
         onSelectionUpdate,

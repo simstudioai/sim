@@ -19,6 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { validateName } from '@/lib/utils'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable, VariableType } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -34,18 +35,16 @@ export function Variables() {
     deleteVariable,
     duplicateVariable,
     getVariablesByWorkflowId,
-    loadVariables,
   } = useVariablesStore()
+  const {
+    collaborativeUpdateVariable,
+    collaborativeAddVariable,
+    collaborativeDeleteVariable,
+    collaborativeDuplicateVariable,
+  } = useCollaborativeWorkflow()
 
   // Get variables for the current workflow
   const workflowVariables = activeWorkflowId ? getVariablesByWorkflowId(activeWorkflowId) : []
-
-  // Load variables when active workflow changes
-  useEffect(() => {
-    if (activeWorkflowId) {
-      loadVariables(activeWorkflowId)
-    }
-  }, [activeWorkflowId, loadVariables])
 
   // Track editor references
   const editorRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -56,16 +55,14 @@ export function Variables() {
   // Handle variable name change with validation
   const handleVariableNameChange = (variableId: string, newName: string) => {
     const validatedName = validateName(newName)
-    updateVariable(variableId, { name: validatedName })
+    collaborativeUpdateVariable(variableId, 'name', validatedName)
   }
 
-  // Auto-save when variables are added/edited
   const handleAddVariable = () => {
     if (!activeWorkflowId) return
 
-    // Create a default variable - naming is handled in the store
-    const id = addVariable({
-      name: '', // Store will generate an appropriate name
+    const id = collaborativeAddVariable({
+      name: '',
       type: 'string',
       value: '',
       workflowId: activeWorkflowId,
@@ -125,17 +122,10 @@ export function Variables() {
     }
   }
 
-  // Handle editor value changes - store exactly what user types
   const handleEditorChange = (variable: Variable, newValue: string) => {
-    // Store the raw value directly, no parsing or formatting
-    updateVariable(variable.id, {
-      value: newValue,
-      // Clear any previous validation errors so they'll be recalculated
-      validationError: undefined,
-    })
+    collaborativeUpdateVariable(variable.id, 'value', newValue)
   }
 
-  // Only track focus state for UI purposes
   const handleEditorBlur = (variableId: string) => {
     setActiveEditors((prev) => ({
       ...prev,
@@ -143,7 +133,6 @@ export function Variables() {
     }))
   }
 
-  // Track when editor becomes active
   const handleEditorFocus = (variableId: string) => {
     setActiveEditors((prev) => ({
       ...prev,
@@ -151,20 +140,14 @@ export function Variables() {
     }))
   }
 
-  // Always return raw value without any formatting
   const formatValue = (variable: Variable) => {
     if (variable.value === '') return ''
 
-    // Always return raw value exactly as typed
     return typeof variable.value === 'string' ? variable.value : JSON.stringify(variable.value)
   }
 
-  // Get validation status based on type and value
   const getValidationStatus = (variable: Variable): string | undefined => {
-    // Empty values don't need validation
     if (variable.value === '') return undefined
-
-    // Otherwise validate based on type
     switch (variable.type) {
       case 'number':
         return Number.isNaN(Number(variable.value)) ? 'Not a valid number' : undefined
@@ -174,49 +157,38 @@ export function Variables() {
           : undefined
       case 'object':
         try {
-          // Handle both JavaScript and JSON syntax
           const valueToEvaluate = String(variable.value).trim()
 
-          // Basic security check to prevent arbitrary code execution
           if (!valueToEvaluate.startsWith('{') || !valueToEvaluate.endsWith('}')) {
             return 'Not a valid object format'
           }
 
-          // Use Function constructor to safely evaluate the object expression
-          // This is safer than eval() and handles all JS object literal syntax
           const parsed = new Function(`return ${valueToEvaluate}`)()
 
-          // Verify it's actually an object (not array or null)
           if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
             return 'Not a valid object'
           }
 
-          return undefined // Valid object
+          return undefined
         } catch (e) {
           logger.info('Object parsing error:', e)
           return 'Invalid object syntax'
         }
       case 'array':
         try {
-          // Use actual JavaScript evaluation instead of trying to convert to JSON
-          // This properly handles all valid JS array syntax including mixed types
           const valueToEvaluate = String(variable.value).trim()
 
-          // Basic security check to prevent arbitrary code execution
           if (!valueToEvaluate.startsWith('[') || !valueToEvaluate.endsWith(']')) {
             return 'Not a valid array format'
           }
 
-          // Use Function constructor to safely evaluate the array expression
-          // This is safer than eval() and handles all JS array syntax correctly
           const parsed = new Function(`return ${valueToEvaluate}`)()
 
-          // Verify it's actually an array
           if (!Array.isArray(parsed)) {
             return 'Not a valid array'
           }
 
-          return undefined // Valid array
+          return undefined
         } catch (e) {
           logger.info('Array parsing error:', e)
           return 'Invalid array syntax'
@@ -226,9 +198,7 @@ export function Variables() {
     }
   }
 
-  // Clear editor refs when variables change
   useEffect(() => {
-    // Clean up any references to deleted variables
     Object.keys(editorRefs.current).forEach((id) => {
       if (!workflowVariables.some((v) => v.id === id)) {
         delete editorRefs.current[id]
@@ -276,35 +246,35 @@ export function Variables() {
                       className='min-w-32 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[#202020]'
                     >
                       <DropdownMenuItem
-                        onClick={() => updateVariable(variable.id, { type: 'plain' })}
+                        onClick={() => collaborativeUpdateVariable(variable.id, 'type', 'plain')}
                         className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
                       >
                         <div className='mr-2 w-5 text-center font-[380] text-sm'>Abc</div>
                         <span className='font-[380]'>Plain</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => updateVariable(variable.id, { type: 'number' })}
+                        onClick={() => collaborativeUpdateVariable(variable.id, 'type', 'number')}
                         className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
                       >
                         <div className='mr-2 w-5 text-center font-[380] text-sm'>123</div>
                         <span className='font-[380]'>Number</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => updateVariable(variable.id, { type: 'boolean' })}
+                        onClick={() => collaborativeUpdateVariable(variable.id, 'type', 'boolean')}
                         className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
                       >
                         <div className='mr-2 w-5 text-center font-[380] text-sm'>0/1</div>
                         <span className='font-[380]'>Boolean</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => updateVariable(variable.id, { type: 'object' })}
+                        onClick={() => collaborativeUpdateVariable(variable.id, 'type', 'object')}
                         className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
                       >
                         <div className='mr-2 w-5 text-center font-[380] text-sm'>{'{}'}</div>
                         <span className='font-[380]'>Object</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => updateVariable(variable.id, { type: 'array' })}
+                        onClick={() => collaborativeUpdateVariable(variable.id, 'type', 'array')}
                         className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
                       >
                         <div className='mr-2 w-5 text-center font-[380] text-sm'>[]</div>
@@ -329,14 +299,14 @@ export function Variables() {
                       className='min-w-32 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[#202020]'
                     >
                       <DropdownMenuItem
-                        onClick={() => duplicateVariable(variable.id)}
+                        onClick={() => collaborativeDuplicateVariable(variable.id)}
                         className='cursor-pointer rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
                       >
                         <Copy className='mr-2 h-4 w-4 text-muted-foreground' />
                         Duplicate
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => deleteVariable(variable.id)}
+                        onClick={() => collaborativeDeleteVariable(variable.id)}
                         className='cursor-pointer rounded-md px-3 py-2 font-[380] text-destructive text-sm hover:bg-destructive/10 focus:bg-destructive/10 focus:text-destructive'
                       >
                         <Trash className='mr-2 h-4 w-4' />

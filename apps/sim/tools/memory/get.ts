@@ -6,6 +6,7 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
   name: 'Get Memory',
   description: 'Retrieve a specific memory by its ID',
   version: '1.0.0',
+
   params: {
     id: {
       type: 'string',
@@ -13,12 +14,7 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       description: 'Identifier for the memory to retrieve',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Whether the memory was retrieved successfully' },
-    memories: { type: 'array', description: 'Array of memory data for the requested ID' },
-    message: { type: 'string', description: 'Success or error message' },
-    error: { type: 'string', description: 'Error message if operation failed' },
-  },
+
   request: {
     url: (params): any => {
       // Get workflowId from context (set by workflow execution)
@@ -45,46 +41,25 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    isInternalRoute: true,
   },
+
   transformResponse: async (response): Promise<MemoryResponse> => {
-    try {
-      const result = await response.json()
+    const result = await response.json()
+    const data = result.data || result
 
-      if (!response.ok) {
-        const errorMessage = result.error?.message || 'Failed to retrieve memory'
-        throw new Error(errorMessage)
-      }
-
-      const data = result.data || result
-
-      return {
-        success: true,
-        output: {
-          memories: data.data,
-          message: 'Memory retrieved successfully',
-        },
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        output: {
-          memories: undefined,
-          message: `Failed to retrieve memory: ${error.message || 'Unknown error'}`,
-        },
-        error: `Failed to retrieve memory: ${error.message || 'Unknown error'}`,
-      }
+    return {
+      success: true,
+      output: {
+        memories: data.data,
+        message: 'Memory retrieved successfully',
+      },
     }
   },
-  transformError: async (error): Promise<MemoryResponse> => {
-    const errorMessage = `Memory retrieval failed: ${error.message || 'Unknown error'}`
-    return {
-      success: false,
-      output: {
-        memories: undefined,
-        message: errorMessage,
-      },
-      error: errorMessage,
-    }
+
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the memory was retrieved successfully' },
+    memories: { type: 'array', description: 'Array of memory data for the requested ID' },
+    message: { type: 'string', description: 'Success or error message' },
+    error: { type: 'string', description: 'Error message if operation failed' },
   },
 }

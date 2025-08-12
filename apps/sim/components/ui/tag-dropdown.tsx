@@ -539,8 +539,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const containingLoopBlock = blocks[loopId]
       if (containingLoopBlock) {
         const loopBlockName = containingLoopBlock.name || containingLoopBlock.type
-        const normalizedLoopBlockName = normalizeBlockName(loopBlockName)
-        contextualTags.push(`${normalizedLoopBlockName}.results`)
 
         loopBlockGroup = {
           blockName: loopBlockName,
@@ -565,8 +563,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const containingParallelBlock = blocks[parallelId]
       if (containingParallelBlock) {
         const parallelBlockName = containingParallelBlock.name || containingParallelBlock.type
-        const normalizedParallelBlockName = normalizeBlockName(parallelBlockName)
-        contextualTags.push(`${normalizedParallelBlockName}.results`)
 
         parallelBlockGroup = {
           blockName: parallelBlockName,
@@ -803,11 +799,23 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           })
         } else {
           const path = tagParts.slice(1).join('.')
-          directTags.push({
-            key: path || group.blockName,
-            display: path || group.blockName,
-            fullTag: tag,
-          })
+          // Handle contextual tags for loop/parallel blocks (single words like 'index', 'currentItem')
+          if (
+            (group.blockType === 'loop' || group.blockType === 'parallel') &&
+            tagParts.length === 1
+          ) {
+            directTags.push({
+              key: tag,
+              display: tag,
+              fullTag: tag,
+            })
+          } else {
+            directTags.push({
+              key: path || group.blockName,
+              display: path || group.blockName,
+              fullTag: tag,
+            })
+          }
         }
       })
 
@@ -861,8 +869,25 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   const handleTagSelect = useCallback(
     (tag: string, blockGroup?: BlockTagGroup) => {
-      const textBeforeCursor = inputValue.slice(0, cursorPosition)
-      const textAfterCursor = inputValue.slice(cursorPosition)
+      // Use the live DOM selection/value if available to avoid off-by-one state
+      // when users type and immediately confirm a selection.
+      let liveCursor = cursorPosition
+      let liveValue = inputValue
+
+      if (typeof window !== 'undefined' && document?.activeElement) {
+        const activeEl = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null
+        if (activeEl && typeof activeEl.selectionStart === 'number') {
+          liveCursor = activeEl.selectionStart ?? cursorPosition
+          // Prefer the active element value if present. This ensures we include the most
+          // recently typed character(s) that might not yet be reflected in React state.
+          if (typeof (activeEl as any).value === 'string') {
+            liveValue = (activeEl as any).value
+          }
+        }
+      }
+
+      const textBeforeCursor = liveValue.slice(0, liveCursor)
+      const textAfterCursor = liveValue.slice(liveCursor)
 
       const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
       if (lastOpenBracket === -1) return

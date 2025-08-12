@@ -34,28 +34,9 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
     },
   },
 
-  outputs: {
-    research: {
-      type: 'array',
-      description: 'Comprehensive research findings with citations and summaries',
-      items: {
-        type: 'object',
-        properties: {
-          title: { type: 'string' },
-          url: { type: 'string' },
-          summary: { type: 'string' },
-          text: { type: 'string' },
-          publishedDate: { type: 'string' },
-          author: { type: 'string' },
-          score: { type: 'number' },
-        },
-      },
-    },
-  },
   request: {
     url: 'https://api.exa.ai/research/v0/tasks',
     method: 'POST',
-    isInternalRoute: false,
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
@@ -92,12 +73,9 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
       return body
     },
   },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.message || data.error || 'Failed to create research task')
-    }
 
     return {
       success: true,
@@ -183,14 +161,23 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
       error: `Research task did not complete within the maximum polling time (${MAX_POLL_TIME_MS / 1000}s)`,
     }
   },
-  transformError: (error) => {
-    const errorMessage = error?.message || ''
-    if (errorMessage.includes('401')) {
-      return new Error('Invalid API key. Please check your Exa AI API key.')
-    }
-    if (errorMessage.includes('429')) {
-      return new Error('Rate limit exceeded. Please try again later.')
-    }
-    return error
+
+  outputs: {
+    research: {
+      type: 'array',
+      description: 'Comprehensive research findings with citations and summaries',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          url: { type: 'string' },
+          summary: { type: 'string' },
+          text: { type: 'string' },
+          publishedDate: { type: 'string' },
+          author: { type: 'string' },
+          score: { type: 'number' },
+        },
+      },
+    },
   },
 }

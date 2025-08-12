@@ -9,11 +9,13 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
   id: 'microsoft_teams_read_chat',
   name: 'Read Microsoft Teams Chat',
   description: 'Read content from a Microsoft Teams chat',
-  version: '1.1',
+  version: '1.0',
+
   oauth: {
     required: true,
     provider: 'microsoft-teams',
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -27,16 +29,6 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       visibility: 'user-only',
       description: 'The ID of the chat to read from',
     },
-  },
-
-  outputs: {
-    success: { type: 'boolean', description: 'Teams chat read operation success status' },
-    messageCount: { type: 'number', description: 'Number of messages retrieved from chat' },
-    chatId: { type: 'string', description: 'ID of the chat that was read from' },
-    messages: { type: 'array', description: 'Array of chat message objects' },
-    attachmentCount: { type: 'number', description: 'Total number of attachments found' },
-    attachmentTypes: { type: 'array', description: 'Types of attachments found' },
-    content: { type: 'string', description: 'Formatted content of chat messages' },
   },
 
   request: {
@@ -61,12 +53,8 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       }
     },
   },
-  transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to read Microsoft Teams chat: ${errorText}`)
-    }
 
+  transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
     const data = await response.json()
 
     // Microsoft Graph API returns messages in a 'value' array
@@ -86,10 +74,6 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
           },
         },
       }
-    }
-
-    if (!params?.chatId) {
-      throw new Error('Missing required parameter: chatId')
     }
 
     // Process messages with attachments
@@ -140,7 +124,7 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
 
     // Create document metadata
     const metadata = {
-      chatId: messages[0]?.chatId || params.chatId || '',
+      chatId: messages[0]?.chatId || params?.chatId || '',
       messageCount: messages.length,
       totalAttachments: allAttachments.length,
       attachmentTypes,
@@ -155,23 +139,14 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       },
     }
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
 
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while reading Microsoft Teams chat'
+  outputs: {
+    success: { type: 'boolean', description: 'Teams chat read operation success status' },
+    messageCount: { type: 'number', description: 'Number of messages retrieved from chat' },
+    chatId: { type: 'string', description: 'ID of the chat that was read from' },
+    messages: { type: 'array', description: 'Array of chat message objects' },
+    attachmentCount: { type: 'number', description: 'Total number of attachments found' },
+    attachmentTypes: { type: 'array', description: 'Types of attachments found' },
+    content: { type: 'string', description: 'Formatted content of chat messages' },
   },
 }

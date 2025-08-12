@@ -36,26 +36,9 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
     },
   },
 
-  outputs: {
-    results: {
-      type: 'array',
-      description: 'Retrieved content from URLs with title, text, and summaries',
-      items: {
-        type: 'object',
-        properties: {
-          url: { type: 'string', description: 'The URL that content was retrieved from' },
-          title: { type: 'string', description: 'The title of the webpage' },
-          text: { type: 'string', description: 'The full text content of the webpage' },
-          summary: { type: 'string', description: 'AI-generated summary of the webpage content' },
-        },
-      },
-    },
-  },
-
   request: {
     url: 'https://api.exa.ai/contents',
     method: 'POST',
-    isInternalRoute: false,
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
@@ -91,10 +74,6 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.message || data.error || 'Failed to retrieve webpage contents')
-    }
-
     return {
       success: true,
       output: {
@@ -108,9 +87,19 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while retrieving webpage contents'
+  outputs: {
+    results: {
+      type: 'array',
+      description: 'Retrieved content from URLs with title, text, and summaries',
+      items: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'The URL that content was retrieved from' },
+          title: { type: 'string', description: 'The title of the webpage' },
+          text: { type: 'string', description: 'The full text content of the webpage' },
+          summary: { type: 'string', description: 'AI-generated summary of the webpage content' },
+        },
+      },
+    },
   },
 }

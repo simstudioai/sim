@@ -81,14 +81,10 @@ export interface ToolConfig<P = any, R = any> {
   // Request configuration
   request: {
     url: string | ((params: P) => string)
-    method: HttpMethod
+    method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any>
-    isInternalRoute?: boolean // Whether this is an internal API route
   }
-
-  // Direct execution in browser (optional) - bypasses HTTP request
-  directExecution?: (params: P) => Promise<R | undefined>
 
   // Post-processing (optional) - allows additional processing after the initial request
   postProcess?: (
@@ -99,7 +95,6 @@ export interface ToolConfig<P = any, R = any> {
 
   // Response handling
   transformResponse?: (response: Response, params?: P) => Promise<R>
-  transformError?: (error: any) => string | Promise<R>
 }
 
 export interface TableRow {

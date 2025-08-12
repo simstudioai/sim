@@ -58,17 +58,6 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
     },
   },
 
-  outputs: {
-    data: {
-      type: 'array',
-      description: 'Vector search results with ID, score, payload, and optional vector data',
-    },
-    status: {
-      type: 'string',
-      description: 'Status of the search operation',
-    },
-  },
-
   request: {
     method: 'POST',
     url: (params) =>
@@ -87,9 +76,6 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
   },
 
   transformResponse: async (response) => {
-    if (!response.ok) {
-      throw new Error(`Qdrant search failed: ${response.statusText}`)
-    }
     const data = await response.json()
     return {
       success: true,
@@ -100,19 +86,14 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
     }
   },
 
-  transformError: (error: any): string => {
-    if (error.error && typeof error.error === 'string') {
-      return error.error
-    }
-    if (error.status?.error) {
-      return error.status.error
-    }
-    if (error.message) {
-      return error.message
-    }
-    if (typeof error === 'string') {
-      return error
-    }
-    return 'Qdrant search vector failed'
+  outputs: {
+    data: {
+      type: 'array',
+      description: 'Vector search results with ID, score, payload, and optional vector data',
+    },
+    status: {
+      type: 'string',
+      description: 'Status of the search operation',
+    },
   },
 }

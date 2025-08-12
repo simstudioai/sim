@@ -12,11 +12,13 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
   id: 'microsoft_teams_read_channel',
   name: 'Read Microsoft Teams Channel',
   description: 'Read content from a Microsoft Teams channel',
-  version: '1.1',
+  version: '1.0',
+
   oauth: {
     required: true,
     provider: 'microsoft-teams',
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -36,17 +38,6 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       visibility: 'user-only',
       description: 'The ID of the channel to read from',
     },
-  },
-
-  outputs: {
-    success: { type: 'boolean', description: 'Teams channel read operation success status' },
-    messageCount: { type: 'number', description: 'Number of messages retrieved from channel' },
-    teamId: { type: 'string', description: 'ID of the team that was read from' },
-    channelId: { type: 'string', description: 'ID of the channel that was read from' },
-    messages: { type: 'array', description: 'Array of channel message objects' },
-    attachmentCount: { type: 'number', description: 'Total number of attachments found' },
-    attachmentTypes: { type: 'array', description: 'Types of attachments found' },
-    content: { type: 'string', description: 'Formatted content of channel messages' },
   },
 
   request: {
@@ -82,18 +73,8 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       }
     },
   },
-  transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error(
-        `Microsoft Teams channel API error: ${response.status} ${response.statusText}`,
-        errorText
-      )
-      throw new Error(
-        `Failed to read Microsoft Teams channel: ${response.status} ${response.statusText} - ${errorText}`
-      )
-    }
 
+  transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
     const data = await response.json()
 
     // Microsoft Graph API returns messages in a 'value' array
@@ -116,9 +97,6 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       }
     }
 
-    if (!params?.teamId || !params?.channelId) {
-      throw new Error('Missing required parameters: teamId and channelId')
-    }
     // Process messages with attachments
     const processedMessages = messages.map((message: any, index: number) => {
       try {
@@ -185,8 +163,8 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
 
     // Create document metadata
     const metadata = {
-      teamId: messages[0]?.channelIdentity?.teamId || params.teamId || '',
-      channelId: messages[0]?.channelIdentity?.channelId || params.channelId || '',
+      teamId: messages[0]?.channelIdentity?.teamId || params?.teamId || '',
+      channelId: messages[0]?.channelIdentity?.channelId || params?.channelId || '',
       messageCount: messages.length,
       totalAttachments: allAttachments.length,
       attachmentTypes,
@@ -201,23 +179,15 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       },
     }
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
 
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while reading Microsoft Teams channel'
+  outputs: {
+    success: { type: 'boolean', description: 'Teams channel read operation success status' },
+    messageCount: { type: 'number', description: 'Number of messages retrieved from channel' },
+    teamId: { type: 'string', description: 'ID of the team that was read from' },
+    channelId: { type: 'string', description: 'ID of the channel that was read from' },
+    messages: { type: 'array', description: 'Array of channel message objects' },
+    attachmentCount: { type: 'number', description: 'Total number of attachments found' },
+    attachmentTypes: { type: 'array', description: 'Types of attachments found' },
+    content: { type: 'string', description: 'Formatted content of channel messages' },
   },
 }

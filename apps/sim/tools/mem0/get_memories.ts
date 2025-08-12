@@ -6,6 +6,7 @@ export const mem0GetMemoriesTool: ToolConfig = {
   name: 'Get Memories',
   description: 'Retrieve memories from Mem0 by ID or filter criteria',
   version: '1.0.0',
+
   params: {
     userId: {
       type: 'string',
@@ -46,16 +47,6 @@ export const mem0GetMemoriesTool: ToolConfig = {
     },
   },
 
-  outputs: {
-    memories: {
-      type: 'array',
-      description: 'Array of retrieved memory objects',
-    },
-    ids: {
-      type: 'array',
-      description: 'Array of memory IDs that were retrieved',
-    },
-  },
   request: {
     url: (params: Record<string, any>) => {
       // For a specific memory ID, use the get single memory endpoint
@@ -113,43 +104,29 @@ export const mem0GetMemoriesTool: ToolConfig = {
       return body
     },
   },
-  transformResponse: async (response, params) => {
-    try {
-      // Get raw response for debugging
-      const responseText = await response.clone().text()
 
-      // Parse the response
-      const data = JSON.parse(responseText)
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    const memories = Array.isArray(data) ? data : [data]
+    const ids = memories.map((memory) => memory.id).filter(Boolean)
 
-      // Format the memories for display
-      const memories = Array.isArray(data) ? data : [data]
-
-      // Extract IDs if available
-      const ids = memories.map((memory) => memory.id).filter(Boolean)
-
-      return {
-        success: true,
-        output: {
-          memories,
-          ids,
-        },
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        output: {
-          error: `Failed to process get memories response: ${error.message}`,
-        },
-      }
-    }
-  },
-  transformError: async (error) => {
     return {
-      success: false,
+      success: true,
       output: {
-        ids: [],
-        memories: [],
+        memories,
+        ids,
       },
     }
+  },
+
+  outputs: {
+    memories: {
+      type: 'array',
+      description: 'Array of retrieved memory objects',
+    },
+    ids: {
+      type: 'array',
+      description: 'Array of memory IDs that were retrieved',
+    },
   },
 }

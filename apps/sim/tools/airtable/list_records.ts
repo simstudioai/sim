@@ -71,9 +71,6 @@ export const airtableListRecordsTool: ToolConfig<AirtableListParams, AirtableLis
 
   transformResponse: async (response) => {
     const data = await response.json()
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to fetch Airtable records')
-    }
     return {
       success: true,
       output: {
@@ -84,10 +81,6 @@ export const airtableListRecordsTool: ToolConfig<AirtableListParams, AirtableLis
         },
       },
     }
-  },
-
-  transformError: (error: any) => {
-    return `Failed to list Airtable records: ${error.message || 'Unknown error'}`
   },
 
   outputs: {

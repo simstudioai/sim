@@ -52,36 +52,6 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
     },
   },
 
-  outputs: {
-    tweets: {
-      type: 'array',
-      description: 'Array of tweets matching the search query',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Tweet ID' },
-          text: { type: 'string', description: 'Tweet content' },
-          createdAt: { type: 'string', description: 'Creation timestamp' },
-          authorId: { type: 'string', description: 'Author user ID' },
-        },
-      },
-    },
-    includes: {
-      type: 'object',
-      description: 'Additional data including user profiles and media',
-      optional: true,
-    },
-    meta: {
-      type: 'object',
-      description: 'Search metadata including result count and pagination tokens',
-      properties: {
-        resultCount: { type: 'number', description: 'Number of results returned' },
-        newestId: { type: 'string', description: 'ID of the newest tweet' },
-        oldestId: { type: 'string', description: 'ID of the oldest tweet' },
-      },
-    },
-  },
-
   request: {
     url: (params) => {
       const query = params.query
@@ -192,22 +162,33 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
     }
   },
 
-  transformError: (error) => {
-    // Log the full error object for debugging
-    console.error('X Search API Error:', JSON.stringify(error, null, 2))
-
-    if (error.title === 'Unauthorized') {
-      return 'Invalid or expired access token. Please reconnect your X account.'
-    }
-    if (error.title === 'Invalid Request') {
-      return 'Invalid search query. Please check your search parameters.'
-    }
-    if (error.status === 429) {
-      return 'Rate limit exceeded. Please try again later.'
-    }
-    if (error.detail && typeof error.detail === 'string') {
-      return `X API error: ${error.detail}`
-    }
-    return error.detail || error.message || 'An error occurred while searching X'
+  outputs: {
+    tweets: {
+      type: 'array',
+      description: 'Array of tweets matching the search query',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Tweet ID' },
+          text: { type: 'string', description: 'Tweet content' },
+          createdAt: { type: 'string', description: 'Creation timestamp' },
+          authorId: { type: 'string', description: 'Author user ID' },
+        },
+      },
+    },
+    includes: {
+      type: 'object',
+      description: 'Additional data including user profiles and media',
+      optional: true,
+    },
+    meta: {
+      type: 'object',
+      description: 'Search metadata including result count and pagination tokens',
+      properties: {
+        resultCount: { type: 'number', description: 'Number of results returned' },
+        newestId: { type: 'string', description: 'ID of the newest tweet' },
+        oldestId: { type: 'string', description: 'ID of the oldest tweet' },
+      },
+    },
   },
 }

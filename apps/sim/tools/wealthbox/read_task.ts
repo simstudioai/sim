@@ -1,14 +1,12 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WealthboxReadParams, WealthboxReadResponse } from '@/tools/wealthbox/types'
-
-const logger = createLogger('WealthboxReadTask')
 
 export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxReadResponse> = {
   id: 'wealthbox_read_task',
   name: 'Read Wealthbox Task',
   description: 'Read content from a Wealthbox task',
-  version: '1.1',
+  version: '1.0.0',
+
   params: {
     accessToken: {
       type: 'string',
@@ -23,26 +21,7 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
       visibility: 'user-only',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Task data and metadata',
-      properties: {
-        content: { type: 'string', description: 'Formatted task information' },
-        task: { type: 'object', description: 'Raw task data from Wealthbox' },
-        metadata: {
-          type: 'object',
-          description: 'Operation metadata',
-          properties: {
-            operation: { type: 'string', description: 'The operation performed' },
-            taskId: { type: 'string', description: 'ID of the task' },
-            itemType: { type: 'string', description: 'Type of item (task)' },
-          },
-        },
-      },
-    },
-  },
+
   request: {
     url: (params) => {
       const taskId = params.taskId?.trim()
@@ -64,42 +43,9 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
       }
     },
   },
+
   transformResponse: async (response: Response, params?: WealthboxReadParams) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error(`Wealthbox task API error: ${response.status} ${response.statusText}`, errorText)
-
-      // Provide more specific error messages
-      if (response.status === 404) {
-        throw new Error(
-          `Task with ID ${params?.taskId} not found. Please check the task ID and try again.`
-        )
-      }
-      if (response.status === 403) {
-        throw new Error(
-          `Access denied to task with ID ${params?.taskId}. Please check your permissions.`
-        )
-      }
-      throw new Error(
-        `Failed to read Wealthbox task: ${response.status} ${response.statusText} - ${errorText}`
-      )
-    }
-
     const data = await response.json()
-
-    if (!data) {
-      return {
-        success: true,
-        output: {
-          task: undefined,
-          metadata: {
-            operation: 'read_task' as const,
-            taskId: params?.taskId || '',
-            itemType: 'task' as const,
-          },
-        },
-      }
-    }
 
     // Format task information into readable content
     const task = data
@@ -145,23 +91,25 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
       },
     }
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
 
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while reading Wealthbox task'
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Task data and metadata',
+      properties: {
+        content: { type: 'string', description: 'Formatted task information' },
+        task: { type: 'object', description: 'Raw task data from Wealthbox' },
+        metadata: {
+          type: 'object',
+          description: 'Operation metadata',
+          properties: {
+            operation: { type: 'string', description: 'The operation performed' },
+            taskId: { type: 'string', description: 'ID of the task' },
+            itemType: { type: 'string', description: 'Type of item (task)' },
+          },
+        },
+      },
+    },
   },
 }

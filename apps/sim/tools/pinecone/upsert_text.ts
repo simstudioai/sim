@@ -39,17 +39,6 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
     },
   },
 
-  outputs: {
-    statusText: {
-      type: 'string',
-      description: 'Status of the upsert operation',
-    },
-    upsertedCount: {
-      type: 'number',
-      description: 'Number of records successfully upserted',
-    },
-  },
-
   request: {
     method: 'POST',
     url: (params) => `${params.indexHost}/records/namespaces/${params.namespace}/upsert`,
@@ -102,5 +91,14 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
     }
   },
 
-  transformError: (error) => `Pinecone text upsert failed: ${error.message}`,
+  outputs: {
+    statusText: {
+      type: 'string',
+      description: 'Status of the upsert operation',
+    },
+    upsertedCount: {
+      type: 'number',
+      description: 'Number of records successfully upserted',
+    },
+  },
 }

@@ -7,6 +7,7 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
   name: 'Search Memories',
   description: 'Search for memories in Mem0 using semantic search',
   version: '1.0.0',
+
   params: {
     userId: {
       type: 'string',
@@ -35,16 +36,6 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
     },
   },
 
-  outputs: {
-    searchResults: {
-      type: 'array',
-      description: 'Array of search results with memory data, each containing id, data, and score',
-    },
-    ids: {
-      type: 'array',
-      description: 'Array of memory IDs found in the search results',
-    },
-  },
   request: {
     url: 'https://api.mem0.ai/v2/memories/search/',
     method: 'POST',
@@ -65,67 +56,54 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
       return body
     },
   },
+
   transformResponse: async (response) => {
-    try {
-      // Get raw response for debugging
-      const responseText = await response.clone().text()
+    const data = await response.json()
 
-      // Parse the response
-      const data = JSON.parse(responseText)
-
-      // Handle empty results
-      if (!data || (Array.isArray(data) && data.length === 0)) {
-        return {
-          success: true,
-          output: {
-            searchResults: [],
-            ids: [],
-          },
-        }
-      }
-
-      // For array results (standard format)
-      if (Array.isArray(data)) {
-        const searchResults = data.map((item) => ({
-          id: item.id,
-          data: { memory: item.memory || '' },
-          score: item.score || 0,
-        }))
-
-        const ids = data.map((item) => item.id).filter(Boolean)
-
-        return {
-          success: true,
-          output: {
-            searchResults,
-            ids,
-          },
-        }
-      }
-
-      // Fallback for unexpected response format
+    if (!data || (Array.isArray(data) && data.length === 0)) {
       return {
         success: true,
         output: {
           searchResults: [],
-        },
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        output: {
-          error: `Failed to process search response: ${error.message}`,
+          ids: [],
         },
       }
     }
-  },
-  transformError: async (error) => {
+
+    if (Array.isArray(data)) {
+      const searchResults = data.map((item) => ({
+        id: item.id,
+        data: { memory: item.memory || '' },
+        score: item.score || 0,
+      }))
+
+      const ids = data.map((item) => item.id).filter(Boolean)
+
+      return {
+        success: true,
+        output: {
+          searchResults,
+          ids,
+        },
+      }
+    }
+
     return {
-      success: false,
+      success: true,
       output: {
-        ids: [],
         searchResults: [],
       },
     }
+  },
+
+  outputs: {
+    searchResults: {
+      type: 'array',
+      description: 'Array of search results with memory data, each containing id, data, and score',
+    },
+    ids: {
+      type: 'array',
+      description: 'Array of memory IDs found in the search results',
+    },
   },
 }

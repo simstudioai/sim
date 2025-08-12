@@ -680,19 +680,6 @@ export function KnowledgeBase({
                   />
 
                   <div className='flex items-center gap-3'>
-                    {/* Clear Search Button */}
-                    {searchQuery && (
-                      <button
-                        onClick={() => {
-                          setSearchQuery('')
-                          setCurrentPage(1)
-                        }}
-                        className='text-muted-foreground text-sm hover:text-foreground'
-                      >
-                        Clear search
-                      </button>
-                    )}
-
                     {/* Add Documents Button */}
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -1121,7 +1108,7 @@ export function KnowledgeBase({
                               key={page}
                               onClick={() => goToPage(page)}
                               disabled={isLoadingDocuments}
-                              className={`font-medium text-sm transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 ${
+                              className={`font-medium text-sm transition-colors hover:text-foreground disabled:opacity-50 ${
                                 page === currentPage ? 'text-foreground' : 'text-muted-foreground'
                               }`}
                             >

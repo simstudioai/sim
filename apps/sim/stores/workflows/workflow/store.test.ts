@@ -126,9 +126,9 @@ describe('workflow store', () => {
       )
 
       // Try to set count above max
-      updateLoopCount('loop1', 100)
+      updateLoopCount('loop1', 150)
       let state = useWorkflowStore.getState()
-      expect(state.blocks.loop1?.data?.count).toBe(50)
+      expect(state.blocks.loop1?.data?.count).toBe(100)
 
       // Try to set count below min
       updateLoopCount('loop1', 0)
@@ -178,6 +178,7 @@ describe('workflow store', () => {
         {
           count: 3,
           collection: '["item1", "item2"]',
+          parallelType: 'collection',
         }
       )
 
@@ -216,7 +217,7 @@ describe('workflow store', () => {
       // Try to set count above max
       updateParallelCount('parallel1', 100)
       let state = useWorkflowStore.getState()
-      expect(state.blocks.parallel1?.data?.count).toBe(50)
+      expect(state.blocks.parallel1?.data?.count).toBe(20)
 
       // Try to set count below min
       updateParallelCount('parallel1', 0)

@@ -26,8 +26,9 @@ export interface VariablesStore {
   /**
    * Adds a new variable with automatic name uniqueness validation
    * If a variable with the same name exists, it will be suffixed with a number
+   * Optionally accepts a predetermined ID for collaborative operations
    */
-  addVariable: (variable: Omit<Variable, 'id'>) => string
+  addVariable: (variable: Omit<Variable, 'id'>, providedId?: string) => string
 
   /**
    * Updates a variable, ensuring name remains unique within the workflow
@@ -39,11 +40,11 @@ export interface VariablesStore {
 
   /**
    * Duplicates a variable with a "(copy)" suffix, ensuring name uniqueness
+   * Optionally accepts a predetermined ID for collaborative operations
    */
-  duplicateVariable: (id: string) => string
+  duplicateVariable: (id: string, providedId?: string) => string
 
   loadVariables: (workflowId: string) => Promise<void>
-  saveVariables: (workflowId: string) => Promise<void>
 
   /**
    * Returns all variables for a specific workflow

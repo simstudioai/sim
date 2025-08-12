@@ -10,7 +10,7 @@ import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webho
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { db } from '@/db'
-import { environment as environmentTable, userStats } from '@/db/schema'
+import { environment as environmentTable, userStats, webhook } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
@@ -141,10 +141,21 @@ export const webhookExecution = task({
           `[${requestId}] Processing Airtable webhook via fetchAndProcessAirtablePayloads`
         )
 
+        // Load the actual webhook record from database to get providerConfig
+        const [webhookRecord] = await db
+          .select()
+          .from(webhook)
+          .where(eq(webhook.id, payload.webhookId))
+          .limit(1)
+
+        if (!webhookRecord) {
+          throw new Error(`Webhook record not found: ${payload.webhookId}`)
+        }
+
         const webhookData = {
           id: payload.webhookId,
           provider: payload.provider,
-          providerConfig: {}, // Will be loaded within fetchAndProcessAirtablePayloads
+          providerConfig: webhookRecord.providerConfig,
         }
 
         // Create a mock workflow object for Airtable processing
@@ -153,12 +164,85 @@ export const webhookExecution = task({
           userId: payload.userId,
         }
 
-        await fetchAndProcessAirtablePayloads(webhookData, mockWorkflow, requestId)
+        // Get the processed Airtable input
+        const airtableInput = await fetchAndProcessAirtablePayloads(
+          webhookData,
+          mockWorkflow,
+          requestId
+        )
+
+        // If we got input (changes), execute the workflow like other providers
+        if (airtableInput) {
+          logger.info(`[${requestId}] Executing workflow with Airtable changes`)
+
+          // Create executor and execute (same as standard webhook flow)
+          const executor = new Executor({
+            workflow: serializedWorkflow,
+            currentBlockStates: processedBlockStates,
+            envVarValues: decryptedEnvVars,
+            workflowInput: airtableInput,
+            workflowVariables,
+            contextExtensions: {
+              executionId,
+              workspaceId: '',
+            },
+          })
+
+          // Set up logging on the executor
+          loggingSession.setupExecutor(executor)
+
+          // Execute the workflow
+          const result = await executor.execute(payload.workflowId, payload.blockId)
+
+          // Check if we got a StreamingExecution result
+          const executionResult =
+            'stream' in result && 'execution' in result ? result.execution : result
+
+          logger.info(`[${requestId}] Airtable webhook execution completed`, {
+            success: executionResult.success,
+            workflowId: payload.workflowId,
+          })
+
+          // Update workflow run counts on success
+          if (executionResult.success) {
+            await updateWorkflowRunCounts(payload.workflowId)
+
+            // Track execution in user stats
+            await db
+              .update(userStats)
+              .set({
+                totalWebhookTriggers: sql`total_webhook_triggers + 1`,
+                lastActive: sql`now()`,
+              })
+              .where(eq(userStats.userId, payload.userId))
+          }
+
+          // Build trace spans and complete logging session
+          const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
+
+          await loggingSession.safeComplete({
+            endedAt: new Date().toISOString(),
+            totalDurationMs: totalDuration || 0,
+            finalOutput: executionResult.output || {},
+            traceSpans: traceSpans as any,
+          })
+
+          return {
+            success: executionResult.success,
+            workflowId: payload.workflowId,
+            executionId,
+            output: executionResult.output,
+            executedAt: new Date().toISOString(),
+            provider: payload.provider,
+          }
+        }
+        // No changes to process
+        logger.info(`[${requestId}] No Airtable changes to process`)
 
         await loggingSession.safeComplete({
           endedAt: new Date().toISOString(),
           totalDurationMs: 0,
-          finalOutput: { message: 'Airtable webhook processed' },
+          finalOutput: { message: 'No Airtable changes to process' },
           traceSpans: [],
         })
 
@@ -166,7 +250,7 @@ export const webhookExecution = task({
           success: true,
           workflowId: payload.workflowId,
           executionId,
-          output: { message: 'Airtable webhook processed' },
+          output: { message: 'No Airtable changes to process' },
           executedAt: new Date().toISOString(),
         }
       }

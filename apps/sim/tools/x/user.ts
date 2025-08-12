@@ -31,29 +31,6 @@ export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
     },
   },
 
-  outputs: {
-    user: {
-      type: 'object',
-      description: 'X user profile information',
-      properties: {
-        id: { type: 'string', description: 'User ID' },
-        username: { type: 'string', description: 'Username without @ symbol' },
-        name: { type: 'string', description: 'Display name' },
-        description: { type: 'string', description: 'User bio/description', optional: true },
-        verified: { type: 'boolean', description: 'Whether the user is verified' },
-        metrics: {
-          type: 'object',
-          description: 'User statistics',
-          properties: {
-            followersCount: { type: 'number', description: 'Number of followers' },
-            followingCount: { type: 'number', description: 'Number of users following' },
-            tweetCount: { type: 'number', description: 'Total number of tweets' },
-          },
-        },
-      },
-    },
-  },
-
   request: {
     url: (params) => {
       const username = encodeURIComponent(params.username)
@@ -140,31 +117,26 @@ export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
     }
   },
 
-  transformError: (error) => {
-    if (error.status === 429) {
-      return 'X API rate limit exceeded. Please try again later.'
-    }
-    if (error.title === 'Unauthorized') {
-      return 'Invalid or expired access token. Please reconnect your X account.'
-    }
-    if (error.title === 'Not Found') {
-      return 'The specified user was not found.'
-    }
-    if (error.detail) {
-      // Remove the square brackets from the error message if present
-      const cleanedDetail = error.detail.replace(/\[(.*?)\]/, '$1')
-      return `X API error: ${cleanedDetail}`
-    }
-
-    // Extract the message from the error object
-    const errorMessage =
-      error.message || 'An unexpected error occurred while fetching user data from X'
-
-    if (errorMessage.includes('rate limit')) {
-      return 'X API rate limit exceeded. Please try again later or use a different X account.'
-    }
-
-    // Clean any brackets from the error message
-    return errorMessage.replace(/\[(.*?)\]/g, '$1')
+  outputs: {
+    user: {
+      type: 'object',
+      description: 'X user profile information',
+      properties: {
+        id: { type: 'string', description: 'User ID' },
+        username: { type: 'string', description: 'Username without @ symbol' },
+        name: { type: 'string', description: 'Display name' },
+        description: { type: 'string', description: 'User bio/description', optional: true },
+        verified: { type: 'boolean', description: 'Whether the user is verified' },
+        metrics: {
+          type: 'object',
+          description: 'User statistics',
+          properties: {
+            followersCount: { type: 'number', description: 'Number of followers' },
+            followingCount: { type: 'number', description: 'Number of users following' },
+            tweetCount: { type: 'number', description: 'Total number of tweets' },
+          },
+        },
+      },
+    },
   },
 }

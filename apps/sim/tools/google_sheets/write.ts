@@ -6,11 +6,13 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
   name: 'Write to Google Sheets',
   description: 'Write data to a Google Sheets spreadsheet',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'google-sheets',
     additionalScopes: [],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -49,6 +51,7 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
       description: 'Whether to include the written values in the response',
     },
   },
+
   request: {
     url: (params) => {
       // If range is not provided, use a default range for the first sheet, second row to preserve headers
@@ -128,20 +131,7 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
     },
   },
 
-  outputs: {
-    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
-    updatedRows: { type: 'number', description: 'Number of rows updated' },
-    updatedColumns: { type: 'number', description: 'Number of columns updated' },
-    updatedCells: { type: 'number', description: 'Number of cells updated' },
-    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
-  },
-
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to write data to Google Sheets: ${errorText}`)
-    }
-
     const data = await response.json()
 
     // Extract spreadsheet ID from the URL
@@ -171,23 +161,12 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
 
     return result
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
 
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while writing to Google Sheets'
+  outputs: {
+    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
+    updatedRows: { type: 'number', description: 'Number of rows updated' },
+    updatedColumns: { type: 'number', description: 'Number of columns updated' },
+    updatedCells: { type: 'number', description: 'Number of cells updated' },
+    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
   },
 }

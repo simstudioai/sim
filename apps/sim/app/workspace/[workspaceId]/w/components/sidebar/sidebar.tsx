@@ -5,6 +5,7 @@ import { HelpCircle, LibraryBig, ScrollText, Search, Settings, Shapes } from 'lu
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Button, ScrollArea, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
+import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
@@ -14,9 +15,13 @@ import {
   CreateMenu,
   FolderTree,
   HelpModal,
+  KnowledgeBaseTags,
+  KnowledgeTags,
   LogsFilters,
   SettingsModal,
+  SubscriptionModal,
   Toolbar,
+  UsageIndicator,
   WorkspaceHeader,
   WorkspaceSelector,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
@@ -141,8 +146,9 @@ const SIDEBAR_HEIGHTS = {
   WORKSPACE_HEADER: 48, // estimated height of workspace header
   SEARCH: 48, // h-12
   WORKFLOW_SELECTOR: 212, // h-[212px]
-  NAVIGATION: 48, // h-12 buttons
+  NAVIGATION: 42, // h-[42px] buttons
   WORKSPACE_SELECTOR: 171, // optimized height: p-2(16) + h-[104px](104) + mt-2(8) + border-t(1) + pt-2(8) + h-8(32) = 169px
+  USAGE_INDICATOR: 58, // actual height: border(2) + py-2.5(20) + content(~36) = 58px
 }
 
 /**
@@ -245,6 +251,41 @@ export function Sidebar() {
     const logsPageRegex = /^\/workspace\/[^/]+\/logs$/
     return logsPageRegex.test(pathname)
   }, [pathname])
+
+  // Check if we're on any knowledge base page (overview or document)
+  const isOnKnowledgePage = useMemo(() => {
+    // Pattern: /workspace/[workspaceId]/knowledge/[id] or /workspace/[workspaceId]/knowledge/[id]/[documentId]
+    const knowledgePageRegex = /^\/workspace\/[^/]+\/knowledge\/[^/]+/
+    return knowledgePageRegex.test(pathname)
+  }, [pathname])
+
+  // Extract knowledge base ID and document ID from the pathname
+  const { knowledgeBaseId, documentId } = useMemo(() => {
+    if (!isOnKnowledgePage) {
+      return { knowledgeBaseId: null, documentId: null }
+    }
+
+    // Handle both KB overview (/knowledge/[kbId]) and document page (/knowledge/[kbId]/[docId])
+    const kbOverviewMatch = pathname.match(/^\/workspace\/[^/]+\/knowledge\/([^/]+)$/)
+    const docPageMatch = pathname.match(/^\/workspace\/[^/]+\/knowledge\/([^/]+)\/([^/]+)$/)
+
+    if (docPageMatch) {
+      // Document page - has both kbId and docId
+      return {
+        knowledgeBaseId: docPageMatch[1],
+        documentId: docPageMatch[2],
+      }
+    }
+    if (kbOverviewMatch) {
+      // KB overview page - has only kbId
+      return {
+        knowledgeBaseId: kbOverviewMatch[1],
+        documentId: null,
+      }
+    }
+
+    return { knowledgeBaseId: null, documentId: null }
+  }, [pathname, isOnKnowledgePage])
 
   // Use optimized auto-scroll hook
   const { handleDragOver, stopScroll } = useAutoScroll(workflowScrollAreaRef)
@@ -677,8 +718,16 @@ export function Sidebar() {
         ) as HTMLElement
         if (activeWorkflow) {
           activeWorkflow.scrollIntoView({
-            block: 'nearest',
+            block: 'start',
           })
+
+          // Adjust scroll position to eliminate the small gap at the top
+          const scrollViewport = scrollContainer.querySelector(
+            '[data-radix-scroll-area-viewport]'
+          ) as HTMLElement
+          if (scrollViewport && scrollViewport.scrollTop > 0) {
+            scrollViewport.scrollTop = Math.max(0, scrollViewport.scrollTop - 8)
+          }
         }
       }
     }
@@ -688,6 +737,7 @@ export function Sidebar() {
   const [showHelp, setShowHelp] = useState(false)
   const [showInviteMembers, setShowInviteMembers] = useState(false)
   const [showSearchModal, setShowSearchModal] = useState(false)
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
 
   // Separate regular workflows from temporary marketplace workflows
   const { regularWorkflows, tempWorkflows } = useMemo(() => {
@@ -1008,7 +1058,7 @@ export function Sidebar() {
         }`}
         style={{
           top: `${toolbarTop}px`,
-          bottom: `${navigationBottom + 42 + 12}px`, // Navigation height + gap
+          bottom: `${navigationBottom + SIDEBAR_HEIGHTS.NAVIGATION + SIDEBAR_GAP + (isBillingEnabled ? SIDEBAR_HEIGHTS.USAGE_INDICATOR + SIDEBAR_GAP : 0)}px`, // Navigation height + gap + UsageIndicator height + gap (if billing enabled)
         }}
       >
         <Toolbar
@@ -1024,11 +1074,51 @@ export function Sidebar() {
         }`}
         style={{
           top: `${toolbarTop}px`,
-          bottom: `${navigationBottom + 42 + 12}px`, // Navigation height + gap
+          bottom: `${navigationBottom + SIDEBAR_HEIGHTS.NAVIGATION + SIDEBAR_GAP + (isBillingEnabled ? SIDEBAR_HEIGHTS.USAGE_INDICATOR + SIDEBAR_GAP : 0)}px`, // Navigation height + gap + UsageIndicator height + gap (if billing enabled)
         }}
       >
         <LogsFilters />
       </div>
+
+      {/* Floating Knowledge Tags - Only on knowledge pages */}
+      <div
+        className={`pointer-events-auto fixed left-4 z-50 w-56 rounded-[10px] border bg-background shadow-xs ${
+          !isOnKnowledgePage || isSidebarCollapsed || !knowledgeBaseId ? 'hidden' : ''
+        }`}
+        style={{
+          top: `${toolbarTop}px`,
+          bottom: `${navigationBottom + SIDEBAR_HEIGHTS.NAVIGATION + SIDEBAR_GAP + (isBillingEnabled ? SIDEBAR_HEIGHTS.USAGE_INDICATOR + SIDEBAR_GAP : 0)}px`, // Navigation height + gap + UsageIndicator height + gap (if billing enabled)
+        }}
+      >
+        {knowledgeBaseId && documentId && (
+          <KnowledgeTags knowledgeBaseId={knowledgeBaseId} documentId={documentId} />
+        )}
+        {knowledgeBaseId && !documentId && <KnowledgeBaseTags knowledgeBaseId={knowledgeBaseId} />}
+      </div>
+
+      {/* Floating Usage Indicator - Only shown when billing enabled */}
+      {isBillingEnabled && (
+        <div
+          className='pointer-events-auto fixed left-4 z-50 w-56'
+          style={{ bottom: `${navigationBottom + SIDEBAR_HEIGHTS.NAVIGATION + SIDEBAR_GAP}px` }} // Navigation height + gap
+        >
+          <UsageIndicator
+            onClick={(badgeType) => {
+              if (badgeType === 'add') {
+                // Open settings modal on subscription tab
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(
+                    new CustomEvent('open-settings', { detail: { tab: 'subscription' } })
+                  )
+                }
+              } else {
+                // Open subscription modal for upgrade
+                setShowSubscriptionModal(true)
+              }
+            }}
+          />
+        </div>
+      )}
 
       {/* Floating Navigation - Always visible */}
       <div
@@ -1046,6 +1136,7 @@ export function Sidebar() {
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <HelpModal open={showHelp} onOpenChange={setShowHelp} />
       <InviteModal open={showInviteMembers} onOpenChange={setShowInviteMembers} />
+      <SubscriptionModal open={showSubscriptionModal} onOpenChange={setShowSubscriptionModal} />
       <SearchModal
         open={showSearchModal}
         onOpenChange={setShowSearchModal}

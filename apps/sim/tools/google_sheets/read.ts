@@ -6,11 +6,13 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
   name: 'Read from Google Sheets',
   description: 'Read data from a Google Sheets spreadsheet',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'google-sheets',
     additionalScopes: [],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -31,6 +33,7 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
       description: 'The range of cells to read from',
     },
   },
+
   request: {
     url: (params) => {
       // Ensure spreadsheetId is valid
@@ -60,21 +63,7 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
     },
   },
 
-  outputs: {
-    data: { type: 'json', description: 'Sheet data including range and cell values' },
-    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
-  },
-
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorJson = await response.json().catch(() => ({ error: response.statusText }))
-      const errorText =
-        errorJson.error && typeof errorJson.error === 'object'
-          ? errorJson.error.message || JSON.stringify(errorJson.error)
-          : errorJson.error || response.statusText
-      throw new Error(`Failed to read Google Sheets data: ${errorText}`)
-    }
-
     const data = await response.json()
 
     // Extract spreadsheet ID from the URL
@@ -105,41 +94,9 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
 
     return result
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
 
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      // Handle Google API error response format
-      if (error.error) {
-        if (typeof error.error === 'string') {
-          return error.error
-        }
-        // Google API often returns error objects with error.error.message
-        if (typeof error.error === 'object' && error.error.message) {
-          return error.error.message
-        }
-        // If error.error is an object but doesn't have a message property
-        return JSON.stringify(error.error)
-      }
-
-      if (error.message) {
-        return error.message
-      }
-
-      // If we have a complex object, stringify it for debugging
-      try {
-        return `Google Sheets API error: ${JSON.stringify(error)}`
-      } catch (_e) {
-        // In case the error object can't be stringified (e.g., circular references)
-        return 'Google Sheets API error: Unable to parse error details'
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while reading from Google Sheets'
+  outputs: {
+    data: { type: 'json', description: 'Sheet data including range and cell values' },
+    metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
   },
 }

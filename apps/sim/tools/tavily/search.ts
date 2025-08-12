@@ -28,23 +28,6 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
       description: 'Tavily API Key',
     },
   },
-  outputs: {
-    query: { type: 'string', description: 'The search query that was executed' },
-    results: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          title: { type: 'string' },
-          url: { type: 'string' },
-          snippet: { type: 'string' },
-          raw_content: { type: 'string' },
-        },
-      },
-      description: 'Search results with titles, URLs, and content snippets',
-    },
-    response_time: { type: 'number', description: 'Time taken for the search request in seconds' },
-  },
 
   request: {
     url: 'https://api.tavily.com/search',
@@ -68,10 +51,6 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to perform search')
-    }
-
     return {
       success: true,
       output: {
@@ -87,7 +66,21 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while performing the search'
+  outputs: {
+    query: { type: 'string', description: 'The search query that was executed' },
+    results: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          url: { type: 'string' },
+          snippet: { type: 'string' },
+          raw_content: { type: 'string' },
+        },
+      },
+      description: 'Search results with titles, URLs, and content snippets',
+    },
+    response_time: { type: 'number', description: 'Time taken for the search request in seconds' },
   },
 }

@@ -34,40 +34,6 @@ export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
     },
   },
 
-  outputs: {
-    matches: {
-      type: 'array',
-      description: 'Fetched vectors with ID, values, metadata, and score',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Vector ID' },
-          values: { type: 'array', description: 'Vector values' },
-          metadata: { type: 'object', description: 'Associated metadata' },
-          score: { type: 'number', description: 'Match score (1.0 for exact matches)' },
-        },
-      },
-    },
-    data: {
-      type: 'array',
-      description: 'Vector data with values and vector type',
-      items: {
-        type: 'object',
-        properties: {
-          values: { type: 'array', description: 'Vector values' },
-          vector_type: { type: 'string', description: 'Vector type (dense/sparse)' },
-        },
-      },
-    },
-    usage: {
-      type: 'object',
-      description: 'Usage statistics including total read units',
-      properties: {
-        total_tokens: { type: 'number', description: 'Read units consumed' },
-      },
-    },
-  },
-
   request: {
     method: 'GET',
     url: (params) => {
@@ -109,5 +75,37 @@ export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
     }
   },
 
-  transformError: (error) => `Pinecone fetch failed: ${error.message}`,
+  outputs: {
+    matches: {
+      type: 'array',
+      description: 'Fetched vectors with ID, values, metadata, and score',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Vector ID' },
+          values: { type: 'array', description: 'Vector values' },
+          metadata: { type: 'object', description: 'Associated metadata' },
+          score: { type: 'number', description: 'Match score (1.0 for exact matches)' },
+        },
+      },
+    },
+    data: {
+      type: 'array',
+      description: 'Vector data with values and vector type',
+      items: {
+        type: 'object',
+        properties: {
+          values: { type: 'array', description: 'Vector values' },
+          vector_type: { type: 'string', description: 'Vector type (dense/sparse)' },
+        },
+      },
+    },
+    usage: {
+      type: 'object',
+      description: 'Usage statistics including total read units',
+      properties: {
+        total_tokens: { type: 'number', description: 'Read units consumed' },
+      },
+    },
+  },
 }

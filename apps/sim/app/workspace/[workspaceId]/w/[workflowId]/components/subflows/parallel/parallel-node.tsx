@@ -6,46 +6,63 @@ import { StartIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { IterationBadges } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/components/iteration-badges/iteration-badges'
+import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useCurrentWorkflow } from '../../hooks'
-import { LoopBadges } from './components/loop-badges'
 
-// Add these styles to your existing global CSS file or create a separate CSS module
-const LoopNodeStyles: React.FC = () => {
+const ParallelNodeStyles: React.FC = () => {
   return (
     <style jsx global>{`
-      @keyframes loop-node-pulse {
-        0% { box-shadow: 0 0 0 0 rgba(64, 224, 208, 0.3); }
-        70% { box-shadow: 0 0 0 6px rgba(64, 224, 208, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(64, 224, 208, 0); }
+      @keyframes parallel-node-pulse {
+        0% {
+          box-shadow: 0 0 0 0 rgba(139, 195, 74, 0.3);
+        }
+        70% {
+          box-shadow: 0 0 0 6px rgba(139, 195, 74, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(139, 195, 74, 0);
+        }
       }
-      
-      .loop-node-drag-over {
-        animation: loop-node-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+      .parallel-node-drag-over {
+        animation: parallel-node-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1)
+          infinite;
         border-style: solid !important;
-        background-color: rgba(47, 179, 255, 0.08) !important;
-        box-shadow: 0 0 0 8px rgba(47, 179, 255, 0.1);
+        background-color: rgba(139, 195, 74, 0.08) !important;
+        box-shadow: 0 0 0 8px rgba(139, 195, 74, 0.1);
       }
-      
+
+      /* Make resizer handles more visible */
+      .react-flow__resize-control {
+        z-index: 10;
+        pointer-events: all !important;
+      }
+
       /* Ensure parent borders are visible when hovering over resize controls */
       .react-flow__node-group:hover,
       .hover-highlight {
         border-color: #1e293b !important;
       }
-      
+
       /* Ensure hover effects work well */
       .group-node-container:hover .react-flow__resize-control.bottom-right {
         opacity: 1 !important;
         visibility: visible !important;
       }
-    
-      
+
+      /* React Flow position transitions within parallel blocks */
+      .react-flow__node[data-parent-node-id] {
+        transition: transform 0.05s ease;
+        pointer-events: all;
+      }
+
       /* Prevent jumpy drag behavior */
-      .loop-drop-container .react-flow__node {
+      .parallel-drop-container .react-flow__node {
         transform-origin: center;
         position: absolute;
       }
-      
+
       /* Remove default border from React Flow group nodes */
       .react-flow__node-group {
         border: none;
@@ -53,22 +70,22 @@ const LoopNodeStyles: React.FC = () => {
         outline: none;
         box-shadow: none;
       }
-      
+
       /* Ensure child nodes stay within parent bounds */
       .react-flow__node[data-parent-node-id] .react-flow__handle {
         z-index: 30;
       }
-      
+
       /* Enhanced drag detection */
       .react-flow__node-group.dragging-over {
-        background-color: rgba(34,197,94,0.05);
+        background-color: rgba(139, 195, 74, 0.05);
         transition: all 0.2s ease-in-out;
       }
     `}</style>
   )
 }
 
-export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
+export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) => {
   const { getNodes } = useReactFlow()
   const { collaborativeRemoveBlock } = useCollaborativeWorkflow()
   const blockRef = useRef<HTMLDivElement>(null)
@@ -84,10 +101,11 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
 
   // Determine nesting level by counting parents
   const nestingLevel = useMemo(() => {
+    const maxDepth = 100 // Prevent infinite loops
     let level = 0
     let currentParentId = data?.parentId
 
-    while (currentParentId) {
+    while (currentParentId && level < maxDepth) {
       level++
       const parentNode = getNodes().find((n) => n.id === currentParentId)
       if (!parentNode) break
@@ -120,12 +138,12 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
 
   return (
     <>
-      <LoopNodeStyles />
+      <ParallelNodeStyles />
       <div className='group relative'>
         <Card
           ref={blockRef}
           className={cn(
-            ' relative cursor-default select-none',
+            'relative cursor-default select-none',
             'transition-block-bg transition-ring',
             'z-[20]',
             data?.state === 'valid',
@@ -146,10 +164,10 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
             pointerEvents: isPreview ? 'none' : 'all',
           }}
           data-node-id={id}
-          data-type='loopNode'
+          data-type='parallelNode'
           data-nesting-level={nestingLevel}
         >
-          {/* Critical drag handle that controls only the loop node movement */}
+          {/* Critical drag handle that controls only the parallel node movement */}
           {!isPreview && (
             <div
               className='workflow-drag-handle absolute top-0 right-0 left-0 z-10 h-10 cursor-move'
@@ -165,7 +183,7 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
             />
           )}
 
-          {/* Child nodes container - Enable pointer events to allow dragging of children */}
+          {/* Child nodes container - Set pointerEvents to allow dragging of children */}
           <div
             className='h-[calc(100%-10px)] p-4'
             data-dragarea='true'
@@ -191,12 +209,12 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
               </Button>
             )}
 
-            {/* Loop Start Block */}
+            {/* Parallel Start Block */}
             <div
-              className='-translate-y-1/2 absolute top-1/2 left-8 flex h-10 w-10 transform items-center justify-center rounded-md bg-[#2FB3FF] p-2'
+              className='-translate-y-1/2 absolute top-1/2 left-8 flex h-10 w-10 transform items-center justify-center rounded-md bg-[#FEE12B] p-2'
               style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
               data-parent-id={id}
-              data-node-role='loop-start'
+              data-node-role='parallel-start'
               data-extent='parent'
             >
               <StartIcon className='h-6 w-6 text-white' />
@@ -204,7 +222,7 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
               <Handle
                 type='source'
                 position={Position.Right}
-                id='loop-start-source'
+                id='parallel-start-source'
                 className='!w-[6px] !h-4 !bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none !z-[30] hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none !cursor-crosshair transition-[colors] duration-150'
                 style={{
                   right: '-6px',
@@ -241,15 +259,15 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
               transform: 'translateY(-50%)',
               pointerEvents: 'auto',
             }}
-            id='loop-end-source'
+            id='parallel-end-source'
           />
 
-          {/* Loop Configuration Badges */}
-          <LoopBadges nodeId={id} data={data} />
+          {/* Parallel Configuration Badges */}
+          <IterationBadges nodeId={id} data={data} iterationType='parallel' />
         </Card>
       </div>
     </>
   )
 })
 
-LoopNodeComponent.displayName = 'LoopNodeComponent'
+ParallelNodeComponent.displayName = 'ParallelNodeComponent'

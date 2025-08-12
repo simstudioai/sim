@@ -47,14 +47,6 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     },
   },
 
-  outputs: {
-    searchResults: {
-      type: 'array',
-      description:
-        'Search results with titles, links, snippets, and type-specific metadata (date for news, rating for places, imageUrl for images)',
-    },
-  },
-
   request: {
     url: (params) => `https://google.serper.dev/${params.type || 'search'}`,
     method: 'POST',
@@ -78,10 +70,6 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to perform search')
-    }
 
     const searchType = response.url.split('/').pop() || 'search'
     let searchResults: SearchResult[] = []
@@ -134,7 +122,11 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while performing the search'
+  outputs: {
+    searchResults: {
+      type: 'array',
+      description:
+        'Search results with titles, links, snippets, and type-specific metadata (date for news, rating for places, imageUrl for images)',
+    },
   },
 }

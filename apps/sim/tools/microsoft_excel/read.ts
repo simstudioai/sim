@@ -9,11 +9,13 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
   name: 'Read from Microsoft Excel',
   description: 'Read data from a Microsoft Excel spreadsheet',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'microsoft-excel',
     additionalScopes: [],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -34,31 +36,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       description: 'The range of cells to read from',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Excel spreadsheet data and metadata',
-      properties: {
-        data: {
-          type: 'object',
-          description: 'Range data from the spreadsheet',
-          properties: {
-            range: { type: 'string', description: 'The range that was read' },
-            values: { type: 'array', description: 'Array of rows containing cell values' },
-          },
-        },
-        metadata: {
-          type: 'object',
-          description: 'Spreadsheet metadata',
-          properties: {
-            spreadsheetId: { type: 'string', description: 'The ID of the spreadsheet' },
-            spreadsheetUrl: { type: 'string', description: 'URL to access the spreadsheet' },
-          },
-        },
-      },
-    },
-  },
+
   request: {
     url: (params) => {
       const spreadsheetId = params.spreadsheetId?.trim()
@@ -93,16 +71,8 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       }
     },
   },
-  transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorJson = await response.json().catch(() => ({ error: response.statusText }))
-      const errorText =
-        errorJson.error && typeof errorJson.error === 'object'
-          ? errorJson.error.message || JSON.stringify(errorJson.error)
-          : errorJson.error || response.statusText
-      throw new Error(`Failed to read Microsoft Excel data: ${errorText}`)
-    }
 
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     const urlParts = response.url.split('/drive/items/')
@@ -130,33 +100,30 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
 
     return result
   },
-  transformError: (error) => {
-    if (error instanceof Error) {
-      return error.message
-    }
 
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        if (typeof error.error === 'string') {
-          return error.error
-        }
-        if (typeof error.error === 'object' && error.error.message) {
-          return error.error.message
-        }
-        return JSON.stringify(error.error)
-      }
-
-      if (error.message) {
-        return error.message
-      }
-
-      try {
-        return `Microsoft Excel API error: ${JSON.stringify(error)}`
-      } catch (_e) {
-        return 'Microsoft Excel API error: Unable to parse error details'
-      }
-    }
-
-    return 'An error occurred while reading from Microsoft Excel'
+  outputs: {
+    success: { type: 'boolean', description: 'Operation success status' },
+    output: {
+      type: 'object',
+      description: 'Excel spreadsheet data and metadata',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Range data from the spreadsheet',
+          properties: {
+            range: { type: 'string', description: 'The range that was read' },
+            values: { type: 'array', description: 'Array of rows containing cell values' },
+          },
+        },
+        metadata: {
+          type: 'object',
+          description: 'Spreadsheet metadata',
+          properties: {
+            spreadsheetId: { type: 'string', description: 'The ID of the spreadsheet' },
+            spreadsheetUrl: { type: 'string', description: 'URL to access the spreadsheet' },
+          },
+        },
+      },
+    },
   },
 }

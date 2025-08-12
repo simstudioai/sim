@@ -1,6 +1,5 @@
 export {
   AirtableConfig,
-  DiscordConfig,
   GenericConfig,
   GithubConfig,
   GmailConfig,
