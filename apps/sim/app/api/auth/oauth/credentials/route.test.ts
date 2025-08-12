@@ -125,7 +125,7 @@ describe('OAuth Credentials API Route', () => {
     })
     expect(data.credentials[1]).toMatchObject({
       id: 'credential-2',
-      provider: 'google-email',
+      provider: 'google-default',
       isDefault: true,
     })
   })
@@ -158,7 +158,7 @@ describe('OAuth Credentials API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.error).toBe('Provider is required')
+    expect(data.error).toBe('Provider or credentialId is required')
     expect(mockLogger.warn).toHaveBeenCalled()
   })
 
