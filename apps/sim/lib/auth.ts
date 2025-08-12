@@ -25,7 +25,6 @@ import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
 import { isBillingEnabled, isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getRedisClient } from '@/lib/redis'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
@@ -73,55 +72,14 @@ export const auth = betterAuth({
     provider: 'pg',
     schema,
   }),
-  // Conditionally use Redis for session storage only if Redis is available
-  ...(env.REDIS_URL
-    ? {
-        secondaryStorage: {
-          get: async (key: string) => {
-            try {
-              const redis = getRedisClient()
-              if (!redis) return null
-              const value = await redis.get(`auth:${key}`)
-              return value || null
-            } catch (error) {
-              logger.error('Redis get error:', error)
-              return null
-            }
-          },
-          set: async (key: string, value: string, ttl?: number) => {
-            try {
-              const redis = getRedisClient()
-              if (!redis) return
-              if (ttl) {
-                await redis.setex(`auth:${key}`, ttl, value)
-              } else {
-                await redis.set(`auth:${key}`, value)
-              }
-            } catch (error) {
-              logger.error('Redis set error:', error)
-            }
-          },
-          delete: async (key: string) => {
-            try {
-              const redis = getRedisClient()
-              if (!redis) return
-              await redis.del(`auth:${key}`)
-            } catch (error) {
-              logger.error('Redis delete error:', error)
-            }
-          },
-        },
-      }
-    : {}),
   session: {
     cookieCache: {
       enabled: true,
-      // Use shorter cache with Redis (5 min), longer without (1 hour)
-      maxAge: env.REDIS_URL ? 5 * 60 : 60 * 60,
+      maxAge: 24 * 60 * 60, // 24 hours in seconds
     },
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
-    freshAge: env.REDIS_URL ? 0 : 6 * 60 * 60, // 0 with Redis, 6 hours without Redis
+    freshAge: 60 * 60, // 1 hour (or set to 0 to disable completely)
   },
   databaseHooks: {
     session: {

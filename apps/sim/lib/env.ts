@@ -29,7 +29,7 @@ export const env = createEnv({
 
     // Database & Storage
     POSTGRES_URL:                         z.string().url().optional(),            // Alternative PostgreSQL connection string
-    REDIS_URL:                            z.string().url().optional(),            // Redis connection string for caching/sessions (optional - improves performance)
+    REDIS_URL:                            z.string().url().optional(),            // Redis connection string for caching/sessions
 
     // Payment & Billing
     BILLING_ENABLED:                      z.boolean().optional(),                 // Enable billing enforcement and usage tracking
