@@ -93,7 +93,7 @@ const UPLOAD_CONFIG = {
   VERCEL_MAX_BODY_SIZE: 4.5 * 1024 * 1024, // Vercel's 4.5MB limit
   DIRECT_UPLOAD_THRESHOLD: 4 * 1024 * 1024, // Files > 4MB must use presigned URLs
   LARGE_FILE_THRESHOLD: 50 * 1024 * 1024, // Files > 50MB need multipart upload
-  UPLOAD_TIMEOUT: 30000, // 30 second timeout per upload
+  UPLOAD_TIMEOUT: 60000, // 60 second timeout per upload
 } as const
 
 export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
@@ -237,6 +237,17 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
             fileSize: file.size,
           })
         }
+        
+        // Reset progress to 0 before retry to indicate restart
+        if (fileIndex !== undefined) {
+          setUploadProgress((prev) => ({
+            ...prev,
+            fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+              idx === fileIndex ? { ...fs, progress: 0, status: 'uploading' as const } : fs
+            ),
+          }))
+        }
+        
         await new Promise((resolve) => setTimeout(resolve, delay))
         return uploadSingleFileWithRetry(file, retryCount + 1, fileIndex)
       }
@@ -256,51 +267,71 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   const uploadFileDirectly = async (file: File, presignedData: any, fileIndex?: number): Promise<UploadedFile> => {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()
+      let isCompleted = false // Track if this upload has completed to prevent duplicate state updates
+      
       const timeoutId = setTimeout(() => {
-        xhr.abort()
-        reject(new Error('Upload timeout'))
+        if (!isCompleted) {
+          isCompleted = true
+          xhr.abort()
+          reject(new Error('Upload timeout'))
+        }
       }, UPLOAD_CONFIG.UPLOAD_TIMEOUT)
 
       // Track upload progress
       xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable && fileIndex !== undefined) {
+        if (event.lengthComputable && fileIndex !== undefined && !isCompleted) {
           const percentComplete = Math.round((event.loaded / event.total) * 100)
-          setUploadProgress((prev) => ({
-            ...prev,
-            fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-              idx === fileIndex ? { ...fs, progress: percentComplete } : fs
-            ),
-          }))
+          setUploadProgress((prev) => {
+            // Only update if this file is still uploading
+            if (prev.fileStatuses?.[fileIndex]?.status === 'uploading') {
+              return {
+                ...prev,
+                fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+                  idx === fileIndex ? { ...fs, progress: percentComplete } : fs
+                ),
+              }
+            }
+            return prev
+          })
         }
       })
 
       xhr.addEventListener('load', () => {
-        clearTimeout(timeoutId)
-        if (xhr.status >= 200 && xhr.status < 300) {
-          const fullFileUrl = presignedData.fileInfo.path.startsWith('http')
-            ? presignedData.fileInfo.path
-            : `${window.location.origin}${presignedData.fileInfo.path}`
-          resolve(createUploadedFile(file.name, fullFileUrl, file.size, file.type, file))
-        } else {
-          logger.error('S3 PUT request failed', {
-            status: xhr.status,
-            fileSize: file.size,
-          })
-          reject(new DirectUploadError(
-            `Direct upload failed for ${file.name}: ${xhr.status} ${xhr.statusText}`,
-            { uploadResponse: xhr.statusText }
-          ))
+        if (!isCompleted) {
+          isCompleted = true
+          clearTimeout(timeoutId)
+          if (xhr.status >= 200 && xhr.status < 300) {
+            const fullFileUrl = presignedData.fileInfo.path.startsWith('http')
+              ? presignedData.fileInfo.path
+              : `${window.location.origin}${presignedData.fileInfo.path}`
+            resolve(createUploadedFile(file.name, fullFileUrl, file.size, file.type, file))
+          } else {
+            logger.error('S3 PUT request failed', {
+              status: xhr.status,
+              fileSize: file.size,
+            })
+            reject(new DirectUploadError(
+              `Direct upload failed for ${file.name}: ${xhr.status} ${xhr.statusText}`,
+              { uploadResponse: xhr.statusText }
+            ))
+          }
         }
       })
 
       xhr.addEventListener('error', () => {
-        clearTimeout(timeoutId)
-        reject(new DirectUploadError(`Network error uploading ${file.name}`, {}))
+        if (!isCompleted) {
+          isCompleted = true
+          clearTimeout(timeoutId)
+          reject(new DirectUploadError(`Network error uploading ${file.name}`, {}))
+        }
       })
 
       xhr.addEventListener('abort', () => {
-        clearTimeout(timeoutId)
-        reject(new DirectUploadError(`Upload aborted for ${file.name}`, {}))
+        if (!isCompleted) {
+          isCompleted = true
+          clearTimeout(timeoutId)
+          reject(new DirectUploadError(`Upload aborted for ${file.name}`, {}))
+        }
       })
 
       // Start the upload
@@ -525,37 +556,56 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       const batchPromises = batch.map(async (file, batchIdx) => {
         const fileIndex = i + batchIdx
         
-        // Mark file as uploading
-        setUploadProgress((prev) => ({
-          ...prev,
-          fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-            idx === fileIndex ? { ...fs, status: 'uploading' as const } : fs
-          ),
-        }))
+        // Mark file as uploading (only if not already processing)
+        setUploadProgress((prev) => {
+          const currentStatus = prev.fileStatuses?.[fileIndex]?.status
+          // Don't re-upload files that are already completed or currently uploading
+          if (currentStatus === 'completed' || currentStatus === 'uploading') {
+            return prev
+          }
+          return {
+            ...prev,
+            fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+              idx === fileIndex ? { ...fs, status: 'uploading' as const, progress: 0 } : fs
+            ),
+          }
+        })
 
         try {
           const result = await uploadSingleFileWithRetry(file, 0, fileIndex)
           
-          // Mark file as completed
-          setUploadProgress((prev) => ({
-            ...prev,
-            filesCompleted: prev.filesCompleted + 1,
-            fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-              idx === fileIndex ? { ...fs, status: 'completed' as const, progress: 100 } : fs
-            ),
-          }))
+          // Mark file as completed (with atomic update)
+          setUploadProgress((prev) => {
+            // Only mark as completed if still uploading (prevent race conditions)
+            if (prev.fileStatuses?.[fileIndex]?.status === 'uploading') {
+              return {
+                ...prev,
+                filesCompleted: prev.filesCompleted + 1,
+                fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+                  idx === fileIndex ? { ...fs, status: 'completed' as const, progress: 100 } : fs
+                ),
+              }
+            }
+            return prev
+          })
           
           return { success: true, file, result }
         } catch (error) {
-          // Mark file as failed
-          setUploadProgress((prev) => ({
-            ...prev,
-            fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-              idx === fileIndex 
-                ? { ...fs, status: 'failed' as const, error: error instanceof Error ? error.message : 'Upload failed' } 
-                : fs
-            ),
-          }))
+          // Mark file as failed (with atomic update)
+          setUploadProgress((prev) => {
+            // Only mark as failed if still uploading
+            if (prev.fileStatuses?.[fileIndex]?.status === 'uploading') {
+              return {
+                ...prev,
+                fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+                  idx === fileIndex 
+                    ? { ...fs, status: 'failed' as const, error: error instanceof Error ? error.message : 'Upload failed' } 
+                    : fs
+                ),
+              }
+            }
+            return prev
+          })
           
           return {
             success: false,
