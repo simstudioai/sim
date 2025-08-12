@@ -89,13 +89,12 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
         const definition = definitions.find((def) => def.tagSlot === slot)
         const currentTag = currentTags?.find((tag) => tag.slot === slot)
 
-        // Only include tag if the document actually has a value for it
-        if (value?.trim()) {
+        // Only include tag if the document has a value AND a corresponding KB tag definition exists
+        if (value?.trim() && definition) {
           tags.push({
             slot,
-            // Preserve existing displayName if definition is not found yet
-            displayName: definition?.displayName || currentTag?.displayName || '',
-            fieldType: definition?.fieldType || currentTag?.fieldType || 'text',
+            displayName: definition.displayName,
+            fieldType: definition.fieldType,
             value: value.trim(),
           })
         }
