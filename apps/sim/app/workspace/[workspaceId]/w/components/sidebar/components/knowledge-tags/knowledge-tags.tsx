@@ -471,7 +471,7 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
                   return (
                     <div key={index} className='mb-1'>
                       <div
-                        className={`cursor-pointer rounded-[10px] border bg-card transition-colors hover:bg-muted ${editingTagIndex === index ? 'space-y-2 p-2' : 'p-2'}`}
+                        className={`cursor-pointer rounded-[10px] border bg-card transition-colors ${editingTagIndex === index ? 'space-y-2 p-2' : 'p-2'}`}
                         onClick={() => userPermissions.canEdit && toggleTagEditor(index)}
                       >
                         {/* Always show the tag display */}
