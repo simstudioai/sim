@@ -15,6 +15,7 @@ import {
   CreateMenu,
   FolderTree,
   HelpModal,
+  KnowledgeBaseTags,
   KnowledgeTags,
   LogsFilters,
   SettingsModal,
@@ -251,25 +252,40 @@ export function Sidebar() {
     return logsPageRegex.test(pathname)
   }, [pathname])
 
-  // Check if we're on a knowledge base document page
-  const isOnKnowledgeDocumentPage = useMemo(() => {
-    // Pattern: /workspace/[workspaceId]/knowledge/[id]/[documentId]
-    const knowledgeDocumentPageRegex = /^\/workspace\/[^/]+\/knowledge\/[^/]+\/[^/]+$/
-    return knowledgeDocumentPageRegex.test(pathname)
+  // Check if we're on any knowledge base page (overview or document)
+  const isOnKnowledgePage = useMemo(() => {
+    // Pattern: /workspace/[workspaceId]/knowledge/[id] or /workspace/[workspaceId]/knowledge/[id]/[documentId]
+    const knowledgePageRegex = /^\/workspace\/[^/]+\/knowledge\/[^/]+/
+    return knowledgePageRegex.test(pathname)
   }, [pathname])
 
   // Extract knowledge base ID and document ID from the pathname
   const { knowledgeBaseId, documentId } = useMemo(() => {
-    if (!isOnKnowledgeDocumentPage) {
+    if (!isOnKnowledgePage) {
       return { knowledgeBaseId: null, documentId: null }
     }
 
-    const match = pathname.match(/^\/workspace\/[^/]+\/knowledge\/([^/]+)\/([^/]+)$/)
-    return {
-      knowledgeBaseId: match?.[1] || null,
-      documentId: match?.[2] || null,
+    // Handle both KB overview (/knowledge/[kbId]) and document page (/knowledge/[kbId]/[docId])
+    const kbOverviewMatch = pathname.match(/^\/workspace\/[^/]+\/knowledge\/([^/]+)$/)
+    const docPageMatch = pathname.match(/^\/workspace\/[^/]+\/knowledge\/([^/]+)\/([^/]+)$/)
+
+    if (docPageMatch) {
+      // Document page - has both kbId and docId
+      return {
+        knowledgeBaseId: docPageMatch[1],
+        documentId: docPageMatch[2],
+      }
     }
-  }, [pathname, isOnKnowledgeDocumentPage])
+    if (kbOverviewMatch) {
+      // KB overview page - has only kbId
+      return {
+        knowledgeBaseId: kbOverviewMatch[1],
+        documentId: null,
+      }
+    }
+
+    return { knowledgeBaseId: null, documentId: null }
+  }, [pathname, isOnKnowledgePage])
 
   // Use optimized auto-scroll hook
   const { handleDragOver, stopScroll } = useAutoScroll(workflowScrollAreaRef)
@@ -1064,12 +1080,10 @@ export function Sidebar() {
         <LogsFilters />
       </div>
 
-      {/* Floating Knowledge Tags - Only on knowledge document pages */}
+      {/* Floating Knowledge Tags - Only on knowledge pages */}
       <div
         className={`pointer-events-auto fixed left-4 z-50 w-56 rounded-[10px] border bg-background shadow-xs ${
-          !isOnKnowledgeDocumentPage || isSidebarCollapsed || !knowledgeBaseId || !documentId
-            ? 'hidden'
-            : ''
+          !isOnKnowledgePage || isSidebarCollapsed || !knowledgeBaseId ? 'hidden' : ''
         }`}
         style={{
           top: `${toolbarTop}px`,
@@ -1079,6 +1093,7 @@ export function Sidebar() {
         {knowledgeBaseId && documentId && (
           <KnowledgeTags knowledgeBaseId={knowledgeBaseId} documentId={documentId} />
         )}
+        {knowledgeBaseId && !documentId && <KnowledgeBaseTags knowledgeBaseId={knowledgeBaseId} />}
       </div>
 
       {/* Floating Usage Indicator - Only shown when billing enabled */}

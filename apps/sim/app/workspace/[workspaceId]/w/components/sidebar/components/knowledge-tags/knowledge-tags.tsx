@@ -618,6 +618,12 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
                 })}
               </div>
 
+              {documentTags.length === 0 && !isCreating && (
+                <div className='mb-1 rounded-[10px] border-[#E5E5E5] border-dashed bg-[#FFFFFF] p-3 text-center dark:border-[#414141] dark:bg-[#202020]'>
+                  <p className='text-muted-foreground text-xs'>No tags added yet.</p>
+                </div>
+              )}
+
               {/* Add New Tag Button or Inline Creator */}
               {!isEditing && userPermissions.canEdit && (
                 <div className='mb-1'>
@@ -775,12 +781,6 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
                       Create Tag
                     </Button>
                   </div>
-                </div>
-              )}
-
-              {documentTags.length === 0 && !isCreating && (
-                <div className='mb-1 rounded-[10px] border-[#E5E5E5] border-dashed bg-[#FFFFFF] p-3 text-center dark:border-[#414141] dark:bg-[#202020]'>
-                  <p className='text-muted-foreground text-xs'>No tags added yet.</p>
                 </div>
               )}
 
