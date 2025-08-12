@@ -18,11 +18,21 @@ export interface UploadedFile {
   tag7?: string
 }
 
+export interface FileUploadStatus {
+  fileName: string
+  fileSize: number
+  status: 'pending' | 'uploading' | 'completed' | 'failed'
+  progress?: number // 0-100 percentage
+  error?: string
+}
+
 export interface UploadProgress {
   stage: 'idle' | 'uploading' | 'processing' | 'completing'
   filesCompleted: number
   totalFiles: number
   currentFile?: string
+  currentFileProgress?: number // 0-100 percentage for current file
+  fileStatuses?: FileUploadStatus[] // Track each file's status
 }
 
 export interface UploadError {
@@ -142,7 +152,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   /**
    * Upload a single file with retry logic
    */
-  const uploadSingleFileWithRetry = async (file: File, retryCount = 0): Promise<UploadedFile> => {
+  const uploadSingleFileWithRetry = async (file: File, retryCount = 0, fileIndex?: number): Promise<UploadedFile> => {
     try {
       // Create abort controller for timeout
       const controller = new AbortController()
@@ -191,9 +201,9 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           // Use presigned URLs for all uploads when cloud storage is available
           // Check if file needs multipart upload for large files
           if (file.size > UPLOAD_CONFIG.LARGE_FILE_THRESHOLD) {
-            return await uploadFileInChunks(file, presignedData)
+            return await uploadFileInChunks(file, presignedData, fileIndex)
           }
-          return await uploadFileDirectly(file, presignedData)
+          return await uploadFileDirectly(file, presignedData, fileIndex)
         }
         // Fallback to traditional upload through API route
         // This is only used when cloud storage is not configured
@@ -228,7 +238,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           })
         }
         await new Promise((resolve) => setTimeout(resolve, delay))
-        return uploadSingleFileWithRetry(file, retryCount + 1)
+        return uploadSingleFileWithRetry(file, retryCount + 1, fileIndex)
       }
 
       logger.error('Upload failed after retries', {
@@ -241,56 +251,77 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   }
 
   /**
-   * Upload file directly with timeout
+   * Upload file directly with timeout and progress tracking
    */
-  const uploadFileDirectly = async (file: File, presignedData: any): Promise<UploadedFile> => {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), UPLOAD_CONFIG.UPLOAD_TIMEOUT)
+  const uploadFileDirectly = async (file: File, presignedData: any, fileIndex?: number): Promise<UploadedFile> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      const timeoutId = setTimeout(() => {
+        xhr.abort()
+        reject(new Error('Upload timeout'))
+      }, UPLOAD_CONFIG.UPLOAD_TIMEOUT)
 
-    try {
-      const uploadHeaders: Record<string, string> = {
-        'Content-Type': file.type,
-      }
-
-      // Add Azure-specific headers if provided
-      if (presignedData.uploadHeaders) {
-        Object.assign(uploadHeaders, presignedData.uploadHeaders)
-      }
-
-      const uploadResponse = await fetch(presignedData.presignedUrl, {
-        method: 'PUT',
-        headers: uploadHeaders,
-        body: file,
-        signal: controller.signal,
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && fileIndex !== undefined) {
+          const percentComplete = Math.round((event.loaded / event.total) * 100)
+          setUploadProgress((prev) => ({
+            ...prev,
+            fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+              idx === fileIndex ? { ...fs, progress: percentComplete } : fs
+            ),
+          }))
+        }
       })
 
-      if (!uploadResponse.ok) {
-        logger.error('S3 PUT request failed', {
-          status: uploadResponse.status,
-          fileSize: file.size,
-        })
+      xhr.addEventListener('load', () => {
+        clearTimeout(timeoutId)
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const fullFileUrl = presignedData.fileInfo.path.startsWith('http')
+            ? presignedData.fileInfo.path
+            : `${window.location.origin}${presignedData.fileInfo.path}`
+          resolve(createUploadedFile(file.name, fullFileUrl, file.size, file.type, file))
+        } else {
+          logger.error('S3 PUT request failed', {
+            status: xhr.status,
+            fileSize: file.size,
+          })
+          reject(new DirectUploadError(
+            `Direct upload failed for ${file.name}: ${xhr.status} ${xhr.statusText}`,
+            { uploadResponse: xhr.statusText }
+          ))
+        }
+      })
 
-        throw new DirectUploadError(
-          `Direct upload failed for ${file.name}: ${uploadResponse.status} ${uploadResponse.statusText}`,
-          { uploadResponse: uploadResponse.statusText }
-        )
+      xhr.addEventListener('error', () => {
+        clearTimeout(timeoutId)
+        reject(new DirectUploadError(`Network error uploading ${file.name}`, {}))
+      })
+
+      xhr.addEventListener('abort', () => {
+        clearTimeout(timeoutId)
+        reject(new DirectUploadError(`Upload aborted for ${file.name}`, {}))
+      })
+
+      // Start the upload
+      xhr.open('PUT', presignedData.presignedUrl)
+      
+      // Set headers
+      xhr.setRequestHeader('Content-Type', file.type)
+      if (presignedData.uploadHeaders) {
+        Object.entries(presignedData.uploadHeaders).forEach(([key, value]) => {
+          xhr.setRequestHeader(key, value as string)
+        })
       }
 
-      // Convert relative path to full URL for schema validation
-      const fullFileUrl = presignedData.fileInfo.path.startsWith('http')
-        ? presignedData.fileInfo.path
-        : `${window.location.origin}${presignedData.fileInfo.path}`
-
-      return createUploadedFile(file.name, fullFileUrl, file.size, file.type, file)
-    } finally {
-      clearTimeout(timeoutId)
-    }
+      xhr.send(file)
+    })
   }
 
   /**
    * Upload large file in chunks (multipart upload)
    */
-  const uploadFileInChunks = async (file: File, presignedData: any): Promise<UploadedFile> => {
+  const uploadFileInChunks = async (file: File, presignedData: any, fileIndex?: number): Promise<UploadedFile> => {
     logger.info(
       `Uploading large file ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB) using multipart upload`
     )
@@ -468,24 +499,64 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     const uploadedFiles: UploadedFile[] = []
     const failedFiles: Array<{ file: File; error: Error }> = []
 
+    // Initialize file statuses
+    const fileStatuses: FileUploadStatus[] = files.map(file => ({
+      fileName: file.name,
+      fileSize: file.size,
+      status: 'pending' as const,
+      progress: 0,
+    }))
+
+    setUploadProgress(prev => ({
+      ...prev,
+      fileStatuses,
+    }))
+
     // Process files in batches
     for (let i = 0; i < files.length; i += UPLOAD_CONFIG.BATCH_SIZE) {
       const batch = files.slice(i, i + UPLOAD_CONFIG.BATCH_SIZE)
+      const batchIndexes = batch.map((_, idx) => i + idx)
 
       logger.info(
         `Uploading batch ${Math.floor(i / UPLOAD_CONFIG.BATCH_SIZE) + 1}/${Math.ceil(files.length / UPLOAD_CONFIG.BATCH_SIZE)} (${batch.length} files)`
       )
 
       // Upload batch in parallel
-      const batchPromises = batch.map(async (file) => {
+      const batchPromises = batch.map(async (file, batchIdx) => {
+        const fileIndex = i + batchIdx
+        
+        // Mark file as uploading
+        setUploadProgress((prev) => ({
+          ...prev,
+          fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+            idx === fileIndex ? { ...fs, status: 'uploading' as const } : fs
+          ),
+        }))
+
         try {
-          const result = await uploadSingleFileWithRetry(file)
+          const result = await uploadSingleFileWithRetry(file, 0, fileIndex)
+          
+          // Mark file as completed
           setUploadProgress((prev) => ({
             ...prev,
-            filesCompleted: uploadedFiles.length + 1,
+            filesCompleted: prev.filesCompleted + 1,
+            fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+              idx === fileIndex ? { ...fs, status: 'completed' as const, progress: 100 } : fs
+            ),
           }))
+          
           return { success: true, file, result }
         } catch (error) {
+          // Mark file as failed
+          setUploadProgress((prev) => ({
+            ...prev,
+            fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+              idx === fileIndex 
+                ? { ...fs, status: 'failed' as const, error: error instanceof Error ? error.message : 'Upload failed' } 
+                : fs
+            ),
+          }))
+          
           return {
             success: false,
             file,
