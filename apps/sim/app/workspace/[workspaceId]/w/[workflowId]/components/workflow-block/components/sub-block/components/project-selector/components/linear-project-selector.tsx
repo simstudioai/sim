@@ -24,6 +24,7 @@ interface LinearProjectSelectorProps {
   teamId: string
   label?: string
   disabled?: boolean
+  workflowId?: string
 }
 
 export function LinearProjectSelector({
@@ -33,6 +34,7 @@ export function LinearProjectSelector({
   teamId,
   label = 'Select Linear project',
   disabled = false,
+  workflowId,
 }: LinearProjectSelectorProps) {
   const [projects, setProjects] = useState<LinearProjectInfo[]>([])
   const [loading, setLoading] = useState(false)
@@ -49,7 +51,7 @@ export function LinearProjectSelector({
     fetch('/api/tools/linear/projects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ credential, teamId }),
+      body: JSON.stringify({ credential, teamId, workflowId }),
       signal: controller.signal,
     })
       .then(async (res) => {
@@ -80,7 +82,7 @@ export function LinearProjectSelector({
       })
       .finally(() => setLoading(false))
     return () => controller.abort()
-  }, [credential, teamId, value])
+  }, [credential, teamId, value, workflowId])
 
   // Sync selected project with value prop
   useEffect(() => {

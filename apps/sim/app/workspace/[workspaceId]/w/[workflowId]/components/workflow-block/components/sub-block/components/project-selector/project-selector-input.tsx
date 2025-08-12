@@ -21,6 +21,7 @@ import {
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface ProjectSelectorInputProps {
   blockId: string
@@ -48,6 +49,7 @@ export function ProjectSelectorInput({
   // Reactive dependencies from store for Linear
   const [linearCredential] = useSubBlockValue(blockId, 'credential')
   const [linearTeamId] = useSubBlockValue(blockId, 'teamId')
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId) as string | null
 
   // Get provider-specific values
   const provider = subBlock.provider || 'jira'
@@ -143,6 +145,7 @@ export function ProjectSelectorInput({
                   label={subBlock.placeholder || 'Select Linear team'}
                   disabled={disabled || !(linearCredential as string)}
                   showPreview={true}
+                  workflowId={activeWorkflowId || ''}
                 />
               ) : (
                 (() => {
@@ -159,6 +162,7 @@ export function ProjectSelectorInput({
                       teamId={teamId}
                       label={subBlock.placeholder || 'Select Linear project'}
                       disabled={isDisabled}
+                      workflowId={activeWorkflowId || ''}
                     />
                   )
                 })()
