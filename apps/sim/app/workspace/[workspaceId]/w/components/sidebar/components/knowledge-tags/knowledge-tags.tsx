@@ -317,7 +317,7 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
         value: '',
       })
     } catch (error) {
-      console.error('Error saving tag:', error)
+      logger.error('Error saving tag:', error)
     } finally {
       setIsSaving(false)
     }
