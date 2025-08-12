@@ -7,10 +7,10 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
 import { S3_KB_CONFIG } from '@/lib/uploads/setup'
-import { getSession } from '@/lib/auth'
 
 const logger = createLogger('MultipartUploadAPI')
 

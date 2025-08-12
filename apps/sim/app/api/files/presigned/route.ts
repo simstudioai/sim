@@ -2,6 +2,7 @@ import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
 // Dynamic imports for storage clients to avoid client-side bundling
@@ -16,7 +17,6 @@ import {
   S3_KB_CONFIG,
 } from '@/lib/uploads/setup'
 import { createErrorResponse, createOptionsResponse } from '@/app/api/files/utils'
-import { getSession } from '@/lib/auth'
 
 const logger = createLogger('PresignedUploadAPI')
 
@@ -117,9 +117,21 @@ export async function POST(request: NextRequest) {
 
     switch (storageProvider) {
       case 's3':
-        return await handleS3PresignedUrl(fileName, contentType, fileSize, uploadType, sessionUserId)
+        return await handleS3PresignedUrl(
+          fileName,
+          contentType,
+          fileSize,
+          uploadType,
+          sessionUserId
+        )
       case 'blob':
-        return await handleBlobPresignedUrl(fileName, contentType, fileSize, uploadType, sessionUserId)
+        return await handleBlobPresignedUrl(
+          fileName,
+          contentType,
+          fileSize,
+          uploadType,
+          sessionUserId
+        )
       default:
         throw new StorageConfigError(`Unknown storage provider: ${storageProvider}`)
     }

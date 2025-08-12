@@ -2,12 +2,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getPresignedUrl, isUsingCloudStorage, uploadFile } from '@/lib/uploads'
 import '@/lib/uploads/setup.server'
+import { getSession } from '@/lib/auth'
 import {
   createErrorResponse,
   createOptionsResponse,
   InvalidRequestError,
 } from '@/app/api/files/utils'
-import { getSession } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
