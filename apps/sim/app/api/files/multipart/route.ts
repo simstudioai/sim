@@ -1,8 +1,8 @@
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
   UploadPartCommand,
-  CompleteMultipartUploadCommand,
-  AbortMultipartUploadCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -37,7 +37,7 @@ interface CompleteMultipartRequest {
 export async function POST(request: NextRequest) {
   try {
     const action = request.nextUrl.searchParams.get('action')
-    
+
     if (!isUsingCloudStorage() || getStorageProvider() !== 's3') {
       return NextResponse.json(
         { error: 'Multipart upload is only available with S3 storage' },
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
         })
 
         const response = await s3Client.send(command)
-        
+
         logger.info(`Initiated multipart upload for ${fileName}: ${response.UploadId}`)
 
         return NextResponse.json({
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
         })
 
         const response = await s3Client.send(command)
-        
+
         logger.info(`Completed multipart upload for key ${key}`)
 
         const finalPath = `/api/files/serve/s3/${encodeURIComponent(key)}`
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
         })
 
         await s3Client.send(command)
-        
+
         logger.info(`Aborted multipart upload for key ${key}`)
 
         return NextResponse.json({ success: true })
@@ -155,4 +155,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}

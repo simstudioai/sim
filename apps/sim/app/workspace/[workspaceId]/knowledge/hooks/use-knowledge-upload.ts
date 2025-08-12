@@ -142,10 +142,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   /**
    * Upload a single file with retry logic
    */
-  const uploadSingleFileWithRetry = async (
-    file: File,
-    retryCount = 0
-  ): Promise<UploadedFile> => {
+  const uploadSingleFileWithRetry = async (file: File, retryCount = 0): Promise<UploadedFile> => {
     try {
       // Create abort controller for timeout
       const controller = new AbortController()
@@ -195,36 +192,34 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           // Check if file needs multipart upload for large files
           if (file.size > UPLOAD_CONFIG.LARGE_FILE_THRESHOLD) {
             return await uploadFileInChunks(file, presignedData)
-          } else {
-            return await uploadFileDirectly(file, presignedData)
           }
-        } else {
-          // Fallback to traditional upload through API route
-          // This is only used when cloud storage is not configured
-          // Must check file size due to Vercel's 4.5MB limit
-          if (file.size > UPLOAD_CONFIG.DIRECT_UPLOAD_THRESHOLD) {
-            throw new DirectUploadError(
-              `File ${file.name} is too large (${(file.size / 1024 / 1024).toFixed(2)}MB) for upload. Cloud storage must be configured for files over 4MB.`,
-              { fileSize: file.size, limit: UPLOAD_CONFIG.DIRECT_UPLOAD_THRESHOLD }
-            )
-          }
-          logger.warn(`Using API upload fallback for ${file.name} - cloud storage not configured`)
-          return await uploadFileThroughAPI(file)
+          return await uploadFileDirectly(file, presignedData)
         }
+        // Fallback to traditional upload through API route
+        // This is only used when cloud storage is not configured
+        // Must check file size due to Vercel's 4.5MB limit
+        if (file.size > UPLOAD_CONFIG.DIRECT_UPLOAD_THRESHOLD) {
+          throw new DirectUploadError(
+            `File ${file.name} is too large (${(file.size / 1024 / 1024).toFixed(2)}MB) for upload. Cloud storage must be configured for files over 4MB.`,
+            { fileSize: file.size, limit: UPLOAD_CONFIG.DIRECT_UPLOAD_THRESHOLD }
+          )
+        }
+        logger.warn(`Using API upload fallback for ${file.name} - cloud storage not configured`)
+        return await uploadFileThroughAPI(file)
       } finally {
         clearTimeout(timeoutId)
       }
     } catch (error) {
       const isTimeout = error instanceof Error && error.name === 'AbortError'
-      const isNetwork = error instanceof Error && (
-        error.message.includes('fetch') || 
-        error.message.includes('network') ||
-        error.message.includes('Failed to fetch')
-      )
+      const isNetwork =
+        error instanceof Error &&
+        (error.message.includes('fetch') ||
+          error.message.includes('network') ||
+          error.message.includes('Failed to fetch'))
 
       // Retry logic
       if (retryCount < UPLOAD_CONFIG.MAX_RETRIES) {
-        const delay = UPLOAD_CONFIG.RETRY_DELAY * Math.pow(2, retryCount) // Exponential backoff
+        const delay = UPLOAD_CONFIG.RETRY_DELAY * 2 ** retryCount // Exponential backoff
         // Only log essential info for debugging
         if (isTimeout || isNetwork) {
           logger.warn(`Upload failed (${isTimeout ? 'timeout' : 'network'}), retrying...`, {
@@ -235,7 +230,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         await new Promise((resolve) => setTimeout(resolve, delay))
         return uploadSingleFileWithRetry(file, retryCount + 1)
       }
-      
+
       logger.error('Upload failed after retries', {
         fileSize: file.size,
         errorType: isTimeout ? 'timeout' : isNetwork ? 'network' : 'unknown',
@@ -248,10 +243,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   /**
    * Upload file directly with timeout
    */
-  const uploadFileDirectly = async (
-    file: File,
-    presignedData: any
-  ): Promise<UploadedFile> => {
+  const uploadFileDirectly = async (file: File, presignedData: any): Promise<UploadedFile> => {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), UPLOAD_CONFIG.UPLOAD_TIMEOUT)
 
@@ -298,12 +290,11 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   /**
    * Upload large file in chunks (multipart upload)
    */
-  const uploadFileInChunks = async (
-    file: File,
-    presignedData: any
-  ): Promise<UploadedFile> => {
-    logger.info(`Uploading large file ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB) using multipart upload`)
-    
+  const uploadFileInChunks = async (file: File, presignedData: any): Promise<UploadedFile> => {
+    logger.info(
+      `Uploading large file ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB) using multipart upload`
+    )
+
     try {
       // Step 1: Initiate multipart upload
       const initiateResponse = await fetch('/api/files/multipart?action=initiate', {
@@ -357,7 +348,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       for (let i = 0; i < presignedUrls.length; i += PARALLEL_UPLOADS) {
         const batch = presignedUrls.slice(i, i + PARALLEL_UPLOADS)
-        
+
         const batchPromises = batch.map(async ({ partNumber, url }: any) => {
           const start = (partNumber - 1) * chunkSize
           const end = Math.min(start + chunkSize, file.size)
@@ -378,7 +369,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           // Get ETag from response headers
           const etag = uploadResponse.headers.get('ETag') || ''
           logger.info(`Uploaded part ${partNumber}/${numParts}`)
-          
+
           return { ETag: etag.replace(/"/g, ''), PartNumber: partNumber }
         })
 
@@ -404,9 +395,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       const { path } = await completeResponse.json()
       logger.info(`Completed multipart upload for ${file.name}`)
 
-      const fullFileUrl = path.startsWith('http')
-        ? path
-        : `${window.location.origin}${path}`
+      const fullFileUrl = path.startsWith('http') ? path : `${window.location.origin}${path}`
 
       return createUploadedFile(file.name, fullFileUrl, file.size, file.type, file)
     } catch (error) {
@@ -475,20 +464,18 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   /**
    * Upload files in batches with parallel processing
    */
-  const uploadFilesInBatches = async (
-    files: File[]
-  ): Promise<UploadedFile[]> => {
+  const uploadFilesInBatches = async (files: File[]): Promise<UploadedFile[]> => {
     const uploadedFiles: UploadedFile[] = []
     const failedFiles: Array<{ file: File; error: Error }> = []
-    
+
     // Process files in batches
     for (let i = 0; i < files.length; i += UPLOAD_CONFIG.BATCH_SIZE) {
       const batch = files.slice(i, i + UPLOAD_CONFIG.BATCH_SIZE)
-      
+
       logger.info(
         `Uploading batch ${Math.floor(i / UPLOAD_CONFIG.BATCH_SIZE) + 1}/${Math.ceil(files.length / UPLOAD_CONFIG.BATCH_SIZE)} (${batch.length} files)`
       )
-      
+
       // Upload batch in parallel
       const batchPromises = batch.map(async (file) => {
         try {
@@ -499,25 +486,25 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           }))
           return { success: true, file, result }
         } catch (error) {
-          return { 
-            success: false, 
-            file, 
-            error: error instanceof Error ? error : new Error(String(error))
+          return {
+            success: false,
+            file,
+            error: error instanceof Error ? error : new Error(String(error)),
           }
         }
       })
-      
+
       const batchResults = await Promise.allSettled(batchPromises)
-      
+
       // Process batch results
       for (const result of batchResults) {
         if (result.status === 'fulfilled') {
           if (result.value.success) {
             uploadedFiles.push(result.value.result as UploadedFile)
           } else {
-            failedFiles.push({ 
-              file: result.value.file, 
-              error: result.value.error as Error 
+            failedFiles.push({
+              file: result.value.file,
+              error: result.value.error as Error,
             })
           }
         } else {
@@ -526,14 +513,17 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         }
       }
     }
-    
+
     // Report failed files
     if (failedFiles.length > 0) {
       logger.error(`Failed to upload ${failedFiles.length} files:`, failedFiles)
-      const errorMessage = `Failed to upload ${failedFiles.length} file(s): ${failedFiles.map(f => f.file.name).join(', ')}`
-      throw new KnowledgeUploadError(errorMessage, 'PARTIAL_UPLOAD_FAILURE', { failedFiles, uploadedFiles })
+      const errorMessage = `Failed to upload ${failedFiles.length} file(s): ${failedFiles.map((f) => f.file.name).join(', ')}`
+      throw new KnowledgeUploadError(errorMessage, 'PARTIAL_UPLOAD_FAILURE', {
+        failedFiles,
+        uploadedFiles,
+      })
     }
-    
+
     return uploadedFiles
   }
 
