@@ -334,7 +334,13 @@ export function JiraProjectSelector({
 
   // Fetch the selected project metadata once credentials are ready or changed
   useEffect(() => {
-    if (value && selectedCredentialId && !selectedProject && domain && domain.includes('.')) {
+    if (
+      value &&
+      selectedCredentialId &&
+      domain &&
+      domain.includes('.') &&
+      (!selectedProject || selectedProject.id !== value)
+    ) {
       fetchProjectInfo(value)
     }
   }, [value, selectedCredentialId, selectedProject, domain, fetchProjectInfo])
@@ -396,6 +402,11 @@ export function JiraProjectSelector({
                 <div className='flex items-center gap-2 overflow-hidden'>
                   <JiraIcon className='h-4 w-4' />
                   <span className='truncate font-normal'>{selectedProject.name}</span>
+                </div>
+              ) : selectedProjectId ? (
+                <div className='flex items-center gap-2 overflow-hidden'>
+                  <JiraIcon className='h-4 w-4' />
+                  <span className='truncate font-normal'>{selectedProjectId}</span>
                 </div>
               ) : (
                 <div className='flex items-center gap-2'>

@@ -117,59 +117,53 @@ export function FileSelectorInput({
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
-  // Get the current value from the store or prop value if in preview mode
+  // Keep local selection in sync with store value (and preview)
   useEffect(() => {
-    if (isPreview && previewValue !== undefined) {
-      const value = previewValue
-      if (value && typeof value === 'string') {
-        if (isJira) {
-          setSelectedIssueId(value)
-        } else if (isDiscord) {
-          setSelectedChannelId(value)
-        } else if (isMicrosoftTeams) {
-          setSelectedMessageId(value)
-        } else if (isGoogleCalendar) {
-          setSelectedCalendarId(value)
-        } else if (isWealthbox) {
-          setSelectedWealthboxItemId(value)
-        } else if (isMicrosoftSharePoint) {
-          setSelectedFileId(value)
-        } else {
-          setSelectedFileId(value)
-        }
+    const effective = isPreview && previewValue !== undefined ? previewValue : storeValue
+    if (typeof effective === 'string' && effective !== '') {
+      if (isJira) {
+        setSelectedIssueId(effective)
+      } else if (isDiscord) {
+        setSelectedChannelId(effective)
+      } else if (isMicrosoftTeams) {
+        setSelectedMessageId(effective)
+      } else if (isGoogleCalendar) {
+        setSelectedCalendarId(effective)
+      } else if (isWealthbox) {
+        setSelectedWealthboxItemId(effective)
+      } else if (isMicrosoftSharePoint) {
+        setSelectedFileId(effective)
+      } else {
+        setSelectedFileId(effective)
       }
     } else {
-      const value = getValue(blockId, subBlock.id)
-      if (value && typeof value === 'string') {
-        if (isJira) {
-          setSelectedIssueId(value)
-        } else if (isDiscord) {
-          setSelectedChannelId(value)
-        } else if (isMicrosoftTeams) {
-          setSelectedMessageId(value)
-        } else if (isGoogleCalendar) {
-          setSelectedCalendarId(value)
-        } else if (isWealthbox) {
-          setSelectedWealthboxItemId(value)
-        } else if (isMicrosoftSharePoint) {
-          setSelectedFileId(value)
-        } else {
-          setSelectedFileId(value)
-        }
+      // Clear when value becomes empty
+      if (isJira) {
+        setSelectedIssueId('')
+      } else if (isDiscord) {
+        setSelectedChannelId('')
+      } else if (isMicrosoftTeams) {
+        setSelectedMessageId('')
+      } else if (isGoogleCalendar) {
+        setSelectedCalendarId('')
+      } else if (isWealthbox) {
+        setSelectedWealthboxItemId('')
+      } else if (isMicrosoftSharePoint) {
+        setSelectedFileId('')
+      } else {
+        setSelectedFileId('')
       }
     }
   }, [
-    blockId,
-    subBlock.id,
-    getValue,
+    isPreview,
+    previewValue,
+    storeValue,
     isJira,
     isDiscord,
     isMicrosoftTeams,
     isGoogleCalendar,
     isWealthbox,
     isMicrosoftSharePoint,
-    isPreview,
-    previewValue,
   ])
 
   // Handle file selection
