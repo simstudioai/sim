@@ -102,7 +102,7 @@ export class RouterBlockHandler implements BlockHandler {
       )
 
       return {
-        content: {}, // Router blocks should not expose their internal routing logic as content
+        content: {},
         model: result.model,
         tokens: {
           prompt: tokens.prompt || 0,
