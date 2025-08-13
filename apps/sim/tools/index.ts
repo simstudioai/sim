@@ -111,19 +111,15 @@ export async function executeTool(
       try {
         const baseUrl = getBaseUrl()
 
-        const isServerSide = typeof window === 'undefined'
-
         // Prepare the token payload
         const tokenPayload: OAuthTokenPayload = {
           credentialId: contextParams.credential,
         }
 
-        // Add workflowId if it exists in params or context (only server-side)
-        if (isServerSide) {
-          const workflowId = contextParams.workflowId || contextParams._context?.workflowId
-          if (workflowId) {
-            tokenPayload.workflowId = workflowId
-          }
+        // Add workflowId if it exists in params or context
+        const workflowId = contextParams.workflowId || contextParams._context?.workflowId
+        if (workflowId) {
+          tokenPayload.workflowId = workflowId
         }
 
         logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)

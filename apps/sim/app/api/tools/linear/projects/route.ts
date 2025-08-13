@@ -1,9 +1,12 @@
 import type { Project } from '@linear/sdk'
 import { LinearClient } from '@linear/sdk'
+import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { db } from '@/db'
+import { account } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,15 +23,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Credential and teamId are required' }, { status: 400 })
     }
 
-    const userId = session?.user?.id || ''
-    if (!userId) {
+    const requesterUserId = session?.user?.id || ''
+    if (!requesterUserId) {
       logger.error('No user ID found in session')
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const accessToken = await refreshAccessTokenIfNeeded(credential, userId, workflowId)
+    // Look up credential owner
+    const creds = await db.select().from(account).where(eq(account.id, credential)).limit(1)
+    if (!creds.length) {
+      logger.error('Credential not found for Linear API', { credential })
+      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    }
+    const credentialOwnerUserId = creds[0].userId
+
+    // If requester does not own the credential, allow only if workflowId present (collab context)
+    if (credentialOwnerUserId !== requesterUserId && !workflowId) {
+      logger.warn('Unauthorized Linear credential access attempt without workflow context', {
+        credentialOwnerUserId,
+        requesterUserId,
+      })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
+    const accessToken = await refreshAccessTokenIfNeeded(
+      credential,
+      credentialOwnerUserId,
+      workflowId || 'linear'
+    )
     if (!accessToken) {
-      logger.error('Failed to get access token', { credentialId: credential, userId })
+      logger.error('Failed to get access token', {
+        credentialId: credential,
+        userId: credentialOwnerUserId,
+      })
       return NextResponse.json(
         {
           error: 'Could not retrieve access token',

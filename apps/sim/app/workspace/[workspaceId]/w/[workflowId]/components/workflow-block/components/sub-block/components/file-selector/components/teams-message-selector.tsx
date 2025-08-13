@@ -60,6 +60,7 @@ export function TeamsMessageSelector({
   serviceId,
   showPreview = true,
   onMessageInfoChange,
+  credential,
   selectionType = 'team',
   initialTeamId,
   workflowId,
@@ -69,7 +70,7 @@ export function TeamsMessageSelector({
   const [teams, setTeams] = useState<TeamsMessageInfo[]>([])
   const [channels, setChannels] = useState<TeamsMessageInfo[]>([])
   const [chats, setChats] = useState<TeamsMessageInfo[]>([])
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credential || '')
   const [selectedTeamId, setSelectedTeamId] = useState<string>('')
   const [selectedChannelId, setSelectedChannelId] = useState<string>('')
   const [selectedChatId, setSelectedChatId] = useState<string>('')
@@ -102,25 +103,6 @@ export function TeamsMessageSelector({
       if (response.ok) {
         const data = await response.json()
         setCredentials(data.credentials)
-
-        // Auto-select logic for credentials
-        if (data.credentials.length > 0) {
-          // If we already have a selected credential ID, check if it's valid
-          if (
-            selectedCredentialId &&
-            data.credentials.some((cred: Credential) => cred.id === selectedCredentialId)
-          ) {
-            // Keep the current selection
-          } else {
-            // Otherwise, select the default or first credential
-            const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-            if (defaultCred) {
-              setSelectedCredentialId(defaultCred.id)
-            } else if (data.credentials.length === 1) {
-              setSelectedCredentialId(data.credentials[0].id)
-            }
-          }
-        }
       }
     } catch (error) {
       logger.error('Error fetching credentials:', error)
@@ -144,6 +126,7 @@ export function TeamsMessageSelector({
         },
         body: JSON.stringify({
           credential: selectedCredentialId,
+          workflowId,
         }),
       })
 
@@ -205,6 +188,7 @@ export function TeamsMessageSelector({
           body: JSON.stringify({
             credential: selectedCredentialId,
             teamId,
+            workflowId,
           }),
         })
 
@@ -341,7 +325,6 @@ export function TeamsMessageSelector({
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
-
     // Only fetch data when opening the dropdown
     if (isOpen && selectedCredentialId) {
       if (selectionStage === 'team') {
@@ -671,9 +654,16 @@ export function TeamsMessageSelector({
     }
   }, [fetchCredentials])
 
-  // Restore selection based on selectionType and value
+  // Keep local credential state in sync with persisted credential
   useEffect(() => {
-    if (value && selectedCredentialId && !selectedMessage) {
+    if (credential && credential !== selectedCredentialId) {
+      setSelectedCredentialId(credential)
+    }
+  }, [credential, selectedCredentialId])
+
+  // Restore selection whenever the canonical value changes
+  useEffect(() => {
+    if (value && selectedCredentialId) {
       if (selectionType === 'team') {
         restoreTeamSelection(value)
       } else if (selectionType === 'chat') {
@@ -681,11 +671,12 @@ export function TeamsMessageSelector({
       } else if (selectionType === 'channel') {
         restoreChannelSelection(value)
       }
+    } else {
+      setSelectedMessage(null)
     }
   }, [
     value,
     selectedCredentialId,
-    selectedMessage,
     selectionType,
     restoreTeamSelection,
     restoreChatSelection,

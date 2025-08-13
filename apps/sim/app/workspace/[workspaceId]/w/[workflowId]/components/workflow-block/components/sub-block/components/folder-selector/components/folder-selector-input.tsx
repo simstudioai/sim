@@ -5,8 +5,9 @@ import {
   type FolderInfo,
   FolderSelector,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/folder-selector/folder-selector'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 
 interface FolderSelectorInputProps {
   blockId: string
@@ -23,7 +24,8 @@ export function FolderSelectorInput({
   isPreview = false,
   previewValue,
 }: FolderSelectorInputProps) {
-  const { getValue, setValue } = useSubBlockStore()
+  const [storeValue, _setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
   const [_folderInfo, setFolderInfo] = useState<FolderInfo | null>(null)
 
@@ -31,26 +33,27 @@ export function FolderSelectorInput({
   useEffect(() => {
     if (isPreview && previewValue !== undefined) {
       setSelectedFolderId(previewValue)
-    } else {
-      const value = getValue(blockId, subBlock.id)
-      if (value && typeof value === 'string') {
-        setSelectedFolderId(value)
-      } else {
-        const defaultValue = 'INBOX'
-        setSelectedFolderId(defaultValue)
-        if (!isPreview) {
-          setValue(blockId, subBlock.id, defaultValue)
-        }
-      }
+      return
     }
-  }, [blockId, subBlock.id, getValue, setValue, isPreview, previewValue])
+    const current = storeValue as string | undefined
+    if (current && typeof current === 'string') {
+      setSelectedFolderId(current)
+      return
+    }
+    // Set default INBOX if empty
+    const defaultValue = 'INBOX'
+    setSelectedFolderId(defaultValue)
+    if (!isPreview) {
+      collaborativeSetSubblockValue(blockId, subBlock.id, defaultValue)
+    }
+  }, [blockId, subBlock.id, storeValue, collaborativeSetSubblockValue, isPreview, previewValue])
 
   // Handle folder selection
   const handleFolderChange = (folderId: string, info?: FolderInfo) => {
     setSelectedFolderId(folderId)
     setFolderInfo(info || null)
     if (!isPreview) {
-      setValue(blockId, subBlock.id, folderId)
+      collaborativeSetSubblockValue(blockId, subBlock.id, folderId)
     }
   }
 

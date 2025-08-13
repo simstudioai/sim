@@ -1,7 +1,10 @@
+import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { db } from '@/db'
+import { account } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,22 +29,30 @@ export async function GET(request: Request) {
     }
 
     try {
-      // Get the userId from the session
-      const userId = session?.user?.id || ''
+      // Ensure we have a session for permission checks
+      const sessionUserId = session?.user?.id || ''
 
-      if (!userId) {
+      if (!sessionUserId) {
         logger.error('No user ID found in session')
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
+      // Resolve the credential owner to support collaborator-owned credentials
+      const creds = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+      if (!creds.length) {
+        logger.warn('Credential not found', { credentialId })
+        return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+      }
+      const credentialOwnerUserId = creds[0].userId
+
       const accessToken = await refreshAccessTokenIfNeeded(
         credentialId,
-        userId,
+        credentialOwnerUserId,
         crypto.randomUUID().slice(0, 8)
       )
 
       if (!accessToken) {
-        logger.error('Failed to get access token', { credentialId, userId })
+        logger.error('Failed to get access token', { credentialId, userId: credentialOwnerUserId })
         return NextResponse.json(
           {
             error: 'Could not retrieve access token',

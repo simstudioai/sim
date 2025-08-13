@@ -54,6 +54,8 @@ interface GoogleDrivePickerProps {
   onFileInfoChange?: (fileInfo: FileInfo | null) => void
   clientId: string
   apiKey: string
+  credentialId?: string
+  workflowId?: string
 }
 
 export function GoogleDrivePicker({
@@ -69,6 +71,8 @@ export function GoogleDrivePicker({
   onFileInfoChange,
   clientId,
   apiKey,
+  credentialId,
+  workflowId,
 }: GoogleDrivePickerProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -105,25 +109,7 @@ export function GoogleDrivePicker({
       if (response.ok) {
         const data = await response.json()
         setCredentials(data.credentials)
-
-        // Auto-select logic for credentials
-        if (data.credentials.length > 0) {
-          // If we already have a selected credential ID, check if it's valid
-          if (
-            selectedCredentialId &&
-            data.credentials.some((cred: Credential) => cred.id === selectedCredentialId)
-          ) {
-            // Keep the current selection
-          } else {
-            // Otherwise, select the default or first credential
-            const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-            if (defaultCred) {
-              setSelectedCredentialId(defaultCred.id)
-            } else if (data.credentials.length === 1) {
-              setSelectedCredentialId(data.credentials[0].id)
-            }
-          }
-        }
+        // Do not auto-select. Respect persisted credential via prop when provided.
       }
     } catch (error) {
       logger.error('Error fetching credentials:', { error })
@@ -132,6 +118,13 @@ export function GoogleDrivePicker({
       setCredentialsLoaded(true)
     }
   }, [provider, getProviderId, selectedCredentialId])
+
+  // Prefer persisted credentialId if provided
+  useEffect(() => {
+    if (credentialId && credentialId !== selectedCredentialId) {
+      setSelectedCredentialId(credentialId)
+    }
+  }, [credentialId, selectedCredentialId])
 
   // Fetch a single file by ID when we have a selectedFileId but no metadata
   const fetchFileById = useCallback(
@@ -145,6 +138,7 @@ export function GoogleDrivePicker({
           credentialId: selectedCredentialId,
           fileId: fileId,
         })
+        if (workflowId) queryParams.set('workflowId', workflowId)
 
         const response = await fetch(`/api/tools/drive/file?${queryParams.toString()}`)
 
@@ -251,7 +245,10 @@ export function GoogleDrivePicker({
 
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/auth/oauth/token?credentialId=${selectedCredentialId}`)
+      const url = new URL('/api/auth/oauth/token', window.location.origin)
+      url.searchParams.set('credentialId', selectedCredentialId)
+      // include workflowId if available via global registry (server adds session owner otherwise)
+      const response = await fetch(url.toString())
 
       if (!response.ok) {
         throw new Error(`Failed to fetch access token: ${response.status}`)
@@ -500,10 +497,7 @@ export function GoogleDrivePicker({
                     </div>
                   ) : (
                     <div className='p-4 text-center'>
-                      <p className='font-medium text-sm'>Ready to select files.</p>
-                      <p className='text-muted-foreground text-xs'>
-                        Click the button below to open the file picker.
-                      </p>
+                      <p className='font-medium text-sm'>No documents available.</p>
                     </div>
                   )}
                 </CommandEmpty>

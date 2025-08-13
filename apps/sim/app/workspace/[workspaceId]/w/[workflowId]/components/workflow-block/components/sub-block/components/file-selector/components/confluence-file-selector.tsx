@@ -45,6 +45,7 @@ interface ConfluenceFileSelectorProps {
   domain: string
   showPreview?: boolean
   onFileInfoChange?: (fileInfo: ConfluenceFileInfo | null) => void
+  credentialId?: string
 }
 
 export function ConfluenceFileSelector({
@@ -58,11 +59,12 @@ export function ConfluenceFileSelector({
   domain,
   showPreview = true,
   onFileInfoChange,
+  credentialId,
 }: ConfluenceFileSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [files, setFiles] = useState<ConfluenceFileInfo[]>([])
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedFileId, setSelectedFileId] = useState(value)
   const [selectedFile, setSelectedFile] = useState<ConfluenceFileInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -120,25 +122,6 @@ export function ConfluenceFileSelector({
       if (response.ok) {
         const data = await response.json()
         setCredentials(data.credentials)
-
-        // Auto-select logic for credentials
-        if (data.credentials.length > 0) {
-          // If we already have a selected credential ID, check if it's valid
-          if (
-            selectedCredentialId &&
-            data.credentials.some((cred: Credential) => cred.id === selectedCredentialId)
-          ) {
-            // Keep the current selection
-          } else {
-            // Otherwise, select the default or first credential
-            const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-            if (defaultCred) {
-              setSelectedCredentialId(defaultCred.id)
-            } else if (data.credentials.length === 1) {
-              setSelectedCredentialId(data.credentials[0].id)
-            }
-          }
-        }
       }
     } catch (error) {
       logger.error('Error fetching credentials:', error)

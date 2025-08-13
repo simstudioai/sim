@@ -29,29 +29,63 @@ export async function GET(request: NextRequest) {
     const workflowId = searchParams.get('workflowId')
     const blockId = searchParams.get('blockId')
 
+    if (workflowId && blockId) {
+      // Collaborative-aware path: allow collaborators with read access to view webhooks
+      // Fetch workflow to verify access
+      const wf = await db
+        .select({ id: workflow.id, userId: workflow.userId, workspaceId: workflow.workspaceId })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+
+      if (!wf.length) {
+        logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      }
+
+      const wfRecord = wf[0]
+      let canRead = wfRecord.userId === session.user.id
+      if (!canRead && wfRecord.workspaceId) {
+        const permission = await getUserEntityPermissions(
+          session.user.id,
+          'workspace',
+          wfRecord.workspaceId
+        )
+        canRead = permission === 'read' || permission === 'write' || permission === 'admin'
+      }
+
+      if (!canRead) {
+        logger.warn(
+          `[${requestId}] User ${session.user.id} denied permission to read webhooks for workflow ${workflowId}`
+        )
+        return NextResponse.json({ webhooks: [] }, { status: 200 })
+      }
+
+      const webhooks = await db
+        .select({
+          webhook: webhook,
+          workflow: {
+            id: workflow.id,
+            name: workflow.name,
+          },
+        })
+        .from(webhook)
+        .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+        .where(and(eq(webhook.workflowId, workflowId), eq(webhook.blockId, blockId)))
+
+      logger.info(
+        `[${requestId}] Retrieved ${webhooks.length} webhooks for workflow ${workflowId} block ${blockId}`
+      )
+      return NextResponse.json({ webhooks }, { status: 200 })
+    }
+
     if (workflowId && !blockId) {
       // For now, allow the call but return empty results to avoid breaking the UI
       return NextResponse.json({ webhooks: [] }, { status: 200 })
     }
 
-    logger.debug(`[${requestId}] Fetching webhooks for user ${session.user.id}`, {
-      filteredByWorkflow: !!workflowId,
-      filteredByBlock: !!blockId,
-    })
-
-    // Create where condition
-    const conditions = [eq(workflow.userId, session.user.id)]
-
-    if (workflowId) {
-      conditions.push(eq(webhook.workflowId, workflowId))
-    }
-
-    if (blockId) {
-      conditions.push(eq(webhook.blockId, blockId))
-    }
-
-    const whereCondition = conditions.length > 1 ? and(...conditions) : conditions[0]
-
+    // Default: list webhooks owned by the session user
+    logger.debug(`[${requestId}] Fetching user-owned webhooks for ${session.user.id}`)
     const webhooks = await db
       .select({
         webhook: webhook,
@@ -62,9 +96,9 @@ export async function GET(request: NextRequest) {
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(whereCondition)
+      .where(eq(workflow.userId, session.user.id))
 
-    logger.info(`[${requestId}] Retrieved ${webhooks.length} webhooks for user ${session.user.id}`)
+    logger.info(`[${requestId}] Retrieved ${webhooks.length} user-owned webhooks`)
     return NextResponse.json({ webhooks }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching webhooks`, error)
@@ -95,17 +129,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // For credential-based providers (those that use polling instead of webhooks),
-    // generate a dummy path if none provided since they don't use actual webhook URLs
-    // but still need database entries for the polling services to find them
+    // Determine final path with special handling for credential-based providers
+    // to avoid generating a new path on every save.
     let finalPath = path
-    if (!path || path.trim() === '') {
-      // List of providers that use credential-based polling instead of webhooks
-      const credentialBasedProviders = ['gmail', 'outlook']
+    const credentialBasedProviders = ['gmail', 'outlook']
+    const isCredentialBased = credentialBasedProviders.includes(provider)
 
-      if (credentialBasedProviders.includes(provider)) {
-        finalPath = `${provider}-${crypto.randomUUID()}`
-        logger.info(`[${requestId}] Generated dummy path for ${provider} trigger: ${finalPath}`)
+    // If path is missing
+    if (!finalPath || finalPath.trim() === '') {
+      if (isCredentialBased) {
+        // Try to reuse existing path for this workflow+block if one exists
+        if (blockId) {
+          const existingForBlock = await db
+            .select({ id: webhook.id, path: webhook.path })
+            .from(webhook)
+            .where(and(eq(webhook.workflowId, workflowId), eq(webhook.blockId, blockId)))
+            .limit(1)
+
+          if (existingForBlock.length > 0) {
+            finalPath = existingForBlock[0].path
+            logger.info(
+              `[${requestId}] Reusing existing dummy path for ${provider} trigger: ${finalPath}`
+            )
+          }
+        }
+
+        // If still no path, generate a new dummy path (first-time save)
+        if (!finalPath || finalPath.trim() === '') {
+          finalPath = `${provider}-${crypto.randomUUID()}`
+          logger.info(`[${requestId}] Generated dummy path for ${provider} trigger: ${finalPath}`)
+        }
       } else {
         logger.warn(`[${requestId}] Missing path for webhook creation`, {
           hasWorkflowId: !!workflowId,
@@ -160,29 +213,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Check if a webhook with the same path already exists
-    const existingWebhooks = await db
-      .select({ id: webhook.id, workflowId: webhook.workflowId })
-      .from(webhook)
-      .where(eq(webhook.path, finalPath))
-      .limit(1)
+    // Determine existing webhook to update (prefer by workflow+block for credential-based providers)
+    let targetWebhookId: string | null = null
+    if (isCredentialBased && blockId) {
+      const existingForBlock = await db
+        .select({ id: webhook.id })
+        .from(webhook)
+        .where(and(eq(webhook.workflowId, workflowId), eq(webhook.blockId, blockId)))
+        .limit(1)
+      if (existingForBlock.length > 0) {
+        targetWebhookId = existingForBlock[0].id
+      }
+    }
+    if (!targetWebhookId) {
+      const existingByPath = await db
+        .select({ id: webhook.id, workflowId: webhook.workflowId })
+        .from(webhook)
+        .where(eq(webhook.path, finalPath))
+        .limit(1)
+      if (existingByPath.length > 0) {
+        // If a webhook with the same path exists but belongs to a different workflow, return an error
+        if (existingByPath[0].workflowId !== workflowId) {
+          logger.warn(`[${requestId}] Webhook path conflict: ${finalPath}`)
+          return NextResponse.json(
+            { error: 'Webhook path already exists.', code: 'PATH_EXISTS' },
+            { status: 409 }
+          )
+        }
+        targetWebhookId = existingByPath[0].id
+      }
+    }
 
     let savedWebhook: any = null // Variable to hold the result of save/update
-
-    // If a webhook with the same path exists but belongs to a different workflow, return an error
-    if (existingWebhooks.length > 0 && existingWebhooks[0].workflowId !== workflowId) {
-      logger.warn(`[${requestId}] Webhook path conflict: ${finalPath}`)
-      return NextResponse.json(
-        { error: 'Webhook path already exists.', code: 'PATH_EXISTS' },
-        { status: 409 }
-      )
-    }
 
     // Use the original provider config - Gmail/Outlook configuration functions will inject userId automatically
     const finalProviderConfig = providerConfig
 
-    // If a webhook with the same path and workflowId exists, update it
-    if (existingWebhooks.length > 0 && existingWebhooks[0].workflowId === workflowId) {
+    if (targetWebhookId) {
       logger.info(`[${requestId}] Updating existing webhook for path: ${finalPath}`)
       const updatedResult = await db
         .update(webhook)
@@ -193,7 +260,7 @@ export async function POST(request: NextRequest) {
           isActive: true,
           updatedAt: new Date(),
         })
-        .where(eq(webhook.id, existingWebhooks[0].id))
+        .where(eq(webhook.id, targetWebhookId))
         .returning()
       savedWebhook = updatedResult[0]
     } else {
@@ -262,7 +329,8 @@ export async function POST(request: NextRequest) {
       logger.info(`[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`)
       try {
         const { configureGmailPolling } = await import('@/lib/webhooks/utils')
-        const success = await configureGmailPolling(userId, savedWebhook, requestId)
+        // Use workflow owner for OAuth lookups to support collaborator-saved credentials
+        const success = await configureGmailPolling(workflowRecord.userId, savedWebhook, requestId)
 
         if (!success) {
           logger.error(`[${requestId}] Failed to configure Gmail polling`)
@@ -296,7 +364,12 @@ export async function POST(request: NextRequest) {
       )
       try {
         const { configureOutlookPolling } = await import('@/lib/webhooks/utils')
-        const success = await configureOutlookPolling(userId, savedWebhook, requestId)
+        // Use workflow owner for OAuth lookups to support collaborator-saved credentials
+        const success = await configureOutlookPolling(
+          workflowRecord.userId,
+          savedWebhook,
+          requestId
+        )
 
         if (!success) {
           logger.error(`[${requestId}] Failed to configure Outlook polling`)
@@ -323,7 +396,7 @@ export async function POST(request: NextRequest) {
     }
     // --- End Outlook specific logic ---
 
-    const status = existingWebhooks.length > 0 ? 200 : 201
+    const status = targetWebhookId ? 200 : 201
     return NextResponse.json({ webhook: savedWebhook }, { status })
   } catch (error: any) {
     logger.error(`[${requestId}] Error creating/updating webhook`, {
