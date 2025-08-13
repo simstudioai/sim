@@ -124,9 +124,20 @@ export function TriggerConfig({
   }, [refreshWebhookState])
 
   // Re-check when collaborative store updates trigger fields (so other users' changes reflect)
+  // Avoid overriding local edits while the modal is open or when saving/deleting
   useEffect(() => {
-    refreshWebhookState()
-  }, [storeTriggerId, storeTriggerPath, storeTriggerConfig, refreshWebhookState])
+    if (!isModalOpen && !isSaving && !isDeleting) {
+      refreshWebhookState()
+    }
+  }, [
+    storeTriggerId,
+    storeTriggerPath,
+    storeTriggerConfig,
+    isModalOpen,
+    isSaving,
+    isDeleting,
+    refreshWebhookState,
+  ])
 
   const handleOpenModal = () => {
     if (isPreview || disabled) return

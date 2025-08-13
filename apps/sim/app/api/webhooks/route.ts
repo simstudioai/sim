@@ -29,29 +29,63 @@ export async function GET(request: NextRequest) {
     const workflowId = searchParams.get('workflowId')
     const blockId = searchParams.get('blockId')
 
+    if (workflowId && blockId) {
+      // Collaborative-aware path: allow collaborators with read access to view webhooks
+      // Fetch workflow to verify access
+      const wf = await db
+        .select({ id: workflow.id, userId: workflow.userId, workspaceId: workflow.workspaceId })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+
+      if (!wf.length) {
+        logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      }
+
+      const wfRecord = wf[0]
+      let canRead = wfRecord.userId === session.user.id
+      if (!canRead && wfRecord.workspaceId) {
+        const permission = await getUserEntityPermissions(
+          session.user.id,
+          'workspace',
+          wfRecord.workspaceId
+        )
+        canRead = permission === 'read' || permission === 'write' || permission === 'admin'
+      }
+
+      if (!canRead) {
+        logger.warn(
+          `[${requestId}] User ${session.user.id} denied permission to read webhooks for workflow ${workflowId}`
+        )
+        return NextResponse.json({ webhooks: [] }, { status: 200 })
+      }
+
+      const webhooks = await db
+        .select({
+          webhook: webhook,
+          workflow: {
+            id: workflow.id,
+            name: workflow.name,
+          },
+        })
+        .from(webhook)
+        .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+        .where(and(eq(webhook.workflowId, workflowId), eq(webhook.blockId, blockId)))
+
+      logger.info(
+        `[${requestId}] Retrieved ${webhooks.length} webhooks for workflow ${workflowId} block ${blockId}`
+      )
+      return NextResponse.json({ webhooks }, { status: 200 })
+    }
+
     if (workflowId && !blockId) {
       // For now, allow the call but return empty results to avoid breaking the UI
       return NextResponse.json({ webhooks: [] }, { status: 200 })
     }
 
-    logger.debug(`[${requestId}] Fetching webhooks for user ${session.user.id}`, {
-      filteredByWorkflow: !!workflowId,
-      filteredByBlock: !!blockId,
-    })
-
-    // Create where condition
-    const conditions = [eq(workflow.userId, session.user.id)]
-
-    if (workflowId) {
-      conditions.push(eq(webhook.workflowId, workflowId))
-    }
-
-    if (blockId) {
-      conditions.push(eq(webhook.blockId, blockId))
-    }
-
-    const whereCondition = conditions.length > 1 ? and(...conditions) : conditions[0]
-
+    // Default: list webhooks owned by the session user
+    logger.debug(`[${requestId}] Fetching user-owned webhooks for ${session.user.id}`)
     const webhooks = await db
       .select({
         webhook: webhook,
@@ -62,9 +96,9 @@ export async function GET(request: NextRequest) {
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(whereCondition)
+      .where(eq(workflow.userId, session.user.id))
 
-    logger.info(`[${requestId}] Retrieved ${webhooks.length} webhooks for user ${session.user.id}`)
+    logger.info(`[${requestId}] Retrieved ${webhooks.length} user-owned webhooks`)
     return NextResponse.json({ webhooks }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching webhooks`, error)
