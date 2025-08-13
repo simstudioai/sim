@@ -126,25 +126,7 @@ export function JiraProjectSelector({
       if (response.ok) {
         const data = await response.json()
         setCredentials(data.credentials)
-
-        // Auto-select logic for credentials
-        if (data.credentials.length > 0) {
-          // If we already have a selected credential ID, check if it's valid
-          if (
-            selectedCredentialId &&
-            data.credentials.some((cred: Credential) => cred.id === selectedCredentialId)
-          ) {
-            // Keep the current selection
-          } else {
-            // Otherwise, select the default or first credential
-            const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-            if (defaultCred) {
-              setSelectedCredentialId(defaultCred.id)
-            } else if (data.credentials.length === 1) {
-              setSelectedCredentialId(data.credentials[0].id)
-            }
-          }
-        }
+        // Do not auto-select credentials. Only use the credentialId provided by the parent.
       }
     } catch (error) {
       logger.error('Error fetching credentials:', error)
@@ -335,13 +317,12 @@ export function JiraProjectSelector({
     ]
   )
 
-  // Fetch credentials on initial mount
+  // Fetch credentials list when dropdown opens (for account switching UI), not on mount
   useEffect(() => {
-    if (!initialFetchRef.current) {
+    if (open) {
       fetchCredentials()
-      initialFetchRef.current = true
     }
-  }, [fetchCredentials])
+  }, [open, fetchCredentials])
 
   // Keep local credential state in sync with persisted credential
   useEffect(() => {
