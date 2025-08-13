@@ -204,8 +204,7 @@ export async function executeTool(
       }
     }
 
-    // For external APIs, always use the proxy POST, and ensure the tool request
-    // builds a direct external URL (not the querystring proxy variant)
+    // For external APIs, use the proxy
     const result = await handleProxyRequest(toolId, contextParams, executionContext)
 
     // Apply post-processing if available and not skipped
@@ -400,13 +399,10 @@ async function handleInternalRequest(
 
     const response = await fetch(fullUrl, requestOptions)
 
-    // Clone the response for error checking while preserving original for transformResponse
-    const responseForErrorCheck = response.clone()
-
-    // Parse response data for error checking
+    // Parse response data once
     let responseData
     try {
-      responseData = await responseForErrorCheck.json()
+      responseData = await response.json()
     } catch (jsonError) {
       logger.error(`[${requestId}] JSON parse error for ${toolId}:`, {
         error: jsonError instanceof Error ? jsonError.message : String(jsonError),
@@ -415,7 +411,7 @@ async function handleInternalRequest(
     }
 
     // Check for error conditions
-    const { isError, errorInfo } = isErrorResponse(responseForErrorCheck, responseData)
+    const { isError, errorInfo } = isErrorResponse(response, responseData)
 
     if (isError) {
       // Handle error case
@@ -469,7 +465,18 @@ async function handleInternalRequest(
     // Success case: use transformResponse if available
     if (tool.transformResponse) {
       try {
-        const data = await tool.transformResponse(response, params)
+        // Create a mock response object that provides the methods transformResponse needs
+        const mockResponse = {
+          ok: response.ok,
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+          json: async () => responseData,
+          text: async () =>
+            typeof responseData === 'string' ? responseData : JSON.stringify(responseData),
+        } as Response
+
+        const data = await tool.transformResponse(mockResponse, params)
         return data
       } catch (transformError) {
         logger.error(`[${requestId}] Transform response error for ${toolId}:`, {

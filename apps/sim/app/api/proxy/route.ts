@@ -167,15 +167,14 @@ export async function POST(request: Request) {
 
   try {
     // Parse request body
-    const requestText = await request.text()
     let requestBody
     try {
-      requestBody = JSON.parse(requestText)
+      requestBody = await request.json()
     } catch (parseError) {
-      logger.error(`[${requestId}] Failed to parse request body: ${requestText}`, {
+      logger.error(`[${requestId}] Failed to parse request body`, {
         error: parseError instanceof Error ? parseError.message : String(parseError),
       })
-      throw new Error(`Invalid JSON in request body: ${requestText}`)
+      throw new Error('Invalid JSON in request body')
     }
 
     const { toolId, params, executionContext } = requestBody

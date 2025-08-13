@@ -45,17 +45,18 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
   // Process URL
   const url = typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
 
-  // Process method (support function or string on tool.request.method)
-  const methodFromTool =
-    typeof tool.request.method === 'function' ? tool.request.method(params) : tool.request.method
-  const method = (params.method || methodFromTool || 'GET').toUpperCase()
+  // Process method
+  const method =
+    typeof tool.request.method === 'function'
+      ? tool.request.method(params)
+      : params.method || tool.request.method || 'GET'
 
   // Process headers
   const headers = tool.request.headers ? tool.request.headers(params) : {}
 
   // Process body
+  const hasBody = method !== 'GET' && method !== 'HEAD' && !!tool.request.body
   const bodyResult = tool.request.body ? tool.request.body(params) : undefined
-  const hasBody = method !== 'GET' && method !== 'HEAD' && bodyResult !== undefined
 
   // Special handling for NDJSON content type or 'application/x-www-form-urlencoded'
   const isPreformattedContent =
