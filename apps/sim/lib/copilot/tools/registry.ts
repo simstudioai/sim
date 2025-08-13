@@ -10,6 +10,7 @@
 
 import { GetUserWorkflowTool } from '@/lib/copilot/tools/client-tools/get-user-workflow'
 import { RunWorkflowTool } from '@/lib/copilot/tools/client-tools/run-workflow'
+import { GDriveRequestAccessTool } from '@/lib/copilot/tools/client-tools/gdrive-request-access'
 import { SERVER_TOOL_METADATA } from '@/lib/copilot/tools/server-tools/definitions'
 import type { Tool, ToolMetadata } from '@/lib/copilot/tools/types'
 
@@ -114,6 +115,7 @@ export class ToolRegistry {
     // Register actual client tool implementations
     this.register(new RunWorkflowTool())
     this.register(new GetUserWorkflowTool())
+    this.register(new GDriveRequestAccessTool())
   }
 }
 

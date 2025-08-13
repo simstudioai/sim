@@ -25,6 +25,7 @@ export const SERVER_TOOL_IDS = {
   GET_BLOCK_BEST_PRACTICES: 'get_block_best_practices',
   LIST_GDRIVE_FILES: 'list_gdrive_files',
   GET_OAUTH_CREDENTIALS: 'get_oauth_credentials',
+  READ_GDRIVE_FILE: 'read_gdrive_file',
 } as const
 
 export type ServerToolId = (typeof SERVER_TOOL_IDS)[keyof typeof SERVER_TOOL_IDS]
@@ -402,6 +403,34 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
           userId: { type: 'string', description: 'The user ID' },
         },
         required: ['userId'],
+      },
+    },
+    requiresInterrupt: false,
+  },
+
+  [SERVER_TOOL_IDS.READ_GDRIVE_FILE]: {
+    id: SERVER_TOOL_IDS.READ_GDRIVE_FILE,
+    displayConfig: {
+      states: {
+        executing: { displayName: 'Reading Google Drive file', icon: 'spinner' },
+        success: { displayName: 'Read Google Drive file', icon: 'file' },
+        rejected: { displayName: 'Skipped reading Google Drive file', icon: 'skip' },
+        errored: { displayName: 'Failed to read Google Drive file', icon: 'error' },
+        aborted: { displayName: 'Reading Google Drive file aborted', icon: 'x' },
+      },
+    },
+    schema: {
+      name: SERVER_TOOL_IDS.READ_GDRIVE_FILE,
+      description: 'Read a file from Google Drive (Docs or Sheets)',
+      parameters: {
+        type: 'object',
+        properties: {
+          userId: { type: 'string', description: 'The user ID' },
+          fileId: { type: 'string', description: 'The Google Drive file ID' },
+          type: { type: 'string', enum: ['doc', 'sheet'], description: 'The file type' },
+          range: { type: 'string', description: 'Optional range for Sheets (e.g., Sheet1!A1:B10)' },
+        },
+        required: ['userId', 'fileId', 'type'],
       },
     },
     requiresInterrupt: false,

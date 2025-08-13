@@ -13,6 +13,8 @@ import { toolRegistry } from '@/lib/copilot/tools/registry'
 import { renderToolStateIcon, toolRequiresInterrupt } from '@/lib/copilot/tools/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotToolCall } from '@/stores/copilot/types'
+import { GoogleDrivePicker } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/google-drive-picker'
+import { getEnv } from '@/lib/env'
 
 interface InlineToolCallProps {
   toolCall: CopilotToolCall
@@ -193,6 +195,41 @@ function RunSkipButtons({
   // If buttons are hidden, show nothing
   if (buttonsHidden) {
     return null
+  }
+
+  // Special inline UI for Google Drive access request
+  if (toolCall.name === 'gdrive_request_access' && toolCall.state === 'pending') {
+    const clientId = getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID') || ''
+    const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_API_KEY') || ''
+
+    return (
+      <div className='flex items-center gap-2'>
+        <GoogleDrivePicker
+          value=''
+          onChange={async (_fileId) => {
+            // User selected files; proceed to execute client tool (notify success)
+            await handleRun()
+          }}
+          provider='google-drive'
+          requiredScopes={['https://www.googleapis.com/auth/drive.file']}
+          label='Grant access to Google Drive'
+          disabled={false}
+          serviceId='google-drive'
+          mimeTypeFilter={undefined}
+          showPreview={false}
+          onFileInfoChange={undefined}
+          clientId={clientId}
+          apiKey={apiKey}
+        />
+        <Button
+          onClick={handleSkip}
+          size='sm'
+          className='h-6 bg-gray-200 px-2 font-medium text-gray-700 text-xs hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+        >
+          Skip
+        </Button>
+      </div>
+    )
   }
 
   // Default run/skip buttons
