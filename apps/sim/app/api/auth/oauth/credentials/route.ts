@@ -94,11 +94,17 @@ export async function GET(request: NextRequest) {
     let accountsData
 
     if (credentialId) {
-      // Fetch a single credential by id for the effective user
-      accountsData = await db
-        .select()
-        .from(account)
-        .where(and(eq(account.userId, effectiveUserId), eq(account.id, credentialId)))
+      // Foreign-aware lookup for a specific credential by id
+      // If workflowId is provided and requester has access (checked above), allow fetching by id only
+      if (workflowId) {
+        accountsData = await db.select().from(account).where(eq(account.id, credentialId))
+      } else {
+        // Fallback: constrain to requester's own credentials when not in a workflow context
+        accountsData = await db
+          .select()
+          .from(account)
+          .where(and(eq(account.userId, effectiveUserId), eq(account.id, credentialId)))
+      }
     } else {
       // Fetch all credentials for provider and effective user
       accountsData = await db
