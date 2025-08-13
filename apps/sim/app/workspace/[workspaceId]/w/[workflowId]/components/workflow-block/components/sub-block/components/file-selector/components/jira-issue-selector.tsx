@@ -47,6 +47,7 @@ interface JiraIssueSelectorProps {
   onIssueInfoChange?: (issueInfo: JiraIssueInfo | null) => void
   projectId?: string
   credentialId?: string
+  isForeignCredential?: boolean
 }
 
 export function JiraIssueSelector({
@@ -367,13 +368,12 @@ export function JiraIssueSelector({
     ]
   )
 
-  // Fetch credentials on initial mount
+  // Fetch credentials when the dropdown opens (avoid fetching on mount with no credential)
   useEffect(() => {
-    if (!initialFetchRef.current) {
+    if (open) {
       fetchCredentials()
-      initialFetchRef.current = true
     }
-  }, [fetchCredentials])
+  }, [open, fetchCredentials])
 
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
@@ -443,7 +443,7 @@ export function JiraIssueSelector({
               role='combobox'
               aria-expanded={open}
               className='h-10 w-full min-w-0 justify-between'
-              disabled={disabled || !domain}
+              disabled={disabled || !domain || !selectedCredentialId}
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
                 {selectedIssue ? (

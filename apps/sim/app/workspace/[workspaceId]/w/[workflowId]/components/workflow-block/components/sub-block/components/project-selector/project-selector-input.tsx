@@ -43,6 +43,7 @@ export function ProjectSelectorInput({
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const [_projectInfo, setProjectInfo] = useState<JiraProjectInfo | DiscordServerInfo | null>(null)
+  const [isForeignCredential, setIsForeignCredential] = useState<boolean>(false)
 
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
@@ -61,6 +62,34 @@ export function ProjectSelectorInput({
   const [jiraCredential] = useSubBlockValue(blockId, 'credential')
   const domain = (jiraDomain as string) || ''
   const botToken = ''
+
+  // Verify Jira credential belongs to current user; if not, treat as absent
+  useEffect(() => {
+    const cred = (jiraCredential as string) || ''
+    if (!cred) {
+      setIsForeignCredential(false)
+      return
+    }
+    let aborted = false
+    ;(async () => {
+      try {
+        const resp = await fetch(`/api/auth/oauth/credentials?credentialId=${cred}`)
+        if (aborted) return
+        if (!resp.ok) {
+          setIsForeignCredential(true)
+          return
+        }
+        const data = await resp.json()
+        setIsForeignCredential(!(data.credentials && data.credentials.length === 1))
+      } catch {
+        setIsForeignCredential(true)
+      }
+    })()
+    return () => {
+      aborted = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blockId, jiraCredential])
 
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
@@ -199,6 +228,7 @@ export function ProjectSelectorInput({
               showPreview={true}
               onProjectInfoChange={setProjectInfo}
               credentialId={(jiraCredential as string) || ''}
+              isForeignCredential={isForeignCredential}
             />
           </div>
         </TooltipTrigger>

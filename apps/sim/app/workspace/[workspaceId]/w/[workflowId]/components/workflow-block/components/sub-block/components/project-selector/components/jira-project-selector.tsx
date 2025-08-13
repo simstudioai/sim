@@ -49,6 +49,7 @@ interface JiraProjectSelectorProps {
   showPreview?: boolean
   onProjectInfoChange?: (projectInfo: JiraProjectInfo | null) => void
   credentialId?: string
+  isForeignCredential?: boolean
 }
 
 export function JiraProjectSelector({

@@ -355,6 +355,7 @@ export function FileSelectorInput({
                 onIssueInfoChange={setIssueInfo as (info: JiraIssueInfo | null) => void}
                 credentialId={credential}
                 projectId={(getValue(blockId, 'projectId') as string) || ''}
+                isForeignCredential={isForeignCredential}
               />
             </div>
           </TooltipTrigger>
