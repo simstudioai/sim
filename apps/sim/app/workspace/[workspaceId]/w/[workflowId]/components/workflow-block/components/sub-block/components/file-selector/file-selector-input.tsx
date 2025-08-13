@@ -354,6 +354,7 @@ export function FileSelectorInput({
                 showPreview={true}
                 onIssueInfoChange={setIssueInfo as (info: JiraIssueInfo | null) => void}
                 credentialId={credential}
+                projectId={(getValue(blockId, 'projectId') as string) || ''}
               />
             </div>
           </TooltipTrigger>

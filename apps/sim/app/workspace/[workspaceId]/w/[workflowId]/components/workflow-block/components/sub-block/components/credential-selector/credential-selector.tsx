@@ -84,7 +84,7 @@ export function CredentialSelector({
       const response = await fetch(`/api/auth/oauth/credentials?provider=${effectiveProviderId}`)
       if (response.ok) {
         const data = await response.json()
-        let creds = data.credentials as Credential[]
+        const creds = data.credentials as Credential[]
         let foreignMetaFound = false
 
         // If persisted selection is not among viewer's credentials, attempt to fetch its metadata
@@ -100,7 +100,7 @@ export function CredentialSelector({
             if (metaResp.ok) {
               const meta = await metaResp.json()
               if (meta.credentials?.length) {
-                creds = [meta.credentials[0], ...(creds || [])]
+                // Mark as foreign, but do NOT merge into list to avoid leaking owner email
                 foreignMetaFound = true
               }
             }

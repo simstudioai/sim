@@ -189,15 +189,12 @@ export function JiraProjectSelector({
           return
         }
 
-        // Build query parameters for the project endpoint
-        const queryParams = new URLSearchParams({
-          domain,
-          accessToken,
-          projectId,
-          ...(cloudId && { cloudId }),
+        // Use POST /api/tools/jira/projects to fetch a single project by id
+        const response = await fetch(`/api/tools/jira/projects`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain, accessToken, projectId, cloudId }),
         })
-
-        const response = await fetch(`/api/tools/jira/project?${queryParams.toString()}`)
 
         if (!response.ok) {
           const errorData = await response.json()
@@ -205,14 +202,21 @@ export function JiraProjectSelector({
           throw new Error(errorData.error || 'Failed to fetch project details')
         }
 
-        const projectInfo = await response.json()
+        const json = await response.json()
+        const projectInfo = json?.project
+        const newCloudId = json?.cloudId
 
-        if (projectInfo.cloudId) {
-          setCloudId(projectInfo.cloudId)
+        if (newCloudId) {
+          setCloudId(newCloudId)
         }
 
-        setSelectedProject(projectInfo)
-        onProjectInfoChange?.(projectInfo)
+        if (projectInfo) {
+          setSelectedProject(projectInfo)
+          onProjectInfoChange?.(projectInfo)
+        } else {
+          setSelectedProject(null)
+          onProjectInfoChange?.(null)
+        }
       } catch (error) {
         logger.error('Error fetching project details:', error)
         setError((error as Error).message)
