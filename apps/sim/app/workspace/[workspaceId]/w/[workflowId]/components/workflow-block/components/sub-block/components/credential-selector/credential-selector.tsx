@@ -128,6 +128,38 @@ export function CredentialSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // When the selectedId changes (e.g., collaborator saved a credential), determine if it's foreign
+  useEffect(() => {
+    let aborted = false
+    ;(async () => {
+      try {
+        if (!selectedId) {
+          setHasForeignMeta(false)
+          return
+        }
+        // If the selected credential exists in viewer's list, it's not foreign
+        if ((credentials || []).some((cred) => cred.id === selectedId)) {
+          setHasForeignMeta(false)
+          return
+        }
+        if (!activeWorkflowId) return
+        const metaResp = await fetch(
+          `/api/auth/oauth/credentials?credentialId=${selectedId}&workflowId=${activeWorkflowId}`
+        )
+        if (aborted) return
+        if (metaResp.ok) {
+          const meta = await metaResp.json()
+          setHasForeignMeta(!!(meta.credentials && meta.credentials.length))
+        }
+      } catch {
+        // ignore
+      }
+    })()
+    return () => {
+      aborted = true
+    }
+  }, [selectedId, credentials, activeWorkflowId])
+
   // This effect is no longer needed since we're using effectiveValue directly
 
   // Listen for visibility changes to update credentials when user returns from settings
