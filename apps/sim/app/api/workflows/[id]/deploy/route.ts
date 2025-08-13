@@ -211,16 +211,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const config = (subflow.config as any) || {}
       if (subflow.type === 'loop') {
         loops[subflow.id] = {
+          id: subflow.id,
           nodes: config.nodes || [],
-          iterationCount: config.iterationCount || 1,
-          iterationType: config.iterationType || 'fixed',
-          collection: config.collection || '',
+          iterations: config.iterations || 1,
+          loopType: config.loopType || 'for',
+          forEachItems: config.forEachItems || '',
         }
       } else if (subflow.type === 'parallel') {
         parallels[subflow.id] = {
+          id: subflow.id,
           nodes: config.nodes || [],
-          parallelCount: config.parallelCount || 2,
-          collection: config.collection || '',
+          count: config.count || 2,
+          distribution: config.distribution || '',
+          parallelType: config.parallelType || 'count',
         }
       }
     })
