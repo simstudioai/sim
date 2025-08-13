@@ -171,8 +171,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     try {
       data = await (contentType.includes('application/json') ? response.json() : response.text())
     } catch (error) {
-      // If response body reading fails, we can't retry reading - just use error message
-      data = `Failed to parse response: ${error instanceof Error ? error.message : String(error)}`
+      data = await response.text()
     }
 
     return {
