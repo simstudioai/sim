@@ -24,6 +24,7 @@ import {
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CredentialSelector')
 
@@ -47,6 +48,8 @@ export function CredentialSelector({
   const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [selectedId, setSelectedId] = useState('')
+  const [hasForeignMeta, setHasForeignMeta] = useState(false)
+  const { activeWorkflowId } = useWorkflowRegistry()
 
   // Use collaborative state management via useSubBlockValue hook
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
@@ -81,7 +84,33 @@ export function CredentialSelector({
       const response = await fetch(`/api/auth/oauth/credentials?provider=${effectiveProviderId}`)
       if (response.ok) {
         const data = await response.json()
-        setCredentials(data.credentials)
+        let creds = data.credentials as Credential[]
+        let foreignMetaFound = false
+
+        // If persisted selection is not among viewer's credentials, attempt to fetch its metadata
+        if (
+          selectedId &&
+          !(creds || []).some((cred: Credential) => cred.id === selectedId) &&
+          activeWorkflowId
+        ) {
+          try {
+            const metaResp = await fetch(
+              `/api/auth/oauth/credentials?credentialId=${selectedId}&workflowId=${activeWorkflowId}`
+            )
+            if (metaResp.ok) {
+              const meta = await metaResp.json()
+              if (meta.credentials?.length) {
+                creds = [meta.credentials[0], ...(creds || [])]
+                foreignMetaFound = true
+              }
+            }
+          } catch {
+            // ignore meta errors
+          }
+        }
+
+        setHasForeignMeta(foreignMetaFound)
+        setCredentials(creds)
 
         // Do not auto-select or reset. We only show what's persisted.
       }
@@ -90,7 +119,7 @@ export function CredentialSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [effectiveProviderId, selectedId, isPreview, setStoreValue])
+  }, [effectiveProviderId, selectedId, activeWorkflowId])
 
   // Fetch credentials on initial mount
   useEffect(() => {
@@ -127,7 +156,7 @@ export function CredentialSelector({
 
   // Get the selected credential
   const selectedCredential = credentials.find((cred) => cred.id === selectedId)
-  const isForeign = !!(selectedId && !selectedCredential)
+  const isForeign = !!(selectedId && !selectedCredential && hasForeignMeta)
 
   // Handle selection
   const handleSelect = (credentialId: string) => {
