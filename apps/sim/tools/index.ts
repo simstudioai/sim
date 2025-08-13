@@ -399,9 +399,8 @@ async function handleInternalRequest(
 
     const response = await fetch(fullUrl, requestOptions)
 
-    // Clone the response immediately before any body consumption
+    // Clone the response for error checking while preserving original for transformResponse
     const responseForErrorCheck = response.clone()
-    const responseForTransform = response.clone()
 
     // Parse response data for error checking
     let responseData
@@ -469,7 +468,7 @@ async function handleInternalRequest(
     // Success case: use transformResponse if available
     if (tool.transformResponse) {
       try {
-        const data = await tool.transformResponse(responseForTransform, params)
+        const data = await tool.transformResponse(response, params)
         return data
       } catch (transformError) {
         logger.error(`[${requestId}] Transform response error for ${toolId}:`, {
