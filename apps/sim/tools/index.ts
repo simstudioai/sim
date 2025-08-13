@@ -204,7 +204,8 @@ export async function executeTool(
       }
     }
 
-    // For external APIs, use the proxy
+    // For external APIs, always use the proxy POST, and ensure the tool request
+    // builds a direct external URL (not the querystring proxy variant)
     const result = await handleProxyRequest(toolId, contextParams, executionContext)
 
     // Apply post-processing if available and not skipped
