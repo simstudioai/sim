@@ -56,8 +56,10 @@ export function ProjectSelectorInput({
   const isDiscord = provider === 'discord'
   const isLinear = provider === 'linear'
 
-  // For Jira and Discord, we can keep existing behavior (not part of this fix)
-  const domain = ''
+  // Jira/Discord upstream fields
+  const [jiraDomain] = useSubBlockValue(blockId, 'domain')
+  const [jiraCredential] = useSubBlockValue(blockId, 'credential')
+  const domain = (jiraDomain as string) || ''
   const botToken = ''
 
   // Get the current value from the store or prop value if in preview mode
@@ -193,9 +195,10 @@ export function ProjectSelectorInput({
               requiredScopes={subBlock.requiredScopes || []}
               serviceId={subBlock.serviceId}
               label={subBlock.placeholder || 'Select Jira project'}
-              disabled={disabled}
+              disabled={disabled || !domain || !(jiraCredential as string)}
               showPreview={true}
               onProjectInfoChange={setProjectInfo}
+              credentialId={(jiraCredential as string) || ''}
             />
           </div>
         </TooltipTrigger>

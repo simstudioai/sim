@@ -48,6 +48,7 @@ interface JiraProjectSelectorProps {
   domain: string
   showPreview?: boolean
   onProjectInfoChange?: (projectInfo: JiraProjectInfo | null) => void
+  credentialId?: string
 }
 
 export function JiraProjectSelector({
@@ -61,11 +62,12 @@ export function JiraProjectSelector({
   domain,
   showPreview = true,
   onProjectInfoChange,
+  credentialId,
 }: JiraProjectSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [projects, setProjects] = useState<JiraProjectInfo[]>([])
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedProjectId, setSelectedProjectId] = useState(value)
   const [selectedProject, setSelectedProject] = useState<JiraProjectInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -337,6 +339,13 @@ export function JiraProjectSelector({
     }
   }, [fetchCredentials])
 
+  // Keep local credential state in sync with persisted credential
+  useEffect(() => {
+    if (credentialId && credentialId !== selectedCredentialId) {
+      setSelectedCredentialId(credentialId)
+    }
+  }, [credentialId, selectedCredentialId])
+
   // Fetch the selected project metadata once credentials are ready or changed
   useEffect(() => {
     if (value && selectedCredentialId && !selectedProject && domain && domain.includes('.')) {
@@ -394,7 +403,7 @@ export function JiraProjectSelector({
               role='combobox'
               aria-expanded={open}
               className='w-full justify-between'
-              disabled={disabled || !domain}
+              disabled={disabled || !domain || !selectedCredentialId}
             >
               {selectedProject ? (
                 <div className='flex items-center gap-2 overflow-hidden'>
