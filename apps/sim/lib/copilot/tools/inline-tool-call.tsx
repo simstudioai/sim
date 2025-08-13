@@ -15,6 +15,8 @@ import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotToolCall } from '@/stores/copilot/types'
 import { GoogleDrivePicker } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/google-drive-picker'
 import { getEnv } from '@/lib/env'
+import useDrivePicker from 'react-google-drive-picker'
+import { GoogleDriveIcon } from '@/components/icons'
 
 interface InlineToolCallProps {
   toolCall: CopilotToolCall
@@ -149,6 +151,7 @@ function RunSkipButtons({
   const [isProcessing, setIsProcessing] = useState(false)
   const [buttonsHidden, setButtonsHidden] = useState(false)
   const { setToolCallState } = useCopilotStore()
+  const [openPicker] = useDrivePicker()
 
   const handleRun = async () => {
     setIsProcessing(true)
@@ -176,19 +179,48 @@ function RunSkipButtons({
     }
   }
 
-  const handleSkip = async () => {
-    setIsProcessing(true)
-    setButtonsHidden(true) // Hide run/skip buttons immediately
-
+  const handleOpenDriveAccess = async () => {
     try {
-      await rejectTool(toolCall, setToolCallState)
+      const providerId = 'google-drive'
+      const credsRes = await fetch(`/api/auth/oauth/credentials?provider=${providerId}`)
+      if (!credsRes.ok) return
+      const credsData = await credsRes.json()
+      const creds = Array.isArray(credsData.credentials) ? credsData.credentials : []
+      if (creds.length === 0) return
+      const defaultCred = creds.find((c: any) => c.isDefault) || creds[0]
 
-      // Trigger re-render by calling onStateChange if provided
-      onStateChange?.(toolCall.state)
-    } catch (error) {
-      console.error('Error handling skip action:', error)
-    } finally {
-      setIsProcessing(false)
+      const tokenRes = await fetch('/api/auth/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentialId: defaultCred.id }),
+      })
+      if (!tokenRes.ok) return
+      const { accessToken } = await tokenRes.json()
+      if (!accessToken) return
+
+      const clientId = getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID') || ''
+      const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_API_KEY') || ''
+      const projectNumber = getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER') || ''
+
+      openPicker({
+        clientId,
+        developerKey: apiKey,
+        viewId: 'DOCS',
+        token: accessToken,
+        showUploadView: true,
+        showUploadFolders: true,
+        supportDrives: true,
+        multiselect: false,
+        appId: projectNumber,
+        setSelectFolderEnabled: false,
+        callbackFunction: async (data) => {
+          if (data.action === 'picked') {
+            await handleRun()
+          }
+        },
+      })
+    } catch (e) {
+      console.error('Failed to open Google Drive picker', e)
     }
   }
 
@@ -199,30 +231,23 @@ function RunSkipButtons({
 
   // Special inline UI for Google Drive access request
   if (toolCall.name === 'gdrive_request_access' && toolCall.state === 'pending') {
-    const clientId = getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID') || ''
-    const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_API_KEY') || ''
-
     return (
       <div className='flex items-center gap-2'>
-        <GoogleDrivePicker
-          value=''
-          onChange={async (_fileId) => {
-            // User selected files; proceed to execute client tool (notify success)
-            await handleRun()
-          }}
-          provider='google-drive'
-          requiredScopes={['https://www.googleapis.com/auth/drive.file']}
-          label='Grant access to Google Drive'
-          disabled={false}
-          serviceId='google-drive'
-          mimeTypeFilter={undefined}
-          showPreview={false}
-          onFileInfoChange={undefined}
-          clientId={clientId}
-          apiKey={apiKey}
-        />
         <Button
-          onClick={handleSkip}
+          onClick={handleOpenDriveAccess}
+          size='sm'
+          className='h-6 bg-gray-900 px-2 font-medium text-white text-xs hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200'
+          title='Grant Google Drive access'
+        >
+          <GoogleDriveIcon className='mr-0.5 h-4 w-4' />
+          Select
+        </Button>
+        <Button
+          onClick={async () => {
+            setButtonsHidden(true)
+            await rejectTool(toolCall, setToolCallState)
+            onStateChange?.(toolCall.state)
+          }}
           size='sm'
           className='h-6 bg-gray-200 px-2 font-medium text-gray-700 text-xs hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
         >
@@ -245,7 +270,11 @@ function RunSkipButtons({
         Run
       </Button>
       <Button
-        onClick={handleSkip}
+        onClick={async () => {
+          setButtonsHidden(true)
+          await rejectTool(toolCall, setToolCallState)
+          onStateChange?.(toolCall.state)
+        }}
         disabled={isProcessing}
         size='sm'
         className='h-6 bg-gray-200 px-2 font-medium text-gray-700 text-xs hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'

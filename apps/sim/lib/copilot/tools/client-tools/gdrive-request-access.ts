@@ -14,7 +14,7 @@ export class GDriveRequestAccessTool extends BaseTool {
     displayConfig: {
       states: {
         pending: {
-          displayName: 'Grant access to Google Drive files',
+          displayName: 'Select Google Drive files',
           icon: 'googleDrive',
         },
         executing: {
@@ -26,7 +26,7 @@ export class GDriveRequestAccessTool extends BaseTool {
           icon: 'spinner',
         },
         success: {
-          displayName: 'Access granted for Google Drive',
+          displayName: 'Selected Google Drive files',
           icon: 'googleDrive',
         },
         rejected: {
