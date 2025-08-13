@@ -26,6 +26,7 @@ export const SERVER_TOOL_IDS = {
   LIST_GDRIVE_FILES: 'list_gdrive_files',
   GET_OAUTH_CREDENTIALS: 'get_oauth_credentials',
   READ_GDRIVE_FILE: 'read_gdrive_file',
+  MAKE_API_REQUEST: 'make_api_request',
 } as const
 
 export type ServerToolId = (typeof SERVER_TOOL_IDS)[keyof typeof SERVER_TOOL_IDS]
@@ -434,5 +435,43 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       },
     },
     requiresInterrupt: false,
+  },
+
+  [SERVER_TOOL_IDS.MAKE_API_REQUEST]: {
+    id: SERVER_TOOL_IDS.MAKE_API_REQUEST,
+    displayConfig: {
+      states: {
+        pending: { displayName: 'Execute API request?', icon: 'api' },
+        executing: { displayName: 'Executing API request', icon: 'spinner' },
+        success: { displayName: 'Executed API request', icon: 'api' },
+        rejected: { displayName: 'Skipped API request', icon: 'skip' },
+        errored: { displayName: 'Failed to execute API request', icon: 'error' },
+        aborted: { displayName: 'API request aborted', icon: 'x' },
+      },
+    },
+    schema: {
+      name: SERVER_TOOL_IDS.MAKE_API_REQUEST,
+      description: 'Make an HTTP API request using provided parameters',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'Request URL' },
+          method: { type: 'string', enum: ['GET', 'POST', 'PUT'], description: 'HTTP method' },
+          queryParams: {
+            type: 'object',
+            description: 'Optional query parameters as key-value pairs',
+            additionalProperties: { type: ['string', 'number', 'boolean'] },
+          },
+          headers: {
+            type: 'object',
+            description: 'Optional headers as key-value pairs',
+            additionalProperties: { type: 'string' },
+          },
+          body: { type: ['object', 'string'], description: 'Optional JSON body (object or string)' },
+        },
+        required: ['url', 'method'],
+      },
+    },
+    requiresInterrupt: true,
   },
 }
