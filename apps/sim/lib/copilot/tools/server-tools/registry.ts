@@ -8,6 +8,7 @@ import { noOpTool } from './other/no-op'
 import { onlineSearchTool } from './other/online-search'
 import { getEnvironmentVariablesTool } from './user/get-environment-variables'
 import { setEnvironmentVariablesTool } from './user/set-environment-variables'
+import { getOAuthCredentialsTool } from './user/get-oauth-credentials'
 import { buildWorkflowTool } from './workflow/build-workflow'
 import { editWorkflowTool } from './workflow/edit-workflow'
 import { getUserWorkflowTool } from './workflow/get-user-workflow'
@@ -93,6 +94,7 @@ copilotToolRegistry.register(noOpTool)
 copilotToolRegistry.register(onlineSearchTool)
 copilotToolRegistry.register(getEnvironmentVariablesTool)
 copilotToolRegistry.register(setEnvironmentVariablesTool)
+copilotToolRegistry.register(getOAuthCredentialsTool)
 copilotToolRegistry.register(getUserWorkflowTool)
 copilotToolRegistry.register(buildWorkflowTool)
 copilotToolRegistry.register(getWorkflowConsoleTool)

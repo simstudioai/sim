@@ -24,6 +24,7 @@ export const SERVER_TOOL_IDS = {
   REASON: 'reason',
   GET_BLOCK_BEST_PRACTICES: 'get_block_best_practices',
   LIST_GDRIVE_FILES: 'list_gdrive_files',
+  GET_OAUTH_CREDENTIALS: 'get_oauth_credentials',
 } as const
 
 export type ServerToolId = (typeof SERVER_TOOL_IDS)[keyof typeof SERVER_TOOL_IDS]
@@ -374,6 +375,31 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
           userId: { type: 'string', description: 'The user ID' },
           search_query: { type: 'string', description: 'Optional search query' },
           num_results: { type: 'number', description: 'Optional number of results to return' },
+        },
+        required: ['userId'],
+      },
+    },
+    requiresInterrupt: false,
+  },
+
+  [SERVER_TOOL_IDS.GET_OAUTH_CREDENTIALS]: {
+    id: SERVER_TOOL_IDS.GET_OAUTH_CREDENTIALS,
+    displayConfig: {
+      states: {
+        executing: { displayName: 'Retrieving OAuth credentials', icon: 'spinner' },
+        success: { displayName: 'Retrieved OAuth credentials', icon: 'key' },
+        rejected: { displayName: 'Skipped retrieving OAuth credentials', icon: 'skip' },
+        errored: { displayName: 'Failed to retrieve OAuth credentials', icon: 'error' },
+        aborted: { displayName: 'Retrieving OAuth credentials aborted', icon: 'x' },
+      },
+    },
+    schema: {
+      name: SERVER_TOOL_IDS.GET_OAUTH_CREDENTIALS,
+      description: 'Get the list of OAuth credentials for a user',
+      parameters: {
+        type: 'object',
+        properties: {
+          userId: { type: 'string', description: 'The user ID' },
         },
         required: ['userId'],
       },
