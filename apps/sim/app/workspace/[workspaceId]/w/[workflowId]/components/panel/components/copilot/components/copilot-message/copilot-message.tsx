@@ -611,7 +611,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     if (isUser) {
       return (
-        <div className='w-full py-2'>
+        <div className='w-full max-w-full overflow-hidden py-2'>
           {/* File attachments displayed above the message, completely separate from message box width */}
           {message.fileAttachments && message.fileAttachments.length > 0 && (
             <div className='mb-1 flex justify-end'>
@@ -622,7 +622,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           )}
 
           <div className='flex justify-end'>
-            <div className='max-w-[80%]'>
+            <div className='max-w-[80%] min-w-0'>
               {/* Message content in purple box */}
               <div
                 className='rounded-[10px] px-3 py-2'
@@ -748,9 +748,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                       href={citation.url}
                       target='_blank'
                       rel='noopener noreferrer'
-                      className='inline-flex items-center rounded-md border bg-muted/50 px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground'
+                      className='inline-flex max-w-full items-center rounded-md border bg-muted/50 px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground'
                     >
-                      {citation.title}
+                      <span className='truncate'>{citation.title}</span>
                     </a>
                   ))}
                 </div>
