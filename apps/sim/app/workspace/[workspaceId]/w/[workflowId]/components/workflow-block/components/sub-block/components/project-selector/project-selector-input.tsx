@@ -47,6 +47,12 @@ export function ProjectSelectorInput({
 
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+  // Local setters for related Jira fields to ensure immediate UI clearing
+  const [_issueKeyValue, setIssueKeyValue] = useSubBlockValue<string>(blockId, 'issueKey')
+  const [_manualIssueKeyValue, setManualIssueKeyValue] = useSubBlockValue<string>(
+    blockId,
+    'manualIssueKey'
+  )
   // Reactive dependencies from store for Linear
   const [linearCredential] = useSubBlockValue(blockId, 'credential')
   const [linearTeamId] = useSubBlockValue(blockId, 'teamId')
@@ -118,6 +124,9 @@ export function ProjectSelectorInput({
       // Clear both the basic and advanced issue key fields to ensure UI resets
       collaborativeSetSubblockValue(blockId, 'issueKey', '')
       collaborativeSetSubblockValue(blockId, 'manualIssueKey', '')
+      // Also clear locally for immediate UI feedback on this client
+      setIssueKeyValue('')
+      setManualIssueKeyValue('')
     } else if (provider === 'discord') {
       collaborativeSetSubblockValue(blockId, 'channelId', '')
     } else if (provider === 'linear') {
