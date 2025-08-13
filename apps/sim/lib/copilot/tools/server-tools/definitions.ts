@@ -23,6 +23,7 @@ export const SERVER_TOOL_IDS = {
   PLAN: 'plan',
   REASON: 'reason',
   GET_BLOCK_BEST_PRACTICES: 'get_block_best_practices',
+  LIST_GDRIVE_FILES: 'list_gdrive_files',
 } as const
 
 export type ServerToolId = (typeof SERVER_TOOL_IDS)[keyof typeof SERVER_TOOL_IDS]
@@ -348,6 +349,33 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
           },
         },
         required: [],
+      },
+    },
+    requiresInterrupt: false,
+  },
+
+  [SERVER_TOOL_IDS.LIST_GDRIVE_FILES]: {
+    id: SERVER_TOOL_IDS.LIST_GDRIVE_FILES,
+    displayConfig: {
+      states: {
+        executing: { displayName: 'Listing Google Drive files', icon: 'spinner' },
+        success: { displayName: 'Listed Google Drive files', icon: 'file' },
+        rejected: { displayName: 'Skipped listing Google Drive files', icon: 'skip' },
+        errored: { displayName: 'Failed to list Google Drive files', icon: 'error' },
+        aborted: { displayName: 'Listing Google Drive files aborted', icon: 'x' },
+      },
+    },
+    schema: {
+      name: SERVER_TOOL_IDS.LIST_GDRIVE_FILES,
+      description: 'List files from the user\'s Google Drive',
+      parameters: {
+        type: 'object',
+        properties: {
+          userId: { type: 'string', description: 'The user ID' },
+          search_query: { type: 'string', description: 'Optional search query' },
+          num_results: { type: 'number', description: 'Optional number of results to return' },
+        },
+        required: ['userId'],
       },
     },
     requiresInterrupt: false,
