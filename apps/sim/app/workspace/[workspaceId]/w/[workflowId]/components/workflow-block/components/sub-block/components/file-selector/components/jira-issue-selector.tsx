@@ -406,6 +406,14 @@ export function JiraIssueSelector({
     if (value !== selectedIssueId) {
       setSelectedIssueId(value)
     }
+    // When the upstream value is cleared (e.g., project changed or remote user cleared),
+    // clear local selection and preview immediately
+    if (!value) {
+      setSelectedIssue(null)
+      setIssues([])
+      setError(null)
+      onIssueInfoChange?.(null)
+    }
   }, [value])
 
   // Handle issue selection

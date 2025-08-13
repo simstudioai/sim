@@ -183,6 +183,10 @@ export function FileSelectorInput({
     if (isJira) {
       collaborativeSetSubblockValue(blockId, 'summary', '')
       collaborativeSetSubblockValue(blockId, 'description', '')
+      if (!issueKey) {
+        // Also clear the manual issue key when cleared
+        collaborativeSetSubblockValue(blockId, 'manualIssueKey', '')
+      }
     }
   }
 

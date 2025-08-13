@@ -115,7 +115,9 @@ export function ProjectSelectorInput({
     if (provider === 'jira') {
       collaborativeSetSubblockValue(blockId, 'summary', '')
       collaborativeSetSubblockValue(blockId, 'description', '')
+      // Clear both the basic and advanced issue key fields to ensure UI resets
       collaborativeSetSubblockValue(blockId, 'issueKey', '')
+      collaborativeSetSubblockValue(blockId, 'manualIssueKey', '')
     } else if (provider === 'discord') {
       collaborativeSetSubblockValue(blockId, 'channelId', '')
     } else if (provider === 'linear') {
