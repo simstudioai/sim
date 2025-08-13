@@ -17,6 +17,8 @@ import { GoogleDrivePicker } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { getEnv } from '@/lib/env'
 import useDrivePicker from 'react-google-drive-picker'
 import { GoogleDriveIcon } from '@/components/icons'
+import { Card, CardContent } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 interface InlineToolCallProps {
   toolCall: CopilotToolCall
@@ -289,6 +291,12 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
   const [, forceUpdate] = useState({})
   const { setToolCallState } = useCopilotStore()
 
+  const isExpandablePending =
+    toolCall.state === 'pending' &&
+    (toolCall.name === 'make_api_request' || toolCall.name === 'set_environment_variables')
+
+  const [expanded, setExpanded] = useState(isExpandablePending)
+
   if (!toolCall) {
     return null
   }
@@ -309,50 +317,137 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
 
   const displayName = getToolDisplayNameByState(toolCall)
 
+  const params = (toolCall.parameters || toolCall.input || {}) as Record<string, any>
+
+  const Chip = ({ children, color = 'gray' }: { children: any; color?: 'gray' | 'green' | 'blue' | 'yellow' }) => (
+    <span
+      className={
+        'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ' +
+        (color === 'green'
+          ? 'bg-emerald-100 text-emerald-700'
+          : color === 'blue'
+            ? 'bg-blue-100 text-blue-700'
+            : color === 'yellow'
+              ? 'bg-amber-100 text-amber-700'
+              : 'bg-gray-100 text-gray-700')
+      }
+    >
+      {children}
+    </span>
+  )
+
+  const KeyVal = ({ k, v }: { k: string; v: any }) => (
+    <div className='flex items-start justify-between gap-2'>
+      <span className='min-w-[110px] shrink-0 truncate text-[11px] font-medium text-muted-foreground'>{k}</span>
+      <span className='w-full overflow-hidden text-[11px] font-mono text-foreground'>{String(v)}</span>
+    </div>
+  )
+
+  const Section = ({ title, children }: { title: string; children: any }) => (
+    <Card className='mt-1.5'>
+      <CardContent className='p-3'>
+        <div className='mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground'>{title}</div>
+        {children}
+      </CardContent>
+    </Card>
+  )
+
+  const renderPendingDetails = () => {
+    if (toolCall.name === 'make_api_request') {
+      const url = params.url || ''
+      const method = (params.method || '').toUpperCase()
+      const methodColor = method === 'GET' ? 'green' : method === 'POST' ? 'blue' : 'yellow'
+
+      return (
+        <div className='mt-0.5 flex items-center gap-2'>
+          <Chip color={methodColor as any}>{method || 'METHOD'}</Chip>
+          <span className='truncate text-xs text-foreground' title={url}>
+            {url || 'URL not provided'}
+          </span>
+        </div>
+      )
+    }
+
+    if (toolCall.name === 'set_environment_variables') {
+      const variables = params.variables && typeof params.variables === 'object' ? params.variables : {}
+      const entries = Object.entries(variables)
+      return (
+        <div className='mt-0.5'>
+          {entries.length === 0 ? (
+            <span className='text-xs text-muted-foreground'>No variables provided</span>
+          ) : (
+            <div className='space-y-0.5'>
+              {entries.map(([k, v]) => (
+                <div key={k} className='flex items-center gap-0.5'>
+                  <span className='text-xs font-medium text-muted-foreground'>{k}</span>
+                  <span className='mx-1 text-xs font-medium text-muted-foreground'>:</span>
+                  <span className='truncate text-xs font-medium text-foreground'>{String(v)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    return null
+  }
+
   return (
-    <div className='flex items-center justify-between gap-2 py-1'>
-      <div className='flex items-center gap-2 text-muted-foreground'>
-        <div className='flex-shrink-0'>{renderToolStateIcon(toolCall, 'h-3 w-3')}</div>
-        <span className='text-base'>{displayName}</span>
+    <div className='flex w-full flex-col gap-1 py-1'>
+      <div
+        className={`flex items-center justify-between gap-2 ${
+          isExpandablePending ? 'cursor-pointer' : ''
+        }`}
+        onClick={() => {
+          if (isExpandablePending) setExpanded((e) => !e)
+        }}
+      >
+        <div className='flex items-center gap-2 text-muted-foreground'>
+          <div className='flex-shrink-0'>{renderToolStateIcon(toolCall, 'h-3 w-3')}</div>
+          <span className='text-sm font-medium'>{displayName}</span>
+        </div>
+
+        {showButtons && (
+          <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} context={context} />)
+        }
+
+        {showBackgroundButton && (
+          <div className='flex items-center gap-1.5'>
+            <Button
+              onClick={async () => {
+                try {
+                  // Set tool state to background
+                  setToolCallState(toolCall, 'background')
+
+                  // Notify the backend about background state with execution start time if available
+                  const executionStartTime = context?.executionStartTime
+                  await notifyServerTool(toolCall.id, toolCall.name, 'background', executionStartTime)
+
+                  // Track that this tool was moved to background
+                  if (context) {
+                    if (!context.movedToBackgroundToolIds) {
+                      context.movedToBackgroundToolIds = new Set()
+                    }
+                    context.movedToBackgroundToolIds.add(toolCall.id)
+                  }
+
+                  // Trigger re-render
+                  onStateChange?.(toolCall.state)
+                } catch (error) {
+                  console.error('Error moving to background:', error)
+                }
+              }}
+              size='sm'
+              className='h-6 bg-blue-600 px-2 font-medium text-white text-xs hover:bg-blue-700'
+            >
+              Move to Background
+            </Button>
+          </div>
+        )}
       </div>
 
-      {showButtons && (
-        <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} context={context} />
-      )}
-
-      {showBackgroundButton && (
-        <div className='flex items-center gap-1.5'>
-          <Button
-            onClick={async () => {
-              try {
-                // Set tool state to background
-                setToolCallState(toolCall, 'background')
-
-                // Notify the backend about background state with execution start time if available
-                const executionStartTime = context?.executionStartTime
-                await notifyServerTool(toolCall.id, toolCall.name, 'background', executionStartTime)
-
-                // Track that this tool was moved to background
-                if (context) {
-                  if (!context.movedToBackgroundToolIds) {
-                    context.movedToBackgroundToolIds = new Set()
-                  }
-                  context.movedToBackgroundToolIds.add(toolCall.id)
-                }
-
-                // Trigger re-render
-                onStateChange?.(toolCall.state)
-              } catch (error) {
-                console.error('Error moving to background:', error)
-              }
-            }}
-            size='sm'
-            className='h-6 bg-blue-600 px-2 font-medium text-white text-xs hover:bg-blue-700'
-          >
-            Move to Background
-          </Button>
-        </div>
-      )}
+      {isExpandablePending && expanded && <div className='pl-5 pr-1'>{renderPendingDetails()}</div>}
     </div>
   )
 }

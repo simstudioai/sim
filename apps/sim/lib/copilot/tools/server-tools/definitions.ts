@@ -231,6 +231,18 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         errored: { displayName: 'Failed to set environment variables', icon: 'error' },
         aborted: { displayName: 'Environment variables setting aborted', icon: 'x' },
       },
+      getDynamicDisplayName: (state, params) => {
+        try {
+          const vars = params?.variables && typeof params.variables === 'object' ? params.variables : null
+          if (!vars) return null
+          const count = Object.keys(vars).length
+          if (count === 0) return null
+          const base = state === 'executing' ? 'Setting' : state === 'success' ? 'Set' : 'Set'
+          return `${base} ${count} environment ${count === 1 ? 'variable' : 'variables'}`
+        } catch {
+          return null
+        }
+      },
     },
     schema: {
       name: SERVER_TOOL_IDS.SET_ENVIRONMENT_VARIABLES,
