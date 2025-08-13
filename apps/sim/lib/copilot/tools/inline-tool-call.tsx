@@ -296,6 +296,7 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
     (toolCall.name === 'make_api_request' || toolCall.name === 'set_environment_variables')
 
   const [expanded, setExpanded] = useState(isExpandablePending)
+  const isExpandableTool = toolCall.name === 'make_api_request' || toolCall.name === 'set_environment_variables'
 
   if (!toolCall) {
     return null
@@ -397,15 +398,15 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
     <div className='flex w-full flex-col gap-1 py-1'>
       <div
         className={`flex items-center justify-between gap-2 ${
-          isExpandablePending ? 'cursor-pointer' : ''
+          isExpandableTool ? 'cursor-pointer' : ''
         }`}
         onClick={() => {
-          if (isExpandablePending) setExpanded((e) => !e)
+          if (isExpandableTool) setExpanded((e) => !e)
         }}
       >
         <div className='flex items-center gap-2 text-muted-foreground'>
           <div className='flex-shrink-0'>{renderToolStateIcon(toolCall, 'h-3 w-3')}</div>
-          <span className='text-sm font-medium'>{displayName}</span>
+          <span className='text-base'>{displayName}</span>
         </div>
 
         {showButtons && (
@@ -447,7 +448,7 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
         )}
       </div>
 
-      {isExpandablePending && expanded && <div className='pl-5 pr-1'>{renderPendingDetails()}</div>}
+      {isExpandableTool && expanded && <div className='pl-5 pr-1'>{renderPendingDetails()}</div>}
     </div>
   )
 }
