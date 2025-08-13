@@ -149,7 +149,7 @@ export function CredentialSelector({
         if (aborted) return
         if (metaResp.ok) {
           const meta = await metaResp.json()
-          setHasForeignMeta(!!(meta.credentials && meta.credentials.length))
+          setHasForeignMeta(!!meta.credentials?.length)
         }
       } catch {
         // ignore
