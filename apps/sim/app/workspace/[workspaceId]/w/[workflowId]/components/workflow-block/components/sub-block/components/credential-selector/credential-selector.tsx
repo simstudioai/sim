@@ -24,7 +24,9 @@ import {
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('CredentialSelector')
 
@@ -50,6 +52,7 @@ export function CredentialSelector({
   const [selectedId, setSelectedId] = useState('')
   const [hasForeignMeta, setHasForeignMeta] = useState(false)
   const { activeWorkflowId } = useWorkflowRegistry()
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
   // Use collaborative state management via useSubBlockValue hook
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
@@ -192,9 +195,21 @@ export function CredentialSelector({
 
   // Handle selection
   const handleSelect = (credentialId: string) => {
+    const previousId = selectedId || (effectiveValue as string) || ''
     setSelectedId(credentialId)
     if (!isPreview) {
       setStoreValue(credentialId)
+      // If credential changed, clear other sub-block fields for a clean state
+      if (previousId && previousId !== credentialId) {
+        const wfId = (activeWorkflowId as string) || ''
+        const workflowValues = useSubBlockStore.getState().workflowValues[wfId] || {}
+        const blockValues = workflowValues[blockId] || {}
+        Object.keys(blockValues).forEach((key) => {
+          if (key !== subBlock.id) {
+            collaborativeSetSubblockValue(blockId, key, '')
+          }
+        })
+      }
     }
     setOpen(false)
   }
