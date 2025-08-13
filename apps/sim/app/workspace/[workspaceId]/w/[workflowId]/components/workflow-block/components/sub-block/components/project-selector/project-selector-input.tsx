@@ -202,11 +202,15 @@ export function ProjectSelectorInput({
             />
           </div>
         </TooltipTrigger>
-        {!domain && (
+        {!domain ? (
           <TooltipContent side='top'>
             <p>Please enter a Jira domain first</p>
           </TooltipContent>
-        )}
+        ) : !(jiraCredential as string) ? (
+          <TooltipContent side='top'>
+            <p>Please select a Jira account first</p>
+          </TooltipContent>
+        ) : null}
       </Tooltip>
     </TooltipProvider>
   )
