@@ -348,8 +348,9 @@ export function JiraProjectSelector({
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
+    // Only fetch projects when a credential is present; otherwise, do nothing
     if (isOpen && selectedCredentialId && domain && domain.includes('.')) {
-      fetchProjects('') // Pass empty string to get all projects
+      fetchProjects('')
     }
   }
 

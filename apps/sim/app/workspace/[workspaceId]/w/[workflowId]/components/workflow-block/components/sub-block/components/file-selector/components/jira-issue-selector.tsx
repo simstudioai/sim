@@ -234,6 +234,11 @@ export function JiraIssueSelector({
   const fetchIssues = useCallback(
     async (searchQuery?: string) => {
       if (!selectedCredentialId || !domain) return
+      // If no search query is provided, require a projectId before fetching
+      if (!searchQuery && !projectId) {
+        setIssues([])
+        return
+      }
 
       // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
@@ -376,7 +381,10 @@ export function JiraIssueSelector({
 
     // Only fetch recent/default issues when opening the dropdown
     if (isOpen && selectedCredentialId && domain && domain.includes('.')) {
-      fetchIssues('') // Pass empty string to get recent or default issues
+      // Only fetch on open when a project is selected; otherwise wait for user search
+      if (projectId) {
+        fetchIssues('')
+      }
     }
   }
 
