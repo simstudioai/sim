@@ -682,8 +682,19 @@ export async function executeWorkflowForChat(
         }
 
         // Filter outputs that have matching logs (exactly like chat panel)
+        // Exclude router blocks from chat outputs to prevent routing logic leakage
         const outputsToRender = selectedOutputIds.filter((outputId) => {
           const blockIdForOutput = extractBlockIdFromOutputId(outputId)
+          const log = nonStreamingLogs.find((log) => log.blockId === blockIdForOutput)
+
+          // Exclude router blocks from chat outputs
+          if (log?.blockType === 'router') {
+            logger.debug(
+              `[${requestId}] Excluding router block ${blockIdForOutput} from chat output`
+            )
+            return false
+          }
+
           return nonStreamingLogs.some((log) => log.blockId === blockIdForOutput)
         })
 
