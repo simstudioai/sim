@@ -56,29 +56,12 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       // Process the URL first to handle path/query params
       const processedUrl = processUrl(params.url, params.pathParams, params.params)
 
-      // For external URLs that need proxying
+      // For external URLs that need proxying in the browser, we still return the
+      // external URL here and let executeTool route through the POST /api/proxy
+      // endpoint uniformly. This avoids querystring body encoding and prevents
+      // the proxy GET route from being hit from the client.
       if (shouldUseProxy(processedUrl)) {
-        let proxyUrl = `/api/proxy?url=${encodeURIComponent(processedUrl)}`
-
-        if (params.method) {
-          proxyUrl += `&method=${encodeURIComponent(params.method)}`
-        }
-
-        if (params.body && ['POST', 'PUT', 'PATCH'].includes(params.method?.toUpperCase() || '')) {
-          const bodyStr =
-            typeof params.body === 'string' ? params.body : JSON.stringify(params.body)
-          proxyUrl += `&body=${encodeURIComponent(bodyStr)}`
-        }
-
-        // Forward all headers as URL parameters
-        const userHeaders = transformTable(params.headers || null)
-        for (const [key, value] of Object.entries(userHeaders)) {
-          if (value !== undefined && value !== null) {
-            proxyUrl += `&header.${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`
-          }
-        }
-
-        return proxyUrl
+        return processedUrl
       }
 
       return processedUrl
