@@ -56,29 +56,12 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       // Process the URL first to handle path/query params
       const processedUrl = processUrl(params.url, params.pathParams, params.params)
 
-      // For external URLs that need proxying
+      // For external URLs that need proxying in the browser, we still return the
+      // external URL here and let executeTool route through the POST /api/proxy
+      // endpoint uniformly. This avoids querystring body encoding and prevents
+      // the proxy GET route from being hit from the client.
       if (shouldUseProxy(processedUrl)) {
-        let proxyUrl = `/api/proxy?url=${encodeURIComponent(processedUrl)}`
-
-        if (params.method) {
-          proxyUrl += `&method=${encodeURIComponent(params.method)}`
-        }
-
-        if (params.body && ['POST', 'PUT', 'PATCH'].includes(params.method?.toUpperCase() || '')) {
-          const bodyStr =
-            typeof params.body === 'string' ? params.body : JSON.stringify(params.body)
-          proxyUrl += `&body=${encodeURIComponent(bodyStr)}`
-        }
-
-        // Forward all headers as URL parameters
-        const userHeaders = transformTable(params.headers || null)
-        for (const [key, value] of Object.entries(userHeaders)) {
-          if (value !== undefined && value !== null) {
-            proxyUrl += `&header.${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`
-          }
-        }
-
-        return proxyUrl
+        return processedUrl
       }
 
       return processedUrl
@@ -137,13 +120,26 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
   },
 
   transformResponse: async (response: Response) => {
-    // For proxy responses, we need to parse the JSON and extract the data
-    const contentType = response.headers.get('content-type') || ''
-    if (contentType.includes('application/json')) {
-      const jsonResponse = await response.json()
+    // Build headers once for consistent return structures
+    const headers: Record<string, string> = {}
+    response.headers.forEach((value, key) => {
+      headers[key] = value
+    })
 
-      // Check if this is a proxy response
-      if (jsonResponse.data !== undefined && jsonResponse.status !== undefined) {
+    const contentType = response.headers.get('content-type') || ''
+    const isJson = contentType.includes('application/json')
+
+    if (isJson) {
+      // Use a clone to safely inspect JSON without consuming the original body
+      let jsonResponse: any
+      try {
+        jsonResponse = await response.clone().json()
+      } catch (_e) {
+        jsonResponse = undefined
+      }
+
+      // Proxy responses wrap the real payload
+      if (jsonResponse && jsonResponse.data !== undefined && jsonResponse.status !== undefined) {
         return {
           success: jsonResponse.success,
           output: {
@@ -153,32 +149,30 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
           },
           error: jsonResponse.success
             ? undefined
-            : // Extract and display the actual API error message from the response if available
-              jsonResponse.data && typeof jsonResponse.data === 'object' && jsonResponse.data.error
+            : jsonResponse.data && typeof jsonResponse.data === 'object' && jsonResponse.data.error
               ? `HTTP error ${jsonResponse.status}: ${jsonResponse.data.error.message || JSON.stringify(jsonResponse.data.error)}`
               : jsonResponse.error || `HTTP error ${jsonResponse.status}`,
         }
       }
+
+      // Non-proxy JSON response: return parsed JSON directly
+      return {
+        success: response.ok,
+        output: {
+          data: jsonResponse ?? (await response.text()),
+          status: response.status,
+          headers,
+        },
+        error: response.ok ? undefined : `HTTP error ${response.status}: ${response.statusText}`,
+      }
     }
 
-    // Standard response handling
-    const headers: Record<string, string> = {}
-    response.headers.forEach((value, key) => {
-      headers[key] = value
-    })
-
-    let data
-    try {
-      data = await (contentType.includes('application/json') ? response.json() : response.text())
-    } catch (error) {
-      // If response body reading fails, we can't retry reading - just use error message
-      data = `Failed to parse response: ${error instanceof Error ? error.message : String(error)}`
-    }
-
+    // Non-JSON response: return text
+    const textData = await response.text()
     return {
       success: response.ok,
       output: {
-        data,
+        data: textData,
         status: response.status,
         headers,
       },

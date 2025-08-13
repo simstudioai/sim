@@ -40,22 +40,37 @@ export function createMockFetch(
 ) {
   const { ok = true, status = 200, headers = { 'Content-Type': 'application/json' } } = options
 
-  const mockFn = vi.fn().mockResolvedValue({
-    ok,
-    status,
-    headers: {
-      get: (key: string) => headers[key.toLowerCase()],
-      forEach: (callback: (value: string, key: string) => void) => {
-        Object.entries(headers).forEach(([key, value]) => callback(value, key))
-      },
-    },
-    json: vi.fn().mockResolvedValue(responseData),
-    text: vi
+  // Normalize header keys to lowercase for case-insensitive access
+  const normalizedHeaders: Record<string, string> = {}
+  Object.entries(headers).forEach(([key, value]) => (normalizedHeaders[key.toLowerCase()] = value))
+
+  const makeResponse = () => {
+    const jsonMock = vi.fn().mockResolvedValue(responseData)
+    const textMock = vi
       .fn()
       .mockResolvedValue(
         typeof responseData === 'string' ? responseData : JSON.stringify(responseData)
-      ),
-  })
+      )
+
+    const res: any = {
+      ok,
+      status,
+      headers: {
+        get: (key: string) => normalizedHeaders[key.toLowerCase()],
+        forEach: (callback: (value: string, key: string) => void) => {
+          Object.entries(normalizedHeaders).forEach(([key, value]) => callback(value, key))
+        },
+      },
+      json: jsonMock,
+      text: textMock,
+    }
+
+    // Implement clone() so production code that clones responses keeps working in tests
+    res.clone = vi.fn().mockImplementation(() => makeResponse())
+    return res
+  }
+
+  const mockFn = vi.fn().mockResolvedValue(makeResponse())
 
   // Add preconnect property to satisfy TypeScript
 
