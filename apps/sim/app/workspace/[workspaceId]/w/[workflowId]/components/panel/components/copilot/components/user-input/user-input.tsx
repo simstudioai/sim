@@ -52,8 +52,8 @@ interface UserInputProps {
   isAborting?: boolean
   placeholder?: string
   className?: string
-  mode?: 'ask' | 'agent' | 'agent-max'
-  onModeChange?: (mode: 'ask' | 'agent' | 'agent-max') => void
+  mode?: 'ask' | 'agent'
+  onModeChange?: (mode: 'ask' | 'agent') => void
   value?: string // Controlled value from outside
   onChange?: (value: string) => void // Callback when value changes
 }
@@ -395,7 +395,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const handleModeToggle = () => {
       if (onModeChange) {
-        // Toggle between Ask and Agent (Agent maps to agent-max in API)
+        // Toggle between Ask and Agent
         onModeChange(mode === 'ask' ? 'agent' : 'ask')
       }
     }
@@ -418,13 +418,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const { agentDepth, setAgentDepth } = useCopilotStore()
 
     const cycleDepth = () => {
-      // Allowed UI values: 0 (Normal), 2 (Pro), 3 (Max)
-      const next = agentDepth === 0 ? 2 : agentDepth === 2 ? 3 : 0
+      // Allowed UI values: 0 (Lite), 1 (Default), 2 (Pro), 3 (Max)
+      const next = agentDepth === 0 ? 1 : agentDepth === 1 ? 2 : agentDepth === 2 ? 3 : 0
       setAgentDepth(next)
     }
 
     const getDepthLabel = () => {
-      if (agentDepth === 0) return 'Normal'
+      if (agentDepth === 0) return 'Lite'
+      if (agentDepth === 1) return 'Default'
       if (agentDepth === 2) return 'Pro'
       return 'Max'
     }
@@ -535,7 +536,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   size='sm'
                   onClick={cycleDepth}
                   className='flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs'
-                  title='Toggle agent depth (Normal → Pro → Max)'
+                  title='Toggle agent depth (Lite → Default → Pro → Max)'
                 >
                   <span>{getDepthLabel()}</span>
                 </Button>

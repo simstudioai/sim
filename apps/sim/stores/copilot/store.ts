@@ -91,6 +91,9 @@ const contentBlockPool = new ObjectPool(
     obj.content = ''
     obj.timestamp = 0
     obj.toolCall = null
+    // Ensure any timing fields are cleared so pooled blocks don't leak timing
+    ;(obj as any).startTime = undefined
+    ;(obj as any).duration = undefined
   }
 )
 
@@ -169,7 +172,7 @@ function parseContentWithThinkingTags(content: string): Array<{ type: string; co
  */
 const initialState = {
   mode: 'ask' as const,
-  agentDepth: 0 as 0 | 1 | 2 | 3,
+  agentDepth: 1 as 0 | 1 | 2 | 3,
   currentChat: null,
   chats: [],
   messages: [],
@@ -1169,6 +1172,8 @@ const sseHandlers: Record<string, SSEHandler> = {
       type: 'tool_call',
       toolCall,
       timestamp: Date.now(),
+      // Ensure per-tool timing context for UI components that might rely on block-level timing
+      startTime: toolCall.startTime,
     })
 
     updateStreamingMessage(set, context)
@@ -1258,6 +1263,8 @@ const sseHandlers: Record<string, SSEHandler> = {
         type: 'tool_call',
         toolCall,
         timestamp: Date.now(),
+        // Ensure per-tool timing context for UI components that might rely on block-level timing
+        startTime: toolCall.startTime,
       })
     }
   },
@@ -2217,7 +2224,7 @@ export const useCopilotStore = create<CopilotStore>()(
             userMessageId: userMessage.id, // Send the frontend-generated ID
             chatId: currentChat?.id,
             workflowId,
-            mode: mode === 'ask' ? 'ask' : 'agent-max',
+            mode: mode === 'ask' ? 'ask' : 'agent',
             ...(mode !== 'ask' && { depth: get().agentDepth }),
             createNewChat: !currentChat,
             stream,
@@ -2481,7 +2488,7 @@ export const useCopilotStore = create<CopilotStore>()(
             message: 'Please continue your response.', // Simple continuation prompt
             chatId: currentChat?.id,
             workflowId,
-            mode: mode === 'ask' ? 'ask' : 'agent-max',
+            mode: mode === 'ask' ? 'ask' : 'agent',
             ...(mode !== 'ask' && { depth: agentDepth }),
             createNewChat: !currentChat,
             stream: true,

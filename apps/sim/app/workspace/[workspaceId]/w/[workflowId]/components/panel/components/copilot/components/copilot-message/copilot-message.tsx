@@ -583,13 +583,17 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           const isStreamingThinking = isStreaming && (block as any).duration == null
           
           return (
-            <ThinkingBlock
+            <div
               key={`thinking-${index}-${block.timestamp || index}`}
-              content={block.content}
-              isStreaming={isStreamingThinking}
-              duration={block.duration}
-              startTime={block.startTime}
-            />
+              className='w-full'
+            >
+              <ThinkingBlock
+                content={block.content}
+                isStreaming={isStreamingThinking}
+                duration={block.duration}
+                startTime={block.startTime}
+              />
+            </div>
           )
         }
         if (block.type === 'tool_call') {

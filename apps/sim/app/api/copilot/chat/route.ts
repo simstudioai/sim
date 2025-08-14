@@ -38,7 +38,7 @@ const ChatMessageSchema = z.object({
   userMessageId: z.string().optional(), // ID from frontend for the user message
   chatId: z.string().optional(),
   workflowId: z.string().min(1, 'Workflow ID is required'),
-  mode: z.enum(['ask', 'agent', 'agent-max']).optional().default('agent'),
+  mode: z.enum(['ask', 'agent']).optional().default('agent'),
   depth: z.number().int().min(0).max(3).optional().default(0),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
