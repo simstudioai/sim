@@ -43,6 +43,7 @@ interface WealthboxFileSelectorProps {
   showPreview?: boolean
   onFileInfoChange?: (itemInfo: WealthboxItemInfo | null) => void
   itemType?: 'contact'
+  credentialId?: string
 }
 
 export function WealthboxFileSelector({
@@ -56,10 +57,11 @@ export function WealthboxFileSelector({
   showPreview = true,
   onFileInfoChange,
   itemType = 'contact',
+  credentialId,
 }: WealthboxFileSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedItemId, setSelectedItemId] = useState(value)
   const [selectedItem, setSelectedItem] = useState<WealthboxItemInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -94,23 +96,6 @@ export function WealthboxFileSelector({
       if (response.ok) {
         const data = await response.json()
         setCredentials(data.credentials)
-
-        // Auto-select logic for credentials
-        if (data.credentials.length > 0) {
-          if (
-            selectedCredentialId &&
-            data.credentials.some((cred: Credential) => cred.id === selectedCredentialId)
-          ) {
-            // Keep the current selection
-          } else {
-            const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-            if (defaultCred) {
-              setSelectedCredentialId(defaultCred.id)
-            } else if (data.credentials.length === 1) {
-              setSelectedCredentialId(data.credentials[0].id)
-            }
-          }
-        }
       }
     } catch (error) {
       logger.error('Error fetching credentials:', { error })
@@ -119,6 +104,13 @@ export function WealthboxFileSelector({
       setCredentialsLoaded(true)
     }
   }, [provider, getProviderId, selectedCredentialId])
+
+  // Keep local credential state in sync with persisted credential
+  useEffect(() => {
+    if (credentialId && credentialId !== selectedCredentialId) {
+      setSelectedCredentialId(credentialId)
+    }
+  }, [credentialId, selectedCredentialId])
 
   // Debounced search function
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null)

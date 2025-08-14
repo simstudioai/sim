@@ -18,6 +18,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('ToolCredentialSelector')
 
@@ -72,6 +73,7 @@ export function ToolCredentialSelector({
   const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [selectedId, setSelectedId] = useState('')
+  const { activeWorkflowId } = useWorkflowRegistry()
 
   // Update selected ID when value changes
   useEffect(() => {
@@ -86,26 +88,24 @@ export function ToolCredentialSelector({
         const data = await response.json()
         setCredentials(data.credentials || [])
 
-        // If we have a value but it's not in the credentials, reset it
-        if (value && !data.credentials?.some((cred: Credential) => cred.id === value)) {
-          onChange('')
-        }
-
-        // Auto-selection logic (like credential-selector):
-        // 1. If we already have a valid selection, keep it
-        // 2. If there's a default credential, select it
-        // 3. If there's only one credential, select it
+        // If persisted selection is not among viewer's credentials, attempt to fetch its metadata
         if (
-          (!value || !data.credentials?.some((cred: Credential) => cred.id === value)) &&
-          data.credentials &&
-          data.credentials.length > 0
+          value &&
+          !(data.credentials || []).some((cred: Credential) => cred.id === value) &&
+          activeWorkflowId
         ) {
-          const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-          if (defaultCred) {
-            onChange(defaultCred.id)
-          } else if (data.credentials.length === 1) {
-            // If only one credential, select it
-            onChange(data.credentials[0].id)
+          try {
+            const metaResp = await fetch(
+              `/api/auth/oauth/credentials?credentialId=${value}&workflowId=${activeWorkflowId}`
+            )
+            if (metaResp.ok) {
+              const meta = await metaResp.json()
+              if (meta.credentials?.length) {
+                setCredentials([meta.credentials[0], ...(data.credentials || [])])
+              }
+            }
+          } catch {
+            // ignore
           }
         }
       } else {
@@ -164,6 +164,7 @@ export function ToolCredentialSelector({
   }
 
   const selectedCredential = credentials.find((cred) => cred.id === selectedId)
+  const isForeign = !!(selectedId && !selectedCredential)
 
   return (
     <>
@@ -177,17 +178,18 @@ export function ToolCredentialSelector({
             disabled={disabled}
           >
             <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
-              {selectedCredential ? (
-                <>
-                  {getProviderIcon(provider)}
-                  <span className='truncate font-normal'>{selectedCredential.name}</span>
-                </>
-              ) : (
-                <>
-                  {getProviderIcon(provider)}
-                  <span className='truncate text-muted-foreground'>{label}</span>
-                </>
-              )}
+              {getProviderIcon(provider)}
+              <span
+                className={
+                  selectedCredential ? 'truncate font-normal' : 'truncate text-muted-foreground'
+                }
+              >
+                {selectedCredential
+                  ? selectedCredential.name
+                  : isForeign
+                    ? 'Saved by collaborator'
+                    : label}
+              </span>
             </div>
             <ChevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
           </Button>

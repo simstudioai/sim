@@ -24,6 +24,9 @@ import {
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('CredentialSelector')
 
@@ -47,6 +50,9 @@ export function CredentialSelector({
   const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [selectedId, setSelectedId] = useState('')
+  const [hasForeignMeta, setHasForeignMeta] = useState(false)
+  const { activeWorkflowId } = useWorkflowRegistry()
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
   // Use collaborative state management via useSubBlockValue hook
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
@@ -81,45 +87,42 @@ export function CredentialSelector({
       const response = await fetch(`/api/auth/oauth/credentials?provider=${effectiveProviderId}`)
       if (response.ok) {
         const data = await response.json()
-        setCredentials(data.credentials)
+        const creds = data.credentials as Credential[]
+        let foreignMetaFound = false
 
-        // If we have a value but it's not in the credentials, reset it
-        if (selectedId && !data.credentials.some((cred: Credential) => cred.id === selectedId)) {
-          setSelectedId('')
-          if (!isPreview) {
-            setStoreValue('')
-          }
-        }
-
-        // Auto-select logic:
-        // 1. If we already have a valid selection, keep it
-        // 2. If there's a default credential, select it
-        // 3. If there's only one credential, select it
+        // If persisted selection is not among viewer's credentials, attempt to fetch its metadata
         if (
-          (!selectedId || !data.credentials.some((cred: Credential) => cred.id === selectedId)) &&
-          data.credentials.length > 0
+          selectedId &&
+          !(creds || []).some((cred: Credential) => cred.id === selectedId) &&
+          activeWorkflowId
         ) {
-          const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-          if (defaultCred) {
-            setSelectedId(defaultCred.id)
-            if (!isPreview) {
-              setStoreValue(defaultCred.id)
+          try {
+            const metaResp = await fetch(
+              `/api/auth/oauth/credentials?credentialId=${selectedId}&workflowId=${activeWorkflowId}`
+            )
+            if (metaResp.ok) {
+              const meta = await metaResp.json()
+              if (meta.credentials?.length) {
+                // Mark as foreign, but do NOT merge into list to avoid leaking owner email
+                foreignMetaFound = true
+              }
             }
-          } else if (data.credentials.length === 1) {
-            // If only one credential, select it
-            setSelectedId(data.credentials[0].id)
-            if (!isPreview) {
-              setStoreValue(data.credentials[0].id)
-            }
+          } catch {
+            // ignore meta errors
           }
         }
+
+        setHasForeignMeta(foreignMetaFound)
+        setCredentials(creds)
+
+        // Do not auto-select or reset. We only show what's persisted.
       }
     } catch (error) {
       logger.error('Error fetching credentials:', { error })
     } finally {
       setIsLoading(false)
     }
-  }, [effectiveProviderId, selectedId, isPreview, setStoreValue])
+  }, [effectiveProviderId, selectedId, activeWorkflowId])
 
   // Fetch credentials on initial mount
   useEffect(() => {
@@ -127,6 +130,38 @@ export function CredentialSelector({
     // This effect should only run once on mount, so empty dependency array
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // When the selectedId changes (e.g., collaborator saved a credential), determine if it's foreign
+  useEffect(() => {
+    let aborted = false
+    ;(async () => {
+      try {
+        if (!selectedId) {
+          setHasForeignMeta(false)
+          return
+        }
+        // If the selected credential exists in viewer's list, it's not foreign
+        if ((credentials || []).some((cred) => cred.id === selectedId)) {
+          setHasForeignMeta(false)
+          return
+        }
+        if (!activeWorkflowId) return
+        const metaResp = await fetch(
+          `/api/auth/oauth/credentials?credentialId=${selectedId}&workflowId=${activeWorkflowId}`
+        )
+        if (aborted) return
+        if (metaResp.ok) {
+          const meta = await metaResp.json()
+          setHasForeignMeta(!!meta.credentials?.length)
+        }
+      } catch {
+        // ignore
+      }
+    })()
+    return () => {
+      aborted = true
+    }
+  }, [selectedId, credentials, activeWorkflowId])
 
   // This effect is no longer needed since we're using effectiveValue directly
 
@@ -156,12 +191,25 @@ export function CredentialSelector({
 
   // Get the selected credential
   const selectedCredential = credentials.find((cred) => cred.id === selectedId)
+  const isForeign = !!(selectedId && !selectedCredential && hasForeignMeta)
 
   // Handle selection
   const handleSelect = (credentialId: string) => {
+    const previousId = selectedId || (effectiveValue as string) || ''
     setSelectedId(credentialId)
     if (!isPreview) {
       setStoreValue(credentialId)
+      // If credential changed, clear other sub-block fields for a clean state
+      if (previousId && previousId !== credentialId) {
+        const wfId = (activeWorkflowId as string) || ''
+        const workflowValues = useSubBlockStore.getState().workflowValues[wfId] || {}
+        const blockValues = workflowValues[blockId] || {}
+        Object.keys(blockValues).forEach((key) => {
+          if (key !== subBlock.id) {
+            collaborativeSetSubblockValue(blockId, key, '')
+          }
+        })
+      }
     }
     setOpen(false)
   }
@@ -214,11 +262,17 @@ export function CredentialSelector({
           >
             <div className='flex max-w-[calc(100%-20px)] items-center gap-2 overflow-hidden'>
               {getProviderIcon(provider)}
-              {selectedCredential ? (
-                <span className='truncate font-normal'>{selectedCredential.name}</span>
-              ) : (
-                <span className='truncate text-muted-foreground'>{label}</span>
-              )}
+              <span
+                className={
+                  selectedCredential ? 'truncate font-normal' : 'truncate text-muted-foreground'
+                }
+              >
+                {selectedCredential
+                  ? selectedCredential.name
+                  : isForeign
+                    ? 'Saved by collaborator'
+                    : label}
+              </span>
             </div>
             <ChevronDown className='absolute right-3 h-4 w-4 shrink-0 opacity-50' />
           </Button>

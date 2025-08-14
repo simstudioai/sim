@@ -313,6 +313,33 @@ export function hasWorkflowChanged(
     }
   }
 
+  // 5. Compare parallels
+  const currentParallels = currentState.parallels || {}
+  const deployedParallels = deployedState.parallels || {}
+
+  const currentParallelIds = Object.keys(currentParallels).sort()
+  const deployedParallelIds = Object.keys(deployedParallels).sort()
+
+  if (
+    currentParallelIds.length !== deployedParallelIds.length ||
+    normalizedStringify(currentParallelIds) !== normalizedStringify(deployedParallelIds)
+  ) {
+    return true
+  }
+
+  // Compare each parallel with normalized values
+  for (const parallelId of currentParallelIds) {
+    const normalizedCurrentParallel = normalizeValue(currentParallels[parallelId])
+    const normalizedDeployedParallel = normalizeValue(deployedParallels[parallelId])
+
+    if (
+      normalizedStringify(normalizedCurrentParallel) !==
+      normalizedStringify(normalizedDeployedParallel)
+    ) {
+      return true
+    }
+  }
+
   return false
 }
 

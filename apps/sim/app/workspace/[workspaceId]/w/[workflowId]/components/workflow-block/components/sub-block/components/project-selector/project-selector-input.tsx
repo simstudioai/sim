@@ -21,7 +21,7 @@ import {
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface ProjectSelectorInputProps {
   blockId: string
@@ -40,34 +40,73 @@ export function ProjectSelectorInput({
   isPreview = false,
   previewValue,
 }: ProjectSelectorInputProps) {
-  const { getValue } = useSubBlockStore()
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const [_projectInfo, setProjectInfo] = useState<JiraProjectInfo | DiscordServerInfo | null>(null)
+  const [isForeignCredential, setIsForeignCredential] = useState<boolean>(false)
 
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+  // Local setters for related Jira fields to ensure immediate UI clearing
+  const [_issueKeyValue, setIssueKeyValue] = useSubBlockValue<string>(blockId, 'issueKey')
+  const [_manualIssueKeyValue, setManualIssueKeyValue] = useSubBlockValue<string>(
+    blockId,
+    'manualIssueKey'
+  )
+  // Reactive dependencies from store for Linear
+  const [linearCredential] = useSubBlockValue(blockId, 'credential')
+  const [linearTeamId] = useSubBlockValue(blockId, 'teamId')
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId) as string | null
 
   // Get provider-specific values
   const provider = subBlock.provider || 'jira'
   const isDiscord = provider === 'discord'
   const isLinear = provider === 'linear'
 
-  // For Jira, we need the domain
-  const domain = !isDiscord ? (getValue(blockId, 'domain') as string) || '' : ''
-  const botToken = isDiscord ? (getValue(blockId, 'botToken') as string) || '' : ''
+  // Jira/Discord upstream fields
+  const [jiraDomain] = useSubBlockValue(blockId, 'domain')
+  const [jiraCredential] = useSubBlockValue(blockId, 'credential')
+  const domain = (jiraDomain as string) || ''
+  const botToken = ''
+
+  // Verify Jira credential belongs to current user; if not, treat as absent
+  useEffect(() => {
+    const cred = (jiraCredential as string) || ''
+    if (!cred) {
+      setIsForeignCredential(false)
+      return
+    }
+    let aborted = false
+    ;(async () => {
+      try {
+        const resp = await fetch(`/api/auth/oauth/credentials?credentialId=${cred}`)
+        if (aborted) return
+        if (!resp.ok) {
+          setIsForeignCredential(true)
+          return
+        }
+        const data = await resp.json()
+        setIsForeignCredential(!(data.credentials && data.credentials.length === 1))
+      } catch {
+        setIsForeignCredential(true)
+      }
+    })()
+    return () => {
+      aborted = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blockId, jiraCredential])
 
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
     if (isPreview && previewValue !== undefined) {
       setSelectedProjectId(previewValue)
+    } else if (typeof storeValue === 'string') {
+      setSelectedProjectId(storeValue)
     } else {
-      const value = getValue(blockId, subBlock.id)
-      if (value && typeof value === 'string') {
-        setSelectedProjectId(value)
-      }
+      setSelectedProjectId('')
     }
-  }, [blockId, subBlock.id, getValue, isPreview, previewValue])
+  }, [isPreview, previewValue, storeValue])
 
   // Handle project selection
   const handleProjectChange = (
@@ -82,7 +121,12 @@ export function ProjectSelectorInput({
     if (provider === 'jira') {
       collaborativeSetSubblockValue(blockId, 'summary', '')
       collaborativeSetSubblockValue(blockId, 'description', '')
+      // Clear both the basic and advanced issue key fields to ensure UI resets
       collaborativeSetSubblockValue(blockId, 'issueKey', '')
+      collaborativeSetSubblockValue(blockId, 'manualIssueKey', '')
+      // Also clear locally for immediate UI feedback on this client
+      setIssueKeyValue('')
+      setManualIssueKeyValue('')
     } else if (provider === 'discord') {
       collaborativeSetSubblockValue(blockId, 'channelId', '')
     } else if (provider === 'linear') {
@@ -139,15 +183,16 @@ export function ProjectSelectorInput({
                   onChange={(teamId: string, teamInfo?: LinearTeamInfo) => {
                     handleProjectChange(teamId, teamInfo)
                   }}
-                  credential={getValue(blockId, 'credential') as string}
+                  credential={(linearCredential as string) || ''}
                   label={subBlock.placeholder || 'Select Linear team'}
-                  disabled={disabled || !getValue(blockId, 'credential')}
+                  disabled={disabled || !(linearCredential as string)}
                   showPreview={true}
+                  workflowId={activeWorkflowId || ''}
                 />
               ) : (
                 (() => {
-                  const credential = getValue(blockId, 'credential') as string
-                  const teamId = getValue(blockId, 'teamId') as string
+                  const credential = (linearCredential as string) || ''
+                  const teamId = (linearTeamId as string) || ''
                   const isDisabled = disabled || !credential || !teamId
                   return (
                     <LinearProjectSelector
@@ -159,13 +204,14 @@ export function ProjectSelectorInput({
                       teamId={teamId}
                       label={subBlock.placeholder || 'Select Linear project'}
                       disabled={isDisabled}
+                      workflowId={activeWorkflowId || ''}
                     />
                   )
                 })()
               )}
             </div>
           </TooltipTrigger>
-          {!getValue(blockId, 'credential') && (
+          {!(linearCredential as string) && (
             <TooltipContent side='top'>
               <p>Please select a Linear account first</p>
             </TooltipContent>
@@ -189,17 +235,23 @@ export function ProjectSelectorInput({
               requiredScopes={subBlock.requiredScopes || []}
               serviceId={subBlock.serviceId}
               label={subBlock.placeholder || 'Select Jira project'}
-              disabled={disabled}
+              disabled={disabled || !domain || !(jiraCredential as string)}
               showPreview={true}
               onProjectInfoChange={setProjectInfo}
+              credentialId={(jiraCredential as string) || ''}
+              isForeignCredential={isForeignCredential}
             />
           </div>
         </TooltipTrigger>
-        {!domain && (
+        {!domain ? (
           <TooltipContent side='top'>
             <p>Please enter a Jira domain first</p>
           </TooltipContent>
-        )}
+        ) : !(jiraCredential as string) ? (
+          <TooltipContent side='top'>
+            <p>Please select a Jira account first</p>
+          </TooltipContent>
+        ) : null}
       </Tooltip>
     </TooltipProvider>
   )

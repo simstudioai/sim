@@ -1,10 +1,11 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { Check, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
@@ -151,9 +152,15 @@ export function UploadModal({
     }
   }
 
+  // Calculate progress percentage
+  const progressPercentage =
+    uploadProgress.totalFiles > 0
+      ? Math.round((uploadProgress.filesCompleted / uploadProgress.totalFiles) * 100)
+      : 0
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className='flex max-h-[90vh] max-w-2xl flex-col overflow-hidden'>
+      <DialogContent className='flex max-h-[95vh] max-w-2xl flex-col overflow-hidden'>
         <DialogHeader>
           <DialogTitle>Upload Documents</DialogTitle>
         </DialogHeader>
@@ -218,30 +225,55 @@ export function UploadModal({
                   </p>
                 </div>
 
-                <div className='max-h-40 space-y-2 overflow-auto'>
-                  {files.map((file, index) => (
-                    <div
-                      key={index}
-                      className='flex items-center justify-between rounded-md border p-3'
-                    >
-                      <div className='min-w-0 flex-1'>
-                        <p className='truncate font-medium text-sm'>{file.name}</p>
-                        <p className='text-muted-foreground text-xs'>
-                          {(file.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
+                <div className='max-h-60 space-y-1.5 overflow-auto'>
+                  {files.map((file, index) => {
+                    const fileStatus = uploadProgress.fileStatuses?.[index]
+                    const isCurrentlyUploading = fileStatus?.status === 'uploading'
+                    const isCompleted = fileStatus?.status === 'completed'
+                    const isFailed = fileStatus?.status === 'failed'
+
+                    return (
+                      <div key={index} className='space-y-1.5 rounded-md border p-2'>
+                        <div className='flex items-center justify-between'>
+                          <div className='min-w-0 flex-1'>
+                            <div className='flex items-center gap-2'>
+                              {isCurrentlyUploading && (
+                                <Loader2 className='h-4 w-4 animate-spin text-blue-500' />
+                              )}
+                              {isCompleted && <Check className='h-4 w-4 text-green-500' />}
+                              {isFailed && <X className='h-4 w-4 text-red-500' />}
+                              {!isCurrentlyUploading && !isCompleted && !isFailed && (
+                                <div className='h-4 w-4' />
+                              )}
+                              <p className='truncate text-sm'>
+                                <span className='font-medium'>{file.name}</span>
+                                <span className='text-muted-foreground'>
+                                  {' '}
+                                  • {(file.size / 1024 / 1024).toFixed(2)} MB
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            size='sm'
+                            onClick={() => removeFile(index)}
+                            disabled={isUploading}
+                            className='h-8 w-8 p-0'
+                          >
+                            <X className='h-4 w-4' />
+                          </Button>
+                        </div>
+                        {isCurrentlyUploading && (
+                          <Progress value={fileStatus?.progress || 0} className='h-1' />
+                        )}
+                        {isFailed && fileStatus?.error && (
+                          <p className='text-red-500 text-xs'>{fileStatus.error}</p>
+                        )}
                       </div>
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => removeFile(index)}
-                        disabled={isUploading}
-                        className='h-8 w-8 p-0'
-                      >
-                        <X className='h-4 w-4' />
-                      </Button>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}

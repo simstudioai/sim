@@ -23,6 +23,7 @@ interface LinearTeamSelectorProps {
   credential: string
   label?: string
   disabled?: boolean
+  workflowId?: string
   showPreview?: boolean
 }
 
@@ -32,6 +33,7 @@ export function LinearTeamSelector({
   credential,
   label = 'Select Linear team',
   disabled = false,
+  workflowId,
 }: LinearTeamSelectorProps) {
   const [teams, setTeams] = useState<LinearTeamInfo[]>([])
   const [loading, setLoading] = useState(false)
@@ -48,7 +50,7 @@ export function LinearTeamSelector({
     fetch('/api/tools/linear/teams', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ credential }),
+      body: JSON.stringify({ credential, workflowId }),
       signal: controller.signal,
     })
       .then((res) => {
@@ -76,7 +78,7 @@ export function LinearTeamSelector({
       })
       .finally(() => setLoading(false))
     return () => controller.abort()
-  }, [credential, value])
+  }, [credential, value, workflowId])
 
   // Sync selected team with value prop
   useEffect(() => {
