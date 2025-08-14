@@ -24,6 +24,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { useSession } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from '@/components/ui/dropdown-menu'
 
 export interface MessageFileAttachment {
   id: string
@@ -531,15 +540,32 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                 <span>{getModeText()}</span>
               </Button>
               {mode !== 'ask' && (
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={cycleDepth}
-                  className='flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs'
-                  title='Toggle agent depth (Lite → Default → Pro → Max)'
-                >
-                  <span>{getDepthLabel()}</span>
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs'
+                      title='Choose agent depth'
+                    >
+                      <Zap className='h-3 w-3 text-muted-foreground' />
+                      <span>{getDepthLabel()}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align='start' className='w-56'>
+                    <DropdownMenuLabel>Mode</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuRadioGroup
+                      value={String(agentDepth)}
+                      onValueChange={(value) => setAgentDepth(parseInt(value) as 0 | 1 | 2 | 3)}
+                    >
+                      <DropdownMenuRadioItem value='0'>Lite</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value='1'>Default</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value='2'>Pro</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value='3'>Max</DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
 
