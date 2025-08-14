@@ -32,7 +32,6 @@ export const env = createEnv({
     REDIS_URL:                            z.string().url().optional(),            // Redis connection string for caching/sessions
 
     // Payment & Billing
-    BILLING_ENABLED:                      z.boolean().optional(),                 // Enable billing enforcement and usage tracking
     STRIPE_SECRET_KEY:                    z.string().min(1).optional(),           // Stripe secret key for payment processing
     STRIPE_BILLING_WEBHOOK_SECRET:        z.string().min(1).optional(),           // Webhook secret for billing events
     STRIPE_WEBHOOK_SECRET:                z.string().min(1).optional(),           // General Stripe webhook secret
