@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Brain } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -14,22 +14,31 @@ interface ThinkingBlockProps {
 export function ThinkingBlock({ content, isStreaming = false, duration: persistedDuration, startTime: persistedStartTime }: ThinkingBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [duration, setDuration] = useState(persistedDuration || 0)
-  const [startTime] = useState(persistedStartTime || Date.now())
+  // Keep a stable reference to start time that updates when prop changes
+  const startTimeRef = useRef<number>(persistedStartTime || Date.now())
+  useEffect(() => {
+    if (persistedStartTime) {
+      startTimeRef.current = persistedStartTime
+    }
+  }, [persistedStartTime])
   
   useEffect(() => {
-    if (isStreaming && !persistedDuration) {
+    // If we already have a persisted duration, just use it
+    if (typeof persistedDuration === 'number') {
+      setDuration(persistedDuration)
+      return
+    }
+
+    if (isStreaming) {
       const interval = setInterval(() => {
-        setDuration(Date.now() - startTime)
+        setDuration(Date.now() - startTimeRef.current)
       }, 100)
       return () => clearInterval(interval)
-    } else if (persistedDuration) {
-      // Use persisted duration
-      setDuration(persistedDuration)
-    } else {
-      // Set final duration when streaming stops
-      setDuration(Date.now() - startTime)
     }
-  }, [isStreaming, startTime, persistedDuration])
+
+    // Not streaming and no persisted duration: compute final duration once
+    setDuration(Date.now() - startTimeRef.current)
+  }, [isStreaming, persistedDuration])
   
   // Format duration
   const formatDuration = (ms: number) => {

@@ -577,7 +577,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         }
         if (block.type === 'thinking') {
           const isLastBlock = index === message.contentBlocks!.length - 1
-          const isStreamingThinking = isStreaming && isLastBlock
+          // Consider the thinking block streaming if the overall message is streaming
+          // and the block has not been finalized with a duration yet. This avoids
+          // freezing the timer when new blocks are appended after the thinking block.
+          const isStreamingThinking = isStreaming && (block as any).duration == null
           
           return (
             <ThinkingBlock
@@ -780,7 +783,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     // For streaming messages, check if content actually changed
     if (nextProps.isStreaming) {
-      // Compare contentBlocks length and lastUpdated for streaming messages
       const prevBlocks = prevMessage.contentBlocks || []
       const nextBlocks = nextMessage.contentBlocks || []
 
@@ -788,16 +790,37 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         return false // Content blocks changed
       }
 
-      // Check if any text content changed in the last block
-      if (nextBlocks.length > 0) {
-        const prevLastBlock = prevBlocks[prevBlocks.length - 1]
-        const nextLastBlock = nextBlocks[nextBlocks.length - 1]
-
-        if (prevLastBlock?.type === 'text' && nextLastBlock?.type === 'text') {
-          if (prevLastBlock.content !== nextLastBlock.content) {
-            return false // Text content changed
+      // Helper: get last block content by type
+      const getLastBlockContent = (blocks: any[], type: 'text' | 'thinking'): string | null => {
+        for (let i = blocks.length - 1; i >= 0; i--) {
+          const block = blocks[i]
+          if (block && block.type === type) {
+            return (block as any).content ?? ''
           }
         }
+        return null
+      }
+
+      // Re-render if the last text block content changed
+      const prevLastTextContent = getLastBlockContent(prevBlocks as any[], 'text')
+      const nextLastTextContent = getLastBlockContent(nextBlocks as any[], 'text')
+      if (
+        prevLastTextContent !== null &&
+        nextLastTextContent !== null &&
+        prevLastTextContent !== nextLastTextContent
+      ) {
+        return false
+      }
+
+      // Re-render if the last thinking block content changed
+      const prevLastThinkingContent = getLastBlockContent(prevBlocks as any[], 'thinking')
+      const nextLastThinkingContent = getLastBlockContent(nextBlocks as any[], 'thinking')
+      if (
+        prevLastThinkingContent !== null &&
+        nextLastThinkingContent !== null &&
+        prevLastThinkingContent !== nextLastThinkingContent
+      ) {
+        return false
       }
 
       // Check if tool calls changed
@@ -808,14 +831,12 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         return false // Tool calls count changed
       }
 
-      // Check if any tool call state changed
       for (let i = 0; i < nextToolCalls.length; i++) {
         if (prevToolCalls[i]?.state !== nextToolCalls[i]?.state) {
           return false // Tool call state changed
         }
       }
 
-      // If we reach here, nothing meaningful changed during streaming
       return true
     }
 
