@@ -5,7 +5,7 @@ import { HelpCircle, LibraryBig, ScrollText, Search, Settings, Shapes } from 'lu
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Button, ScrollArea, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
-import { isBillingEnabled } from '@/lib/environment'
+import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
@@ -194,6 +194,9 @@ export function Sidebar() {
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const userPermissions = useUserPermissionsContext()
   const isLoading = workflowsLoading || sessionLoading
+
+  // Get billing status
+  const isBillingEnabled = getEnv('NEXT_PUBLIC_BILLING_ENABLED') || false
 
   // Add state to prevent multiple simultaneous workflow creations
   const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false)
