@@ -8,7 +8,7 @@ import {
   UserCircle,
   Users,
 } from 'lucide-react'
-import { isBillingEnabled } from '@/lib/environment'
+import { getEnv } from '@/lib/env'
 import { cn } from '@/lib/utils'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
@@ -97,6 +97,9 @@ export function SettingsNavigation({
 }: SettingsNavigationProps) {
   const { getSubscriptionStatus } = useSubscriptionStore()
   const subscription = getSubscriptionStatus()
+
+  // Get billing status
+  const isBillingEnabled = getEnv('NEXT_PUBLIC_BILLING_ENABLED') || false
 
   const navigationItems = allNavigationItems.filter((item) => {
     if (item.hideWhenBillingDisabled && !isBillingEnabled) {

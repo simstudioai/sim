@@ -179,6 +179,9 @@ export const env = createEnv({
 
     // Asset Storage
     NEXT_PUBLIC_BLOB_BASE_URL:            z.string().url().optional(),            // Base URL for Vercel Blob storage (CDN assets)
+    
+    // Billing
+    NEXT_PUBLIC_BILLING_ENABLED:          z.boolean().optional(),                 // Enable billing enforcement and usage tracking (client-side)
 
     // Google Services - For client-side Google integrations
     NEXT_PUBLIC_GOOGLE_CLIENT_ID:         z.string().optional(),                  // Google OAuth client ID for browser auth
@@ -216,6 +219,7 @@ export const env = createEnv({
     NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NEXT_PUBLIC_BLOB_BASE_URL: process.env.NEXT_PUBLIC_BLOB_BASE_URL,
+    NEXT_PUBLIC_BILLING_ENABLED: process.env.NEXT_PUBLIC_BILLING_ENABLED,
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
     NEXT_PUBLIC_RB2B_KEY: process.env.NEXT_PUBLIC_RB2B_KEY,
     NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,

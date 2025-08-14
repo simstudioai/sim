@@ -1,10 +1,7 @@
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { account } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,48 +25,26 @@ export async function GET(request: NextRequest) {
   logger.info(`[${requestId}] Google Calendar calendars request received`)
 
   try {
-    // Get the session
-    const session = await getSession()
-
-    // Check if the user is authenticated
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthenticated request rejected`)
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
-    }
-
     // Get the credential ID from the query params
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
-    const workflowId = searchParams.get('workflowId')
+    const workflowId = searchParams.get('workflowId') || undefined
 
     if (!credentialId) {
       logger.warn(`[${requestId}] Missing credentialId parameter`)
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
-
-    // Get the credential from the database
-    const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-
-    if (!credentials.length) {
-      logger.warn(`[${requestId}] Credential not found`, { credentialId })
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-    }
-
-    const credential = credentials[0]
-
-    // Allow collaborator read when workflowId present; otherwise require ownership
-    const ownerUserId = credential.userId
-    const requesterUserId = session.user.id
-    if (ownerUserId !== requesterUserId && !workflowId) {
-      logger.warn(`[${requestId}] Unauthorized credential access attempt`, {
-        credentialUserId: ownerUserId,
-        requestUserId: requesterUserId,
-      })
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    const authz = await authorizeCredentialUse(request, { credentialId, workflowId })
+    if (!authz.ok || !authz.credentialOwnerUserId) {
+      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
 
     // Refresh access token if needed using the utility function
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
+    const accessToken = await refreshAccessTokenIfNeeded(
+      credentialId,
+      authz.credentialOwnerUserId,
+      requestId
+    )
 
     if (!accessToken) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })

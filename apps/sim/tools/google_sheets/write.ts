@@ -134,8 +134,8 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    // Extract spreadsheet ID from the URL
-    const urlParts = response.url.split('/spreadsheets/')
+    // Extract spreadsheet ID from the URL (guard if url is missing)
+    const urlParts = typeof response.url === 'string' ? response.url.split('/spreadsheets/') : []
     const spreadsheetId = urlParts[1]?.split('/')[0] || ''
 
     // Create a simple metadata object with just the ID and URL

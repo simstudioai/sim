@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
-import { isBillingEnabled } from '@/lib/environment'
+import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import {
@@ -43,6 +43,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const loadSettings = useGeneralStore((state) => state.loadSettings)
   const { activeOrganization } = useOrganizationStore()
   const hasLoadedInitialData = useRef(false)
+
+  // Get billing status
+  const isBillingEnabled = getEnv('NEXT_PUBLIC_BILLING_ENABLED') || false
 
   useEffect(() => {
     async function loadAllSettings() {
