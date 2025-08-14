@@ -1001,7 +1001,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       {renderDisconnectionNotice()}
       {!isDev && renderToggleButton()}
       {isExpanded && !isDev && <ExportControls />}
-      {isExpanded && !isDev && renderAutoLayoutButton()}
+      {renderAutoLayoutButton()}
       {!isDev && isExpanded && renderDuplicateButton()}
       {isDev && renderDuplicateButton()}
       {renderDeleteButton()}

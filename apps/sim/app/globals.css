@@ -478,3 +478,12 @@ input[type="search"]::-ms-clear {
     }
   }
 }
+
+.cursor-presence {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1000;
+  width: 30px;
+  height: 30px;
+  background-color: white;
+}
