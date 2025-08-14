@@ -19,6 +19,9 @@ import {
   Zap,
   X,
   Check,
+  Boxes,
+  BrainCircuit,
+  BrainCog,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -433,24 +436,33 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const getDepthLabel = () => {
       if (agentDepth === 0) return 'Lite'
-      if (agentDepth === 1) return 'Default'
+      if (agentDepth === 1) return 'Auto'
       if (agentDepth === 2) return 'Pro'
       return 'Max'
     }
 
     const getDepthLabelFor = (value: 0 | 1 | 2 | 3) => {
       if (value === 0) return 'Lite'
-      if (value === 1) return 'Default'
+      if (value === 1) return 'Auto'
       if (value === 2) return 'Pro'
       return 'Max'
     }
 
     const getDepthDescription = (value: 0 | 1 | 2 | 3) => {
       if (value === 0) return 'Fastest and cheapest. Good for small edits, simple workflows, and small tasks.'
-      if (value === 1) return 'Balanced speed and reasoning. Good fit for most tasks.'
+      if (value === 1) return 'Automatically balances speed and reasoning. Good fit for most tasks.'
       if (value === 2) return 'More reasoning for larger workflows and complex edits, still balanced for speed.'
       return 'Maximum reasoning power. Best for complex workflow building and debugging.'
     }
+
+    const getDepthIconFor = (value: 0 | 1 | 2 | 3) => {
+      if (value === 0) return <Zap className='h-3 w-3 text-muted-foreground' />
+      if (value === 1) return <Boxes className='h-3 w-3 text-muted-foreground' />
+      if (value === 2) return <BrainCircuit className='h-3 w-3 text-muted-foreground' />
+      return <BrainCog className='h-3 w-3 text-muted-foreground' />
+    }
+
+    const getDepthIcon = () => getDepthIconFor(agentDepth)
 
     return (
       <div className={cn('relative flex-none pb-4', className)}>
@@ -542,26 +554,75 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           <div className='flex items-center justify-between'>
             {/* Left side: Mode Selector and Depth (if Agent) */}
             <div className='flex items-center gap-1.5'>
-              <Button
-                variant='ghost'
-                size='sm'
-                onClick={handleModeToggle}
-                disabled={!onModeChange}
-                className='flex h-6 items-center gap-1.5 rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground text-xs hover:bg-secondary/80'
-              >
-                {getModeIcon()}
-                <span>{getModeText()}</span>
-              </Button>
-              {mode !== 'ask' && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    disabled={!onModeChange}
+                    className='flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs'
+                  >
+                    {getModeIcon()}
+                    <span>{getModeText()}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='start' className='p-0'>
+                  <TooltipProvider>
+                    <div className='w-[160px] p-1'>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <DropdownMenuItem
+                            onSelect={() => onModeChange && onModeChange('ask')}
+                            className={cn(
+                              'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
+                              mode === 'ask' && 'bg-muted/40'
+                            )}
+                          >
+                            <span className='flex items-center gap-1.5'>
+                              <MessageCircle className='h-3 w-3 text-muted-foreground' />
+                              Ask
+                            </span>
+                            {mode === 'ask' && <Check className='h-3 w-3 text-muted-foreground' />}
+                          </DropdownMenuItem>
+                        </TooltipTrigger>
+                        <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
+                          Ask mode can help answer questions about your workflow, tell you about Sim, and guide you in building/editing.
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <DropdownMenuItem
+                            onSelect={() => onModeChange && onModeChange('agent')}
+                            className={cn(
+                              'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
+                              mode === 'agent' && 'bg-muted/40'
+                            )}
+                          >
+                            <span className='flex items-center gap-1.5'>
+                              <Package className='h-3 w-3 text-muted-foreground' />
+                              Agent
+                            </span>
+                            {mode === 'agent' && <Check className='h-3 w-3 text-muted-foreground' />}
+                          </DropdownMenuItem>
+                        </TooltipTrigger>
+                        <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
+                          Agent mode can build, edit, and interact with your workflows (Recommended)
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TooltipProvider>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant='ghost'
                       size='sm'
                       className='flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs'
-                      title='Choose mode'
+                      title='Choose depth'
                     >
-                      <Zap className='h-3 w-3 text-muted-foreground' />
+                      {getDepthIcon()}
                       <span>{getDepthLabel()}</span>
                     </Button>
                   </DropdownMenuTrigger>
@@ -577,7 +638,10 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                 agentDepth === 0 && 'bg-muted/40'
                               )}
                             >
-                              <span>Lite</span>
+                              <span className='flex items-center gap-1.5'>
+                                <Zap className='h-3 w-3 text-muted-foreground' />
+                                Lite
+                              </span>
                               {agentDepth === 0 && <Check className='h-3 w-3 text-muted-foreground' />}
                             </DropdownMenuItem>
                           </TooltipTrigger>
@@ -598,16 +662,19 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                 agentDepth === 1 && 'bg-muted/40'
                               )}
                             >
-                              <span>Default</span>
+                              <span className='flex items-center gap-1.5'>
+                                <Boxes className='h-3 w-3 text-muted-foreground' />
+                                Auto
+                              </span>
                               {agentDepth === 1 && <Check className='h-3 w-3 text-muted-foreground' />}
                             </DropdownMenuItem>
                           </TooltipTrigger>
                           <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
                             <div className='mb-1 flex items-center gap-2'>
-                              <Zap className='h-3 w-3 text-muted-foreground' />
-                              <span className='font-medium'>Default</span>
+                              <Boxes className='h-3 w-3 text-muted-foreground' />
+                              <span className='font-medium'>Auto</span>
                             </div>
-                            <div>Balanced speed and reasoning. Good fit for most tasks.</div>
+                            <div>Automatically balances speed and reasoning. Good fit for most tasks.</div>
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
@@ -619,13 +686,16 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                 agentDepth === 2 && 'bg-muted/40'
                               )}
                             >
-                              <span>Pro</span>
+                              <span className='flex items-center gap-1.5'>
+                                <BrainCircuit className='h-3 w-3 text-muted-foreground' />
+                                Pro
+                              </span>
                               {agentDepth === 2 && <Check className='h-3 w-3 text-muted-foreground' />}
                             </DropdownMenuItem>
                           </TooltipTrigger>
                           <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
                             <div className='mb-1 flex items-center gap-2'>
-                              <Zap className='h-3 w-3 text-muted-foreground' />
+                              <BrainCircuit className='h-3 w-3 text-muted-foreground' />
                               <span className='font-medium'>Pro</span>
                             </div>
                             <div>More reasoning for larger workflows and complex edits, still balanced for speed.</div>
@@ -640,13 +710,16 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                 agentDepth === 3 && 'bg-muted/40'
                               )}
                             >
-                              <span>Max</span>
+                              <span className='flex items-center gap-1.5'>
+                                <BrainCog className='h-3 w-3 text-muted-foreground' />
+                                Max
+                              </span>
                               {agentDepth === 3 && <Check className='h-3 w-3 text-muted-foreground' />}
                             </DropdownMenuItem>
                           </TooltipTrigger>
                           <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
                             <div className='mb-1 flex items-center gap-2'>
-                              <Zap className='h-3 w-3 text-muted-foreground' />
+                              <BrainCog className='h-3 w-3 text-muted-foreground' />
                               <span className='font-medium'>Max</span>
                             </div>
                             <div>Maximum reasoning power. Best for complex workflow building and debugging.</div>
@@ -656,7 +729,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     </TooltipProvider>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              )}
+              }
             </div>
 
             {/* Right side: Attach Button + Send Button */}

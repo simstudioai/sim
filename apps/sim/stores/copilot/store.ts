@@ -171,7 +171,7 @@ function parseContentWithThinkingTags(content: string): Array<{ type: string; co
  * Initial state for the copilot store
  */
 const initialState = {
-  mode: 'ask' as const,
+  mode: 'agent' as const,
   agentDepth: 1 as 0 | 1 | 2 | 3,
   currentChat: null,
   chats: [],
@@ -2225,7 +2225,7 @@ export const useCopilotStore = create<CopilotStore>()(
             chatId: currentChat?.id,
             workflowId,
             mode: mode === 'ask' ? 'ask' : 'agent',
-            ...(mode !== 'ask' && { depth: get().agentDepth }),
+            depth: get().agentDepth,
             createNewChat: !currentChat,
             stream,
             fileAttachments: options.fileAttachments,
@@ -2489,7 +2489,7 @@ export const useCopilotStore = create<CopilotStore>()(
             chatId: currentChat?.id,
             workflowId,
             mode: mode === 'ask' ? 'ask' : 'agent',
-            ...(mode !== 'ask' && { depth: agentDepth }),
+            depth: agentDepth,
             createNewChat: !currentChat,
             stream: true,
             implicitFeedback, // Pass the implicit feedback
