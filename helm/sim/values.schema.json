@@ -256,10 +256,6 @@
               "type": "string",
               "description": "Custom stylesheet URL"
             },
-            "NEXT_PUBLIC_HIDE_BRANDING": {
-              "type": "string",
-              "description": "Hide powered by branding"
-            },
             "NEXT_PUBLIC_CUSTOM_FOOTER_TEXT": {
               "type": "string",
               "description": "Custom footer text"
