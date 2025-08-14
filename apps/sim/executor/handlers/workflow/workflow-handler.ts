@@ -115,6 +115,12 @@ export class WorkflowBlockHandler implements BlockHandler {
         duration
       )
 
+      // If the child workflow failed, throw an error to trigger proper error handling in the parent
+      if ((mappedResult as any).success === false) {
+        const childError = (mappedResult as any).error || 'Unknown error'
+        throw new Error(`Error in child workflow "${childWorkflowName}": ${childError}`)
+      }
+
       return mappedResult
     } catch (error: any) {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
@@ -128,11 +134,15 @@ export class WorkflowBlockHandler implements BlockHandler {
       const workflowMetadata = workflows[workflowId]
       const childWorkflowName = workflowMetadata?.name || workflowId
 
-      return {
-        success: false,
-        error: error?.message || 'Child workflow execution failed',
-        childWorkflowName,
-      } as Record<string, any>
+      // Enhance error message with child workflow context
+      const originalError = error.message || 'Unknown error'
+
+      // Check if error message already has child workflow context to avoid duplication
+      if (originalError.startsWith('Error in child workflow')) {
+        throw error // Re-throw as-is to avoid duplication
+      }
+
+      throw new Error(`Error in child workflow "${childWorkflowName}": ${originalError}`)
     }
   }
 
