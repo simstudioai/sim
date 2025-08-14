@@ -10,7 +10,6 @@ import {
 } from 'react'
 import {
   ArrowUp,
-  Codesandbox,
   FileText,
   Image,
   Loader2,
@@ -396,35 +395,38 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const handleModeToggle = () => {
       if (onModeChange) {
-        // Cycle through: ask -> agent -> agent-max -> ask
-        if (mode === 'ask') {
-          onModeChange('agent')
-        } else if (mode === 'agent') {
-          onModeChange('agent-max')
-        } else {
-          onModeChange('ask')
-        }
+        // Toggle between Ask and Agent (Agent maps to agent-max in API)
+        onModeChange(mode === 'ask' ? 'agent' : 'ask')
       }
     }
 
     const getModeIcon = () => {
       if (mode === 'ask') {
         return <MessageCircle className='h-3 w-3 text-muted-foreground' />
-      } else if (mode === 'agent') {
-        return <Package className='h-3 w-3 text-muted-foreground' />
-      } else {
-        return <Codesandbox className='h-3 w-3 text-muted-foreground' />
       }
+      return <Package className='h-3 w-3 text-muted-foreground' />
     }
 
     const getModeText = () => {
       if (mode === 'ask') {
         return 'Ask'
-      } else if (mode === 'agent') {
-        return 'Agent'
-      } else {
-        return 'Agent (MAX)'
       }
+      return 'Agent'
+    }
+
+    // Depth toggle state comes from global store; access via useCopilotStore
+    const { agentDepth, setAgentDepth } = useCopilotStore()
+
+    const cycleDepth = () => {
+      // Allowed UI values: 0 (Normal), 2 (Pro), 3 (Max)
+      const next = agentDepth === 0 ? 2 : agentDepth === 2 ? 3 : 0
+      setAgentDepth(next)
+    }
+
+    const getDepthLabel = () => {
+      if (agentDepth === 0) return 'Normal'
+      if (agentDepth === 2) return 'Pro'
+      return 'Max'
     }
 
     return (
@@ -515,17 +517,30 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
           {/* Bottom Row: Mode Selector + Attach Button + Send Button */}
           <div className='flex items-center justify-between'>
-            {/* Left side: Mode Selector */}
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={handleModeToggle}
-              disabled={!onModeChange}
-              className='flex h-6 items-center gap-1.5 rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground text-xs hover:bg-secondary/80'
-            >
-              {getModeIcon()}
-              <span>{getModeText()}</span>
-            </Button>
+            {/* Left side: Mode Selector and Depth (if Agent) */}
+            <div className='flex items-center gap-1.5'>
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={handleModeToggle}
+                disabled={!onModeChange}
+                className='flex h-6 items-center gap-1.5 rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground text-xs hover:bg-secondary/80'
+              >
+                {getModeIcon()}
+                <span>{getModeText()}</span>
+              </Button>
+              {mode !== 'ask' && (
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={cycleDepth}
+                  className='flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs'
+                  title='Toggle agent depth (Normal → Pro → Max)'
+                >
+                  <span>{getDepthLabel()}</span>
+                </Button>
+              )}
+            </div>
 
             {/* Right side: Attach Button + Send Button */}
             <div className='flex items-center gap-1'>

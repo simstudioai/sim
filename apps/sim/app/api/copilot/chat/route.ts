@@ -39,6 +39,7 @@ const ChatMessageSchema = z.object({
   chatId: z.string().optional(),
   workflowId: z.string().min(1, 'Workflow ID is required'),
   mode: z.enum(['ask', 'agent', 'agent-max']).optional().default('agent'),
+  depth: z.number().int().min(0).max(3).optional().default(0),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
   implicitFeedback: z.string().optional(),
@@ -156,6 +157,7 @@ export async function POST(req: NextRequest) {
       chatId,
       workflowId,
       mode,
+      depth,
       createNewChat,
       stream,
       implicitFeedback,
@@ -340,6 +342,7 @@ export async function POST(req: NextRequest) {
         stream: stream,
         streamToolCalls: true,
         mode: mode,
+        ...(typeof depth === 'number' ? { depth } : {}),
         ...(session?.user?.name && { userName: session.user.name }),
       }),
     })

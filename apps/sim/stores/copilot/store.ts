@@ -169,6 +169,7 @@ function parseContentWithThinkingTags(content: string): Array<{ type: string; co
  */
 const initialState = {
   mode: 'ask' as const,
+  agentDepth: 0 as 0 | 1 | 2 | 3,
   currentChat: null,
   chats: [],
   messages: [],
@@ -1841,6 +1842,7 @@ export const useCopilotStore = create<CopilotStore>()(
           ...initialState,
           workflowId,
           mode: get().mode, // Preserve mode
+          agentDepth: get().agentDepth, // Preserve agent depth
         })
       },
 
@@ -2215,7 +2217,8 @@ export const useCopilotStore = create<CopilotStore>()(
             userMessageId: userMessage.id, // Send the frontend-generated ID
             chatId: currentChat?.id,
             workflowId,
-            mode,
+            mode: mode === 'ask' ? 'ask' : 'agent-max',
+            ...(mode !== 'ask' && { depth: get().agentDepth }),
             createNewChat: !currentChat,
             stream,
             fileAttachments: options.fileAttachments,
@@ -2450,7 +2453,7 @@ export const useCopilotStore = create<CopilotStore>()(
         implicitFeedback: string,
         toolCallState?: 'accepted' | 'rejected' | 'errored'
       ) => {
-        const { workflowId, currentChat, mode } = get()
+        const { workflowId, currentChat, mode, agentDepth } = get()
 
         if (!workflowId) {
           logger.warn('Cannot send implicit feedback: no workflow ID set')
@@ -2478,7 +2481,8 @@ export const useCopilotStore = create<CopilotStore>()(
             message: 'Please continue your response.', // Simple continuation prompt
             chatId: currentChat?.id,
             workflowId,
-            mode,
+            mode: mode === 'ask' ? 'ask' : 'agent-max',
+            ...(mode !== 'ask' && { depth: agentDepth }),
             createNewChat: !currentChat,
             stream: true,
             implicitFeedback, // Pass the implicit feedback
@@ -3350,6 +3354,12 @@ export const useCopilotStore = create<CopilotStore>()(
           // Show error to user
           console.error('[Copilot] Error updating diff store with workflowState:', error)
         }
+      },
+
+      setAgentDepth: (depth) => {
+        const prev = get().agentDepth
+        set({ agentDepth: depth })
+        logger.info(`Copilot agent depth changed from ${prev} to ${depth}`)
       },
     }),
     { name: 'copilot-store' }

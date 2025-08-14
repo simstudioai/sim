@@ -343,7 +343,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                   <div className='w-full max-w-full space-y-1 overflow-hidden'>
                     {messages.length === 0 ? (
                       <div className='flex h-full items-center justify-center p-4'>
-                        <CopilotWelcome onQuestionClick={handleSubmit} mode={mode} />
+                        <CopilotWelcome onQuestionClick={handleSubmit} mode={mode === 'ask' ? 'ask' : 'agent'} />
                       </div>
                     ) : (
                       messages.map((message) => (
