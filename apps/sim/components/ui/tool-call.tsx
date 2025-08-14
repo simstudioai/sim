@@ -73,7 +73,7 @@ export function ToolCallExecution({ toolCall, isCompact = false }: ToolCallProps
               <Loader2 className='h-3 w-3 shrink-0 animate-spin' />
               <span>Executing...</span>
             </div>
-            {toolCall.parameters && Object.keys(toolCall.parameters).length > 0 && (
+            {toolCall.parameters && Object.keys(toolCall.parameters).length > 0 && (toolCall.name === 'make_api_request' || toolCall.name === 'set_environment_variables') && (
               <div className='min-w-0 max-w-full rounded bg-amber-100 p-2 dark:bg-amber-900'>
                 <div className='mb-1 font-medium text-amber-800 text-xs dark:text-amber-200'>
                   Parameters:
@@ -178,7 +178,7 @@ export function ToolCallCompletion({ toolCall, isCompact = false }: ToolCallProp
         </CollapsibleTrigger>
         <CollapsibleContent className='min-w-0 max-w-full px-3 pb-3'>
           <div className='min-w-0 max-w-full space-y-2'>
-            {toolCall.parameters && Object.keys(toolCall.parameters).length > 0 && (
+            {toolCall.parameters && Object.keys(toolCall.parameters).length > 0 && (toolCall.name === 'make_api_request' || toolCall.name === 'set_environment_variables') && (
               <div
                 className={cn(
                   'min-w-0 max-w-full rounded p-2',

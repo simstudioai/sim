@@ -475,6 +475,11 @@ export async function POST(req: NextRequest) {
                         }
                         break
 
+                      case 'reasoning':
+                        // Treat like thinking: do not add to assistantContent to avoid leaking
+                        logger.debug(`[${tracker.requestId}] Reasoning chunk received (${(event.data || event.content || '').length} chars)`)
+                        break
+
                       case 'tool_call':
                         logger.info(
                           `[${tracker.requestId}] Tool call ${event.data?.partial ? '(partial)' : '(complete)'}:`,

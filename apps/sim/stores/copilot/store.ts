@@ -820,6 +820,64 @@ const sseHandlers: Record<string, SSEHandler> = {
     }))
   },
 
+  // Render model "reasoning" stream as thinking blocks
+  reasoning: (data, context, get, set) => {
+    // Support both nested and flat phase shapes
+    const phase = (data && (data.phase || data?.data?.phase)) as string | undefined
+
+    // Handle control phases
+    if (phase === 'start') {
+      // Begin a thinking block session
+      if (!context.currentThinkingBlock) {
+        context.currentThinkingBlock = contentBlockPool.get()
+        context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
+        context.currentThinkingBlock.content = ''
+        context.currentThinkingBlock.timestamp = Date.now()
+        context.currentThinkingBlock.startTime = Date.now()
+        context.contentBlocks.push(context.currentThinkingBlock)
+      }
+
+      context.isInThinkingBlock = true
+      context.currentTextBlock = null
+      updateStreamingMessage(set, context)
+      return
+    }
+
+    if (phase === 'end') {
+      // Finish the current thinking block
+      if (context.currentThinkingBlock) {
+        context.currentThinkingBlock.duration =
+          Date.now() - (context.currentThinkingBlock.startTime || Date.now())
+      }
+      context.isInThinkingBlock = false
+      context.currentThinkingBlock = null
+      context.currentTextBlock = null
+      updateStreamingMessage(set, context)
+      return
+    }
+
+    // Fallback: some providers may stream reasoning text directly on this event
+    const chunk: string =
+      typeof data?.data === 'string' ? data.data : (data?.content || '')
+    if (!chunk) return
+
+    if (context.currentThinkingBlock) {
+      context.currentThinkingBlock.content += chunk
+    } else {
+      context.currentThinkingBlock = contentBlockPool.get()
+      context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
+      context.currentThinkingBlock.content = chunk
+      context.currentThinkingBlock.timestamp = Date.now()
+      context.currentThinkingBlock.startTime = Date.now()
+      context.contentBlocks.push(context.currentThinkingBlock)
+    }
+
+    context.isInThinkingBlock = true
+    context.currentTextBlock = null
+
+    updateStreamingMessage(set, context)
+  },
+
   // Handle tool result events - simplified
   tool_result: (data, context, get, set) => {
     const { toolCallId, result, success, error, failedDependency } = data
@@ -1378,6 +1436,11 @@ const sseHandlers: Record<string, SSEHandler> = {
         }
       }
       context.pendingContent = ''
+    }
+    
+    // If a thinking block is open, set final duration before clearing
+    if (context.currentThinkingBlock) {
+      context.currentThinkingBlock.duration = Date.now() - (context.currentThinkingBlock.startTime || Date.now())
     }
     
     // Reset thinking state
