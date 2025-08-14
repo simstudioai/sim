@@ -1,9 +1,8 @@
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getCredential, getUserId, refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { account } from '@/db/schema'
+import { getCredential, refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,18 +28,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
-    // Resolve the credential owner directly by id. This lets API/UI/webhooks run under
-    // whichever user owns the persisted credential, not necessarily the session user
-    // or workflow owner.
-    const creds = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-    if (!creds.length) {
-      logger.error(`[${requestId}] Credential not found: ${credentialId}`)
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    const authz = await authorizeCredentialUse(request, { credentialId, workflowId })
+    if (!authz.ok || !authz.credentialOwnerUserId) {
+      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
-    const credentialOwnerUserId = creds[0].userId
 
-    // Fetch the credential verifying it belongs to the resolved owner
-    const credential = await getCredential(requestId, credentialId, credentialOwnerUserId)
+    // Fetch the credential as the owner to enforce ownership scoping
+    const credential = await getCredential(requestId, credentialId, authz.credentialOwnerUserId)
 
     try {
       // Refresh the token if needed
@@ -73,14 +67,13 @@ export async function GET(request: NextRequest) {
     }
 
     // For GET requests, we only support session-based authentication
-    const userId = await getUserId(requestId)
-
-    if (!userId) {
+    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!auth.success || auth.authType !== 'session' || !auth.userId) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
     // Get the credential from the database
-    const credential = await getCredential(requestId, credentialId, userId)
+    const credential = await getCredential(requestId, credentialId, auth.userId)
 
     if (!credential) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })

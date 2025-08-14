@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
@@ -28,19 +28,16 @@ export async function GET(request: NextRequest) {
   logger.info(`[${requestId}] Google Calendar calendars request received`)
 
   try {
-    // Get the session
-    const session = await getSession()
-
-    // Check if the user is authenticated
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthenticated request rejected`)
+    // Authenticate caller (session, API key, or internal JWT with workflowId)
+    const auth = await checkHybridAuth(request, { requireWorkflowId: true })
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthenticated request rejected: ${auth.error || 'auth failed'}`)
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
     // Get the credential ID from the query params
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
-    const workflowId = searchParams.get('workflowId')
 
     if (!credentialId) {
       logger.warn(`[${requestId}] Missing credentialId parameter`)
@@ -57,13 +54,12 @@ export async function GET(request: NextRequest) {
 
     const credential = credentials[0]
 
-    // Allow collaborator read when workflowId present; otherwise require ownership
+    // Enforce that the authenticated user owns the credential
     const ownerUserId = credential.userId
-    const requesterUserId = session.user.id
-    if (ownerUserId !== requesterUserId && !workflowId) {
+    if (ownerUserId !== auth.userId) {
       logger.warn(`[${requestId}] Unauthorized credential access attempt`, {
         credentialUserId: ownerUserId,
-        requestUserId: requesterUserId,
+        requestUserId: auth.userId,
       })
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
