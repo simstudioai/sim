@@ -18,6 +18,7 @@ import {
   Paperclip,
   Zap,
   X,
+  Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -28,11 +29,9 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
+  DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 
 export interface MessageFileAttachment {
   id: string
@@ -98,7 +97,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const { data: session } = useSession()
     const { currentChat, workflowId } = useCopilotStore()
-    const [hoveredDepth, setHoveredDepth] = useState<0 | 1 | 2 | 3 | null>(null)
 
     // Expose focus method to parent
     useImperativeHandle(
@@ -567,66 +565,95 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                       <span>{getDepthLabel()}</span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align='start' className='w-[400px] p-0'>
-                    <div className='flex'>
-                      <div className='w-[200px] p-2'>
-                        <DropdownMenuLabel className='px-2 py-1.5'>Mode</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuRadioGroup
-                          value={String(agentDepth)}
-                          onValueChange={(value) => setAgentDepth(parseInt(value) as 0 | 1 | 2 | 3)}
-                        >
-                          <DropdownMenuRadioItem
-                            value='0'
-                            onMouseEnter={() => setHoveredDepth(0)}
-                            onMouseLeave={() => setHoveredDepth(null)}
-                            onFocus={() => setHoveredDepth(0)}
-                          >
-                            Lite
-                          </DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem
-                            value='1'
-                            onMouseEnter={() => setHoveredDepth(1)}
-                            onMouseLeave={() => setHoveredDepth(null)}
-                            onFocus={() => setHoveredDepth(1)}
-                          >
-                            Default
-                          </DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem
-                            value='2'
-                            onMouseEnter={() => setHoveredDepth(2)}
-                            onMouseLeave={() => setHoveredDepth(null)}
-                            onFocus={() => setHoveredDepth(2)}
-                          >
-                            Pro
-                          </DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem
-                            value='3'
-                            onMouseEnter={() => setHoveredDepth(3)}
-                            onMouseLeave={() => setHoveredDepth(null)}
-                            onFocus={() => setHoveredDepth(3)}
-                          >
-                            Max
-                          </DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                      </div>
-                      <div className='hidden min-h-[140px] flex-1 border-l bg-muted/30 p-2 md:block'>
-                        {(() => {
-                          const preview = (hoveredDepth ?? agentDepth) as 0 | 1 | 2 | 3
-                          return (
-                            <div className='space-y-1.5'>
-                              <div className='flex items-center gap-2'>
-                                <Zap className='h-3 w-3 text-muted-foreground' />
-                                <span className='font-medium text-xs'>{getDepthLabelFor(preview)}</span>
-                              </div>
-                              <p className='text-muted-foreground text-[11px] leading-snug'>
-                                {getDepthDescription(preview)}
-                              </p>
+                  <DropdownMenuContent align='start' className='p-0'>
+                    <TooltipProvider>
+                      <div className='w-[180px] p-1'>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <DropdownMenuItem
+                              onSelect={() => setAgentDepth(0)}
+                              className={cn(
+                                'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
+                                agentDepth === 0 && 'bg-muted/40'
+                              )}
+                            >
+                              <span>Lite</span>
+                              {agentDepth === 0 && <Check className='h-3 w-3 text-muted-foreground' />}
+                            </DropdownMenuItem>
+                          </TooltipTrigger>
+                          <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
+                            <div className='mb-1 flex items-center gap-2'>
+                              <Zap className='h-3 w-3 text-muted-foreground' />
+                              <span className='font-medium'>Lite</span>
                             </div>
-                          )
-                        })()}
+                            <div>Fastest and cheapest. Good for small edits, simple workflows, and small tasks.</div>
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <DropdownMenuItem
+                              onSelect={() => setAgentDepth(1)}
+                              className={cn(
+                                'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
+                                agentDepth === 1 && 'bg-muted/40'
+                              )}
+                            >
+                              <span>Default</span>
+                              {agentDepth === 1 && <Check className='h-3 w-3 text-muted-foreground' />}
+                            </DropdownMenuItem>
+                          </TooltipTrigger>
+                          <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
+                            <div className='mb-1 flex items-center gap-2'>
+                              <Zap className='h-3 w-3 text-muted-foreground' />
+                              <span className='font-medium'>Default</span>
+                            </div>
+                            <div>Balanced speed and reasoning. Good fit for most tasks.</div>
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <DropdownMenuItem
+                              onSelect={() => setAgentDepth(2)}
+                              className={cn(
+                                'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
+                                agentDepth === 2 && 'bg-muted/40'
+                              )}
+                            >
+                              <span>Pro</span>
+                              {agentDepth === 2 && <Check className='h-3 w-3 text-muted-foreground' />}
+                            </DropdownMenuItem>
+                          </TooltipTrigger>
+                          <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
+                            <div className='mb-1 flex items-center gap-2'>
+                              <Zap className='h-3 w-3 text-muted-foreground' />
+                              <span className='font-medium'>Pro</span>
+                            </div>
+                            <div>More reasoning for larger workflows and complex edits, still balanced for speed.</div>
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <DropdownMenuItem
+                              onSelect={() => setAgentDepth(3)}
+                              className={cn(
+                                'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
+                                agentDepth === 3 && 'bg-muted/40'
+                              )}
+                            >
+                              <span>Max</span>
+                              {agentDepth === 3 && <Check className='h-3 w-3 text-muted-foreground' />}
+                            </DropdownMenuItem>
+                          </TooltipTrigger>
+                          <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
+                            <div className='mb-1 flex items-center gap-2'>
+                              <Zap className='h-3 w-3 text-muted-foreground' />
+                              <span className='font-medium'>Max</span>
+                            </div>
+                            <div>Maximum reasoning power. Best for complex workflow building and debugging.</div>
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
-                    </div>
+                    </TooltipProvider>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
