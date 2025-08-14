@@ -183,25 +183,44 @@ const nextConfig: NextConfig = {
     ]
   },
   async redirects() {
-    // Only enable domain redirects for the hosted version
-    if (!isHosted) {
-      return []
+    const redirects = []
+
+    // Add whitelabel redirects for terms and privacy pages if external URLs are configured
+    if (env.NEXT_PUBLIC_TERMS_URL?.startsWith('http')) {
+      redirects.push({
+        source: '/terms',
+        destination: env.NEXT_PUBLIC_TERMS_URL,
+        permanent: false, // Use temporary redirect in case URLs change
+      })
     }
 
-    return [
-      {
-        source: '/((?!api|_next|_vercel|favicon|static|.*\\..*).*)',
-        destination: 'https://www.sim.ai/$1',
-        permanent: true,
-        has: [{ type: 'host', value: 'simstudio.ai' }],
-      },
-      {
-        source: '/((?!api|_next|_vercel|favicon|static|.*\\..*).*)',
-        destination: 'https://www.sim.ai/$1',
-        permanent: true,
-        has: [{ type: 'host', value: 'www.simstudio.ai' }],
-      },
-    ]
+    if (env.NEXT_PUBLIC_PRIVACY_URL?.startsWith('http')) {
+      redirects.push({
+        source: '/privacy',
+        destination: env.NEXT_PUBLIC_PRIVACY_URL,
+        permanent: false, // Use temporary redirect in case URLs change
+      })
+    }
+
+    // Only enable domain redirects for the hosted version
+    if (isHosted) {
+      redirects.push(
+        {
+          source: '/((?!api|_next|_vercel|favicon|static|.*\\..*).*)',
+          destination: 'https://www.sim.ai/$1',
+          permanent: true,
+          has: [{ type: 'host', key: 'host', value: 'simstudio.ai' }],
+        },
+        {
+          source: '/((?!api|_next|_vercel|favicon|static|.*\\..*).*)',
+          destination: 'https://www.sim.ai/$1',
+          permanent: true,
+          has: [{ type: 'host', key: 'host', value: 'www.simstudio.ai' }],
+        }
+      )
+    }
+
+    return redirects
   },
 }
 
