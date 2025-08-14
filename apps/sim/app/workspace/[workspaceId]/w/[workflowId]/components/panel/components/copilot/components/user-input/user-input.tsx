@@ -98,6 +98,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const { data: session } = useSession()
     const { currentChat, workflowId } = useCopilotStore()
+    const [hoveredDepth, setHoveredDepth] = useState<0 | 1 | 2 | 3 | null>(null)
 
     // Expose focus method to parent
     useImperativeHandle(
@@ -439,6 +440,20 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       return 'Max'
     }
 
+    const getDepthLabelFor = (value: 0 | 1 | 2 | 3) => {
+      if (value === 0) return 'Lite'
+      if (value === 1) return 'Default'
+      if (value === 2) return 'Pro'
+      return 'Max'
+    }
+
+    const getDepthDescription = (value: 0 | 1 | 2 | 3) => {
+      if (value === 0) return 'Fastest and cheapest. Good for small edits, simple workflows, and small tasks.'
+      if (value === 1) return 'Balanced speed and reasoning. Good fit for most tasks.'
+      if (value === 2) return 'More reasoning for larger workflows and complex edits, still balanced for speed.'
+      return 'Maximum reasoning power. Best for complex workflow building and debugging.'
+    }
+
     return (
       <div className={cn('relative flex-none pb-4', className)}>
         <div
@@ -546,24 +561,72 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                       variant='ghost'
                       size='sm'
                       className='flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs'
-                      title='Choose agent depth'
+                      title='Choose mode'
                     >
                       <Zap className='h-3 w-3 text-muted-foreground' />
                       <span>{getDepthLabel()}</span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align='start' className='w-56'>
-                    <DropdownMenuLabel>Mode</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuRadioGroup
-                      value={String(agentDepth)}
-                      onValueChange={(value) => setAgentDepth(parseInt(value) as 0 | 1 | 2 | 3)}
-                    >
-                      <DropdownMenuRadioItem value='0'>Lite</DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value='1'>Default</DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value='2'>Pro</DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value='3'>Max</DropdownMenuRadioItem>
-                    </DropdownMenuRadioGroup>
+                  <DropdownMenuContent align='start' className='w-[400px] p-0'>
+                    <div className='flex'>
+                      <div className='w-[200px] p-2'>
+                        <DropdownMenuLabel className='px-2 py-1.5'>Mode</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuRadioGroup
+                          value={String(agentDepth)}
+                          onValueChange={(value) => setAgentDepth(parseInt(value) as 0 | 1 | 2 | 3)}
+                        >
+                          <DropdownMenuRadioItem
+                            value='0'
+                            onMouseEnter={() => setHoveredDepth(0)}
+                            onMouseLeave={() => setHoveredDepth(null)}
+                            onFocus={() => setHoveredDepth(0)}
+                          >
+                            Lite
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem
+                            value='1'
+                            onMouseEnter={() => setHoveredDepth(1)}
+                            onMouseLeave={() => setHoveredDepth(null)}
+                            onFocus={() => setHoveredDepth(1)}
+                          >
+                            Default
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem
+                            value='2'
+                            onMouseEnter={() => setHoveredDepth(2)}
+                            onMouseLeave={() => setHoveredDepth(null)}
+                            onFocus={() => setHoveredDepth(2)}
+                          >
+                            Pro
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem
+                            value='3'
+                            onMouseEnter={() => setHoveredDepth(3)}
+                            onMouseLeave={() => setHoveredDepth(null)}
+                            onFocus={() => setHoveredDepth(3)}
+                          >
+                            Max
+                          </DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                      </div>
+                      <div className='hidden min-h-[140px] flex-1 border-l bg-muted/30 p-2 md:block'>
+                        {(() => {
+                          const preview = (hoveredDepth ?? agentDepth) as 0 | 1 | 2 | 3
+                          return (
+                            <div className='space-y-1.5'>
+                              <div className='flex items-center gap-2'>
+                                <Zap className='h-3 w-3 text-muted-foreground' />
+                                <span className='font-medium text-xs'>{getDepthLabelFor(preview)}</span>
+                              </div>
+                              <p className='text-muted-foreground text-[11px] leading-snug'>
+                                {getDepthDescription(preview)}
+                              </p>
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    </div>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
