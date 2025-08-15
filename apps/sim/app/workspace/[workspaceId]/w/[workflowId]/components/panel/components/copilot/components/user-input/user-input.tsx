@@ -632,30 +632,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <DropdownMenuItem
-                              onSelect={() => setAgentDepth(0)}
-                              className={cn(
-                                'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
-                                agentDepth === 0 && 'bg-muted/40'
-                              )}
-                            >
-                              <span className='flex items-center gap-1.5'>
-                                <Zap className='h-3 w-3 text-muted-foreground' />
-                                Lite
-                              </span>
-                              {agentDepth === 0 && <Check className='h-3 w-3 text-muted-foreground' />}
-                            </DropdownMenuItem>
-                          </TooltipTrigger>
-                          <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
-                            <div className='mb-1 flex items-center gap-2'>
-                              <Zap className='h-3 w-3 text-muted-foreground' />
-                              <span className='font-medium'>Lite</span>
-                            </div>
-                            <div>Fastest and cheapest. Good for small edits, simple workflows, and small tasks.</div>
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <DropdownMenuItem
                               onSelect={() => setAgentDepth(1)}
                               className={cn(
                                 'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
@@ -670,11 +646,27 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             </DropdownMenuItem>
                           </TooltipTrigger>
                           <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
-                            <div className='mb-1 flex items-center gap-2'>
-                              <Boxes className='h-3 w-3 text-muted-foreground' />
-                              <span className='font-medium'>Auto</span>
-                            </div>
-                            <div>Automatically balances speed and reasoning. Good fit for most tasks.</div>
+                            Automatically balances speed and reasoning. Good fit for most tasks.
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <DropdownMenuItem
+                              onSelect={() => setAgentDepth(0)}
+                              className={cn(
+                                'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
+                                agentDepth === 0 && 'bg-muted/40'
+                              )}
+                            >
+                              <span className='flex items-center gap-1.5'>
+                                <Zap className='h-3 w-3 text-muted-foreground' />
+                                Lite
+                              </span>
+                              {agentDepth === 0 && <Check className='h-3 w-3 text-muted-foreground' />}
+                            </DropdownMenuItem>
+                          </TooltipTrigger>
+                          <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
+                            Fastest and cheapest. Good for small edits, simple workflows, and small tasks.
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
@@ -694,11 +686,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             </DropdownMenuItem>
                           </TooltipTrigger>
                           <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
-                            <div className='mb-1 flex items-center gap-2'>
-                              <BrainCircuit className='h-3 w-3 text-muted-foreground' />
-                              <span className='font-medium'>Pro</span>
-                            </div>
-                            <div>More reasoning for larger workflows and complex edits, still balanced for speed.</div>
+                            More reasoning for larger workflows and complex edits, still balanced for speed.
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
@@ -718,11 +706,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             </DropdownMenuItem>
                           </TooltipTrigger>
                           <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
-                            <div className='mb-1 flex items-center gap-2'>
-                              <BrainCog className='h-3 w-3 text-muted-foreground' />
-                              <span className='font-medium'>Max</span>
-                            </div>
-                            <div>Maximum reasoning power. Best for complex workflow building and debugging.</div>
+                            Maximum reasoning power. Best for complex workflow building and debugging.
                           </TooltipContent>
                         </Tooltip>
                       </div>
