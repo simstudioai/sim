@@ -1,5 +1,5 @@
 {
-  "id": "0447a7aa-8be6-4c63-87ce-e402141fbda0",
+  "id": "c7dde23c-1693-42fc-b4a5-31d298126419",
   "prevId": "5a621010-b08a-4875-81fe-f6aa9b800872",
   "version": "7",
   "dialect": "postgresql",
@@ -365,7 +365,23 @@
           "notNull": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "copilot_api_keys_api_key_encrypted_hash_idx": {
+          "name": "copilot_api_keys_api_key_encrypted_hash_idx",
+          "columns": [
+            {
+              "expression": "api_key_encrypted",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "hash",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "copilot_api_keys_user_id_user_id_fk": {
           "name": "copilot_api_keys_user_id_user_id_fk",

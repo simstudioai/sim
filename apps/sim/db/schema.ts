@@ -1180,10 +1180,19 @@ export const copilotFeedback = pgTable(
   })
 )
 
-export const copilotApiKeys = pgTable('copilot_api_keys', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  apiKeyEncrypted: text('api_key_encrypted').notNull(),
-})
+export const copilotApiKeys = pgTable(
+  'copilot_api_keys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    apiKeyEncrypted: text('api_key_encrypted').notNull(),
+  },
+  (table) => ({
+    apiKeyEncryptedHashIdx: index('copilot_api_keys_api_key_encrypted_hash_idx').using(
+      'hash',
+      table.apiKeyEncrypted
+    ),
+  })
+)
