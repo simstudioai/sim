@@ -327,8 +327,8 @@ export function OutputSelect({
         onClick={() => setIsOutputDropdownOpen(!isOutputDropdownOpen)}
         className={`flex h-9 w-full items-center justify-between rounded-[8px] border px-3 py-1.5 font-normal text-sm shadow-xs transition-colors ${
           isOutputDropdownOpen
-            ? 'border-[#E5E5E5] bg-[#FFFFFF] text-muted-foreground dark:border-[#414141] dark:bg-[#202020]'
-            : 'border-[#E5E5E5] bg-[#FFFFFF] text-muted-foreground hover:text-muted-foreground dark:border-[#414141] dark:bg-[#202020]'
+            ? 'border-[#E5E5E5] bg-[#FFFFFF] text-muted-foreground dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+            : 'border-[#E5E5E5] bg-[#FFFFFF] text-muted-foreground hover:text-muted-foreground dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
         }`}
         disabled={workflowOutputs.length === 0 || disabled}
       >
@@ -362,7 +362,7 @@ export function OutputSelect({
       </button>
 
       {isOutputDropdownOpen && workflowOutputs.length > 0 && (
-        <div className='absolute left-0 z-50 mt-1 w-full overflow-hidden rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] pt-1 shadow-xs dark:border-[#414141] dark:bg-[#202020]'>
+        <div className='absolute left-0 z-50 mt-1 w-full overflow-hidden rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] pt-1 shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'>
           <div className='max-h-[230px] overflow-y-auto'>
             {Object.entries(groupedOutputs).map(([blockName, outputs]) => (
               <div key={blockName}>

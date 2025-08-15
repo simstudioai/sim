@@ -39,7 +39,7 @@ const logger = createLogger('KnowledgeBaseTags')
 
 // Predetermined colors for each tag slot (same as document tags)
 const TAG_SLOT_COLORS = [
-  '#701FFC', // Purple
+  'var(--brand-primary-hex)', // Purple
   '#FF6B35', // Orange
   '#4ECDC4', // Teal
   '#45B7D1', // Blue

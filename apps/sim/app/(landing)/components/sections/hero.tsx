@@ -62,7 +62,7 @@ function Hero() {
       <Button
         variant={'secondary'}
         onClick={handleNavigate}
-        className='animate-fade-in items-center bg-[#701ffc] px-7 py-6 font-[420] font-geist-sans text-lg text-neutral-100 tracking-normal shadow-[#701ffc]/30 shadow-lg hover:bg-[#802FFF]'
+        className='animate-fade-in items-center bg-[var(--brand-primary-hex)] px-7 py-6 font-[420] font-geist-sans text-lg text-neutral-100 tracking-normal shadow-[var(--brand-primary-hex)]/30 shadow-lg hover:bg-[var(--brand-primary-hover-hex)]'
         aria-label='Start using the platform'
       >
         <div className='text-[1.15rem]'>Start now</div>
@@ -104,7 +104,7 @@ function Hero() {
           className='aspect-[5/3] h-auto md:aspect-auto'
         >
           <g filter='url(#filter0_b_0_1)'>
-            <ellipse cx='300' cy='240' rx='290' ry='220' fill='#0C0C0C' />
+            <ellipse cx='300' cy='240' rx='290' ry='220' fill='var(--brand-background-hex)' />
           </g>
           <defs>
             <filter

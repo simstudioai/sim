@@ -240,18 +240,6 @@
               "type": "string",
               "description": "Custom favicon URL"
             },
-            "NEXT_PUBLIC_BRAND_PRIMARY_COLOR": {
-              "type": "string",
-              "description": "Primary brand color (hex)"
-            },
-            "NEXT_PUBLIC_BRAND_SECONDARY_COLOR": {
-              "type": "string",
-              "description": "Secondary brand color (hex)"
-            },
-            "NEXT_PUBLIC_BRAND_ACCENT_COLOR": {
-              "type": "string",
-              "description": "Accent brand color (hex)"
-            },
             "NEXT_PUBLIC_CUSTOM_CSS_URL": {
               "type": "string",
               "description": "Custom stylesheet URL"

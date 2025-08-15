@@ -234,7 +234,7 @@ export default function Templates({ initialTemplates, currentUserId }: Templates
             </div>
             {/* <Button
               onClick={handleCreateNew}
-              className='flex h-9 items-center gap-2 rounded-lg bg-[#701FFC] px-4 py-2 font-normal font-sans text-sm text-white hover:bg-[#601EE0]'
+              className='flex h-9 items-center gap-2 rounded-lg bg-[var(--brand-primary-hex)] px-4 py-2 font-normal font-sans text-sm text-white hover:bg-[#601EE0]'
             >
               <Plus className='h-4 w-4' />
               Create New

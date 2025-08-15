@@ -93,6 +93,17 @@
     /* Gradient Colors */
     --gradient-primary: 263 85% 70%; /* More vibrant purple */
     --gradient-secondary: 336 95% 65%; /* More vibrant pink */
+
+    /* Brand Colors (Default Sim Theme) */
+    --brand-primary-hex: #701ffc; /* Primary brand purple */
+    --brand-primary-hover-hex: #802fff; /* Primary brand purple hover */
+    --brand-secondary-hex: #6518e6; /* Secondary brand purple */
+    --brand-accent-hex: #9d54ff; /* Accent purple for links */
+    --brand-accent-hover-hex: #a66fff; /* Accent purple hover */
+    --brand-background-hex: #0c0c0c; /* Primary dark background */
+
+    /* UI Surface Colors */
+    --surface-elevated: #202020; /* Elevated surface background for dark mode */
   }
 
   /* Dark Mode Theme */
@@ -153,6 +164,17 @@
     /* Gradient Colors - Adjusted for dark mode */
     --gradient-primary: 263 90% 75%; /* More vibrant purple for dark mode */
     --gradient-secondary: 336 100% 72%; /* More vibrant pink for dark mode */
+
+    /* Brand Colors (Same in dark mode) */
+    --brand-primary-hex: #701ffc; /* Primary brand purple */
+    --brand-primary-hover-hex: #802fff; /* Primary brand purple hover */
+    --brand-secondary-hex: #6518e6; /* Secondary brand purple */
+    --brand-accent-hex: #9d54ff; /* Accent purple for links */
+    --brand-accent-hover-hex: #a66fff; /* Accent purple hover */
+    --brand-background-hex: #0c0c0c; /* Primary dark background */
+
+    /* UI Surface Colors */
+    --surface-elevated: #202020; /* Elevated surface background for dark mode */
   }
 }
 
@@ -338,6 +360,60 @@ input[type="search"]::-ms-clear {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Brand Color Utilities */
+  .bg-brand-primary {
+    background-color: var(--brand-primary-hex);
+  }
+
+  .bg-brand-primary-hover {
+    background-color: var(--brand-primary-hover-hex);
+  }
+
+  .bg-brand-secondary {
+    background-color: var(--brand-secondary-hex);
+  }
+
+  .bg-brand-accent {
+    background-color: var(--brand-accent-hex);
+  }
+
+  .bg-brand-background {
+    background-color: var(--brand-background-hex);
+  }
+
+  .text-brand-primary {
+    color: var(--brand-primary-hex);
+  }
+
+  .text-brand-accent {
+    color: var(--brand-accent-hex);
+  }
+
+  .text-brand-accent-hover {
+    color: var(--brand-accent-hover-hex);
+  }
+
+  .border-brand-primary {
+    border-color: var(--brand-primary-hex);
+  }
+
+  .hover\:bg-brand-primary-hover:hover {
+    background-color: var(--brand-primary-hover-hex);
+  }
+
+  .hover\:bg-brand-secondary:hover {
+    background-color: var(--brand-secondary-hex);
+  }
+
+  .hover\:text-brand-accent-hover:hover {
+    color: var(--brand-accent-hover-hex);
+  }
+
+  /* Surface Utilities */
+  .bg-surface-elevated {
+    background-color: var(--surface-elevated);
   }
 
   /* Animation Classes */
