@@ -73,16 +73,19 @@ export function ToolCallExecution({ toolCall, isCompact = false }: ToolCallProps
               <Loader2 className='h-3 w-3 shrink-0 animate-spin' />
               <span>Executing...</span>
             </div>
-            {toolCall.parameters && Object.keys(toolCall.parameters).length > 0 && (
-              <div className='min-w-0 max-w-full rounded bg-amber-100 p-2 dark:bg-amber-900'>
-                <div className='mb-1 font-medium text-amber-800 text-xs dark:text-amber-200'>
-                  Parameters:
+            {toolCall.parameters &&
+              Object.keys(toolCall.parameters).length > 0 &&
+              (toolCall.name === 'make_api_request' ||
+                toolCall.name === 'set_environment_variables') && (
+                <div className='min-w-0 max-w-full rounded bg-amber-100 p-2 dark:bg-amber-900'>
+                  <div className='mb-1 font-medium text-amber-800 text-xs dark:text-amber-200'>
+                    Parameters:
+                  </div>
+                  <div className='min-w-0 max-w-full break-all font-mono text-amber-700 text-xs dark:text-amber-300'>
+                    {JSON.stringify(toolCall.parameters, null, 2)}
+                  </div>
                 </div>
-                <div className='min-w-0 max-w-full break-all font-mono text-amber-700 text-xs dark:text-amber-300'>
-                  {JSON.stringify(toolCall.parameters, null, 2)}
-                </div>
-              </div>
-            )}
+              )}
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -178,34 +181,37 @@ export function ToolCallCompletion({ toolCall, isCompact = false }: ToolCallProp
         </CollapsibleTrigger>
         <CollapsibleContent className='min-w-0 max-w-full px-3 pb-3'>
           <div className='min-w-0 max-w-full space-y-2'>
-            {toolCall.parameters && Object.keys(toolCall.parameters).length > 0 && (
-              <div
-                className={cn(
-                  'min-w-0 max-w-full rounded p-2',
-                  isSuccess && 'bg-green-100 dark:bg-green-900',
-                  isError && 'bg-red-100 dark:bg-red-900'
-                )}
-              >
+            {toolCall.parameters &&
+              Object.keys(toolCall.parameters).length > 0 &&
+              (toolCall.name === 'make_api_request' ||
+                toolCall.name === 'set_environment_variables') && (
                 <div
                   className={cn(
-                    'mb-1 font-medium text-xs',
-                    isSuccess && 'text-green-800 dark:text-green-200',
-                    isError && 'text-red-800 dark:text-red-200'
+                    'min-w-0 max-w-full rounded p-2',
+                    isSuccess && 'bg-green-100 dark:bg-green-900',
+                    isError && 'bg-red-100 dark:bg-red-900'
                   )}
                 >
-                  Parameters:
+                  <div
+                    className={cn(
+                      'mb-1 font-medium text-xs',
+                      isSuccess && 'text-green-800 dark:text-green-200',
+                      isError && 'text-red-800 dark:text-red-200'
+                    )}
+                  >
+                    Parameters:
+                  </div>
+                  <div
+                    className={cn(
+                      'min-w-0 max-w-full break-all font-mono text-xs',
+                      isSuccess && 'text-green-700 dark:text-green-300',
+                      isError && 'text-red-700 dark:text-red-300'
+                    )}
+                  >
+                    {JSON.stringify(toolCall.parameters, null, 2)}
+                  </div>
                 </div>
-                <div
-                  className={cn(
-                    'min-w-0 max-w-full break-all font-mono text-xs',
-                    isSuccess && 'text-green-700 dark:text-green-300',
-                    isError && 'text-red-700 dark:text-red-300'
-                  )}
-                >
-                  {JSON.stringify(toolCall.parameters, null, 2)}
-                </div>
-              </div>
-            )}
+              )}
 
             {toolCall.error && (
               <div className='min-w-0 max-w-full rounded bg-red-100 p-2 dark:bg-red-900'>

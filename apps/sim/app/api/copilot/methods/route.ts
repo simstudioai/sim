@@ -65,7 +65,7 @@ async function pollRedisForTool(
   }
 
   const key = `tool_call:${toolCallId}`
-  const timeout = 300000 // 5 minutes
+  const timeout = 600000 // 10 minutes for long-running operations
   const pollInterval = 1000 // 1 second
   const startTime = Date.now()
 

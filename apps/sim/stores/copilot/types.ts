@@ -41,6 +41,7 @@ export interface CopilotToolCall {
   result?: any
   error?: string | { message: string }
   timestamp?: string
+  hidden?: boolean // Hide tool from UI rendering (e.g., checkoff_todo)
 }
 
 /**
@@ -52,13 +53,21 @@ export interface TextContentBlock {
   timestamp: number
 }
 
+export interface ThinkingContentBlock {
+  type: 'thinking'
+  content: string
+  timestamp: number
+  duration?: number // Duration in milliseconds for display
+  startTime?: number // Start time for calculating duration
+}
+
 export interface ToolCallContentBlock {
   type: 'tool_call'
   toolCall: CopilotToolCall
   timestamp: number
 }
 
-export type ContentBlock = TextContentBlock | ToolCallContentBlock
+export type ContentBlock = TextContentBlock | ThinkingContentBlock | ToolCallContentBlock
 
 /**
  * File attachment interface for copilot messages
@@ -161,6 +170,8 @@ export interface SendDocsMessageOptions {
 export interface CopilotState {
   // Current mode
   mode: CopilotMode
+  // Depth for agent mode (0-3)
+  agentDepth: 0 | 1 | 2 | 3
 
   // Chat management
   currentChat: CopilotChat | null
@@ -196,6 +207,10 @@ export interface CopilotState {
   // Revert state management
   revertState: { messageId: string; messageContent: string } | null // Track which message we reverted from
   inputValue: string // Control the input field
+
+  // Todo list state (from plan tool)
+  planTodos: Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>
+  showPlanTodos: boolean
 }
 
 /**
@@ -204,6 +219,7 @@ export interface CopilotState {
 export interface CopilotActions {
   // Mode management
   setMode: (mode: CopilotMode) => void
+  setAgentDepth: (depth: 0 | 1 | 2 | 3) => void
 
   // Chat management
   setWorkflowId: (workflowId: string | null) => Promise<void>
@@ -252,6 +268,13 @@ export interface CopilotActions {
   setInputValue: (value: string) => void
   clearRevertState: () => void
 
+  // Todo list actions
+  setPlanTodos: (
+    todos: Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>
+  ) => void
+  updatePlanTodoStatus: (id: string, status: 'executing' | 'completed') => void
+  closePlanTodos: () => void
+
   // Internal helpers (not exposed publicly)
   handleStreamingResponse: (
     stream: ReadableStream,
@@ -260,6 +283,7 @@ export interface CopilotActions {
   ) => Promise<void>
   handleNewChatCreation: (newChatId: string) => Promise<void>
   updateDiffStore: (yamlContent: string, toolName?: string) => Promise<void>
+  updateDiffStoreWithWorkflowState: (workflowState: any, toolName?: string) => Promise<void>
 }
 
 /**

@@ -30,6 +30,7 @@ import {
   getKeyboardShortcutText,
   useGlobalShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
@@ -810,6 +811,11 @@ export function Sidebar() {
 
     try {
       setIsCreatingWorkflow(true)
+
+      // Clear workflow diff store when creating a new workflow
+      const { clearDiff } = useWorkflowDiffStore.getState()
+      clearDiff()
+
       const id = await createWorkflow({
         workspaceId: workspaceId || undefined,
         folderId: folderId || undefined,

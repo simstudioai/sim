@@ -18,6 +18,7 @@ import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotMessage as CopilotMessageType } from '@/stores/copilot/types'
 import CopilotMarkdownRenderer from './components/markdown-renderer'
+import { ThinkingBlock } from './components/thinking-block'
 
 const logger = createLogger('CopilotMessage')
 
@@ -574,7 +575,30 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             </div>
           )
         }
+        if (block.type === 'thinking') {
+          const isLastBlock = index === message.contentBlocks!.length - 1
+          // Consider the thinking block streaming if the overall message is streaming
+          // and the block has not been finalized with a duration yet. This avoids
+          // freezing the timer when new blocks are appended after the thinking block.
+          const isStreamingThinking = isStreaming && (block as any).duration == null
+
+          return (
+            <div key={`thinking-${index}-${block.timestamp || index}`} className='w-full'>
+              <ThinkingBlock
+                content={block.content}
+                isStreaming={isStreamingThinking}
+                duration={block.duration}
+                startTime={block.startTime}
+              />
+            </div>
+          )
+        }
         if (block.type === 'tool_call') {
+          // Skip hidden tools (like checkoff_todo)
+          if (block.toolCall.hidden) {
+            return null
+          }
+
           return (
             <div
               key={`tool-${block.toolCall.id}`}
@@ -591,7 +615,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     if (isUser) {
       return (
-        <div className='w-full py-2'>
+        <div className='w-full max-w-full overflow-hidden py-2'>
           {/* File attachments displayed above the message, completely separate from message box width */}
           {message.fileAttachments && message.fileAttachments.length > 0 && (
             <div className='mb-1 flex justify-end'>
@@ -602,7 +626,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           )}
 
           <div className='flex justify-end'>
-            <div className='max-w-[80%]'>
+            <div className='min-w-0 max-w-[80%]'>
               {/* Message content in purple box */}
               <div className='rounded-[10px] bg-[var(--brand-primary-hover-hex)]/[0.08] px-3 py-2'>
                 <div className='whitespace-pre-wrap break-words font-normal text-base text-foreground leading-relaxed'>
@@ -725,9 +749,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                       href={citation.url}
                       target='_blank'
                       rel='noopener noreferrer'
-                      className='inline-flex items-center rounded-md border bg-muted/50 px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground'
+                      className='inline-flex max-w-full items-center rounded-md border bg-muted/50 px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground'
                     >
-                      {citation.title}
+                      <span className='truncate'>{citation.title}</span>
                     </a>
                   ))}
                 </div>
@@ -757,7 +781,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     // For streaming messages, check if content actually changed
     if (nextProps.isStreaming) {
-      // Compare contentBlocks length and lastUpdated for streaming messages
       const prevBlocks = prevMessage.contentBlocks || []
       const nextBlocks = nextMessage.contentBlocks || []
 
@@ -765,16 +788,37 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         return false // Content blocks changed
       }
 
-      // Check if any text content changed in the last block
-      if (nextBlocks.length > 0) {
-        const prevLastBlock = prevBlocks[prevBlocks.length - 1]
-        const nextLastBlock = nextBlocks[nextBlocks.length - 1]
-
-        if (prevLastBlock?.type === 'text' && nextLastBlock?.type === 'text') {
-          if (prevLastBlock.content !== nextLastBlock.content) {
-            return false // Text content changed
+      // Helper: get last block content by type
+      const getLastBlockContent = (blocks: any[], type: 'text' | 'thinking'): string | null => {
+        for (let i = blocks.length - 1; i >= 0; i--) {
+          const block = blocks[i]
+          if (block && block.type === type) {
+            return (block as any).content ?? ''
           }
         }
+        return null
+      }
+
+      // Re-render if the last text block content changed
+      const prevLastTextContent = getLastBlockContent(prevBlocks as any[], 'text')
+      const nextLastTextContent = getLastBlockContent(nextBlocks as any[], 'text')
+      if (
+        prevLastTextContent !== null &&
+        nextLastTextContent !== null &&
+        prevLastTextContent !== nextLastTextContent
+      ) {
+        return false
+      }
+
+      // Re-render if the last thinking block content changed
+      const prevLastThinkingContent = getLastBlockContent(prevBlocks as any[], 'thinking')
+      const nextLastThinkingContent = getLastBlockContent(nextBlocks as any[], 'thinking')
+      if (
+        prevLastThinkingContent !== null &&
+        nextLastThinkingContent !== null &&
+        prevLastThinkingContent !== nextLastThinkingContent
+      ) {
+        return false
       }
 
       // Check if tool calls changed
@@ -785,14 +829,12 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         return false // Tool calls count changed
       }
 
-      // Check if any tool call state changed
       for (let i = 0; i < nextToolCalls.length; i++) {
         if (prevToolCalls[i]?.state !== nextToolCalls[i]?.state) {
           return false // Tool call state changed
         }
       }
 
-      // If we reach here, nothing meaningful changed during streaming
       return true
     }
 

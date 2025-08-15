@@ -31,11 +31,11 @@ export class RunWorkflowTool extends BaseTool {
           icon: 'play',
         },
         executing: {
-          displayName: 'Running workflow',
+          displayName: 'Executing workflow',
           icon: 'spinner',
         },
         accepted: {
-          displayName: 'Running workflow',
+          displayName: 'Executing workflow',
           icon: 'spinner',
         },
         success: {

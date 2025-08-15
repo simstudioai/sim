@@ -11,6 +11,7 @@ import { generateFolderName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useFolderStore } from '@/stores/folders/store'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
 
@@ -142,6 +143,10 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
           }
           return `Imported Workflow - ${new Date().toLocaleString()}`
         }
+
+        // Clear workflow diff store when creating a new workflow from import
+        const { clearDiff } = useWorkflowDiffStore.getState()
+        clearDiff()
 
         // Create a new workflow
         const newWorkflowId = await createWorkflow({

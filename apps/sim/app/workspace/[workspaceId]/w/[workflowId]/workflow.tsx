@@ -883,6 +883,11 @@ const WorkflowContent = React.memo(() => {
       if (activeWorkflowId !== currentId) {
         // Only reset variables when actually switching workflows
         resetVariablesLoaded()
+
+        // Clear workflow diff store when switching workflows
+        const { clearDiff } = useWorkflowDiffStore.getState()
+        clearDiff()
+
         setActiveWorkflow(currentId)
       } else {
         // Don't reset variables cache if we're not actually switching workflows

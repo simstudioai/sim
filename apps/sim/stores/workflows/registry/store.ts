@@ -425,10 +425,19 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       // Modified setActiveWorkflow to work with clean DB-only architecture
       setActiveWorkflow: async (id: string) => {
         const { workflows, activeWorkflowId } = get()
-        if (!workflows[id]) {
-          set({ error: `Workflow ${id} not found` })
+
+        if (activeWorkflowId === id) {
+          logger.info(`Already active workflow ${id}, skipping switch`)
           return
         }
+
+        if (!workflows[id]) {
+          logger.error(`Workflow ${id} not found in registry`)
+          set({ error: `Workflow not found: ${id}` })
+          throw new Error(`Workflow not found: ${id}`)
+        }
+
+        logger.info(`Switching to workflow ${id}`)
 
         // First, sync the current workflow before switching (if there is one)
         if (activeWorkflowId && activeWorkflowId !== id) {
