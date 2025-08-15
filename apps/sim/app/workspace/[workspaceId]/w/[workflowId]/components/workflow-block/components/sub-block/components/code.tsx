@@ -446,25 +446,24 @@ export function Code({
             value={code}
             onValueChange={(newCode) => {
               if (!isCollapsed && !isAiStreaming && !isPreview && !disabled) {
-                // Capture cursor first to minimize staleness in dropdown logic
-                const textarea = editorRef.current?.querySelector(
-                  'textarea'
-                ) as HTMLTextAreaElement | null
-                const pos = textarea?.selectionStart ?? cursorPosition
-                setCursorPosition(pos)
-
                 setCode(newCode)
                 setStoreValue(newCode)
 
-                const tagTrigger = checkTagTrigger(newCode, pos)
-                setShowTags(tagTrigger.show)
-                if (!tagTrigger.show) {
-                  setActiveSourceBlockId(null)
-                }
+                const textarea = editorRef.current?.querySelector('textarea')
+                if (textarea) {
+                  const pos = textarea.selectionStart
+                  setCursorPosition(pos)
 
-                const envVarTrigger = checkEnvVarTrigger(newCode, pos)
-                setShowEnvVars(envVarTrigger.show)
-                setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+                  const tagTrigger = checkTagTrigger(newCode, pos)
+                  setShowTags(tagTrigger.show)
+                  if (!tagTrigger.show) {
+                    setActiveSourceBlockId(null)
+                  }
+
+                  const envVarTrigger = checkEnvVarTrigger(newCode, pos)
+                  setShowEnvVars(envVarTrigger.show)
+                  setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+                }
               }
             }}
             onKeyDown={(e) => {

@@ -158,23 +158,19 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
   const handleEditorChange = useCallback(
     (value: string) => {
       if (isPreview) return
-
-      // Capture cursor first to minimize staleness in dropdown logic
-      const textarea = editorContainerRef.current?.querySelector(
-        'textarea'
-      ) as HTMLTextAreaElement | null
-      const cursorPos = textarea?.selectionStart ?? cursorPosition
-      if (textarea) {
-        textareaRef.current = textarea
-      }
-      setCursorPosition(cursorPos)
-
       collaborativeUpdateIterationCollection(nodeId, iterationType, value)
 
-      const triggerCheck = checkTagTrigger(value, cursorPos)
-      setShowTagDropdown(triggerCheck.show)
+      const textarea = editorContainerRef.current?.querySelector('textarea')
+      if (textarea) {
+        textareaRef.current = textarea
+        const cursorPos = textarea.selectionStart || 0
+        setCursorPosition(cursorPos)
+
+        const triggerCheck = checkTagTrigger(value, cursorPos)
+        setShowTagDropdown(triggerCheck.show)
+      }
     },
-    [nodeId, iterationType, collaborativeUpdateIterationCollection, isPreview, cursorPosition]
+    [nodeId, iterationType, collaborativeUpdateIterationCollection, isPreview]
   )
 
   // Handle tag selection
