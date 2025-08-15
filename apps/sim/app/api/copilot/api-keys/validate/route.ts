@@ -23,10 +23,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => null)
     const apiKey = typeof body?.apiKey === 'string' ? body.apiKey : undefined
 
-    logger.info('Received API key for validation', { apiKey })
-
     if (!apiKey) {
-      return NextResponse.json({ valid: false, statusCode: 401 }, { status: 200 })
+      return new NextResponse(null, { status: 401 })
     }
 
     const lookup = computeLookup(apiKey, env.AGENT_API_DB_ENCRYPTION_KEY)
@@ -39,7 +37,7 @@ export async function POST(req: NextRequest) {
       .limit(1)
 
     if (rows.length === 0) {
-      return NextResponse.json({ valid: false, statusCode: 401 }, { status: 200 })
+      return new NextResponse(null, { status: 401 })
     }
 
     const { userId } = rows[0]
@@ -59,12 +57,12 @@ export async function POST(req: NextRequest) {
 
       if (!Number.isNaN(limit) && limit > 0 && currentUsage >= limit) {
         // Usage exceeded
-        return NextResponse.json({ valid: false, statusCode: 402 }, { status: 200 })
+        return new NextResponse(null, { status: 402 })
       }
     }
 
     // Valid and within usage limits
-    return NextResponse.json({ valid: true, statusCode: 200 }, { status: 200 })
+    return new NextResponse(null, { status: 200 })
   } catch (error) {
     logger.error('Error validating copilot API key', { error })
     return NextResponse.json({ error: 'Failed to validate key' }, { status: 500 })
