@@ -21,8 +21,12 @@ import { db } from '@/db'
 import { copilotChats, copilotApiKeys } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
 import { createAnthropicFileContent, isSupportedFileType } from './file-utils'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 
 const logger = createLogger('CopilotChatAPI')
+
+// Sim Agent API configuration
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 function deriveKey(keyString: string): Buffer {
   return createHash('sha256').update(keyString, 'utf8').digest()
@@ -77,8 +81,6 @@ const ChatMessageSchema = z.object({
   conversationId: z.string().optional(),
 })
 
-// Sim Agent API configuration
-const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || 'http://localhost:8000'
 /**
  * Generate a chat title using LLM
  */
@@ -370,33 +372,11 @@ export async function POST(req: NextRequest) {
     // If we have a conversationId, only send the most recent user message; else send full history
     const messagesForAgent = effectiveConversationId ? [messages[messages.length - 1]] : messages
 
-    // Build a network-encrypted API key for this user from DB
-    let networkEncryptedApiKey: string | undefined
-    if (env.AGENT_API_DB_ENCRYPTION_KEY && env.AGENT_API_NETWORK_ENCRYPTION_KEY) {
-      try {
-        const rows = await db
-          .select({ apiKeyEncrypted: copilotApiKeys.apiKeyEncrypted })
-          .from(copilotApiKeys)
-          .where(eq(copilotApiKeys.userId, authenticatedUserId))
-          .limit(1)
-
-        if (rows.length > 0) {
-          const plaintextKey = decryptWithKey(rows[0].apiKeyEncrypted, env.AGENT_API_DB_ENCRYPTION_KEY)
-          networkEncryptedApiKey = encryptWithKey(plaintextKey, env.AGENT_API_NETWORK_ENCRYPTION_KEY)
-        }
-      } catch (e) {
-        logger.warn(`[${tracker.requestId}] Failed to prepare network API key for user`, {
-          userId: authenticatedUserId,
-          error: e instanceof Error ? e.message : String(e),
-        })
-      }
-    }
-
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(networkEncryptedApiKey ? { 'x-api-key': networkEncryptedApiKey } : {}),
+        ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
       },
       body: JSON.stringify({
         messages: messagesForAgent,

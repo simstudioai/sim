@@ -1,12 +1,11 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { env } from '@/lib/env'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 
 const logger = createLogger('SimAgentClient')
 
 // Base URL for the sim-agent service
-const SIM_AGENT_BASE_URL =
-  process.env.NODE_ENV === 'development'
-    ? 'http://localhost:8000'
-    : process.env.NEXT_PUBLIC_SIM_AGENT_URL || 'https://sim-agent.vercel.app'
+const SIM_AGENT_BASE_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 export interface SimAgentRequest {
   workflowId: string

@@ -50,9 +50,12 @@ export async function POST(req: NextRequest) {
     // Compute deterministic lookup value for O(1) search
     const lookup = computeLookup(plaintextKey, env.AGENT_API_DB_ENCRYPTION_KEY)
 
-    await db.insert(copilotApiKeys).values({ userId, apiKeyEncrypted: dbEncrypted, apiKeyLookup: lookup })
+    const [inserted] = await db
+      .insert(copilotApiKeys)
+      .values({ userId, apiKeyEncrypted: dbEncrypted, apiKeyLookup: lookup })
+      .returning({ id: copilotApiKeys.id })
 
-    return NextResponse.json({ apiKey: plaintextKey }, { status: 201 })
+    return NextResponse.json({ success: true, key: { id: inserted.id, apiKey: plaintextKey } }, { status: 201 })
   } catch (error) {
     logger.error('Failed to generate copilot API key', { error })
     return NextResponse.json({ error: 'Failed to generate API key' }, { status: 500 })

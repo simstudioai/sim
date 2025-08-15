@@ -13,11 +13,12 @@ import {
   generateParallelBlocks,
 } from '@/stores/workflows/workflow/utils'
 import { env } from '@/lib/env'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 
 const logger = createLogger('YamlAutoLayoutAPI')
 
 // Sim Agent API configuration
-const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || 'http://localhost:8000'
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 const AutoLayoutRequestSchema = z.object({
   workflowState: z.object({

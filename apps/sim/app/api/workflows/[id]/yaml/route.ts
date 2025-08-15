@@ -13,12 +13,14 @@ import { getBlock } from '@/blocks'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
+import { env } from '@/lib/env'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { db } from '@/db'
 import { workflowCheckpoints, workflow as workflowTable } from '@/db/schema'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 // Sim Agent API configuration
-const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 export const dynamic = 'force-dynamic'
 

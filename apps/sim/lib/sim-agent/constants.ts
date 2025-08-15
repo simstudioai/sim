@@ -1,0 +1,1 @@
+export const SIM_AGENT_API_URL_DEFAULT = 'https://sim-agent.vercel.app' 
