@@ -223,6 +223,7 @@ describe('Copilot Chat API Route', () => {
             stream: true,
             streamToolCalls: true,
             mode: 'agent',
+            provider: 'openai',
             depth: 0,
           }),
         })
@@ -285,6 +286,7 @@ describe('Copilot Chat API Route', () => {
             stream: true,
             streamToolCalls: true,
             mode: 'agent',
+            provider: 'openai',
             depth: 0,
           }),
         })
@@ -339,6 +341,7 @@ describe('Copilot Chat API Route', () => {
             stream: true,
             streamToolCalls: true,
             mode: 'agent',
+            provider: 'openai',
             depth: 0,
           }),
         })
@@ -433,6 +436,7 @@ describe('Copilot Chat API Route', () => {
             stream: true,
             streamToolCalls: true,
             mode: 'ask',
+            provider: 'openai',
             depth: 0,
           }),
         })
