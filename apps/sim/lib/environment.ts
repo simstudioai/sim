@@ -27,7 +27,7 @@ export const isHosted = env.NEXT_PUBLIC_APP_URL === 'https://www.sim.ai'
  * Is billing enforcement enabled
  */
 export const isBillingEnabled =
-  isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED')) || !!env.NEXT_PUBLIC_BILLING_ENABLED
+  isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED')) || isTruthy(env.BILLING_ENABLED)
 
 /**
  * Get cost multiplier based on environment

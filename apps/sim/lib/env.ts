@@ -43,6 +43,7 @@ export const env = createEnv({
     TEAM_TIER_COST_LIMIT:                 z.number().optional(),                  // Cost limit for team tier users
     STRIPE_ENTERPRISE_PRICE_ID:           z.string().min(1).optional(),           // Stripe price ID for enterprise tier
     ENTERPRISE_TIER_COST_LIMIT:           z.number().optional(),                  // Cost limit for enterprise tier users
+    BILLING_ENABLED:                      z.boolean().optional(),                 // Enable billing enforcement and usage tracking
 
     // Email & Communication
     RESEND_API_KEY:                       z.string().min(1).optional(),           // Resend API key for transactional emails
