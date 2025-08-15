@@ -532,24 +532,3 @@ SyntaxError: Invalid or unexpected token
     })
   })
 })
-
-describe('Function Execute API - Template Variable Edge Cases', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    vi.resetAllMocks()
-
-    vi.doMock('@/lib/logs/console/logger', () => ({
-      createLogger: vi.fn().mockReturnValue(mockLogger),
-    }))
-
-    vi.doMock('vm', () => ({
-      createContext: mockCreateContext,
-      Script: vi.fn().mockImplementation(() => ({
-        runInContext: mockRunInContext,
-      })),
-    }))
-
-    mockRunInContext.mockResolvedValue('vm success')
-    mockCreateContext.mockReturnValue({})
-  })
-})
