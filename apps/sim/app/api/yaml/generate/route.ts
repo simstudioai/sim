@@ -10,7 +10,6 @@ const logger = createLogger('YamlGenerateAPI')
 
 // Sim Agent API configuration
 const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
 
 const GenerateRequestSchema = z.object({
   workflowState: z.any(), // Let the yaml service handle validation
@@ -27,7 +26,6 @@ export async function POST(request: NextRequest) {
     logger.info(`[${requestId}] Generating YAML from workflow`, {
       blocksCount: workflowState.blocks ? Object.keys(workflowState.blocks).length : 0,
       edgesCount: workflowState.edges ? workflowState.edges.length : 0,
-      hasApiKey: !!SIM_AGENT_API_KEY,
     })
 
     // Gather block registry and utilities
@@ -49,10 +47,9 @@ export async function POST(request: NextRequest) {
     // Call sim-agent API
     const response = await fetch(`${SIM_AGENT_API_URL}/api/workflow/to-yaml`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
-      },
+              headers: {
+          'Content-Type': 'application/json',
+        },
       body: JSON.stringify({
         workflowState,
         subBlockValues,

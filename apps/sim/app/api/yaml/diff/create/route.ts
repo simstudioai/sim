@@ -17,7 +17,6 @@ const logger = createLogger('YamlDiffCreateAPI')
 
 // Sim Agent API configuration
 const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
 
 const CreateDiffRequestSchema = z.object({
   yamlContent: z.string().min(1),
@@ -89,7 +88,6 @@ export async function POST(request: NextRequest) {
       hasDiffAnalysis: !!diffAnalysis,
       hasOptions: !!options,
       options: options,
-      hasApiKey: !!SIM_AGENT_API_KEY,
       hasCurrentWorkflowState: !!currentWorkflowState,
       currentBlockCount: currentWorkflowState
         ? Object.keys(currentWorkflowState.blocks || {}).length
@@ -117,7 +115,6 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
       },
       body: JSON.stringify({
         yamlContent,

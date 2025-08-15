@@ -17,12 +17,6 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('AutoLayoutAPI')
 
-// Check API key configuration at module level
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
-if (!SIM_AGENT_API_KEY) {
-  logger.warn('SIM_AGENT_API_KEY not configured - autolayout requests will fail')
-}
-
 const AutoLayoutRequestSchema = z.object({
   strategy: z
     .enum(['smart', 'hierarchical', 'layered', 'force-directed'])
@@ -125,15 +119,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Could not load workflow data' }, { status: 500 })
     }
 
-    // Apply autolayout
-    logger.info(
-      `[${requestId}] Applying autolayout to ${Object.keys(currentWorkflowData.blocks).length} blocks`,
-      {
-        hasApiKey: !!SIM_AGENT_API_KEY,
-        simAgentUrl: process.env.SIM_AGENT_API_URL || 'http://localhost:8000',
-      }
-    )
-
     // Create workflow state for autolayout
     const workflowState = {
       blocks: currentWorkflowData.blocks,
@@ -184,7 +169,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           resolveOutputType: resolveOutputType.toString(),
         },
       },
-      apiKey: SIM_AGENT_API_KEY,
     })
 
     // Log the full response for debugging

@@ -8,7 +8,6 @@ import { BaseCopilotTool } from '../base'
 
 // Sim Agent API configuration
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = env.SIM_AGENT_API_KEY
 
 interface BuildWorkflowParams {
   yamlContent: string
@@ -71,7 +70,6 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
       },
       body: JSON.stringify({
         yamlContent,

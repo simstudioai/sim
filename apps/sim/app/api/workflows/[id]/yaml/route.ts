@@ -19,7 +19,6 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 
 // Sim Agent API configuration
 const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
 
 export const dynamic = 'force-dynamic'
 
@@ -72,10 +71,9 @@ async function createWorkflowCheckpoint(
 
       const generateResponse = await fetch(`${SIM_AGENT_API_URL}/api/workflow/to-yaml`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
-        },
+              headers: {
+        'Content-Type': 'application/json',
+      },
         body: JSON.stringify({
           workflowState: currentWorkflowData,
           blockRegistry,
@@ -288,7 +286,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
       },
       body: JSON.stringify({
         yamlContent,

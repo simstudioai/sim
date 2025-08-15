@@ -9,7 +9,6 @@ const logger = createLogger('EditWorkflowAPI')
 
 // Sim Agent API configuration
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = env.SIM_AGENT_API_KEY
 
 // Types for operations
 interface EditWorkflowOperation {
@@ -46,7 +45,6 @@ async function applyOperationsToYaml(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
     },
     body: JSON.stringify({
       yamlContent: currentYaml,
@@ -481,7 +479,6 @@ async function editWorkflow(params: EditWorkflowParams): Promise<EditWorkflowRes
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
     },
     body: JSON.stringify({
       workflowState,

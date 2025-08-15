@@ -17,7 +17,6 @@ const logger = createLogger('YamlDiffMergeAPI')
 
 // Sim Agent API configuration
 const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
 
 const MergeDiffRequestSchema = z.object({
   existingDiff: z.object({
@@ -64,7 +63,6 @@ export async function POST(request: NextRequest) {
       hasDiffAnalysis: !!diffAnalysis,
       hasOptions: !!options,
       options: options,
-      hasApiKey: !!SIM_AGENT_API_KEY,
     })
 
     // Gather block registry
@@ -86,10 +84,9 @@ export async function POST(request: NextRequest) {
     // Call sim-agent API
     const response = await fetch(`${SIM_AGENT_API_URL}/api/yaml/diff/merge`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
-      },
+              headers: {
+          'Content-Type': 'application/json',
+        },
       body: JSON.stringify({
         existingDiff,
         yamlContent,

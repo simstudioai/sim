@@ -12,12 +12,12 @@ import {
   generateLoopBlocks,
   generateParallelBlocks,
 } from '@/stores/workflows/workflow/utils'
+import { env } from '@/lib/env'
 
 const logger = createLogger('YamlAutoLayoutAPI')
 
 // Sim Agent API configuration
-const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || 'http://localhost:8000'
 
 const AutoLayoutRequestSchema = z.object({
   workflowState: z.object({
@@ -58,7 +58,6 @@ export async function POST(request: NextRequest) {
     logger.info(`[${requestId}] Applying auto layout`, {
       blockCount: Object.keys(workflowState.blocks).length,
       edgeCount: workflowState.edges.length,
-      hasApiKey: !!SIM_AGENT_API_KEY,
       strategy: options?.strategy || 'smart',
       simAgentUrl: SIM_AGENT_API_URL,
     })
@@ -102,7 +101,6 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
       },
       body: JSON.stringify({
         workflowState: {

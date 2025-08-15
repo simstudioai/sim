@@ -10,7 +10,6 @@ const logger = createLogger('YamlParseAPI')
 
 // Sim Agent API configuration
 const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
 
 const ParseRequestSchema = z.object({
   yamlContent: z.string().min(1),
@@ -25,7 +24,6 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Parsing YAML`, {
       contentLength: yamlContent.length,
-      hasApiKey: !!SIM_AGENT_API_KEY,
     })
 
     // Gather block registry and utilities
@@ -47,10 +45,9 @@ export async function POST(request: NextRequest) {
     // Call sim-agent API
     const response = await fetch(`${SIM_AGENT_API_URL}/api/yaml/parse`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
-      },
+              headers: {
+          'Content-Type': 'application/json',
+        },
       body: JSON.stringify({
         yamlContent,
         blockRegistry,
