@@ -17,8 +17,8 @@ import { createLogger } from '@/lib/logs/console/logger'
 import {
   BillingSummary,
   CancelSubscription,
-  TeamSeatsDialog,
-  UsageLimitEditor,
+  TeamSeats,
+  UsageLimit,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components'
 import { useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
@@ -220,7 +220,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
             {isLoadingOrgBilling ? (
               <Skeleton className='h-8 w-16' />
             ) : (
-              <UsageLimitEditor
+              <UsageLimit
                 currentLimit={usageLimitData?.currentLimit ?? usage.limit}
                 canEdit={
                   subscription.isPro ||
@@ -403,7 +403,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
         />
 
         {/* Team Seats Dialog */}
-        <TeamSeatsDialog
+        <TeamSeats
           open={isSeatsDialogOpen}
           onOpenChange={setIsSeatsDialogOpen}
           title='Update Team Seats'

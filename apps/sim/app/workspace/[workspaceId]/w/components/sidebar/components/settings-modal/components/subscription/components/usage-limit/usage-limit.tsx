@@ -3,21 +3,21 @@ import { Input } from '@/components/ui/input'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
-const logger = createLogger('UsageLimitEditor')
+const logger = createLogger('UsageLimit')
 
-interface UsageLimitEditorProps {
+interface UsageLimitProps {
   currentLimit: number
   canEdit: boolean
   minimumLimit: number
   onLimitUpdated?: (newLimit: number) => void
 }
 
-export function UsageLimitEditor({
+export function UsageLimit({
   currentLimit,
   canEdit,
   minimumLimit,
   onLimitUpdated,
-}: UsageLimitEditorProps) {
+}: UsageLimitProps) {
   const [inputValue, setInputValue] = useState(currentLimit.toString())
   const [isSaving, setIsSaving] = useState(false)
 

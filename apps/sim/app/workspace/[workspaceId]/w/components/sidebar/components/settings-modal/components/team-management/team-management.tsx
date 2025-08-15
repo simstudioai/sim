@@ -14,8 +14,8 @@ import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
-  TeamSeatsDialog,
-  TeamUsageOverview,
+  TeamSeats,
+  TeamUsage,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components'
 import {
   MemberInvitationCard,
@@ -351,7 +351,7 @@ export function TeamManagement() {
         </TabsContent>
 
         <TabsContent value='usage' className='mt-4 space-y-4'>
-          <TeamUsageOverview hasAdminAccess={adminOrOwner} />
+          <TeamUsage hasAdminAccess={adminOrOwner} />
         </TabsContent>
 
         <TabsContent value='settings'>
@@ -373,10 +373,10 @@ export function TeamManagement() {
         open={removeMemberDialog.open}
         memberName={removeMemberDialog.memberName}
         shouldReduceSeats={removeMemberDialog.shouldReduceSeats}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (!open) setRemoveMemberDialog({ ...removeMemberDialog, open: false })
         }}
-        onShouldReduceSeatsChange={(shouldReduce) =>
+        onShouldReduceSeatsChange={(shouldReduce: boolean) =>
           setRemoveMemberDialog({
             ...removeMemberDialog,
             shouldReduceSeats: shouldReduce,
@@ -393,7 +393,7 @@ export function TeamManagement() {
         }
       />
 
-      <TeamSeatsDialog
+      <TeamSeats
         open={isAddSeatDialogOpen}
         onOpenChange={setIsAddSeatDialogOpen}
         title='Add Team Seats'

@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select'
 import { env } from '@/lib/env'
 
-interface TeamSeatsDialogProps {
+interface TeamSeatsProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   title: string
@@ -31,7 +31,7 @@ interface TeamSeatsDialogProps {
   showCostBreakdown?: boolean
 }
 
-export function TeamSeatsDialog({
+export function TeamSeats({
   open,
   onOpenChange,
   title,
@@ -42,7 +42,7 @@ export function TeamSeatsDialog({
   onConfirm,
   confirmButtonText,
   showCostBreakdown = false,
-}: TeamSeatsDialogProps) {
+}: TeamSeatsProps) {
   const [selectedSeats, setSelectedSeats] = useState(initialSeats)
 
   useEffect(() => {
