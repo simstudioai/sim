@@ -122,12 +122,24 @@ export async function executeTool(
           tokenPayload.workflowId = workflowId
         }
 
-        logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
-
         const tokenUrl = new URL('/api/auth/oauth/token', baseUrl).toString()
+        // Build headers; on server add internal JWT so webhooks/background runs are authenticated
+        const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (typeof window === 'undefined') {
+          try {
+            const { generateInternalToken } = await import('@/lib/auth/internal')
+            const internalJwt = await generateInternalToken()
+            if (internalJwt) tokenHeaders.Authorization = `Bearer ${internalJwt}`
+          } catch (e) {
+            logger.warn(`[${requestId}] Failed to generate internal JWT for token fetch`, {
+              error: e instanceof Error ? e.message : String(e),
+            })
+          }
+        }
+
         const response = await fetch(tokenUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: tokenHeaders as any,
           body: JSON.stringify(tokenPayload),
         })
 
