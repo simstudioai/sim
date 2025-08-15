@@ -42,7 +42,9 @@ export async function POST(req: NextRequest) {
 
     const userId = session.user.id
 
-    const plaintextKey = generateApiKey()
+    // Generate and prefix the key
+    const rawKey = generateApiKey()
+    const plaintextKey = `sk-sim-copilot-${rawKey}`
 
     // Encrypt with random IV for confidentiality
     const dbEncrypted = encryptRandomIv(plaintextKey, env.AGENT_API_DB_ENCRYPTION_KEY)
@@ -58,6 +60,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, key: { id: inserted.id, apiKey: plaintextKey } }, { status: 201 })
   } catch (error) {
     logger.error('Failed to generate copilot API key', { error })
-    return NextResponse.json({ error: 'Failed to generate API key' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to generate copilot API key' }, { status: 500 })
   }
 } 
