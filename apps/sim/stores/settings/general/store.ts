@@ -22,7 +22,6 @@ export const useGeneralStore = create<GeneralStore>()(
           isDebugModeEnabled: false,
           theme: 'system' as const,
           telemetryEnabled: true,
-          telemetryNotifiedUser: false,
           isLoading: false,
           error: null,
           // Individual loading states
@@ -113,11 +112,6 @@ export const useGeneralStore = create<GeneralStore>()(
             )
           },
 
-          setTelemetryNotifiedUser: (notified) => {
-            set({ telemetryNotifiedUser: notified })
-            get().updateSetting('telemetryNotifiedUser', notified)
-          },
-
           // API Actions
           loadSettings: async (force = false) => {
             // Skip loading if on a subdomain or chat path
@@ -157,7 +151,6 @@ export const useGeneralStore = create<GeneralStore>()(
                 isConsoleExpandedByDefault: data.consoleExpandedByDefault ?? true, // Default to true if undefined
                 theme: data.theme,
                 telemetryEnabled: data.telemetryEnabled,
-                telemetryNotifiedUser: data.telemetryNotifiedUser,
                 isLoading: false,
               })
 

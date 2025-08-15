@@ -366,12 +366,15 @@
           "notNull": true,
           "default": "'claude-3-7-sonnet-latest'"
         },
+<<<<<<< HEAD
         "conversation_id": {
           "name": "conversation_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
+=======
+>>>>>>> 691e58d1 (remove telemetry consent dialog)
         "preview_yaml": {
           "name": "preview_yaml",
           "type": "text",
@@ -2909,6 +2912,7 @@
           "notNull": true,
           "default": true
         },
+<<<<<<< HEAD
         "telemetry_notified_user": {
           "name": "telemetry_notified_user",
           "type": "boolean",
@@ -2916,6 +2920,8 @@
           "notNull": true,
           "default": false
         },
+=======
+>>>>>>> 691e58d1 (remove telemetry consent dialog)
         "email_preferences": {
           "name": "email_preferences",
           "type": "json",

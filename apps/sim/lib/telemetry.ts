@@ -24,7 +24,6 @@ export type TelemetryEvent = {
 
 export type TelemetryStatus = {
   enabled: boolean
-  notifiedUser: boolean
 }
 
 const TELEMETRY_STATUS_KEY = 'simstudio-telemetry-status'
@@ -46,19 +45,19 @@ let telemetryInitialized = false
  */
 export function getTelemetryStatus(): TelemetryStatus {
   if (typeof window === 'undefined') {
-    return { enabled: true, notifiedUser: false }
+    return { enabled: true }
   }
 
   try {
     if (env.NEXT_TELEMETRY_DISABLED === '1') {
-      return { enabled: false, notifiedUser: true }
+      return { enabled: false }
     }
 
     const stored = localStorage.getItem(TELEMETRY_STATUS_KEY)
-    return stored ? JSON.parse(stored) : { enabled: true, notifiedUser: false }
+    return stored ? JSON.parse(stored) : { enabled: true }
   } catch (error) {
     logger.error('Failed to get telemetry status from localStorage', error)
-    return { enabled: true, notifiedUser: false }
+    return { enabled: true }
   }
 }
 
@@ -82,14 +81,6 @@ export function setTelemetryStatus(status: TelemetryStatus): void {
 }
 
 /**
- * Mark that the user has been notified about telemetry
- */
-export function markUserNotified(): void {
-  const status = getTelemetryStatus()
-  setTelemetryStatus({ ...status, notifiedUser: true })
-}
-
-/**
  * Disables telemetry
  */
 export function disableTelemetry(): void {
@@ -98,7 +89,7 @@ export function disableTelemetry(): void {
     trackEvent('consent', 'opt_out')
   }
 
-  setTelemetryStatus({ enabled: false, notifiedUser: true })
+  setTelemetryStatus({ enabled: false })
   logger.info('Telemetry disabled')
 }
 
@@ -116,7 +107,7 @@ export function enableTelemetry(): void {
     trackEvent('consent', 'opt_in')
   }
 
-  setTelemetryStatus({ enabled: true, notifiedUser: true })
+  setTelemetryStatus({ enabled: true })
   logger.info('Telemetry enabled')
 
   if (!telemetryInitialized) {
