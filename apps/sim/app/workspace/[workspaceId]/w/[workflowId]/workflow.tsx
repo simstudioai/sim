@@ -343,6 +343,48 @@ const WorkflowContent = React.memo(() => {
     }
   }, [debouncedAutoLayout])
 
+  // Listen for explicit remove-from-subflow actions from ActionBar
+  useEffect(() => {
+    const handleRemoveFromSubflow = (event: Event) => {
+      const customEvent = event as CustomEvent<{ blockId: string }>
+      const { blockId } = customEvent.detail || ({} as any)
+      if (!blockId) return
+
+      try {
+        // Remove parent-child relationship while preserving absolute position
+        updateNodeParent(blockId, null)
+
+        // Clean up any edges that now cross container boundaries for this block
+        const rfNodes = getNodes()
+        const sourceOrTargetEdges = edgesForDisplay.filter(
+          (e) => e.source === blockId || e.target === blockId
+        )
+
+        sourceOrTargetEdges.forEach((edge) => {
+          const sourceNode = rfNodes.find((n) => n.id === edge.source)
+          const targetNode = rfNodes.find((n) => n.id === edge.target)
+          const sourceParent = sourceNode?.parentId
+          const targetParent = targetNode?.parentId
+
+          const crossesBoundary =
+            (sourceParent && !targetParent) ||
+            (!sourceParent && targetParent) ||
+            (sourceParent && targetParent && sourceParent !== targetParent)
+
+          if (crossesBoundary) {
+            removeEdge(edge.id)
+          }
+        })
+      } catch (err) {
+        logger.error('Failed to remove from subflow', { err })
+      }
+    }
+
+    window.addEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
+    return () =>
+      window.removeEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
+  }, [getNodes, updateNodeParent, removeEdge, edgesForDisplay])
+
   // Handle drops
   const findClosestOutput = useCallback(
     (newNodePosition: { x: number; y: number }): BlockData | null => {
