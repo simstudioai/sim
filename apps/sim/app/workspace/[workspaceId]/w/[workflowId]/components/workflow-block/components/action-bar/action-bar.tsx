@@ -120,15 +120,16 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
                   )
                 }
               }}
-              className={cn('text-gray-500', (disabled || !userPermissions.canEdit) && 'cursor-not-allowed opacity-50')}
+              className={cn(
+                'text-gray-500',
+                (disabled || !userPermissions.canEdit) && 'cursor-not-allowed opacity-50'
+              )}
               disabled={disabled || !userPermissions.canEdit}
             >
               <LogOut className='h-4 w-4' />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side='right'>
-            {getTooltipMessage('Remove From Subflow')}
-          </TooltipContent>
+          <TooltipContent side='right'>{getTooltipMessage('Remove From Subflow')}</TooltipContent>
         </Tooltip>
       )}
 

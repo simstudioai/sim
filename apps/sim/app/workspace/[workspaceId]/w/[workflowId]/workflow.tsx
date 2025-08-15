@@ -823,9 +823,15 @@ const WorkflowContent = React.memo(() => {
           if (containerElement) {
             // Determine the type of container node for appropriate styling
             const containerNode = getNodes().find((n) => n.id === containerInfo.loopId)
-            if (containerNode?.type === 'subflowNode' && (containerNode.data as any)?.kind === 'loop') {
+            if (
+              containerNode?.type === 'subflowNode' &&
+              (containerNode.data as any)?.kind === 'loop'
+            ) {
               containerElement.classList.add('loop-node-drag-over')
-            } else if (containerNode?.type === 'subflowNode' && (containerNode.data as any)?.kind === 'parallel') {
+            } else if (
+              containerNode?.type === 'subflowNode' &&
+              (containerNode.data as any)?.kind === 'parallel'
+            ) {
               containerElement.classList.add('parallel-node-drag-over')
             }
             document.body.style.cursor = 'copy'
@@ -1309,9 +1315,15 @@ const WorkflowContent = React.memo(() => {
         )
         if (containerElement) {
           // Apply appropriate class based on container type
-          if (bestContainerMatch.container.type === 'subflowNode' && (bestContainerMatch.container.data as any)?.kind === 'loop') {
+          if (
+            bestContainerMatch.container.type === 'subflowNode' &&
+            (bestContainerMatch.container.data as any)?.kind === 'loop'
+          ) {
             containerElement.classList.add('loop-node-drag-over')
-          } else if (bestContainerMatch.container.type === 'subflowNode' && (bestContainerMatch.container.data as any)?.kind === 'parallel') {
+          } else if (
+            bestContainerMatch.container.type === 'subflowNode' &&
+            (bestContainerMatch.container.data as any)?.kind === 'parallel'
+          ) {
             containerElement.classList.add('parallel-node-drag-over')
           }
           document.body.style.cursor = 'copy'
