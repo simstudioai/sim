@@ -109,7 +109,9 @@ export function General() {
           <>
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
-                <Label htmlFor='theme-select'>Theme</Label>
+                <Label htmlFor='theme-select' className='font-normal'>
+                  Theme
+                </Label>
               </div>
               <Select
                 value={theme}
@@ -143,7 +145,9 @@ export function General() {
             </div>
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
-                <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
+                <Label htmlFor='auto-connect' className='font-normal'>
+                  Auto-connect on drop
+                </Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -171,7 +175,9 @@ export function General() {
 
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
-                <Label htmlFor='console-expanded-by-default'>Console expanded by default</Label>
+                <Label htmlFor='console-expanded-by-default' className='font-normal'>
+                  Console expanded by default
+                </Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button

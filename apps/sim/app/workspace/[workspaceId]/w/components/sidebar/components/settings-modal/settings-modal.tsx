@@ -42,6 +42,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const loadSettings = useGeneralStore((state) => state.loadSettings)
   const { activeOrganization } = useOrganizationStore()
   const hasLoadedInitialData = useRef(false)
+  const environmentCloseHandler = useRef<((open: boolean) => void) | null>(null)
 
   useEffect(() => {
     async function loadAllSettings() {
@@ -83,8 +84,17 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   const isSubscriptionEnabled = !!client.subscription
 
+  // Handle dialog close - delegate to environment component if it's active
+  const handleDialogOpenChange = (newOpen: boolean) => {
+    if (!newOpen && activeSection === 'environment' && environmentCloseHandler.current) {
+      environmentCloseHandler.current(newOpen)
+    } else {
+      onOpenChange(newOpen)
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className='flex h-[70vh] flex-col gap-0 p-0 sm:max-w-[800px]'>
         <DialogHeader className='border-b px-6 py-4'>
           <DialogTitle className='font-medium text-lg'>Settings</DialogTitle>
@@ -106,7 +116,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               <General />
             </div>
             <div className={cn('h-full', activeSection === 'environment' ? 'block' : 'hidden')}>
-              <EnvironmentVariables onOpenChange={onOpenChange} />
+              <EnvironmentVariables
+                onOpenChange={onOpenChange}
+                registerCloseHandler={(handler) => {
+                  environmentCloseHandler.current = handler
+                }}
+              />
             </div>
             <div className={cn('h-full', activeSection === 'account' ? 'block' : 'hidden')}>
               <Account onOpenChange={onOpenChange} />

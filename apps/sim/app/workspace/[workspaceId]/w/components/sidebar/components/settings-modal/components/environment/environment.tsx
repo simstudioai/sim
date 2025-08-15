@@ -27,9 +27,13 @@ interface UIEnvironmentVariable extends StoreEnvironmentVariable {
 
 interface EnvironmentVariablesProps {
   onOpenChange: (open: boolean) => void
+  registerCloseHandler?: (handler: (open: boolean) => void) => void
 }
 
-export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps) {
+export function EnvironmentVariables({
+  onOpenChange,
+  registerCloseHandler,
+}: EnvironmentVariablesProps) {
   const { variables } = useEnvironmentStore()
 
   const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
@@ -74,6 +78,16 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
     return false
   }, [envVars])
 
+  // Intercept close attempts to check for unsaved changes
+  const handleModalClose = (open: boolean) => {
+    if (!open && hasChanges) {
+      setShowUnsavedChanges(true)
+      pendingClose.current = true
+    } else {
+      onOpenChange(open)
+    }
+  }
+
   // Initialization effect
   useEffect(() => {
     const existingVars = Object.values(variables)
@@ -82,6 +96,13 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
     setEnvVars(JSON.parse(JSON.stringify(initialVars)))
     pendingClose.current = false
   }, [variables])
+
+  // Register close handler with parent
+  useEffect(() => {
+    if (registerCloseHandler) {
+      registerCloseHandler(handleModalClose)
+    }
+  }, [registerCloseHandler, hasChanges])
 
   // Scroll effect
   useEffect(() => {
@@ -171,14 +192,6 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
   }
 
   // Dialog management
-  const handleClose = () => {
-    if (hasChanges) {
-      setShowUnsavedChanges(true)
-      pendingClose.current = true
-    } else {
-      onOpenChange(false)
-    }
-  }
 
   const handleCancel = () => {
     setEnvVars(JSON.parse(JSON.stringify(initialVarsRef.current)))
@@ -302,14 +315,9 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
             Add Variable
           </Button>
 
-          <div className='flex items-center space-x-2'>
-            <Button variant='outline' onClick={handleClose} className='h-9 rounded-[8px]'>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={!hasChanges} className='h-9 rounded-[8px]'>
-              Save Changes
-            </Button>
-          </div>
+          <Button onClick={handleSave} disabled={!hasChanges} className='h-9 rounded-[8px]'>
+            Save Changes
+          </Button>
         </div>
       </div>
 
