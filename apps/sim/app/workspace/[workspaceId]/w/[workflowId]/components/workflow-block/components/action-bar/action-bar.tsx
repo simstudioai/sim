@@ -127,7 +127,7 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
             </Button>
           </TooltipTrigger>
           <TooltipContent side='right'>
-            {getTooltipMessage('Remove from subflow')}
+            {getTooltipMessage('Remove From Subflow')}
           </TooltipContent>
         </Tooltip>
       )}

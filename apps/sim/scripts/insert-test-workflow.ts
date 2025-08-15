@@ -49,7 +49,7 @@ const testWorkflowState = {
       data: {
         width: 400,
         height: 200,
-        type: 'loopNode',
+        type: 'subflowNode',
       },
     },
     'function-block-789': {
