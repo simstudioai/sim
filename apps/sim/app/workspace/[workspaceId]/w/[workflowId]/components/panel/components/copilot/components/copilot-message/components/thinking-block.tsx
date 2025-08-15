@@ -18,11 +18,11 @@ export function ThinkingBlock({
   startTime: persistedStartTime,
 }: ThinkingBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false)
-  const [duration, setDuration] = useState(persistedDuration || 0)
+  const [duration, setDuration] = useState(persistedDuration ?? 0)
   // Keep a stable reference to start time that updates when prop changes
-  const startTimeRef = useRef<number>(persistedStartTime || Date.now())
+  const startTimeRef = useRef<number>(persistedStartTime ?? Date.now())
   useEffect(() => {
-    if (persistedStartTime) {
+    if (typeof persistedStartTime === 'number') {
       startTimeRef.current = persistedStartTime
     }
   }, [persistedStartTime])

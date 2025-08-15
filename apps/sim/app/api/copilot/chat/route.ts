@@ -654,25 +654,6 @@ export async function POST(req: NextRequest) {
                 )
               }
 
-              // Log the full messages array being persisted
-              logger.info(`[${tracker.requestId}] Full messages array being persisted:`, {
-                chatId: actualChatId,
-                messageCount: updatedMessages.length,
-                messages: updatedMessages.map((msg, index) => ({
-                  index,
-                  id: msg.id,
-                  role: msg.role,
-                  contentLength: msg.content?.length || 0,
-                  hasToolCalls: !!msg.toolCalls && msg.toolCalls.length > 0,
-                  toolCallsCount: msg.toolCalls?.length || 0,
-                  toolCallNames: msg.toolCalls?.map((tc: any) => tc.name) || [],
-                  timestamp: msg.timestamp,
-                  hasFileAttachments: !!msg.fileAttachments && msg.fileAttachments.length > 0,
-                  fileAttachmentsCount: msg.fileAttachments?.length || 0,
-                })),
-                fullMessages: JSON.stringify(updatedMessages, null, 2),
-              })
-
               const responseId = responseIdFromDone || responseIdFromStart
 
               // Update chat in database immediately (without title)
