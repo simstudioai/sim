@@ -199,9 +199,7 @@ export const env = createEnv({
     NEXT_PUBLIC_BRAND_SECONDARY_COLOR:    z.string().optional(),                  // Secondary brand color (hex)
     NEXT_PUBLIC_BRAND_ACCENT_COLOR:       z.string().optional(),                  // Accent brand color (hex)
     NEXT_PUBLIC_CUSTOM_CSS_URL:           z.string().url().optional(),            // Custom CSS stylesheet URL
-    NEXT_PUBLIC_CUSTOM_FOOTER_TEXT:       z.string().optional(),                  // Custom footer text
     NEXT_PUBLIC_SUPPORT_EMAIL:            z.string().email().optional(),          // Custom support email
-    NEXT_PUBLIC_SUPPORT_URL:              z.string().url().optional(),            // Custom support URL
     NEXT_PUBLIC_DOCUMENTATION_URL:        z.string().url().optional(),            // Custom documentation URL
     NEXT_PUBLIC_TERMS_URL:                z.string().url().optional(),            // Custom terms of service URL
     NEXT_PUBLIC_PRIVACY_URL:              z.string().url().optional(),            // Custom privacy policy URL
@@ -231,9 +229,7 @@ export const env = createEnv({
     NEXT_PUBLIC_BRAND_SECONDARY_COLOR: process.env.NEXT_PUBLIC_BRAND_SECONDARY_COLOR,
     NEXT_PUBLIC_BRAND_ACCENT_COLOR: process.env.NEXT_PUBLIC_BRAND_ACCENT_COLOR,
     NEXT_PUBLIC_CUSTOM_CSS_URL: process.env.NEXT_PUBLIC_CUSTOM_CSS_URL,
-    NEXT_PUBLIC_CUSTOM_FOOTER_TEXT: process.env.NEXT_PUBLIC_CUSTOM_FOOTER_TEXT,
     NEXT_PUBLIC_SUPPORT_EMAIL: process.env.NEXT_PUBLIC_SUPPORT_EMAIL,
-    NEXT_PUBLIC_SUPPORT_URL: process.env.NEXT_PUBLIC_SUPPORT_URL,
     NEXT_PUBLIC_DOCUMENTATION_URL: process.env.NEXT_PUBLIC_DOCUMENTATION_URL,
     NEXT_PUBLIC_TERMS_URL: process.env.NEXT_PUBLIC_TERMS_URL,
     NEXT_PUBLIC_PRIVACY_URL: process.env.NEXT_PUBLIC_PRIVACY_URL,

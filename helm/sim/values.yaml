@@ -106,9 +106,7 @@ app:
     NEXT_PUBLIC_BRAND_SECONDARY_COLOR: "#6366f1"         # Secondary brand color (hex)
     NEXT_PUBLIC_BRAND_ACCENT_COLOR: "#f59e0b"            # Accent brand color (hex)
     NEXT_PUBLIC_CUSTOM_CSS_URL: ""                        # Custom stylesheet URL (leave empty for none)
-    NEXT_PUBLIC_CUSTOM_FOOTER_TEXT: ""                   # Custom footer text (leave empty for default)
     NEXT_PUBLIC_SUPPORT_EMAIL: "help@sim.ai"             # Support email address
-    NEXT_PUBLIC_SUPPORT_URL: ""                          # Support page URL (leave empty for none)
     NEXT_PUBLIC_DOCUMENTATION_URL: ""                    # Documentation URL (leave empty for none)
     NEXT_PUBLIC_TERMS_URL: ""                            # Terms of service URL (leave empty for none)
     NEXT_PUBLIC_PRIVACY_URL: ""                          # Privacy policy URL (leave empty for none)

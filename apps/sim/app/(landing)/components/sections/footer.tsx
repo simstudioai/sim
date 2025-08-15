@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import { DiscordIcon, GithubIcon, xIcon as XIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/lib/auth-client'
-import { useBrandConfig } from '@/lib/branding/branding'
 import useIsMobile from '@/app/(landing)/components/hooks/use-is-mobile'
 import { usePrefetchOnHover } from '@/app/(landing)/utils/prefetch'
 
@@ -15,14 +14,8 @@ function Footer() {
   const { isMobile, mounted } = useIsMobile()
   const { data: session, isPending } = useSession()
   const isAuthenticated = !isPending && !!session?.user
-  const brand = useBrandConfig()
 
   const handleContributorsHover = usePrefetchOnHover()
-
-  const termsUrl = brand.termsUrl || '/terms'
-  const privacyUrl = brand.privacyUrl || '/privacy'
-  const isExternalTerms = brand.termsUrl?.startsWith('http')
-  const isExternalPrivacy = brand.privacyUrl?.startsWith('http')
 
   const handleNavigate = () => {
     if (typeof window !== 'undefined') {
@@ -114,17 +107,17 @@ function Footer() {
                 </div>
                 <div className='flex flex-col gap-2'>
                   <Link
-                    href={termsUrl}
-                    target={isExternalTerms ? '_blank' : '_self'}
-                    rel={isExternalTerms ? 'noopener noreferrer' : undefined}
+                    href={'/terms'}
+                    target='_blank'
+                    rel='noopener noreferrer'
                     className='font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl'
                   >
                     Terms and Conditions
                   </Link>
                   <Link
-                    href={privacyUrl}
-                    target={isExternalPrivacy ? '_blank' : '_self'}
-                    rel={isExternalPrivacy ? 'noopener noreferrer' : undefined}
+                    href={'/privacy'}
+                    target='_blank'
+                    rel='noopener noreferrer'
                     className='font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl'
                   >
                     Privacy Policy
@@ -298,17 +291,17 @@ function Footer() {
                 transition={{ duration: 0.7, delay: 0.36, ease: 'easeOut' }}
               >
                 <Link
-                  href={termsUrl}
-                  target={isExternalTerms ? '_blank' : '_self'}
-                  rel={isExternalTerms ? 'noopener noreferrer' : undefined}
+                  href={'/terms'}
+                  target='_blank'
+                  rel='noopener noreferrer'
                   className='font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl'
                 >
                   Terms and Conditions
                 </Link>
                 <Link
-                  href={privacyUrl}
-                  target={isExternalPrivacy ? '_blank' : '_self'}
-                  rel={isExternalPrivacy ? 'noopener noreferrer' : undefined}
+                  href={'/privacy'}
+                  target='_blank'
+                  rel='noopener noreferrer'
                   className='font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl'
                 >
                   Privacy Policy

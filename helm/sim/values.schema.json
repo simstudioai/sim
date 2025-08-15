@@ -256,18 +256,10 @@
               "type": "string",
               "description": "Custom stylesheet URL"
             },
-            "NEXT_PUBLIC_CUSTOM_FOOTER_TEXT": {
-              "type": "string",
-              "description": "Custom footer text"
-            },
             "NEXT_PUBLIC_SUPPORT_EMAIL": {
               "type": "string",
               "format": "email",
               "description": "Support email address"
-            },
-            "NEXT_PUBLIC_SUPPORT_URL": {
-              "type": "string",
-              "description": "Support page URL"
             },
             "NEXT_PUBLIC_DOCUMENTATION_URL": {
               "type": "string",

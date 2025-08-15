@@ -8,9 +8,7 @@ export interface BrandConfig {
   secondaryColor?: string
   accentColor?: string
   customCssUrl?: string
-  footerText?: string
   supportEmail?: string
-  supportUrl?: string
   documentationUrl?: string
   termsUrl?: string
   privacyUrl?: string
@@ -27,9 +25,7 @@ const defaultConfig: BrandConfig = {
   secondaryColor: '#6366f1',
   accentColor: '#f59e0b',
   customCssUrl: undefined,
-  footerText: undefined,
   supportEmail: 'help@sim.ai',
-  supportUrl: undefined,
   documentationUrl: undefined,
   termsUrl: undefined,
   privacyUrl: undefined,
@@ -48,9 +44,7 @@ export const getBrandConfig = (): BrandConfig => {
     secondaryColor: getEnv('NEXT_PUBLIC_BRAND_SECONDARY_COLOR') || defaultConfig.secondaryColor,
     accentColor: getEnv('NEXT_PUBLIC_BRAND_ACCENT_COLOR') || defaultConfig.accentColor,
     customCssUrl: getEnv('NEXT_PUBLIC_CUSTOM_CSS_URL') || defaultConfig.customCssUrl,
-    footerText: getEnv('NEXT_PUBLIC_CUSTOM_FOOTER_TEXT') || defaultConfig.footerText,
     supportEmail: getEnv('NEXT_PUBLIC_SUPPORT_EMAIL') || defaultConfig.supportEmail,
-    supportUrl: getEnv('NEXT_PUBLIC_SUPPORT_URL') || defaultConfig.supportUrl,
     documentationUrl: getEnv('NEXT_PUBLIC_DOCUMENTATION_URL') || defaultConfig.documentationUrl,
     termsUrl: getEnv('NEXT_PUBLIC_TERMS_URL') || defaultConfig.termsUrl,
     privacyUrl: getEnv('NEXT_PUBLIC_PRIVACY_URL') || defaultConfig.privacyUrl,
