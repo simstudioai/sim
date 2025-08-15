@@ -58,7 +58,6 @@ export const env = createEnv({
     ANTHROPIC_API_KEY_1:                  z.string().min(1).optional(),           // Primary Anthropic Claude API key
     ANTHROPIC_API_KEY_2:                  z.string().min(1).optional(),           // Additional Anthropic API key for load balancing
     ANTHROPIC_API_KEY_3:                  z.string().min(1).optional(),           // Additional Anthropic API key for load balancing
-    FREESTYLE_API_KEY:                    z.string().min(1).optional(),           // Freestyle AI API key
     OLLAMA_URL:                           z.string().url().optional(),            // Ollama local LLM server URL
     ELEVENLABS_API_KEY:                   z.string().min(1).optional(),           // ElevenLabs API key for text-to-speech in deployed chat
     SERPER_API_KEY:                       z.string().min(1).optional(),           // Serper API key for online search
