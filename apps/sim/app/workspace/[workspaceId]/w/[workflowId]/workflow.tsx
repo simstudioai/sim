@@ -18,8 +18,7 @@ import { ControlBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/compone
 import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/diff-controls'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/panel'
-import { LoopNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-node'
-import { ParallelNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-node'
+import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
@@ -48,8 +47,7 @@ const logger = createLogger('Workflow')
 // Define custom node and edge types
 const nodeTypes: NodeTypes = {
   workflowBlock: WorkflowBlock,
-  loopNode: LoopNodeComponent,
-  parallelNode: ParallelNodeComponent,
+  subflowNode: SubflowNodeComponent,
 }
 const edgeTypes: EdgeTypes = { workflowEdge: WorkflowEdge }
 
@@ -493,7 +491,7 @@ const WorkflowContent = React.memo(() => {
           {
             width: 500,
             height: 300,
-            type: type === 'loop' ? 'loopNode' : 'parallelNode',
+            type: 'subflowNode',
           },
           undefined,
           undefined,
@@ -613,7 +611,7 @@ const WorkflowContent = React.memo(() => {
             addBlock(id, data.type, name, relativePosition, {
               width: 500,
               height: 300,
-              type: data.type === 'loop' ? 'loopNode' : 'parallelNode',
+              type: 'subflowNode',
               parentId: containerInfo.loopId,
               extent: 'parent',
             })
@@ -649,7 +647,7 @@ const WorkflowContent = React.memo(() => {
               {
                 width: 500,
                 height: 300,
-                type: data.type === 'loop' ? 'loopNode' : 'parallelNode',
+                type: 'subflowNode',
               },
               undefined,
               undefined,
@@ -699,10 +697,12 @@ const WorkflowContent = React.memo(() => {
             const containerNode = getNodes().find((n) => n.id === containerInfo.loopId)
             const containerType = containerNode?.type
 
-            if (containerType === 'loopNode' || containerType === 'parallelNode') {
+            if (containerType === 'subflowNode') {
               // Connect from the container's start node to the new block
               const startSourceHandle =
-                containerType === 'loopNode' ? 'loop-start-source' : 'parallel-start-source'
+                (containerNode?.data as any)?.kind === 'loop'
+                  ? 'loop-start-source'
+                  : 'parallel-start-source'
 
               addEdge({
                 id: crypto.randomUUID(),
@@ -823,9 +823,9 @@ const WorkflowContent = React.memo(() => {
           if (containerElement) {
             // Determine the type of container node for appropriate styling
             const containerNode = getNodes().find((n) => n.id === containerInfo.loopId)
-            if (containerNode?.type === 'loopNode') {
+            if (containerNode?.type === 'subflowNode' && (containerNode.data as any)?.kind === 'loop') {
               containerElement.classList.add('loop-node-drag-over')
-            } else if (containerNode?.type === 'parallelNode') {
+            } else if (containerNode?.type === 'subflowNode' && (containerNode.data as any)?.kind === 'parallel') {
               containerElement.classList.add('parallel-node-drag-over')
             }
             document.body.style.cursor = 'copy'
@@ -960,11 +960,11 @@ const WorkflowContent = React.memo(() => {
       }
 
       // Handle container nodes differently
-      if (block.type === 'loop') {
+      if (block.type === 'loop' || block.type === 'parallel') {
         const hasNestedError = nestedSubflowErrors.has(block.id)
         nodeArray.push({
           id: block.id,
-          type: 'loopNode',
+          type: 'subflowNode',
           position: block.position,
           parentId: block.data?.parentId,
           extent: block.data?.extent || undefined,
@@ -974,26 +974,7 @@ const WorkflowContent = React.memo(() => {
             width: block.data?.width || 500,
             height: block.data?.height || 300,
             hasNestedError,
-          },
-        })
-        return
-      }
-
-      // Handle parallel nodes
-      if (block.type === 'parallel') {
-        const hasNestedError = nestedSubflowErrors.has(block.id)
-        nodeArray.push({
-          id: block.id,
-          type: 'parallelNode',
-          position: block.position,
-          parentId: block.data?.parentId,
-          extent: block.data?.extent || undefined,
-          dragHandle: '.workflow-drag-handle',
-          data: {
-            ...block.data,
-            width: block.data?.width || 500,
-            height: block.data?.height || 300,
-            hasNestedError,
+            kind: block.type === 'loop' ? 'loop' : 'parallel',
           },
         })
         return
@@ -1233,13 +1214,13 @@ const WorkflowContent = React.memo(() => {
       const intersectingNodes = getNodes()
         .filter((n) => {
           // Only consider container nodes that aren't the dragged node
-          if ((n.type !== 'loopNode' && n.type !== 'parallelNode') || n.id === node.id) return false
+          if (n.type !== 'subflowNode' || n.id === node.id) return false
 
           // Skip if this container is already the parent of the node being dragged
           if (n.id === currentParentId) return false
 
           // Skip self-nesting: prevent a container from becoming its own descendant
-          if (node.type === 'loopNode' || node.type === 'parallelNode') {
+          if (node.type === 'subflowNode') {
             // Get the full hierarchy of the potential parent
             const hierarchy = getNodeHierarchyWrapper(n.id)
 
@@ -1254,14 +1235,14 @@ const WorkflowContent = React.memo(() => {
 
           // Get dimensions based on node type
           const nodeWidth =
-            node.type === 'loopNode' || node.type === 'parallelNode'
+            node.type === 'subflowNode'
               ? node.data?.width || 500
               : node.type === 'condition'
                 ? 250
                 : 350
 
           const nodeHeight =
-            node.type === 'loopNode' || node.type === 'parallelNode'
+            node.type === 'subflowNode'
               ? node.data?.height || 300
               : node.type === 'condition'
                 ? 150
@@ -1328,9 +1309,9 @@ const WorkflowContent = React.memo(() => {
         )
         if (containerElement) {
           // Apply appropriate class based on container type
-          if (bestContainerMatch.container.type === 'loopNode') {
+          if (bestContainerMatch.container.type === 'subflowNode' && (bestContainerMatch.container.data as any)?.kind === 'loop') {
             containerElement.classList.add('loop-node-drag-over')
-          } else if (bestContainerMatch.container.type === 'parallelNode') {
+          } else if (bestContainerMatch.container.type === 'subflowNode' && (bestContainerMatch.container.data as any)?.kind === 'parallel') {
             containerElement.classList.add('parallel-node-drag-over')
           }
           document.body.style.cursor = 'copy'
@@ -1398,7 +1379,7 @@ const WorkflowContent = React.memo(() => {
       }
 
       // If we're dragging a container node, do additional checks to prevent circular references
-      if ((node.type === 'loopNode' || node.type === 'parallelNode') && potentialParentId) {
+      if (node.type === 'subflowNode' && potentialParentId) {
         // Get the hierarchy of the potential parent container
         const parentHierarchy = getNodeHierarchyWrapper(potentialParentId)
 

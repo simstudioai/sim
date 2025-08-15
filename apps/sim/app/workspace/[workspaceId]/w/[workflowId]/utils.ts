@@ -14,7 +14,8 @@ const isContainerType = (blockType: string): boolean => {
     blockType === 'loop' ||
     blockType === 'parallel' ||
     blockType === 'loopNode' ||
-    blockType === 'parallelNode'
+    blockType === 'parallelNode' ||
+    blockType === 'subflowNode'
   )
 }
 

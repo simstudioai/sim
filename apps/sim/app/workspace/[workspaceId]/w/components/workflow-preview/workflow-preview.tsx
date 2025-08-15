@@ -15,8 +15,7 @@ import 'reactflow/dist/style.css'
 
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { LoopNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-node'
-import { ParallelNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-node'
+import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import { getBlock } from '@/blocks'
@@ -39,8 +38,7 @@ interface WorkflowPreviewProps {
 // Define node types - the components now handle preview mode internally
 const nodeTypes: NodeTypes = {
   workflowBlock: WorkflowBlock,
-  loopNode: LoopNodeComponent,
-  parallelNode: ParallelNodeComponent,
+  subflowNode: SubflowNodeComponent,
 }
 
 // Define edge types
@@ -131,7 +129,7 @@ export function WorkflowPreview({
       if (block.type === 'loop') {
         nodeArray.push({
           id: block.id,
-          type: 'loopNode',
+          type: 'subflowNode',
           position: absolutePosition,
           parentId: block.data?.parentId,
           extent: block.data?.extent || undefined,
@@ -142,6 +140,7 @@ export function WorkflowPreview({
             height: block.data?.height || 300,
             state: 'valid',
             isPreview: true,
+            kind: 'loop',
           },
         })
         return
@@ -150,7 +149,7 @@ export function WorkflowPreview({
       if (block.type === 'parallel') {
         nodeArray.push({
           id: block.id,
-          type: 'parallelNode',
+          type: 'subflowNode',
           position: absolutePosition,
           parentId: block.data?.parentId,
           extent: block.data?.extent || undefined,
@@ -161,6 +160,7 @@ export function WorkflowPreview({
             height: block.data?.height || 300,
             state: 'valid',
             isPreview: true,
+            kind: 'parallel',
           },
         })
         return

@@ -807,7 +807,7 @@ async function handleSubflowOperationTx(
               collection: payload.config.forEachItems,
               width: 500,
               height: 300,
-              type: 'loopNode',
+              type: 'subflowNode',
             },
             updatedAt: new Date(),
           })
@@ -818,7 +818,7 @@ async function handleSubflowOperationTx(
           ...payload.config,
           width: 500,
           height: 300,
-          type: 'parallelNode',
+          type: 'subflowNode',
         }
 
         // Include count if provided
