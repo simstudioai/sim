@@ -1,3 +1,4 @@
+import { generateInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import type { ExecutionContext } from '@/executor/types'
@@ -125,9 +126,21 @@ export async function executeTool(
         logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
 
         const tokenUrl = new URL('/api/auth/oauth/token', baseUrl).toString()
+
+        // Always send Content-Type; add internal auth on server-side runs
+        const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (typeof window === 'undefined') {
+          try {
+            const internalToken = await generateInternalToken()
+            tokenHeaders.Authorization = `Bearer ${internalToken}`
+          } catch (e) {
+            logger.error(`[${requestId}] Failed generating internal token for OAuth fetch:`, e)
+          }
+        }
+
         const response = await fetch(tokenUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: tokenHeaders,
           body: JSON.stringify(tokenPayload),
         })
 
