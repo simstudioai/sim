@@ -1,11 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { AgentIcon } from '@/components/icons'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -34,18 +32,16 @@ export function Account({ onOpenChange }: AccountProps) {
   const [isLoadingProfile, setIsLoadingProfile] = useState(false)
   const [isUpdatingName, setIsUpdatingName] = useState(false)
 
-  // Error state
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [updateError, setUpdateError] = useState<string | null>(null)
-
   // Edit states
   const [isEditingName, setIsEditingName] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Reset password state
   const [isResettingPassword, setIsResettingPassword] = useState(false)
-  const [resetPasswordError, setResetPasswordError] = useState<string | null>(null)
-  const [resetPasswordSuccess, setResetPasswordSuccess] = useState(false)
+  const [resetPasswordMessage, setResetPasswordMessage] = useState<{
+    type: 'success' | 'error'
+    text: string
+  } | null>(null)
 
   // Fetch user profile on component mount
   useEffect(() => {
@@ -53,7 +49,6 @@ export function Account({ onOpenChange }: AccountProps) {
       if (!session?.user) return
 
       setIsLoadingProfile(true)
-      setLoadError(null)
 
       try {
         const response = await fetch('/api/users/me/profile')
@@ -67,7 +62,6 @@ export function Account({ onOpenChange }: AccountProps) {
         setUserImage(data.user.image)
       } catch (error) {
         logger.error('Error fetching profile:', error)
-        setLoadError('Failed to load profile data')
         // Fallback to session data
         if (session?.user) {
           setName(session.user.name || '')
@@ -94,7 +88,6 @@ export function Account({ onOpenChange }: AccountProps) {
     const trimmedName = name.trim()
 
     if (!trimmedName) {
-      setUpdateError('Name cannot be empty')
       return
     }
 
@@ -104,7 +97,6 @@ export function Account({ onOpenChange }: AccountProps) {
     }
 
     setIsUpdatingName(true)
-    setUpdateError(null)
 
     try {
       const response = await fetch('/api/users/me/profile', {
@@ -121,7 +113,6 @@ export function Account({ onOpenChange }: AccountProps) {
       setIsEditingName(false)
     } catch (error) {
       logger.error('Error updating name:', error)
-      setUpdateError(error instanceof Error ? error.message : 'Failed to update name')
       setName(session?.user?.name || '')
     } finally {
       setIsUpdatingName(false)
@@ -141,7 +132,6 @@ export function Account({ onOpenChange }: AccountProps) {
   const handleCancelEdit = () => {
     setIsEditingName(false)
     setName(session?.user?.name || '')
-    setUpdateError(null)
   }
 
   const handleInputBlur = () => {
@@ -160,27 +150,43 @@ export function Account({ onOpenChange }: AccountProps) {
 
   const handleResetPassword = async () => {
     setIsResettingPassword(true)
-    setResetPasswordError(null)
-    setResetPasswordSuccess(false)
+    setResetPasswordMessage(null)
 
     try {
-      const response = await fetch('/api/auth/reset-password', {
+      const response = await fetch('/api/auth/forget-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          redirectTo: `${window.location.origin}/reset-password`,
+        }),
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to send reset password email')
+        throw new Error(error.message || 'Failed to send reset password email')
       }
 
-      setResetPasswordSuccess(true)
+      setResetPasswordMessage({
+        type: 'success',
+        text: 'email sent',
+      })
+
       // Clear success message after 5 seconds
-      setTimeout(() => setResetPasswordSuccess(false), 5000)
+      setTimeout(() => {
+        setResetPasswordMessage(null)
+      }, 5000)
     } catch (error) {
       logger.error('Error resetting password:', error)
-      setResetPasswordError(error instanceof Error ? error.message : 'Failed to reset password')
+      setResetPasswordMessage({
+        type: 'error',
+        text: 'error',
+      })
+
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setResetPasswordMessage(null)
+      }, 5000)
     } finally {
       setIsResettingPassword(false)
     }
@@ -188,35 +194,6 @@ export function Account({ onOpenChange }: AccountProps) {
 
   return (
     <div className='px-6 pt-4 pb-4'>
-      {loadError && (
-        <Alert variant='destructive' className='mb-4'>
-          <AlertTriangle className='h-4 w-4' />
-          <AlertDescription>{loadError}</AlertDescription>
-        </Alert>
-      )}
-
-      {updateError && (
-        <Alert variant='destructive' className='mb-4'>
-          <AlertTriangle className='h-4 w-4' />
-          <AlertDescription>{updateError}</AlertDescription>
-        </Alert>
-      )}
-
-      {resetPasswordError && (
-        <Alert variant='destructive' className='mb-4'>
-          <AlertTriangle className='h-4 w-4' />
-          <AlertDescription>{resetPasswordError}</AlertDescription>
-        </Alert>
-      )}
-
-      {resetPasswordSuccess && (
-        <Alert className='mb-4 border-green-200 bg-green-50 text-green-900'>
-          <AlertDescription>
-            Password reset email sent successfully. Please check your inbox.
-          </AlertDescription>
-        </Alert>
-      )}
-
       <div className='flex flex-col gap-6'>
         {isLoadingProfile || isPending ? (
           <>
@@ -335,12 +312,22 @@ export function Account({ onOpenChange }: AccountProps) {
                 <span className='text-sm'>••••••••</span>
                 <Button
                   variant='ghost'
-                  className='h-auto p-0 font-normal text-muted-foreground text-xs transition-colors hover:bg-transparent hover:text-foreground'
+                  className={`h-auto p-0 font-normal text-xs transition-colors hover:bg-transparent ${
+                    resetPasswordMessage
+                      ? resetPasswordMessage.type === 'success'
+                        ? 'text-green-500 hover:text-green-600'
+                        : 'text-destructive hover:text-destructive/80'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
                   onClick={handleResetPassword}
                   disabled={isResettingPassword}
                 >
-                  {isResettingPassword ? 'sending...' : 'update'}
-                  <span className='sr-only'>Update password</span>
+                  {isResettingPassword
+                    ? 'sending...'
+                    : resetPasswordMessage
+                      ? resetPasswordMessage.text
+                      : 'reset'}
+                  <span className='sr-only'>Reset password</span>
                 </Button>
               </div>
             </div>

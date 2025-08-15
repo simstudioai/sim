@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react'
-import { AlertTriangle, Info } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useEffect } from 'react'
+import { Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -23,10 +22,7 @@ const TOOLTIPS = {
 }
 
 export function General() {
-  const [retryCount, setRetryCount] = useState(0)
-
   const isLoading = useGeneralStore((state) => state.isLoading)
-  const error = useGeneralStore((state) => state.error)
   const theme = useGeneralStore((state) => state.theme)
   const isAutoConnectEnabled = useGeneralStore((state) => state.isAutoConnectEnabled)
 
@@ -53,10 +49,10 @@ export function General() {
 
   useEffect(() => {
     const loadData = async () => {
-      await loadSettings(retryCount > 0)
+      await loadSettings()
     }
     loadData()
-  }, [loadSettings, retryCount])
+  }, [loadSettings])
 
   const handleThemeChange = async (value: 'system' | 'light' | 'dark') => {
     await setTheme(value)
@@ -80,24 +76,8 @@ export function General() {
     }
   }
 
-  const handleRetry = () => {
-    setRetryCount((prev) => prev + 1)
-  }
-
   return (
     <div className='px-6 pt-4 pb-2'>
-      {error && (
-        <Alert variant='destructive' className='mb-4'>
-          <AlertTriangle className='h-4 w-4' />
-          <AlertDescription className='flex items-center justify-between'>
-            <span>Failed to load settings: {error}</span>
-            <Button variant='outline' size='sm' onClick={handleRetry} disabled={isLoading}>
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
       <div className='flex flex-col gap-6'>
         {isLoading ? (
           <>
