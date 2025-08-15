@@ -42,8 +42,8 @@ export async function POST(req: NextRequest) {
 
     const userId = session.user.id
 
-    // Generate and prefix the key
-    const rawKey = generateApiKey()
+    // Generate and prefix the key (strip the generic sim_ prefix from the random part)
+    const rawKey = generateApiKey().replace(/^sim_/, '')
     const plaintextKey = `sk-sim-copilot-${rawKey}`
 
     // Encrypt with random IV for confidentiality
