@@ -117,8 +117,11 @@ export async function executeTool(
           credentialId: contextParams.credential,
         }
 
-        // Add workflowId if it exists in params or context
-        const workflowId = contextParams.workflowId || contextParams._context?.workflowId
+        // Add workflowId if it exists in params, context, or executionContext
+        const workflowId =
+          contextParams.workflowId ||
+          contextParams._context?.workflowId ||
+          executionContext?.workflowId
         if (workflowId) {
           tokenPayload.workflowId = workflowId
         }
@@ -133,8 +136,8 @@ export async function executeTool(
           try {
             const internalToken = await generateInternalToken()
             tokenHeaders.Authorization = `Bearer ${internalToken}`
-          } catch (e) {
-            logger.error(`[${requestId}] Failed generating internal token for OAuth fetch:`, e)
+          } catch (_e) {
+            // Swallow token generation errors; the request will fail and be reported upstream
           }
         }
 
