@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { getCostMultiplier } from '@/lib/environment'
+import { getCostMultiplier, isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import type {
@@ -274,6 +274,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
     },
     trigger: ExecutionTrigger['type']
   ): Promise<void> {
+    if (!isBillingEnabled) {
+      logger.debug('Billing is disabled, skipping user stats cost update')
+      return
+    }
+
     if (costSummary.totalCost <= 0) {
       logger.debug('No cost to update in user stats')
       return

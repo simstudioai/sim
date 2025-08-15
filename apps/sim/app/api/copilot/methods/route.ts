@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { copilotToolRegistry } from '@/lib/copilot/tools/server-tools/registry'
 import type { NotificationStatus } from '@/lib/copilot/types'
-import { env } from '@/lib/env'
+import { checkInternalApiKey } from '@/lib/copilot/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
 import { createErrorResponse } from '@/app/api/copilot/methods/utils'
@@ -240,32 +240,11 @@ async function interruptHandler(toolCallId: string): Promise<{
   }
 }
 
-// Schema for method execution
 const MethodExecutionSchema = z.object({
   methodId: z.string().min(1, 'Method ID is required'),
   params: z.record(z.any()).optional().default({}),
   toolCallId: z.string().nullable().optional().default(null),
 })
-
-// Simple internal API key authentication
-function checkInternalApiKey(req: NextRequest) {
-  const apiKey = req.headers.get('x-api-key')
-  const expectedApiKey = env.INTERNAL_API_SECRET
-
-  if (!expectedApiKey) {
-    return { success: false, error: 'Internal API key not configured' }
-  }
-
-  if (!apiKey) {
-    return { success: false, error: 'API key required' }
-  }
-
-  if (apiKey !== expectedApiKey) {
-    return { success: false, error: 'Invalid API key' }
-  }
-
-  return { success: true }
-}
 
 /**
  * POST /api/copilot/methods

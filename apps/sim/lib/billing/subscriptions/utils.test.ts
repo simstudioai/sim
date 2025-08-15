@@ -8,6 +8,9 @@ vi.mock('@/lib/env', () => ({
     TEAM_TIER_COST_LIMIT: 40,
     ENTERPRISE_TIER_COST_LIMIT: 200,
   },
+  isTruthy: (value: string | boolean | number | undefined) =>
+    typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value),
+  getEnv: (variable: string) => process.env[variable],
 }))
 
 describe('Subscription Utilities', () => {
