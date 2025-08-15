@@ -128,7 +128,11 @@ export async function executeTool(
 
         logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
 
-        const tokenUrl = new URL('/api/auth/oauth/token', baseUrl).toString()
+        // Build token URL and also include workflowId in query so server auth can read it
+        const tokenUrlObj = new URL('/api/auth/oauth/token', baseUrl)
+        if (workflowId) {
+          tokenUrlObj.searchParams.set('workflowId', workflowId)
+        }
 
         // Always send Content-Type; add internal auth on server-side runs
         const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -141,7 +145,7 @@ export async function executeTool(
           }
         }
 
-        const response = await fetch(tokenUrl, {
+        const response = await fetch(tokenUrlObj.toString(), {
           method: 'POST',
           headers: tokenHeaders,
           body: JSON.stringify(tokenPayload),
