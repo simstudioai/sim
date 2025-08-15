@@ -1,6 +1,7 @@
 import { tasks } from '@trigger.dev/sdk/v3'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { checkServerSideUsageLimits } from '@/lib/billing'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   handleSlackChallenge,
@@ -245,7 +246,44 @@ export async function POST(
     // Continue processing - better to risk rate limit bypass than fail webhook
   }
 
-  // --- PHASE 4: Queue webhook execution via trigger.dev ---
+  // --- PHASE 4: Usage limit check ---
+  try {
+    const usageCheck = await checkServerSideUsageLimits(foundWorkflow.userId)
+    if (usageCheck.isExceeded) {
+      logger.warn(
+        `[${requestId}] User ${foundWorkflow.userId} has exceeded usage limits. Skipping webhook execution.`,
+        {
+          currentUsage: usageCheck.currentUsage,
+          limit: usageCheck.limit,
+          workflowId: foundWorkflow.id,
+          provider: foundWebhook.provider,
+        }
+      )
+
+      // Return 200 to prevent webhook provider retries, but indicate usage limit exceeded
+      if (foundWebhook.provider === 'microsoftteams') {
+        // Microsoft Teams requires specific response format
+        return NextResponse.json({
+          type: 'message',
+          text: 'Usage limit exceeded. Please upgrade your plan to continue.',
+        })
+      }
+
+      // Simple error response for other providers (return 200 to prevent retries)
+      return NextResponse.json({ message: 'Usage limit exceeded' }, { status: 200 })
+    }
+
+    logger.debug(`[${requestId}] Usage limit check passed for webhook`, {
+      provider: foundWebhook.provider,
+      currentUsage: usageCheck.currentUsage,
+      limit: usageCheck.limit,
+    })
+  } catch (usageError) {
+    logger.error(`[${requestId}] Error checking webhook usage limits:`, usageError)
+    // Continue processing - better to risk usage limit bypass than fail webhook
+  }
+
+  // --- PHASE 5: Queue webhook execution via trigger.dev ---
   try {
     // Queue the webhook execution task
     const handle = await tasks.trigger('webhook-execution', {

@@ -187,7 +187,7 @@ export async function checkServerSideUsageLimits(userId: string): Promise<{
       return {
         isExceeded: false,
         currentUsage: 0,
-        limit: 1000,
+        limit: 99999,
       }
     }
 

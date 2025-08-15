@@ -233,6 +233,6 @@ export const env = createEnv({
 
 // Need this utility because t3-env is returning string for boolean values.
 export const isTruthy = (value: string | boolean | number | undefined) =>
-  typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value)
+  typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value)
 
 export { getEnv }
