@@ -356,7 +356,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
           {isLoading ? (
             <div className='flex flex-col gap-6'>
               {/* Google section - 5 blocks */}
-              <div className='flex flex-col gap-3'>
+              <div className='flex flex-col gap-2'>
                 <Skeleton className='h-4 w-16' /> {/* "GOOGLE" label */}
                 <ConnectionSkeleton />
                 <ConnectionSkeleton />
@@ -365,7 +365,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
                 <ConnectionSkeleton />
               </div>
               {/* Microsoft section - 6 blocks */}
-              <div className='flex flex-col gap-3'>
+              <div className='flex flex-col gap-2'>
                 <Skeleton className='h-4 w-20' /> {/* "MICROSOFT" label */}
                 <ConnectionSkeleton />
                 <ConnectionSkeleton />
@@ -379,7 +379,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
             <div className='flex flex-col gap-6'>
               {/* Services list */}
               {Object.entries(filteredGroupedServices).map(([providerKey, providerServices]) => (
-                <div key={providerKey} className='flex flex-col gap-3'>
+                <div key={providerKey} className='flex flex-col gap-2'>
                   <Label className='font-normal text-muted-foreground text-xs uppercase'>
                     {OAUTH_PROVIDERS[providerKey]?.name || 'Other Services'}
                   </Label>

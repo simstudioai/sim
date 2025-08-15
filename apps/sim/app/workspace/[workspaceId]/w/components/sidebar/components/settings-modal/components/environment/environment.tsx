@@ -41,6 +41,7 @@ export function EnvironmentVariables({
   const [searchTerm, setSearchTerm] = useState('')
   const [focusedValueIndex, setFocusedValueIndex] = useState<number | null>(null)
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
+  const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const pendingClose = useRef(false)
@@ -105,15 +106,16 @@ export function EnvironmentVariables({
     }
   }, [registerCloseHandler, hasChanges])
 
-  // Scroll effect
+  // Scroll effect - only when explicitly adding a new variable
   useEffect(() => {
-    if (scrollContainerRef.current) {
+    if (shouldScrollToBottom && scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({
         top: scrollContainerRef.current.scrollHeight,
         behavior: 'smooth',
       })
+      setShouldScrollToBottom(false)
     }
-  }, [envVars.length])
+  }, [shouldScrollToBottom])
 
   // Variable management functions
   const addEnvVar = () => {
@@ -121,6 +123,8 @@ export function EnvironmentVariables({
     setEnvVars([...envVars, newVar])
     // Clear search to ensure the new variable is visible
     setSearchTerm('')
+    // Trigger scroll to bottom
+    setShouldScrollToBottom(true)
   }
 
   const updateEnvVar = (index: number, field: 'key' | 'value', value: string) => {
@@ -189,6 +193,8 @@ export function EnvironmentVariables({
     if (parsedVars.length > 0) {
       const existingVars = envVars.filter((v) => v.key || v.value)
       setEnvVars([...existingVars, ...parsedVars])
+      // Scroll to bottom when pasting multiple variables
+      setShouldScrollToBottom(true)
     }
   }
 
@@ -240,7 +246,7 @@ export function EnvironmentVariables({
         autoCapitalize='off'
         spellCheck='false'
         name={`env-var-key-${envVar.id || originalIndex}-${Math.random()}`}
-        className='h-8 rounded-lg border-none bg-secondary/50 px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
+        className='h-9 rounded-[8px] border-none bg-muted px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
       />
       <Input
         data-input-type='value'
@@ -252,7 +258,7 @@ export function EnvironmentVariables({
         onBlur={() => setFocusedValueIndex(null)}
         onPaste={(e) => handlePaste(e, originalIndex)}
         placeholder='Enter value'
-        className='allow-scroll h-9 rounded-lg border-none bg-secondary/50 px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
+        className='allow-scroll h-9 rounded-[8px] border-none bg-muted px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
         autoComplete='off'
         autoCorrect='off'
         autoCapitalize='off'
@@ -263,7 +269,7 @@ export function EnvironmentVariables({
         variant='ghost'
         size='icon'
         onClick={() => removeEnvVar(originalIndex)}
-        className='h-9 w-9 rounded-lg bg-secondary/50 p-0 text-muted-foreground hover:bg-secondary/70'
+        className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
       >
         ×
       </Button>
@@ -276,9 +282,9 @@ export function EnvironmentVariables({
       <div className='px-6 pt-4 pb-2'>
         {/* Search Input */}
         {isLoading ? (
-          <Skeleton className='h-9 w-56 rounded-lg' />
+          <Skeleton className='h-9 w-56 rounded-[8px]' />
         ) : (
-          <div className='flex h-9 w-56 items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
+          <div className='flex h-9 w-56 items-center gap-2 rounded-[8px] border bg-transparent pr-2 pl-3'>
             <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
             <Input
               placeholder='Search variables...'
@@ -301,9 +307,9 @@ export function EnvironmentVariables({
               {/* Show 3 skeleton rows */}
               {[1, 2, 3].map((index) => (
                 <div key={index} className={`${GRID_COLS} items-center`}>
-                  <Skeleton className='h-8 rounded-lg' />
-                  <Skeleton className='h-9 rounded-lg' />
-                  <Skeleton className='h-9 w-9 rounded-lg' />
+                  <Skeleton className='h-9 rounded-[8px]' />
+                  <Skeleton className='h-9 rounded-[8px]' />
+                  <Skeleton className='h-9 w-9 rounded-[8px]' />
                 </div>
               ))}
             </>
