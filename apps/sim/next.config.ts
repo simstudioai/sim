@@ -190,7 +190,7 @@ const nextConfig: NextConfig = {
       redirects.push({
         source: '/',
         destination: '/login',
-        permanent: false, // Use temporary redirect in case hosting strategy changes
+        permanent: false,
       })
     }
 
@@ -199,7 +199,7 @@ const nextConfig: NextConfig = {
       redirects.push({
         source: '/terms',
         destination: env.NEXT_PUBLIC_TERMS_URL,
-        permanent: false, // Use temporary redirect in case URLs change
+        permanent: false,
       })
     }
 
@@ -207,7 +207,7 @@ const nextConfig: NextConfig = {
       redirects.push({
         source: '/privacy',
         destination: env.NEXT_PUBLIC_PRIVACY_URL,
-        permanent: false, // Use temporary redirect in case URLs change
+        permanent: false,
       })
     }
 
