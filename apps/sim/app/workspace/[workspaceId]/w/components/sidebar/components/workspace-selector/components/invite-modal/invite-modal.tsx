@@ -171,11 +171,6 @@ const PermissionsTableSkeleton = React.memo(() => (
 
 PermissionsTableSkeleton.displayName = 'PermissionsTableSkeleton'
 
-const getStatusBadgeStyles = (status: 'sent' | 'member' | 'modified'): string => {
-  // Use consistent gray styling for all statuses to align with modal design
-  return 'inline-flex items-center rounded-[8px] bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-}
-
 const PermissionsTable = ({
   userPermissions,
   onPermissionChange,
@@ -314,12 +309,12 @@ const PermissionsTable = ({
                   <div className='flex items-center gap-2'>
                     <span className='font-medium text-card-foreground text-sm'>{user.email}</span>
                     {isPendingInvitation && (
-                      <span className='inline-flex items-center rounded-[8px] bg-blue-100 px-2 py-1 font-medium text-blue-700 text-xs dark:bg-blue-900/30 dark:text-blue-400'>
+                      <span className='inline-flex items-center rounded-[8px] bg-gray-100 px-2 py-1 font-medium text-gray-700 text-xs dark:bg-gray-800 dark:text-gray-300'>
                         Sent
                       </span>
                     )}
                     {hasChanges && (
-                      <span className='inline-flex items-center rounded-[8px] bg-orange-100 px-2 py-1 font-medium text-orange-700 text-xs dark:bg-orange-900/30 dark:text-orange-400'>
+                      <span className='inline-flex items-center rounded-[8px] bg-gray-100 px-2 py-1 font-medium text-gray-700 text-xs dark:bg-gray-800 dark:text-gray-300'>
                         Modified
                       </span>
                     )}
@@ -1038,7 +1033,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               }
               className={cn(
                 'ml-auto flex h-9 items-center justify-center gap-2 rounded-[8px] px-4 py-2 font-medium transition-all duration-200',
-                'bg-[#701FFC] text-white shadow-[0_0_0_0_#701FFC] hover:bg-[#7028E6] hover:shadow-[0_0_0_4px_rgba(112,31,252,0.15)] disabled:opacity-50 disabled:hover:bg-[#701FFC] disabled:hover:shadow-none'
+                'bg-[var(--brand-primary-hex)] text-white shadow-[0_0_0_0_var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(112,31,252,0.15)] disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none'
               )}
             >
               {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}

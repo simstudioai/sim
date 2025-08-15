@@ -42,6 +42,11 @@ export function Account({ onOpenChange }: AccountProps) {
   const [isEditingName, setIsEditingName] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Reset password state
+  const [isResettingPassword, setIsResettingPassword] = useState(false)
+  const [resetPasswordError, setResetPasswordError] = useState<string | null>(null)
+  const [resetPasswordSuccess, setResetPasswordSuccess] = useState(false)
+
   // Fetch user profile on component mount
   useEffect(() => {
     const fetchProfile = async () => {
@@ -153,6 +158,34 @@ export function Account({ onOpenChange }: AccountProps) {
     }
   }
 
+  const handleResetPassword = async () => {
+    setIsResettingPassword(true)
+    setResetPasswordError(null)
+    setResetPasswordSuccess(false)
+
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to send reset password email')
+      }
+
+      setResetPasswordSuccess(true)
+      // Clear success message after 5 seconds
+      setTimeout(() => setResetPasswordSuccess(false), 5000)
+    } catch (error) {
+      logger.error('Error resetting password:', error)
+      setResetPasswordError(error instanceof Error ? error.message : 'Failed to reset password')
+    } finally {
+      setIsResettingPassword(false)
+    }
+  }
+
   return (
     <div className='px-6 pt-4 pb-4'>
       {loadError && (
@@ -166,6 +199,21 @@ export function Account({ onOpenChange }: AccountProps) {
         <Alert variant='destructive' className='mb-4'>
           <AlertTriangle className='h-4 w-4' />
           <AlertDescription>{updateError}</AlertDescription>
+        </Alert>
+      )}
+
+      {resetPasswordError && (
+        <Alert variant='destructive' className='mb-4'>
+          <AlertTriangle className='h-4 w-4' />
+          <AlertDescription>{resetPasswordError}</AlertDescription>
+        </Alert>
+      )}
+
+      {resetPasswordSuccess && (
+        <Alert className='mb-4 border-green-200 bg-green-50 text-green-900'>
+          <AlertDescription>
+            Password reset email sent successfully. Please check your inbox.
+          </AlertDescription>
         </Alert>
       )}
 
@@ -197,6 +245,15 @@ export function Account({ onOpenChange }: AccountProps) {
             <div className='flex flex-col gap-2'>
               <Skeleton className='h-4 w-16' />
               <Skeleton className='h-5 w-48' />
+            </div>
+
+            {/* Password Field Skeleton */}
+            <div className='flex flex-col gap-2'>
+              <Skeleton className='h-4 w-16' />
+              <div className='flex items-center gap-6'>
+                <Skeleton className='h-5 w-20' />
+                <Skeleton className='h-5 w-[42px]' />
+              </div>
             </div>
 
             {/* Sign Out Button Skeleton */}
@@ -269,6 +326,23 @@ export function Account({ onOpenChange }: AccountProps) {
             <div className='flex flex-col gap-2'>
               <Label className='font-normal text-muted-foreground text-xs'>Email</Label>
               <p className='text-sm'>{email}</p>
+            </div>
+
+            {/* Password Field */}
+            <div className='flex flex-col gap-2'>
+              <Label className='font-normal text-muted-foreground text-xs'>Password</Label>
+              <div className='flex items-center gap-6'>
+                <span className='text-sm'>••••••••</span>
+                <Button
+                  variant='ghost'
+                  className='h-auto p-0 font-normal text-muted-foreground text-xs transition-colors hover:bg-transparent hover:text-foreground'
+                  onClick={handleResetPassword}
+                  disabled={isResettingPassword}
+                >
+                  {isResettingPassword ? 'sending...' : 'update'}
+                  <span className='sr-only'>Update password</span>
+                </Button>
+              </div>
             </div>
 
             {/* Sign Out Button */}

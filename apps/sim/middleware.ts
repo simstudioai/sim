@@ -1,6 +1,6 @@
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
-import { isDev } from './lib/environment'
+import { isDev, isHosted } from './lib/environment'
 import { createLogger } from './lib/logs/console/logger'
 import { generateRuntimeCSP } from './lib/security/csp'
 import { getBaseDomain } from './lib/urls/utils'
@@ -70,6 +70,17 @@ export async function middleware(request: NextRequest) {
 
     // Rewrite to the chat page but preserve the URL in browser
     return NextResponse.rewrite(new URL(`/chat/${subdomain}${url.pathname}`, request.url))
+  }
+
+  // For self-hosted deployments, redirect root path based on session status
+  // Only apply redirects to the main domain, not subdomains
+  if (!isHosted && !isCustomDomain && url.pathname === '/') {
+    if (hasActiveSession) {
+      // User has active session, redirect to workspace
+      return NextResponse.redirect(new URL('/workspace', request.url))
+    }
+    // User doesn't have active session, redirect to login
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   // Legacy redirect: /w -> /workspace (will be handled by workspace layout)
@@ -180,9 +191,10 @@ export async function middleware(request: NextRequest) {
   return response
 }
 
-// Update matcher to include invitation routes
+// Update matcher to include invitation routes and root path
 export const config = {
   matcher: [
+    '/', // Root path for self-hosted redirect logic
     '/w', // Legacy /w redirect
     '/w/:path*', // Legacy /w/* redirects
     '/workspace/:path*', // New workspace routes

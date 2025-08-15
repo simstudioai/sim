@@ -74,20 +74,8 @@ export const quickAddTool: ToolConfig<
     }),
   },
 
-  outputs: {
-    content: {
-      type: 'string',
-      description: 'Event creation confirmation message from natural language',
-    },
-    metadata: { type: 'json', description: 'Created event metadata including parsed details' },
-  },
-
   transformResponse: async (response: Response, params) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to create calendar event from text')
-    }
 
     // Handle attendees if provided
     let finalEventData = data
@@ -171,22 +159,11 @@ export const quickAddTool: ToolConfig<
     }
   },
 
-  transformError: (error) => {
-    if (error.error?.message) {
-      if (error.error.message.includes('invalid authentication credentials')) {
-        return 'Invalid or expired access token. Please reauthenticate.'
-      }
-      if (error.error.message.includes('quota')) {
-        return 'Google Calendar API quota exceeded. Please try again later.'
-      }
-      if (error.error.message.includes('Calendar not found')) {
-        return 'Calendar not found. Please check the calendar ID.'
-      }
-      if (error.error.message.includes('parse')) {
-        return 'Could not parse the natural language text. Please try a different format.'
-      }
-      return error.error.message
-    }
-    return error.message || 'An unexpected error occurred while creating the calendar event'
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Event creation confirmation message from natural language',
+    },
+    metadata: { type: 'json', description: 'Created event metadata including parsed details' },
   },
 }

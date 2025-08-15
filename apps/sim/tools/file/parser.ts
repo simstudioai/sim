@@ -87,95 +87,67 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
         fileType: determinedFileType,
       }
     },
-    isInternalRoute: true,
   },
 
   transformResponse: async (response: Response): Promise<FileParserOutput> => {
     logger.info('Received response status:', response.status)
 
-    try {
-      const result = await response.json()
-      logger.info('Response parsed successfully')
+    const result = await response.json()
+    logger.info('Response parsed successfully')
 
-      if (!response.ok) {
-        const errorMsg = result.error || 'File parsing failed'
-        logger.error('Error in response:', errorMsg)
-        throw new Error(errorMsg)
-      }
+    // Handle multiple files response
+    if (result.results) {
+      logger.info('Processing multiple files response')
 
-      // Handle multiple files response
-      if (result.results) {
-        logger.info('Processing multiple files response')
+      // Extract individual file results
+      const fileResults = result.results.map((fileResult: any) => {
+        return fileResult.output || fileResult
+      })
 
-        // Extract individual file results
-        const fileResults = result.results.map((fileResult: any) => {
-          if (!fileResult.success) {
-            logger.warn(`Error parsing file ${fileResult.filePath}: ${fileResult.error}`)
-            return {
-              content: `Error parsing file: ${fileResult.error || 'Unknown error'}`,
-              fileType: 'text/plain',
-              size: 0,
-              name: fileResult.filePath.split('/').pop() || 'unknown',
-              binary: false,
-            }
-          }
+      // Combine all file contents with clear dividers
+      const combinedContent = fileResults
+        .map((file: FileParseResult, index: number) => {
+          const divider = `\n${'='.repeat(80)}\n`
 
-          return fileResult.output
+          return file.content + (index < fileResults.length - 1 ? divider : '')
         })
+        .join('\n')
 
-        // Combine all file contents with clear dividers
-        const combinedContent = fileResults
-          .map((file: FileParseResult, index: number) => {
-            const divider = `\n${'='.repeat(80)}\n`
-
-            return file.content + (index < fileResults.length - 1 ? divider : '')
-          })
-          .join('\n')
-
-        // Create the base output
-        const output: FileParserOutputData = {
-          files: fileResults,
-          combinedContent,
-        }
-
-        // Add named properties for each file for dropdown access
-        fileResults.forEach((file: FileParseResult, index: number) => {
-          output[`file${index + 1}`] = file
-        })
-
-        return {
-          success: true,
-          output,
-        }
+      // Create the base output
+      const output: FileParserOutputData = {
+        files: fileResults,
+        combinedContent,
       }
 
-      // Handle single file response
-      if (result.success) {
-        logger.info('Successfully parsed file:', result.output.name)
+      // Add named properties for each file for dropdown access
+      fileResults.forEach((file: FileParseResult, index: number) => {
+        output[`file${index + 1}`] = file
+      })
 
-        // For a single file, create the output with both array and named property
-        const output: FileParserOutputData = {
-          files: [result.output],
-          combinedContent: result.output.content,
-          file1: result.output,
-        }
-
-        return {
-          success: true,
-          output,
-        }
+      return {
+        success: true,
+        output,
       }
+    }
 
-      // Handle error response
-      throw new Error(result.error || 'File parsing failed')
-    } catch (error) {
-      logger.error('Error processing response:', error)
-      throw error
+    // Handle single file response
+    logger.info('Successfully parsed file:', result.output?.name || 'unknown')
+
+    // For a single file, create the output with both array and named property
+    const output: FileParserOutputData = {
+      files: [result.output || result],
+      combinedContent: result.output?.content || result.content || '',
+      file1: result.output || result,
+    }
+
+    return {
+      success: true,
+      output,
     }
   },
 
-  transformError: (error: any) => {
-    logger.error('Error occurred:', error)
-    return error.message || 'File parsing failed'
+  outputs: {
+    files: { type: 'array', description: 'Array of parsed files' },
+    combinedContent: { type: 'string', description: 'Combined content of all parsed files' },
   },
 }

@@ -194,6 +194,9 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
         case 'subflow':
           await handleSubflowOperationTx(tx, workflowId, op, payload, userId)
           break
+        case 'variable':
+          await handleVariableOperationTx(tx, workflowId, op, payload, userId)
+          break
         default:
           throw new Error(`Unknown operation target: ${target}`)
       }
@@ -853,5 +856,129 @@ async function handleSubflowOperationTx(
     default:
       logger.warn(`Unknown subflow operation: ${operation}`)
       throw new Error(`Unsupported subflow operation: ${operation}`)
+  }
+}
+
+// Variable operations - updates workflow.variables JSON field
+async function handleVariableOperationTx(
+  tx: any,
+  workflowId: string,
+  operation: string,
+  payload: any,
+  userId: string
+) {
+  // Get current workflow variables
+  const workflowData = await tx
+    .select({ variables: workflow.variables })
+    .from(workflow)
+    .where(eq(workflow.id, workflowId))
+    .limit(1)
+
+  if (workflowData.length === 0) {
+    throw new Error(`Workflow ${workflowId} not found`)
+  }
+
+  const currentVariables = (workflowData[0].variables as Record<string, any>) || {}
+
+  switch (operation) {
+    case 'add': {
+      if (!payload.id || !payload.name || payload.type === undefined) {
+        throw new Error('Missing required fields for add variable operation')
+      }
+
+      // Add the new variable
+      const updatedVariables = {
+        ...currentVariables,
+        [payload.id]: {
+          id: payload.id,
+          workflowId: payload.workflowId,
+          name: payload.name,
+          type: payload.type,
+          value: payload.value || '',
+        },
+      }
+
+      await tx
+        .update(workflow)
+        .set({
+          variables: updatedVariables,
+          updatedAt: new Date(),
+        })
+        .where(eq(workflow.id, workflowId))
+
+      logger.debug(`Added variable ${payload.id} (${payload.name}) to workflow ${workflowId}`)
+      break
+    }
+
+    case 'remove': {
+      if (!payload.variableId) {
+        throw new Error('Missing variable ID for remove operation')
+      }
+
+      // Remove the variable
+      const { [payload.variableId]: _, ...updatedVariables } = currentVariables
+
+      await tx
+        .update(workflow)
+        .set({
+          variables: updatedVariables,
+          updatedAt: new Date(),
+        })
+        .where(eq(workflow.id, workflowId))
+
+      logger.debug(`Removed variable ${payload.variableId} from workflow ${workflowId}`)
+      break
+    }
+
+    case 'duplicate': {
+      if (!payload.sourceVariableId || !payload.id) {
+        throw new Error('Missing required fields for duplicate variable operation')
+      }
+
+      const sourceVariable = currentVariables[payload.sourceVariableId]
+      if (!sourceVariable) {
+        throw new Error(`Source variable ${payload.sourceVariableId} not found`)
+      }
+
+      // Create duplicated variable with unique name
+      const baseName = `${sourceVariable.name} (copy)`
+      let uniqueName = baseName
+      let nameIndex = 1
+
+      // Ensure name uniqueness
+      const existingNames = Object.values(currentVariables).map((v: any) => v.name)
+      while (existingNames.includes(uniqueName)) {
+        uniqueName = `${baseName} (${nameIndex})`
+        nameIndex++
+      }
+
+      const duplicatedVariable = {
+        ...sourceVariable,
+        id: payload.id,
+        name: uniqueName,
+      }
+
+      const updatedVariables = {
+        ...currentVariables,
+        [payload.id]: duplicatedVariable,
+      }
+
+      await tx
+        .update(workflow)
+        .set({
+          variables: updatedVariables,
+          updatedAt: new Date(),
+        })
+        .where(eq(workflow.id, workflowId))
+
+      logger.debug(
+        `Duplicated variable ${payload.sourceVariableId} -> ${payload.id} (${uniqueName}) in workflow ${workflowId}`
+      )
+      break
+    }
+
+    default:
+      logger.warn(`Unknown variable operation: ${operation}`)
+      throw new Error(`Unsupported variable operation: ${operation}`)
   }
 }

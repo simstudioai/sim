@@ -51,12 +51,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { chatId, messages } = UpdateMessagesSchema.parse(body)
 
-    logger.info(`[${tracker.requestId}] Updating chat messages`, {
-      userId,
-      chatId,
-      messageCount: messages.length,
-    })
-
     // Verify that the chat belongs to the user
     const [chat] = await db
       .select()

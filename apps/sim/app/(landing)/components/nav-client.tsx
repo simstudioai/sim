@@ -245,7 +245,7 @@ export default function NavClient({
                     target='_blank'
                     rel='noopener noreferrer'
                   >
-                    <Button className='h-[43px] bg-[#701ffc] px-6 py-2 font-geist-sans font-medium text-base text-neutral-100 transition-colors duration-200 hover:bg-[#802FFF]'>
+                    <Button className='h-[43px] bg-[var(--brand-primary-hex)] px-6 py-2 font-geist-sans font-medium text-base text-neutral-100 transition-colors duration-200 hover:bg-[var(--brand-primary-hover-hex)]'>
                       Contact
                     </Button>
                   </Link>
@@ -277,7 +277,7 @@ export default function NavClient({
                     >
                       <SheetContent
                         side='right'
-                        className='flex h-full w-[280px] flex-col border-[#181818] border-l bg-[#0C0C0C] p-6 pt-6 text-white shadow-xl sm:w-[320px] [&>button]:hidden'
+                        className='flex h-full w-[280px] flex-col border-[#181818] border-l bg-[var(--brand-background-hex)] p-6 pt-6 text-white shadow-xl sm:w-[320px] [&>button]:hidden'
                         onOpenAutoFocus={(e) => e.preventDefault()}
                         onCloseAutoFocus={(e) => e.preventDefault()}
                       >
@@ -311,7 +311,7 @@ export default function NavClient({
                                 target='_blank'
                                 rel='noopener noreferrer'
                               >
-                                <Button className='w-full bg-[#701ffc] py-6 font-medium text-base text-white shadow-[#701ffc]/20 shadow-lg transition-colors duration-200 hover:bg-[#802FFF]'>
+                                <Button className='w-full bg-[var(--brand-primary-hex)] py-6 font-medium text-base text-white shadow-[var(--brand-primary-hex)]/20 shadow-lg transition-colors duration-200 hover:bg-[var(--brand-primary-hover-hex)]'>
                                   Contact
                                 </Button>
                               </Link>

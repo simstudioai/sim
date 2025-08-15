@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getPresignedUrl, isUsingCloudStorage, uploadFile } from '@/lib/uploads'
 import '@/lib/uploads/setup.server'
+import { getSession } from '@/lib/auth'
 import {
   createErrorResponse,
   createOptionsResponse,
@@ -14,6 +15,11 @@ const logger = createLogger('FilesUploadAPI')
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const formData = await request.formData()
 
     // Check if multiple files are being uploaded or a single file

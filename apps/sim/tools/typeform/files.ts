@@ -6,6 +6,7 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
   name: 'Typeform Files',
   description: 'Download files uploaded in Typeform responses',
   version: '1.0.0',
+
   params: {
     formId: {
       type: 'string',
@@ -44,11 +45,7 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
       description: 'Typeform Personal Access Token',
     },
   },
-  outputs: {
-    fileUrl: { type: 'string', description: 'Direct download URL for the uploaded file' },
-    contentType: { type: 'string', description: 'MIME type of the uploaded file' },
-    filename: { type: 'string', description: 'Original filename of the uploaded file' },
-  },
+
   request: {
     url: (params: TypeformFilesParams) => {
       const encodedFormId = encodeURIComponent(params.formId)
@@ -71,26 +68,8 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
       'Content-Type': 'application/json',
     }),
   },
+
   transformResponse: async (response: Response, params?: TypeformFilesParams) => {
-    if (!response.ok) {
-      let errorMessage = response.statusText || 'Unknown error'
-
-      try {
-        const errorData = await response.json()
-        if (errorData?.message) {
-          errorMessage = errorData.message
-        } else if (errorData?.description) {
-          errorMessage = errorData.description
-        } else if (typeof errorData === 'string') {
-          errorMessage = errorData
-        }
-      } catch (_e) {
-        // If we can't parse the error as JSON, just use the status text
-      }
-
-      throw new Error(`Typeform API error (${response.status}): ${errorMessage}`)
-    }
-
     // For file downloads, we get the file directly
     const contentType = response.headers.get('content-type') || 'application/octet-stream'
     const contentDisposition = response.headers.get('content-disposition') || ''
@@ -128,15 +107,10 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
       },
     }
   },
-  transformError: (error) => {
-    if (error instanceof Error) {
-      return `Failed to retrieve Typeform file: ${error.message}`
-    }
 
-    if (typeof error === 'object' && error !== null) {
-      return `Failed to retrieve Typeform file: ${JSON.stringify(error)}`
-    }
-
-    return 'Failed to retrieve Typeform file: An unknown error occurred'
+  outputs: {
+    fileUrl: { type: 'string', description: 'Direct download URL for the uploaded file' },
+    contentType: { type: 'string', description: 'MIME type of the uploaded file' },
+    filename: { type: 'string', description: 'Original filename of the uploaded file' },
   },
 }

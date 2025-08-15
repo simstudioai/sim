@@ -612,7 +612,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                 <Button
                   type='submit'
                   disabled={isSubmitting}
-                  className='bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+                  className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
                 >
                   {isSubmitting ? 'Creating...' : 'Create Knowledge Base'}
                 </Button>

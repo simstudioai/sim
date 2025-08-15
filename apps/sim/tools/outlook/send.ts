@@ -63,13 +63,6 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
     },
   },
 
-  outputs: {
-    success: { type: 'boolean', description: 'Email send success status' },
-    status: { type: 'string', description: 'Delivery status of the email' },
-    timestamp: { type: 'string', description: 'Timestamp when email was sent' },
-    message: { type: 'string', description: 'Success or error message' },
-  },
-
   request: {
     url: (params) => {
       // If replying to a specific message, use the reply endpoint
@@ -160,17 +153,8 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
       }
     },
   },
-  transformResponse: async (response) => {
-    if (!response.ok) {
-      let errorData
-      try {
-        errorData = await response.json()
-      } catch {
-        throw new Error('Failed to send email')
-      }
-      throw new Error(errorData.error?.message || 'Failed to send email')
-    }
 
+  transformResponse: async (response) => {
     // Outlook sendMail API returns empty body on success
     return {
       success: true,
@@ -184,17 +168,10 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
     }
   },
 
-  transformError: (error) => {
-    // Handle Outlook API error format
-    if (error.error?.message) {
-      if (error.error.message.includes('invalid authentication credentials')) {
-        return 'Invalid or expired access token. Please reauthenticate.'
-      }
-      if (error.error.message.includes('quota')) {
-        return 'Outlook API quota exceeded. Please try again later.'
-      }
-      return error.error.message
-    }
-    return error.message || 'An unexpected error occurred while sending email'
+  outputs: {
+    success: { type: 'boolean', description: 'Email send success status' },
+    status: { type: 'string', description: 'Delivery status of the email' },
+    timestamp: { type: 'string', description: 'Timestamp when email was sent' },
+    message: { type: 'string', description: 'Success or error message' },
   },
 }

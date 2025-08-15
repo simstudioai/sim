@@ -8,7 +8,7 @@ import {
   UserCircle,
   Users,
 } from 'lucide-react'
-import { isDev } from '@/lib/environment'
+import { isBillingEnabled } from '@/lib/environment'
 import { cn } from '@/lib/utils'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
@@ -40,7 +40,7 @@ type NavigationItem = {
     | 'privacy'
   label: string
   icon: React.ComponentType<{ className?: string }>
-  hideInDev?: boolean
+  hideWhenBillingDisabled?: boolean
   requiresTeam?: boolean
 }
 
@@ -79,13 +79,13 @@ const allNavigationItems: NavigationItem[] = [
     id: 'subscription',
     label: 'Subscription',
     icon: CreditCard,
-    hideInDev: true,
+    hideWhenBillingDisabled: true,
   },
   {
     id: 'team',
     label: 'Team',
     icon: Users,
-    hideInDev: true,
+    hideWhenBillingDisabled: true,
     requiresTeam: true,
   },
 ]
@@ -99,7 +99,7 @@ export function SettingsNavigation({
   const subscription = getSubscriptionStatus()
 
   const navigationItems = allNavigationItems.filter((item) => {
-    if (item.hideInDev && isDev) {
+    if (item.hideWhenBillingDisabled && !isBillingEnabled) {
       return false
     }
 

@@ -22,18 +22,6 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
     },
   },
 
-  outputs: {
-    person: {
-      type: 'object',
-      description: 'Person information (undefined for companies_find tool)',
-    },
-    company: {
-      type: 'object',
-      description:
-        'Company information including name, domain, industry, size, country, linkedin, and twitter',
-    },
-  },
-
   request: {
     url: (params) => {
       const url = new URL('https://api.hunter.io/v2/companies/find')
@@ -43,7 +31,6 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
       return url.toString()
     },
     method: 'GET',
-    isInternalRoute: false,
     headers: () => ({
       'Content-Type': 'application/json',
     }),
@@ -51,15 +38,6 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      // Extract specific error message from Hunter.io API
-      const errorMessage =
-        data.errors?.[0]?.details ||
-        data.message ||
-        `HTTP ${response.status}: Failed to find company data`
-      throw new Error(errorMessage)
-    }
 
     return {
       success: true,
@@ -80,11 +58,15 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
     }
   },
 
-  transformError: (error) => {
-    if (error instanceof Error) {
-      // Return the exact error message from the API
-      return error.message
-    }
-    return 'An unexpected error occurred while finding company data'
+  outputs: {
+    person: {
+      type: 'object',
+      description: 'Person information (undefined for companies_find tool)',
+    },
+    company: {
+      type: 'object',
+      description:
+        'Company information including name, domain, industry, size, country, linkedin, and twitter',
+    },
   },
 }

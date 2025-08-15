@@ -10,10 +10,12 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
   name: 'Linear Issue Reader',
   description: 'Fetch and filter issues from Linear',
   version: '1.0.0',
+
   oauth: {
     required: true,
     provider: 'linear',
   },
+
   params: {
     teamId: {
       type: 'string',
@@ -29,24 +31,6 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
     },
   },
 
-  outputs: {
-    issues: {
-      type: 'array',
-      description:
-        'Array of issues from the specified Linear team and project, each containing id, title, description, state, teamId, and projectId',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Issue ID' },
-          title: { type: 'string', description: 'Issue title' },
-          description: { type: 'string', description: 'Issue description' },
-          state: { type: 'string', description: 'Issue state' },
-          teamId: { type: 'string', description: 'Team ID' },
-          projectId: { type: 'string', description: 'Project ID' },
-        },
-      },
-    },
-  },
   request: {
     url: 'https://api.linear.app/graphql',
     method: 'POST',
@@ -85,15 +69,9 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
       },
     }),
   },
+
   transformResponse: async (response) => {
     const data = await response.json()
-    if (data.errors) {
-      return {
-        success: false,
-        output: { issues: [] },
-        error: data.errors.map((e: any) => e.message).join('; '),
-      }
-    }
     return {
       success: true,
       output: {
@@ -108,23 +86,23 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
       },
     }
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
 
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'Failed to fetch Linear issues'
+  outputs: {
+    issues: {
+      type: 'array',
+      description:
+        'Array of issues from the specified Linear team and project, each containing id, title, description, state, teamId, and projectId',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Issue ID' },
+          title: { type: 'string', description: 'Issue title' },
+          description: { type: 'string', description: 'Issue description' },
+          state: { type: 'string', description: 'Issue state' },
+          teamId: { type: 'string', description: 'Team ID' },
+          projectId: { type: 'string', description: 'Project ID' },
+        },
+      },
+    },
   },
 }

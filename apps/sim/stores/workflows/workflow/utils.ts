@@ -53,8 +53,8 @@ export function convertParallelBlockToParallel(
   const parallelBlock = blocks[parallelBlockId]
   if (!parallelBlock || parallelBlock.type !== 'parallel') return undefined
 
-  // Get the parallel type from block data, defaulting to 'collection' for backward compatibility
-  const parallelType = parallelBlock.data?.parallelType || 'collection'
+  // Get the parallel type from block data, defaulting to 'count' for consistency
+  const parallelType = parallelBlock.data?.parallelType || 'count'
 
   // Validate parallelType against allowed values
   const validParallelTypes = ['collection', 'count'] as const

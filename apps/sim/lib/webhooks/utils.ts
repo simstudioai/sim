@@ -223,55 +223,81 @@ export function formatWebhookInput(
         input = 'Message received'
       }
 
+      // Create the message object for easier access
+      const messageObj = {
+        id: message.message_id,
+        text: message.text,
+        caption: message.caption,
+        date: message.date,
+        messageType: message.photo
+          ? 'photo'
+          : message.document
+            ? 'document'
+            : message.audio
+              ? 'audio'
+              : message.video
+                ? 'video'
+                : message.voice
+                  ? 'voice'
+                  : message.sticker
+                    ? 'sticker'
+                    : message.location
+                      ? 'location'
+                      : message.contact
+                        ? 'contact'
+                        : message.poll
+                          ? 'poll'
+                          : 'text',
+        raw: message,
+      }
+
+      // Create sender object
+      const senderObj = message.from
+        ? {
+            id: message.from.id,
+            firstName: message.from.first_name,
+            lastName: message.from.last_name,
+            username: message.from.username,
+            languageCode: message.from.language_code,
+            isBot: message.from.is_bot,
+          }
+        : null
+
+      // Create chat object
+      const chatObj = message.chat
+        ? {
+            id: message.chat.id,
+            type: message.chat.type,
+            title: message.chat.title,
+            username: message.chat.username,
+            firstName: message.chat.first_name,
+            lastName: message.chat.last_name,
+          }
+        : null
+
       return {
         input, // Primary workflow input - the message content
+
+        // NEW: Top-level properties for backward compatibility with <blockName.message> syntax
+        message: messageObj,
+        sender: senderObj,
+        chat: chatObj,
+        updateId: body.update_id,
+        updateType: body.message
+          ? 'message'
+          : body.edited_message
+            ? 'edited_message'
+            : body.channel_post
+              ? 'channel_post'
+              : body.edited_channel_post
+                ? 'edited_channel_post'
+                : 'unknown',
+
+        // Keep the nested structure for the new telegram.message.text syntax
         telegram: {
-          message: {
-            id: message.message_id,
-            text: message.text,
-            caption: message.caption,
-            date: message.date,
-            messageType: message.photo
-              ? 'photo'
-              : message.document
-                ? 'document'
-                : message.audio
-                  ? 'audio'
-                  : message.video
-                    ? 'video'
-                    : message.voice
-                      ? 'voice'
-                      : message.sticker
-                        ? 'sticker'
-                        : message.location
-                          ? 'location'
-                          : message.contact
-                            ? 'contact'
-                            : message.poll
-                              ? 'poll'
-                              : 'text',
-            raw: message,
-          },
-          sender: message.from
-            ? {
-                id: message.from.id,
-                firstName: message.from.first_name,
-                lastName: message.from.last_name,
-                username: message.from.username,
-                languageCode: message.from.language_code,
-                isBot: message.from.is_bot,
-              }
-            : null,
-          chat: message.chat
-            ? {
-                id: message.chat.id,
-                type: message.chat.type,
-                title: message.chat.title,
-                username: message.chat.username,
-                firstName: message.chat.first_name,
-                lastName: message.chat.last_name,
-              }
-            : null,
+          message: messageObj,
+          sender: senderObj,
+          chat: chatObj,
           updateId: body.update_id,
           updateType: body.message
             ? 'message'
@@ -331,6 +357,13 @@ export function formatWebhookInput(
     return body
   }
 
+  if (foundWebhook.provider === 'outlook') {
+    if (body && typeof body === 'object' && 'email' in body) {
+      return body // { email: {...}, timestamp: ... }
+    }
+    return body
+  }
+
   if (foundWebhook.provider === 'microsoftteams') {
     // Microsoft Teams outgoing webhook - Teams sending data to us
     const messageText = body?.text || ''
@@ -341,6 +374,19 @@ export function formatWebhookInput(
 
     return {
       input: messageText, // Primary workflow input - the message text
+
+      // Top-level properties for backward compatibility with <blockName.text> syntax
+      type: body?.type || 'message',
+      id: messageId,
+      timestamp,
+      localTimestamp: body?.localTimestamp || '',
+      serviceUrl: body?.serviceUrl || '',
+      channelId: body?.channelId || '',
+      from_id: from.id || '',
+      from_name: from.name || '',
+      conversation_id: conversation.id || '',
+      text: messageText,
+
       microsoftteams: {
         message: {
           id: messageId,
@@ -385,7 +431,210 @@ export function formatWebhookInput(
     }
   }
 
-  // Generic format for Slack and other providers
+  if (foundWebhook.provider === 'slack') {
+    // Slack input formatting logic - check for valid event
+    const event = body?.event
+
+    if (event && body?.type === 'event_callback') {
+      // Extract event text with fallbacks for different event types
+      let input = ''
+
+      if (event.text) {
+        input = event.text
+      } else if (event.type === 'app_mention') {
+        input = 'App mention received'
+      } else {
+        input = 'Slack event received'
+      }
+
+      // Create the event object for easier access
+      const eventObj = {
+        event_type: event.type || '',
+        channel: event.channel || '',
+        channel_name: '', // Could be resolved via additional API calls if needed
+        user: event.user || '',
+        user_name: '', // Could be resolved via additional API calls if needed
+        text: event.text || '',
+        timestamp: event.ts || event.event_ts || '',
+        team_id: body.team_id || event.team || '',
+        event_id: body.event_id || '',
+      }
+
+      return {
+        input, // Primary workflow input - the event content
+
+        // // // Top-level properties for backward compatibility with <blockName.event> syntax
+        event: eventObj,
+
+        // Keep the nested structure for the new slack.event.text syntax
+        slack: {
+          event: eventObj,
+        },
+        webhook: {
+          data: {
+            provider: 'slack',
+            path: foundWebhook.path,
+            providerConfig: foundWebhook.providerConfig,
+            payload: body,
+            headers: Object.fromEntries(request.headers.entries()),
+            method: request.method,
+          },
+        },
+        workflowId: foundWorkflow.id,
+      }
+    }
+
+    // Fallback for unknown Slack event types
+    logger.warn('Unknown Slack event type', {
+      type: body?.type,
+      hasEvent: !!body?.event,
+      bodyKeys: Object.keys(body || {}),
+    })
+
+    return {
+      input: 'Slack webhook received',
+      slack: {
+        event: {
+          event_type: body?.event?.type || body?.type || 'unknown',
+          channel: body?.event?.channel || '',
+          user: body?.event?.user || '',
+          text: body?.event?.text || '',
+          timestamp: body?.event?.ts || '',
+          team_id: body?.team_id || '',
+          event_id: body?.event_id || '',
+        },
+      },
+      webhook: {
+        data: {
+          provider: 'slack',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
+  if (foundWebhook.provider === 'github') {
+    // GitHub webhook input formatting logic
+    const eventType = request.headers.get('x-github-event') || 'unknown'
+    const delivery = request.headers.get('x-github-delivery') || ''
+
+    // Extract common GitHub properties
+    const repository = body?.repository || {}
+    const sender = body?.sender || {}
+    const action = body?.action || ''
+
+    // Build GitHub-specific variables based on the trigger config outputs
+    const githubData = {
+      // Event metadata
+      event_type: eventType,
+      action: action,
+      delivery_id: delivery,
+
+      // Repository information (avoid 'repository' to prevent conflict with the object)
+      repository_full_name: repository.full_name || '',
+      repository_name: repository.name || '',
+      repository_owner: repository.owner?.login || '',
+      repository_id: repository.id || '',
+      repository_url: repository.html_url || '',
+
+      // Sender information (avoid 'sender' to prevent conflict with the object)
+      sender_login: sender.login || '',
+      sender_id: sender.id || '',
+      sender_type: sender.type || '',
+      sender_url: sender.html_url || '',
+
+      // Event-specific data
+      ...(body?.ref && {
+        ref: body.ref,
+        branch: body.ref?.replace('refs/heads/', '') || '',
+      }),
+      ...(body?.before && { before: body.before }),
+      ...(body?.after && { after: body.after }),
+      ...(body?.commits && {
+        commits: JSON.stringify(body.commits),
+        commit_count: body.commits.length || 0,
+      }),
+      ...(body?.head_commit && {
+        commit_message: body.head_commit.message || '',
+        commit_author: body.head_commit.author?.name || '',
+        commit_sha: body.head_commit.id || '',
+        commit_url: body.head_commit.url || '',
+      }),
+      ...(body?.pull_request && {
+        pull_request: JSON.stringify(body.pull_request),
+        pr_number: body.pull_request.number || '',
+        pr_title: body.pull_request.title || '',
+        pr_state: body.pull_request.state || '',
+        pr_url: body.pull_request.html_url || '',
+      }),
+      ...(body?.issue && {
+        issue: JSON.stringify(body.issue),
+        issue_number: body.issue.number || '',
+        issue_title: body.issue.title || '',
+        issue_state: body.issue.state || '',
+        issue_url: body.issue.html_url || '',
+      }),
+      ...(body?.comment && {
+        comment: JSON.stringify(body.comment),
+        comment_body: body.comment.body || '',
+        comment_url: body.comment.html_url || '',
+      }),
+    }
+
+    // Set input based on event type for workflow processing
+    let input = ''
+    switch (eventType) {
+      case 'push':
+        input = `Push to ${githubData.branch || githubData.ref}: ${githubData.commit_message || 'No commit message'}`
+        break
+      case 'pull_request':
+        input = `${action} pull request: ${githubData.pr_title || 'No title'}`
+        break
+      case 'issues':
+        input = `${action} issue: ${githubData.issue_title || 'No title'}`
+        break
+      case 'issue_comment':
+      case 'pull_request_review_comment':
+        input = `Comment ${action}: ${githubData.comment_body?.slice(0, 100) || 'No comment body'}${(githubData.comment_body?.length || 0) > 100 ? '...' : ''}`
+        break
+      default:
+        input = `GitHub ${eventType} event${action ? ` (${action})` : ''}`
+    }
+
+    return {
+      input, // Primary workflow input
+
+      // Top-level properties for backward compatibility
+      ...githubData,
+
+      // GitHub data structured for trigger handler to extract
+      github: {
+        // Processed convenience variables
+        ...githubData,
+        // Raw GitHub webhook payload for direct field access
+        ...body,
+      },
+
+      webhook: {
+        data: {
+          provider: 'github',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
+  // Generic format for other providers
   return {
     webhook: {
       data: {

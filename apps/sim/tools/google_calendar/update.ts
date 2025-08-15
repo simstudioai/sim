@@ -86,14 +86,6 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarTo
     },
   },
 
-  outputs: {
-    content: { type: 'string', description: 'Event update confirmation message' },
-    metadata: {
-      type: 'json',
-      description: 'Updated event metadata including ID, status, and details',
-    },
-  },
-
   request: {
     url: (params: GoogleCalendarUpdateParams) => {
       const calendarId = params.calendarId || 'primary'
@@ -108,10 +100,6 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarTo
 
   transformResponse: async (response: Response, params) => {
     const existingEvent = await response.json()
-
-    if (!response.ok) {
-      throw new Error(existingEvent.error?.message || 'Failed to fetch existing event')
-    }
 
     // Start with the complete existing event to preserve all fields
     const updatedEvent = { ...existingEvent }
@@ -257,28 +245,11 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarTo
     }
   },
 
-  transformError: (error) => {
-    if (error.error?.message) {
-      if (error.error.message.includes('invalid authentication credentials')) {
-        return 'Invalid or expired access token. Please reauthenticate.'
-      }
-      if (error.error.message.includes('quota')) {
-        return 'Google Calendar API quota exceeded. Please try again later.'
-      }
-      if (error.error.message.includes('Calendar not found')) {
-        return 'Calendar not found. Please check the calendar ID.'
-      }
-      if (
-        error.error.message.includes('Event not found') ||
-        error.error.message.includes('Not Found')
-      ) {
-        return 'Event not found. Please check the event ID.'
-      }
-      if (error.error.message.includes('Failed to fetch existing event')) {
-        return `Unable to retrieve existing event details: ${error.error.message}`
-      }
-      return error.error.message
-    }
-    return error.message || 'An unexpected error occurred while updating the calendar event'
+  outputs: {
+    content: { type: 'string', description: 'Event update confirmation message' },
+    metadata: {
+      type: 'json',
+      description: 'Updated event metadata including ID, status, and details',
+    },
   },
 }

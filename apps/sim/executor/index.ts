@@ -36,6 +36,13 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 
 const logger = createLogger('Executor')
 
+declare global {
+  interface Window {
+    __SIM_TELEMETRY_ENABLED?: boolean
+    __SIM_TRACK_EVENT?: (eventName: string, properties?: Record<string, any>) => void
+  }
+}
+
 /**
  * Tracks telemetry events for workflow execution if telemetry is enabled
  */
@@ -72,6 +79,7 @@ export class Executor {
   private contextExtensions: any = {}
   private actualWorkflow: SerializedWorkflow
   private isCancelled = false
+  private isChildExecution = false
 
   constructor(
     private workflowParam:
@@ -89,6 +97,7 @@ export class Executor {
             onStream?: (streamingExecution: StreamingExecution) => Promise<void>
             executionId?: string
             workspaceId?: string
+            isChildExecution?: boolean
           }
         },
     private initialBlockStates: Record<string, BlockOutput> = {},
@@ -108,6 +117,7 @@ export class Executor {
       // Store context extensions for streaming and output selection
       if (options.contextExtensions) {
         this.contextExtensions = options.contextExtensions
+        this.isChildExecution = options.contextExtensions.isChildExecution || false
 
         if (this.contextExtensions.stream) {
           logger.info('Executor initialized with streaming enabled', {
@@ -204,10 +214,13 @@ export class Executor {
     const context = this.createExecutionContext(workflowId, startTime, startBlockId)
 
     try {
-      setIsExecuting(true)
+      // Only manage global execution state for parent executions
+      if (!this.isChildExecution) {
+        setIsExecuting(true)
 
-      if (this.isDebugging) {
-        setIsDebugging(true)
+        if (this.isDebugging) {
+          setIsDebugging(true)
+        }
       }
 
       let hasMoreLayers = true
@@ -492,7 +505,8 @@ export class Executor {
         logs: context.blockLogs,
       }
     } finally {
-      if (!this.isDebugging) {
+      // Only reset global state for parent executions
+      if (!this.isChildExecution && !this.isDebugging) {
         reset()
       }
     }
@@ -1270,7 +1284,10 @@ export class Executor {
         }
       })
 
-      setActiveBlocks(activeBlockIds)
+      // Only manage active blocks for parent executions
+      if (!this.isChildExecution) {
+        setActiveBlocks(activeBlockIds)
+      }
 
       const settledResults = await Promise.allSettled(
         blockIds.map((blockId) => this.executeBlock(blockId, context))
@@ -1316,7 +1333,10 @@ export class Executor {
       return results
     } catch (error) {
       // If there's an uncaught error, clear all active blocks as a safety measure
-      setActiveBlocks(new Set())
+      // Only manage active blocks for parent executions
+      if (!this.isChildExecution) {
+        setActiveBlocks(new Set())
+      }
       throw error
     }
   }
@@ -1433,27 +1453,30 @@ export class Executor {
 
       // Remove this block from active blocks immediately after execution
       // This ensures the pulse effect stops as soon as the block completes
-      useExecutionStore.setState((state) => {
-        const updatedActiveBlockIds = new Set(state.activeBlockIds)
-        updatedActiveBlockIds.delete(blockId)
+      // Only manage active blocks for parent executions
+      if (!this.isChildExecution) {
+        useExecutionStore.setState((state) => {
+          const updatedActiveBlockIds = new Set(state.activeBlockIds)
+          updatedActiveBlockIds.delete(blockId)
 
-        // For virtual blocks, also check if we should remove the actual block ID
-        if (parallelInfo) {
-          // Check if there are any other virtual blocks for the same actual block still active
-          const hasOtherVirtualBlocks = Array.from(state.activeBlockIds).some((activeId) => {
-            if (activeId === blockId) return false // Skip the current block we're removing
-            const mapping = context.parallelBlockMapping?.get(activeId)
-            return mapping && mapping.originalBlockId === parallelInfo.originalBlockId
-          })
+          // For virtual blocks, also check if we should remove the actual block ID
+          if (parallelInfo) {
+            // Check if there are any other virtual blocks for the same actual block still active
+            const hasOtherVirtualBlocks = Array.from(state.activeBlockIds).some((activeId) => {
+              if (activeId === blockId) return false // Skip the current block we're removing
+              const mapping = context.parallelBlockMapping?.get(activeId)
+              return mapping && mapping.originalBlockId === parallelInfo.originalBlockId
+            })
 
-          // If no other virtual blocks are active for this actual block, remove the actual block ID too
-          if (!hasOtherVirtualBlocks) {
-            updatedActiveBlockIds.delete(parallelInfo.originalBlockId)
+            // If no other virtual blocks are active for this actual block, remove the actual block ID too
+            if (!hasOtherVirtualBlocks) {
+              updatedActiveBlockIds.delete(parallelInfo.originalBlockId)
+            }
           }
-        }
 
-        return { activeBlockIds: updatedActiveBlockIds }
-      })
+          return { activeBlockIds: updatedActiveBlockIds }
+        })
+      }
 
       if (
         rawOutput &&
@@ -1492,6 +1515,43 @@ export class Executor {
         // Skip console logging for infrastructure blocks like loops and parallels
         // For streaming blocks, we'll add the console entry after stream processing
         if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
+          // Determine iteration context for this block
+          let iterationCurrent: number | undefined
+          let iterationTotal: number | undefined
+          let iterationType: 'loop' | 'parallel' | undefined
+          const blockName = block.metadata?.name || 'Unnamed Block'
+
+          if (parallelInfo) {
+            // This is a parallel iteration
+            const parallelState = context.parallelExecutions?.get(parallelInfo.parallelId)
+            iterationCurrent = parallelInfo.iterationIndex + 1
+            iterationTotal = parallelState?.parallelCount
+            iterationType = 'parallel'
+          } else {
+            // Check if this block is inside a loop
+            const containingLoopId = this.resolver.getContainingLoopId(block.id)
+            if (containingLoopId) {
+              const currentIteration = context.loopIterations.get(containingLoopId)
+              const loop = context.workflow?.loops?.[containingLoopId]
+              if (currentIteration !== undefined && loop) {
+                iterationCurrent = currentIteration
+                if (loop.loopType === 'forEach') {
+                  // For forEach loops, get the total from the items
+                  const forEachItems = context.loopItems.get(`${containingLoopId}_items`)
+                  if (forEachItems) {
+                    iterationTotal = Array.isArray(forEachItems)
+                      ? forEachItems.length
+                      : Object.keys(forEachItems).length
+                  }
+                } else {
+                  // For regular loops, use the iterations count
+                  iterationTotal = loop.iterations || 5
+                }
+                iterationType = 'loop'
+              }
+            }
+          }
+
           addConsole({
             input: blockLog.input,
             output: blockLog.output,
@@ -1502,12 +1562,11 @@ export class Executor {
             workflowId: context.workflowId,
             blockId: parallelInfo ? blockId : block.id,
             executionId: this.contextExtensions.executionId,
-            blockName: parallelInfo
-              ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${
-                  parallelInfo.iterationIndex + 1
-                })`
-              : block.metadata?.name || 'Unnamed Block',
+            blockName,
             blockType: block.metadata?.id || 'unknown',
+            iterationCurrent,
+            iterationTotal,
+            iterationType,
           })
         }
 
@@ -1562,6 +1621,43 @@ export class Executor {
 
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
+        // Determine iteration context for this block
+        let iterationCurrent: number | undefined
+        let iterationTotal: number | undefined
+        let iterationType: 'loop' | 'parallel' | undefined
+        const blockName = block.metadata?.name || 'Unnamed Block'
+
+        if (parallelInfo) {
+          // This is a parallel iteration
+          const parallelState = context.parallelExecutions?.get(parallelInfo.parallelId)
+          iterationCurrent = parallelInfo.iterationIndex + 1
+          iterationTotal = parallelState?.parallelCount
+          iterationType = 'parallel'
+        } else {
+          // Check if this block is inside a loop
+          const containingLoopId = this.resolver.getContainingLoopId(block.id)
+          if (containingLoopId) {
+            const currentIteration = context.loopIterations.get(containingLoopId)
+            const loop = context.workflow?.loops?.[containingLoopId]
+            if (currentIteration !== undefined && loop) {
+              iterationCurrent = currentIteration
+              if (loop.loopType === 'forEach') {
+                // For forEach loops, get the total from the items
+                const forEachItems = context.loopItems.get(`${containingLoopId}_items`)
+                if (forEachItems) {
+                  iterationTotal = Array.isArray(forEachItems)
+                    ? forEachItems.length
+                    : Object.keys(forEachItems).length
+                }
+              } else {
+                // For regular loops, use the iterations count
+                iterationTotal = loop.iterations || 5
+              }
+              iterationType = 'loop'
+            }
+          }
+        }
+
         addConsole({
           input: blockLog.input,
           output: blockLog.output,
@@ -1572,12 +1668,11 @@ export class Executor {
           workflowId: context.workflowId,
           blockId: parallelInfo ? blockId : block.id,
           executionId: this.contextExtensions.executionId,
-          blockName: parallelInfo
-            ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${
-                parallelInfo.iterationIndex + 1
-              })`
-            : block.metadata?.name || 'Unnamed Block',
+          blockName,
           blockType: block.metadata?.id || 'unknown',
+          iterationCurrent,
+          iterationTotal,
+          iterationType,
         })
       }
 
@@ -1595,27 +1690,30 @@ export class Executor {
       return output
     } catch (error: any) {
       // Remove this block from active blocks if there's an error
-      useExecutionStore.setState((state) => {
-        const updatedActiveBlockIds = new Set(state.activeBlockIds)
-        updatedActiveBlockIds.delete(blockId)
+      // Only manage active blocks for parent executions
+      if (!this.isChildExecution) {
+        useExecutionStore.setState((state) => {
+          const updatedActiveBlockIds = new Set(state.activeBlockIds)
+          updatedActiveBlockIds.delete(blockId)
 
-        // For virtual blocks, also check if we should remove the actual block ID
-        if (parallelInfo) {
-          // Check if there are any other virtual blocks for the same actual block still active
-          const hasOtherVirtualBlocks = Array.from(state.activeBlockIds).some((activeId) => {
-            if (activeId === blockId) return false // Skip the current block we're removing
-            const mapping = context.parallelBlockMapping?.get(activeId)
-            return mapping && mapping.originalBlockId === parallelInfo.originalBlockId
-          })
+          // For virtual blocks, also check if we should remove the actual block ID
+          if (parallelInfo) {
+            // Check if there are any other virtual blocks for the same actual block still active
+            const hasOtherVirtualBlocks = Array.from(state.activeBlockIds).some((activeId) => {
+              if (activeId === blockId) return false // Skip the current block we're removing
+              const mapping = context.parallelBlockMapping?.get(activeId)
+              return mapping && mapping.originalBlockId === parallelInfo.originalBlockId
+            })
 
-          // If no other virtual blocks are active for this actual block, remove the actual block ID too
-          if (!hasOtherVirtualBlocks) {
-            updatedActiveBlockIds.delete(parallelInfo.originalBlockId)
+            // If no other virtual blocks are active for this actual block, remove the actual block ID too
+            if (!hasOtherVirtualBlocks) {
+              updatedActiveBlockIds.delete(parallelInfo.originalBlockId)
+            }
           }
-        }
 
-        return { activeBlockIds: updatedActiveBlockIds }
-      })
+          return { activeBlockIds: updatedActiveBlockIds }
+        })
+      }
 
       blockLog.success = false
       blockLog.error =
@@ -1630,6 +1728,43 @@ export class Executor {
 
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
+        // Determine iteration context for this block
+        let iterationCurrent: number | undefined
+        let iterationTotal: number | undefined
+        let iterationType: 'loop' | 'parallel' | undefined
+        const blockName = block.metadata?.name || 'Unnamed Block'
+
+        if (parallelInfo) {
+          // This is a parallel iteration
+          const parallelState = context.parallelExecutions?.get(parallelInfo.parallelId)
+          iterationCurrent = parallelInfo.iterationIndex + 1
+          iterationTotal = parallelState?.parallelCount
+          iterationType = 'parallel'
+        } else {
+          // Check if this block is inside a loop
+          const containingLoopId = this.resolver.getContainingLoopId(block.id)
+          if (containingLoopId) {
+            const currentIteration = context.loopIterations.get(containingLoopId)
+            const loop = context.workflow?.loops?.[containingLoopId]
+            if (currentIteration !== undefined && loop) {
+              iterationCurrent = currentIteration
+              if (loop.loopType === 'forEach') {
+                // For forEach loops, get the total from the items
+                const forEachItems = context.loopItems.get(`${containingLoopId}_items`)
+                if (forEachItems) {
+                  iterationTotal = Array.isArray(forEachItems)
+                    ? forEachItems.length
+                    : Object.keys(forEachItems).length
+                }
+              } else {
+                // For regular loops, use the iterations count
+                iterationTotal = loop.iterations || 5
+              }
+              iterationType = 'loop'
+            }
+          }
+        }
+
         addConsole({
           input: blockLog.input,
           output: {},
@@ -1643,10 +1778,11 @@ export class Executor {
           workflowId: context.workflowId,
           blockId: parallelInfo ? blockId : block.id,
           executionId: this.contextExtensions.executionId,
-          blockName: parallelInfo
-            ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${parallelInfo.iterationIndex + 1})`
-            : block.metadata?.name || 'Unnamed Block',
+          blockName,
           blockType: block.metadata?.id || 'unknown',
+          iterationCurrent,
+          iterationTotal,
+          iterationType,
         })
       }
 

@@ -94,6 +94,8 @@ export function TriggerModal({
           setSelectedCredentialId(credentialValue)
           if (triggerDef.provider === 'gmail') {
             loadGmailLabels(credentialValue)
+          } else if (triggerDef.provider === 'outlook') {
+            loadOutlookFolders(credentialValue)
           }
         }
       }
@@ -139,6 +141,30 @@ export function TriggerModal({
     }
   }
 
+  // Load Outlook folders for the selected credential
+  const loadOutlookFolders = async (credentialId: string) => {
+    try {
+      const response = await fetch(`/api/tools/outlook/folders?credentialId=${credentialId}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.folders && Array.isArray(data.folders)) {
+          const folderOptions = data.folders.map((folder: any) => ({
+            id: folder.id,
+            name: folder.name,
+          }))
+          setDynamicOptions((prev) => ({
+            ...prev,
+            folderIds: folderOptions,
+          }))
+        }
+      } else {
+        logger.error('Failed to load Outlook folders:', response.statusText)
+      }
+    } catch (error) {
+      logger.error('Error loading Outlook folders:', error)
+    }
+  }
+
   // Generate webhook path and URL
   useEffect(() => {
     // For triggers that don't use webhooks (like Gmail polling), skip URL generation
@@ -152,15 +178,14 @@ export function TriggerModal({
 
     // If no path exists, generate one automatically
     if (!finalPath) {
-      const timestamp = Date.now()
-      const randomId = Math.random().toString(36).substring(2, 8)
-      finalPath = `/${triggerDef.provider}/${timestamp}-${randomId}`
+      // Use UUID format consistent with other webhooks
+      finalPath = crypto.randomUUID()
       setGeneratedPath(finalPath)
     }
 
     if (finalPath) {
       const baseUrl = window.location.origin
-      setWebhookUrl(`${baseUrl}/api/webhooks/trigger${finalPath}`)
+      setWebhookUrl(`${baseUrl}/api/webhooks/trigger/${finalPath}`)
     }
   }, [triggerPath, triggerDef.provider, triggerDef.requiresCredentials, triggerDef.webhook])
 

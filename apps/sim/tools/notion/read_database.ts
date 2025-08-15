@@ -11,11 +11,13 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
   name: 'Read Notion Database',
   description: 'Read database information and structure from Notion',
   version: '1.0.0',
+
   oauth: {
     required: true,
     provider: 'notion',
     additionalScopes: ['workspace.content', 'database.read'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -28,16 +30,6 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
       required: true,
       visibility: 'user-only',
       description: 'The ID of the Notion database to read',
-    },
-  },
-  outputs: {
-    content: {
-      type: 'string',
-      description: 'Database information including title, properties schema, and metadata',
-    },
-    metadata: {
-      type: 'object',
-      description: 'Database metadata including title, ID, URL, timestamps, and properties schema',
     },
   },
 
@@ -66,11 +58,6 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Notion API error: ${errorData.message || 'Unknown error'}`)
-    }
-
     const data = await response.json()
 
     // Extract database title
@@ -80,7 +67,7 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
     const properties = data.properties || {}
     const propertyList = Object.entries(properties)
       .map(([name, prop]: [string, any]) => `  ${name}: ${prop.type}`)
-      .join('\\n')
+      .join('\n')
 
     const content = [
       `Database: ${title}`,
@@ -92,7 +79,7 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
       `URL: ${data.url}`,
       `Created: ${data.created_time ? new Date(data.created_time).toLocaleDateString() : 'Unknown'}`,
       `Last edited: ${data.last_edited_time ? new Date(data.last_edited_time).toLocaleDateString() : 'Unknown'}`,
-    ].join('\\n')
+    ].join('\n')
 
     return {
       success: true,
@@ -110,7 +97,14 @@ export const notionReadDatabaseTool: ToolConfig<NotionReadDatabaseParams, Notion
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to read Notion database'
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Database information including title, properties schema, and metadata',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Database metadata including title, ID, URL, timestamps, and properties schema',
+    },
   },
 }

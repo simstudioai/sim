@@ -91,9 +91,9 @@ export function DeploymentControls({
               disabled={isDisabled}
               className={cn(
                 'h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs',
-                'hover:border-[#701FFC] hover:bg-[#701FFC] hover:text-white',
+                'hover:border-[var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hex)] hover:text-white',
                 'transition-all duration-200',
-                isDeployed && 'text-[#802FFF]',
+                isDeployed && 'text-[var(--brand-primary-hover-hex)]',
                 isDisabled &&
                   'cursor-not-allowed opacity-50 hover:border hover:bg-card hover:text-card-foreground hover:shadow-xs'
               )}

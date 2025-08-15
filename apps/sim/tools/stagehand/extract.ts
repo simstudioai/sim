@@ -36,12 +36,6 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
       description: 'JSON schema defining the structure of the data to extract',
     },
   },
-  outputs: {
-    data: {
-      type: 'object',
-      description: 'Extracted structured data matching the provided schema',
-    },
-  },
 
   request: {
     url: '/api/tools/stagehand/extract',
@@ -58,34 +52,17 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
   },
 
   transformResponse: async (response) => {
-    try {
-      const data = await response.json()
-
-      if (!response.ok) {
-        return {
-          success: false,
-          output: {},
-          error: data.error || 'Failed to extract data using Stagehand',
-        }
-      }
-
-      return {
-        success: true,
-        output: data.data || {},
-      }
-    } catch (error) {
-      logger.error('Error processing Stagehand extraction response', { error })
-      return {
-        success: false,
-        output: {},
-        error: 'Failed to process extraction response',
-      }
+    const data = await response.json()
+    return {
+      success: true,
+      output: data.data || {},
     }
   },
 
-  // Handle errors
-  transformError: (error) => {
-    logger.error('Stagehand extraction error', { error })
-    return error instanceof Error ? error.message : 'Unknown error during extraction'
+  outputs: {
+    data: {
+      type: 'object',
+      description: 'Extracted structured data matching the provided schema',
+    },
   },
 }

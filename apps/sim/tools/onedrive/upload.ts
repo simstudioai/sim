@@ -9,6 +9,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
   name: 'Upload to OneDrive',
   description: 'Upload a file to OneDrive',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'onedrive',
@@ -21,6 +22,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       'offline_access',
     ],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -53,14 +55,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       description: 'The ID of the folder to upload the file to (internal use)',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Whether the file was uploaded successfully' },
-    file: {
-      type: 'object',
-      description:
-        'The uploaded file object with metadata including id, name, webViewLink, webContentLink, and timestamps',
-    },
-  },
+
   request: {
     url: (params) => {
       let fileName = params.fileName || 'untitled'
@@ -86,55 +81,40 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
     }),
     body: (params) => (params.content || '') as unknown as Record<string, unknown>,
   },
+
   transformResponse: async (response: Response, params?: OneDriveToolParams) => {
-    try {
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        logger.error('Failed to upload file to OneDrive', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData,
-        })
-        throw new Error(errorData.error?.message || 'Failed to upload file to OneDrive')
-      }
+    // Microsoft Graph API returns the file metadata directly
+    const fileData = await response.json()
 
-      // Microsoft Graph API returns the file metadata directly
-      const fileData = await response.json()
+    logger.info('Successfully uploaded file to OneDrive', {
+      fileId: fileData.id,
+      fileName: fileData.name,
+    })
 
-      logger.info('Successfully uploaded file to OneDrive', {
-        fileId: fileData.id,
-        fileName: fileData.name,
-      })
-
-      return {
-        success: true,
-        output: {
-          file: {
-            id: fileData.id,
-            name: fileData.name,
-            mimeType: fileData.file?.mimeType || params?.mimeType || 'text/plain',
-            webViewLink: fileData.webUrl,
-            webContentLink: fileData['@microsoft.graph.downloadUrl'],
-            size: fileData.size,
-            createdTime: fileData.createdDateTime,
-            modifiedTime: fileData.lastModifiedDateTime,
-            parentReference: fileData.parentReference,
-          },
+    return {
+      success: true,
+      output: {
+        file: {
+          id: fileData.id,
+          name: fileData.name,
+          mimeType: fileData.file?.mimeType || params?.mimeType || 'text/plain',
+          webViewLink: fileData.webUrl,
+          webContentLink: fileData['@microsoft.graph.downloadUrl'],
+          size: fileData.size,
+          createdTime: fileData.createdDateTime,
+          modifiedTime: fileData.lastModifiedDateTime,
+          parentReference: fileData.parentReference,
         },
-      }
-    } catch (error: any) {
-      logger.error('Error in upload transformation', {
-        error: error.message,
-        stack: error.stack,
-      })
-      throw error
+      },
     }
   },
-  transformError: (error) => {
-    logger.error('Upload error', {
-      error: error.message,
-      stack: error.stack,
-    })
-    return error.message || 'An error occurred while uploading to OneDrive'
+
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the file was uploaded successfully' },
+    file: {
+      type: 'object',
+      description:
+        'The uploaded file object with metadata including id, name, webViewLink, webContentLink, and timestamps',
+    },
   },
 }

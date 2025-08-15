@@ -1,6 +1,7 @@
 import { tasks } from '@trigger.dev/sdk/v3'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { checkServerSideUsageLimits } from '@/lib/billing'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   handleSlackChallenge,
@@ -100,20 +101,41 @@ export async function POST(
     return new NextResponse('Failed to read request body', { status: 400 })
   }
 
-  // Parse the body as JSON
+  // Parse the body - handle both JSON and form-encoded payloads
   let body: any
   try {
-    body = JSON.parse(rawBody)
+    // Check content type to handle both JSON and form-encoded payloads
+    const contentType = request.headers.get('content-type') || ''
+
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      // GitHub sends form-encoded data with JSON in the 'payload' field
+      const formData = new URLSearchParams(rawBody)
+      const payloadString = formData.get('payload')
+
+      if (!payloadString) {
+        logger.warn(`[${requestId}] No payload field found in form-encoded data`)
+        return new NextResponse('Missing payload field', { status: 400 })
+      }
+
+      body = JSON.parse(payloadString)
+      logger.debug(`[${requestId}] Parsed form-encoded GitHub webhook payload`)
+    } else {
+      // Default to JSON parsing
+      body = JSON.parse(rawBody)
+      logger.debug(`[${requestId}] Parsed JSON webhook payload`)
+    }
 
     if (Object.keys(body).length === 0) {
       logger.warn(`[${requestId}] Rejecting empty JSON object`)
       return new NextResponse('Empty JSON payload', { status: 400 })
     }
   } catch (parseError) {
-    logger.error(`[${requestId}] Failed to parse JSON body`, {
+    logger.error(`[${requestId}] Failed to parse webhook body`, {
       error: parseError instanceof Error ? parseError.message : String(parseError),
+      contentType: request.headers.get('content-type'),
+      bodyPreview: `${rawBody?.slice(0, 100)}...`,
     })
-    return new NextResponse('Invalid JSON payload', { status: 400 })
+    return new NextResponse('Invalid payload format', { status: 400 })
   }
 
   // Handle Slack challenge
@@ -224,7 +246,44 @@ export async function POST(
     // Continue processing - better to risk rate limit bypass than fail webhook
   }
 
-  // --- PHASE 4: Queue webhook execution via trigger.dev ---
+  // --- PHASE 4: Usage limit check ---
+  try {
+    const usageCheck = await checkServerSideUsageLimits(foundWorkflow.userId)
+    if (usageCheck.isExceeded) {
+      logger.warn(
+        `[${requestId}] User ${foundWorkflow.userId} has exceeded usage limits. Skipping webhook execution.`,
+        {
+          currentUsage: usageCheck.currentUsage,
+          limit: usageCheck.limit,
+          workflowId: foundWorkflow.id,
+          provider: foundWebhook.provider,
+        }
+      )
+
+      // Return 200 to prevent webhook provider retries, but indicate usage limit exceeded
+      if (foundWebhook.provider === 'microsoftteams') {
+        // Microsoft Teams requires specific response format
+        return NextResponse.json({
+          type: 'message',
+          text: 'Usage limit exceeded. Please upgrade your plan to continue.',
+        })
+      }
+
+      // Simple error response for other providers (return 200 to prevent retries)
+      return NextResponse.json({ message: 'Usage limit exceeded' }, { status: 200 })
+    }
+
+    logger.debug(`[${requestId}] Usage limit check passed for webhook`, {
+      provider: foundWebhook.provider,
+      currentUsage: usageCheck.currentUsage,
+      limit: usageCheck.limit,
+    })
+  } catch (usageError) {
+    logger.error(`[${requestId}] Error checking webhook usage limits:`, usageError)
+    // Continue processing - better to risk usage limit bypass than fail webhook
+  }
+
+  // --- PHASE 5: Queue webhook execution via trigger.dev ---
   try {
     // Queue the webhook execution task
     const handle = await tasks.trigger('webhook-execution', {

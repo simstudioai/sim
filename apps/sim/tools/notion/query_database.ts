@@ -1,4 +1,5 @@
 import type { NotionQueryDatabaseParams, NotionResponse } from '@/tools/notion/types'
+import { extractTitle, formatPropertyValue } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, NotionResponse> = {
@@ -6,11 +7,13 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
   name: 'Query Notion Database',
   description: 'Query and filter Notion database entries with advanced filtering',
   version: '1.0.0',
+
   oauth: {
     required: true,
     provider: 'notion',
     additionalScopes: ['workspace.content', 'database.read'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -41,37 +44,6 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
       required: false,
       visibility: 'user-only',
       description: 'Number of results to return (default: 100, max: 100)',
-    },
-  },
-  outputs: {
-    content: {
-      type: 'string',
-      description: 'Formatted list of database entries with their properties',
-    },
-    metadata: {
-      type: 'object',
-      description:
-        'Query metadata including total results count, pagination info, and raw results array',
-      properties: {
-        totalResults: { type: 'number', description: 'Number of results returned' },
-        hasMore: { type: 'boolean', description: 'Whether more results are available' },
-        nextCursor: { type: 'string', description: 'Cursor for pagination', optional: true },
-        results: {
-          type: 'array',
-          description: 'Raw Notion page objects',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'Page ID' },
-              properties: { type: 'object', description: 'Page properties' },
-              created_time: { type: 'string', description: 'Creation timestamp' },
-              last_edited_time: { type: 'string', description: 'Last edit timestamp' },
-              url: { type: 'string', description: 'Page URL' },
-              archived: { type: 'boolean', description: 'Whether page is archived' },
-            },
-          },
-        },
-      },
     },
   },
 
@@ -130,11 +102,6 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Notion API error: ${errorData.message || 'Unknown error'}`)
-    }
-
     const data = await response.json()
     const results = data.results || []
 
@@ -168,50 +135,35 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to query Notion database'
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Formatted list of database entries with their properties',
+    },
+    metadata: {
+      type: 'object',
+      description:
+        'Query metadata including total results count, pagination info, and raw results array',
+      properties: {
+        totalResults: { type: 'number', description: 'Number of results returned' },
+        hasMore: { type: 'boolean', description: 'Whether more results are available' },
+        nextCursor: { type: 'string', description: 'Cursor for pagination', optional: true },
+        results: {
+          type: 'array',
+          description: 'Raw Notion page objects',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'Page ID' },
+              properties: { type: 'object', description: 'Page properties' },
+              created_time: { type: 'string', description: 'Creation timestamp' },
+              last_edited_time: { type: 'string', description: 'Last edit timestamp' },
+              url: { type: 'string', description: 'Page URL' },
+              archived: { type: 'boolean', description: 'Whether page is archived' },
+            },
+          },
+        },
+      },
+    },
   },
-}
-
-// Helper function to extract title from properties
-function extractTitle(properties: Record<string, any>): string {
-  for (const [, value] of Object.entries(properties)) {
-    if (
-      value.type === 'title' &&
-      value.title &&
-      Array.isArray(value.title) &&
-      value.title.length > 0
-    ) {
-      return value.title.map((t: any) => t.plain_text || '').join('')
-    }
-  }
-  return ''
-}
-
-// Helper function to format property values
-function formatPropertyValue(property: any): string {
-  switch (property.type) {
-    case 'title':
-      return property.title?.map((t: any) => t.plain_text || '').join('') || ''
-    case 'rich_text':
-      return property.rich_text?.map((t: any) => t.plain_text || '').join('') || ''
-    case 'number':
-      return String(property.number || '')
-    case 'select':
-      return property.select?.name || ''
-    case 'multi_select':
-      return property.multi_select?.map((s: any) => s.name).join(', ') || ''
-    case 'date':
-      return property.date?.start || ''
-    case 'checkbox':
-      return property.checkbox ? 'Yes' : 'No'
-    case 'url':
-      return property.url || ''
-    case 'email':
-      return property.email || ''
-    case 'phone_number':
-      return property.phone_number || ''
-    default:
-      return JSON.stringify(property)
-  }
 }

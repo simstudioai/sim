@@ -6,6 +6,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
   name: 'Knowledge Search',
   description: 'Search for similar content in a knowledge base using vector similarity',
   version: '1.0.0',
+
   params: {
     knowledgeBaseId: {
       type: 'string',
@@ -26,37 +27,6 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       type: 'any',
       required: false,
       description: 'Array of tag filters with tagName and tagValue properties',
-    },
-  },
-
-  outputs: {
-    results: {
-      type: 'array',
-      description: 'Array of search results from the knowledge base',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          content: { type: 'string' },
-          documentId: { type: 'string' },
-          chunkIndex: { type: 'number' },
-          similarity: { type: 'number' },
-          metadata: { type: 'object' },
-        },
-      },
-    },
-    query: {
-      type: 'string',
-      description: 'The search query that was executed',
-    },
-    totalResults: {
-      type: 'number',
-      description: 'Total number of results found',
-    },
-    cost: {
-      type: 'object',
-      description: 'Cost information for the search operation',
-      optional: true,
     },
   },
 
@@ -117,53 +87,50 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
 
       return requestBody
     },
-    isInternalRoute: true,
   },
   transformResponse: async (response): Promise<KnowledgeSearchResponse> => {
-    try {
-      const result = await response.json()
-
-      if (!response.ok) {
-        const errorMessage = result.error || result.message || 'Failed to perform search'
-        throw new Error(errorMessage)
-      }
-
-      const data = result.data || result
-
-      return {
-        success: true,
-        output: {
-          results: data.results || [],
-          query: data.query,
-          totalResults: data.totalResults || 0,
-          cost: data.cost,
-        },
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        output: {
-          results: [],
-          query: '',
-          totalResults: 0,
-          cost: undefined,
-        },
-        error: error.message || 'Failed to perform vector search',
-      }
-    }
-  },
-  transformError: async (error): Promise<KnowledgeSearchResponse> => {
-    const errorMessage = error.message || 'Failed to perform search'
+    const result = await response.json()
+    const data = result.data || result
 
     return {
-      success: false,
+      success: true,
       output: {
-        results: [],
-        query: '',
-        totalResults: 0,
-        cost: undefined,
+        results: data.results || [],
+        query: data.query,
+        totalResults: data.totalResults || 0,
+        cost: data.cost,
       },
-      error: errorMessage,
     }
+  },
+
+  outputs: {
+    results: {
+      type: 'array',
+      description: 'Array of search results from the knowledge base',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          content: { type: 'string' },
+          documentId: { type: 'string' },
+          chunkIndex: { type: 'number' },
+          similarity: { type: 'number' },
+          metadata: { type: 'object' },
+        },
+      },
+    },
+    query: {
+      type: 'string',
+      description: 'The search query that was executed',
+    },
+    totalResults: {
+      type: 'number',
+      description: 'Total number of results found',
+    },
+    cost: {
+      type: 'object',
+      description: 'Cost information for the search operation',
+      optional: true,
+    },
   },
 }

@@ -43,14 +43,6 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
     },
   },
 
-  outputs: {
-    success: { type: 'boolean', description: 'SMS send success status' },
-    messageId: { type: 'string', description: 'Unique Twilio message identifier (SID)' },
-    status: { type: 'string', description: 'Message delivery status from Twilio' },
-    fromNumber: { type: 'string', description: 'Phone number message was sent from' },
-    toNumber: { type: 'string', description: 'Phone number message was sent to' },
-  },
-
   request: {
     url: (params) => {
       if (!params.accountSid) {
@@ -100,13 +92,6 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
   transformResponse: async (response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      const errorMessage =
-        data.error?.message || data.message || `Failed to send SMS (HTTP ${response.status})`
-      logger.error('Twilio API error:', data)
-      throw new Error(errorMessage)
-    }
-
     logger.info('Twilio Response:', data)
     logger.info('Twilio Response type:', typeof data)
     return {
@@ -120,8 +105,11 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
     }
   },
 
-  transformError: (error) => {
-    logger.error('Twilio tool error:', { error })
-    return `SMS sending failed: ${error.message || 'Unknown error occurred'}`
+  outputs: {
+    success: { type: 'boolean', description: 'SMS send success status' },
+    messageId: { type: 'string', description: 'Unique Twilio message identifier (SID)' },
+    status: { type: 'string', description: 'Message delivery status from Twilio' },
+    fromNumber: { type: 'string', description: 'Phone number message was sent from' },
+    toNumber: { type: 'string', description: 'Phone number message was sent to' },
   },
 }

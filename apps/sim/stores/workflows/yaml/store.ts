@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useWorkflowRegistry } from '../registry/store'
 import { useSubBlockStore } from '../subblock/store'
 import { useWorkflowStore } from '../workflow/store'
 
@@ -118,20 +119,16 @@ export const useWorkflowYamlStore = create<WorkflowYamlStore>()(
         // Initialize subscriptions on first use
         initializeSubscriptions()
 
-        const workflowState = useWorkflowStore.getState()
-        const subBlockValues = getSubBlockValues()
+        // Get the active workflow ID from registry
+        const { activeWorkflowId } = useWorkflowRegistry.getState()
 
-        // Call the API route to generate YAML (server has access to API key)
-        const response = await fetch('/api/workflows/yaml/convert', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            workflowState,
-            subBlockValues,
-          }),
-        })
+        if (!activeWorkflowId) {
+          logger.warn('No active workflow to generate YAML for')
+          return
+        }
+
+        // Call the new database-based export endpoint
+        const response = await fetch(`/api/workflows/yaml/export?workflowId=${activeWorkflowId}`)
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => null)

@@ -52,6 +52,72 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
     },
   },
 
+  request: {
+    url: (params) => {
+      const url = new URL('https://api.hunter.io/v2/domain-search')
+      url.searchParams.append('domain', params.domain)
+      url.searchParams.append('api_key', params.apiKey)
+
+      if (params.limit) url.searchParams.append('limit', params.limit.toString())
+      if (params.offset) url.searchParams.append('offset', params.offset.toString())
+      if (params.type && params.type !== 'all') url.searchParams.append('type', params.type)
+      if (params.seniority && params.seniority !== 'all')
+        url.searchParams.append('seniority', params.seniority)
+      if (params.department) url.searchParams.append('department', params.department)
+
+      return url.toString()
+    },
+    method: 'GET',
+    headers: () => ({
+      'Content-Type': 'application/json',
+    }),
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
+        domain: data.data?.domain || '',
+        disposable: data.data?.disposable || false,
+        webmail: data.data?.webmail || false,
+        accept_all: data.data?.accept_all || false,
+        pattern: data.data?.pattern || '',
+        organization: data.data?.organization || '',
+        description: data.data?.description || '',
+        industry: data.data?.industry || '',
+        twitter: data.data?.twitter || '',
+        facebook: data.data?.facebook || '',
+        linkedin: data.data?.linkedin || '',
+        instagram: data.data?.instagram || '',
+        youtube: data.data?.youtube || '',
+        technologies: data.data?.technologies || [],
+        country: data.data?.country || '',
+        state: data.data?.state || '',
+        city: data.data?.city || '',
+        postal_code: data.data?.postal_code || '',
+        street: data.data?.street || '',
+        emails:
+          data.data?.emails?.map((email: any) => ({
+            value: email.value || '',
+            type: email.type || '',
+            confidence: email.confidence || 0,
+            sources: email.sources || [],
+            first_name: email.first_name || '',
+            last_name: email.last_name || '',
+            position: email.position || '',
+            seniority: email.seniority || '',
+            department: email.department || '',
+            linkedin: email.linkedin || '',
+            twitter: email.twitter || '',
+            phone_number: email.phone_number || '',
+            verification: email.verification || {},
+          })) || [],
+      },
+    }
+  },
+
   outputs: {
     domain: {
       type: 'string',
@@ -134,84 +200,5 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
       description:
         'Array of email addresses found for the domain, each containing value, type, confidence, sources, and person details',
     },
-  },
-
-  request: {
-    url: (params) => {
-      const url = new URL('https://api.hunter.io/v2/domain-search')
-      url.searchParams.append('domain', params.domain)
-      url.searchParams.append('api_key', params.apiKey)
-
-      if (params.limit) url.searchParams.append('limit', params.limit.toString())
-      if (params.offset) url.searchParams.append('offset', params.offset.toString())
-      if (params.type && params.type !== 'all') url.searchParams.append('type', params.type)
-      if (params.seniority && params.seniority !== 'all')
-        url.searchParams.append('seniority', params.seniority)
-      if (params.department) url.searchParams.append('department', params.department)
-
-      return url.toString()
-    },
-    method: 'GET',
-    isInternalRoute: false,
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-  },
-
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(
-        data.errors?.[0]?.details || data.message || 'Failed to perform Hunter domain search'
-      )
-    }
-
-    return {
-      success: true,
-      output: {
-        domain: data.data?.domain || '',
-        disposable: data.data?.disposable || false,
-        webmail: data.data?.webmail || false,
-        accept_all: data.data?.accept_all || false,
-        pattern: data.data?.pattern || '',
-        organization: data.data?.organization || '',
-        description: data.data?.description || '',
-        industry: data.data?.industry || '',
-        twitter: data.data?.twitter || '',
-        facebook: data.data?.facebook || '',
-        linkedin: data.data?.linkedin || '',
-        instagram: data.data?.instagram || '',
-        youtube: data.data?.youtube || '',
-        technologies: data.data?.technologies || [],
-        country: data.data?.country || '',
-        state: data.data?.state || '',
-        city: data.data?.city || '',
-        postal_code: data.data?.postal_code || '',
-        street: data.data?.street || '',
-        emails:
-          data.data?.emails?.map((email: any) => ({
-            value: email.value || '',
-            type: email.type || '',
-            confidence: email.confidence || 0,
-            sources: email.sources || [],
-            first_name: email.first_name || '',
-            last_name: email.last_name || '',
-            position: email.position || '',
-            seniority: email.seniority || '',
-            department: email.department || '',
-            linkedin: email.linkedin || '',
-            twitter: email.twitter || '',
-            phone_number: email.phone_number || '',
-            verification: email.verification || {},
-          })) || [],
-      },
-    }
-  },
-
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while performing the Hunter domain search'
   },
 }

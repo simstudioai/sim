@@ -8,6 +8,7 @@
  * It also provides metadata for server-side tools for display purposes
  */
 
+import { GDriveRequestAccessTool } from '@/lib/copilot/tools/client-tools/gdrive-request-access'
 import { GetUserWorkflowTool } from '@/lib/copilot/tools/client-tools/get-user-workflow'
 import { RunWorkflowTool } from '@/lib/copilot/tools/client-tools/run-workflow'
 import { SERVER_TOOL_METADATA } from '@/lib/copilot/tools/server-tools/definitions'
@@ -114,6 +115,7 @@ export class ToolRegistry {
     // Register actual client tool implementations
     this.register(new RunWorkflowTool())
     this.register(new GetUserWorkflowTool())
+    this.register(new GDriveRequestAccessTool())
   }
 }
 

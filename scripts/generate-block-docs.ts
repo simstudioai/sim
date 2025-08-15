@@ -370,7 +370,7 @@ function extractToolInfo(
   try {
     // Extract tool config section - Match params until the next top-level property
     const toolConfigRegex =
-      /params\s*:\s*{([\s\S]*?)},?\s*(?:outputs|oauth|request|directExecution|postProcess|transformResponse|transformError)/
+      /params\s*:\s*{([\s\S]*?)},?\s*(?:outputs|oauth|request|directExecution|postProcess|transformResponse)/
     const toolConfigMatch = fileContent.match(toolConfigRegex)
 
     // Extract description
@@ -455,7 +455,7 @@ function extractToolInfo(
     // First priority: Extract outputs from the new outputs field in ToolConfig
     let outputs: Record<string, any> = {}
     const outputsFieldRegex =
-      /outputs\s*:\s*{([\s\S]*?)}\s*,?\s*(?:oauth|params|request|directExecution|postProcess|transformResponse|transformError|$|\})/
+      /outputs\s*:\s*{([\s\S]*?)}\s*,?\s*(?:oauth|params|request|directExecution|postProcess|transformResponse|$|\})/
     const outputsFieldMatch = fileContent.match(outputsFieldRegex)
 
     if (outputsFieldMatch) {

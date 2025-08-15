@@ -259,8 +259,13 @@ async function parseWithMistralOCR(
         const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.MISTRAL_OCR_API)
 
         try {
+          const method =
+            typeof mistralParserTool.request!.method === 'function'
+              ? mistralParserTool.request!.method(requestBody as any)
+              : mistralParserTool.request!.method
+
           const res = await fetch(url, {
-            method: mistralParserTool.request!.method,
+            method,
             headers,
             body: JSON.stringify(requestBody),
             signal: controller.signal,

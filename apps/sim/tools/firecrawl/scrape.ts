@@ -45,10 +45,6 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!data.success) {
-      throw new Error(data.error?.message || 'Unknown error occurred')
-    }
-
     return {
       success: true,
       output: {
@@ -57,12 +53,6 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
         metadata: data.data.metadata,
       },
     }
-  },
-
-  transformError: (error) => {
-    const message = error.error?.message || error.message
-    const code = error.error?.type || error.code
-    return `${message} (${code})`
   },
 
   outputs: {

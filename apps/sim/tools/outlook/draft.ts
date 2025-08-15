@@ -51,15 +51,6 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
     },
   },
 
-  outputs: {
-    success: { type: 'boolean', description: 'Email draft creation success status' },
-    messageId: { type: 'string', description: 'Unique identifier for the drafted email' },
-    status: { type: 'string', description: 'Draft status of the email' },
-    subject: { type: 'string', description: 'Subject of the drafted email' },
-    timestamp: { type: 'string', description: 'Timestamp when draft was created' },
-    message: { type: 'string', description: 'Success or error message' },
-  },
-
   request: {
     url: (params) => {
       return `https://graph.microsoft.com/v1.0/me/messages`
@@ -112,16 +103,6 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
     },
   },
   transformResponse: async (response) => {
-    if (!response.ok) {
-      let errorData
-      try {
-        errorData = await response.json()
-      } catch {
-        throw new Error('Failed to draft email')
-      }
-      throw new Error(errorData.error?.message || 'Failed to draft email')
-    }
-
     // Outlook draft API returns the created message object
     const data = await response.json()
 
@@ -139,17 +120,12 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
     }
   },
 
-  transformError: (error) => {
-    // Handle Outlook API error format
-    if (error.error?.message) {
-      if (error.error.message.includes('invalid authentication credentials')) {
-        return 'Invalid or expired access token. Please reauthenticate.'
-      }
-      if (error.error.message.includes('quota')) {
-        return 'Outlook API quota exceeded. Please try again later.'
-      }
-      return error.error.message
-    }
-    return error.message || 'An unexpected error occurred while drafting email'
+  outputs: {
+    success: { type: 'boolean', description: 'Email draft creation success status' },
+    messageId: { type: 'string', description: 'Unique identifier for the drafted email' },
+    status: { type: 'string', description: 'Draft status of the email' },
+    subject: { type: 'string', description: 'Subject of the drafted email' },
+    timestamp: { type: 'string', description: 'Timestamp when draft was created' },
+    message: { type: 'string', description: 'Success or error message' },
   },
 }

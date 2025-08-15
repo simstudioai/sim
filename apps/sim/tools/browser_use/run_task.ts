@@ -45,15 +45,6 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
       description: 'API key for BrowserUse API',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'json',
-      description:
-        'Browser automation task results including task ID, success status, output data, and execution steps',
-    },
-    error: { type: 'string', description: 'Error message if the operation failed' },
-  },
   request: {
     url: 'https://api.browser-use.com/api/v1/run-task',
     method: 'POST',
@@ -109,14 +100,6 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      if (response.status === 422) {
-        const errorData = await response.json()
-        throw new Error(JSON.stringify(errorData))
-      }
-      throw new Error(`Request failed with status ${response.status}`)
-    }
-
     const data = (await response.json()) as { id: string }
     return {
       success: true,
@@ -242,19 +225,10 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
     }
   },
 
-  transformError: (error) => {
-    try {
-      const errorData = JSON.parse(error.message)
-      if (errorData.detail && Array.isArray(errorData.detail)) {
-        const formattedError = errorData.detail
-          .map((item: any) => `${item.loc.join('.')}: ${item.msg}`)
-          .join(', ')
-        return `Validation error: ${formattedError}`
-      }
-    } catch {
-      // Not a JSON string, use the regular error message
-    }
-
-    return `Failed to run BrowserUse task: ${error.message || 'Unknown error'}`
+  outputs: {
+    id: { type: 'string', description: 'Task execution identifier' },
+    success: { type: 'boolean', description: 'Task completion status' },
+    output: { type: 'json', description: 'Task output data' },
+    steps: { type: 'json', description: 'Execution steps taken' },
   },
 }

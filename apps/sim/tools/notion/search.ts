@@ -1,4 +1,5 @@
 import type { NotionResponse, NotionSearchParams } from '@/tools/notion/types'
+import { extractTitleFromItem } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = {
@@ -6,11 +7,13 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
   name: 'Search Notion Workspace',
   description: 'Search across all pages and databases in Notion workspace',
   version: '1.0.0',
+
   oauth: {
     required: true,
     provider: 'notion',
     additionalScopes: ['workspace.content', 'page.read'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -35,17 +38,6 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
       required: false,
       visibility: 'user-only',
       description: 'Number of results to return (default: 100, max: 100)',
-    },
-  },
-  outputs: {
-    content: {
-      type: 'string',
-      description: 'Formatted list of search results including pages and databases',
-    },
-    metadata: {
-      type: 'object',
-      description:
-        'Search metadata including total results count, pagination info, and raw results array',
     },
   },
 
@@ -93,11 +85,6 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Notion API error: ${errorData.message || 'Unknown error'}`)
-    }
-
     const data = await response.json()
     const results = data.results || []
 
@@ -105,7 +92,7 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
     const content = results
       .map((item: any, index: number) => {
         const objectType = item.object === 'page' ? 'Page' : 'Database'
-        const title = extractTitle(item)
+        const title = extractTitleFromItem(item)
         const url = item.url || ''
         const lastEdited = item.last_edited_time
           ? new Date(item.last_edited_time).toLocaleDateString()
@@ -135,28 +122,15 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to search Notion workspace'
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Formatted list of search results including pages and databases',
+    },
+    metadata: {
+      type: 'object',
+      description:
+        'Search metadata including total results count, pagination info, and raw results array',
+    },
   },
-}
-
-// Helper function to extract title from page or database
-function extractTitle(item: any): string {
-  if (item.object === 'page') {
-    // For pages, check properties first
-    if (item.properties?.title?.title && Array.isArray(item.properties.title.title)) {
-      const title = item.properties.title.title.map((t: any) => t.plain_text || '').join('')
-      if (title) return title
-    }
-    // Fallback to page title
-    return item.title || 'Untitled Page'
-  }
-  if (item.object === 'database') {
-    // For databases, get title from title array
-    if (item.title && Array.isArray(item.title)) {
-      return item.title.map((t: any) => t.plain_text || '').join('') || 'Untitled Database'
-    }
-    return 'Untitled Database'
-  }
-  return 'Untitled'
 }

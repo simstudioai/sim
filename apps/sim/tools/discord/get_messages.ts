@@ -1,13 +1,5 @@
-import { createLogger } from '@/lib/logs/console/logger'
-import type {
-  DiscordAPIError,
-  DiscordGetMessagesParams,
-  DiscordGetMessagesResponse,
-  DiscordMessage,
-} from '@/tools/discord/types'
+import type { DiscordGetMessagesParams, DiscordGetMessagesResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('DiscordGetMessages')
 
 export const discordGetMessagesTool: ToolConfig<
   DiscordGetMessagesParams,
@@ -59,36 +51,7 @@ export const discordGetMessagesTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    if (!response.ok) {
-      let errorMessage = `Failed to get Discord messages: ${response.status} ${response.statusText}`
-
-      try {
-        const errorData = (await response.json()) as DiscordAPIError
-        errorMessage = `Failed to get Discord messages: ${errorData.message || response.statusText}`
-        logger.error('Discord API error', { status: response.status, error: errorData })
-      } catch (e) {
-        logger.error('Error parsing Discord API response', { status: response.status, error: e })
-      }
-
-      return {
-        success: false,
-        output: {
-          message: errorMessage,
-        },
-        error: errorMessage,
-      }
-    }
-
-    let messages: DiscordMessage[]
-    try {
-      messages = await response.json()
-    } catch (_e) {
-      return {
-        success: false,
-        error: 'Failed to parse messages',
-        output: { message: 'Failed to parse messages' },
-      }
-    }
+    const messages = await response.json()
     return {
       success: true,
       output: {
@@ -99,11 +62,6 @@ export const discordGetMessagesTool: ToolConfig<
         },
       },
     }
-  },
-
-  transformError: (error) => {
-    logger.error('Error retrieving Discord messages', { error })
-    return `Error retrieving Discord messages: ${error instanceof Error ? error.message : String(error)}`
   },
 
   outputs: {

@@ -6,9 +6,13 @@ export const airtableWebhookTrigger: TriggerConfig = {
   name: 'Airtable Webhook',
   provider: 'airtable',
   description:
-    'Trigger workflow from Airtable record changes like create, update, and delete events',
+    'Trigger workflow from Airtable record changes like create, update, and delete events (requires Airtable credentials)',
   version: '1.0.0',
   icon: AirtableIcon,
+
+  // Airtable requires OAuth credentials to create webhooks
+  requiresCredentials: true,
+  credentialProvider: 'airtable',
 
   configFields: {
     baseId: {
@@ -69,12 +73,12 @@ export const airtableWebhookTrigger: TriggerConfig = {
   },
 
   instructions: [
+    'Connect your Airtable account using the "Select Airtable credential" button above.',
     'Ensure you have provided the correct Base ID and Table ID above.',
-    'Sim will automatically configure the webhook in your Airtable account when you save.',
-    'Any changes made to records in the specified table will trigger this workflow.',
-    "If 'Include Full Record Data' is enabled, the entire record will be sent; otherwise, only the changed fields are sent.",
-    'You can find your Base ID in the Airtable URL or API documentation for your base.',
-    'Table IDs can be found in the Airtable API documentation or by inspecting the table URL.',
+    'You can find your Base ID in the Airtable URL: https://airtable.com/[baseId]/...',
+    'You can find your Table ID by clicking on the table name and looking in the URL.',
+    'The webhook will trigger whenever records are created, updated, or deleted in the specified table.',
+    'Make sure your Airtable account has appropriate permissions for the specified base.',
   ],
 
   samplePayload: {

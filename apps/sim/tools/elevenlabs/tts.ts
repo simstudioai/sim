@@ -1,8 +1,5 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type { ElevenLabsTtsParams, ElevenLabsTtsResponse } from '@/tools/elevenlabs/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('ElevenLabsTool')
 
 export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsResponse> = {
   id: 'elevenlabs_tts',
@@ -49,14 +46,9 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
       voiceId: params.voiceId,
       modelId: params.modelId || 'eleven_monolingual_v1',
     }),
-    isInternalRoute: true,
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText}`)
-    }
-
     const data = await response.json()
 
     return {
@@ -67,8 +59,7 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
     }
   },
 
-  transformError: (error) => {
-    logger.error('ElevenLabs TTS error:', error)
-    return `Error generating speech: ${error instanceof Error ? error.message : String(error)}`
+  outputs: {
+    audioUrl: { type: 'string', description: 'The URL of the generated audio' },
   },
 }

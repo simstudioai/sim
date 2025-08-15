@@ -71,21 +71,15 @@ export function generateFullWorkflowData() {
 export async function exportWorkflow(format: EditorFormat): Promise<string> {
   try {
     if (format === 'yaml') {
-      // Use the YAML service for conversion
-      const workflowState = useWorkflowStore.getState()
-      const subBlockValues = getSubBlockValues()
+      // Get the active workflow ID from registry
+      const { activeWorkflowId } = useWorkflowRegistry.getState()
 
-      // Call the API route to generate YAML (server has access to API key)
-      const response = await fetch('/api/workflows/yaml/convert', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          workflowState,
-          subBlockValues,
-        }),
-      })
+      if (!activeWorkflowId) {
+        throw new Error('No active workflow to export')
+      }
+
+      // Call the new database-based export endpoint
+      const response = await fetch(`/api/workflows/yaml/export?workflowId=${activeWorkflowId}`)
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)

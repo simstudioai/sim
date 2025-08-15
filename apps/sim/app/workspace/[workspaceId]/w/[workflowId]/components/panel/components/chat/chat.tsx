@@ -648,9 +648,9 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
               }}
               onKeyDown={handleKeyPress}
               placeholder={isDragOver ? 'Drop files here...' : 'Type a message...'}
-              className={`h-9 flex-1 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] text-muted-foreground shadow-xs focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-[#414141] dark:bg-[#202020] ${
+              className={`h-9 flex-1 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] text-muted-foreground shadow-xs focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-[#414141] dark:bg-[var(--surface-elevated)] ${
                 isDragOver
-                  ? 'border-[#802FFF] bg-purple-50/50 dark:border-[#802FFF] dark:bg-purple-950/20'
+                  ? 'border-[var(--brand-primary-hover-hex)] bg-purple-50/50 dark:border-[var(--brand-primary-hover-hex)] dark:bg-purple-950/20'
                   : ''
               }`}
               disabled={!activeWorkflowId || isExecuting || isUploadingFiles}
@@ -664,7 +664,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                 isExecuting ||
                 isUploadingFiles
               }
-              className='h-9 w-9 rounded-lg bg-[#802FFF] text-white shadow-[0_0_0_0_#802FFF] transition-all duration-200 hover:bg-[#7028E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+              className='h-9 w-9 rounded-lg bg-[var(--brand-primary-hover-hex)] text-white shadow-[0_0_0_0_var(--brand-primary-hover-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
             >
               <ArrowUp className='h-4 w-4' />
             </Button>

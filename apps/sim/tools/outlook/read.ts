@@ -17,6 +17,7 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
     required: true,
     provider: 'outlook',
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -38,12 +39,6 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
     },
   },
 
-  outputs: {
-    success: { type: 'boolean', description: 'Email read operation success status' },
-    messageCount: { type: 'number', description: 'Number of emails retrieved' },
-    messages: { type: 'array', description: 'Array of email message objects' },
-    message: { type: 'string', description: 'Success or status message' },
-  },
   request: {
     url: (params) => {
       // Set max results (default to 1 for simplicity, max 10) with no negative values
@@ -71,12 +66,8 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
       }
     },
   },
-  transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to read Outlook mail: ${errorText}`)
-    }
 
+  transformResponse: async (response: Response) => {
     const data: OutlookMessagesResponse = await response.json()
 
     // Microsoft Graph API returns messages in a 'value' array
@@ -134,23 +125,11 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
       },
     }
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
 
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while reading Outlook email'
+  outputs: {
+    success: { type: 'boolean', description: 'Email read operation success status' },
+    messageCount: { type: 'number', description: 'Number of emails retrieved' },
+    messages: { type: 'array', description: 'Array of email message objects' },
+    message: { type: 'string', description: 'Success or status message' },
   },
 }

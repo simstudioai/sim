@@ -2,9 +2,6 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-
-export const dynamic = 'force-dynamic'
-
 import { createErrorResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
 import { apiKey as apiKeyTable, subscription } from '@/db/schema'

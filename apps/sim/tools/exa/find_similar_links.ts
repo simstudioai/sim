@@ -38,32 +38,9 @@ export const findSimilarLinksTool: ToolConfig<
     },
   },
 
-  outputs: {
-    similarLinks: {
-      type: 'array',
-      description: 'Similar links found with titles, URLs, and text snippets',
-      items: {
-        type: 'object',
-        properties: {
-          title: { type: 'string', description: 'The title of the similar webpage' },
-          url: { type: 'string', description: 'The URL of the similar webpage' },
-          text: {
-            type: 'string',
-            description: 'Text snippet or full content from the similar webpage',
-          },
-          score: {
-            type: 'number',
-            description: 'Similarity score indicating how similar the page is',
-          },
-        },
-      },
-    },
-  },
-
   request: {
     url: 'https://api.exa.ai/findSimilar',
     method: 'POST',
-    isInternalRoute: false,
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,
@@ -90,10 +67,6 @@ export const findSimilarLinksTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.message || data.error || 'Failed to find similar links')
-    }
-
     return {
       success: true,
       output: {
@@ -107,7 +80,25 @@ export const findSimilarLinksTool: ToolConfig<
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while finding similar links'
+  outputs: {
+    similarLinks: {
+      type: 'array',
+      description: 'Similar links found with titles, URLs, and text snippets',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'The title of the similar webpage' },
+          url: { type: 'string', description: 'The URL of the similar webpage' },
+          text: {
+            type: 'string',
+            description: 'Text snippet or full content from the similar webpage',
+          },
+          score: {
+            type: 'number',
+            description: 'Similarity score indicating how similar the page is',
+          },
+        },
+      },
+    },
   },
 }

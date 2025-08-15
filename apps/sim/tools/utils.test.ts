@@ -418,7 +418,6 @@ describe('executeRequest', () => {
         success: true,
         output: await response.json(),
       })),
-      transformError: vi.fn((errorContent) => `Custom error: ${errorContent.message}`),
     }
   })
 
@@ -475,7 +474,7 @@ describe('executeRequest', () => {
     })
   })
 
-  it('should handle error responses with transformError', async () => {
+  it('should handle error responses', async () => {
     // Setup an error response
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -491,11 +490,10 @@ describe('executeRequest', () => {
       headers: {},
     })
 
-    expect(mockTool.transformError).toHaveBeenCalledWith({ message: 'Invalid input' })
     expect(result).toEqual({
       success: false,
       output: {},
-      error: 'Custom error: Invalid input',
+      error: 'Invalid input',
     })
   })
 
@@ -537,95 +535,7 @@ describe('executeRequest', () => {
     expect(result).toEqual({
       success: false,
       output: {},
-      error: 'Custom error: Server Error', // Should use statusText in the error message
-    })
-  })
-
-  it.concurrent('should handle various Promise return types from transformError', async () => {
-    // Case 1: transformError returns a Promise<string>
-    mockTool.transformError = vi.fn().mockResolvedValue('Promise string error')
-
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => ({ message: 'Error' }),
-    })
-
-    let result = await executeRequest('test-tool', mockTool, {
-      url: 'https://api.example.com',
-      method: 'GET',
-      headers: {},
-    })
-
-    expect(result).toEqual({
-      success: false,
-      output: {},
-      error: 'Promise string error',
-    })
-
-    // Case 2: transformError returns a Promise<{error: string}>
-    mockTool.transformError = vi.fn().mockResolvedValue({ error: 'Object error message' })
-
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => ({ message: 'Error' }),
-    })
-
-    result = await executeRequest('test-tool', mockTool, {
-      url: 'https://api.example.com',
-      method: 'GET',
-      headers: {},
-    })
-
-    expect(result).toEqual({
-      success: false,
-      output: {},
-      error: 'Object error message',
-    })
-
-    // Case 3: transformError returns an object without an error property
-    mockTool.transformError = vi.fn().mockResolvedValue({ foo: 'bar' })
-
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => ({ message: 'Error' }),
-    })
-
-    result = await executeRequest('test-tool', mockTool, {
-      url: 'https://api.example.com',
-      method: 'GET',
-      headers: {},
-    })
-
-    expect(result).toEqual({
-      success: false,
-      output: {},
-      error: 'Tool returned an error',
-    })
-
-    // Case 4: transformError throws an exception
-    mockTool.transformError = vi.fn().mockImplementation(() => {
-      throw new Error('Exception from transformError')
-    })
-
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => ({ message: 'Error' }),
-    })
-
-    result = await executeRequest('test-tool', mockTool, {
-      url: 'https://api.example.com',
-      method: 'GET',
-      headers: {},
-    })
-
-    expect(result).toEqual({
-      success: false,
-      output: {},
-      error: 'Exception from transformError',
+      error: 'Server Error', // Should use statusText in the error message
     })
   })
 })

@@ -41,6 +41,38 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
     },
   },
 
+  request: {
+    url: (params) => {
+      const url = new URL('https://api.hunter.io/v2/email-finder')
+      url.searchParams.append('domain', params.domain)
+      url.searchParams.append('first_name', params.first_name)
+      url.searchParams.append('last_name', params.last_name)
+      url.searchParams.append('api_key', params.apiKey)
+
+      if (params.company) url.searchParams.append('company', params.company)
+
+      return url.toString()
+    },
+    method: 'GET',
+    headers: () => ({
+      'Content-Type': 'application/json',
+    }),
+  },
+
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
+    return {
+      success: true,
+      output: {
+        email: data.data?.email || '',
+        score: data.data?.score || 0,
+        sources: data.data?.sources || [],
+        verification: data.data?.verification || {},
+      },
+    }
+  },
+
   outputs: {
     email: {
       type: 'string',
@@ -59,50 +91,5 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
       type: 'object',
       description: 'Verification information containing date and status',
     },
-  },
-
-  request: {
-    url: (params) => {
-      const url = new URL('https://api.hunter.io/v2/email-finder')
-      url.searchParams.append('domain', params.domain)
-      url.searchParams.append('first_name', params.first_name)
-      url.searchParams.append('last_name', params.last_name)
-      url.searchParams.append('api_key', params.apiKey)
-
-      if (params.company) url.searchParams.append('company', params.company)
-
-      return url.toString()
-    },
-    method: 'GET',
-    isInternalRoute: false,
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-  },
-
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(
-        data.errors?.[0]?.details || data.message || 'Failed to perform Hunter email finder'
-      )
-    }
-
-    return {
-      success: true,
-      output: {
-        email: data.data?.email || '',
-        score: data.data?.score || 0,
-        sources: data.data?.sources || [],
-        verification: data.data?.verification || {},
-      },
-    }
-  },
-
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while performing the Hunter email finder'
   },
 }

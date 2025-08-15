@@ -62,30 +62,6 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
     },
   },
 
-  outputs: {
-    matches: {
-      type: 'array',
-      description: 'Search results with ID, score, and metadata',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Vector ID' },
-          score: { type: 'number', description: 'Similarity score' },
-          metadata: { type: 'object', description: 'Associated metadata' },
-        },
-      },
-    },
-    usage: {
-      type: 'object',
-      description: 'Usage statistics including tokens, read units, and rerank units',
-      properties: {
-        total_tokens: { type: 'number', description: 'Total tokens used for embedding' },
-        read_units: { type: 'number', description: 'Read units consumed' },
-        rerank_units: { type: 'number', description: 'Rerank units used' },
-      },
-    },
-  },
-
   request: {
     method: 'POST',
     url: (params) => `${params.indexHost}/records/namespaces/${params.namespace}/search`,
@@ -148,5 +124,27 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
     }
   },
 
-  transformError: (error) => `Pinecone text search failed: ${error.message}`,
+  outputs: {
+    matches: {
+      type: 'array',
+      description: 'Search results with ID, score, and metadata',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Vector ID' },
+          score: { type: 'number', description: 'Similarity score' },
+          metadata: { type: 'object', description: 'Associated metadata' },
+        },
+      },
+    },
+    usage: {
+      type: 'object',
+      description: 'Usage statistics including tokens, read units, and rerank units',
+      properties: {
+        total_tokens: { type: 'number', description: 'Total tokens used for embedding' },
+        read_units: { type: 'number', description: 'Read units consumed' },
+        rerank_units: { type: 'number', description: 'Rerank units used' },
+      },
+    },
+  },
 }

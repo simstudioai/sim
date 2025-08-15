@@ -1,13 +1,9 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type {
-  DiscordAPIError,
   DiscordMessage,
   DiscordSendMessageParams,
   DiscordSendMessageResponse,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('DiscordSendMessage')
 
 export const discordSendMessageTool: ToolConfig<
   DiscordSendMessageParams,
@@ -76,50 +72,14 @@ export const discordSendMessageTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    if (!response.ok) {
-      let errorMessage = `Failed to send Discord message: ${response.status} ${response.statusText}`
-
-      try {
-        const errorData = (await response.json()) as DiscordAPIError
-        errorMessage = `Failed to send Discord message: ${errorData.message || response.statusText}`
-        logger.error('Discord API error', { status: response.status, error: errorData })
-      } catch (e) {
-        logger.error('Error parsing Discord API response', { status: response.status, error: e })
-      }
-
-      return {
-        success: false,
-        output: {
-          message: errorMessage,
-        },
-        error: errorMessage,
-      }
+    const data = (await response.json()) as DiscordMessage
+    return {
+      success: true,
+      output: {
+        message: 'Discord message sent successfully',
+        data,
+      },
     }
-
-    try {
-      const data = (await response.json()) as DiscordMessage
-      return {
-        success: true,
-        output: {
-          message: 'Discord message sent successfully',
-          data,
-        },
-      }
-    } catch (e) {
-      logger.error('Error parsing successful Discord response', { error: e })
-      return {
-        success: false,
-        error: 'Failed to parse Discord response',
-        output: {
-          message: 'Failed to parse Discord response',
-        },
-      }
-    }
-  },
-
-  transformError: (error: Error | unknown): string => {
-    logger.error('Error sending Discord message', { error })
-    return `Error sending Discord message: ${error instanceof Error ? error.message : String(error)}`
   },
 
   outputs: {

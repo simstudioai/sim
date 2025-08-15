@@ -18,8 +18,6 @@ import { workflow, workflowSchedule } from '@/db/schema'
 
 const logger = createLogger('ScheduledAPI')
 
-export const dynamic = 'force-dynamic'
-
 const ScheduleRequestSchema = z.object({
   workflowId: z.string(),
   blockId: z.string().optional(),

@@ -365,6 +365,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       position: { x: number; y: number }
       subBlocks?: Record<string, any>
       data?: Record<string, any>
+      parentId?: string
+      extent?: string
     }>
     const edges = workflowState.edges
     const warnings = conversionResult.warnings || []
@@ -395,6 +397,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       if (!blockConfig && (block.type === 'loop' || block.type === 'parallel')) {
         // Handle loop/parallel blocks (they don't have regular block configs)
+        // Preserve parentId if it exists (though loop/parallel shouldn't have parents)
+        const containerData = block.data || {}
+        if (block.parentId) {
+          containerData.parentId = block.parentId
+          containerData.extent = block.extent || 'parent'
+        }
+
         newWorkflowState.blocks[newId] = {
           id: newId,
           type: block.type,
@@ -407,7 +416,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           isWide: false,
           advancedMode: false,
           height: 0,
-          data: block.data || {},
+          data: containerData,
         }
         logger.debug(`[${requestId}] Processed loop/parallel block: ${block.id} -> ${newId}`)
       } else if (blockConfig) {
@@ -440,6 +449,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         // Set up outputs from block configuration
         const outputs = resolveOutputType(blockConfig.outputs)
 
+        // Preserve parentId if it exists in the imported block
+        const blockData = block.data || {}
+        if (block.parentId) {
+          blockData.parentId = block.parentId
+          blockData.extent = block.extent || 'parent'
+        }
+
         newWorkflowState.blocks[newId] = {
           id: newId,
           type: block.type,
@@ -452,7 +468,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           isWide: false,
           advancedMode: false,
           height: 0,
-          data: block.data || {},
+          data: blockData,
         }
 
         logger.debug(`[${requestId}] Processed regular block: ${block.id} -> ${newId}`)
@@ -529,6 +545,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
+    // Debug: Log block parent-child relationships before generating loops
     // Generate loop and parallel configurations
     const loops = generateLoopBlocks(newWorkflowState.blocks)
     const parallels = generateParallelBlocks(newWorkflowState.blocks)

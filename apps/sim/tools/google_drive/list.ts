@@ -6,11 +6,13 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
   name: 'List Google Drive Files',
   description: 'List files and folders in Google Drive',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'google-drive',
     additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -49,6 +51,7 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
       description: 'The page token to use for pagination',
     },
   },
+
   request: {
     url: (params) => {
       const url = new URL('https://www.googleapis.com/drive/v3/files')
@@ -87,13 +90,6 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
     }),
   },
 
-  outputs: {
-    files: {
-      type: 'json',
-      description: 'Array of file metadata objects from the specified folder',
-    },
-  },
-
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
@@ -119,7 +115,11 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
       },
     }
   },
-  transformError: (error) => {
-    return error.message || 'An error occurred while listing Google Drive files'
+
+  outputs: {
+    files: {
+      type: 'json',
+      description: 'Array of file metadata objects from the specified folder',
+    },
   },
 }

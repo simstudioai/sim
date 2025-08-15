@@ -46,6 +46,8 @@ interface JiraIssueSelectorProps {
   showPreview?: boolean
   onIssueInfoChange?: (issueInfo: JiraIssueInfo | null) => void
   projectId?: string
+  credentialId?: string
+  isForeignCredential?: boolean
 }
 
 export function JiraIssueSelector({
@@ -60,11 +62,12 @@ export function JiraIssueSelector({
   showPreview = true,
   onIssueInfoChange,
   projectId,
+  credentialId,
 }: JiraIssueSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [issues, setIssues] = useState<JiraIssueInfo[]>([])
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedIssueId, setSelectedIssueId] = useState(value)
   const [selectedIssue, setSelectedIssue] = useState<JiraIssueInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -72,6 +75,15 @@ export function JiraIssueSelector({
   const initialFetchRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [cloudId, setCloudId] = useState<string | null>(null)
+
+  // Keep local credential state in sync with persisted credentialId prop
+  useEffect(() => {
+    if (credentialId && credentialId !== selectedCredentialId) {
+      setSelectedCredentialId(credentialId)
+    } else if (!credentialId && selectedCredentialId) {
+      setSelectedCredentialId('')
+    }
+  }, [credentialId, selectedCredentialId])
 
   // Handle search with debounce
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -124,25 +136,6 @@ export function JiraIssueSelector({
       if (response.ok) {
         const data = await response.json()
         setCredentials(data.credentials)
-
-        // Auto-select logic for credentials
-        if (data.credentials.length > 0) {
-          // If we already have a selected credential ID, check if it's valid
-          if (
-            selectedCredentialId &&
-            data.credentials.some((cred: Credential) => cred.id === selectedCredentialId)
-          ) {
-            // Keep the current selection
-          } else {
-            // Otherwise, select the default or first credential
-            const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-            if (defaultCred) {
-              setSelectedCredentialId(defaultCred.id)
-            } else if (data.credentials.length === 1) {
-              setSelectedCredentialId(data.credentials[0].id)
-            }
-          }
-        }
       }
     } catch (error) {
       logger.error('Error fetching credentials:', error)
@@ -242,6 +235,11 @@ export function JiraIssueSelector({
   const fetchIssues = useCallback(
     async (searchQuery?: string) => {
       if (!selectedCredentialId || !domain) return
+      // If no search query is provided, require a projectId before fetching
+      if (!searchQuery && !projectId) {
+        setIssues([])
+        return
+      }
 
       // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
@@ -370,13 +368,12 @@ export function JiraIssueSelector({
     ]
   )
 
-  // Fetch credentials on initial mount
+  // Fetch credentials when the dropdown opens (avoid fetching on mount with no credential)
   useEffect(() => {
-    if (!initialFetchRef.current) {
+    if (open) {
       fetchCredentials()
-      initialFetchRef.current = true
     }
-  }, [fetchCredentials])
+  }, [open, fetchCredentials])
 
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
@@ -384,7 +381,10 @@ export function JiraIssueSelector({
 
     // Only fetch recent/default issues when opening the dropdown
     if (isOpen && selectedCredentialId && domain && domain.includes('.')) {
-      fetchIssues('') // Pass empty string to get recent or default issues
+      // Only fetch on open when a project is selected; otherwise wait for user search
+      if (projectId) {
+        fetchIssues('')
+      }
     }
   }
 
@@ -405,6 +405,14 @@ export function JiraIssueSelector({
   useEffect(() => {
     if (value !== selectedIssueId) {
       setSelectedIssueId(value)
+    }
+    // When the upstream value is cleared (e.g., project changed or remote user cleared),
+    // clear local selection and preview immediately
+    if (!value) {
+      setSelectedIssue(null)
+      setIssues([])
+      setError(null)
+      onIssueInfoChange?.(null)
     }
   }, [value])
 
@@ -443,7 +451,7 @@ export function JiraIssueSelector({
               role='combobox'
               aria-expanded={open}
               className='h-10 w-full min-w-0 justify-between'
-              disabled={disabled || !domain}
+              disabled={disabled || !domain || !selectedCredentialId}
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
                 {selectedIssue ? (

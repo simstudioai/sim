@@ -58,17 +58,6 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
     },
   },
 
-  outputs: {
-    matches: {
-      type: 'array',
-      description: 'Vector search results with ID, score, values, and metadata',
-    },
-    namespace: {
-      type: 'string',
-      description: 'Namespace where the search was performed',
-    },
-  },
-
   request: {
     method: 'POST',
     url: (params) => `${params.indexHost}/query`,
@@ -107,5 +96,14 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
     }
   },
 
-  transformError: (error) => `Pinecone vector search failed: ${error.message}`,
+  outputs: {
+    matches: {
+      type: 'array',
+      description: 'Vector search results with ID, score, values, and metadata',
+    },
+    namespace: {
+      type: 'string',
+      description: 'Namespace where the search was performed',
+    },
+  },
 }

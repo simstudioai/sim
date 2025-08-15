@@ -51,20 +51,7 @@ export const getTool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetRespo
     }),
   },
 
-  outputs: {
-    content: { type: 'string', description: 'Event retrieval confirmation message' },
-    metadata: {
-      type: 'json',
-      description: 'Event details including ID, status, times, and attendees',
-    },
-  },
-
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error?.message || 'Failed to get calendar event')
-    }
-
     const data: GoogleCalendarApiEventResponse = await response.json()
 
     return {
@@ -88,25 +75,11 @@ export const getTool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetRespo
     }
   },
 
-  transformError: (error) => {
-    if (error.error?.message) {
-      if (error.error.message.includes('invalid authentication credentials')) {
-        return 'Invalid or expired access token. Please reauthenticate.'
-      }
-      if (error.error.message.includes('quota')) {
-        return 'Google Calendar API quota exceeded. Please try again later.'
-      }
-      if (error.error.message.includes('Calendar not found')) {
-        return 'Calendar not found. Please check the calendar ID.'
-      }
-      if (
-        error.error.message.includes('Event not found') ||
-        error.error.message.includes('Not Found')
-      ) {
-        return 'Event not found. Please check the event ID.'
-      }
-      return error.error.message
-    }
-    return error.message || 'An unexpected error occurred while retrieving the calendar event'
+  outputs: {
+    content: { type: 'string', description: 'Event retrieval confirmation message' },
+    metadata: {
+      type: 'json',
+      description: 'Event details including ID, status, times, and attendees',
+    },
   },
 }

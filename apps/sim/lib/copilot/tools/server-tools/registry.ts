@@ -4,9 +4,13 @@ import type { CopilotTool } from './base'
 import { getBlocksAndToolsTool } from './blocks/get-blocks-and-tools'
 import { getBlocksMetadataTool } from './blocks/get-blocks-metadata'
 import { searchDocsTool } from './docs/search-docs'
+import { listGDriveFilesTool } from './gdrive/list-gdrive-files'
+import { readGDriveFileTool } from './gdrive/read-gdrive-file'
+import { makeApiRequestTool } from './other/make-api-request'
 import { noOpTool } from './other/no-op'
 import { onlineSearchTool } from './other/online-search'
 import { getEnvironmentVariablesTool } from './user/get-environment-variables'
+import { getOAuthCredentialsTool } from './user/get-oauth-credentials'
 import { setEnvironmentVariablesTool } from './user/set-environment-variables'
 import { buildWorkflowTool } from './workflow/build-workflow'
 import { editWorkflowTool } from './workflow/edit-workflow'
@@ -92,10 +96,14 @@ copilotToolRegistry.register(noOpTool)
 copilotToolRegistry.register(onlineSearchTool)
 copilotToolRegistry.register(getEnvironmentVariablesTool)
 copilotToolRegistry.register(setEnvironmentVariablesTool)
+copilotToolRegistry.register(getOAuthCredentialsTool)
 copilotToolRegistry.register(getUserWorkflowTool)
 copilotToolRegistry.register(buildWorkflowTool)
 copilotToolRegistry.register(getWorkflowConsoleTool)
 copilotToolRegistry.register(editWorkflowTool)
+copilotToolRegistry.register(listGDriveFilesTool)
+copilotToolRegistry.register(readGDriveFileTool)
+copilotToolRegistry.register(makeApiRequestTool)
 
 // Dynamically generated constants - single source of truth
 export const COPILOT_TOOL_IDS = copilotToolRegistry.getAvailableIds()

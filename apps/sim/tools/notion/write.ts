@@ -6,11 +6,13 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
   name: 'Notion Content Appender',
   description: 'Append content to a Notion page',
   version: '1.0.0',
+
   oauth: {
     required: true,
     provider: 'notion',
     additionalScopes: ['workspace.content', 'page.write'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -29,12 +31,6 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
       required: true,
       visibility: 'user-or-llm',
       description: 'The content to append to the page',
-    },
-  },
-  outputs: {
-    content: {
-      type: 'string',
-      description: 'Success message confirming content was appended to page',
     },
   },
 
@@ -87,7 +83,10 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to append content to Notion page'
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Success message confirming content was appended to page',
+    },
   },
 }

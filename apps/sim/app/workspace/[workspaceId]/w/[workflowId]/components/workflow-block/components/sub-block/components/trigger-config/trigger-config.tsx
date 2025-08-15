@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -66,59 +66,78 @@ export function TriggerConfig({
   const [actualTriggerId, setActualTriggerId] = useState<string | null>(null)
 
   // Check if webhook exists in the database (using existing webhook API)
-  useEffect(() => {
+  const refreshWebhookState = useCallback(async () => {
     // Skip API calls in preview mode
-    if (isPreview) {
+    if (isPreview || !effectiveTriggerId) {
       setIsLoading(false)
       return
     }
 
-    const checkWebhook = async () => {
-      setIsLoading(true)
-      try {
-        // Check if there's a webhook for this specific block
-        const response = await fetch(`/api/webhooks?workflowId=${workflowId}&blockId=${blockId}`)
-        if (response.ok) {
-          const data = await response.json()
-          if (data.webhooks && data.webhooks.length > 0) {
-            const webhook = data.webhooks[0].webhook
-            setTriggerId(webhook.id)
-            setActualTriggerId(webhook.provider)
+    setIsLoading(true)
+    try {
+      const response = await fetch(`/api/webhooks?workflowId=${workflowId}&blockId=${blockId}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.webhooks && data.webhooks.length > 0) {
+          const webhook = data.webhooks[0].webhook
+          setTriggerId(webhook.id)
+          setActualTriggerId(webhook.provider)
 
-            // Update the path in the block state if it's different
-            if (webhook.path && webhook.path !== triggerPath) {
-              setTriggerPath(webhook.path)
-            }
+          if (webhook.path && webhook.path !== triggerPath) {
+            setTriggerPath(webhook.path)
+          }
 
-            // Update trigger config (from webhook providerConfig)
-            if (webhook.providerConfig) {
-              setTriggerConfig(webhook.providerConfig)
-            }
-          } else {
-            setTriggerId(null)
-            setActualTriggerId(null)
+          if (webhook.providerConfig) {
+            setTriggerConfig(webhook.providerConfig)
+          }
+        } else {
+          setTriggerId(null)
+          setActualTriggerId(null)
 
-            // Clear stale trigger data from store when no webhook found in database
-            if (triggerPath) {
-              setTriggerPath('')
-              logger.info('Cleared stale trigger path on page refresh - no webhook in database', {
-                blockId,
-                clearedPath: triggerPath,
-              })
-            }
+          if (triggerPath) {
+            setTriggerPath('')
+            logger.info('Cleared stale trigger path on page refresh - no webhook in database', {
+              blockId,
+              clearedPath: triggerPath,
+            })
           }
         }
-      } catch (error) {
-        logger.error('Error checking webhook:', { error })
-      } finally {
-        setIsLoading(false)
       }
+    } catch (error) {
+      logger.error('Error checking webhook:', { error })
+    } finally {
+      setIsLoading(false)
     }
+  }, [
+    isPreview,
+    effectiveTriggerId,
+    workflowId,
+    blockId,
+    triggerPath,
+    setTriggerPath,
+    setTriggerConfig,
+  ])
 
-    if (effectiveTriggerId) {
-      checkWebhook()
+  // Initial load
+  useEffect(() => {
+    refreshWebhookState()
+  }, [refreshWebhookState])
+
+  // Re-check when collaborative store updates trigger fields (so other users' changes reflect)
+  // Avoid overriding local edits while the modal is open or when saving/deleting
+  useEffect(() => {
+    if (!isModalOpen && !isSaving && !isDeleting) {
+      refreshWebhookState()
     }
-  }, [workflowId, blockId, isPreview, effectiveTriggerId])
+  }, [
+    storeTriggerId,
+    storeTriggerPath,
+    storeTriggerConfig,
+    isModalOpen,
+    isSaving,
+    isDeleting,
+    refreshWebhookState,
+  ])
 
   const handleOpenModal = () => {
     if (isPreview || disabled) return

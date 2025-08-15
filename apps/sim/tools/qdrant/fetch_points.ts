@@ -46,17 +46,6 @@ export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
     },
   },
 
-  outputs: {
-    data: {
-      type: 'array',
-      description: 'Fetched points with ID, payload, and optional vector data',
-    },
-    status: {
-      type: 'string',
-      description: 'Status of the fetch operation',
-    },
-  },
-
   request: {
     method: 'POST',
     url: (params) => `${params.url.replace(/\/$/, '')}/collections/${params.collection}/points`,
@@ -82,19 +71,14 @@ export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
     }
   },
 
-  transformError: (error: any): string => {
-    if (error.error && typeof error.error === 'string') {
-      return error.error
-    }
-    if (error.status?.error) {
-      return error.status.error
-    }
-    if (error.message) {
-      return error.message
-    }
-    if (typeof error === 'string') {
-      return error
-    }
-    return 'Qdrant fetch points failed'
+  outputs: {
+    data: {
+      type: 'array',
+      description: 'Fetched points with ID, payload, and optional vector data',
+    },
+    status: {
+      type: 'string',
+      description: 'Status of the fetch operation',
+    },
   },
 }

@@ -6,6 +6,7 @@ import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
 import { toolRegistry } from '@/lib/copilot/tools'
 import { createLogger } from '@/lib/logs/console/logger'
 import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
+import { useWorkflowDiffStore } from '../workflow-diff/store'
 import { COPILOT_TOOL_IDS } from './constants'
 import type {
   CopilotMessage,
@@ -40,6 +41,7 @@ function toolSupportsReadyForReview(toolName: string): boolean {
 
 // PERFORMANCE OPTIMIZATION: Cached constants for faster lookups
 const TEXT_BLOCK_TYPE = 'text'
+const THINKING_BLOCK_TYPE = 'thinking'
 const TOOL_CALL_BLOCK_TYPE = 'tool_call'
 const ASSISTANT_ROLE = 'assistant'
 const DATA_PREFIX = 'data: '
@@ -89,6 +91,9 @@ const contentBlockPool = new ObjectPool(
     obj.content = ''
     obj.timestamp = 0
     obj.toolCall = null
+    // Ensure any timing fields are cleared so pooled blocks don't leak timing
+    ;(obj as any).startTime = undefined
+    ;(obj as any).duration = undefined
   }
 )
 
@@ -119,10 +124,55 @@ class StringBuilder {
 }
 
 /**
+ * Helper function to parse content and extract thinking blocks
+ * Returns an array of content blocks with their types
+ */
+function parseContentWithThinkingTags(content: string): Array<{ type: string; content: string }> {
+  const blocks: Array<{ type: string; content: string }> = []
+  const thinkingRegex = /<thinking>([\s\S]*?)<\/thinking>/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = thinkingRegex.exec(content)) !== null) {
+    // Add any text before the thinking tag as a text block
+    if (match.index > lastIndex) {
+      const textContent = content.substring(lastIndex, match.index)
+      if (textContent.trim()) {
+        blocks.push({ type: TEXT_BLOCK_TYPE, content: textContent })
+      }
+    }
+
+    // Add the thinking content as a thinking block
+    const thinkingContent = match[1]
+    if (thinkingContent.trim()) {
+      blocks.push({ type: THINKING_BLOCK_TYPE, content: thinkingContent })
+    }
+
+    lastIndex = match.index + match[0].length
+  }
+
+  // Add any remaining text after the last thinking tag
+  if (lastIndex < content.length) {
+    const remainingContent = content.substring(lastIndex)
+    if (remainingContent.trim()) {
+      blocks.push({ type: TEXT_BLOCK_TYPE, content: remainingContent })
+    }
+  }
+
+  // If no thinking tags were found, return the whole content as a text block
+  if (blocks.length === 0 && content.trim()) {
+    blocks.push({ type: TEXT_BLOCK_TYPE, content })
+  }
+
+  return blocks
+}
+
+/**
  * Initial state for the copilot store
  */
 const initialState = {
-  mode: 'ask' as const,
+  mode: 'agent' as const,
+  agentDepth: 1 as 0 | 1 | 2 | 3,
   currentChat: null,
   chats: [],
   messages: [],
@@ -145,6 +195,10 @@ const initialState = {
   // Revert state management
   revertState: null as { messageId: string; messageContent: string } | null, // Track which message we reverted from
   inputValue: '', // Control the input field
+
+  // Todo list state (from plan tool)
+  planTodos: [],
+  showPlanTodos: false,
 }
 
 /**
@@ -202,16 +256,22 @@ function handleStoreError(error: unknown, fallbackMessage: string): string {
 function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
   return messages
     .map((msg) => {
-      // Build content from contentBlocks if content is empty
+      // Build content from contentBlocks if content is empty, but EXCLUDE thinking blocks
       let validContent = msg.content || ''
 
       // For assistant messages, if content is empty but there are contentBlocks, build content from them
+      // BUT exclude thinking blocks to prevent thinking text from being sent to LLM
       if (msg.role === 'assistant' && !validContent.trim() && msg.contentBlocks?.length) {
         validContent = msg.contentBlocks
-          .filter((block) => block.type === 'text')
+          .filter((block) => block.type === 'text') // Only include text blocks, NOT thinking blocks
           .map((block) => block.content)
           .join('')
           .trim()
+      }
+
+      // For all messages, clean any thinking tags from the content to ensure no thinking text leaks through
+      if (validContent) {
+        validContent = cleanThinkingTags(validContent)
       }
 
       return {
@@ -221,7 +281,9 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
         timestamp: msg.timestamp,
         ...(msg.toolCalls && msg.toolCalls.length > 0 && { toolCalls: msg.toolCalls }),
         ...(msg.contentBlocks &&
-          msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks }),
+          msg.contentBlocks.length > 0 && {
+            contentBlocks: msg.contentBlocks.filter((block) => block.type !== 'thinking'), // Exclude thinking blocks
+          }),
         ...(msg.fileAttachments &&
           msg.fileAttachments.length > 0 && { fileAttachments: msg.fileAttachments }),
       }
@@ -242,6 +304,13 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
       }
       return true // Keep all non-assistant messages
     })
+}
+
+/**
+ * Helper function to remove thinking tags and their content from text
+ */
+function cleanThinkingTags(content: string): string {
+  return content.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim()
 }
 
 /**
@@ -371,13 +440,24 @@ function processWorkflowToolResult(toolCall: any, result: any, get: () => Copilo
     toolCall.input?.yamlContent ||
     toolCall.input?.data?.yamlContent
 
+  // For build_workflow tool, also extract workflowState if available
+  const workflowState = result?.workflowState || result?.data?.workflowState
+
   if (yamlContent) {
     logger.info(`Setting preview YAML from ${toolCall.name} tool`, {
       yamlLength: yamlContent.length,
       yamlPreview: yamlContent.substring(0, 100),
+      hasWorkflowState: !!workflowState,
     })
     get().setPreviewYaml(yamlContent)
-    get().updateDiffStore(yamlContent, toolCall.name)
+
+    // For build_workflow, use the workflowState directly if available
+    if (toolCall.name === 'build_workflow' && workflowState) {
+      logger.info('Using workflowState directly for build_workflow tool')
+      get().updateDiffStoreWithWorkflowState(workflowState, toolCall.name)
+    } else {
+      get().updateDiffStore(yamlContent, toolCall.name)
+    }
   } else {
     logger.warn(`No yamlContent found in ${toolCall.name} result`, {
       resultKeys: Object.keys(result || {}),
@@ -500,6 +580,19 @@ function setToolCallState(
       // Tool execution moved to background - this is a terminal state
       toolCall.endTime = Date.now()
       toolCall.duration = toolCall.endTime - toolCall.startTime
+      break
+
+    case 'aborted':
+      // Tool was aborted
+      toolCall.endTime = Date.now()
+      toolCall.duration = toolCall.endTime - toolCall.startTime
+      if (error) {
+        toolCall.error = error
+      }
+      break
+
+    default:
+      logger.warn(`Unknown tool state: ${newState}`)
       break
   }
 
@@ -670,11 +763,15 @@ interface StreamingContext {
   toolCalls: any[]
   contentBlocks: any[]
   currentTextBlock: any | null
-  currentBlockType: 'text' | 'tool_use' | null
+  currentBlockType: 'text' | 'tool_use' | 'thinking' | null
   toolCallBuffer: any | null
   newChatId?: string
   doneEventCount: number
   streamComplete?: boolean
+  // Thinking tag tracking
+  pendingContent: string // Buffer for content that may contain partial thinking tags
+  isInThinkingBlock: boolean // Track if we're currently inside a thinking block
+  currentThinkingBlock: any | null
   // PERFORMANCE OPTIMIZATION: Pre-allocated buffers and caching
   _tempBuffer?: string[]
   _lastUpdateTime?: number
@@ -727,6 +824,63 @@ const sseHandlers: Record<string, SSEHandler> = {
     }))
   },
 
+  // Render model "reasoning" stream as thinking blocks
+  reasoning: (data, context, get, set) => {
+    // Support both nested and flat phase shapes
+    const phase = (data && (data.phase || data?.data?.phase)) as string | undefined
+
+    // Handle control phases
+    if (phase === 'start') {
+      // Begin a thinking block session
+      if (!context.currentThinkingBlock) {
+        context.currentThinkingBlock = contentBlockPool.get()
+        context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
+        context.currentThinkingBlock.content = ''
+        context.currentThinkingBlock.timestamp = Date.now()
+        context.currentThinkingBlock.startTime = Date.now()
+        context.contentBlocks.push(context.currentThinkingBlock)
+      }
+
+      context.isInThinkingBlock = true
+      context.currentTextBlock = null
+      updateStreamingMessage(set, context)
+      return
+    }
+
+    if (phase === 'end') {
+      // Finish the current thinking block
+      if (context.currentThinkingBlock) {
+        context.currentThinkingBlock.duration =
+          Date.now() - (context.currentThinkingBlock.startTime || Date.now())
+      }
+      context.isInThinkingBlock = false
+      context.currentThinkingBlock = null
+      context.currentTextBlock = null
+      updateStreamingMessage(set, context)
+      return
+    }
+
+    // Fallback: some providers may stream reasoning text directly on this event
+    const chunk: string = typeof data?.data === 'string' ? data.data : data?.content || ''
+    if (!chunk) return
+
+    if (context.currentThinkingBlock) {
+      context.currentThinkingBlock.content += chunk
+    } else {
+      context.currentThinkingBlock = contentBlockPool.get()
+      context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
+      context.currentThinkingBlock.content = chunk
+      context.currentThinkingBlock.timestamp = Date.now()
+      context.currentThinkingBlock.startTime = Date.now()
+      context.contentBlocks.push(context.currentThinkingBlock)
+    }
+
+    context.isInThinkingBlock = true
+    context.currentTextBlock = null
+
+    updateStreamingMessage(set, context)
+  },
+
   // Handle tool result events - simplified
   tool_result: (data, context, get, set) => {
     const { toolCallId, result, success, error, failedDependency } = data
@@ -767,6 +921,38 @@ const sseHandlers: Record<string, SSEHandler> = {
       // NEW LOGIC: Use centralized state management
       setToolCallState(toolCall, 'success', { result: parsedResult })
 
+      // Check if this is the plan tool and extract todos
+      if (toolCall.name === 'plan' && parsedResult?.todoList) {
+        const todos = parsedResult.todoList.map((item: any, index: number) => ({
+          id: item.id || `todo-${index}`,
+          content: typeof item === 'string' ? item : item.content,
+          completed: false,
+          executing: false,
+        }))
+
+        // Set the todos in the store
+        const store = get()
+        if (store.setPlanTodos) {
+          store.setPlanTodos(todos)
+        }
+      }
+
+      // Check if this is the checkoff_todo tool and mark the todo as complete
+      if (toolCall.name === 'checkoff_todo') {
+        // Check various possible locations for the todo ID
+        const todoId =
+          toolCall.input?.id || toolCall.input?.todoId || parsedResult?.todoId || parsedResult?.id
+        if (todoId) {
+          const store = get()
+          if (store.updatePlanTodoStatus) {
+            store.updatePlanTodoStatus(todoId, 'completed')
+          }
+        }
+
+        // Mark this tool as hidden from UI
+        toolCall.hidden = true
+      }
+
       // Handle tools with ready_for_review state
       if (toolSupportsReadyForReview(toolCall.name)) {
         processWorkflowToolResult(toolCall, parsedResult, get)
@@ -804,34 +990,155 @@ const sseHandlers: Record<string, SSEHandler> = {
   content: (data, context, get, set) => {
     if (!data.data) return
 
-    // PERFORMANCE OPTIMIZATION: Use StringBuilder for efficient concatenation
-    context.accumulatedContent.append(data.data)
+    // Append new data to pending content buffer
+    context.pendingContent += data.data
 
-    // Update existing text block or create new one (optimized for minimal array mutations)
-    if (context.currentTextBlock && context.contentBlocks.length > 0) {
-      // Find the last text block and update it in-place
-      const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
-      if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
-        // Efficiently update existing text block content in-place
-        lastBlock.content += data.data
+    // Process complete thinking tags in the pending content
+    let contentToProcess = context.pendingContent
+    let hasProcessedContent = false
+
+    // Check for complete thinking tags
+    const thinkingStartRegex = /<thinking>/
+    const thinkingEndRegex = /<\/thinking>/
+
+    while (contentToProcess.length > 0) {
+      if (context.isInThinkingBlock) {
+        // We're inside a thinking block, look for the closing tag
+        const endMatch = thinkingEndRegex.exec(contentToProcess)
+        if (endMatch) {
+          // Found the end of thinking block
+          const thinkingContent = contentToProcess.substring(0, endMatch.index)
+
+          // Append to current thinking block
+          if (context.currentThinkingBlock) {
+            context.currentThinkingBlock.content += thinkingContent
+          } else {
+            // Create new thinking block
+            context.currentThinkingBlock = contentBlockPool.get()
+            context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
+            context.currentThinkingBlock.content = thinkingContent
+            context.currentThinkingBlock.timestamp = Date.now()
+            context.currentThinkingBlock.startTime = Date.now()
+            context.contentBlocks.push(context.currentThinkingBlock)
+          }
+
+          // Reset thinking state
+          context.isInThinkingBlock = false
+          if (context.currentThinkingBlock) {
+            // Set final duration
+            context.currentThinkingBlock.duration =
+              Date.now() - (context.currentThinkingBlock.startTime || Date.now())
+          }
+          context.currentThinkingBlock = null
+          context.currentTextBlock = null
+
+          // Continue processing after the closing tag
+          contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
+          hasProcessedContent = true
+        } else {
+          // No closing tag yet, accumulate in thinking block
+          if (context.currentThinkingBlock) {
+            context.currentThinkingBlock.content += contentToProcess
+          } else {
+            // Create new thinking block
+            context.currentThinkingBlock = contentBlockPool.get()
+            context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
+            context.currentThinkingBlock.content = contentToProcess
+            context.currentThinkingBlock.timestamp = Date.now()
+            context.currentThinkingBlock.startTime = Date.now()
+            context.contentBlocks.push(context.currentThinkingBlock)
+          }
+          contentToProcess = ''
+          hasProcessedContent = true
+        }
       } else {
-        // Last block is not text, create a new text block
-        context.currentTextBlock = contentBlockPool.get()
-        context.currentTextBlock.type = TEXT_BLOCK_TYPE
-        context.currentTextBlock.content = data.data
-        context.currentTextBlock.timestamp = Date.now()
-        context.contentBlocks.push(context.currentTextBlock)
+        // Not in a thinking block, look for the start of one
+        const startMatch = thinkingStartRegex.exec(contentToProcess)
+        if (startMatch) {
+          // Found start of thinking block
+          const textBeforeThinking = contentToProcess.substring(0, startMatch.index)
+
+          // Add any text before the thinking tag as a text block AND to accumulated content
+          if (textBeforeThinking) {
+            // Add to accumulated content for final message
+            context.accumulatedContent.append(textBeforeThinking)
+
+            if (context.currentTextBlock && context.contentBlocks.length > 0) {
+              const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
+              if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
+                lastBlock.content += textBeforeThinking
+              } else {
+                context.currentTextBlock = contentBlockPool.get()
+                context.currentTextBlock.type = TEXT_BLOCK_TYPE
+                context.currentTextBlock.content = textBeforeThinking
+                context.currentTextBlock.timestamp = Date.now()
+                context.contentBlocks.push(context.currentTextBlock)
+              }
+            } else {
+              context.currentTextBlock = contentBlockPool.get()
+              context.currentTextBlock.type = TEXT_BLOCK_TYPE
+              context.currentTextBlock.content = textBeforeThinking
+              context.currentTextBlock.timestamp = Date.now()
+              context.contentBlocks.push(context.currentTextBlock)
+            }
+          }
+
+          // Enter thinking block mode
+          context.isInThinkingBlock = true
+          context.currentTextBlock = null
+          contentToProcess = contentToProcess.substring(startMatch.index + startMatch[0].length)
+          hasProcessedContent = true
+        } else {
+          // No thinking tag, treat as regular text
+          // But check if we might have a partial opening tag at the end
+          const partialTagIndex = contentToProcess.lastIndexOf('<')
+          let textToAdd = contentToProcess
+          let remaining = ''
+
+          if (partialTagIndex >= 0 && partialTagIndex > contentToProcess.length - 10) {
+            // Might be a partial tag, keep it in buffer
+            textToAdd = contentToProcess.substring(0, partialTagIndex)
+            remaining = contentToProcess.substring(partialTagIndex)
+          }
+
+          if (textToAdd) {
+            // Add to accumulated content for final message
+            context.accumulatedContent.append(textToAdd)
+
+            // Add as regular text block
+            if (context.currentTextBlock && context.contentBlocks.length > 0) {
+              const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
+              if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
+                lastBlock.content += textToAdd
+              } else {
+                context.currentTextBlock = contentBlockPool.get()
+                context.currentTextBlock.type = TEXT_BLOCK_TYPE
+                context.currentTextBlock.content = textToAdd
+                context.currentTextBlock.timestamp = Date.now()
+                context.contentBlocks.push(context.currentTextBlock)
+              }
+            } else {
+              context.currentTextBlock = contentBlockPool.get()
+              context.currentTextBlock.type = TEXT_BLOCK_TYPE
+              context.currentTextBlock.content = textToAdd
+              context.currentTextBlock.timestamp = Date.now()
+              context.contentBlocks.push(context.currentTextBlock)
+            }
+            hasProcessedContent = true
+          }
+
+          contentToProcess = remaining
+          break // Exit loop to wait for more content if we have a partial tag
+        }
       }
-    } else {
-      // No current text block, create one from pool
-      context.currentTextBlock = contentBlockPool.get()
-      context.currentTextBlock.type = TEXT_BLOCK_TYPE
-      context.currentTextBlock.content = data.data
-      context.currentTextBlock.timestamp = Date.now()
-      context.contentBlocks.push(context.currentTextBlock)
     }
 
-    updateStreamingMessage(set, context)
+    // Update pending content with any remaining unprocessed content
+    context.pendingContent = contentToProcess
+
+    if (hasProcessedContent) {
+      updateStreamingMessage(set, context)
+    }
   },
 
   // Handle tool call events - simplified
@@ -854,12 +1161,19 @@ const sseHandlers: Record<string, SSEHandler> = {
 
     const toolCall = createToolCall(toolData.id, toolData.name, toolData.arguments)
 
+    // Mark checkoff_todo as hidden from the start
+    if (toolData.name === 'checkoff_todo') {
+      toolCall.hidden = true
+    }
+
     context.toolCalls.push(toolCall)
 
     context.contentBlocks.push({
       type: 'tool_call',
       toolCall,
       timestamp: Date.now(),
+      // Ensure per-tool timing context for UI components that might rely on block-level timing
+      startTime: toolCall.startTime,
     })
 
     updateStreamingMessage(set, context)
@@ -905,6 +1219,11 @@ const sseHandlers: Record<string, SSEHandler> = {
 
       toolCall.state = 'executing'
 
+      // Mark checkoff_todo as hidden
+      if (toolCall.name === 'checkoff_todo') {
+        toolCall.hidden = true
+      }
+
       // Update both contentBlocks and toolCalls atomically before UI update
       updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
 
@@ -932,6 +1251,11 @@ const sseHandlers: Record<string, SSEHandler> = {
       const toolCall = createToolCall(data.content_block.id, data.content_block.name)
       toolCall.partialInput = ''
 
+      // Mark checkoff_todo as hidden from the start
+      if (data.content_block.name === 'checkoff_todo') {
+        toolCall.hidden = true
+      }
+
       context.toolCallBuffer = toolCall
       context.toolCalls.push(toolCall)
 
@@ -939,6 +1263,8 @@ const sseHandlers: Record<string, SSEHandler> = {
         type: 'tool_call',
         toolCall,
         timestamp: Date.now(),
+        // Ensure per-tool timing context for UI components that might rely on block-level timing
+        startTime: toolCall.startTime,
       })
     }
   },
@@ -979,6 +1305,37 @@ const sseHandlers: Record<string, SSEHandler> = {
         // Handle tools with ready_for_review state immediately
         if (toolSupportsReadyForReview(context.toolCallBuffer.name)) {
           processWorkflowToolResult(context.toolCallBuffer, context.toolCallBuffer.input, get)
+        }
+
+        // Check if this is the plan tool and extract todos
+        if (context.toolCallBuffer.name === 'plan' && context.toolCallBuffer.input?.todoList) {
+          const todos = context.toolCallBuffer.input.todoList.map((item: any, index: number) => ({
+            id: item.id || `todo-${index}`,
+            content: typeof item === 'string' ? item : item.content,
+            completed: false,
+            executing: false,
+          }))
+
+          // Set the todos in the store
+          const store = get()
+          if (store.setPlanTodos) {
+            store.setPlanTodos(todos)
+          }
+        }
+
+        // Check if this is the checkoff_todo tool and mark the todo as complete
+        if (context.toolCallBuffer.name === 'checkoff_todo') {
+          // Check both input.id and input.todoId for compatibility
+          const todoId = context.toolCallBuffer.input?.id || context.toolCallBuffer.input?.todoId
+          if (todoId) {
+            const store = get()
+            if (store.updatePlanTodoStatus) {
+              store.updatePlanTodoStatus(todoId, 'completed')
+            }
+          }
+
+          // Mark this tool as hidden from UI
+          context.toolCallBuffer.hidden = true
         }
 
         // Update both contentBlocks and toolCalls atomically before UI update
@@ -1055,7 +1412,55 @@ const sseHandlers: Record<string, SSEHandler> = {
     }
   },
 
-  // Default handler
+  // Handle stream end event - flush any pending content
+  stream_end: (data, context, get, set) => {
+    // Flush any remaining pending content as text
+    if (context.pendingContent) {
+      if (context.isInThinkingBlock && context.currentThinkingBlock) {
+        // We were in a thinking block, append remaining content to it
+        // But DON'T add it to accumulated content
+        context.currentThinkingBlock.content += context.pendingContent
+      } else if (context.pendingContent.trim()) {
+        // Add remaining content as a text block AND to accumulated content
+        context.accumulatedContent.append(context.pendingContent)
+
+        if (context.currentTextBlock && context.contentBlocks.length > 0) {
+          const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
+          if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
+            lastBlock.content += context.pendingContent
+          } else {
+            context.currentTextBlock = contentBlockPool.get()
+            context.currentTextBlock.type = TEXT_BLOCK_TYPE
+            context.currentTextBlock.content = context.pendingContent
+            context.currentTextBlock.timestamp = Date.now()
+            context.contentBlocks.push(context.currentTextBlock)
+          }
+        } else {
+          context.currentTextBlock = contentBlockPool.get()
+          context.currentTextBlock.type = TEXT_BLOCK_TYPE
+          context.currentTextBlock.content = context.pendingContent
+          context.currentTextBlock.timestamp = Date.now()
+          context.contentBlocks.push(context.currentTextBlock)
+        }
+      }
+      context.pendingContent = ''
+    }
+
+    // If a thinking block is open, set final duration before clearing
+    if (context.currentThinkingBlock) {
+      context.currentThinkingBlock.duration =
+        Date.now() - (context.currentThinkingBlock.startTime || Date.now())
+    }
+
+    // Reset thinking state
+    context.isInThinkingBlock = false
+    context.currentThinkingBlock = null
+    context.currentTextBlock = null
+
+    updateStreamingMessage(set, context)
+  },
+
+  // Default handler for unknown events
   default: () => {
     // Silently ignore unhandled events
   },
@@ -1434,6 +1839,10 @@ export const useCopilotStore = create<CopilotStore>()(
           get().abortMessage()
         }
 
+        // Clear workflow diff store when switching workflows
+        const { clearDiff } = useWorkflowDiffStore.getState()
+        clearDiff()
+
         logger.info(`Setting workflow ID: ${workflowId}`)
 
         // Reset state when switching workflows, including chat cache and checkpoints
@@ -1441,6 +1850,7 @@ export const useCopilotStore = create<CopilotStore>()(
           ...initialState,
           workflowId,
           mode: get().mode, // Preserve mode
+          agentDepth: get().agentDepth, // Preserve agent depth
         })
       },
 
@@ -1459,6 +1869,11 @@ export const useCopilotStore = create<CopilotStore>()(
 
         if (!chatExists) {
           logger.info('Current chat does not belong to current workflow, clearing stale state')
+
+          // Clear workflow diff store when clearing stale chat state
+          const { clearDiff } = useWorkflowDiffStore.getState()
+          clearDiff()
+
           set({
             currentChat: null,
             messages: [],
@@ -1488,12 +1903,19 @@ export const useCopilotStore = create<CopilotStore>()(
             logger.info('🛑 Aborting ongoing copilot stream due to chat switch')
             get().abortMessage()
           }
+
+          // Clear workflow diff store when switching to a different chat
+          const { clearDiff } = useWorkflowDiffStore.getState()
+          clearDiff()
         }
 
         // Optimistically set the chat first
         set({
           currentChat: chat,
           messages: ensureToolCallDisplayNames(chat.messages || []),
+          // Clear todos when switching chats
+          planTodos: [],
+          showPlanTodos: false,
         })
 
         try {
@@ -1557,11 +1979,17 @@ export const useCopilotStore = create<CopilotStore>()(
           get().abortMessage()
         }
 
+        // Clear workflow diff store when creating a new chat
+        const { clearDiff } = useWorkflowDiffStore.getState()
+        clearDiff()
+
         // Set state to null so backend creates a new chat on first message
         set({
           currentChat: null,
           messages: [],
           messageCheckpoints: {}, // Clear checkpoints when creating new chat
+          planTodos: [], // Clear todos when creating new chat
+          showPlanTodos: false,
         })
         logger.info('🆕 Cleared chat state for new conversation')
       },
@@ -1797,7 +2225,8 @@ export const useCopilotStore = create<CopilotStore>()(
             userMessageId: userMessage.id, // Send the frontend-generated ID
             chatId: currentChat?.id,
             workflowId,
-            mode,
+            mode: mode === 'ask' ? 'ask' : 'agent',
+            depth: get().agentDepth,
             createNewChat: !currentChat,
             stream,
             fileAttachments: options.fileAttachments,
@@ -2032,7 +2461,7 @@ export const useCopilotStore = create<CopilotStore>()(
         implicitFeedback: string,
         toolCallState?: 'accepted' | 'rejected' | 'errored'
       ) => {
-        const { workflowId, currentChat, mode } = get()
+        const { workflowId, currentChat, mode, agentDepth } = get()
 
         if (!workflowId) {
           logger.warn('Cannot send implicit feedback: no workflow ID set')
@@ -2060,7 +2489,8 @@ export const useCopilotStore = create<CopilotStore>()(
             message: 'Please continue your response.', // Simple continuation prompt
             chatId: currentChat?.id,
             workflowId,
-            mode,
+            mode: mode === 'ask' ? 'ask' : 'agent',
+            depth: agentDepth,
             createNewChat: !currentChat,
             stream: true,
             implicitFeedback, // Pass the implicit feedback
@@ -2519,6 +2949,9 @@ export const useCopilotStore = create<CopilotStore>()(
           currentBlockType: null,
           toolCallBuffer: null,
           doneEventCount: 0,
+          pendingContent: '',
+          isInThinkingBlock: false,
+          currentThinkingBlock: null,
           _tempBuffer: [],
           _lastUpdateTime: 0,
           _batchedUpdates: false,
@@ -2543,7 +2976,7 @@ export const useCopilotStore = create<CopilotStore>()(
         const timeoutId = setTimeout(() => {
           logger.warn('Stream timeout reached, completing response')
           reader.cancel()
-        }, 120000) // 2 minute timeout
+        }, 600000) // 10 minute timeout
 
         try {
           // Process SSE events
@@ -2571,6 +3004,11 @@ export const useCopilotStore = create<CopilotStore>()(
             `Completed streaming response, content length: ${context.accumulatedContent.size}`
           )
 
+          // Call stream_end handler to flush any pending content
+          if (sseHandlers.stream_end) {
+            sseHandlers.stream_end({}, context, get, set)
+          }
+
           // PERFORMANCE OPTIMIZATION: Cleanup and memory management
           if (streamingUpdateRAF !== null) {
             cancelAnimationFrame(streamingUpdateRAF)
@@ -2581,7 +3019,7 @@ export const useCopilotStore = create<CopilotStore>()(
           // Release pooled objects back to pool for reuse
           if (context.contentBlocks) {
             context.contentBlocks.forEach((block) => {
-              if (block.type === TEXT_BLOCK_TYPE) {
+              if (block.type === TEXT_BLOCK_TYPE || block.type === THINKING_BLOCK_TYPE) {
                 contentBlockPool.release(block)
               }
             })
@@ -2698,6 +3136,9 @@ export const useCopilotStore = create<CopilotStore>()(
           // Invalidate cache since we have a new chat
           chatsLastLoadedAt: null,
           chatsLoadedForWorkflow: null,
+          // Clear todos when creating new chat
+          planTodos: [],
+          showPlanTodos: false,
         })
         logger.info(`Created new chat from streaming response: ${newChatId}`)
       },
@@ -2755,6 +3196,25 @@ export const useCopilotStore = create<CopilotStore>()(
 
       clearRevertState: () => {
         set({ revertState: null })
+      },
+
+      // Todo list actions
+      setPlanTodos: (todos) => {
+        set({ planTodos: todos, showPlanTodos: true })
+      },
+
+      updatePlanTodoStatus: (id, status) => {
+        set((state) => ({
+          planTodos: state.planTodos.map((todo) =>
+            todo.id === id
+              ? { ...todo, executing: status === 'executing', completed: status === 'completed' }
+              : todo
+          ),
+        }))
+      },
+
+      closePlanTodos: () => {
+        set({ showPlanTodos: false })
       },
 
       // Update the diff store with proposed workflow changes
@@ -2849,6 +3309,65 @@ export const useCopilotStore = create<CopilotStore>()(
             logger.info('Preview YAML is set, user can still view it despite diff error')
           }
         }
+      },
+
+      updateDiffStoreWithWorkflowState: async (workflowState: any, toolName?: string) => {
+        // Check if we're in an aborted state before updating diff
+        const { abortController } = get()
+        if (abortController?.signal.aborted) {
+          logger.info('🚫 Skipping diff update - request was aborted')
+          return
+        }
+
+        try {
+          // Import diff store dynamically to avoid circular dependencies
+          const { useWorkflowDiffStore } = await import('@/stores/workflow-diff')
+
+          logger.info('📊 Updating diff store with workflowState directly', {
+            blockCount: Object.keys(workflowState.blocks).length,
+            edgeCount: workflowState.edges.length,
+            toolName: toolName || 'unknown',
+          })
+
+          // Check current diff store state before update
+          const diffStoreBefore = useWorkflowDiffStore.getState()
+          logger.info('Diff store state before workflowState update:', {
+            isShowingDiff: diffStoreBefore.isShowingDiff,
+            isDiffReady: diffStoreBefore.isDiffReady,
+            hasDiffWorkflow: !!diffStoreBefore.diffWorkflow,
+          })
+
+          // Direct assignment to the diff store for build_workflow
+          logger.info('Using direct workflowState assignment for build tool')
+          useWorkflowDiffStore.setState({
+            diffWorkflow: workflowState,
+            isDiffReady: true,
+            isShowingDiff: false, // Let user decide when to show diff
+          })
+
+          // Check diff store state after update
+          const diffStoreAfter = useWorkflowDiffStore.getState()
+          logger.info('Diff store state after workflowState update:', {
+            isShowingDiff: diffStoreAfter.isShowingDiff,
+            isDiffReady: diffStoreAfter.isDiffReady,
+            hasDiffWorkflow: !!diffStoreAfter.diffWorkflow,
+            diffWorkflowBlockCount: diffStoreAfter.diffWorkflow
+              ? Object.keys(diffStoreAfter.diffWorkflow.blocks).length
+              : 0,
+          })
+
+          logger.info('Successfully updated diff store with workflowState')
+        } catch (error) {
+          logger.error('Failed to update diff store with workflowState:', error)
+          // Show error to user
+          console.error('[Copilot] Error updating diff store with workflowState:', error)
+        }
+      },
+
+      setAgentDepth: (depth) => {
+        const prev = get().agentDepth
+        set({ agentDepth: depth })
+        logger.info(`Copilot agent depth changed from ${prev} to ${depth}`)
       },
     }),
     { name: 'copilot-store' }

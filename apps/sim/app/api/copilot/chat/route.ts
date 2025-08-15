@@ -39,10 +39,13 @@ const ChatMessageSchema = z.object({
   chatId: z.string().optional(),
   workflowId: z.string().min(1, 'Workflow ID is required'),
   mode: z.enum(['ask', 'agent']).optional().default('agent'),
+  depth: z.number().int().min(0).max(3).optional().default(0),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
   implicitFeedback: z.string().optional(),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
+  provider: z.string().optional().default('openai'),
+  conversationId: z.string().optional(),
 })
 
 // Sim Agent API configuration
@@ -156,10 +159,13 @@ export async function POST(req: NextRequest) {
       chatId,
       workflowId,
       mode,
+      depth,
       createNewChat,
       stream,
       implicitFeedback,
       fileAttachments,
+      provider,
+      conversationId,
     } = ChatMessageSchema.parse(body)
 
     logger.info(`[${tracker.requestId}] Processing copilot chat request`, {
@@ -171,6 +177,8 @@ export async function POST(req: NextRequest) {
       createNewChat,
       messageLength: message.length,
       hasImplicitFeedback: !!implicitFeedback,
+      provider: provider || 'openai',
+      hasConversationId: !!conversationId,
     })
 
     // Handle chat context
@@ -252,7 +260,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Build messages array for sim agent with conversation history
-    const messages = []
+    const messages: any[] = []
 
     // Add conversation history (need to rebuild these with file support if they had attachments)
     for (const msg of conversationHistory) {
@@ -327,16 +335,13 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Start title generation in parallel if this is a new chat with first message
-    if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
-      logger.info(`[${tracker.requestId}] Will start parallel title generation inside stream`)
-    }
+    // Determine provider and conversationId to use for this request
+    const providerToUse = provider || 'openai'
+    const effectiveConversationId =
+      (currentChat?.conversationId as string | undefined) || conversationId
 
-    // Forward to sim agent API
-    logger.info(`[${tracker.requestId}] Sending request to sim agent API`, {
-      messageCount: messages.length,
-      endpoint: `${SIM_AGENT_API_URL}/api/chat-completion-streaming`,
-    })
+    // If we have a conversationId, only send the most recent user message; else send full history
+    const messagesForAgent = effectiveConversationId ? [messages[messages.length - 1]] : messages
 
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
@@ -345,12 +350,15 @@ export async function POST(req: NextRequest) {
         ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
       },
       body: JSON.stringify({
-        messages,
+        messages: messagesForAgent,
         workflowId,
         userId: authenticatedUserId,
         stream: stream,
         streamToolCalls: true,
         mode: mode,
+        provider: providerToUse,
+        ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
+        ...(typeof depth === 'number' ? { depth } : {}),
         ...(session?.user?.name && { userName: session.user.name }),
       }),
     })
@@ -388,6 +396,8 @@ export async function POST(req: NextRequest) {
           const toolCalls: any[] = []
           let buffer = ''
           let isFirstDone = true
+          let responseIdFromStart: string | undefined
+          let responseIdFromDone: string | undefined
 
           // Send chatId as first event
           if (actualChatId) {
@@ -486,6 +496,13 @@ export async function POST(req: NextRequest) {
                         }
                         break
 
+                      case 'reasoning':
+                        // Treat like thinking: do not add to assistantContent to avoid leaking
+                        logger.debug(
+                          `[${tracker.requestId}] Reasoning chunk received (${(event.data || event.content || '').length} chars)`
+                        )
+                        break
+
                       case 'tool_call':
                         logger.info(
                           `[${tracker.requestId}] Tool call ${event.data?.partial ? '(partial)' : '(complete)'}:`,
@@ -528,7 +545,22 @@ export async function POST(req: NextRequest) {
                         })
                         break
 
+                      case 'start':
+                        if (event.data?.responseId) {
+                          responseIdFromStart = event.data.responseId
+                          logger.info(
+                            `[${tracker.requestId}] Received start event with responseId: ${responseIdFromStart}`
+                          )
+                        }
+                        break
+
                       case 'done':
+                        if (event.data?.responseId) {
+                          responseIdFromDone = event.data.responseId
+                          logger.info(
+                            `[${tracker.requestId}] Received done event with responseId: ${responseIdFromDone}`
+                          )
+                        }
                         if (isFirstDone) {
                           logger.info(
                             `[${tracker.requestId}] Initial AI response complete, tool count: ${toolCalls.length}`
@@ -622,12 +654,15 @@ export async function POST(req: NextRequest) {
                 )
               }
 
+              const responseId = responseIdFromDone || responseIdFromStart
+
               // Update chat in database immediately (without title)
               await db
                 .update(copilotChats)
                 .set({
                   messages: updatedMessages,
                   updatedAt: new Date(),
+                  ...(responseId ? { conversationId: responseId } : {}),
                 })
                 .where(eq(copilotChats.id, actualChatId!))
 
@@ -635,6 +670,7 @@ export async function POST(req: NextRequest) {
                 messageCount: updatedMessages.length,
                 savedUserMessage: true,
                 savedAssistantMessage: assistantContent.trim().length > 0,
+                updatedConversationId: responseId || null,
               })
             }
           } catch (error) {

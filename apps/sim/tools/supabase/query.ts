@@ -6,6 +6,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
   name: 'Supabase Query',
   description: 'Query data from a Supabase table',
   version: '1.0',
+
   params: {
     projectId: {
       type: 'string',
@@ -44,28 +45,9 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
       description: 'Your Supabase service role secret key',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
-      type: 'object',
-      description: 'Query operation results',
-      properties: {
-        message: { type: 'string', description: 'Operation status message' },
-        results: { type: 'array', description: 'Array of records returned from the query' },
-      },
-    },
-    error: { type: 'string', description: 'Error message if the operation failed' },
-  },
+
   request: {
-    url: (params) => `https://${params.projectId}.supabase.co/rest/v1/${params.table}`,
-    method: 'GET',
-    headers: (params) => ({
-      apikey: params.apiKey,
-      Authorization: `Bearer ${params.apiKey}`,
-    }),
-  },
-  directExecution: async (params: SupabaseQueryParams) => {
-    try {
+    url: (params) => {
       // Construct the URL for the Supabase REST API
       let url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`
 
@@ -87,47 +69,16 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
         url += `&limit=${params.limit}`
       }
 
-      // Fetch the data
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          apikey: params.apiKey,
-          Authorization: `Bearer ${params.apiKey}`,
-        },
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Error from Supabase: ${response.status} ${errorText}`)
-      }
-
-      const data = await response.json()
-
-      return {
-        success: true,
-        output: {
-          message: `Successfully queried ${data.length} row(s) from ${params.table}`,
-          results: data,
-        },
-        error: undefined,
-      }
-    } catch (error) {
-      return {
-        success: false,
-        output: {
-          message: `Error querying Supabase: ${error instanceof Error ? error.message : String(error)}`,
-          results: [],
-        },
-        error: error instanceof Error ? error.message : String(error),
-      }
-    }
+      return url
+    },
+    method: 'GET',
+    headers: (params) => ({
+      apikey: params.apiKey,
+      Authorization: `Bearer ${params.apiKey}`,
+    }),
   },
-  transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to query data from Supabase')
-    }
 
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     return {
@@ -139,7 +90,9 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
       error: undefined,
     }
   },
-  transformError: (error: any) => {
-    return error.message || 'An error occurred while querying Supabase'
+
+  outputs: {
+    message: { type: 'string', description: 'Operation status message' },
+    results: { type: 'array', description: 'Array of records returned from the query' },
   },
 }

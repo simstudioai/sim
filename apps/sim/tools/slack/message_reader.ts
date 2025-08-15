@@ -68,23 +68,6 @@ export const slackMessageReaderTool: ToolConfig<
     },
   },
 
-  outputs: {
-    messages: {
-      type: 'array',
-      description: 'Array of message objects from the channel',
-      items: {
-        type: 'object',
-        properties: {
-          ts: { type: 'string' },
-          text: { type: 'string' },
-          user: { type: 'string' },
-          type: { type: 'string' },
-          subtype: { type: 'string' },
-        },
-      },
-    },
-  },
-
   request: {
     url: (params: SlackMessageReaderParams) => {
       const url = new URL('https://slack.com/api/conversations.history')
@@ -110,9 +93,6 @@ export const slackMessageReaderTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    if (!data.ok) {
-      throw new Error(data.error || 'Slack Message Reader API error')
-    }
 
     const messages = (data.messages || []).map((message: any) => ({
       ts: message.ts,
@@ -130,8 +110,20 @@ export const slackMessageReaderTool: ToolConfig<
     }
   },
 
-  transformError: (error: any) => {
-    const message = error.message || 'Slack message reading failed'
-    return message
+  outputs: {
+    messages: {
+      type: 'array',
+      description: 'Array of message objects from the channel',
+      items: {
+        type: 'object',
+        properties: {
+          ts: { type: 'string' },
+          text: { type: 'string' },
+          user: { type: 'string' },
+          type: { type: 'string' },
+          subtype: { type: 'string' },
+        },
+      },
+    },
   },
 }

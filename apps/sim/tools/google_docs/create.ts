@@ -9,11 +9,13 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
   name: 'Create Google Docs Document',
   description: 'Create a new Google Docs document',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'google-docs',
     additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -46,6 +48,7 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
       description: 'The ID of the folder to create the document in (internal use)',
     },
   },
+
   request: {
     url: () => {
       return 'https://www.googleapis.com/drive/v3/files'
@@ -81,6 +84,7 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
       return requestBody
     },
   },
+
   postProcess: async (result, params, executeTool) => {
     if (!result.success) {
       return result
@@ -113,27 +117,7 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
     return result
   },
 
-  outputs: {
-    metadata: {
-      type: 'json',
-      description: 'Created document metadata including ID, title, and URL',
-    },
-  },
-
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      let errorText = ''
-      try {
-        const responseClone = response.clone()
-        const responseText = await responseClone.text()
-        errorText = responseText
-      } catch (_e) {
-        errorText = 'Unable to read error response'
-      }
-
-      throw new Error(`Failed to create Google Docs document (${response.status}): ${errorText}`)
-    }
-
     try {
       // Get the response data
       const responseText = await response.text()
@@ -162,23 +146,11 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
       throw error
     }
   },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
 
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while creating Google Docs document'
+  outputs: {
+    metadata: {
+      type: 'json',
+      description: 'Created document metadata including ID, title, and URL',
+    },
   },
 }

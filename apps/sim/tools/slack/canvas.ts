@@ -67,12 +67,6 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
     },
   },
 
-  outputs: {
-    canvas_id: { type: 'string', description: 'ID of the created canvas' },
-    channel: { type: 'string', description: 'Channel where canvas was created' },
-    title: { type: 'string', description: 'Title of the canvas' },
-  },
-
   request: {
     url: 'https://slack.com/api/canvases.create',
     method: 'POST',
@@ -101,29 +95,22 @@ export const slackCanvasTool: ToolConfig<SlackCanvasParams, SlackCanvasResponse>
     },
   },
 
-  transformResponse: async (response: Response, params?: SlackCanvasParams) => {
-    if (!params) {
-      throw new Error('Parameters are required for canvas creation')
-    }
+  transformResponse: async (response: Response) => {
     const data = await response.json()
-    if (!data.ok) {
-      throw new Error(data.error || 'Slack Canvas API error')
-    }
 
-    // The canvas is created in the channel, so we just need to return the result
-    // No need to post a separate message since the canvas appears in the channel
     return {
       success: true,
       output: {
         canvas_id: data.canvas_id || data.id,
-        channel: params.channel,
-        title: params.title,
+        channel: data.channel || '',
+        title: data.title || '',
       },
     }
   },
 
-  transformError: (error: any) => {
-    const message = error.message || 'Slack Canvas creation failed'
-    return message
+  outputs: {
+    canvas_id: { type: 'string', description: 'ID of the created canvas' },
+    channel: { type: 'string', description: 'Channel where canvas was created' },
+    title: { type: 'string', description: 'Title of the canvas' },
   },
 }

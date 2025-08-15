@@ -33,17 +33,6 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
     },
   },
 
-  outputs: {
-    status: {
-      type: 'string',
-      description: 'Status of the upsert operation',
-    },
-    data: {
-      type: 'object',
-      description: 'Result data from the upsert operation',
-    },
-  },
-
   request: {
     method: 'PUT',
     url: (params) => `${params.url.replace(/\/$/, '')}/collections/${params.collection}/points`,
@@ -65,19 +54,14 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
     }
   },
 
-  transformError: (error: any): string => {
-    if (error.error && typeof error.error === 'string') {
-      return error.error
-    }
-    if (error.status?.error) {
-      return error.status.error
-    }
-    if (error.message) {
-      return error.message
-    }
-    if (typeof error === 'string') {
-      return error
-    }
-    return 'Qdrant upsert failed'
+  outputs: {
+    status: {
+      type: 'string',
+      description: 'Status of the upsert operation',
+    },
+    data: {
+      type: 'object',
+      description: 'Result data from the upsert operation',
+    },
   },
 }

@@ -3,7 +3,7 @@ import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateCreativeWorkflowName } from '@/lib/naming'
 import { API_ENDPOINTS } from '@/stores/constants'
-import { clearWorkflowVariablesTracking } from '@/stores/panel/variables/store'
+import { clearWorkflowVariablesTracking, useVariablesStore } from '@/stores/panel/variables/store'
 import type {
   DeploymentStatus,
   WorkflowMetadata,
@@ -92,6 +92,7 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
         description,
         color,
         state,
+        variables,
         createdAt,
         marketplaceData,
         workspaceId,
@@ -143,6 +144,16 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
           [id]: subblockValues,
         },
       }))
+
+      // Update variables store with workflow variables (if any)
+      if (variables && typeof variables === 'object') {
+        useVariablesStore.setState((state) => ({
+          variables: {
+            ...state.variables,
+            ...variables,
+          },
+        }))
+      }
     })
 
     // Update registry with loaded workflows and deployment statuses
@@ -414,10 +425,19 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       // Modified setActiveWorkflow to work with clean DB-only architecture
       setActiveWorkflow: async (id: string) => {
         const { workflows, activeWorkflowId } = get()
-        if (!workflows[id]) {
-          set({ error: `Workflow ${id} not found` })
+
+        if (activeWorkflowId === id) {
+          logger.info(`Already active workflow ${id}, skipping switch`)
           return
         }
+
+        if (!workflows[id]) {
+          logger.error(`Workflow ${id} not found in registry`)
+          set({ error: `Workflow not found: ${id}` })
+          throw new Error(`Workflow not found: ${id}`)
+        }
+
+        logger.info(`Switching to workflow ${id}`)
 
         // First, sync the current workflow before switching (if there is one)
         if (activeWorkflowId && activeWorkflowId !== id) {

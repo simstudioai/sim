@@ -792,7 +792,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               ...block,
               data: {
                 ...block.data,
-                count: Math.max(1, Math.min(50, count)), // Clamp between 1-50
+                count: Math.max(1, Math.min(100, count)), // Clamp between 1-100
               },
             },
           }
@@ -1100,7 +1100,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             ...block,
             data: {
               ...block.data,
-              count: Math.max(1, Math.min(50, count)), // Clamp between 1-50
+              count: Math.max(1, Math.min(20, count)), // Clamp between 1-20
             },
           },
         }

@@ -6,6 +6,7 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
   name: 'Delete Memory',
   description: 'Delete a specific memory by its ID',
   version: '1.0.0',
+
   params: {
     id: {
       type: 'string',
@@ -13,11 +14,7 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
       description: 'Identifier for the memory to delete',
     },
   },
-  outputs: {
-    success: { type: 'boolean', description: 'Whether the memory was deleted successfully' },
-    message: { type: 'string', description: 'Success or error message' },
-    error: { type: 'string', description: 'Error message if operation failed' },
-  },
+
   request: {
     url: (params): any => {
       // Get workflowId from context (set by workflow execution)
@@ -44,41 +41,21 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    isInternalRoute: true,
   },
   transformResponse: async (response): Promise<MemoryResponse> => {
-    try {
-      const result = await response.json()
+    const result = await response.json()
 
-      if (!response.ok) {
-        const errorMessage = result.error?.message || 'Failed to delete memory'
-        throw new Error(errorMessage)
-      }
-
-      return {
-        success: true,
-        output: {
-          message: 'Memory deleted successfully.',
-        },
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        output: {
-          message: `Failed to delete memory: ${error.message || 'Unknown error'}`,
-        },
-        error: `Failed to delete memory: ${error.message || 'Unknown error'}`,
-      }
+    return {
+      success: true,
+      output: {
+        message: 'Memory deleted successfully.',
+      },
     }
   },
-  transformError: async (error): Promise<MemoryResponse> => {
-    const errorMessage = `Memory deletion failed: ${error.message || 'Unknown error'}`
-    return {
-      success: false,
-      output: {
-        message: errorMessage,
-      },
-      error: errorMessage,
-    }
+
+  outputs: {
+    success: { type: 'boolean', description: 'Whether the memory was deleted successfully' },
+    message: { type: 'string', description: 'Success or error message' },
+    error: { type: 'string', description: 'Error message if operation failed' },
   },
 }

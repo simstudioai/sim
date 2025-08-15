@@ -11,7 +11,7 @@ export default function TermsOfService() {
   }
 
   return (
-    <main className='relative min-h-screen overflow-hidden bg-[#0C0C0C] text-white'>
+    <main className='relative min-h-screen overflow-hidden bg-[var(--brand-background-hex)] text-white'>
       {/* Grid pattern background */}
       <div className='absolute inset-0 bottom-[400px] z-0 overflow-hidden'>
         <GridPattern
@@ -42,7 +42,7 @@ export default function TermsOfService() {
           className='h-full w-full'
         >
           <g filter='url(#filter0_b_terms)'>
-            <rect width='600' height='1600' rx='0' fill='#0C0C0C' />
+            <rect width='600' height='1600' rx='0' fill='var(--brand-background-hex)' />
           </g>
           <defs>
             <filter
@@ -268,7 +268,7 @@ export default function TermsOfService() {
                   Arbitration Agreement. The arbitration will be conducted by JAMS, an established
                   alternative dispute resolution provider.
                 </p>
-                <p className='mb-4 border-[#701ffc] border-l-4 bg-[#701ffc]/10 p-3'>
+                <p className='mb-4 border-[var(--brand-primary-hex)] border-l-4 bg-[var(--brand-primary-hex)]/10 p-3'>
                   YOU AND COMPANY AGREE THAT EACH OF US MAY BRING CLAIMS AGAINST THE OTHER ONLY ON
                   AN INDIVIDUAL BASIS AND NOT ON A CLASS, REPRESENTATIVE, OR COLLECTIVE BASIS. ONLY
                   INDIVIDUAL RELIEF IS AVAILABLE, AND DISPUTES OF MORE THAN ONE CUSTOMER OR USER
@@ -277,7 +277,10 @@ export default function TermsOfService() {
                 <p className='mb-4'>
                   You have the right to opt out of the provisions of this Arbitration Agreement by
                   sending a timely written notice of your decision to opt out to:{' '}
-                  <Link href='mailto:legal@sim.ai' className='text-[#B5A1D4] hover:text-[#701ffc]'>
+                  <Link
+                    href='mailto:legal@sim.ai'
+                    className='text-[#B5A1D4] hover:text-[var(--brand-primary-hex)]'
+                  >
                     legal@sim.ai{' '}
                   </Link>
                   within 30 days after first becoming subject to this Arbitration Agreement.
@@ -330,7 +333,7 @@ export default function TermsOfService() {
                   Our Copyright Agent can be reached at:{' '}
                   <Link
                     href='mailto:copyright@sim.ai'
-                    className='text-[#B5A1D4] hover:text-[#701ffc]'
+                    className='text-[#B5A1D4] hover:text-[var(--brand-primary-hex)]'
                   >
                     copyright@sim.ai
                   </Link>
@@ -341,7 +344,10 @@ export default function TermsOfService() {
                 <h2 className='mb-4 font-semibold text-2xl text-white'>12. Contact Us</h2>
                 <p>
                   If you have any questions about these Terms, please contact us at:{' '}
-                  <Link href='mailto:legal@sim.ai' className='text-[#B5A1D4] hover:text-[#701ffc]'>
+                  <Link
+                    href='mailto:legal@sim.ai'
+                    className='text-[#B5A1D4] hover:text-[var(--brand-primary-hex)]'
+                  >
                     legal@sim.ai
                   </Link>
                 </p>

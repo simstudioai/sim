@@ -349,7 +349,6 @@ export const settings = pgTable('settings', {
 
   // Privacy settings
   telemetryEnabled: boolean('telemetry_enabled').notNull().default(true),
-  telemetryNotifiedUser: boolean('telemetry_notified_user').notNull().default(false),
 
   // Email preferences
   emailPreferences: json('email_preferences').notNull().default('{}'),
@@ -1007,6 +1006,7 @@ export const copilotChats = pgTable(
     title: text('title'),
     messages: jsonb('messages').notNull().default('[]'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
+    conversationId: text('conversation_id'),
     previewYaml: text('preview_yaml'), // YAML content for pending workflow preview
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

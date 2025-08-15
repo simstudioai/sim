@@ -6,6 +6,7 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
   name: 'Knowledge Create Document',
   description: 'Create a new document in a knowledge base',
   version: '1.0.0',
+
   params: {
     knowledgeBaseId: {
       type: 'string',
@@ -61,29 +62,6 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       type: 'array',
       required: false,
       description: 'Structured tag data with names, types, and values',
-    },
-  },
-
-  outputs: {
-    data: {
-      type: 'object',
-      description: 'Information about the created document',
-      properties: {
-        id: { type: 'string', description: 'Document ID' },
-        name: { type: 'string', description: 'Document name' },
-        type: { type: 'string', description: 'Document type' },
-        enabled: { type: 'boolean', description: 'Whether the document is enabled' },
-        createdAt: { type: 'string', description: 'Creation timestamp' },
-        updatedAt: { type: 'string', description: 'Last update timestamp' },
-      },
-    },
-    message: {
-      type: 'string',
-      description: 'Success or error message describing the operation result',
-    },
-    documentId: {
-      type: 'string',
-      description: 'ID of the created document',
     },
   },
 
@@ -168,94 +146,57 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
 
       return requestBody
     },
-    isInternalRoute: true,
   },
+
   transformResponse: async (response): Promise<KnowledgeCreateDocumentResponse> => {
-    try {
-      const result = await response.json()
+    const result = await response.json()
+    const data = result.data || result
+    const documentsCreated = data.documentsCreated || []
 
-      if (!response.ok) {
-        const errorMessage = result.error?.message || result.message || 'Failed to create document'
-        throw new Error(errorMessage)
-      }
-
-      const data = result.data || result
-      const documentsCreated = data.documentsCreated || []
-
-      // Handle multiple documents response
-      const uploadCount = documentsCreated.length
-      const firstDocument = documentsCreated[0]
-
-      return {
-        success: true,
-        output: {
-          data: {
-            id: firstDocument?.documentId || firstDocument?.id || '',
-            name:
-              uploadCount > 1 ? `${uploadCount} documents` : firstDocument?.filename || 'Unknown',
-            type: 'document',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            enabled: true,
-          },
-          message:
-            uploadCount > 1
-              ? `Successfully created ${uploadCount} documents in knowledge base`
-              : `Successfully created document in knowledge base`,
-          documentId: firstDocument?.documentId || firstDocument?.id || '',
-        },
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        output: {
-          data: {
-            id: '',
-            name: '',
-            type: '',
-            enabled: true,
-            createdAt: '',
-            updatedAt: '',
-          },
-          message: `Failed to create document: ${error.message || 'Unknown error'}`,
-          documentId: '',
-        },
-        error: `Failed to create document: ${error.message || 'Unknown error'}`,
-      }
-    }
-  },
-  transformError: async (error): Promise<KnowledgeCreateDocumentResponse> => {
-    let errorMessage = 'Failed to create document'
-
-    if (error.message) {
-      if (error.message.includes('Document name')) {
-        errorMessage = `Document name error: ${error.message}`
-      } else if (error.message.includes('Document content')) {
-        errorMessage = `Document content error: ${error.message}`
-      } else if (error.message.includes('invalid characters')) {
-        errorMessage = `${error.message}. Please use a valid filename.`
-      } else if (error.message.includes('maximum size')) {
-        errorMessage = `${error.message}. Consider breaking large content into smaller documents.`
-      } else {
-        errorMessage = `Failed to create document: ${error.message}`
-      }
-    }
+    // Handle multiple documents response
+    const uploadCount = documentsCreated.length
+    const firstDocument = documentsCreated[0]
 
     return {
-      success: false,
+      success: true,
       output: {
         data: {
-          id: '',
-          name: '',
-          type: '',
+          id: firstDocument?.documentId || firstDocument?.id || '',
+          name: uploadCount > 1 ? `${uploadCount} documents` : firstDocument?.filename || 'Unknown',
+          type: 'document',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
           enabled: true,
-          createdAt: '',
-          updatedAt: '',
         },
-        message: errorMessage,
-        documentId: '',
+        message:
+          uploadCount > 1
+            ? `Successfully created ${uploadCount} documents in knowledge base`
+            : `Successfully created document in knowledge base`,
+        documentId: firstDocument?.documentId || firstDocument?.id || '',
       },
-      error: errorMessage,
     }
+  },
+
+  outputs: {
+    data: {
+      type: 'object',
+      description: 'Information about the created document',
+      properties: {
+        id: { type: 'string', description: 'Document ID' },
+        name: { type: 'string', description: 'Document name' },
+        type: { type: 'string', description: 'Document type' },
+        enabled: { type: 'boolean', description: 'Whether the document is enabled' },
+        createdAt: { type: 'string', description: 'Creation timestamp' },
+        updatedAt: { type: 'string', description: 'Last update timestamp' },
+      },
+    },
+    message: {
+      type: 'string',
+      description: 'Success or error message describing the operation result',
+    },
+    documentId: {
+      type: 'string',
+      description: 'ID of the created document',
+    },
   },
 }

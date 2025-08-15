@@ -41,7 +41,6 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
   request: {
     url: 'https://api.firecrawl.dev/v1/crawl',
     method: 'POST',
-    isInternalRoute: false,
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
@@ -57,10 +56,6 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
   },
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || data.message || 'Failed to create crawl job')
-    }
 
     return {
       success: true,
@@ -139,19 +134,6 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       success: false,
       error: `Crawl job did not complete within the maximum polling time (${MAX_POLL_TIME_MS / 1000}s)`,
     }
-  },
-  transformError: (error) => {
-    const errorMessage = error?.message || ''
-    if (errorMessage.includes('401')) {
-      return new Error('Invalid API key. Please check your Firecrawl API key.')
-    }
-    if (errorMessage.includes('429')) {
-      return new Error('Rate limit exceeded. Please try again later.')
-    }
-    if (errorMessage.includes('402')) {
-      return new Error('Insufficient credits. Please check your Firecrawl account.')
-    }
-    return error
   },
 
   outputs: {

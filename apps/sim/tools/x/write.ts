@@ -46,29 +46,6 @@ export const xWriteTool: ToolConfig<XWriteParams, XWriteResponse> = {
     },
   },
 
-  outputs: {
-    tweet: {
-      type: 'object',
-      description: 'The newly created tweet data',
-      properties: {
-        id: { type: 'string', description: 'Tweet ID' },
-        text: { type: 'string', description: 'Tweet content text' },
-        createdAt: { type: 'string', description: 'Tweet creation timestamp' },
-        authorId: { type: 'string', description: 'ID of the tweet author' },
-        conversationId: { type: 'string', description: 'Conversation thread ID', optional: true },
-        attachments: {
-          type: 'object',
-          description: 'Media or poll attachments',
-          optional: true,
-          properties: {
-            mediaKeys: { type: 'array', description: 'Media attachment keys', optional: true },
-            pollId: { type: 'string', description: 'Poll ID if poll attached', optional: true },
-          },
-        },
-      },
-    },
-  },
-
   request: {
     url: 'https://api.twitter.com/2/tweets',
     method: 'POST',
@@ -121,13 +98,26 @@ export const xWriteTool: ToolConfig<XWriteParams, XWriteResponse> = {
     }
   },
 
-  transformError: (error) => {
-    if (error.title === 'Unauthorized') {
-      return 'Invalid or expired access token. Please reconnect your X account.'
-    }
-    if (error.title === 'Forbidden') {
-      return 'You do not have permission to post tweets. Ensure your X app has tweet.write scope.'
-    }
-    return error.detail || 'An unexpected error occurred while posting to X'
+  outputs: {
+    tweet: {
+      type: 'object',
+      description: 'The newly created tweet data',
+      properties: {
+        id: { type: 'string', description: 'Tweet ID' },
+        text: { type: 'string', description: 'Tweet content text' },
+        createdAt: { type: 'string', description: 'Tweet creation timestamp' },
+        authorId: { type: 'string', description: 'ID of the tweet author' },
+        conversationId: { type: 'string', description: 'Conversation thread ID', optional: true },
+        attachments: {
+          type: 'object',
+          description: 'Media or poll attachments',
+          optional: true,
+          properties: {
+            mediaKeys: { type: 'array', description: 'Media attachment keys', optional: true },
+            pollId: { type: 'string', description: 'Poll ID if poll attached', optional: true },
+          },
+        },
+      },
+    },
   },
 }
