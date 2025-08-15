@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import type { EnvironmentVariable as StoreEnvironmentVariable } from '@/stores/settings/environment/types'
 
@@ -34,7 +35,7 @@ export function EnvironmentVariables({
   onOpenChange,
   registerCloseHandler,
 }: EnvironmentVariablesProps) {
-  const { variables } = useEnvironmentStore()
+  const { variables, isLoading } = useEnvironmentStore()
 
   const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -274,15 +275,19 @@ export function EnvironmentVariables({
       {/* Fixed Header */}
       <div className='px-6 pt-4 pb-2'>
         {/* Search Input */}
-        <div className='flex h-9 w-56 items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
-          <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
-          <Input
-            placeholder='Search variables...'
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className='flex-1 border-0 bg-transparent px-0 font-[380] font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
-          />
-        </div>
+        {isLoading ? (
+          <Skeleton className='h-9 w-56 rounded-lg' />
+        ) : (
+          <div className='flex h-9 w-56 items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
+            <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
+            <Input
+              placeholder='Search variables...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='flex-1 border-0 bg-transparent px-0 font-[380] font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+            />
+          </div>
+        )}
       </div>
 
       {/* Scrollable Content */}
@@ -291,14 +296,29 @@ export function EnvironmentVariables({
         className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
       >
         <div className='space-y-2 py-2'>
-          {filteredEnvVars.map(({ envVar, originalIndex }) =>
-            renderEnvVarRow(envVar, originalIndex)
-          )}
-          {/* Show message when search has no results but there are variables */}
-          {searchTerm.trim() && filteredEnvVars.length === 0 && envVars.length > 0 && (
-            <div className='py-8 text-center text-muted-foreground text-sm'>
-              No environment variables found matching "{searchTerm}"
-            </div>
+          {isLoading ? (
+            <>
+              {/* Show 3 skeleton rows */}
+              {[1, 2, 3].map((index) => (
+                <div key={index} className={`${GRID_COLS} items-center`}>
+                  <Skeleton className='h-8 rounded-lg' />
+                  <Skeleton className='h-9 rounded-lg' />
+                  <Skeleton className='h-9 w-9 rounded-lg' />
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              {filteredEnvVars.map(({ envVar, originalIndex }) =>
+                renderEnvVarRow(envVar, originalIndex)
+              )}
+              {/* Show message when search has no results but there are variables */}
+              {searchTerm.trim() && filteredEnvVars.length === 0 && envVars.length > 0 && (
+                <div className='py-8 text-center text-muted-foreground text-sm'>
+                  No environment variables found matching "{searchTerm}"
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -306,18 +326,27 @@ export function EnvironmentVariables({
       {/* Footer */}
       <div className='bg-background'>
         <div className='flex w-full items-center justify-between px-6 py-4'>
-          <Button
-            onClick={addEnvVar}
-            variant='ghost'
-            className='h-9 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
-          >
-            <Plus className='h-4 w-4 stroke-[2px]' />
-            Add Variable
-          </Button>
+          {isLoading ? (
+            <>
+              <Skeleton className='h-9 w-[117px] rounded-[8px]' />
+              <Skeleton className='h-9 w-[108px] rounded-[8px]' />
+            </>
+          ) : (
+            <>
+              <Button
+                onClick={addEnvVar}
+                variant='ghost'
+                className='h-9 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+              >
+                <Plus className='h-4 w-4 stroke-[2px]' />
+                Add Variable
+              </Button>
 
-          <Button onClick={handleSave} disabled={!hasChanges} className='h-9 rounded-[8px]'>
-            Save Changes
-          </Button>
+              <Button onClick={handleSave} disabled={!hasChanges} className='h-9 rounded-[8px]'>
+                Save Changes
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

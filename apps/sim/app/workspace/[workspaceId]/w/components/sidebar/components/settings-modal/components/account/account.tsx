@@ -153,17 +153,6 @@ export function Account({ onOpenChange }: AccountProps) {
     }
   }
 
-  // Loading skeleton for fields
-  const FieldSkeleton = () => (
-    <div className='flex items-center justify-between'>
-      <div className='flex flex-col gap-2'>
-        <Skeleton className='h-4 w-16' />
-        <Skeleton className='h-5 w-40' />
-      </div>
-      <Skeleton className='h-9 w-[70px]' />
-    </div>
-  )
-
   return (
     <div className='px-6 pt-4 pb-4'>
       {loadError && (
@@ -183,9 +172,37 @@ export function Account({ onOpenChange }: AccountProps) {
       <div className='flex flex-col gap-6'>
         {isLoadingProfile || isPending ? (
           <>
-            <FieldSkeleton />
-            <FieldSkeleton />
-            <FieldSkeleton />
+            {/* User Info Section Skeleton */}
+            <div className='flex items-center gap-4'>
+              {/* User Avatar Skeleton */}
+              <Skeleton className='h-10 w-10 rounded-full' />
+
+              {/* User Details Skeleton */}
+              <div className='flex flex-col'>
+                <Skeleton className='mb-1 h-5 w-32' />
+                <Skeleton className='h-5 w-48' />
+              </div>
+            </div>
+
+            {/* Name Field Skeleton */}
+            <div className='flex flex-col gap-2'>
+              <Skeleton className='h-4 w-16' />
+              <div className='flex items-center gap-6'>
+                <Skeleton className='h-5 w-40' />
+                <Skeleton className='h-5 w-[42px]' />
+              </div>
+            </div>
+
+            {/* Email Field Skeleton */}
+            <div className='flex flex-col gap-2'>
+              <Skeleton className='h-4 w-16' />
+              <Skeleton className='h-5 w-48' />
+            </div>
+
+            {/* Sign Out Button Skeleton */}
+            <div>
+              <Skeleton className='h-8 w-[71px] rounded-[8px]' />
+            </div>
           </>
         ) : (
           <>

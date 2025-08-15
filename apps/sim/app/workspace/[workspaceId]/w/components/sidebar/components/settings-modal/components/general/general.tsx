@@ -101,9 +101,12 @@ export function General() {
       <div className='flex flex-col gap-6'>
         {isLoading ? (
           <>
+            {/* Theme skeleton */}
             <SettingRowSkeleton />
-            <SettingRowSkeleton />
-            <SettingRowSkeleton />
+            {/* Auto-connect skeleton */}
+            <SettingRowSkeleton hasInfoButton isSwitch />
+            {/* Console expanded skeleton */}
+            <SettingRowSkeleton hasInfoButton isSwitch />
           </>
         ) : (
           <>
@@ -209,11 +212,22 @@ export function General() {
   )
 }
 
-const SettingRowSkeleton = () => (
+const SettingRowSkeleton = ({
+  hasInfoButton = false,
+  isSwitch = false,
+}: {
+  hasInfoButton?: boolean
+  isSwitch?: boolean
+}) => (
   <div className='flex items-center justify-between'>
     <div className='flex items-center gap-2'>
       <Skeleton className='h-5 w-32' />
+      {hasInfoButton && <Skeleton className='h-7 w-7 rounded' />}
     </div>
-    <Skeleton className='h-9 w-[180px]' />
+    {isSwitch ? (
+      <Skeleton className='h-6 w-11 rounded-full' />
+    ) : (
+      <Skeleton className='h-9 w-[180px]' />
+    )}
   </div>
 )
