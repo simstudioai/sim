@@ -1,7 +1,7 @@
-import { BaseCopilotTool } from '../base'
-import { executeTool } from '@/tools'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getOAuthToken } from '@/app/api/auth/oauth/utils'
+import { executeTool } from '@/tools'
+import { BaseCopilotTool } from '../base'
 
 interface ListGDriveFilesParams {
   userId: string
@@ -44,7 +44,9 @@ class ListGDriveFilesTool extends BaseCopilotTool<ListGDriveFilesParams, ListGDr
     // Get (and refresh if needed) the user's OAuth access token for Google Drive
     const accessToken = await getOAuthToken(userId, 'google-drive')
     if (!accessToken) {
-      throw new Error('No Google Drive connection found for this user. Please connect Google Drive in settings.')
+      throw new Error(
+        'No Google Drive connection found for this user. Please connect Google Drive in settings.'
+      )
     }
 
     // Reuse the existing google_drive_list tool
@@ -74,4 +76,4 @@ class ListGDriveFilesTool extends BaseCopilotTool<ListGDriveFilesParams, ListGDr
   }
 }
 
-export const listGDriveFilesTool = new ListGDriveFilesTool() 
+export const listGDriveFilesTool = new ListGDriveFilesTool()

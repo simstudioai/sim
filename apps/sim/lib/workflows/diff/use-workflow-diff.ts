@@ -1,11 +1,12 @@
-import { useState, useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { WorkflowDiffEngine } from './diff-engine'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { WorkflowDiffEngine } from './diff-engine'
+
 const logger = createLogger('WorkflowDiff')
 
 interface WorkflowBackup {
@@ -84,43 +85,49 @@ export function useWorkflowDiff(): UseWorkflowDiffReturn {
   }, [activeWorkflowId, workflowStore])
 
   // Restore state from backup
-  const restoreFromBackup = useCallback((backup: WorkflowBackup) => {
-    if (!activeWorkflowId) {
-      logger.error('No active workflow ID for restore')
-      return
-    }
+  const restoreFromBackup = useCallback(
+    (backup: WorkflowBackup) => {
+      if (!activeWorkflowId) {
+        logger.error('No active workflow ID for restore')
+        return
+      }
 
-    logger.warn('Restoring workflow state from backup due to save failure', {
-      workflowId: activeWorkflowId,
-      backupTimestamp: backup.timestamp,
-    })
+      logger.warn('Restoring workflow state from backup due to save failure', {
+        workflowId: activeWorkflowId,
+        backupTimestamp: backup.timestamp,
+      })
 
-    // Restore workflow store state
-    useWorkflowStore.setState({
-      blocks: backup.workflowState.blocks,
-      edges: backup.workflowState.edges,
-      loops: backup.workflowState.loops,
-      parallels: backup.workflowState.parallels,
-      lastSaved: backup.workflowState.lastSaved,
-      isDeployed: backup.workflowState.isDeployed,
-      deployedAt: backup.workflowState.deployedAt,
-      deploymentStatuses: backup.workflowState.deploymentStatuses,
-      hasActiveWebhook: backup.workflowState.hasActiveWebhook,
-    })
+      // Restore workflow store state
+      useWorkflowStore.setState({
+        blocks: backup.workflowState.blocks,
+        edges: backup.workflowState.edges,
+        loops: backup.workflowState.loops,
+        parallels: backup.workflowState.parallels,
+        lastSaved: backup.workflowState.lastSaved,
+        isDeployed: backup.workflowState.isDeployed,
+        deployedAt: backup.workflowState.deployedAt,
+        deploymentStatuses: backup.workflowState.deploymentStatuses,
+        hasActiveWebhook: backup.workflowState.hasActiveWebhook,
+      })
 
-    // Restore subblock values
-    useSubBlockStore.setState((state) => ({
-      workflowValues: {
-        ...state.workflowValues,
-        [activeWorkflowId]: backup.subblockValues,
-      },
-    }))
+      // Restore subblock values
+      useSubBlockStore.setState((state) => ({
+        workflowValues: {
+          ...state.workflowValues,
+          [activeWorkflowId]: backup.subblockValues,
+        },
+      }))
 
-    logger.info('Successfully restored workflow state from backup')
-  }, [activeWorkflowId])
+      logger.info('Successfully restored workflow state from backup')
+    },
+    [activeWorkflowId]
+  )
 
   // Create checkpoint before applying changes
-  const createCheckpoint = useCallback(async (): Promise<{ success: boolean; checkpointId?: string }> => {
+  const createCheckpoint = useCallback(async (): Promise<{
+    success: boolean
+    checkpointId?: string
+  }> => {
     if (!activeWorkflowId) {
       logger.error('No active workflow ID for checkpoint')
       return { success: false }
@@ -128,11 +135,11 @@ export function useWorkflowDiff(): UseWorkflowDiffReturn {
 
     try {
       const currentState = workflowStore.getWorkflowState()
-      
+
       // Get current copilot chat ID (if available)
       const { useCopilotStore } = await import('@/stores/copilot/store')
       const { currentChat, messages } = useCopilotStore.getState()
-      
+
       if (!currentChat?.id) {
         logger.warn('No active copilot chat for checkpoint creation')
         return { success: false }
@@ -246,22 +253,22 @@ export function useWorkflowDiff(): UseWorkflowDiffReturn {
         }
 
         logger.info('Diff changes persisted to database successfully')
-        
+
         // Clear the backup since save was successful
         lastBackupRef.current = null
       } catch (error) {
         logger.error('Failed to persist diff changes, rolling back:', error)
-        
+
         // Rollback to backup state
         restoreFromBackup(backup)
-        
+
         // Clear the diff since we're reverting
         clearDiff()
-        
+
         // Show user-friendly error
         throw new Error(
           `Failed to save workflow changes: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
-          'The workflow has been restored to its previous state.'
+            'The workflow has been restored to its previous state.'
         )
       }
 
@@ -269,15 +276,22 @@ export function useWorkflowDiff(): UseWorkflowDiffReturn {
       return true
     } catch (error) {
       logger.error('Failed to accept changes:', error)
-      
+
       // If we haven't already restored from backup, do it now
       if (lastBackupRef.current && lastBackupRef.current.timestamp === backup.timestamp) {
         restoreFromBackup(backup)
       }
-      
+
       throw error
     }
-  }, [activeWorkflowId, workflowStore, createBackup, createCheckpoint, restoreFromBackup, clearDiff])
+  }, [
+    activeWorkflowId,
+    workflowStore,
+    createBackup,
+    createCheckpoint,
+    restoreFromBackup,
+    clearDiff,
+  ])
 
   const rejectChanges = useCallback(async () => {
     logger.info('Rejecting diff changes')

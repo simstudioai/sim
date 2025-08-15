@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Brain } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -11,7 +11,12 @@ interface ThinkingBlockProps {
   startTime?: number // Persisted start time from content block
 }
 
-export function ThinkingBlock({ content, isStreaming = false, duration: persistedDuration, startTime: persistedStartTime }: ThinkingBlockProps) {
+export function ThinkingBlock({
+  content,
+  isStreaming = false,
+  duration: persistedDuration,
+  startTime: persistedStartTime,
+}: ThinkingBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [duration, setDuration] = useState(persistedDuration || 0)
   // Keep a stable reference to start time that updates when prop changes
@@ -21,7 +26,7 @@ export function ThinkingBlock({ content, isStreaming = false, duration: persiste
       startTimeRef.current = persistedStartTime
     }
   }, [persistedStartTime])
-  
+
   useEffect(() => {
     // If we already have a persisted duration, just use it
     if (typeof persistedDuration === 'number') {
@@ -39,54 +44,52 @@ export function ThinkingBlock({ content, isStreaming = false, duration: persiste
     // Not streaming and no persisted duration: compute final duration once
     setDuration(Date.now() - startTimeRef.current)
   }, [isStreaming, persistedDuration])
-  
+
   // Format duration
   const formatDuration = (ms: number) => {
     if (ms < 1000) return `${ms}ms`
     const seconds = (ms / 1000).toFixed(1)
     return `${seconds}s`
   }
-  
+
   if (!isExpanded) {
     return (
       <button
         onClick={() => setIsExpanded(true)}
         className={cn(
-          "inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-500 transition-colors",
-          "font-normal italic"
+          'inline-flex items-center gap-1 text-gray-400 text-xs transition-colors hover:text-gray-500',
+          'font-normal italic'
         )}
-        type="button"
+        type='button'
       >
-        <Brain className="h-3 w-3" />
+        <Brain className='h-3 w-3' />
         <span>Thought for {formatDuration(duration)}</span>
         {isStreaming && (
-          <span className="inline-flex h-1 w-1 animate-pulse rounded-full bg-gray-400" />
+          <span className='inline-flex h-1 w-1 animate-pulse rounded-full bg-gray-400' />
         )}
       </button>
     )
   }
-  
+
   return (
-    <div className="my-1">
+    <div className='my-1'>
       <button
         onClick={() => setIsExpanded(false)}
         className={cn(
-          "inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-500 transition-colors mb-1",
-          "font-normal italic"
+          'mb-1 inline-flex items-center gap-1 text-gray-400 text-xs transition-colors hover:text-gray-500',
+          'font-normal italic'
         )}
-        type="button"
+        type='button'
       >
-        <Brain className="h-3 w-3" />
+        <Brain className='h-3 w-3' />
         <span>Thought for {formatDuration(duration)} (click to collapse)</span>
       </button>
-      <div className="pl-2 border-l-2 border-gray-200 dark:border-gray-700 ml-1">
-        <pre className="whitespace-pre-wrap font-mono text-xs text-gray-400 dark:text-gray-500">
+      <div className='ml-1 border-gray-200 border-l-2 pl-2 dark:border-gray-700'>
+        <pre className='whitespace-pre-wrap font-mono text-gray-400 text-xs dark:text-gray-500'>
           {content}
-          {isStreaming && (
-            <span className="ml-1 inline-block h-2 w-1 animate-pulse bg-gray-400" />
-          )}
+          {isStreaming && <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-gray-400' />}
         </pre>
       </div>
     </div>
   )
-} 
+}

@@ -90,7 +90,7 @@ function LinkWithPreview({ href, children }: { href: string; children: React.Rea
       <TooltipTrigger asChild>
         <a
           href={href}
-          className='inline text-blue-600 break-all hover:underline dark:text-blue-400'
+          className='inline break-all text-blue-600 hover:underline dark:text-blue-400'
           target='_blank'
           rel='noopener noreferrer'
         >
@@ -277,7 +277,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
         if (inline) {
           return (
             <code
-              className='rounded bg-gray-200 px-1 py-0.5 font-mono text-[0.9em] text-gray-800 break-all whitespace-normal dark:bg-gray-700 dark:text-gray-200'
+              className='whitespace-normal break-all rounded bg-gray-200 px-1 py-0.5 font-mono text-[0.9em] text-gray-800 dark:bg-gray-700 dark:text-gray-200'
               {...props}
             >
               {children}

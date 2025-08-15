@@ -207,7 +207,7 @@ export interface CopilotState {
   // Revert state management
   revertState: { messageId: string; messageContent: string } | null // Track which message we reverted from
   inputValue: string // Control the input field
-  
+
   // Todo list state (from plan tool)
   planTodos: Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>
   showPlanTodos: boolean
@@ -267,9 +267,11 @@ export interface CopilotActions {
   // Input control actions
   setInputValue: (value: string) => void
   clearRevertState: () => void
-  
+
   // Todo list actions
-  setPlanTodos: (todos: Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>) => void
+  setPlanTodos: (
+    todos: Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>
+  ) => void
   updatePlanTodoStatus: (id: string, status: 'executing' | 'completed') => void
   closePlanTodos: () => void
 

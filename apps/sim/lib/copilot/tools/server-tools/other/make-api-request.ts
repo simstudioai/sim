@@ -1,7 +1,7 @@
-import { BaseCopilotTool } from '../base'
 import { createLogger } from '@/lib/logs/console/logger'
 import { executeTool } from '@/tools'
 import type { TableRow } from '@/tools/types'
+import { BaseCopilotTool } from '../base'
 
 interface MakeApiRequestParams {
   url: string
@@ -63,7 +63,7 @@ class MakeApiRequestTool extends BaseCopilotTool<MakeApiRequestParams, MakeApiRe
     }
 
     const output = (result as any).output || result
-    let data = output.output?.data ?? output.data
+    const data = output.output?.data ?? output.data
     const status = output.output?.status ?? output.status ?? 200
     const respHeaders = output.output?.headers ?? output.headers ?? {}
 
@@ -98,7 +98,8 @@ class MakeApiRequestTool extends BaseCopilotTool<MakeApiRequestParams, MakeApiRe
     let normalized = toStringSafe(data)
 
     // If looks like HTML, strip for readability before capping
-    const looksLikeHtml = /<html[\s\S]*<\/html>/i.test(normalized) || /<body[\s\S]*<\/body>/i.test(normalized)
+    const looksLikeHtml =
+      /<html[\s\S]*<\/html>/i.test(normalized) || /<body[\s\S]*<\/body>/i.test(normalized)
     if (looksLikeHtml) {
       normalized = stripHtml(normalized)
     }
@@ -131,4 +132,4 @@ class MakeApiRequestTool extends BaseCopilotTool<MakeApiRequestParams, MakeApiRe
   }
 }
 
-export const makeApiRequestTool = new MakeApiRequestTool() 
+export const makeApiRequestTool = new MakeApiRequestTool()

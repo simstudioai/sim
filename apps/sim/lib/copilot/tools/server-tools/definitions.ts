@@ -233,7 +233,8 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       },
       getDynamicDisplayName: (state, params) => {
         try {
-          const vars = params?.variables && typeof params.variables === 'object' ? params.variables : null
+          const vars =
+            params?.variables && typeof params.variables === 'object' ? params.variables : null
           if (!vars) return null
           const count = Object.keys(vars).length
           if (count === 0) return null
@@ -356,7 +357,8 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
           block_types: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Optional list of specific block types to get best practices for (e.g., "llm", "function", "loop")',
+            description:
+              'Optional list of specific block types to get best practices for (e.g., "llm", "function", "loop")',
           },
           category: {
             type: 'string',
@@ -382,7 +384,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     },
     schema: {
       name: SERVER_TOOL_IDS.LIST_GDRIVE_FILES,
-      description: 'List files from the user\'s Google Drive',
+      description: "List files from the user's Google Drive",
       parameters: {
         type: 'object',
         properties: {
@@ -479,7 +481,10 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
             description: 'Optional headers as key-value pairs',
             additionalProperties: { type: 'string' },
           },
-          body: { type: ['object', 'string'], description: 'Optional JSON body (object or string)' },
+          body: {
+            type: ['object', 'string'],
+            description: 'Optional JSON body (object or string)',
+          },
         },
         required: ['url', 'method'],
       },

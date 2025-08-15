@@ -73,7 +73,7 @@ export async function exportWorkflow(format: EditorFormat): Promise<string> {
     if (format === 'yaml') {
       // Get the active workflow ID from registry
       const { activeWorkflowId } = useWorkflowRegistry.getState()
-      
+
       if (!activeWorkflowId) {
         throw new Error('No active workflow to export')
       }

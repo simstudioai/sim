@@ -7,18 +7,16 @@
 
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import useDrivePicker from 'react-google-drive-picker'
+import { GoogleDriveIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { notifyServerTool } from '@/lib/copilot/tools/notification-utils'
 import { toolRegistry } from '@/lib/copilot/tools/registry'
 import { renderToolStateIcon, toolRequiresInterrupt } from '@/lib/copilot/tools/utils'
+import { getEnv } from '@/lib/env'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotToolCall } from '@/stores/copilot/types'
-import { GoogleDrivePicker } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/google-drive-picker'
-import { getEnv } from '@/lib/env'
-import useDrivePicker from 'react-google-drive-picker'
-import { GoogleDriveIcon } from '@/components/icons'
-import { Card, CardContent } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 interface InlineToolCallProps {
   toolCall: CopilotToolCall
@@ -296,7 +294,8 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
     (toolCall.name === 'make_api_request' || toolCall.name === 'set_environment_variables')
 
   const [expanded, setExpanded] = useState(isExpandablePending)
-  const isExpandableTool = toolCall.name === 'make_api_request' || toolCall.name === 'set_environment_variables'
+  const isExpandableTool =
+    toolCall.name === 'make_api_request' || toolCall.name === 'set_environment_variables'
 
   if (!toolCall) {
     return null
@@ -320,10 +319,16 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
 
   const params = (toolCall.parameters || toolCall.input || {}) as Record<string, any>
 
-  const Chip = ({ children, color = 'gray' }: { children: any; color?: 'gray' | 'green' | 'blue' | 'yellow' }) => (
+  const Chip = ({
+    children,
+    color = 'gray',
+  }: {
+    children: any
+    color?: 'gray' | 'green' | 'blue' | 'yellow'
+  }) => (
     <span
       className={
-        'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ' +
+        'inline-flex items-center rounded px-1.5 py-0.5 font-semibold text-[10px] ' +
         (color === 'green'
           ? 'bg-emerald-100 text-emerald-700'
           : color === 'blue'
@@ -339,15 +344,21 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
 
   const KeyVal = ({ k, v }: { k: string; v: any }) => (
     <div className='flex items-start justify-between gap-2'>
-      <span className='min-w-[110px] shrink-0 truncate text-[11px] font-medium text-muted-foreground'>{k}</span>
-      <span className='w-full overflow-hidden text-[11px] font-mono text-foreground'>{String(v)}</span>
+      <span className='min-w-[110px] shrink-0 truncate font-medium text-[11px] text-muted-foreground'>
+        {k}
+      </span>
+      <span className='w-full overflow-hidden font-mono text-[11px] text-foreground'>
+        {String(v)}
+      </span>
     </div>
   )
 
   const Section = ({ title, children }: { title: string; children: any }) => (
     <Card className='mt-1.5'>
       <CardContent className='p-3'>
-        <div className='mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground'>{title}</div>
+        <div className='mb-1 font-medium text-[11px] text-muted-foreground uppercase tracking-wide'>
+          {title}
+        </div>
         {children}
       </CardContent>
     </Card>
@@ -362,7 +373,7 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
       return (
         <div className='mt-0.5 flex items-center gap-2'>
           <Chip color={methodColor as any}>{method || 'METHOD'}</Chip>
-          <span className='truncate text-xs text-foreground' title={url}>
+          <span className='truncate text-foreground text-xs' title={url}>
             {url || 'URL not provided'}
           </span>
         </div>
@@ -370,19 +381,20 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
     }
 
     if (toolCall.name === 'set_environment_variables') {
-      const variables = params.variables && typeof params.variables === 'object' ? params.variables : {}
+      const variables =
+        params.variables && typeof params.variables === 'object' ? params.variables : {}
       const entries = Object.entries(variables)
       return (
         <div className='mt-0.5'>
           {entries.length === 0 ? (
-            <span className='text-xs text-muted-foreground'>No variables provided</span>
+            <span className='text-muted-foreground text-xs'>No variables provided</span>
           ) : (
             <div className='space-y-0.5'>
               {entries.map(([k, v]) => (
                 <div key={k} className='flex items-center gap-0.5'>
-                  <span className='text-xs font-medium text-muted-foreground'>{k}</span>
-                  <span className='mx-1 text-xs font-medium text-muted-foreground'>:</span>
-                  <span className='truncate text-xs font-medium text-foreground'>{String(v)}</span>
+                  <span className='font-medium text-muted-foreground text-xs'>{k}</span>
+                  <span className='mx-1 font-medium text-muted-foreground text-xs'>:</span>
+                  <span className='truncate font-medium text-foreground text-xs'>{String(v)}</span>
                 </div>
               ))}
             </div>
@@ -410,8 +422,8 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
         </div>
 
         {showButtons && (
-          <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} context={context} />)
-        }
+          <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} context={context} />
+        )}
 
         {showBackgroundButton && (
           <div className='flex items-center gap-1.5'>
@@ -423,7 +435,12 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
 
                   // Notify the backend about background state with execution start time if available
                   const executionStartTime = context?.executionStartTime
-                  await notifyServerTool(toolCall.id, toolCall.name, 'background', executionStartTime)
+                  await notifyServerTool(
+                    toolCall.id,
+                    toolCall.name,
+                    'background',
+                    executionStartTime
+                  )
 
                   // Track that this tool was moved to background
                   if (context) {
@@ -448,7 +465,7 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
         )}
       </div>
 
-      {isExpandableTool && expanded && <div className='pl-5 pr-1'>{renderPendingDetails()}</div>}
+      {isExpandableTool && expanded && <div className='pr-1 pl-5'>{renderPendingDetails()}</div>}
     </div>
   )
 }

@@ -403,7 +403,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           containerData.parentId = block.parentId
           containerData.extent = block.extent || 'parent'
         }
-        
+
         newWorkflowState.blocks[newId] = {
           id: newId,
           type: block.type,
@@ -455,7 +455,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           blockData.parentId = block.parentId
           blockData.extent = block.extent || 'parent'
         }
-        
+
         newWorkflowState.blocks[newId] = {
           id: newId,
           type: block.type,

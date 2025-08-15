@@ -11,9 +11,9 @@ import { generateFolderName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useFolderStore } from '@/stores/folders/store'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 
 // Constants
 const TIMERS = {

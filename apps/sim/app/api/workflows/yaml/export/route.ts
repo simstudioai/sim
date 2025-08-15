@@ -1,16 +1,16 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { simAgentClient } from '@/lib/sim-agent'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { getSession } from '@/lib/auth'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
 import { workflow } from '@/db/schema'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowYamlExportAPI')
 
@@ -26,10 +26,7 @@ export async function GET(request: NextRequest) {
     logger.info(`[${requestId}] Exporting workflow YAML from database: ${workflowId}`)
 
     if (!workflowId) {
-      return NextResponse.json(
-        { success: false, error: 'workflowId is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: 'workflowId is required' }, { status: 400 })
     }
 
     // Get the session for authentication
@@ -83,7 +80,7 @@ export async function GET(request: NextRequest) {
     const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
 
     let workflowState: any
-    let subBlockValues: Record<string, Record<string, any>> = {}
+    const subBlockValues: Record<string, Record<string, any>> = {}
 
     if (normalizedData) {
       logger.debug(`[${requestId}] Found normalized data for workflow ${workflowId}:`, {
@@ -92,7 +89,8 @@ export async function GET(request: NextRequest) {
       })
 
       // Use normalized table data - reconstruct complete state object
-      const existingState = workflowData.state && typeof workflowData.state === 'object' ? workflowData.state : {}
+      const existingState =
+        workflowData.state && typeof workflowData.state === 'object' ? workflowData.state : {}
 
       workflowState = {
         deploymentStatuses: {},
@@ -122,8 +120,10 @@ export async function GET(request: NextRequest) {
       logger.info(`[${requestId}] Loaded workflow ${workflowId} from normalized tables`)
     } else {
       // Fallback to JSON blob
-      logger.info(`[${requestId}] Using JSON blob for workflow ${workflowId} - no normalized data found`)
-      
+      logger.info(
+        `[${requestId}] Using JSON blob for workflow ${workflowId} - no normalized data found`
+      )
+
       if (!workflowData.state || typeof workflowData.state !== 'object') {
         return NextResponse.json(
           { success: false, error: 'Workflow has no valid state data' },
@@ -207,4 +207,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}

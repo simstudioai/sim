@@ -10,31 +10,31 @@ import {
 } from 'react'
 import {
   ArrowUp,
+  Boxes,
+  BrainCircuit,
+  BrainCog,
+  Check,
   FileText,
   Image,
   Loader2,
   MessageCircle,
   Package,
   Paperclip,
-  Zap,
   X,
-  Check,
-  Boxes,
-  BrainCircuit,
-  BrainCog,
+  Zap,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Textarea } from '@/components/ui/textarea'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 
 export interface MessageFileAttachment {
   id: string
@@ -449,9 +449,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
 
     const getDepthDescription = (value: 0 | 1 | 2 | 3) => {
-      if (value === 0) return 'Fastest and cheapest. Good for small edits, simple workflows, and small tasks.'
+      if (value === 0)
+        return 'Fastest and cheapest. Good for small edits, simple workflows, and small tasks.'
       if (value === 1) return 'Automatically balances speed and reasoning. Good fit for most tasks.'
-      if (value === 2) return 'More reasoning for larger workflows and complex edits, still balanced for speed.'
+      if (value === 2)
+        return 'More reasoning for larger workflows and complex edits, still balanced for speed.'
       return 'Maximum reasoning power. Best for complex workflow building and debugging.'
     }
 
@@ -572,9 +574,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <DropdownMenuItem
-                            onSelect={() => onModeChange && onModeChange('ask')}
+                            onSelect={() => onModeChange?.('ask')}
                             className={cn(
-                              'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
+                              'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
                               mode === 'ask' && 'bg-muted/40'
                             )}
                           >
@@ -585,16 +587,22 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             {mode === 'ask' && <Check className='h-3 w-3 text-muted-foreground' />}
                           </DropdownMenuItem>
                         </TooltipTrigger>
-                        <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
-                          Ask mode can help answer questions about your workflow, tell you about Sim, and guide you in building/editing.
+                        <TooltipContent
+                          side='right'
+                          sideOffset={6}
+                          align='center'
+                          className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
+                        >
+                          Ask mode can help answer questions about your workflow, tell you about
+                          Sim, and guide you in building/editing.
                         </TooltipContent>
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <DropdownMenuItem
-                            onSelect={() => onModeChange && onModeChange('agent')}
+                            onSelect={() => onModeChange?.('agent')}
                             className={cn(
-                              'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
+                              'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
                               mode === 'agent' && 'bg-muted/40'
                             )}
                           >
@@ -602,10 +610,17 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                               <Package className='h-3 w-3 text-muted-foreground' />
                               Agent
                             </span>
-                            {mode === 'agent' && <Check className='h-3 w-3 text-muted-foreground' />}
+                            {mode === 'agent' && (
+                              <Check className='h-3 w-3 text-muted-foreground' />
+                            )}
                           </DropdownMenuItem>
                         </TooltipTrigger>
-                        <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
+                        <TooltipContent
+                          side='right'
+                          sideOffset={6}
+                          align='center'
+                          className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
+                        >
                           Agent mode can build, edit, and interact with your workflows (Recommended)
                         </TooltipContent>
                       </Tooltip>
@@ -634,7 +649,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             <DropdownMenuItem
                               onSelect={() => setAgentDepth(1)}
                               className={cn(
-                                'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
+                                'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
                                 agentDepth === 1 && 'bg-muted/40'
                               )}
                             >
@@ -642,10 +657,17 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                 <Boxes className='h-3 w-3 text-muted-foreground' />
                                 Auto
                               </span>
-                              {agentDepth === 1 && <Check className='h-3 w-3 text-muted-foreground' />}
+                              {agentDepth === 1 && (
+                                <Check className='h-3 w-3 text-muted-foreground' />
+                              )}
                             </DropdownMenuItem>
                           </TooltipTrigger>
-                          <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
+                          <TooltipContent
+                            side='right'
+                            sideOffset={6}
+                            align='center'
+                            className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
+                          >
                             Automatically balances speed and reasoning. Good fit for most tasks.
                           </TooltipContent>
                         </Tooltip>
@@ -654,7 +676,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             <DropdownMenuItem
                               onSelect={() => setAgentDepth(0)}
                               className={cn(
-                                'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
+                                'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
                                 agentDepth === 0 && 'bg-muted/40'
                               )}
                             >
@@ -662,11 +684,19 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                 <Zap className='h-3 w-3 text-muted-foreground' />
                                 Lite
                               </span>
-                              {agentDepth === 0 && <Check className='h-3 w-3 text-muted-foreground' />}
+                              {agentDepth === 0 && (
+                                <Check className='h-3 w-3 text-muted-foreground' />
+                              )}
                             </DropdownMenuItem>
                           </TooltipTrigger>
-                          <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
-                            Fastest and cheapest. Good for small edits, simple workflows, and small tasks.
+                          <TooltipContent
+                            side='right'
+                            sideOffset={6}
+                            align='center'
+                            className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
+                          >
+                            Fastest and cheapest. Good for small edits, simple workflows, and small
+                            tasks.
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
@@ -674,7 +704,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             <DropdownMenuItem
                               onSelect={() => setAgentDepth(2)}
                               className={cn(
-                                'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
+                                'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
                                 agentDepth === 2 && 'bg-muted/40'
                               )}
                             >
@@ -682,11 +712,19 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                 <BrainCircuit className='h-3 w-3 text-muted-foreground' />
                                 Pro
                               </span>
-                              {agentDepth === 2 && <Check className='h-3 w-3 text-muted-foreground' />}
+                              {agentDepth === 2 && (
+                                <Check className='h-3 w-3 text-muted-foreground' />
+                              )}
                             </DropdownMenuItem>
                           </TooltipTrigger>
-                          <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
-                            More reasoning for larger workflows and complex edits, still balanced for speed.
+                          <TooltipContent
+                            side='right'
+                            sideOffset={6}
+                            align='center'
+                            className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
+                          >
+                            More reasoning for larger workflows and complex edits, still balanced
+                            for speed.
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
@@ -694,7 +732,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             <DropdownMenuItem
                               onSelect={() => setAgentDepth(3)}
                               className={cn(
-                                'flex items-center justify-between px-2 py-1.5 text-xs leading-4 rounded-sm',
+                                'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
                                 agentDepth === 3 && 'bg-muted/40'
                               )}
                             >
@@ -702,11 +740,19 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                 <BrainCog className='h-3 w-3 text-muted-foreground' />
                                 Max
                               </span>
-                              {agentDepth === 3 && <Check className='h-3 w-3 text-muted-foreground' />}
+                              {agentDepth === 3 && (
+                                <Check className='h-3 w-3 text-muted-foreground' />
+                              )}
                             </DropdownMenuItem>
                           </TooltipTrigger>
-                          <TooltipContent side='right' sideOffset={6} align='center' className='max-w-[220px] bg-popover text-popover-foreground border p-2 text-[11px] leading-snug shadow-md'>
-                            Maximum reasoning power. Best for complex workflow building and debugging.
+                          <TooltipContent
+                            side='right'
+                            sideOffset={6}
+                            align='center'
+                            className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
+                          >
+                            Maximum reasoning power. Best for complex workflow building and
+                            debugging.
                           </TooltipContent>
                         </Tooltip>
                       </div>

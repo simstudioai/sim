@@ -200,18 +200,18 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       scrollToBottom()
     }
   }, [isInitialized, messages.length, scrollToBottom])
-  
+
   // Track previous sending state to detect when stream completes
   const wasSendingRef = useRef(false)
-  
+
   // Auto-collapse todos and remove uncompleted ones when stream completes
   useEffect(() => {
     if (wasSendingRef.current && !isSendingMessage && showPlanTodos) {
       // Stream just completed, collapse the todos and filter out uncompleted ones
       setTodosCollapsed(true)
-      
+
       // Remove any uncompleted todos
-      const completedTodos = planTodos.filter(todo => todo.completed === true)
+      const completedTodos = planTodos.filter((todo) => todo.completed === true)
       if (completedTodos.length !== planTodos.length) {
         // Only update if there are uncompleted todos to remove
         const store = useCopilotStore.getState()
@@ -220,7 +220,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     }
     wasSendingRef.current = isSendingMessage
   }, [isSendingMessage, showPlanTodos, planTodos])
-  
+
   // Reset collapsed state when todos first appear
   useEffect(() => {
     if (showPlanTodos && planTodos.length > 0) {
@@ -295,7 +295,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       setTodosCollapsed(true)
     }
   }, [abortMessage, showPlanTodos])
-  
+
   // Handle message submission
   const handleSubmit = useCallback(
     async (query: string, fileAttachments?: MessageFileAttachment[]) => {
@@ -306,7 +306,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
         const store = useCopilotStore.getState()
         store.setPlanTodos([])
       }
-      
+
       try {
         await sendMessage(query, { stream: true, fileAttachments })
         logger.info(
@@ -343,7 +343,10 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                   <div className='w-full max-w-full space-y-1 overflow-hidden'>
                     {messages.length === 0 ? (
                       <div className='flex h-full items-center justify-center p-4'>
-                        <CopilotWelcome onQuestionClick={handleSubmit} mode={mode === 'ask' ? 'ask' : 'agent'} />
+                        <CopilotWelcome
+                          onQuestionClick={handleSubmit}
+                          mode={mode === 'ask' ? 'ask' : 'agent'}
+                        />
                       </div>
                     ) : (
                       messages.map((message) => (
@@ -387,7 +390,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                 }}
               />
             )}
-            
+
             {/* Input area with integrated mode selector */}
             {!showCheckpoints && (
               <UserInput

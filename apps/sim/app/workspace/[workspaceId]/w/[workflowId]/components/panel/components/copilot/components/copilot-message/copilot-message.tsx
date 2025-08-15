@@ -581,12 +581,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           // and the block has not been finalized with a duration yet. This avoids
           // freezing the timer when new blocks are appended after the thinking block.
           const isStreamingThinking = isStreaming && (block as any).duration == null
-          
+
           return (
-            <div
-              key={`thinking-${index}-${block.timestamp || index}`}
-              className='w-full'
-            >
+            <div key={`thinking-${index}-${block.timestamp || index}`} className='w-full'>
               <ThinkingBlock
                 content={block.content}
                 isStreaming={isStreamingThinking}
@@ -601,7 +598,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           if (block.toolCall.hidden) {
             return null
           }
-          
+
           return (
             <div
               key={`tool-${block.toolCall.id}`}
@@ -629,7 +626,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           )}
 
           <div className='flex justify-end'>
-            <div className='max-w-[80%] min-w-0'>
+            <div className='min-w-0 max-w-[80%]'>
               {/* Message content in purple box */}
               <div
                 className='rounded-[10px] px-3 py-2'

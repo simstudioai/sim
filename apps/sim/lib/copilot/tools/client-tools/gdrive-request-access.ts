@@ -53,7 +53,10 @@ export class GDriveRequestAccessTool extends BaseTool {
     requiresInterrupt: true,
   }
 
-  async execute(toolCall: CopilotToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult> {
+  async execute(
+    toolCall: CopilotToolCall,
+    options?: ToolExecutionOptions
+  ): Promise<ToolExecuteResult> {
     // Execution is trivial: we only notify the server that the user completed the action.
     // Any data transfer happens via the picker; if needed later, it can be included in the message.
     await this.notify(toolCall.id, 'success', 'User completed Google Drive access picker')
@@ -66,4 +69,4 @@ export class GDriveRequestAccessTool extends BaseTool {
       },
     }
   }
-} 
+}

@@ -193,7 +193,7 @@ async function applyOperationsToYaml(
             logger.info(`Updated type for block ${block_id}`, { type: block.type })
           }
 
-          // Update name if provided  
+          // Update name if provided
           if (params?.name) {
             block.name = params.name
             logger.info(`Updated name for block ${block_id}`, { name: block.name })

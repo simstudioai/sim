@@ -1,7 +1,6 @@
 'use client'
 
 import { Bot } from 'lucide-react'
-import { workAsyncStorage } from 'next/dist/server/app-render/entry-base'
 
 interface CopilotWelcomeProps {
   onQuestionClick?: (question: string) => void

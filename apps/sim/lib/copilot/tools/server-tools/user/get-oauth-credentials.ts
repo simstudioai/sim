@@ -1,9 +1,9 @@
-import { and, eq } from 'drizzle-orm'
-import { BaseCopilotTool } from '../base'
+import { eq } from 'drizzle-orm'
+import { jwtDecode } from 'jwt-decode'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { account, user } from '@/db/schema'
-import { jwtDecode } from 'jwt-decode'
+import { BaseCopilotTool } from '../base'
 
 interface GetOAuthCredentialsParams {
   userId: string
@@ -105,4 +105,4 @@ class GetOAuthCredentialsTool extends BaseCopilotTool<
   }
 }
 
-export const getOAuthCredentialsTool = new GetOAuthCredentialsTool() 
+export const getOAuthCredentialsTool = new GetOAuthCredentialsTool()

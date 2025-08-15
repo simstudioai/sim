@@ -1,7 +1,7 @@
-import { BaseCopilotTool } from '../base'
-import { executeTool } from '@/tools'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getOAuthToken } from '@/app/api/auth/oauth/utils'
+import { executeTool } from '@/tools'
+import { BaseCopilotTool } from '../base'
 
 interface ReadGDriveFileParams {
   userId: string
@@ -34,14 +34,12 @@ class ReadGDriveFileTool extends BaseCopilotTool<ReadGDriveFileParams, ReadGDriv
     if (type === 'doc') {
       const accessToken = await getOAuthToken(userId, 'google-drive')
       if (!accessToken) {
-        throw new Error('No Google Drive connection found for this user. Please connect Google Drive in settings.')
+        throw new Error(
+          'No Google Drive connection found for this user. Please connect Google Drive in settings.'
+        )
       }
 
-      const result = await executeTool(
-        'google_drive_get_content',
-        { accessToken, fileId },
-        true
-      )
+      const result = await executeTool('google_drive_get_content', { accessToken, fileId }, true)
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to read Google Drive document')
@@ -57,7 +55,9 @@ class ReadGDriveFileTool extends BaseCopilotTool<ReadGDriveFileParams, ReadGDriv
     if (type === 'sheet') {
       const accessToken = await getOAuthToken(userId, 'google-sheets')
       if (!accessToken) {
-        throw new Error('No Google Sheets connection found for this user. Please connect Google Sheets in settings.')
+        throw new Error(
+          'No Google Sheets connection found for this user. Please connect Google Sheets in settings.'
+        )
       }
 
       const result = await executeTool(
@@ -82,4 +82,4 @@ class ReadGDriveFileTool extends BaseCopilotTool<ReadGDriveFileParams, ReadGDriv
   }
 }
 
-export const readGDriveFileTool = new ReadGDriveFileTool() 
+export const readGDriveFileTool = new ReadGDriveFileTool()

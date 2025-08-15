@@ -45,7 +45,7 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
     try {
       // Use the new database-based export endpoint
       const response = await fetch(`/api/workflows/yaml/export?workflowId=${activeWorkflowId}`)
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
         throw new Error(errorData?.error || `Failed to export YAML: ${response.statusText}`)

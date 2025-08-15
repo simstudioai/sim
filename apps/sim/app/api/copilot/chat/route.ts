@@ -337,7 +337,8 @@ export async function POST(req: NextRequest) {
 
     // Determine provider and conversationId to use for this request
     const providerToUse = provider || 'openai'
-    const effectiveConversationId = (currentChat?.conversationId as string | undefined) || conversationId
+    const effectiveConversationId =
+      (currentChat?.conversationId as string | undefined) || conversationId
 
     // If we have a conversationId, only send the most recent user message; else send full history
     const messagesForAgent = effectiveConversationId ? [messages[messages.length - 1]] : messages
@@ -497,7 +498,9 @@ export async function POST(req: NextRequest) {
 
                       case 'reasoning':
                         // Treat like thinking: do not add to assistantContent to avoid leaking
-                        logger.debug(`[${tracker.requestId}] Reasoning chunk received (${(event.data || event.content || '').length} chars)`) 
+                        logger.debug(
+                          `[${tracker.requestId}] Reasoning chunk received (${(event.data || event.content || '').length} chars)`
+                        )
                         break
 
                       case 'tool_call':
@@ -545,14 +548,18 @@ export async function POST(req: NextRequest) {
                       case 'start':
                         if (event.data?.responseId) {
                           responseIdFromStart = event.data.responseId
-                          logger.info(`[${tracker.requestId}] Received start event with responseId: ${responseIdFromStart}`)
+                          logger.info(
+                            `[${tracker.requestId}] Received start event with responseId: ${responseIdFromStart}`
+                          )
                         }
                         break
 
                       case 'done':
                         if (event.data?.responseId) {
                           responseIdFromDone = event.data.responseId
-                          logger.info(`[${tracker.requestId}] Received done event with responseId: ${responseIdFromDone}`)
+                          logger.info(
+                            `[${tracker.requestId}] Received done event with responseId: ${responseIdFromDone}`
+                          )
                         }
                         if (isFirstDone) {
                           logger.info(
@@ -661,9 +668,9 @@ export async function POST(req: NextRequest) {
                   toolCallNames: msg.toolCalls?.map((tc: any) => tc.name) || [],
                   timestamp: msg.timestamp,
                   hasFileAttachments: !!msg.fileAttachments && msg.fileAttachments.length > 0,
-                  fileAttachmentsCount: msg.fileAttachments?.length || 0
+                  fileAttachmentsCount: msg.fileAttachments?.length || 0,
                 })),
-                fullMessages: JSON.stringify(updatedMessages, null, 2)
+                fullMessages: JSON.stringify(updatedMessages, null, 2),
               })
 
               const responseId = responseIdFromDone || responseIdFromStart
