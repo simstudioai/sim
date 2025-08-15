@@ -18,7 +18,6 @@ export function Privacy() {
   const isLoading = useGeneralStore((state) => state.isLoading)
   const telemetryEnabled = useGeneralStore((state) => state.telemetryEnabled)
   const setTelemetryEnabled = useGeneralStore((state) => state.setTelemetryEnabled)
-  const setTelemetryNotifiedUser = useGeneralStore((state) => state.setTelemetryNotifiedUser)
   const loadSettings = useGeneralStore((state) => state.loadSettings)
 
   useEffect(() => {
@@ -29,8 +28,6 @@ export function Privacy() {
     setTelemetryEnabled(checked)
 
     if (checked) {
-      setTelemetryNotifiedUser(true)
-
       if (typeof window !== 'undefined') {
         fetch('/api/telemetry', {
           method: 'POST',

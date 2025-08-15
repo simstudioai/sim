@@ -505,6 +505,13 @@
       "when": 1755281098957,
       "tag": "0072_powerful_legion",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1755286337930,
+      "tag": "0073_hot_champions",
+      "breakpoints": true
     }
   ]
 }

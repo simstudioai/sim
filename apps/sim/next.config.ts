@@ -184,16 +184,6 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     const redirects = []
-
-    // For self-hosted deployments, skip the landing page and go straight to login
-    if (!isHosted) {
-      redirects.push({
-        source: '/',
-        destination: '/login',
-        permanent: false,
-      })
-    }
-
     // Add whitelabel redirects for terms and privacy pages if external URLs are configured
     if (env.NEXT_PUBLIC_TERMS_URL?.startsWith('http')) {
       redirects.push({

@@ -349,7 +349,6 @@ export const settings = pgTable('settings', {
 
   // Privacy settings
   telemetryEnabled: boolean('telemetry_enabled').notNull().default(true),
-  telemetryNotifiedUser: boolean('telemetry_notified_user').notNull().default(false),
 
   // Email preferences
   emailPreferences: json('email_preferences').notNull().default('{}'),
