@@ -28,6 +28,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
+    // Diagnostic: capture basic auth context (no secrets)
+    try {
+      const authHeaderPresent = Boolean(request.headers.get('authorization'))
+      const apiKeyPresent = Boolean(request.headers.get('x-api-key'))
+      const hybridProbe = await checkHybridAuth(request, { requireWorkflowId: true })
+      logger.info(`[${requestId}] Auth probe for token route`, {
+        authHeaderPresent,
+        apiKeyPresent,
+        authType: hybridProbe.authType,
+        authSuccess: hybridProbe.success,
+        authError: hybridProbe.error,
+        workflowIdFromBody: Boolean(workflowId),
+        urlHasWorkflowId: new URL(request.url).searchParams.has('workflowId'),
+      })
+    } catch {}
+
     const authz = await authorizeCredentialUse(request, { credentialId, workflowId })
     if (!authz.ok || !authz.credentialOwnerUserId) {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })

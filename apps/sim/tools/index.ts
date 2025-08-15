@@ -122,7 +122,12 @@ export async function executeTool(
           tokenPayload.workflowId = workflowId
         }
 
-        const tokenUrl = new URL('/api/auth/oauth/token', baseUrl).toString()
+        // Include workflowId as a query param so the token API can read it without parsing the body
+        const tokenUrlObj = new URL('/api/auth/oauth/token', baseUrl)
+        if (tokenPayload.workflowId) {
+          tokenUrlObj.searchParams.set('workflowId', String(tokenPayload.workflowId))
+        }
+        const tokenUrl = tokenUrlObj.toString()
         // Build headers; on server add internal JWT so webhooks/background runs are authenticated
         const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
         if (typeof window === 'undefined') {
