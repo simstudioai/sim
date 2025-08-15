@@ -393,7 +393,7 @@ function TraceSpanItem({
 
     // Block type specific icons
     if (type === 'agent') {
-      return <AgentIcon className='h-3 w-3 text-[#802FFF]' />
+      return <AgentIcon className='h-3 w-3 text-[var(--brand-primary-hover-hex)]' />
     }
 
     if (type === 'evaluator') {
@@ -437,7 +437,7 @@ function TraceSpanItem({
   const getSpanColor = (type: string) => {
     switch (type.toLowerCase()) {
       case 'agent':
-        return '#802FFF' // Purple from AgentBlock
+        return 'var(--brand-primary-hover-hex)' // Purple from AgentBlock
       case 'provider':
         return '#818cf8' // Indigo for provider
       case 'model':

@@ -240,38 +240,14 @@
               "type": "string",
               "description": "Custom favicon URL"
             },
-            "NEXT_PUBLIC_BRAND_PRIMARY_COLOR": {
-              "type": "string",
-              "description": "Primary brand color (hex)"
-            },
-            "NEXT_PUBLIC_BRAND_SECONDARY_COLOR": {
-              "type": "string",
-              "description": "Secondary brand color (hex)"
-            },
-            "NEXT_PUBLIC_BRAND_ACCENT_COLOR": {
-              "type": "string",
-              "description": "Accent brand color (hex)"
-            },
             "NEXT_PUBLIC_CUSTOM_CSS_URL": {
               "type": "string",
               "description": "Custom stylesheet URL"
-            },
-            "NEXT_PUBLIC_HIDE_BRANDING": {
-              "type": "string",
-              "description": "Hide powered by branding"
-            },
-            "NEXT_PUBLIC_CUSTOM_FOOTER_TEXT": {
-              "type": "string",
-              "description": "Custom footer text"
             },
             "NEXT_PUBLIC_SUPPORT_EMAIL": {
               "type": "string",
               "format": "email",
               "description": "Support email address"
-            },
-            "NEXT_PUBLIC_SUPPORT_URL": {
-              "type": "string",
-              "description": "Support page URL"
             },
             "NEXT_PUBLIC_DOCUMENTATION_URL": {
               "type": "string",

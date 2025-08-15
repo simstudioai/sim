@@ -314,7 +314,7 @@ export function Document({
             onCheckedChange={(checked) => handleSelectChunk(chunk.id, checked as boolean)}
             disabled={!userPermissions.canEdit}
             aria-label={`Select chunk ${chunk.chunkIndex}`}
-            className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[#701FFC]/20 data-[state=checked]:border-[#701FFC] data-[state=checked]:bg-[#701FFC] [&>*]:h-3 [&>*]:w-3'
+            className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-3 [&>*]:w-3'
             onClick={(e) => e.stopPropagation()}
           />
         </td>
@@ -685,7 +685,7 @@ export function Document({
                   onClick={() => setIsCreateChunkModalOpen(true)}
                   disabled={documentData?.processingStatus === 'failed' || !userPermissions.canEdit}
                   size='sm'
-                  className='flex items-center gap-1 bg-[#701FFC] font-[480] text-white shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:cursor-not-allowed disabled:opacity-50'
+                  className='flex items-center gap-1 bg-[var(--brand-primary-hex)] font-[480] text-white shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-secondary-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:cursor-not-allowed disabled:opacity-50'
                 >
                   <Plus className='h-3.5 w-3.5' />
                   <span>Create Chunk</span>
@@ -726,7 +726,7 @@ export function Document({
                                 !userPermissions.canEdit
                               }
                               aria-label='Select all chunks'
-                              className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[#701FFC]/20 data-[state=checked]:border-[#701FFC] data-[state=checked]:bg-[#701FFC] [&>*]:h-3 [&>*]:w-3'
+                              className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-3 [&>*]:w-3'
                             />
                           </th>
                           <th className='px-4 pt-2 pb-3 text-left font-medium'>

@@ -456,7 +456,7 @@ export default function LoginPage({
 
             <Button
               type='submit'
-              className='flex h-11 w-full items-center justify-center gap-2 bg-[#701ffc] font-medium text-base text-white shadow-[#701ffc]/20 shadow-lg transition-colors duration-200 hover:bg-[#802FFF]'
+              className='flex h-11 w-full items-center justify-center gap-2 bg-brand-primary font-medium text-base text-white shadow-[var(--brand-primary-hex)]/20 shadow-lg transition-colors duration-200 hover:bg-brand-primary-hover'
               disabled={isLoading}
             >
               {isLoading ? 'Signing in...' : 'Sign In'}
@@ -468,7 +468,7 @@ export default function LoginPage({
           <span className='text-neutral-400'>Don't have an account? </span>
           <Link
             href={isInviteFlow ? `/signup?invite_flow=true&callbackUrl=${callbackUrl}` : '/signup'}
-            className='font-medium text-[#9D54FF] underline-offset-4 transition hover:text-[#a66fff] hover:underline'
+            className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
           >
             Sign up
           </Link>
@@ -497,7 +497,7 @@ export default function LoginPage({
                 placeholder='Enter your email'
                 required
                 type='email'
-                className='border-neutral-700/80 bg-neutral-900 text-white placeholder:text-white/60 focus:border-[#802FFF]/70 focus:ring-[#802FFF]/20'
+                className='border-neutral-700/80 bg-neutral-900 text-white placeholder:text-white/60 focus:border-[var(--brand-primary-hover-hex)]/70 focus:ring-[var(--brand-primary-hover-hex)]/20'
               />
             </div>
             {resetStatus.type && (
@@ -512,7 +512,7 @@ export default function LoginPage({
             <Button
               type='button'
               onClick={handleForgotPassword}
-              className='h-11 w-full bg-[#701ffc] font-medium text-base text-white shadow-[#701ffc]/20 shadow-lg transition-colors duration-200 hover:bg-[#802FFF]'
+              className='h-11 w-full bg-[var(--brand-primary-hex)] font-medium text-base text-white shadow-[var(--brand-primary-hex)]/20 shadow-lg transition-colors duration-200 hover:bg-[var(--brand-primary-hover-hex)]'
               disabled={isSubmittingReset}
             >
               {isSubmittingReset ? 'Sending...' : 'Send Reset Link'}
