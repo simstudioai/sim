@@ -208,6 +208,7 @@ export async function POST(req: NextRequest) {
       hasImplicitFeedback: !!implicitFeedback,
       provider: provider || 'openai',
       hasConversationId: !!conversationId,
+      depth,
     })
 
     // Handle chat context
@@ -393,11 +394,17 @@ export async function POST(req: NextRequest) {
     })
 
     if (!simAgentResponse.ok) {
-      const errorText = await simAgentResponse.text()
+      if (simAgentResponse.status === 401 || simAgentResponse.status === 402) {
+        // Rethrow status only; client will render appropriate assistant message
+        return new NextResponse(null, { status: simAgentResponse.status })
+      }
+
+      const errorText = await simAgentResponse.text().catch(() => '')
       logger.error(`[${tracker.requestId}] Sim agent API error:`, {
         status: simAgentResponse.status,
         error: errorText,
       })
+
       return NextResponse.json(
         { error: `Sim agent API error: ${simAgentResponse.statusText}` },
         { status: simAgentResponse.status }

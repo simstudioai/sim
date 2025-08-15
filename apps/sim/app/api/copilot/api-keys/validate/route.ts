@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { copilotApiKeys } from '@/db/schema'
+import { copilotApiKeys, userStats } from '@/db/schema'
 
 const logger = createLogger('CopilotApiKeysValidate')
 
@@ -26,18 +26,45 @@ export async function POST(req: NextRequest) {
     logger.info('Received API key for validation', { apiKey })
 
     if (!apiKey) {
-      return NextResponse.json({ valid: false }, { status: 200 })
+      return NextResponse.json({ valid: false, statusCode: 401 }, { status: 200 })
     }
 
     const lookup = computeLookup(apiKey, env.AGENT_API_DB_ENCRYPTION_KEY)
 
-    const exists = await db
-      .select({ id: copilotApiKeys.id })
+    // Find matching API key and its user
+    const rows = await db
+      .select({ id: copilotApiKeys.id, userId: copilotApiKeys.userId })
       .from(copilotApiKeys)
       .where(eq(copilotApiKeys.apiKeyLookup, lookup))
       .limit(1)
 
-    return NextResponse.json({ valid: exists.length > 0 }, { status: 200 })
+    if (rows.length === 0) {
+      return NextResponse.json({ valid: false, statusCode: 401 }, { status: 200 })
+    }
+
+    const { userId } = rows[0]
+
+    // Check usage for the associated user
+    const usage = await db
+      .select({ currentPeriodCost: userStats.currentPeriodCost, totalCost: userStats.totalCost, currentUsageLimit: userStats.currentUsageLimit })
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
+      .limit(1)
+
+    if (usage.length > 0) {
+      const currentUsage = parseFloat(
+        (usage[0].currentPeriodCost?.toString() as string) || (usage[0].totalCost as unknown as string) || '0'
+      )
+      const limit = parseFloat((usage[0].currentUsageLimit as unknown as string) || '0')
+
+      if (!Number.isNaN(limit) && limit > 0 && currentUsage >= limit) {
+        // Usage exceeded
+        return NextResponse.json({ valid: false, statusCode: 402 }, { status: 200 })
+      }
+    }
+
+    // Valid and within usage limits
+    return NextResponse.json({ valid: true, statusCode: 200 }, { status: 200 })
   } catch (error) {
     logger.error('Error validating copilot API key', { error })
     return NextResponse.json({ error: 'Failed to validate key' }, { status: 500 })
