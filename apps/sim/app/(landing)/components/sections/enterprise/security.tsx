@@ -12,7 +12,7 @@ function Security() {
             </p>
         </div>
         <div className='h-[60rem] lg:h-[24rem] grid grid-cols-1  lg:grid-cols-3 gap-5'>
-            <div className='overflow-hidden flex flex-col justify-end gap-2 bg-card rounded-[14px] border border-border p-6 relative'>
+            <div className='overflow-hidden flex flex-col justify-end gap-2 bg-card rounded-[10px] border border-border p-6 relative'>
                 <svg
     className='absolute top-0 left-0 w-full '
     viewBox="0 0 360 310"
@@ -198,7 +198,7 @@ function Security() {
                     Auditable source code. <span className='text-muted-foreground'>Sim's code is open source.</span>
                 </p>
             </div>
-            <div className='flex flex-col justify-end gap-2 bg-card rounded-[14px] border border-border p-6 relative'>
+            <div className='flex flex-col justify-end gap-2 bg-card rounded-[10px] border border-border p-6 relative'>
             <svg
   className='w-full absolute top-0 left-0'
   viewBox="0 0 360 310"
@@ -385,7 +385,7 @@ function Security() {
                     SOC Compliant. <span className='text-muted-foreground'>Sim is both SOC1 and SOC2 compliant.</span>
                 </p>
             </div>
-            <div className='flex flex-col justify-end gap-2 bg-card rounded-[14px] border border-border p-6 relative'>
+            <div className='flex flex-col justify-end gap-2 bg-card rounded-[10px] border border-border p-6 relative'>
             <svg
     className='w-full absolute top-0 left-0'
   viewBox="0 0 360 310"

@@ -18,35 +18,35 @@ function Integrations() {
             <DotPattern glow={true} className={cn("z-0 absolute w-full h-full [mask-image:radial-gradient(700px_circle_at_center,white,transparent)] opacity-50")} />
         <div className='relative flex justify-center items-center w-full h-full z-10'>
         <OrbitingCircles radius={160}>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-card p-1 shadow-sm'>
+          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-1 shadow-sm'>
             <Icons.pinecone />
           </div>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-card p-1 shadow-sm'>
+          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-1 shadow-sm'>
             <Icons.qdrant />
           </div>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-card p-1 shadow-sm'>
+          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-1 shadow-sm'>
             <Icons.slack />
           </div>
         </OrbitingCircles>
         <OrbitingCircles iconSize={40} radius={320} reverse>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-card p-2 shadow-sm'>
+          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-2 shadow-sm'>
             <Icons.gitHub />
           </div>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-card p-1 shadow-sm'>
+          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-1 shadow-sm'>
             <Icons.supabase />
           </div>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-card p-1 shadow-sm'>
+          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-1 shadow-sm'>
             <Icons.perplexity />
           </div>
         </OrbitingCircles>
         <OrbitingCircles iconSize={40} radius={480}>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-card p-2 shadow-sm'>
+          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-2 shadow-sm'>
             <Icons.youtube />
           </div>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-card p-1 shadow-sm'>
+          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-1 shadow-sm'>
             <Icons.reddit />
           </div>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-card p-1 shadow-sm'>
+          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-1 shadow-sm'>
             <Icons.notion />
           </div>
         </OrbitingCircles>

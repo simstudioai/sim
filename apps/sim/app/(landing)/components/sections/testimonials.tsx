@@ -110,7 +110,7 @@ function Testimonials() {
             {firstRowTestimonials.map((card, index) => (
               <motion.div
                 key={`first-row-${index}`}
-                className='mx-0.5 rounded-[14px] flex min-w-[280px] max-w-[340px] cursor-pointer flex-col gap-2  border border-border bg-card p-2 sm:min-w-[320px] sm:max-w-[380px] sm:p-3'
+                className='mx-0.5 rounded-[10px] flex min-w-[280px] max-w-[340px] cursor-pointer flex-col gap-2  border border-border bg-card p-2 sm:min-w-[320px] sm:max-w-[380px] sm:p-3'
                 whileHover={{ scale: 1.02, boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.1)' }}
                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                 onClick={() =>
@@ -151,7 +151,7 @@ function Testimonials() {
             {secondRowTestimonials.map((card, index) => (
               <motion.div
                 key={`second-row-${index}`}
-                className='mx-0.5 rounded-[14px] flex min-w-[280px] max-w-[340px] cursor-pointer flex-col gap-2 border border-border bg-card p-2 sm:min-w-[320px] sm:max-w-[380px] sm:p-3'
+                className='mx-0.5 rounded-[10px] flex min-w-[280px] max-w-[340px] cursor-pointer flex-col gap-2 border border-border bg-card p-2 sm:min-w-[320px] sm:max-w-[380px] sm:p-3'
                 whileHover={{ scale: 1.02, boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.1)' }}
                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                 onClick={() =>

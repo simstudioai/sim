@@ -23,7 +23,7 @@ function Pricing() {
             </p>
         </div>
         <div className='w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5'>
-            <div className="flex flex-col rounded-[14px] border border-border gap-4 sm:gap-6 bg-card p-4 sm:p-5 min-h-[380px] sm:min-h-[440px] shadow-sm">
+            <div className="flex flex-col rounded-[10px] border border-border gap-4 sm:gap-6 bg-card p-4 sm:p-5 min-h-[380px] sm:min-h-[440px] shadow-sm">
                 <div className='flex flex-col gap-3 sm:gap-4'>
                     <p className='text-sm sm:text-base tracking-widest uppercase text-muted-foreground'>
                         Free
@@ -65,12 +65,12 @@ function Pricing() {
                     </li>
                 </ul>
                 <button
-                    className="mt-auto w-full rounded-[14px] bg-muted px-4 py-2.5 sm:py-3 text-sm sm:text-base font-medium text-foreground transition hover:bg-muted/80"
+                    className="mt-auto w-full rounded-[10px] bg-muted px-4 py-2.5 sm:py-3 text-sm sm:text-base font-medium text-foreground transition hover:bg-muted/80"
                 >
                     Get Started
                 </button>
             </div>
-            <div className="relative flex flex-col rounded-[14px] bg-gradient-to-b from-[#A46FFF] to-[#6F3DFA] gap-4 sm:gap-6 bg-card p-4 sm:p-5 min-h-[380px] sm:min-h-[440px] shadow-sm">
+            <div className="relative flex flex-col rounded-[10px] bg-gradient-to-b from-[#A46FFF] to-[#6F3DFA] gap-4 sm:gap-6 bg-card p-4 sm:p-5 min-h-[380px] sm:min-h-[440px] shadow-sm">
                 <svg
                 width={273}
                 height={342}
@@ -194,12 +194,12 @@ function Pricing() {
                     </li>
                 </ul>
                 <button
-                    className="z-10 mt-auto w-full rounded-[14px] bg-gradient-to-b from-[#8A47FF] to-[#AA79FF] px-4 py-2.5 sm:py-3 text-sm sm:text-base font-medium text-white border border-[#AC7CFF] transition hover:bg-muted/80"
+                    className="z-10 mt-auto w-full rounded-[10px] bg-gradient-to-b from-[#8A47FF] to-[#AA79FF] px-4 py-2.5 sm:py-3 text-sm sm:text-base font-medium text-white border border-[#AC7CFF] transition hover:bg-muted/80"
                 >
                     Start building
                 </button>
             </div>
-            <div className="flex flex-col rounded-[14px] border border-border gap-4 sm:gap-6 bg-card p-4 sm:p-5 min-h-[380px] sm:min-h-[440px] shadow-sm">
+            <div className="flex flex-col rounded-[10px] border border-border gap-4 sm:gap-6 bg-card p-4 sm:p-5 min-h-[380px] sm:min-h-[440px] shadow-sm">
                 <div className='flex flex-col gap-3 sm:gap-4'>
                     <p className='text-sm sm:text-base tracking-widest uppercase text-muted-foreground'>
                         Team
@@ -241,12 +241,12 @@ function Pricing() {
                     </li>
                 </ul>
                 <button
-                    className="mt-auto w-full rounded-[14px] bg-muted px-4 py-2.5 sm:py-3 text-sm sm:text-base font-medium text-foreground transition hover:bg-muted/80"
+                    className="mt-auto w-full rounded-[10px] bg-muted px-4 py-2.5 sm:py-3 text-sm sm:text-base font-medium text-foreground transition hover:bg-muted/80"
                 >
                     Get Started
                 </button>
             </div>
-            <div className="flex flex-col rounded-[14px] border border-border gap-4 sm:gap-6 bg-card p-4 sm:p-5 min-h-[380px] sm:min-h-[440px] shadow-sm">
+            <div className="flex flex-col rounded-[10px] border border-border gap-4 sm:gap-6 bg-card p-4 sm:p-5 min-h-[380px] sm:min-h-[440px] shadow-sm">
                 <div className='flex flex-col gap-3 sm:gap-4'>
                     <p className='text-sm sm:text-base tracking-widest uppercase text-muted-foreground'>
                         Enterprise
@@ -288,7 +288,7 @@ function Pricing() {
                     </li>
                 </ul>
                 <button
-                    className="mt-auto w-full rounded-[14px] bg-muted px-4 py-2.5 sm:py-3 text-sm sm:text-base font-medium text-foreground transition hover:bg-muted/80"
+                    className="mt-auto w-full rounded-[10px] bg-muted px-4 py-2.5 sm:py-3 text-sm sm:text-base font-medium text-foreground transition hover:bg-muted/80"
                 >
                     Get Started
                 </button>

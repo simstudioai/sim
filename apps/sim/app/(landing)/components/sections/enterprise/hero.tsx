@@ -19,7 +19,7 @@ function Hero() {
             Contact Sales
         </Button>
         <div className='relative w-full'>
-            <div className='z-0 aspect-video w-full relative bg-background/80 shadow-sm border-border border rounded-[14px] flex p-2'>
+            <div className='z-0 aspect-video w-full relative bg-background/80 shadow-sm border-border border rounded-[10px] flex p-2'>
                 <div className='flex flex-col justify-end w-full h-full bg-background rounded-[6px]'>
                     {/* ADD CONTENT HERE */}
                 </div>
