@@ -27,14 +27,8 @@ app:
     NEXT_PUBLIC_BRAND_NAME: "Acme AI Studio"
     NEXT_PUBLIC_BRAND_LOGO_URL: "https://acme.com/assets/logo.png"
     NEXT_PUBLIC_BRAND_FAVICON_URL: "https://acme.com/assets/favicon.ico"
-    NEXT_PUBLIC_BRAND_PRIMARY_COLOR: "#1a365d"           # Acme blue
-    NEXT_PUBLIC_BRAND_SECONDARY_COLOR: "#2d3748"        # Dark gray
-    NEXT_PUBLIC_BRAND_ACCENT_COLOR: "#38b2ac"           # Teal accent
     NEXT_PUBLIC_CUSTOM_CSS_URL: "https://acme.com/assets/theme.css"
-    NEXT_PUBLIC_HIDE_BRANDING: "true"                   # Hide "Powered by Sim"
-    NEXT_PUBLIC_CUSTOM_FOOTER_TEXT: "© 2024 Acme Corp. All rights reserved."
     NEXT_PUBLIC_SUPPORT_EMAIL: "ai-support@acme.com"
-    NEXT_PUBLIC_SUPPORT_URL: "https://help.acme.com/ai-studio"
     NEXT_PUBLIC_DOCUMENTATION_URL: "https://docs.acme.com/ai-studio"
     NEXT_PUBLIC_TERMS_URL: "https://acme.com/terms"
     NEXT_PUBLIC_PRIVACY_URL: "https://acme.com/privacy"

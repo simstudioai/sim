@@ -14,8 +14,6 @@ import { chat } from '@/db/schema'
 
 const logger = createLogger('ChatAPI')
 
-export const dynamic = 'force-dynamic'
-
 const chatSchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
   subdomain: z
@@ -150,7 +148,7 @@ export async function POST(request: NextRequest) {
       // Merge customizations with the additional fields
       const mergedCustomizations = {
         ...(customizations || {}),
-        primaryColor: customizations?.primaryColor || '#802FFF',
+        primaryColor: customizations?.primaryColor || 'var(--brand-primary-hover-hex)',
         welcomeMessage: customizations?.welcomeMessage || 'Hi there! How can I help you today?',
       }
 

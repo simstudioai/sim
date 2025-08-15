@@ -106,15 +106,14 @@ export function ShortInput({
     const newValue = e.target.value
     const newCursorPosition = e.target.selectionStart ?? 0
 
-    // Update cursor first to minimize state staleness for dropdown selection logic
-    setCursorPosition(newCursorPosition)
-
     if (onChange) {
       onChange(newValue)
     } else if (!isPreview) {
       // Only update store when not in preview mode
       setStoreValue(newValue)
     }
+
+    setCursorPosition(newCursorPosition)
 
     // Check for environment variables trigger
     const envVarTrigger = checkEnvVarTrigger(newValue, newCursorPosition)

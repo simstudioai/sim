@@ -11,8 +11,8 @@ export default function manifest(): MetadataRoute.Manifest {
       'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
     start_url: '/',
     display: 'standalone',
-    background_color: brand.primaryColor || '#ffffff',
-    theme_color: brand.primaryColor || '#ffffff',
+    background_color: '#701FFC', // Default Sim brand primary color
+    theme_color: '#701FFC', // Default Sim brand primary color
     icons: [
       {
         src: '/favicon/android-chrome-192x192.png',

@@ -44,7 +44,7 @@
     "dotenv-cli": "^8.0.0",
     "husky": "9.1.7",
     "lint-staged": "16.0.0",
-    "turbo": "2.5.5"
+    "turbo": "2.5.6"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,scss}": [

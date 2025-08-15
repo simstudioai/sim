@@ -11,7 +11,7 @@ export default function PrivacyPolicy() {
   }
 
   return (
-    <main className='relative min-h-screen overflow-hidden bg-[#0C0C0C] text-white'>
+    <main className='relative min-h-screen overflow-hidden bg-[var(--brand-background-hex)] text-white'>
       {/* Grid pattern background - only covers content area */}
       <div className='absolute inset-0 bottom-[400px] z-0 overflow-hidden'>
         <GridPattern
@@ -42,7 +42,7 @@ export default function PrivacyPolicy() {
           className='h-full w-full'
         >
           <g filter='url(#filter0_b_privacy)'>
-            <rect width='600' height='1600' rx='0' fill='#0C0C0C' />
+            <rect width='600' height='1600' rx='0' fill='var(--brand-background-hex)' />
           </g>
           <defs>
             <filter
@@ -391,7 +391,7 @@ export default function PrivacyPolicy() {
                   Privacy & Terms web page:{' '}
                   <Link
                     href='https://policies.google.com/privacy?hl=en'
-                    className='text-[#B5A1D4] hover:text-[#701ffc]'
+                    className='text-[#B5A1D4] hover:text-[var(--brand-primary-hex)]'
                     target='_blank'
                     rel='noopener noreferrer'
                   >
@@ -569,7 +569,7 @@ export default function PrivacyPolicy() {
                   Please note that we may ask you to verify your identity before responding to such
                   requests.
                 </p>
-                <p className='mb-4 border-[#701ffc] border-l-4 bg-[#701ffc]/10 p-3'>
+                <p className='mb-4 border-[var(--brand-primary-hex)] border-l-4 bg-[var(--brand-primary-hex)]/10 p-3'>
                   You have the right to complain to a Data Protection Authority about our collection
                   and use of your Personal Information. For more information, please contact your
                   local data protection authority in the European Economic Area (EEA).
@@ -661,7 +661,7 @@ export default function PrivacyPolicy() {
                   policy (if any). Before beginning your inquiry, email us at{' '}
                   <Link
                     href='mailto:security@sim.ai'
-                    className='text-[#B5A1D4] hover:text-[#701ffc]'
+                    className='text-[#B5A1D4] hover:text-[var(--brand-primary-hex)]'
                   >
                     security@sim.ai
                   </Link>{' '}
@@ -686,7 +686,7 @@ export default function PrivacyPolicy() {
                   To report any security flaws, send an email to{' '}
                   <Link
                     href='mailto:security@sim.ai'
-                    className='text-[#B5A1D4] hover:text-[#701ffc]'
+                    className='text-[#B5A1D4] hover:text-[var(--brand-primary-hex)]'
                   >
                     security@sim.ai
                   </Link>
@@ -726,7 +726,7 @@ export default function PrivacyPolicy() {
                   If you have any questions about this Privacy Policy, please contact us at:{' '}
                   <Link
                     href='mailto:privacy@sim.ai'
-                    className='text-[#B5A1D4] hover:text-[#701ffc]'
+                    className='text-[#B5A1D4] hover:text-[var(--brand-primary-hex)]'
                   >
                     privacy@sim.ai
                   </Link>

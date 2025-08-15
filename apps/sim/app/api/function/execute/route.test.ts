@@ -7,7 +7,6 @@ import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
-const mockFreestyleExecuteScript = vi.fn()
 const mockCreateContext = vi.fn()
 const mockRunInContext = vi.fn()
 const mockLogger = {
@@ -29,26 +28,9 @@ describe('Function Execute API Route', () => {
       })),
     }))
 
-    vi.doMock('freestyle-sandboxes', () => ({
-      FreestyleSandboxes: vi.fn().mockImplementation(() => ({
-        executeScript: mockFreestyleExecuteScript,
-      })),
-    }))
-
-    vi.doMock('@/lib/env', () => ({
-      env: {
-        FREESTYLE_API_KEY: 'test-freestyle-key',
-      },
-    }))
-
     vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
-
-    mockFreestyleExecuteScript.mockResolvedValue({
-      result: 'freestyle success',
-      logs: [],
-    })
 
     mockRunInContext.mockResolvedValue('vm success')
     mockCreateContext.mockReturnValue({})
@@ -225,107 +207,6 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
 
       expect(response.status).toBe(200)
-    })
-  })
-
-  describe.skip('Freestyle Execution', () => {
-    it('should use Freestyle when API key is available', async () => {
-      const req = createMockRequest('POST', {
-        code: 'return "freestyle test"',
-      })
-
-      const { POST } = await import('@/app/api/function/execute/route')
-      await POST(req)
-
-      expect(mockFreestyleExecuteScript).toHaveBeenCalled()
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringMatching(/\[.*\] Using Freestyle for code execution/)
-      )
-    })
-
-    it('should handle Freestyle errors and fallback to VM', async () => {
-      mockFreestyleExecuteScript.mockRejectedValueOnce(new Error('Freestyle API error'))
-
-      const req = createMockRequest('POST', {
-        code: 'return "fallback test"',
-      })
-
-      const { POST } = await import('@/app/api/function/execute/route')
-      const response = await POST(req)
-
-      expect(mockFreestyleExecuteScript).toHaveBeenCalled()
-      expect(mockRunInContext).toHaveBeenCalled()
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringMatching(/\[.*\] Freestyle API call failed, falling back to VM:/),
-        expect.any(Object)
-      )
-    })
-
-    it('should handle Freestyle script errors', async () => {
-      mockFreestyleExecuteScript.mockResolvedValueOnce({
-        result: null,
-        logs: [{ type: 'error', message: 'ReferenceError: undefined variable' }],
-      })
-
-      const req = createMockRequest('POST', {
-        code: 'return undefinedVariable',
-      })
-
-      const { POST } = await import('@/app/api/function/execute/route')
-      const response = await POST(req)
-
-      expect(response.status).toBe(500)
-      const data = await response.json()
-      expect(data.success).toBe(false)
-    })
-  })
-
-  describe('VM Execution', () => {
-    it.skip('should use VM when Freestyle API key is not available', async () => {
-      // Mock no Freestyle API key
-      vi.doMock('@/lib/env', () => ({
-        env: {
-          FREESTYLE_API_KEY: undefined,
-        },
-      }))
-
-      const req = createMockRequest('POST', {
-        code: 'return "vm test"',
-      })
-
-      const { POST } = await import('@/app/api/function/execute/route')
-      await POST(req)
-
-      expect(mockFreestyleExecuteScript).not.toHaveBeenCalled()
-      expect(mockRunInContext).toHaveBeenCalled()
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringMatching(
-          /\[.*\] Using VM for code execution \(no Freestyle API key available\)/
-        )
-      )
-    })
-
-    it('should handle VM execution errors', async () => {
-      // Mock no Freestyle API key so it uses VM
-      vi.doMock('@/lib/env', () => ({
-        env: {
-          FREESTYLE_API_KEY: undefined,
-        },
-      }))
-
-      mockRunInContext.mockRejectedValueOnce(new Error('VM execution error'))
-
-      const req = createMockRequest('POST', {
-        code: 'return invalidCode(',
-      })
-
-      const { POST } = await import('@/app/api/function/execute/route')
-      const response = await POST(req)
-
-      expect(response.status).toBe(500)
-      const data = await response.json()
-      expect(data.success).toBe(false)
-      expect(data.error).toContain('VM execution error')
     })
   })
 
@@ -649,115 +530,5 @@ SyntaxError: Invalid or unexpected token
 
       expect(response.status).toBe(200)
     })
-  })
-})
-
-describe('Function Execute API - Template Variable Edge Cases', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    vi.resetAllMocks()
-
-    vi.doMock('@/lib/logs/console/logger', () => ({
-      createLogger: vi.fn().mockReturnValue(mockLogger),
-    }))
-
-    vi.doMock('@/lib/env', () => ({
-      env: {
-        FREESTYLE_API_KEY: 'test-freestyle-key',
-      },
-    }))
-
-    vi.doMock('vm', () => ({
-      createContext: mockCreateContext,
-      Script: vi.fn().mockImplementation(() => ({
-        runInContext: mockRunInContext,
-      })),
-    }))
-
-    vi.doMock('freestyle-sandboxes', () => ({
-      FreestyleSandboxes: vi.fn().mockImplementation(() => ({
-        executeScript: mockFreestyleExecuteScript,
-      })),
-    }))
-
-    mockFreestyleExecuteScript.mockResolvedValue({
-      result: 'freestyle success',
-      logs: [],
-    })
-
-    mockRunInContext.mockResolvedValue('vm success')
-    mockCreateContext.mockReturnValue({})
-  })
-
-  it.skip('should handle nested template variables', async () => {
-    mockFreestyleExecuteScript.mockResolvedValueOnce({
-      result: 'environment-valueparam-value',
-      logs: [],
-    })
-
-    const req = createMockRequest('POST', {
-      code: 'return {{outer}} + <inner>',
-      envVars: {
-        outer: 'environment-value',
-      },
-      params: {
-        inner: 'param-value',
-      },
-    })
-
-    const { POST } = await import('@/app/api/function/execute/route')
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-    expect(data.output.result).toBe('environment-valueparam-value')
-  })
-
-  it.skip('should prioritize environment variables over params for {{}} syntax', async () => {
-    mockFreestyleExecuteScript.mockResolvedValueOnce({
-      result: 'env-wins',
-      logs: [],
-    })
-
-    const req = createMockRequest('POST', {
-      code: 'return {{conflictVar}}',
-      envVars: {
-        conflictVar: 'env-wins',
-      },
-      params: {
-        conflictVar: 'param-loses',
-      },
-    })
-
-    const { POST } = await import('@/app/api/function/execute/route')
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-    // Environment variable should take precedence
-    expect(data.output.result).toBe('env-wins')
-  })
-
-  it.skip('should handle missing template variables gracefully', async () => {
-    mockFreestyleExecuteScript.mockResolvedValueOnce({
-      result: '',
-      logs: [],
-    })
-
-    const req = createMockRequest('POST', {
-      code: 'return {{nonexistent}} + <alsoMissing>',
-      envVars: {},
-      params: {},
-    })
-
-    const { POST } = await import('@/app/api/function/execute/route')
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-    expect(data.output.result).toBe('')
   })
 })

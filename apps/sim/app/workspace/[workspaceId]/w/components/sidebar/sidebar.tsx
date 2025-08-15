@@ -5,7 +5,7 @@ import { HelpCircle, LibraryBig, ScrollText, Search, Settings, Shapes } from 'lu
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Button, ScrollArea, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
-import { getEnv } from '@/lib/env'
+import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
@@ -30,6 +30,7 @@ import {
   getKeyboardShortcutText,
   useGlobalShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
@@ -194,9 +195,6 @@ export function Sidebar() {
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const userPermissions = useUserPermissionsContext()
   const isLoading = workflowsLoading || sessionLoading
-
-  // Get billing status
-  const isBillingEnabled = getEnv('NEXT_PUBLIC_BILLING_ENABLED') || false
 
   // Add state to prevent multiple simultaneous workflow creations
   const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false)
@@ -810,6 +808,11 @@ export function Sidebar() {
 
     try {
       setIsCreatingWorkflow(true)
+
+      // Clear workflow diff store when creating a new workflow
+      const { clearDiff } = useWorkflowDiffStore.getState()
+      clearDiff()
+
       const id = await createWorkflow({
         workspaceId: workspaceId || undefined,
         folderId: folderId || undefined,
@@ -1214,8 +1217,9 @@ const NavigationItem = ({ item }: NavigationItemProps) => {
       className={cn(
         'h-[42px] w-[42px] rounded-[10px] border bg-background text-foreground shadow-xs transition-all duration-200',
         isGrayHover && 'hover:bg-secondary',
-        !isGrayHover && 'hover:border-[#701FFC] hover:bg-[#701FFC] hover:text-white',
-        item.active && 'border-[#701FFC] bg-[#701FFC] text-white'
+        !isGrayHover &&
+          'hover:border-[var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hex)] hover:text-white',
+        item.active && 'border-[var(--brand-primary-hex)] bg-[var(--brand-primary-hex)] text-white'
       )}
     >
       <item.icon className='h-4 w-4' />

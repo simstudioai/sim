@@ -10,6 +10,7 @@ import {
   CheckpointPanel,
   CopilotMessage,
   CopilotWelcome,
+  TodoList,
   UserInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
 import type {
@@ -36,6 +37,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const userInputRef = useRef<UserInputRef>(null)
   const [showCheckpoints] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [todosCollapsed, setTodosCollapsed] = useState(false)
   const lastWorkflowIdRef = useRef<string | null>(null)
   const hasMountedRef = useRef(false)
 
@@ -56,6 +58,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     isAborting,
     mode,
     inputValue,
+    planTodos,
+    showPlanTodos,
     sendMessage,
     abortMessage,
     createNewChat,
@@ -197,6 +201,37 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     }
   }, [isInitialized, messages.length, scrollToBottom])
 
+  // Track previous sending state to detect when stream completes
+  const wasSendingRef = useRef(false)
+
+  // Auto-collapse todos and remove uncompleted ones when stream completes
+  useEffect(() => {
+    if (wasSendingRef.current && !isSendingMessage && showPlanTodos) {
+      // Stream just completed, collapse the todos and filter out uncompleted ones
+      setTodosCollapsed(true)
+
+      // Remove any uncompleted todos
+      const completedTodos = planTodos.filter((todo) => todo.completed === true)
+      if (completedTodos.length !== planTodos.length) {
+        // Only update if there are uncompleted todos to remove
+        const store = useCopilotStore.getState()
+        store.setPlanTodos(completedTodos)
+      }
+    }
+    wasSendingRef.current = isSendingMessage
+  }, [isSendingMessage, showPlanTodos, planTodos])
+
+  // Reset collapsed state when todos first appear
+  useEffect(() => {
+    if (showPlanTodos && planTodos.length > 0) {
+      // Check if this is the first time todos are showing
+      // (only expand if currently sending a message, meaning new todos are being created)
+      if (isSendingMessage) {
+        setTodosCollapsed(false)
+      }
+    }
+  }, [showPlanTodos, planTodos.length, isSendingMessage])
+
   // Cleanup on component unmount (page refresh, navigation, etc.)
   useEffect(() => {
     return () => {
@@ -252,10 +287,25 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     [handleStartNewChat]
   )
 
+  // Handle abort action
+  const handleAbort = useCallback(() => {
+    abortMessage()
+    // Collapse todos when aborting
+    if (showPlanTodos) {
+      setTodosCollapsed(true)
+    }
+  }, [abortMessage, showPlanTodos])
+
   // Handle message submission
   const handleSubmit = useCallback(
     async (query: string, fileAttachments?: MessageFileAttachment[]) => {
       if (!query || isSendingMessage || !activeWorkflowId) return
+
+      // Clear todos when sending a new message
+      if (showPlanTodos) {
+        const store = useCopilotStore.getState()
+        store.setPlanTodos([])
+      }
 
       try {
         await sendMessage(query, { stream: true, fileAttachments })
@@ -268,7 +318,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
         logger.error('Failed to send message:', error)
       }
     },
-    [isSendingMessage, activeWorkflowId, sendMessage]
+    [isSendingMessage, activeWorkflowId, sendMessage, showPlanTodos]
   )
 
   return (
@@ -293,7 +343,10 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                   <div className='w-full max-w-full space-y-1 overflow-hidden'>
                     {messages.length === 0 ? (
                       <div className='flex h-full items-center justify-center p-4'>
-                        <CopilotWelcome onQuestionClick={handleSubmit} mode={mode} />
+                        <CopilotWelcome
+                          onQuestionClick={handleSubmit}
+                          mode={mode === 'ask' ? 'ask' : 'agent'}
+                        />
                       </div>
                     ) : (
                       messages.map((message) => (
@@ -326,12 +379,24 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
               </div>
             )}
 
+            {/* Todo list from plan tool */}
+            {!showCheckpoints && showPlanTodos && (
+              <TodoList
+                todos={planTodos}
+                collapsed={todosCollapsed}
+                onClose={() => {
+                  const store = useCopilotStore.getState()
+                  store.setPlanTodos([])
+                }}
+              />
+            )}
+
             {/* Input area with integrated mode selector */}
             {!showCheckpoints && (
               <UserInput
                 ref={userInputRef}
                 onSubmit={handleSubmit}
-                onAbort={abortMessage}
+                onAbort={handleAbort}
                 disabled={!activeWorkflowId}
                 isLoading={isSendingMessage}
                 isAborting={isAborting}

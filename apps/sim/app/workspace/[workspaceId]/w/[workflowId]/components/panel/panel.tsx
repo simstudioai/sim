@@ -401,7 +401,7 @@ export function Panel() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align='end'
-                      className='z-[200] w-48 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[#202020]'
+                      className='z-[200] w-48 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
                       sideOffset={8}
                       side='bottom'
                       avoidCollisions={true}

@@ -32,7 +32,6 @@ export const env = createEnv({
     REDIS_URL:                            z.string().url().optional(),            // Redis connection string for caching/sessions
 
     // Payment & Billing
-    BILLING_ENABLED:                      z.boolean().optional(),                 // Enable billing enforcement and usage tracking
     STRIPE_SECRET_KEY:                    z.string().min(1).optional(),           // Stripe secret key for payment processing
     STRIPE_BILLING_WEBHOOK_SECRET:        z.string().min(1).optional(),           // Webhook secret for billing events
     STRIPE_WEBHOOK_SECRET:                z.string().min(1).optional(),           // General Stripe webhook secret
@@ -44,6 +43,7 @@ export const env = createEnv({
     TEAM_TIER_COST_LIMIT:                 z.number().optional(),                  // Cost limit for team tier users
     STRIPE_ENTERPRISE_PRICE_ID:           z.string().min(1).optional(),           // Stripe price ID for enterprise tier
     ENTERPRISE_TIER_COST_LIMIT:           z.number().optional(),                  // Cost limit for enterprise tier users
+    BILLING_ENABLED:                      z.boolean().optional(),                 // Enable billing enforcement and usage tracking
 
     // Email & Communication
     RESEND_API_KEY:                       z.string().min(1).optional(),           // Resend API key for transactional emails
@@ -58,7 +58,6 @@ export const env = createEnv({
     ANTHROPIC_API_KEY_1:                  z.string().min(1).optional(),           // Primary Anthropic Claude API key
     ANTHROPIC_API_KEY_2:                  z.string().min(1).optional(),           // Additional Anthropic API key for load balancing
     ANTHROPIC_API_KEY_3:                  z.string().min(1).optional(),           // Additional Anthropic API key for load balancing
-    FREESTYLE_API_KEY:                    z.string().min(1).optional(),           // Freestyle AI API key
     OLLAMA_URL:                           z.string().url().optional(),            // Ollama local LLM server URL
     ELEVENLABS_API_KEY:                   z.string().min(1).optional(),           // ElevenLabs API key for text-to-speech in deployed chat
     SERPER_API_KEY:                       z.string().min(1).optional(),           // Serper API key for online search
@@ -195,14 +194,8 @@ export const env = createEnv({
     NEXT_PUBLIC_BRAND_NAME:               z.string().optional(),                  // Custom brand name (defaults to "Sim")
     NEXT_PUBLIC_BRAND_LOGO_URL:           z.string().url().optional(),            // Custom logo URL
     NEXT_PUBLIC_BRAND_FAVICON_URL:        z.string().url().optional(),            // Custom favicon URL
-    NEXT_PUBLIC_BRAND_PRIMARY_COLOR:      z.string().optional(),                  // Primary brand color (hex)
-    NEXT_PUBLIC_BRAND_SECONDARY_COLOR:    z.string().optional(),                  // Secondary brand color (hex)
-    NEXT_PUBLIC_BRAND_ACCENT_COLOR:       z.string().optional(),                  // Accent brand color (hex)
     NEXT_PUBLIC_CUSTOM_CSS_URL:           z.string().url().optional(),            // Custom CSS stylesheet URL
-    NEXT_PUBLIC_HIDE_BRANDING:            z.string().optional(),                  // Hide "Powered by" branding
-    NEXT_PUBLIC_CUSTOM_FOOTER_TEXT:       z.string().optional(),                  // Custom footer text
     NEXT_PUBLIC_SUPPORT_EMAIL:            z.string().email().optional(),          // Custom support email
-    NEXT_PUBLIC_SUPPORT_URL:              z.string().url().optional(),            // Custom support URL
     NEXT_PUBLIC_DOCUMENTATION_URL:        z.string().url().optional(),            // Custom documentation URL
     NEXT_PUBLIC_TERMS_URL:                z.string().url().optional(),            // Custom terms of service URL
     NEXT_PUBLIC_PRIVACY_URL:              z.string().url().optional(),            // Custom privacy policy URL
@@ -228,14 +221,8 @@ export const env = createEnv({
     NEXT_PUBLIC_BRAND_NAME: process.env.NEXT_PUBLIC_BRAND_NAME,
     NEXT_PUBLIC_BRAND_LOGO_URL: process.env.NEXT_PUBLIC_BRAND_LOGO_URL,
     NEXT_PUBLIC_BRAND_FAVICON_URL: process.env.NEXT_PUBLIC_BRAND_FAVICON_URL,
-    NEXT_PUBLIC_BRAND_PRIMARY_COLOR: process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR,
-    NEXT_PUBLIC_BRAND_SECONDARY_COLOR: process.env.NEXT_PUBLIC_BRAND_SECONDARY_COLOR,
-    NEXT_PUBLIC_BRAND_ACCENT_COLOR: process.env.NEXT_PUBLIC_BRAND_ACCENT_COLOR,
     NEXT_PUBLIC_CUSTOM_CSS_URL: process.env.NEXT_PUBLIC_CUSTOM_CSS_URL,
-    NEXT_PUBLIC_HIDE_BRANDING: process.env.NEXT_PUBLIC_HIDE_BRANDING,
-    NEXT_PUBLIC_CUSTOM_FOOTER_TEXT: process.env.NEXT_PUBLIC_CUSTOM_FOOTER_TEXT,
     NEXT_PUBLIC_SUPPORT_EMAIL: process.env.NEXT_PUBLIC_SUPPORT_EMAIL,
-    NEXT_PUBLIC_SUPPORT_URL: process.env.NEXT_PUBLIC_SUPPORT_URL,
     NEXT_PUBLIC_DOCUMENTATION_URL: process.env.NEXT_PUBLIC_DOCUMENTATION_URL,
     NEXT_PUBLIC_TERMS_URL: process.env.NEXT_PUBLIC_TERMS_URL,
     NEXT_PUBLIC_PRIVACY_URL: process.env.NEXT_PUBLIC_PRIVACY_URL,
@@ -246,6 +233,6 @@ export const env = createEnv({
 
 // Need this utility because t3-env is returning string for boolean values.
 export const isTruthy = (value: string | boolean | number | undefined) =>
-  typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value)
+  typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value)
 
 export { getEnv }

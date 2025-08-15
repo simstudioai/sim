@@ -12,7 +12,7 @@ export default function Landing() {
   }
 
   return (
-    <main className='relative min-h-screen bg-[#0C0C0C] font-geist-sans'>
+    <main className='relative min-h-screen bg-[var(--brand-background-hex)] font-geist-sans'>
       <NavWrapper onOpenTypeformLink={handleOpenTypeformLink} />
 
       <Hero />

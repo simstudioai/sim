@@ -150,13 +150,12 @@ export function ComboBox({
     const newValue = e.target.value
     const newCursorPosition = e.target.selectionStart ?? 0
 
-    // Update cursor first to reduce staleness for dropdown logic
-    setCursorPosition(newCursorPosition)
-
     // Update store value immediately (allow free text)
     if (!isPreview) {
       setStoreValue(newValue)
     }
+
+    setCursorPosition(newCursorPosition)
 
     // Check for environment variables trigger
     const envVarTrigger = checkEnvVarTrigger(newValue, newCursorPosition)

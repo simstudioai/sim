@@ -1,3 +1,4 @@
+import { generateInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import type { ExecutionContext } from '@/executor/types'
@@ -116,18 +117,37 @@ export async function executeTool(
           credentialId: contextParams.credential,
         }
 
-        // Add workflowId if it exists in params or context
-        const workflowId = contextParams.workflowId || contextParams._context?.workflowId
+        // Add workflowId if it exists in params, context, or executionContext
+        const workflowId =
+          contextParams.workflowId ||
+          contextParams._context?.workflowId ||
+          executionContext?.workflowId
         if (workflowId) {
           tokenPayload.workflowId = workflowId
         }
 
         logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
 
-        const tokenUrl = new URL('/api/auth/oauth/token', baseUrl).toString()
-        const response = await fetch(tokenUrl, {
+        // Build token URL and also include workflowId in query so server auth can read it
+        const tokenUrlObj = new URL('/api/auth/oauth/token', baseUrl)
+        if (workflowId) {
+          tokenUrlObj.searchParams.set('workflowId', workflowId)
+        }
+
+        // Always send Content-Type; add internal auth on server-side runs
+        const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (typeof window === 'undefined') {
+          try {
+            const internalToken = await generateInternalToken()
+            tokenHeaders.Authorization = `Bearer ${internalToken}`
+          } catch (_e) {
+            // Swallow token generation errors; the request will fail and be reported upstream
+          }
+        }
+
+        const response = await fetch(tokenUrlObj.toString(), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: tokenHeaders,
           body: JSON.stringify(tokenPayload),
         })
 

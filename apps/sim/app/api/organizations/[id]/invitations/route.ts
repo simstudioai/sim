@@ -21,8 +21,6 @@ import { invitation, member, organization, user, workspace, workspaceInvitation 
 
 const logger = createLogger('OrganizationInvitationsAPI')
 
-export const dynamic = 'force-dynamic'
-
 interface WorkspaceInvitation {
   workspaceId: string
   permission: 'admin' | 'write' | 'read'

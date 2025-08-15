@@ -16,8 +16,8 @@ export function CopilotWelcome({ onQuestionClick, mode = 'ask' }: CopilotWelcome
 
   const agentQuestions = [
     'Help me build a workflow',
-    'I want to edit my workflow',
-    'Build me a small sample workflow',
+    'Help me optimize my workflow',
+    'Help me debug my workflow',
   ]
 
   const exampleQuestions = mode === 'ask' ? askQuestions : agentQuestions
@@ -35,7 +35,7 @@ export function CopilotWelcome({ onQuestionClick, mode = 'ask' }: CopilotWelcome
           <p className='text-muted-foreground text-sm'>
             {mode === 'ask'
               ? 'Ask me anything about your workflows, available tools, or how to get started.'
-              : 'I can help you build, edit, and create workflows. What would you like to do?'}
+              : 'I can help you build, edit, and optimize workflows. What would you like to do?'}
           </p>
         </div>
         <div className='mx-auto max-w-sm space-y-3'>

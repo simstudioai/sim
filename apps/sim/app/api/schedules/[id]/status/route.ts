@@ -3,9 +3,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
-
-export const dynamic = 'force-dynamic'
-
 import { db } from '@/db'
 import { workflow, workflowSchedule } from '@/db/schema'
 

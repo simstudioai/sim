@@ -14,7 +14,6 @@ services:
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-your_auth_secret_here}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-your_encryption_key_here}
-      - FREESTYLE_API_KEY=${FREESTYLE_API_KEY:-placeholder}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-placeholder}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-placeholder}
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-placeholder}

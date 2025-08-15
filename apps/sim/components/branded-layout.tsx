@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { generateBrandCSS, getBrandConfig } from '@/lib/branding/branding'
+import { getBrandConfig } from '@/lib/branding/branding'
 
 interface BrandedLayoutProps {
   children: React.ReactNode
@@ -23,18 +23,6 @@ export function BrandedLayout({ children }: BrandedLayoutProps) {
         faviconLink.href = config.faviconUrl
       }
     }
-
-    // Inject brand CSS
-    const brandStyleId = 'brand-styles'
-    let brandStyleElement = document.getElementById(brandStyleId) as HTMLStyleElement
-
-    if (!brandStyleElement) {
-      brandStyleElement = document.createElement('style')
-      brandStyleElement.id = brandStyleId
-      document.head.appendChild(brandStyleElement)
-    }
-
-    brandStyleElement.textContent = generateBrandCSS(config)
 
     // Load custom CSS if provided
     if (config.customCssUrl) {

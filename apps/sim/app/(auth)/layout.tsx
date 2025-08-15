@@ -9,7 +9,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const brand = useBrandConfig()
 
   return (
-    <main className='relative flex min-h-screen flex-col bg-[#0C0C0C] font-geist-sans text-white'>
+    <main className='relative flex min-h-screen flex-col bg-[var(--brand-background-hex)] font-geist-sans text-white'>
       {/* Background pattern */}
       <GridPattern
         x={-5}

@@ -166,7 +166,7 @@ function UnsubscribeContent() {
                     '_blank'
                   )
                 }
-                className='w-full bg-[#701ffc] font-medium text-white shadow-sm transition-colors duration-200 hover:bg-[#802FFF]'
+                className='w-full bg-[var(--brand-primary-hex)] font-medium text-white shadow-sm transition-colors duration-200 hover:bg-[var(--brand-primary-hover-hex)]'
               >
                 Contact Support
               </Button>

@@ -8,7 +8,6 @@ import { env } from '@/lib/env'
 import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getAssetUrl } from '@/lib/utils'
-import { TelemetryConsentDialog } from '@/app/telemetry-consent-dialog'
 import '@/app/globals.css'
 
 import { ZoomPrevention } from '@/app/zoom-prevention'
@@ -110,7 +109,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body suppressHydrationWarning>
         <BrandedLayout>
           <ZoomPrevention />
-          <TelemetryConsentDialog />
           {children}
           {isHosted && (
             <>

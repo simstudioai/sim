@@ -1033,7 +1033,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               }
               className={cn(
                 'ml-auto flex h-9 items-center justify-center gap-2 rounded-[8px] px-4 py-2 font-medium transition-all duration-200',
-                'bg-[#701FFC] text-white shadow-[0_0_0_0_#701FFC] hover:bg-[#7028E6] hover:shadow-[0_0_0_4px_rgba(112,31,252,0.15)] disabled:opacity-50 disabled:hover:bg-[#701FFC] disabled:hover:shadow-none'
+                'bg-[var(--brand-primary-hex)] text-white shadow-[0_0_0_0_var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(112,31,252,0.15)] disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none'
               )}
             >
               {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}

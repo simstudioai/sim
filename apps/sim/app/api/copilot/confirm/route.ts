@@ -38,7 +38,7 @@ async function updateToolCallStatus(
 
   try {
     const key = `tool_call:${toolCallId}`
-    const timeout = 60000 // 1 minute timeout
+    const timeout = 600000 // 10 minutes timeout for user confirmation
     const pollInterval = 100 // Poll every 100ms
     const startTime = Date.now()
 
