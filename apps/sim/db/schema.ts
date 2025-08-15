@@ -1188,11 +1188,13 @@ export const copilotApiKeys = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     apiKeyEncrypted: text('api_key_encrypted').notNull(),
+    apiKeyLookup: text('api_key_lookup').notNull(),
   },
   (table) => ({
     apiKeyEncryptedHashIdx: index('copilot_api_keys_api_key_encrypted_hash_idx').using(
       'hash',
       table.apiKeyEncrypted
     ),
+    apiKeyLookupHashIdx: index('copilot_api_keys_lookup_hash_idx').using('hash', table.apiKeyLookup),
   })
 )

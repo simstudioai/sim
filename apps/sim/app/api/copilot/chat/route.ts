@@ -1,6 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
 import { getSession } from '@/lib/auth'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -17,11 +18,39 @@ import { downloadFile } from '@/lib/uploads'
 import { downloadFromS3WithConfig } from '@/lib/uploads/s3/s3-client'
 import { S3_COPILOT_CONFIG, USE_S3_STORAGE } from '@/lib/uploads/setup'
 import { db } from '@/db'
-import { copilotChats } from '@/db/schema'
+import { copilotChats, copilotApiKeys } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
 import { createAnthropicFileContent, isSupportedFileType } from './file-utils'
 
 const logger = createLogger('CopilotChatAPI')
+
+function deriveKey(keyString: string): Buffer {
+  return createHash('sha256').update(keyString, 'utf8').digest()
+}
+
+function decryptWithKey(encryptedValue: string, keyString: string): string {
+  const [ivHex, encryptedHex, authTagHex] = encryptedValue.split(':')
+  if (!ivHex || !encryptedHex || !authTagHex) {
+    throw new Error('Invalid encrypted format')
+  }
+  const key = deriveKey(keyString)
+  const iv = Buffer.from(ivHex, 'hex')
+  const decipher = createDecipheriv('aes-256-gcm', key, iv)
+  decipher.setAuthTag(Buffer.from(authTagHex, 'hex'))
+  let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
+  decrypted += decipher.final('utf8')
+  return decrypted
+}
+
+function encryptWithKey(plaintext: string, keyString: string): string {
+  const key = deriveKey(keyString)
+  const iv = randomBytes(16)
+  const cipher = createCipheriv('aes-256-gcm', key, iv)
+  let encrypted = cipher.update(plaintext, 'utf8', 'hex')
+  encrypted += cipher.final('hex')
+  const authTag = cipher.getAuthTag().toString('hex')
+  return `${iv.toString('hex')}:${encrypted}:${authTag}`
+}
 
 // Schema for file attachments
 const FileAttachmentSchema = z.object({
@@ -343,11 +372,33 @@ export async function POST(req: NextRequest) {
     // If we have a conversationId, only send the most recent user message; else send full history
     const messagesForAgent = effectiveConversationId ? [messages[messages.length - 1]] : messages
 
+    // Build a network-encrypted API key for this user from DB
+    let networkEncryptedApiKey: string | undefined
+    if (env.AGENT_API_DB_ENCRYPTION_KEY && env.AGENT_API_NETWORK_ENCRYPTION_KEY) {
+      try {
+        const rows = await db
+          .select({ apiKeyEncrypted: copilotApiKeys.apiKeyEncrypted })
+          .from(copilotApiKeys)
+          .where(eq(copilotApiKeys.userId, authenticatedUserId))
+          .limit(1)
+
+        if (rows.length > 0) {
+          const plaintextKey = decryptWithKey(rows[0].apiKeyEncrypted, env.AGENT_API_DB_ENCRYPTION_KEY)
+          networkEncryptedApiKey = encryptWithKey(plaintextKey, env.AGENT_API_NETWORK_ENCRYPTION_KEY)
+        }
+      } catch (e) {
+        logger.warn(`[${tracker.requestId}] Failed to prepare network API key for user`, {
+          userId: authenticatedUserId,
+          error: e instanceof Error ? e.message : String(e),
+        })
+      }
+    }
+
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
+        ...(networkEncryptedApiKey ? { 'x-api-key': networkEncryptedApiKey } : {}),
       },
       body: JSON.stringify({
         messages: messagesForAgent,
