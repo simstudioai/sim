@@ -8,9 +8,11 @@ import {
   UserCircle,
   Users,
 } from 'lucide-react'
-import { isBillingEnabled } from '@/lib/environment'
+import { getEnv, isTruthy } from '@/lib/env'
 import { cn } from '@/lib/utils'
 import { useSubscriptionStore } from '@/stores/subscription/store'
+
+const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 interface SettingsNavigationProps {
   activeSection: string
