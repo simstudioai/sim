@@ -1,0 +1,1 @@
+export { githubWebhookTrigger } from './webhook'

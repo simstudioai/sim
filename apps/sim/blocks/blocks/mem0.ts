@@ -295,8 +295,8 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
     limit: { type: 'number', description: 'Result limit' },
   },
   outputs: {
-    ids: { type: 'any', description: 'Memory identifiers' },
-    memories: { type: 'any', description: 'Memory data' },
-    searchResults: { type: 'any', description: 'Search results' },
+    ids: { type: 'json', description: 'Memory identifiers' },
+    memories: { type: 'json', description: 'Memory data' },
+    searchResults: { type: 'json', description: 'Search results' },
   },
 }

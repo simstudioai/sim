@@ -71,10 +71,7 @@ Search for academic papers on ArXiv by keywords, authors, titles, or other field
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `papers` | json | Found papers data |
-| `totalResults` | number | Total results count |
-| `paper` | json | Paper details |
-| `authorPapers` | json | Author papers list |
+| `papers` | json | Array of papers matching the search query |
 
 ### `arxiv_get_paper`
 
@@ -84,16 +81,13 @@ Get detailed information about a specific ArXiv paper by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `paperId` | string | Yes | ArXiv paper ID \(e.g.,  |
+| `paperId` | string | Yes | ArXiv paper ID \(e.g., "1706.03762"\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `papers` | json | Found papers data |
-| `totalResults` | number | Total results count |
-| `paper` | json | Paper details |
-| `authorPapers` | json | Author papers list |
+| `paper` | json | Detailed information about the requested ArXiv paper |
 
 ### `arxiv_get_author_papers`
 
@@ -110,10 +104,7 @@ Search for papers by a specific author on ArXiv.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `papers` | json | Found papers data |
-| `totalResults` | number | Total results count |
-| `paper` | json | Paper details |
-| `authorPapers` | json | Author papers list |
+| `authorPapers` | json | Array of papers authored by the specified author |
 
 
 

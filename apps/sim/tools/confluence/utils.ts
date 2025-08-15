@@ -27,3 +27,33 @@ export async function getConfluenceCloudId(domain: string, accessToken: string):
 
   throw new Error('No Confluence resources found')
 }
+
+export function transformPageData(data: any) {
+  // Get content from wherever we can find it
+  const content =
+    data.body?.view?.value ||
+    data.body?.storage?.value ||
+    data.body?.atlas_doc_format?.value ||
+    data.content ||
+    data.description ||
+    `Content for page ${data.title || 'Unknown'}`
+
+  const cleanContent = content
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return {
+    success: true,
+    output: {
+      ts: new Date().toISOString(),
+      pageId: data.id || '',
+      content: cleanContent,
+      title: data.title || '',
+    },
+  }
+}

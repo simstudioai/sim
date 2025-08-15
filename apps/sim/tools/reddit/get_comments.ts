@@ -12,6 +12,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
     provider: 'reddit',
     additionalScopes: ['read'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -71,116 +72,97 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
   },
 
   transformResponse: async (response: Response, requestParams?: RedditCommentsParams) => {
-    try {
-      // Check if response is OK
-      if (!response.ok) {
-        if (response.status === 403 || response.status === 429) {
-          throw new Error('Reddit API access blocked or rate limited. Please try again later.')
-        }
-        throw new Error(`Reddit API returned ${response.status}: ${response.statusText}`)
-      }
+    const data = await response.json()
 
-      // Attempt to parse JSON
-      let data
-      try {
-        data = await response.json()
-      } catch (_error) {
-        throw new Error('Failed to parse Reddit API response: Response was not valid JSON')
-      }
+    // Extract post data (first element in the array)
+    const postData = data[0]?.data?.children[0]?.data || {}
 
-      // Validate data structure
-      if (!Array.isArray(data) || data.length < 2) {
-        throw new Error('Invalid response format from Reddit API')
-      }
+    // Extract and transform comments (second element in the array)
+    const commentsData = data[1]?.data?.children || []
 
-      // Extract post data (first element in the array)
-      const postData = data[0]?.data?.children[0]?.data || {}
+    // Recursive function to process nested comments
+    const processComments = (comments: any[]): any[] => {
+      return comments
+        .map((comment) => {
+          const commentData = comment.data
 
-      // Extract and transform comments (second element in the array)
-      const commentsData = data[1]?.data?.children || []
+          // Skip non-comment items like "more" items
+          if (!commentData || comment.kind !== 't1') {
+            return null
+          }
 
-      // Recursive function to process nested comments
-      const processComments = (comments: any[]): any[] => {
-        return comments
-          .map((comment) => {
-            const commentData = comment.data
+          // Process nested replies if they exist
+          const replies = commentData.replies?.data?.children
+            ? processComments(commentData.replies.data.children)
+            : []
 
-            // Skip non-comment items like "more" items
-            if (!commentData || comment.kind !== 't1') {
-              return null
-            }
+          return {
+            id: commentData.id || '',
+            author: commentData.author || '[deleted]',
+            body: commentData.body || '',
+            created_utc: commentData.created_utc || 0,
+            score: commentData.score || 0,
+            permalink: commentData.permalink
+              ? `https://www.reddit.com${commentData.permalink}`
+              : '',
+            replies: replies.filter(Boolean),
+          }
+        })
+        .filter(Boolean)
+    }
 
-            // Process nested replies if they exist
-            const replies = commentData.replies?.data?.children
-              ? processComments(commentData.replies.data.children)
-              : []
+    const comments = processComments(commentsData)
 
-            return {
-              id: commentData.id || '',
-              author: commentData.author || '[deleted]',
-              body: commentData.body || '',
-              created_utc: commentData.created_utc || 0,
-              score: commentData.score || 0,
-              permalink: commentData.permalink
-                ? `https://www.reddit.com${commentData.permalink}`
-                : '',
-              replies: replies.filter(Boolean),
-            }
-          })
-          .filter(Boolean)
-      }
-
-      const comments = processComments(commentsData)
-
-      return {
-        success: true,
-        output: {
-          post: {
-            id: postData.id || '',
-            title: postData.title || '',
-            author: postData.author || '[deleted]',
-            selftext: postData.selftext || '',
-            created_utc: postData.created_utc || 0,
-            score: postData.score || 0,
-            permalink: postData.permalink ? `https://www.reddit.com${postData.permalink}` : '',
-          },
-          comments: comments,
+    return {
+      success: true,
+      output: {
+        post: {
+          id: postData.id || '',
+          title: postData.title || '',
+          author: postData.author || '[deleted]',
+          selftext: postData.selftext || '',
+          created_utc: postData.created_utc || 0,
+          score: postData.score || 0,
+          permalink: postData.permalink ? `https://www.reddit.com${postData.permalink}` : '',
         },
-      }
-    } catch (error: any) {
-      const errorMessage = error.message || 'Unknown error'
-      return {
-        success: false,
-        output: {
-          post: {
-            id: '',
-            title: '',
-            author: '',
-            selftext: '',
-            created_utc: 0,
-            score: 0,
-            permalink: '',
-          },
-          comments: [],
-        },
-        error: errorMessage,
-      }
+        comments: comments,
+      },
     }
   },
 
-  transformError: (error): string => {
-    // Create detailed error message
-    let errorMessage = error.message || 'Unknown error'
-
-    if (errorMessage.includes('blocked') || errorMessage.includes('rate limited')) {
-      errorMessage = `Reddit access is currently unavailable: ${errorMessage}. Consider reducing request frequency or using the official Reddit API with authentication.`
-    }
-
-    if (errorMessage.includes('not valid JSON')) {
-      errorMessage =
-        'Unable to process Reddit response: Received non-JSON response, which typically happens when Reddit blocks automated access.'
-    }
-
-    return `Error fetching Reddit comments: ${errorMessage}`
+  outputs: {
+    post: {
+      type: 'object',
+      description: 'Post information including ID, title, author, content, and metadata',
+      properties: {
+        id: { type: 'string', description: 'Post ID' },
+        title: { type: 'string', description: 'Post title' },
+        author: { type: 'string', description: 'Post author' },
+        selftext: { type: 'string', description: 'Post text content' },
+        score: { type: 'number', description: 'Post score' },
+        created_utc: { type: 'number', description: 'Creation timestamp' },
+        permalink: { type: 'string', description: 'Reddit permalink' },
+      },
+    },
+    comments: {
+      type: 'array',
+      description: 'Nested comments with author, body, score, timestamps, and replies',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Comment ID' },
+          author: { type: 'string', description: 'Comment author' },
+          body: { type: 'string', description: 'Comment text' },
+          score: { type: 'number', description: 'Comment score' },
+          created_utc: { type: 'number', description: 'Creation timestamp' },
+          permalink: { type: 'string', description: 'Comment permalink' },
+          replies: {
+            type: 'array',
+            description: 'Nested reply comments',
+            items: { type: 'object', description: 'Nested comment with same structure' },
+          },
+        },
+      },
+    },
   },
 }

@@ -22,6 +22,7 @@ export class InputResolver {
   private blockById: Map<string, SerializedBlock>
   private blockByNormalizedName: Map<string, SerializedBlock>
   private loopsByBlockId: Map<string, string> // Maps block ID to containing loop ID
+  private parallelsByBlockId: Map<string, string> // Maps block ID to containing parallel ID
 
   constructor(
     private workflow: SerializedWorkflow,
@@ -59,6 +60,14 @@ export class InputResolver {
     for (const [loopId, loop] of Object.entries(workflow.loops || {})) {
       for (const blockId of loop.nodes) {
         this.loopsByBlockId.set(blockId, loopId)
+      }
+    }
+
+    // Create efficient parallel lookup map
+    this.parallelsByBlockId = new Map()
+    for (const [parallelId, parallel] of Object.entries(workflow.parallels || {})) {
+      for (const blockId of parallel.nodes) {
+        this.parallelsByBlockId.set(blockId, parallelId)
       }
     }
   }
@@ -651,15 +660,8 @@ export class InputResolver {
 
       // Special case for "parallel" references - allows accessing parallel properties
       if (blockRef.toLowerCase() === 'parallel') {
-        // Find which parallel this block belongs to
-        let containingParallelId: string | undefined
-
-        for (const [parallelId, parallel] of Object.entries(context.workflow?.parallels || {})) {
-          if (parallel.nodes.includes(currentBlock.id)) {
-            containingParallelId = parallelId
-            break
-          }
-        }
+        // Find which parallel this block belongs to using efficient lookup
+        const containingParallelId = this.parallelsByBlockId.get(currentBlock.id)
 
         if (containingParallelId) {
           const formattedValue = this.resolveParallelReference(
@@ -1091,8 +1093,10 @@ export class InputResolver {
     }
 
     // Special case: blocks in the same parallel can reference each other
-    for (const [parallelId, parallel] of Object.entries(this.workflow.parallels || {})) {
-      if (parallel.nodes.includes(currentBlockId)) {
+    const currentBlockParallel = this.parallelsByBlockId.get(currentBlockId)
+    if (currentBlockParallel) {
+      const parallel = this.workflow.parallels?.[currentBlockParallel]
+      if (parallel) {
         for (const nodeId of parallel.nodes) {
           accessibleBlocks.add(nodeId)
         }
@@ -1844,5 +1848,23 @@ export class InputResolver {
     }
 
     return value
+  }
+
+  /**
+   * Get the containing loop ID for a block
+   * @param blockId - The ID of the block
+   * @returns The containing loop ID or undefined if not in a loop
+   */
+  getContainingLoopId(blockId: string): string | undefined {
+    return this.loopsByBlockId.get(blockId)
+  }
+
+  /**
+   * Get the containing parallel ID for a block
+   * @param blockId - The ID of the block
+   * @returns The containing parallel ID or undefined if not in a parallel
+   */
+  getContainingParallelId(blockId: string): string | undefined {
+    return this.parallelsByBlockId.get(blockId)
   }
 }

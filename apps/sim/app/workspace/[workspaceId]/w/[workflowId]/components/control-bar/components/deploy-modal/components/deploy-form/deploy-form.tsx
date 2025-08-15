@@ -59,6 +59,8 @@ interface DeployFormProps {
   onSubmit: (data: DeployFormValues) => void
   getInputFormatExample: () => string
   onApiKeyCreated?: () => void
+  // Optional id to bind an external submit button via the `form` attribute
+  formId?: string
 }
 
 export function DeployForm({
@@ -69,6 +71,7 @@ export function DeployForm({
   onSubmit,
   getInputFormatExample,
   onApiKeyCreated,
+  formId,
 }: DeployFormProps) {
   // State
   const [isCreatingKey, setIsCreatingKey] = useState(false)
@@ -148,6 +151,7 @@ export function DeployForm({
   return (
     <Form {...form}>
       <form
+        id={formId}
         onSubmit={(e) => {
           e.preventDefault()
           onSubmit(form.getValues())

@@ -71,7 +71,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
   outputs: {
     id: { type: 'string', description: 'Task execution identifier' },
     success: { type: 'boolean', description: 'Task completion status' },
-    output: { type: 'any', description: 'Task output data' },
+    output: { type: 'json', description: 'Task output data' },
     steps: { type: 'json', description: 'Execution steps taken' },
   },
 }

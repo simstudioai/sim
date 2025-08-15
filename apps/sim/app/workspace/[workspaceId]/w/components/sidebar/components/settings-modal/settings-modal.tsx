@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
-import { client } from '@/lib/auth-client'
+import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import {
@@ -82,7 +82,14 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     }
   }, [onOpenChange])
 
-  const isSubscriptionEnabled = !!client.subscription
+  // Redirect away from billing tabs if billing is disabled
+  useEffect(() => {
+    if (!isBillingEnabled && (activeSection === 'subscription' || activeSection === 'team')) {
+      setActiveSection('general')
+    }
+  }, [activeSection])
+
+  const isSubscriptionEnabled = isBillingEnabled
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -134,9 +141,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <Subscription onOpenChange={onOpenChange} />
               </div>
             )}
-            <div className={cn('h-full', activeSection === 'team' ? 'block' : 'hidden')}>
-              <TeamManagement />
-            </div>
+            {isBillingEnabled && (
+              <div className={cn('h-full', activeSection === 'team' ? 'block' : 'hidden')}>
+                <TeamManagement />
+              </div>
+            )}
             <div className={cn('h-full', activeSection === 'privacy' ? 'block' : 'hidden')}>
               <Privacy />
             </div>

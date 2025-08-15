@@ -95,16 +95,14 @@ Read content from a Google Docs document
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Google Docs API |
 | `documentId` | string | Yes | The ID of the document to read |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Document content |
-| `metadata` | json | Document metadata |
-| `updatedContent` | boolean | Content update status |
+| `content` | string | Extracted document text content |
+| `metadata` | json | Document metadata including ID, title, and URL |
 
 ### `google_docs_write`
 
@@ -114,7 +112,6 @@ Write or update content in a Google Docs document
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Google Docs API |
 | `documentId` | string | Yes | The ID of the document to write to |
 | `content` | string | Yes | The content to write to the document |
 
@@ -122,9 +119,8 @@ Write or update content in a Google Docs document
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Document content |
-| `metadata` | json | Document metadata |
-| `updatedContent` | boolean | Content update status |
+| `updatedContent` | boolean | Indicates if document content was updated successfully |
+| `metadata` | json | Updated document metadata including ID, title, and URL |
 
 ### `google_docs_create`
 
@@ -134,7 +130,6 @@ Create a new Google Docs document
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Google Docs API |
 | `title` | string | Yes | The title of the document to create |
 | `content` | string | No | The content of the document to create |
 | `folderSelector` | string | No | Select the folder to create the document in |
@@ -144,9 +139,7 @@ Create a new Google Docs document
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Document content |
-| `metadata` | json | Document metadata |
-| `updatedContent` | boolean | Content update status |
+| `metadata` | json | Created document metadata including ID, title, and URL |
 
 
 

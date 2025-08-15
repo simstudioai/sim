@@ -113,6 +113,189 @@
               "type": "string",
               "format": "uri",
               "description": "Public socket URL"
+            },
+            "NODE_ENV": {
+              "type": "string",
+              "enum": ["development", "test", "production"],
+              "description": "Runtime environment"
+            },
+            "NEXT_TELEMETRY_DISABLED": {
+              "type": "string",
+              "description": "Disable Next.js telemetry"
+            },
+            "RESEND_API_KEY": {
+              "type": "string",
+              "description": "Resend API key for transactional emails"
+            },
+            "EMAIL_DOMAIN": {
+              "type": "string",
+              "description": "Domain for sending emails"
+            },
+            "GOOGLE_CLIENT_ID": {
+              "type": "string",
+              "description": "Google OAuth client ID"
+            },
+            "GOOGLE_CLIENT_SECRET": {
+              "type": "string",
+              "description": "Google OAuth client secret"
+            },
+            "GITHUB_CLIENT_ID": {
+              "type": "string",
+              "description": "GitHub OAuth client ID"
+            },
+            "GITHUB_CLIENT_SECRET": {
+              "type": "string",
+              "description": "GitHub OAuth client secret"
+            },
+            "OPENAI_API_KEY": {
+              "type": "string",
+              "description": "Primary OpenAI API key"
+            },
+            "OPENAI_API_KEY_1": {
+              "type": "string",
+              "description": "Additional OpenAI API key for load balancing"
+            },
+            "OPENAI_API_KEY_2": {
+              "type": "string",
+              "description": "Additional OpenAI API key for load balancing"
+            },
+            "OPENAI_API_KEY_3": {
+              "type": "string",
+              "description": "Additional OpenAI API key for load balancing"
+            },
+            "MISTRAL_API_KEY": {
+              "type": "string",
+              "description": "Mistral AI API key"
+            },
+            "ANTHROPIC_API_KEY_1": {
+              "type": "string",
+              "description": "Primary Anthropic Claude API key"
+            },
+            "ANTHROPIC_API_KEY_2": {
+              "type": "string",
+              "description": "Additional Anthropic API key for load balancing"
+            },
+            "ANTHROPIC_API_KEY_3": {
+              "type": "string",
+              "description": "Additional Anthropic API key for load balancing"
+            },
+            "OLLAMA_URL": {
+              "type": "string",
+              "format": "uri",
+              "description": "Ollama local LLM server URL"
+            },
+            "ELEVENLABS_API_KEY": {
+              "type": "string",
+              "description": "ElevenLabs API key for text-to-speech in deployed chat"
+            },
+            "RATE_LIMIT_WINDOW_MS": {
+              "type": "string",
+              "description": "Rate limit window duration in milliseconds"
+            },
+            "RATE_LIMIT_FREE_SYNC": {
+              "type": "string",
+              "description": "Free tier sync API executions per minute"
+            },
+            "RATE_LIMIT_PRO_SYNC": {
+              "type": "string",
+              "description": "Pro tier sync API executions per minute"
+            },
+            "RATE_LIMIT_TEAM_SYNC": {
+              "type": "string",
+              "description": "Team tier sync API executions per minute"
+            },
+            "RATE_LIMIT_ENTERPRISE_SYNC": {
+              "type": "string",
+              "description": "Enterprise tier sync API executions per minute"
+            },
+            "RATE_LIMIT_FREE_ASYNC": {
+              "type": "string",
+              "description": "Free tier async API executions per minute"
+            },
+            "RATE_LIMIT_PRO_ASYNC": {
+              "type": "string",
+              "description": "Pro tier async API executions per minute"
+            },
+            "RATE_LIMIT_TEAM_ASYNC": {
+              "type": "string",
+              "description": "Team tier async API executions per minute"
+            },
+            "RATE_LIMIT_ENTERPRISE_ASYNC": {
+              "type": "string",
+              "description": "Enterprise tier async API executions per minute"
+            },
+            "MANUAL_EXECUTION_LIMIT": {
+              "type": "string",
+              "description": "Manual execution bypass value"
+            },
+            "NEXT_PUBLIC_BRAND_NAME": {
+              "type": "string",
+              "description": "Custom brand name"
+            },
+            "NEXT_PUBLIC_BRAND_LOGO_URL": {
+              "type": "string",
+              "description": "Custom logo URL"
+            },
+            "NEXT_PUBLIC_BRAND_FAVICON_URL": {
+              "type": "string",
+              "description": "Custom favicon URL"
+            },
+            "NEXT_PUBLIC_BRAND_PRIMARY_COLOR": {
+              "type": "string",
+              "description": "Primary brand color (hex)"
+            },
+            "NEXT_PUBLIC_BRAND_SECONDARY_COLOR": {
+              "type": "string",
+              "description": "Secondary brand color (hex)"
+            },
+            "NEXT_PUBLIC_BRAND_ACCENT_COLOR": {
+              "type": "string",
+              "description": "Accent brand color (hex)"
+            },
+            "NEXT_PUBLIC_CUSTOM_CSS_URL": {
+              "type": "string",
+              "description": "Custom stylesheet URL"
+            },
+            "NEXT_PUBLIC_HIDE_BRANDING": {
+              "type": "string",
+              "description": "Hide powered by branding"
+            },
+            "NEXT_PUBLIC_CUSTOM_FOOTER_TEXT": {
+              "type": "string",
+              "description": "Custom footer text"
+            },
+            "NEXT_PUBLIC_SUPPORT_EMAIL": {
+              "type": "string",
+              "format": "email",
+              "description": "Support email address"
+            },
+            "NEXT_PUBLIC_SUPPORT_URL": {
+              "type": "string",
+              "description": "Support page URL"
+            },
+            "NEXT_PUBLIC_DOCUMENTATION_URL": {
+              "type": "string",
+              "description": "Documentation URL"
+            },
+            "NEXT_PUBLIC_TERMS_URL": {
+              "type": "string",
+              "description": "Terms of service URL"
+            },
+            "NEXT_PUBLIC_PRIVACY_URL": {
+              "type": "string",
+              "description": "Privacy policy URL"
+            },
+            "NEXT_PUBLIC_SENTRY_DSN": {
+              "type": "string",
+              "description": "Sentry DSN for error tracking"
+            },
+            "ALLOWED_LOGIN_EMAILS": {
+              "type": "string",
+              "description": "Comma-separated list of allowed email addresses for login"
+            },
+            "ALLOWED_LOGIN_DOMAINS": {
+              "type": "string",
+              "description": "Comma-separated list of allowed email domains for login"
             }
           }
         }
@@ -192,6 +375,11 @@
             "ALLOWED_ORIGINS": {
               "type": "string",
               "description": "CORS allowed origins"
+            },
+            "NODE_ENV": {
+              "type": "string",
+              "enum": ["development", "test", "production"],
+              "description": "Runtime environment"
             }
           }
         }

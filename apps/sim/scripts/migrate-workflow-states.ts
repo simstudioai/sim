@@ -130,6 +130,7 @@ async function migrateWorkflowStates(specificWorkflowIds?: string[] | null) {
               horizontalHandles: block.horizontalHandles ?? true,
               isWide: block.isWide ?? false,
               advancedMode: block.advancedMode ?? false,
+              triggerMode: block.triggerMode ?? false,
               height: String(block.height || 0),
               subBlocks: block.subBlocks || {},
               outputs: block.outputs || {},

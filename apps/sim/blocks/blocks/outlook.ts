@@ -145,6 +145,15 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       placeholder: 'Number of emails to retrieve (default: 1, max: 10)',
       condition: { field: 'operation', value: 'read_outlook' },
     },
+    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
+    {
+      id: 'triggerConfig',
+      title: 'Trigger Configuration',
+      type: 'trigger-config',
+      layout: 'full',
+      triggerProvider: 'outlook',
+      availableTriggers: ['outlook_poller'],
+    },
   ],
   tools: {
     access: ['outlook_send', 'outlook_draft', 'outlook_read'],
@@ -193,7 +202,36 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     maxResults: { type: 'number', description: 'Maximum emails' },
   },
   outputs: {
+    // Common outputs
     message: { type: 'string', description: 'Response message' },
-    results: { type: 'json', description: 'Email results' },
+    results: { type: 'json', description: 'Operation results' },
+    // Send operation specific outputs
+    status: { type: 'string', description: 'Email send status (sent)' },
+    timestamp: { type: 'string', description: 'Operation timestamp' },
+    // Draft operation specific outputs
+    messageId: { type: 'string', description: 'Draft message ID' },
+    subject: { type: 'string', description: 'Draft email subject' },
+    // Read operation specific outputs
+    emailCount: { type: 'number', description: 'Number of emails retrieved' },
+    emails: { type: 'json', description: 'Array of email objects' },
+    emailId: { type: 'string', description: 'Individual email ID' },
+    emailSubject: { type: 'string', description: 'Individual email subject' },
+    bodyPreview: { type: 'string', description: 'Email body preview' },
+    bodyContent: { type: 'string', description: 'Full email body content' },
+    sender: { type: 'json', description: 'Email sender information' },
+    from: { type: 'json', description: 'Email from information' },
+    recipients: { type: 'json', description: 'Email recipients' },
+    receivedDateTime: { type: 'string', description: 'Email received timestamp' },
+    sentDateTime: { type: 'string', description: 'Email sent timestamp' },
+    hasAttachments: { type: 'boolean', description: 'Whether email has attachments' },
+    isRead: { type: 'boolean', description: 'Whether email is read' },
+    importance: { type: 'string', description: 'Email importance level' },
+    // Trigger outputs
+    email: { type: 'json', description: 'Email data from trigger' },
+    rawEmail: { type: 'json', description: 'Complete raw email data from Microsoft Graph API' },
+  },
+  triggers: {
+    enabled: true,
+    available: ['outlook_poller'],
   },
 }

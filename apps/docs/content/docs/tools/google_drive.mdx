@@ -87,7 +87,6 @@ Upload a file to Google Drive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Google Drive API |
 | `fileName` | string | Yes | The name of the file to upload |
 | `content` | string | Yes | The content of the file to upload |
 | `mimeType` | string | No | The MIME type of the file to upload |
@@ -98,8 +97,7 @@ Upload a file to Google Drive
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `file` | json | File data |
-| `files` | json | Files list |
+| `file` | json | Uploaded file metadata including ID, name, and links |
 
 ### `google_drive_create_folder`
 
@@ -109,7 +107,6 @@ Create a new folder in Google Drive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Google Drive API |
 | `fileName` | string | Yes | Name of the folder to create |
 | `folderSelector` | string | No | Select the parent folder to create the folder in |
 | `folderId` | string | No | ID of the parent folder \(internal use\) |
@@ -118,8 +115,7 @@ Create a new folder in Google Drive
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `file` | json | File data |
-| `files` | json | Files list |
+| `file` | json | Created folder metadata including ID, name, and parent information |
 
 ### `google_drive_list`
 
@@ -129,7 +125,6 @@ List files and folders in Google Drive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Google Drive API |
 | `folderSelector` | string | No | Select the folder to list files from |
 | `folderId` | string | No | The ID of the folder to list files from \(internal use\) |
 | `query` | string | No | A query to filter the files |
@@ -140,8 +135,7 @@ List files and folders in Google Drive
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `file` | json | File data |
-| `files` | json | Files list |
+| `files` | json | Array of file metadata objects from the specified folder |
 
 
 

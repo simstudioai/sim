@@ -187,17 +187,19 @@ export function ChatFileUpload({
           {files.map((file) => (
             <div
               key={file.id}
-              className='flex items-center gap-2 rounded-md bg-gray-50 px-2 py-1 text-sm'
+              className='flex items-center gap-2 rounded-md bg-gray-50 px-2 py-1 text-sm dark:bg-gray-800'
             >
               {getFileIcon(file.type)}
-              <span className='flex-1 truncate' title={file.name}>
+              <span className='flex-1 truncate dark:text-white' title={file.name}>
                 {file.name}
               </span>
-              <span className='text-gray-500 text-xs'>{formatFileSize(file.size)}</span>
+              <span className='text-gray-500 text-xs dark:text-gray-400'>
+                {formatFileSize(file.size)}
+              </span>
               <button
                 type='button'
                 onClick={() => handleRemoveFile(file.id)}
-                className='p-0.5 text-gray-400 transition-colors hover:text-red-500'
+                className='p-0.5 text-gray-400 transition-colors hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400'
                 title='Remove file'
               >
                 <X className='h-3 w-3' />

@@ -29,6 +29,7 @@ import {
   Table,
   TimeInput,
   ToolInput,
+  TriggerConfig,
   WebhookConfig,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -301,6 +302,27 @@ export function SubBlock({
             isPreview={isPreview}
             value={webhookValue}
             disabled={isDisabled}
+          />
+        )
+      }
+      case 'trigger-config': {
+        // For trigger config, we need to construct the value from multiple subblock values
+        const triggerValue =
+          isPreview && subBlockValues
+            ? {
+                triggerId: subBlockValues.triggerId?.value,
+                triggerPath: subBlockValues.triggerPath?.value,
+                triggerConfig: subBlockValues.triggerConfig?.value,
+              }
+            : previewValue
+        return (
+          <TriggerConfig
+            blockId={blockId}
+            isConnecting={isConnecting}
+            isPreview={isPreview}
+            value={triggerValue}
+            disabled={isDisabled}
+            availableTriggers={config.availableTriggers}
           />
         )
       }

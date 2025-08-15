@@ -40,6 +40,18 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
       visibility: 'user-or-llm',
       description: 'Email body content',
     },
+    cc: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'CC recipients (comma-separated)',
+    },
+    bcc: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'BCC recipients (comma-separated)',
+    },
   },
 
   request: {
@@ -50,14 +62,21 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
       'Content-Type': 'application/json',
     }),
     body: (params: GmailSendParams): Record<string, any> => {
-      const email = [
+      const emailHeaders = [
         'Content-Type: text/plain; charset="UTF-8"',
         'MIME-Version: 1.0',
         `To: ${params.to}`,
-        `Subject: ${params.subject}`,
-        '',
-        params.body,
-      ].join('\n')
+      ]
+
+      if (params.cc) {
+        emailHeaders.push(`Cc: ${params.cc}`)
+      }
+      if (params.bcc) {
+        emailHeaders.push(`Bcc: ${params.bcc}`)
+      }
+
+      emailHeaders.push(`Subject: ${params.subject}`, '', params.body)
+      const email = emailHeaders.join('\n')
 
       return {
         message: {
@@ -69,10 +88,6 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
 
   transformResponse: async (response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to draft email')
-    }
 
     return {
       success: true,
@@ -90,16 +105,23 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
     }
   },
 
-  transformError: (error) => {
-    if (error.error?.message) {
-      if (error.error.message.includes('invalid authentication credentials')) {
-        return 'Invalid or expired access token. Please reauthenticate.'
-      }
-      if (error.error.message.includes('quota')) {
-        return 'Gmail API quota exceeded. Please try again later.'
-      }
-      return error.error.message
-    }
-    return error.message || 'An unexpected error occurred while drafting email'
+  outputs: {
+    content: { type: 'string', description: 'Success message' },
+    metadata: {
+      type: 'object',
+      description: 'Draft metadata',
+      properties: {
+        id: { type: 'string', description: 'Draft ID' },
+        message: {
+          type: 'object',
+          description: 'Message metadata',
+          properties: {
+            id: { type: 'string', description: 'Gmail message ID' },
+            threadId: { type: 'string', description: 'Gmail thread ID' },
+            labelIds: { type: 'array', items: { type: 'string' }, description: 'Email labels' },
+          },
+        },
+      },
+    },
   },
 }

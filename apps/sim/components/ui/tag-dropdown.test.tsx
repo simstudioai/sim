@@ -4,6 +4,115 @@ import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/respon
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks } from '@/stores/workflows/workflow/utils'
 
+// Mock getTool function for testing tool output types
+vi.mock('@/lib/get-tool', () => ({
+  getTool: vi.fn((toolId: string) => {
+    // Mock different tool configurations for testing
+    const mockTools: Record<string, any> = {
+      exa_search: {
+        outputs: {
+          results: {
+            type: 'array',
+            description: 'Search results with titles, URLs, and text snippets',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string', description: 'The title of the search result' },
+                url: { type: 'string', description: 'The URL of the search result' },
+                score: { type: 'number', description: 'Relevance score for the search result' },
+              },
+            },
+          },
+        },
+      },
+      pinecone_search_text: {
+        outputs: {
+          matches: {
+            type: 'array',
+            description: 'Search results with ID, score, and metadata',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'Vector ID' },
+                score: { type: 'number', description: 'Similarity score' },
+                metadata: { type: 'object', description: 'Associated metadata' },
+              },
+            },
+          },
+          usage: {
+            type: 'object',
+            description: 'Usage statistics including tokens, read units, and rerank units',
+            properties: {
+              total_tokens: { type: 'number', description: 'Total tokens used for embedding' },
+              read_units: { type: 'number', description: 'Read units consumed' },
+              rerank_units: { type: 'number', description: 'Rerank units used' },
+            },
+          },
+        },
+      },
+      notion_query_database: {
+        outputs: {
+          content: {
+            type: 'string',
+            description: 'Formatted list of database entries with their properties',
+          },
+          metadata: {
+            type: 'object',
+            description:
+              'Query metadata including total results count, pagination info, and raw results array',
+            properties: {
+              totalResults: { type: 'number', description: 'Number of results returned' },
+              hasMore: { type: 'boolean', description: 'Whether more results are available' },
+              results: {
+                type: 'array',
+                description: 'Raw Notion page objects',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string', description: 'Page ID' },
+                    properties: { type: 'object', description: 'Page properties' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }
+    return mockTools[toolId] || null
+  }),
+}))
+
+// Mock getBlock function for testing
+vi.mock('@/lib/get-block', () => ({
+  getBlock: vi.fn((blockType: string) => {
+    const mockBlockConfigs: Record<string, any> = {
+      exa: {
+        tools: {
+          config: {
+            tool: ({ operation }: { operation: string }) => `exa_${operation}`,
+          },
+        },
+      },
+      tools: {
+        tools: {
+          config: {
+            tool: ({ operation }: { operation: string }) => `pinecone_${operation}`,
+          },
+        },
+      },
+      notion: {
+        tools: {
+          config: {
+            tool: ({ operation }: { operation: string }) => `notion_${operation}`,
+          },
+        },
+      },
+    }
+    return mockBlockConfigs[blockType] || null
+  }),
+}))
+
 vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: vi.fn(() => ({
     blocks: {},
@@ -33,6 +142,633 @@ vi.mock('@/stores/workflows/subblock/store', () => ({
     })),
   })),
 }))
+
+// Mock trigger functions
+vi.mock('@/triggers/utils', () => ({
+  getTriggersByProvider: vi.fn((provider: string) => {
+    const mockTriggers: Record<string, any[]> = {
+      outlook: [
+        {
+          id: 'outlook_poller',
+          name: 'Outlook Email Trigger',
+          outputs: {
+            email: {
+              id: { type: 'string', description: 'Outlook message ID' },
+              conversationId: { type: 'string', description: 'Outlook conversation ID' },
+              subject: { type: 'string', description: 'Email subject line' },
+              hasAttachments: { type: 'boolean', description: 'Whether email has attachments' },
+              isRead: { type: 'boolean', description: 'Whether email is read' },
+              from: { type: 'string', description: 'Email sender' },
+              to: { type: 'string', description: 'Email recipient' },
+              cc: { type: 'string', description: 'CC recipients' },
+              date: { type: 'string', description: 'Email date' },
+              bodyText: { type: 'string', description: 'Email body text' },
+              bodyHtml: { type: 'string', description: 'Email body HTML' },
+              folderId: { type: 'string', description: 'Folder ID' },
+              messageId: { type: 'string', description: 'Message ID' },
+              threadId: { type: 'string', description: 'Thread ID' },
+            },
+            timestamp: { type: 'string', description: 'Event timestamp' },
+            rawEmail: {
+              type: 'json',
+              description: 'Complete raw email data from Microsoft Graph API',
+            },
+          },
+        },
+      ],
+      slack: [
+        {
+          id: 'slack_message',
+          name: 'Slack Message Trigger',
+          outputs: {
+            message: {
+              text: { type: 'string', description: 'Message text' },
+              user: { type: 'string', description: 'User ID' },
+              channel: { type: 'string', description: 'Channel ID' },
+              timestamp: { type: 'string', description: 'Message timestamp' },
+            },
+            channel: { type: 'string', description: 'Channel information' },
+          },
+        },
+      ],
+    }
+    return mockTriggers[provider] || []
+  }),
+}))
+
+describe('TagDropdown Trigger Output Parsing', () => {
+  it.concurrent('should parse trigger outputs correctly for outlook trigger', () => {
+    // Mock getTriggersByProvider function directly
+    const getTriggersByProvider = vi.fn((provider: string) => {
+      const mockTriggers: Record<string, any[]> = {
+        outlook: [
+          {
+            id: 'outlook_poller',
+            name: 'Outlook Email Trigger',
+            outputs: {
+              email: {
+                id: { type: 'string', description: 'Outlook message ID' },
+                conversationId: { type: 'string', description: 'Outlook conversation ID' },
+                subject: { type: 'string', description: 'Email subject line' },
+                hasAttachments: { type: 'boolean', description: 'Whether email has attachments' },
+                isRead: { type: 'boolean', description: 'Whether email is read' },
+              },
+              timestamp: { type: 'string', description: 'Event timestamp' },
+              rawEmail: { type: 'json', description: 'Complete raw email data' },
+            },
+          },
+        ],
+      }
+      return mockTriggers[provider] || []
+    })
+
+    const triggers = getTriggersByProvider('outlook')
+    const firstTrigger = triggers[0]
+
+    expect(firstTrigger).toBeDefined()
+    expect(firstTrigger.outputs).toBeDefined()
+    expect(firstTrigger.outputs.email).toBeDefined()
+    expect(firstTrigger.outputs.timestamp).toBeDefined()
+    expect(firstTrigger.outputs.rawEmail).toBeDefined()
+
+    // Verify email nested properties
+    expect(firstTrigger.outputs.email.id.type).toBe('string')
+    expect(firstTrigger.outputs.email.subject.type).toBe('string')
+    expect(firstTrigger.outputs.email.hasAttachments.type).toBe('boolean')
+    expect(firstTrigger.outputs.email.isRead.type).toBe('boolean')
+  })
+
+  it.concurrent(
+    'should get correct output type for trigger paths using getOutputTypeForPath',
+    () => {
+      // Mock getTriggersByProvider function directly
+      const getTriggersByProvider = vi.fn((provider: string) => {
+        const mockTriggers: Record<string, any[]> = {
+          outlook: [
+            {
+              id: 'outlook_poller',
+              outputs: {
+                email: {
+                  id: { type: 'string' },
+                  subject: { type: 'string' },
+                  hasAttachments: { type: 'boolean' },
+                  isRead: { type: 'boolean' },
+                  from: { type: 'string' },
+                  to: { type: 'string' },
+                },
+                timestamp: { type: 'string' },
+                rawEmail: { type: 'json' },
+              },
+            },
+          ],
+        }
+        return mockTriggers[provider] || []
+      })
+
+      // Mock the getOutputTypeForPath function behavior for triggers
+      const getOutputTypeForPath = (
+        block: any,
+        blockConfig: any,
+        blockId: string,
+        outputPath: string
+      ): string => {
+        if (block?.triggerMode && blockConfig?.triggers?.enabled) {
+          const triggers = getTriggersByProvider(block.type)
+          const firstTrigger = triggers[0]
+
+          if (firstTrigger?.outputs) {
+            const pathParts = outputPath.split('.')
+            let currentObj: any = firstTrigger.outputs
+
+            for (const part of pathParts) {
+              if (currentObj && typeof currentObj === 'object') {
+                currentObj = currentObj[part]
+              } else {
+                break
+              }
+            }
+
+            if (
+              currentObj &&
+              typeof currentObj === 'object' &&
+              'type' in currentObj &&
+              currentObj.type
+            ) {
+              return currentObj.type
+            }
+          }
+        }
+
+        return 'any'
+      }
+
+      const block = {
+        id: 'outlook1',
+        type: 'outlook',
+        triggerMode: true,
+      }
+
+      const blockConfig = {
+        triggers: { enabled: true },
+      }
+
+      // Test top-level trigger outputs
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'timestamp')).toBe('string')
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'rawEmail')).toBe('json')
+
+      // Test nested email properties
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email.id')).toBe('string')
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email.subject')).toBe('string')
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email.hasAttachments')).toBe(
+        'boolean'
+      )
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email.isRead')).toBe('boolean')
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email.from')).toBe('string')
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email.to')).toBe('string')
+
+      // Test non-existent paths
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email.nonexistent')).toBe('any')
+      expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'nonexistent')).toBe('any')
+    }
+  )
+
+  it.concurrent('should handle trigger output navigation for parent objects', () => {
+    const getTriggersByProvider = vi.fn((provider: string) => {
+      const mockTriggers: Record<string, any[]> = {
+        outlook: [
+          {
+            outputs: {
+              email: {
+                id: { type: 'string' },
+                subject: { type: 'string' },
+              },
+              timestamp: { type: 'string' },
+            },
+          },
+        ],
+      }
+      return mockTriggers[provider] || []
+    })
+
+    const getOutputTypeForPath = (
+      block: any,
+      blockConfig: any,
+      blockId: string,
+      outputPath: string
+    ): string => {
+      if (block?.triggerMode && blockConfig?.triggers?.enabled) {
+        const triggers = getTriggersByProvider(block.type)
+        const firstTrigger = triggers[0]
+
+        if (firstTrigger?.outputs) {
+          const pathParts = outputPath.split('.')
+          let currentObj: any = firstTrigger.outputs
+
+          for (const part of pathParts) {
+            if (currentObj && typeof currentObj === 'object') {
+              currentObj = currentObj[part]
+            } else {
+              break
+            }
+          }
+
+          if (
+            currentObj &&
+            typeof currentObj === 'object' &&
+            'type' in currentObj &&
+            currentObj.type
+          ) {
+            return currentObj.type
+          }
+
+          // Check if currentObj is a parent object with nested properties
+          if (currentObj && typeof currentObj === 'object' && !('type' in currentObj)) {
+            return 'object'
+          }
+        }
+      }
+
+      return 'any'
+    }
+
+    const block = {
+      id: 'outlook1',
+      type: 'outlook',
+      triggerMode: true,
+    }
+
+    const blockConfig = {
+      triggers: { enabled: true },
+    }
+
+    // Test parent object (email should be treated as object type)
+    expect(getOutputTypeForPath(block, blockConfig, 'outlook1', 'email')).toBe('object')
+  })
+
+  it.concurrent('should return "any" for non-trigger blocks', () => {
+    const getOutputTypeForPath = (
+      block: any,
+      blockConfig: any,
+      blockId: string,
+      outputPath: string
+    ): string => {
+      if (block?.triggerMode && blockConfig?.triggers?.enabled) {
+        const { getTriggersByProvider } = require('@/triggers/utils')
+        const triggers = getTriggersByProvider(block.type)
+        const firstTrigger = triggers[0]
+
+        if (firstTrigger?.outputs) {
+          const pathParts = outputPath.split('.')
+          let currentObj: any = firstTrigger.outputs
+
+          for (const part of pathParts) {
+            if (currentObj && typeof currentObj === 'object') {
+              currentObj = currentObj[part]
+            } else {
+              break
+            }
+          }
+
+          if (
+            currentObj &&
+            typeof currentObj === 'object' &&
+            'type' in currentObj &&
+            currentObj.type
+          ) {
+            return currentObj.type
+          }
+        }
+      }
+
+      return 'any'
+    }
+
+    // Test block without trigger mode
+    const normalBlock = {
+      id: 'outlook1',
+      type: 'outlook',
+      triggerMode: false,
+    }
+
+    const blockConfig = {
+      triggers: { enabled: true },
+    }
+
+    expect(getOutputTypeForPath(normalBlock, blockConfig, 'outlook1', 'email.id')).toBe('any')
+
+    // Test block with trigger mode but triggers not enabled
+    const triggerBlockNoConfig = {
+      id: 'outlook1',
+      type: 'outlook',
+      triggerMode: true,
+    }
+
+    const noTriggersConfig = {
+      triggers: { enabled: false },
+    }
+
+    expect(
+      getOutputTypeForPath(triggerBlockNoConfig, noTriggersConfig, 'outlook1', 'email.id')
+    ).toBe('any')
+  })
+
+  it.concurrent('should handle different trigger providers correctly', () => {
+    const getTriggersByProvider = vi.fn((provider: string) => {
+      const mockTriggers: Record<string, any[]> = {
+        slack: [
+          {
+            outputs: {
+              message: {
+                text: { type: 'string' },
+                user: { type: 'string' },
+                channel: { type: 'string' },
+              },
+              channel: { type: 'string' },
+            },
+          },
+        ],
+      }
+      return mockTriggers[provider] || []
+    })
+
+    const getOutputTypeForPath = (
+      block: any,
+      blockConfig: any,
+      blockId: string,
+      outputPath: string
+    ): string => {
+      if (block?.triggerMode && blockConfig?.triggers?.enabled) {
+        const triggers = getTriggersByProvider(block.type)
+        const firstTrigger = triggers[0]
+
+        if (firstTrigger?.outputs) {
+          const pathParts = outputPath.split('.')
+          let currentObj: any = firstTrigger.outputs
+
+          for (const part of pathParts) {
+            if (currentObj && typeof currentObj === 'object') {
+              currentObj = currentObj[part]
+            } else {
+              break
+            }
+          }
+
+          if (
+            currentObj &&
+            typeof currentObj === 'object' &&
+            'type' in currentObj &&
+            currentObj.type
+          ) {
+            return currentObj.type
+          }
+        }
+      }
+
+      return 'any'
+    }
+
+    // Test Slack trigger
+    const slackBlock = {
+      id: 'slack1',
+      type: 'slack',
+      triggerMode: true,
+    }
+
+    const blockConfig = {
+      triggers: { enabled: true },
+    }
+
+    expect(getOutputTypeForPath(slackBlock, blockConfig, 'slack1', 'message.text')).toBe('string')
+    expect(getOutputTypeForPath(slackBlock, blockConfig, 'slack1', 'message.user')).toBe('string')
+    expect(getOutputTypeForPath(slackBlock, blockConfig, 'slack1', 'channel')).toBe('string')
+  })
+
+  it.concurrent('should handle malformed or missing trigger configurations gracefully', () => {
+    const getOutputTypeForPath = (
+      block: any,
+      blockConfig: any,
+      blockId: string,
+      outputPath: string
+    ): string => {
+      if (block?.triggerMode && blockConfig?.triggers?.enabled) {
+        try {
+          const { getTriggersByProvider } = require('@/triggers/utils')
+          const triggers = getTriggersByProvider(block.type)
+          const firstTrigger = triggers[0]
+
+          if (firstTrigger?.outputs) {
+            const pathParts = outputPath.split('.')
+            let currentObj: any = firstTrigger.outputs
+
+            for (const part of pathParts) {
+              if (currentObj && typeof currentObj === 'object') {
+                currentObj = currentObj[part]
+              } else {
+                break
+              }
+            }
+
+            if (
+              currentObj &&
+              typeof currentObj === 'object' &&
+              'type' in currentObj &&
+              currentObj.type
+            ) {
+              return currentObj.type
+            }
+          }
+        } catch (error) {
+          return 'any'
+        }
+      }
+
+      return 'any'
+    }
+
+    // Test with unknown trigger provider
+    const unknownBlock = {
+      id: 'unknown1',
+      type: 'unknown_provider',
+      triggerMode: true,
+    }
+
+    const blockConfig = {
+      triggers: { enabled: true },
+    }
+
+    expect(getOutputTypeForPath(unknownBlock, blockConfig, 'unknown1', 'any.path')).toBe('any')
+
+    // Test with null/undefined configurations
+    expect(getOutputTypeForPath(null, blockConfig, 'test', 'path')).toBe('any')
+    expect(getOutputTypeForPath(unknownBlock, null, 'test', 'path')).toBe('any')
+  })
+
+  it.concurrent('should generate correct trigger output tags for dropdown', () => {
+    const getTriggersByProvider = vi.fn((provider: string) => {
+      const mockTriggers: Record<string, any[]> = {
+        outlook: [
+          {
+            outputs: {
+              email: {
+                id: { type: 'string' },
+                subject: { type: 'string' },
+                hasAttachments: { type: 'boolean' },
+                isRead: { type: 'boolean' },
+              },
+              timestamp: { type: 'string' },
+              rawEmail: { type: 'json' },
+            },
+          },
+        ],
+        slack: [
+          {
+            outputs: {
+              message: {
+                text: { type: 'string' },
+                user: { type: 'string' },
+              },
+              channel: { type: 'string' },
+            },
+          },
+        ],
+      }
+      return mockTriggers[provider] || []
+    })
+
+    // Mock trigger output tag generation
+    const generateTriggerOutputTags = (blockType: string, blockId: string): string[] => {
+      const triggers = getTriggersByProvider(blockType)
+      const firstTrigger = triggers[0]
+
+      if (!firstTrigger?.outputs) return []
+
+      const tags: string[] = []
+      const normalizedBlockId = blockId.replace(/\s+/g, '').toLowerCase()
+
+      const traverseOutputs = (outputs: any, prefix = '') => {
+        for (const [key, output] of Object.entries(outputs)) {
+          const currentPath = prefix ? `${prefix}.${key}` : key
+          const fullTag = `${normalizedBlockId}.${currentPath}`
+
+          tags.push(fullTag)
+
+          // If this is a parent object with nested properties, recurse
+          if (output && typeof output === 'object' && !('type' in output)) {
+            traverseOutputs(output, currentPath)
+          }
+        }
+      }
+
+      traverseOutputs(firstTrigger.outputs)
+      return tags
+    }
+
+    // Test Outlook trigger tags
+    const outlookTags = generateTriggerOutputTags('outlook', 'Outlook 1')
+
+    expect(outlookTags).toContain('outlook1.email')
+    expect(outlookTags).toContain('outlook1.email.id')
+    expect(outlookTags).toContain('outlook1.email.subject')
+    expect(outlookTags).toContain('outlook1.email.hasAttachments')
+    expect(outlookTags).toContain('outlook1.email.isRead')
+    expect(outlookTags).toContain('outlook1.timestamp')
+    expect(outlookTags).toContain('outlook1.rawEmail')
+
+    // Test Slack trigger tags
+    const slackTags = generateTriggerOutputTags('slack', 'Slack 1')
+
+    expect(slackTags).toContain('slack1.message')
+    expect(slackTags).toContain('slack1.message.text')
+    expect(slackTags).toContain('slack1.message.user')
+    expect(slackTags).toContain('slack1.channel')
+  })
+
+  it.concurrent('should correctly identify trigger vs tool output resolution', () => {
+    const getTriggersByProvider = vi.fn((provider: string) => {
+      const mockTriggers: Record<string, any[]> = {
+        outlook: [
+          {
+            outputs: {
+              email: {
+                id: { type: 'string' },
+              },
+            },
+          },
+        ],
+      }
+      return mockTriggers[provider] || []
+    })
+
+    const getOutputTypeForPath = (
+      block: any,
+      blockConfig: any,
+      blockId: string,
+      outputPath: string
+    ): string => {
+      if (block?.triggerMode && blockConfig?.triggers?.enabled) {
+        // Trigger mode logic
+        const triggers = getTriggersByProvider(block.type)
+        const firstTrigger = triggers[0]
+
+        if (firstTrigger?.outputs) {
+          const pathParts = outputPath.split('.')
+          let currentObj: any = firstTrigger.outputs
+
+          for (const part of pathParts) {
+            if (currentObj && typeof currentObj === 'object') {
+              currentObj = currentObj[part]
+            } else {
+              break
+            }
+          }
+
+          if (
+            currentObj &&
+            typeof currentObj === 'object' &&
+            'type' in currentObj &&
+            currentObj.type
+          ) {
+            return currentObj.type
+          }
+        }
+      } else {
+        // Tool mode logic - simplified mock
+        if (blockConfig && outputPath === 'results') {
+          return 'array'
+        }
+      }
+
+      return 'any'
+    }
+
+    // Test trigger mode
+    const triggerBlock = {
+      id: 'outlook1',
+      type: 'outlook',
+      triggerMode: true,
+    }
+
+    const triggerConfig = {
+      triggers: { enabled: true },
+    }
+
+    expect(getOutputTypeForPath(triggerBlock, triggerConfig, 'outlook1', 'email.id')).toBe('string')
+
+    // Test tool mode
+    const toolBlock = {
+      id: 'outlook1',
+      type: 'outlook',
+      triggerMode: false,
+    }
+
+    const toolConfig = {
+      triggers: { enabled: false },
+    }
+
+    expect(getOutputTypeForPath(toolBlock, toolConfig, 'outlook1', 'results')).toBe('array')
+    expect(getOutputTypeForPath(toolBlock, toolConfig, 'outlook1', 'email.id')).toBe('any')
+  })
+})
 
 describe('TagDropdown Loop Suggestions', () => {
   it.concurrent('should generate correct loop suggestions for forEach loops', () => {
@@ -787,6 +1523,469 @@ describe('TagDropdown Response Format Support', () => {
     expect(schemaFields).toEqual([
       { name: 'example_property', type: 'string', description: 'A simple string property.' },
       { name: 'another_field', type: 'number', description: 'Another field.' },
+    ])
+  })
+})
+
+describe('TagDropdown Type Display Functionality', () => {
+  it.concurrent(
+    'should extract types correctly from tool outputs using generateOutputPathsWithTypes',
+    () => {
+      // Test with Exa search tool outputs
+      const exaSearchOutputs = {
+        results: {
+          type: 'array',
+          description: 'Search results with titles, URLs, and text snippets',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: 'The title of the search result' },
+              url: { type: 'string', description: 'The URL of the search result' },
+              score: { type: 'number', description: 'Relevance score for the search result' },
+            },
+          },
+        },
+      }
+
+      // Mock the generateOutputPathsWithTypes function behavior
+      const generateOutputPathsWithTypes = (
+        outputs: Record<string, any>,
+        prefix = ''
+      ): Array<{ path: string; type: string }> => {
+        const paths: Array<{ path: string; type: string }> = []
+
+        for (const [key, output] of Object.entries(outputs)) {
+          const currentPath = prefix ? `${prefix}.${key}` : key
+          if (output && typeof output === 'object' && 'type' in output) {
+            paths.push({ path: currentPath, type: output.type as string })
+
+            // Handle nested properties
+            if ((output as any).properties) {
+              const nestedPaths = generateOutputPathsWithTypes(
+                (output as any).properties,
+                currentPath
+              )
+              paths.push(...nestedPaths)
+            }
+
+            // Handle array items properties
+            if ((output as any).items?.properties) {
+              const itemPaths = generateOutputPathsWithTypes(
+                (output as any).items.properties,
+                currentPath
+              )
+              paths.push(...itemPaths)
+            }
+          }
+        }
+
+        return paths
+      }
+
+      const paths = generateOutputPathsWithTypes(exaSearchOutputs)
+
+      expect(paths).toEqual([
+        { path: 'results', type: 'array' },
+        { path: 'results.title', type: 'string' },
+        { path: 'results.url', type: 'string' },
+        { path: 'results.score', type: 'number' },
+      ])
+    }
+  )
+
+  it.concurrent('should extract types correctly for complex nested structures', () => {
+    // Test with Pinecone tool outputs
+    const pineconeOutputs = {
+      matches: {
+        type: 'array',
+        description: 'Search results with ID, score, and metadata',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'Vector ID' },
+            score: { type: 'number', description: 'Similarity score' },
+            metadata: { type: 'object', description: 'Associated metadata' },
+          },
+        },
+      },
+      usage: {
+        type: 'object',
+        description: 'Usage statistics including tokens, read units, and rerank units',
+        properties: {
+          total_tokens: { type: 'number', description: 'Total tokens used for embedding' },
+          read_units: { type: 'number', description: 'Read units consumed' },
+          rerank_units: { type: 'number', description: 'Rerank units used' },
+        },
+      },
+    }
+
+    const generateOutputPathsWithTypes = (
+      outputs: Record<string, any>,
+      prefix = ''
+    ): Array<{ path: string; type: string }> => {
+      const paths: Array<{ path: string; type: string }> = []
+
+      for (const [key, output] of Object.entries(outputs)) {
+        const currentPath = prefix ? `${prefix}.${key}` : key
+        if (output && typeof output === 'object' && 'type' in output) {
+          paths.push({ path: currentPath, type: output.type as string })
+
+          if ((output as any).properties) {
+            const nestedPaths = generateOutputPathsWithTypes(
+              (output as any).properties,
+              currentPath
+            )
+            paths.push(...nestedPaths)
+          }
+
+          if ((output as any).items?.properties) {
+            const itemPaths = generateOutputPathsWithTypes(
+              (output as any).items.properties,
+              currentPath
+            )
+            paths.push(...itemPaths)
+          }
+        }
+      }
+
+      return paths
+    }
+
+    const paths = generateOutputPathsWithTypes(pineconeOutputs)
+
+    expect(paths).toEqual([
+      { path: 'matches', type: 'array' },
+      { path: 'matches.id', type: 'string' },
+      { path: 'matches.score', type: 'number' },
+      { path: 'matches.metadata', type: 'object' },
+      { path: 'usage', type: 'object' },
+      { path: 'usage.total_tokens', type: 'number' },
+      { path: 'usage.read_units', type: 'number' },
+      { path: 'usage.rerank_units', type: 'number' },
+    ])
+  })
+
+  it.concurrent('should get tool output type for specific paths using getToolOutputType', () => {
+    // Mock block configuration for Exa
+    const blockConfig = {
+      tools: {
+        config: {
+          tool: ({ operation }: { operation: string }) => `exa_${operation}`,
+        },
+      },
+    }
+
+    // Mock getToolOutputType function behavior
+    const getToolOutputType = (blockConfig: any, operation: string, path: string): string => {
+      // Get tool ID from block config
+      const toolId = blockConfig?.tools?.config?.tool?.({ operation })
+      if (!toolId) return ''
+
+      // Mock tool lookup (would use getTool in real implementation)
+      const mockTools: Record<string, any> = {
+        exa_search: {
+          outputs: {
+            results: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  title: { type: 'string' },
+                  url: { type: 'string' },
+                  score: { type: 'number' },
+                },
+              },
+            },
+          },
+        },
+      }
+
+      const tool = mockTools[toolId]
+      if (!tool?.outputs) return ''
+
+      // Navigate to the specific path
+      const pathParts = path.split('.')
+      let current = tool.outputs
+
+      for (const part of pathParts) {
+        if (!current[part]) {
+          // Check if we're looking at array items
+          if (current.items?.properties?.[part]) {
+            current = current.items.properties
+          } else {
+            return ''
+          }
+        }
+        current = current[part]
+      }
+
+      return current?.type || ''
+    }
+
+    // Test various path types
+    expect(getToolOutputType(blockConfig, 'search', 'results')).toBe('array')
+    expect(getToolOutputType(blockConfig, 'search', 'results.title')).toBe('string')
+    expect(getToolOutputType(blockConfig, 'search', 'results.url')).toBe('string')
+    expect(getToolOutputType(blockConfig, 'search', 'results.score')).toBe('number')
+    expect(getToolOutputType(blockConfig, 'search', 'nonexistent')).toBe('')
+  })
+
+  it.concurrent('should generate tool output paths with type information', () => {
+    // Mock the generateToolOutputPaths function that returns both path and type
+    const generateToolOutputPaths = (
+      blockConfig: any,
+      operation: string
+    ): Array<{ path: string; type: string }> => {
+      const toolId = blockConfig?.tools?.config?.tool?.({ operation })
+      if (!toolId) return []
+
+      // Mock tool configurations
+      const mockTools: Record<string, any> = {
+        exa_search: {
+          outputs: {
+            results: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  title: { type: 'string' },
+                  url: { type: 'string' },
+                  score: { type: 'number' },
+                },
+              },
+            },
+          },
+        },
+      }
+
+      const tool = mockTools[toolId]
+      if (!tool?.outputs) return []
+
+      const paths: Array<{ path: string; type: string }> = []
+
+      const traverse = (obj: any, prefix = '') => {
+        for (const [key, value] of Object.entries(obj)) {
+          const currentPath = prefix ? `${prefix}.${key}` : key
+          if (value && typeof value === 'object' && 'type' in value) {
+            paths.push({ path: currentPath, type: (value as any).type })
+
+            if ((value as any).properties) {
+              traverse((value as any).properties, currentPath)
+            }
+
+            if ((value as any).items?.properties) {
+              traverse((value as any).items.properties, currentPath)
+            }
+          }
+        }
+      }
+
+      traverse(tool.outputs)
+      return paths
+    }
+
+    const blockConfig = {
+      tools: {
+        config: {
+          tool: ({ operation }: { operation: string }) => `exa_${operation}`,
+        },
+      },
+    }
+
+    const paths = generateToolOutputPaths(blockConfig, 'search')
+
+    expect(paths).toEqual([
+      { path: 'results', type: 'array' },
+      { path: 'results.title', type: 'string' },
+      { path: 'results.url', type: 'string' },
+      { path: 'results.score', type: 'number' },
+    ])
+  })
+
+  it.concurrent('should handle missing or invalid tool configurations gracefully', () => {
+    const getToolOutputType = (blockConfig: any, operation: string, path: string): string => {
+      try {
+        const toolId = blockConfig?.tools?.config?.tool?.({ operation })
+        if (!toolId) return ''
+
+        // Mock empty tool configurations
+        const mockTools: Record<string, any> = {}
+        const tool = mockTools[toolId]
+        if (!tool?.outputs) return ''
+
+        return ''
+      } catch (error) {
+        return ''
+      }
+    }
+
+    // Test with null/undefined block config
+    expect(getToolOutputType(null, 'search', 'results')).toBe('')
+    expect(getToolOutputType(undefined, 'search', 'results')).toBe('')
+    expect(getToolOutputType({}, 'search', 'results')).toBe('')
+
+    // Test with invalid block config structure
+    const invalidBlockConfig = { tools: null }
+    expect(getToolOutputType(invalidBlockConfig, 'search', 'results')).toBe('')
+
+    // Test with missing tool function
+    const incompleteBlockConfig = {
+      tools: {
+        config: {},
+      },
+    }
+    expect(getToolOutputType(incompleteBlockConfig, 'search', 'results')).toBe('')
+  })
+
+  it.concurrent(
+    'should only show types when reliable data is available from tool configuration',
+    () => {
+      // Mock tag info creation that only includes type when available
+      const createTagInfo = (
+        blockConfig: any,
+        operation: string,
+        path: string
+      ): { type?: string; description?: string } => {
+        const getToolOutputType = (blockConfig: any, operation: string, path: string): string => {
+          const toolId = blockConfig?.tools?.config?.tool?.({ operation })
+          if (!toolId) return ''
+
+          const mockTools: Record<string, any> = {
+            exa_search: {
+              outputs: {
+                results: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      title: { type: 'string' },
+                    },
+                  },
+                },
+              },
+            },
+          }
+
+          const tool = mockTools[toolId]
+          if (!tool?.outputs) return ''
+
+          const pathParts = path.split('.')
+          let current = tool.outputs
+
+          for (const part of pathParts) {
+            if (!current[part]) {
+              if ((current as any).items?.properties?.[part]) {
+                current = (current as any).items.properties
+              } else {
+                return ''
+              }
+            }
+            current = current[part]
+          }
+
+          return (current as any)?.type || ''
+        }
+
+        const type = getToolOutputType(blockConfig, operation, path)
+
+        // Only return type information if we have reliable data
+        if (type) {
+          return { type }
+        }
+
+        return {}
+      }
+
+      const blockConfig = {
+        tools: {
+          config: {
+            tool: ({ operation }: { operation: string }) => `exa_${operation}`,
+          },
+        },
+      }
+
+      // Should have type for valid paths
+      expect(createTagInfo(blockConfig, 'search', 'results')).toEqual({ type: 'array' })
+      expect(createTagInfo(blockConfig, 'search', 'results.title')).toEqual({ type: 'string' })
+
+      // Should not have type for invalid paths
+      expect(createTagInfo(blockConfig, 'search', 'nonexistent')).toEqual({})
+      expect(createTagInfo(blockConfig, 'invalid_operation', 'results')).toEqual({})
+      expect(createTagInfo(null, 'search', 'results')).toEqual({})
+    }
+  )
+
+  it.concurrent('should handle deeply nested structures correctly', () => {
+    // Test with Notion query_database tool structure
+    const notionOutputs = {
+      content: {
+        type: 'string',
+        description: 'Formatted list of database entries with their properties',
+      },
+      metadata: {
+        type: 'object',
+        description:
+          'Query metadata including total results count, pagination info, and raw results array',
+        properties: {
+          totalResults: { type: 'number', description: 'Number of results returned' },
+          hasMore: { type: 'boolean', description: 'Whether more results are available' },
+          results: {
+            type: 'array',
+            description: 'Raw Notion page objects',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'Page ID' },
+                properties: { type: 'object', description: 'Page properties' },
+              },
+            },
+          },
+        },
+      },
+    }
+
+    const generateOutputPathsWithTypes = (
+      outputs: Record<string, any>,
+      prefix = ''
+    ): Array<{ path: string; type: string }> => {
+      const paths: Array<{ path: string; type: string }> = []
+
+      for (const [key, output] of Object.entries(outputs)) {
+        const currentPath = prefix ? `${prefix}.${key}` : key
+        if (output && typeof output === 'object' && 'type' in output) {
+          paths.push({ path: currentPath, type: output.type as string })
+
+          if ((output as any).properties) {
+            const nestedPaths = generateOutputPathsWithTypes(
+              (output as any).properties,
+              currentPath
+            )
+            paths.push(...nestedPaths)
+          }
+
+          if ((output as any).items?.properties) {
+            const itemPaths = generateOutputPathsWithTypes(
+              (output as any).items.properties,
+              currentPath
+            )
+            paths.push(...itemPaths)
+          }
+        }
+      }
+
+      return paths
+    }
+
+    const paths = generateOutputPathsWithTypes(notionOutputs)
+
+    expect(paths).toEqual([
+      { path: 'content', type: 'string' },
+      { path: 'metadata', type: 'object' },
+      { path: 'metadata.totalResults', type: 'number' },
+      { path: 'metadata.hasMore', type: 'boolean' },
+      { path: 'metadata.results', type: 'array' },
+      { path: 'metadata.results.id', type: 'string' },
+      { path: 'metadata.results.properties', type: 'object' },
     ])
   })
 })

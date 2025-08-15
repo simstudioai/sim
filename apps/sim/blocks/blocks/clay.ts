@@ -53,6 +53,6 @@ Plain Text: Best for populating a table in free-form style.
     data: { type: 'json', description: 'Data to populate' },
   },
   outputs: {
-    data: { type: 'any', description: 'Response data' },
+    data: { type: 'json', description: 'Response data' },
   },
 }

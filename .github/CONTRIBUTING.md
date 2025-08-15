@@ -416,8 +416,8 @@ In addition, you will need to update the registries:
    Your tool should export a constant with a naming convention of `{toolName}Tool`. The tool ID should follow the format `{provider}_{tool_name}`. For example:
 
    ```typescript:/apps/sim/tools/pinecone/fetch.ts
-   import { ToolConfig, ToolResponse } from '../types'
-   import { PineconeParams, PineconeResponse } from './types'
+   import { ToolConfig, ToolResponse } from '@/tools/types'
+   import { PineconeParams, PineconeResponse } from '@/tools/pinecone/types'
 
    export const fetchTool: ToolConfig<PineconeParams, PineconeResponse> = {
      id: 'pinecone_fetch', // Follow the {provider}_{tool_name} format
@@ -448,9 +448,6 @@ In addition, you will need to update the registries:
      transformResponse: async (response: Response) => {
        // Transform response
      },
-     transformError: (error) => {
-       // Handle errors
-     },
    }
    ```
 
@@ -458,7 +455,7 @@ In addition, you will need to update the registries:
    Update the tools registry in `/apps/sim/tools/index.ts` to include your new tool:
 
    ```typescript:/apps/sim/tools/index.ts
-   import { fetchTool, generateEmbeddingsTool, searchTextTool } from './pinecone'
+   import { fetchTool, generateEmbeddingsTool, searchTextTool } from '/@tools/pinecone'
    // ... other imports
 
    export const tools: Record<string, ToolConfig> = {

@@ -1,22 +1,8 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { ToolConfig } from '@/tools/types'
+import type { WorkflowExecutorParams, WorkflowExecutorResponse } from '@/tools/workflow/types'
 
 const logger = createLogger('WorkflowExecutorTool')
-
-interface WorkflowExecutorParams {
-  workflowId: string
-  inputMapping?: Record<string, any>
-}
-
-interface WorkflowExecutorResponse extends ToolResponse {
-  output: {
-    success: boolean
-    duration: number
-    childWorkflowId: string
-    childWorkflowName: string
-    [key: string]: any
-  }
-}
 
 /**
  * Tool for executing workflows as blocks within other workflows.
@@ -47,7 +33,6 @@ export const workflowExecutorTool: ToolConfig<
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => params,
-    isInternalRoute: true,
   },
   transformResponse: async (response: any) => {
     logger.info('Workflow executor tool response received', { response })
@@ -62,10 +47,5 @@ export const workflowExecutorTool: ToolConfig<
       childWorkflowName: response?.childWorkflowName ?? '',
       ...response,
     }
-  },
-  transformError: (error: any) => {
-    logger.error('Workflow executor tool error:', error)
-
-    return error.message || 'Workflow execution failed'
   },
 }

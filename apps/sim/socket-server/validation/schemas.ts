@@ -25,6 +25,7 @@ export const BlockOperationSchema = z.object({
     'update-parent',
     'update-wide',
     'update-advanced-mode',
+    'update-trigger-mode',
     'toggle-handles',
     'duplicate',
   ]),
@@ -44,6 +45,7 @@ export const BlockOperationSchema = z.object({
     horizontalHandles: z.boolean().optional(),
     isWide: z.boolean().optional(),
     advancedMode: z.boolean().optional(),
+    triggerMode: z.boolean().optional(),
     height: z.number().optional(),
     autoConnectEdge: AutoConnectEdgeSchema.optional(), // Add support for auto-connect edges
   }),
@@ -77,10 +79,46 @@ export const SubflowOperationSchema = z.object({
   operationId: z.string().optional(),
 })
 
+export const VariableOperationSchema = z.union([
+  z.object({
+    operation: z.literal('add'),
+    target: z.literal('variable'),
+    payload: z.object({
+      id: z.string(),
+      name: z.string(),
+      type: z.any(),
+      value: z.any(),
+      workflowId: z.string(),
+    }),
+    timestamp: z.number(),
+    operationId: z.string().optional(),
+  }),
+  z.object({
+    operation: z.literal('remove'),
+    target: z.literal('variable'),
+    payload: z.object({
+      variableId: z.string(),
+    }),
+    timestamp: z.number(),
+    operationId: z.string().optional(),
+  }),
+  z.object({
+    operation: z.literal('duplicate'),
+    target: z.literal('variable'),
+    payload: z.object({
+      sourceVariableId: z.string(),
+      id: z.string(),
+    }),
+    timestamp: z.number(),
+    operationId: z.string().optional(),
+  }),
+])
+
 export const WorkflowOperationSchema = z.union([
   BlockOperationSchema,
   EdgeOperationSchema,
   SubflowOperationSchema,
+  VariableOperationSchema,
 ])
 
 export { PositionSchema, AutoConnectEdgeSchema }

@@ -12,20 +12,7 @@ This Helm chart deploys Sim, a lightweight AI agent workflow platform, on Kubern
 
 ### Quick Start
 
-1. Add the chart repository (if using a separate repo):
-```bash
-helm repo add simstudio https://charts.sim.ai
-helm repo update
-```
-
-2. Install the chart:
-```bash
-helm install sim simstudio/sim
-```
-
-### Local Installation
-
-If using the chart from this repository:
+Install the chart from this repository:
 
 ```bash
 # From the repository root

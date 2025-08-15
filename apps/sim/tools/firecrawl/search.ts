@@ -37,10 +37,6 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!data.success) {
-      throw new Error(data.error?.message || 'Unknown error occurred')
-    }
-
     return {
       success: true,
       output: {
@@ -50,9 +46,25 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     }
   },
 
-  transformError: (error) => {
-    const message = error.error?.message || error.message
-    const code = error.error?.type || error.code
-    return `${message} (${code})`
+  outputs: {
+    data: {
+      type: 'array',
+      description: 'Search results data',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          description: { type: 'string' },
+          url: { type: 'string' },
+          markdown: { type: 'string' },
+          html: { type: 'string' },
+          rawHtml: { type: 'string' },
+          links: { type: 'array' },
+          screenshot: { type: 'string' },
+          metadata: { type: 'object' },
+        },
+      },
+    },
+    warning: { type: 'string', description: 'Warning messages from the search operation' },
   },
 }

@@ -130,6 +130,8 @@ export const workflow = pgTable(
     isDeployed: boolean('is_deployed').notNull().default(false),
     deployedState: json('deployed_state'),
     deployedAt: timestamp('deployed_at'),
+    // When set, only this API key is authorized for execution
+    pinnedApiKey: text('pinned_api_key'),
     collaborators: json('collaborators').notNull().default('[]'),
     runCount: integer('run_count').notNull().default(0),
     lastRunAt: timestamp('last_run_at'),
@@ -719,7 +721,7 @@ export const knowledgeBase = pgTable(
     // Chunking configuration stored as JSON for flexibility
     chunkingConfig: json('chunking_config')
       .notNull()
-      .default('{"maxSize": 1024, "minSize": 100, "overlap": 200}'),
+      .default('{"maxSize": 1024, "minSize": 1, "overlap": 200}'),
 
     // Soft delete support
     deletedAt: timestamp('deleted_at'),

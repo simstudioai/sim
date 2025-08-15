@@ -17,9 +17,20 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { ControlBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/control-bar'
 import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/diff-controls'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
-import { LoopNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/loop-node/loop-node'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/panel'
-import { ParallelNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/parallel-node/parallel-node'
+import { LoopNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-node'
+import { ParallelNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-node'
+import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
+import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
+import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import {
+  getNodeAbsolutePosition,
+  getNodeDepth,
+  getNodeHierarchy,
+  isPointInLoopNode,
+  resizeLoopNodes,
+  updateNodeParent as updateNodeParentUtil,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { getBlock } from '@/blocks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
@@ -31,17 +42,6 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { WorkflowBlock } from './components/workflow-block/workflow-block'
-import { WorkflowEdge } from './components/workflow-edge/workflow-edge'
-import { useCurrentWorkflow } from './hooks'
-import {
-  getNodeAbsolutePosition,
-  getNodeDepth,
-  getNodeHierarchy,
-  isPointInLoopNode,
-  resizeLoopNodes,
-  updateNodeParent as updateNodeParentUtil,
-} from './utils'
 
 const logger = createLogger('Workflow')
 

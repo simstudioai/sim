@@ -1,13 +1,9 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type {
-  DiscordAPIError,
   DiscordGetServerParams,
   DiscordGetServerResponse,
   DiscordGuild,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('DiscordGetServer')
 
 export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGetServerResponse> = {
   id: 'discord_get_server',
@@ -48,36 +44,7 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
   },
 
   transformResponse: async (response: Response) => {
-    let responseData: any
-
-    try {
-      responseData = await response.json()
-    } catch (e) {
-      logger.error('Error parsing Discord API response', { status: response.status, error: e })
-      return {
-        success: false,
-        error: 'Failed to parse server data',
-        output: { message: 'Failed to parse server data' },
-      }
-    }
-
-    if (!response.ok) {
-      const errorData = responseData as DiscordAPIError
-      const errorMessage = `Discord API error: ${errorData.message || response.statusText}`
-
-      logger.error('Discord API error', {
-        status: response.status,
-        error: errorData,
-      })
-
-      return {
-        success: false,
-        output: {
-          message: errorMessage,
-        },
-        error: errorMessage,
-      }
-    }
+    const responseData = await response.json()
 
     return {
       success: true,
@@ -88,8 +55,21 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
     }
   },
 
-  transformError: (error: Error | unknown): string => {
-    logger.error('Error fetching Discord server', { error })
-    return `Error fetching Discord server: ${error instanceof Error ? error.message : String(error)}`
+  outputs: {
+    message: { type: 'string', description: 'Success or error message' },
+    data: {
+      type: 'object',
+      description: 'Discord server (guild) information',
+      properties: {
+        id: { type: 'string', description: 'Server ID' },
+        name: { type: 'string', description: 'Server name' },
+        icon: { type: 'string', description: 'Server icon hash' },
+        description: { type: 'string', description: 'Server description' },
+        owner_id: { type: 'string', description: 'Server owner user ID' },
+        roles: { type: 'array', description: 'Server roles' },
+        channels: { type: 'array', description: 'Server channels' },
+        member_count: { type: 'number', description: 'Number of members in server' },
+      },
+    },
   },
 }

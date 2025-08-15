@@ -51,6 +51,7 @@ const BlockStateSchema = z.object({
   isWide: z.boolean().optional(),
   height: z.number().optional(),
   advancedMode: z.boolean().optional(),
+  triggerMode: z.boolean().optional(),
   data: BlockDataSchema.optional(),
 })
 

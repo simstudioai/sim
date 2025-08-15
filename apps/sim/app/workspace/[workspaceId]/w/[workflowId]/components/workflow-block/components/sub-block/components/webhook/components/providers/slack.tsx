@@ -137,6 +137,10 @@ export function SlackConfig({
               <li>Paste the Webhook URL (from above) into the "Request URL" field</li>
             </ol>
           </li>
+          <li>
+            Go to <strong>Install App</strong> in the left sidebar and install the app into your
+            desired Slack workspace and channel.
+          </li>
           <li>Save changes in both Slack and here.</li>
         </ol>
       </InstructionsSection>

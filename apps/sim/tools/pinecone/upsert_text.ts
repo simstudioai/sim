@@ -91,5 +91,14 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
     }
   },
 
-  transformError: (error) => `Pinecone text upsert failed: ${error.message}`,
+  outputs: {
+    statusText: {
+      type: 'string',
+      description: 'Status of the upsert operation',
+    },
+    upsertedCount: {
+      type: 'number',
+      description: 'Number of records successfully upserted',
+    },
+  },
 }

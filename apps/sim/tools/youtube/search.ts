@@ -27,6 +27,7 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
       description: 'YouTube API Key',
     },
   },
+
   request: {
     url: (params: YouTubeSearchParams) => {
       let url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&key=${params.apiKey}&q=${encodeURIComponent(
@@ -40,11 +41,9 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
       'Content-Type': 'application/json',
     }),
   },
+
   transformResponse: async (response: Response): Promise<YouTubeSearchResponse> => {
     const data = await response.json()
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'YouTube API error')
-    }
     const items = (data.items || []).map((item: any) => ({
       videoId: item.id?.videoId,
       title: item.snippet?.title,
@@ -64,9 +63,29 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
       },
     }
   },
-  transformError: (error: any): string => {
-    const message = error.error?.message || error.message || 'YouTube search failed'
-    const code = error.error?.code || error.code
-    return `${message} (${code})`
+
+  outputs: {
+    items: {
+      type: 'array',
+      description: 'Array of YouTube videos matching the search query',
+      items: {
+        type: 'object',
+        properties: {
+          videoId: { type: 'string', description: 'YouTube video ID' },
+          title: { type: 'string', description: 'Video title' },
+          description: { type: 'string', description: 'Video description' },
+          thumbnail: { type: 'string', description: 'Video thumbnail URL' },
+        },
+      },
+    },
+    totalResults: {
+      type: 'number',
+      description: 'Total number of search results available',
+    },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token for accessing the next page of results',
+      optional: true,
+    },
   },
 }

@@ -50,10 +50,6 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to extract content')
-    }
-
     return {
       success: true,
       output: {
@@ -64,7 +60,32 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while extracting content'
+  outputs: {
+    results: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'The URL that was extracted' },
+          raw_content: { type: 'string', description: 'The raw text content from the webpage' },
+        },
+      },
+      description: 'Successfully extracted content from URLs',
+    },
+    failed_results: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'The URL that failed extraction' },
+          error: { type: 'string', description: 'Error message for the failed extraction' },
+        },
+      },
+      description: 'URLs that failed to extract content',
+    },
+    response_time: {
+      type: 'number',
+      description: 'Time taken for the extraction request in seconds',
+    },
   },
 }

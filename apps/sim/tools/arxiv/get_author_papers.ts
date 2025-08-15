@@ -48,10 +48,6 @@ export const getAuthorPapersTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      throw new Error(`ArXiv API error: ${response.status} ${response.statusText}`)
-    }
-
     const xmlText = await response.text()
 
     // Parse XML response
@@ -68,9 +64,32 @@ export const getAuthorPapersTool: ToolConfig<
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while searching for author papers on ArXiv'
+  outputs: {
+    authorPapers: {
+      type: 'json',
+      description: 'Array of papers authored by the specified author',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          title: { type: 'string' },
+          summary: { type: 'string' },
+          authors: { type: 'string' },
+          published: { type: 'string' },
+          updated: { type: 'string' },
+          link: { type: 'string' },
+          pdfLink: { type: 'string' },
+          categories: { type: 'string' },
+          primaryCategory: { type: 'string' },
+          comment: { type: 'string' },
+          journalRef: { type: 'string' },
+          doi: { type: 'string' },
+        },
+      },
+    },
+    totalResults: {
+      type: 'number',
+      description: 'Total number of papers found for the author',
+    },
   },
 }

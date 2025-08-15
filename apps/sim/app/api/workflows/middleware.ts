@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getWorkflowById } from '@/lib/workflows/utils'
@@ -56,22 +56,31 @@ export async function validateWorkflowAccess(
         }
       }
 
-      // Verify API key belongs to the user who owns the workflow
-      const userApiKeys = await db
-        .select({
-          key: apiKey.key,
-        })
-        .from(apiKey)
-        .where(eq(apiKey.userId, workflow.userId))
+      // If a pinned key exists, only accept that specific key
+      if (workflow.pinnedApiKey) {
+        if (workflow.pinnedApiKey !== apiKeyHeader) {
+          return {
+            error: {
+              message: 'Unauthorized: Invalid API key',
+              status: 401,
+            },
+          }
+        }
+      } else {
+        // Otherwise, verify the key belongs to the workflow owner
+        const [owned] = await db
+          .select({ key: apiKey.key })
+          .from(apiKey)
+          .where(and(eq(apiKey.userId, workflow.userId), eq(apiKey.key, apiKeyHeader)))
+          .limit(1)
 
-      const validApiKey = userApiKeys.some((k) => k.key === apiKeyHeader)
-
-      if (!validApiKey) {
-        return {
-          error: {
-            message: 'Unauthorized: Invalid API key',
-            status: 401,
-          },
+        if (!owned) {
+          return {
+            error: {
+              message: 'Unauthorized: Invalid API key',
+              status: 401,
+            },
+          }
         }
       }
     }

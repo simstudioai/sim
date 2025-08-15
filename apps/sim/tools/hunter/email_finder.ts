@@ -54,7 +54,6 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
       return url.toString()
     },
     method: 'GET',
-    isInternalRoute: false,
     headers: () => ({
       'Content-Type': 'application/json',
     }),
@@ -62,12 +61,6 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(
-        data.errors?.[0]?.details || data.message || 'Failed to perform Hunter email finder'
-      )
-    }
 
     return {
       success: true,
@@ -80,9 +73,23 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while performing the Hunter email finder'
+  outputs: {
+    email: {
+      type: 'string',
+      description: 'The found email address',
+    },
+    score: {
+      type: 'number',
+      description: 'Confidence score for the found email address',
+    },
+    sources: {
+      type: 'array',
+      description:
+        'Array of sources where the email was found, each containing domain, uri, extracted_on, last_seen_on, and still_on_page',
+    },
+    verification: {
+      type: 'object',
+      description: 'Verification information containing date and status',
+    },
   },
 }

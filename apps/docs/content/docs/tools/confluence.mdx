@@ -57,7 +57,6 @@ Retrieve content from Confluence pages using the Confluence API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token for Confluence |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | Confluence page ID to retrieve |
 | `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
@@ -66,11 +65,10 @@ Retrieve content from Confluence pages using the Confluence API.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp |
-| `pageId` | string | Page identifier |
-| `content` | string | Page content |
+| `ts` | string | Timestamp of retrieval |
+| `pageId` | string | Confluence page ID |
+| `content` | string | Page content with HTML tags stripped |
 | `title` | string | Page title |
-| `success` | boolean | Operation success status |
 
 ### `confluence_update`
 
@@ -80,7 +78,6 @@ Update a Confluence page using the Confluence API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token for Confluence |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | Confluence page ID to update |
 | `title` | string | No | New title for the page |
@@ -92,11 +89,10 @@ Update a Confluence page using the Confluence API.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ts` | string | Timestamp |
-| `pageId` | string | Page identifier |
-| `content` | string | Page content |
-| `title` | string | Page title |
-| `success` | boolean | Operation success status |
+| `ts` | string | Timestamp of update |
+| `pageId` | string | Confluence page ID |
+| `title` | string | Updated page title |
+| `success` | boolean | Update operation success status |
 
 
 

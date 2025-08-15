@@ -6,6 +6,7 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
   name: 'Knowledge Upload Chunk',
   description: 'Upload a new chunk to a document in a knowledge base',
   version: '1.0.0',
+
   params: {
     knowledgeBaseId: {
       type: 'string',
@@ -23,6 +24,7 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
       description: 'Content of the chunk to upload',
     },
   },
+
   request: {
     url: (params) =>
       `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks`,
@@ -41,77 +43,59 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
 
       return requestBody
     },
-    isInternalRoute: true,
   },
+
   transformResponse: async (response): Promise<KnowledgeUploadChunkResponse> => {
-    try {
-      const result = await response.json()
+    const result = await response.json()
+    const data = result.data || result
 
-      if (!response.ok) {
-        const errorMessage = result.error?.message || result.message || 'Failed to upload chunk'
-        throw new Error(errorMessage)
-      }
-
-      const data = result.data || result
-
-      return {
-        success: true,
-        output: {
-          data: {
-            id: data.id,
-            chunkIndex: data.chunkIndex || 0,
-            content: data.content,
-            contentLength: data.contentLength || data.content?.length || 0,
-            tokenCount: data.tokenCount || 0,
-            enabled: data.enabled !== undefined ? data.enabled : true,
-            createdAt: data.createdAt,
-            updatedAt: data.updatedAt,
-          },
-          message: `Successfully uploaded chunk to document`,
-          documentId: data.documentId,
-          cost: data.cost,
-        },
-      }
-    } catch (error: any) {
-      return {
-        success: false,
-        output: {
-          data: {
-            id: '',
-            chunkIndex: 0,
-            content: '',
-            contentLength: 0,
-            tokenCount: 0,
-            enabled: true,
-            createdAt: '',
-            updatedAt: '',
-          },
-          message: `Failed to upload chunk: ${error.message || 'Unknown error'}`,
-          documentId: '',
-        },
-        error: `Failed to upload chunk: ${error.message || 'Unknown error'}`,
-      }
-    }
-  },
-  transformError: async (error): Promise<KnowledgeUploadChunkResponse> => {
-    const errorMessage = `Failed to upload chunk: ${error.message || 'Unknown error'}`
     return {
-      success: false,
+      success: true,
       output: {
         data: {
-          id: '',
-          chunkIndex: 0,
-          content: '',
-          contentLength: 0,
-          tokenCount: 0,
-          enabled: true,
-          createdAt: '',
-          updatedAt: '',
+          id: data.id,
+          chunkIndex: data.chunkIndex || 0,
+          content: data.content,
+          contentLength: data.contentLength || data.content?.length || 0,
+          tokenCount: data.tokenCount || 0,
+          enabled: data.enabled !== undefined ? data.enabled : true,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
         },
-        message: errorMessage,
-        documentId: '',
+        message: `Successfully uploaded chunk to document`,
+        documentId: data.documentId,
+        cost: data.cost,
       },
-      error: errorMessage,
     }
+  },
+
+  outputs: {
+    data: {
+      type: 'object',
+      description: 'Information about the uploaded chunk',
+      properties: {
+        id: { type: 'string', description: 'Chunk ID' },
+        chunkIndex: { type: 'number', description: 'Index of the chunk within the document' },
+        content: { type: 'string', description: 'Content of the chunk' },
+        contentLength: { type: 'number', description: 'Length of the content in characters' },
+        tokenCount: { type: 'number', description: 'Number of tokens in the chunk' },
+        enabled: { type: 'boolean', description: 'Whether the chunk is enabled' },
+        createdAt: { type: 'string', description: 'Creation timestamp' },
+        updatedAt: { type: 'string', description: 'Last update timestamp' },
+      },
+    },
+    message: {
+      type: 'string',
+      description: 'Success or error message describing the operation result',
+    },
+    documentId: {
+      type: 'string',
+      description: 'ID of the document the chunk was added to',
+    },
+    cost: {
+      type: 'object',
+      description: 'Cost information for the upload operation',
+      optional: true,
+    },
   },
 }

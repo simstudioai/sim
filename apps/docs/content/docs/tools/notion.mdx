@@ -59,15 +59,14 @@ Read content from a Notion page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Notion OAuth access token |
 | `pageId` | string | Yes | The ID of the Notion page to read |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content |
-| `metadata` | any | Page metadata |
+| `content` | string | Page content in markdown format with headers, paragraphs, lists, and todos |
+| `metadata` | object | Page metadata including title, URL, and timestamps |
 
 ### `notion_read_database`
 
@@ -77,15 +76,14 @@ Read database information and structure from Notion
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Notion OAuth access token |
 | `databaseId` | string | Yes | The ID of the Notion database to read |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content |
-| `metadata` | any | Page metadata |
+| `content` | string | Database information including title, properties schema, and metadata |
+| `metadata` | object | Database metadata including title, ID, URL, timestamps, and properties schema |
 
 ### `notion_write`
 
@@ -95,7 +93,6 @@ Append content to a Notion page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Notion OAuth access token |
 | `pageId` | string | Yes | The ID of the Notion page to append content to |
 | `content` | string | Yes | The content to append to the page |
 
@@ -103,8 +100,7 @@ Append content to a Notion page
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content |
-| `metadata` | any | Page metadata |
+| `content` | string | Success message confirming content was appended to page |
 
 ### `notion_create_page`
 
@@ -114,7 +110,6 @@ Create a new page in Notion
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Notion OAuth access token |
 | `parentId` | string | Yes | ID of the parent page |
 | `title` | string | No | Title of the new page |
 | `content` | string | No | Optional content to add to the page upon creation |
@@ -123,8 +118,8 @@ Create a new page in Notion
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content |
-| `metadata` | any | Page metadata |
+| `content` | string | Success message confirming page creation |
+| `metadata` | object | Page metadata including title, page ID, URL, and timestamps |
 
 ### `notion_query_database`
 
@@ -134,7 +129,6 @@ Query and filter Notion database entries with advanced filtering
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Notion OAuth access token |
 | `databaseId` | string | Yes | The ID of the database to query |
 | `filter` | string | No | Filter conditions as JSON \(optional\) |
 | `sorts` | string | No | Sort criteria as JSON array \(optional\) |
@@ -144,8 +138,8 @@ Query and filter Notion database entries with advanced filtering
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content |
-| `metadata` | any | Page metadata |
+| `content` | string | Formatted list of database entries with their properties |
+| `metadata` | object | Query metadata including total results count, pagination info, and raw results array |
 
 ### `notion_search`
 
@@ -155,7 +149,6 @@ Search across all pages and databases in Notion workspace
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Notion OAuth access token |
 | `query` | string | No | Search terms \(leave empty to get all pages\) |
 | `filterType` | string | No | Filter by object type: page, database, or leave empty for all |
 | `pageSize` | number | No | Number of results to return \(default: 100, max: 100\) |
@@ -164,8 +157,8 @@ Search across all pages and databases in Notion workspace
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content |
-| `metadata` | any | Page metadata |
+| `content` | string | Formatted list of search results including pages and databases |
+| `metadata` | object | Search metadata including total results count, pagination info, and raw results array |
 
 ### `notion_create_database`
 
@@ -175,17 +168,16 @@ Create a new database in Notion with custom properties
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Notion OAuth access token |
 | `parentId` | string | Yes | ID of the parent page where the database will be created |
 | `title` | string | Yes | Title for the new database |
-| `properties` | string | No | Database properties as JSON object \(optional, will create a default  |
+| `properties` | string | No | Database properties as JSON object \(optional, will create a default "Name" property if empty\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Page content |
-| `metadata` | any | Page metadata |
+| `content` | string | Success message with database details and properties list |
+| `metadata` | object | Database metadata including ID, title, URL, creation time, and properties schema |
 
 
 

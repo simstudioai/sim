@@ -75,7 +75,10 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to read URL'
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'The extracted content from the URL, processed into clean, LLM-friendly text',
+    },
   },
 }

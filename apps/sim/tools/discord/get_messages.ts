@@ -1,13 +1,5 @@
-import { createLogger } from '@/lib/logs/console/logger'
-import type {
-  DiscordAPIError,
-  DiscordGetMessagesParams,
-  DiscordGetMessagesResponse,
-  DiscordMessage,
-} from '@/tools/discord/types'
+import type { DiscordGetMessagesParams, DiscordGetMessagesResponse } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('DiscordGetMessages')
 
 export const discordGetMessagesTool: ToolConfig<
   DiscordGetMessagesParams,
@@ -59,36 +51,7 @@ export const discordGetMessagesTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    if (!response.ok) {
-      let errorMessage = `Failed to get Discord messages: ${response.status} ${response.statusText}`
-
-      try {
-        const errorData = (await response.json()) as DiscordAPIError
-        errorMessage = `Failed to get Discord messages: ${errorData.message || response.statusText}`
-        logger.error('Discord API error', { status: response.status, error: errorData })
-      } catch (e) {
-        logger.error('Error parsing Discord API response', { status: response.status, error: e })
-      }
-
-      return {
-        success: false,
-        output: {
-          message: errorMessage,
-        },
-        error: errorMessage,
-      }
-    }
-
-    let messages: DiscordMessage[]
-    try {
-      messages = await response.json()
-    } catch (_e) {
-      return {
-        success: false,
-        error: 'Failed to parse messages',
-        output: { message: 'Failed to parse messages' },
-      }
-    }
+    const messages = await response.json()
     return {
       success: true,
       output: {
@@ -101,8 +64,36 @@ export const discordGetMessagesTool: ToolConfig<
     }
   },
 
-  transformError: (error) => {
-    logger.error('Error retrieving Discord messages', { error })
-    return `Error retrieving Discord messages: ${error instanceof Error ? error.message : String(error)}`
+  outputs: {
+    message: { type: 'string', description: 'Success or error message' },
+    messages: {
+      type: 'array',
+      description: 'Array of Discord messages with full metadata',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Message ID' },
+          content: { type: 'string', description: 'Message content' },
+          channel_id: { type: 'string', description: 'Channel ID' },
+          author: {
+            type: 'object',
+            description: 'Message author information',
+            properties: {
+              id: { type: 'string', description: 'Author user ID' },
+              username: { type: 'string', description: 'Author username' },
+              avatar: { type: 'string', description: 'Author avatar hash' },
+              bot: { type: 'boolean', description: 'Whether author is a bot' },
+            },
+          },
+          timestamp: { type: 'string', description: 'Message timestamp' },
+          edited_timestamp: { type: 'string', description: 'Message edited timestamp' },
+          embeds: { type: 'array', description: 'Message embeds' },
+          attachments: { type: 'array', description: 'Message attachments' },
+          mentions: { type: 'array', description: 'User mentions in message' },
+          mention_roles: { type: 'array', description: 'Role mentions in message' },
+          mention_everyone: { type: 'boolean', description: 'Whether message mentions everyone' },
+        },
+      },
+    },
   },
 }

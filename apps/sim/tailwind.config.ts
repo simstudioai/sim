@@ -52,6 +52,10 @@ export default {
           '4': 'hsl(var(--chart-4))',
           '5': 'hsl(var(--chart-5))',
         },
+        gradient: {
+          primary: 'hsl(var(--gradient-primary))',
+          secondary: 'hsl(var(--gradient-secondary))',
+        },
       },
       fontWeight: {
         medium: '460',

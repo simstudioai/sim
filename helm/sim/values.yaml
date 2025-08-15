@@ -64,13 +64,39 @@ app:
     BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
     ENCRYPTION_KEY: ""      # REQUIRED - set via --set flag or external secret manager
     
-    # Optional third-party service integrations (leave empty if not using)
-    FREESTYLE_API_KEY: ""
-    GOOGLE_CLIENT_ID: ""
-    GOOGLE_CLIENT_SECRET: ""
-    GITHUB_CLIENT_ID: ""
-    GITHUB_CLIENT_SECRET: ""
-    RESEND_API_KEY: ""
+    # Email & Communication
+    RESEND_API_KEY: ""                                    # Resend API key for transactional emails
+    EMAIL_DOMAIN: ""                                      # Domain for sending emails
+    
+    # OAuth Integration Credentials (leave empty if not using)
+    GOOGLE_CLIENT_ID: ""                                  # Google OAuth client ID
+    GOOGLE_CLIENT_SECRET: ""                              # Google OAuth client secret
+    GITHUB_CLIENT_ID: ""                                  # GitHub OAuth client ID  
+    GITHUB_CLIENT_SECRET: ""                              # GitHub OAuth client secret
+    
+    # AI Provider API Keys (leave empty if not using)
+    OPENAI_API_KEY: ""                                    # Primary OpenAI API key
+    OPENAI_API_KEY_1: ""                                  # Additional OpenAI API key for load balancing
+    OPENAI_API_KEY_2: ""                                  # Additional OpenAI API key for load balancing
+    OPENAI_API_KEY_3: ""                                  # Additional OpenAI API key for load balancing
+    MISTRAL_API_KEY: ""                                   # Mistral AI API key
+    ANTHROPIC_API_KEY_1: ""                               # Primary Anthropic Claude API key
+    ANTHROPIC_API_KEY_2: ""                               # Additional Anthropic API key for load balancing
+    ANTHROPIC_API_KEY_3: ""                               # Additional Anthropic API key for load balancing
+    OLLAMA_URL: ""                                        # Ollama local LLM server URL
+    ELEVENLABS_API_KEY: ""                                # ElevenLabs API key for text-to-speech in deployed chat
+    
+    # Rate Limiting Configuration (per minute)
+    RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
+    RATE_LIMIT_FREE_SYNC: "10"                            # Free tier sync API executions
+    RATE_LIMIT_PRO_SYNC: "25"                             # Pro tier sync API executions
+    RATE_LIMIT_TEAM_SYNC: "75"                            # Team tier sync API executions
+    RATE_LIMIT_ENTERPRISE_SYNC: "150"                     # Enterprise tier sync API executions
+    RATE_LIMIT_FREE_ASYNC: "50"                           # Free tier async API executions  
+    RATE_LIMIT_PRO_ASYNC: "200"                           # Pro tier async API executions
+    RATE_LIMIT_TEAM_ASYNC: "500"                          # Team tier async API executions
+    RATE_LIMIT_ENTERPRISE_ASYNC: "1000"                   # Enterprise tier async API executions
+    MANUAL_EXECUTION_LIMIT: "999999"                      # Manual execution bypass value
     
     # UI Branding & Whitelabeling Configuration
     NEXT_PUBLIC_BRAND_NAME: "Sim"                         # Custom brand name
@@ -88,17 +114,13 @@ app:
     NEXT_PUBLIC_TERMS_URL: ""                            # Terms of service URL (leave empty for none)
     NEXT_PUBLIC_PRIVACY_URL: ""                          # Privacy policy URL (leave empty for none)
     
-    # Rate Limiting Configuration
-    RATE_LIMIT_WINDOW_MS: "60000"                        # Rate limit window in milliseconds (1 minute)
-    MANUAL_EXECUTION_LIMIT: "999999"                     # Manual execution limit (effectively unlimited)
-    RATE_LIMIT_FREE_SYNC: "10"                          # Free tier sync API executions per minute
-    RATE_LIMIT_FREE_ASYNC: "50"                         # Free tier async API executions per minute
-    RATE_LIMIT_PRO_SYNC: "25"                           # Pro tier sync API executions per minute
-    RATE_LIMIT_PRO_ASYNC: "200"                         # Pro tier async API executions per minute
-    RATE_LIMIT_TEAM_SYNC: "75"                          # Team tier sync API executions per minute
-    RATE_LIMIT_TEAM_ASYNC: "500"                        # Team tier async API executions per minute
-    RATE_LIMIT_ENTERPRISE_SYNC: "150"                   # Enterprise tier sync API executions per minute
-    RATE_LIMIT_ENTERPRISE_ASYNC: "1000"                 # Enterprise tier async API executions per minute
+    # Monitoring & Analytics (leave empty if not using)
+    NEXT_PUBLIC_SENTRY_DSN: ""                           # Sentry DSN for error tracking
+    
+    # Access Control (leave empty if not restricting login)
+    ALLOWED_LOGIN_EMAILS: ""                             # Comma-separated list of allowed email addresses for login
+    ALLOWED_LOGIN_DOMAINS: ""                            # Comma-separated list of allowed email domains for login
+    
   
   # Service configuration
   service:

@@ -2,24 +2,10 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-// Copilot-specific tools are now handled in @/lib/copilot/tools.ts
 import { tools } from '@/tools/registry'
 import type { TableRow, ToolConfig, ToolResponse } from '@/tools/types'
 
-// Workflow tools moved to copilot system
-
 const logger = createLogger('ToolsUtils')
-
-// Internal-only tools (not exposed to users in workflows)
-// Note: All copilot-specific tools are now handled in @/lib/copilot/tools.ts
-const internalTools: Record<string, ToolConfig> = {
-  // No internal tools remain - all have been moved to copilot system
-}
-
-// Export the list of internal tool IDs for filtering purposes
-export const getInternalToolIds = (): Set<string> => {
-  return new Set(Object.keys(internalTools))
-}
 
 /**
  * Transforms a table from the store format to a key-value object
@@ -103,41 +89,9 @@ export async function executeRequest(
         errorContent = { message: externalResponse.statusText }
       }
 
-      // Use the tool's error transformer or a default message
-      if (tool.transformError) {
-        try {
-          const errorResult = tool.transformError(errorContent)
-
-          // Handle both string and Promise return types
-          if (typeof errorResult === 'string') {
-            throw new Error(errorResult)
-          }
-          // It's a Promise, await it
-          const transformedError = await errorResult
-          // If it's a string or has an error property, use it
-          if (typeof transformedError === 'string') {
-            throw new Error(transformedError)
-          }
-          if (
-            transformedError &&
-            typeof transformedError === 'object' &&
-            'error' in transformedError
-          ) {
-            throw new Error(transformedError.error || 'Tool returned an error')
-          }
-          // Fallback
-          throw new Error('Tool returned an error')
-        } catch (e) {
-          if (e instanceof Error) {
-            throw e
-          }
-          throw new Error(`${toolId} API error: ${externalResponse.statusText}`)
-        }
-      } else {
-        const error = errorContent.message || `${toolId} API error: ${externalResponse.statusText}`
-        logger.error(`${toolId} error:`, { error })
-        throw new Error(error)
-      }
+      const error = errorContent.message || `${toolId} API error: ${externalResponse.statusText}`
+      logger.error(`${toolId} error:`, { error })
+      throw new Error(error)
     }
 
     const transformResponse =
@@ -205,16 +159,6 @@ export function validateRequiredParametersAfterMerge(
   }
 }
 
-// Check if we're running in the browser
-function isBrowser(): boolean {
-  return typeof window !== 'undefined'
-}
-
-// Check if Freestyle is available
-function isFreestyleAvailable(): boolean {
-  return isBrowser() && !!window.crossOriginIsolated
-}
-
 /**
  * Creates parameter schema from custom tool schema
  */
@@ -254,7 +198,7 @@ export function createParamSchema(customTool: any): Record<string, any> {
  * @param getStore Optional function to get the store (useful for testing)
  */
 export function getClientEnvVars(getStore?: () => any): Record<string, string> {
-  if (!isBrowser()) return {}
+  if (typeof window === 'undefined') return {}
 
   try {
     // Allow injecting the store for testing
@@ -309,10 +253,6 @@ export function createCustomToolRequestBody(
 
 // Get a tool by its ID
 export function getTool(toolId: string): ToolConfig | undefined {
-  // Check for internal tools first
-  const internalTool = internalTools[toolId]
-  if (internalTool) return internalTool
-
   // Check for built-in tools
   const builtInTool = tools[toolId]
   if (builtInTool) return builtInTool
@@ -346,10 +286,6 @@ export async function getToolAsync(
   toolId: string,
   workflowId?: string
 ): Promise<ToolConfig | undefined> {
-  // Check for internal tools first
-  const internalTool = internalTools[toolId]
-  if (internalTool) return internalTool
-
   // Check for built-in tools
   const builtInTool = tools[toolId]
   if (builtInTool) return builtInTool
@@ -381,86 +317,10 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
       method: 'POST',
       headers: () => ({ 'Content-Type': 'application/json' }),
       body: createCustomToolRequestBody(customTool, true),
-      isInternalRoute: true,
-    },
-
-    // Direct execution support for browser environment with Freestyle
-    directExecution: async (params: Record<string, any>) => {
-      // If there's no code, we can't execute directly
-      if (!customTool.code) {
-        return {
-          success: false,
-          output: {},
-          error: 'No code provided for tool execution',
-        }
-      }
-
-      // If we're in a browser with Freestyle available, use it
-      if (isFreestyleAvailable()) {
-        try {
-          // Get environment variables from the store
-          const envStore = useEnvironmentStore.getState()
-          const envVars = envStore.getAllVariables()
-
-          // Create a merged params object that includes environment variables
-          const mergedParams = { ...params }
-
-          // Add environment variables to the params
-          Object.entries(envVars).forEach(([key, variable]) => {
-            if (mergedParams[key] === undefined && variable.value) {
-              mergedParams[key] = variable.value
-            }
-          })
-
-          // Resolve environment variables and tags in the code
-          let resolvedCode = customTool.code
-
-          // Resolve environment variables with {{var_name}} syntax
-          const envVarMatches = resolvedCode.match(/\{\{([^}]+)\}\}/g) || []
-          for (const match of envVarMatches) {
-            const varName = match.slice(2, -2).trim()
-            // Look for the variable in our environment store first, then in params
-            const envVar = envVars[varName]
-            const varValue = envVar ? envVar.value : mergedParams[varName] || ''
-
-            resolvedCode = resolvedCode.replaceAll(match, varValue)
-          }
-
-          // Resolve tags with <tag_name> syntax
-          const tagMatches = resolvedCode.match(/<([^>]+)>/g) || []
-          for (const match of tagMatches) {
-            const tagName = match.slice(1, -1).trim()
-            const tagValue = mergedParams[tagName] || ''
-            resolvedCode = resolvedCode.replace(match, tagValue)
-          }
-
-          // Dynamically import Freestyle to execute code
-          const { executeCode } = await import('@/lib/freestyle')
-
-          const result = await executeCode(resolvedCode, mergedParams)
-
-          if (!result.success) {
-            throw new Error(result.error || 'Freestyle execution failed')
-          }
-
-          return {
-            success: true,
-            output: result.output.result || result.output,
-            error: undefined,
-          }
-        } catch (error: any) {
-          logger.warn('Freestyle execution failed, falling back to API:', error.message)
-          // Fall back to API route if Freestyle fails
-          return undefined
-        }
-      }
-
-      // No Freestyle or not in browser, return undefined to use regular API route
-      return undefined
     },
 
     // Standard response handling for custom tools
-    transformResponse: async (response: Response, params: Record<string, any>) => {
+    transformResponse: async (response: Response) => {
       const data = await response.json()
 
       if (!data.success) {
@@ -473,8 +333,6 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
         error: undefined,
       }
     },
-    transformError: async (error: any) =>
-      `Custom tool execution error: ${error.message || 'Unknown error'}`,
   }
 }
 
@@ -535,11 +393,10 @@ async function getCustomTool(
         method: 'POST',
         headers: () => ({ 'Content-Type': 'application/json' }),
         body: createCustomToolRequestBody(customTool, false, workflowId),
-        isInternalRoute: true,
       },
 
       // Same response handling as client-side
-      transformResponse: async (response: Response, params: Record<string, any>) => {
+      transformResponse: async (response: Response) => {
         const data = await response.json()
 
         if (!data.success) {
@@ -552,8 +409,6 @@ async function getCustomTool(
           error: undefined,
         }
       },
-      transformError: async (error: any) =>
-        `Custom tool execution error: ${error.message || 'Unknown error'}`,
     }
   } catch (error) {
     logger.error(`Error fetching custom tool ${identifier} from API:`, error)

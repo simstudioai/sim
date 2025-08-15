@@ -165,52 +165,13 @@ export async function executeTool(
       }
     }
 
-    // For any tool with direct execution capability, try it first
-    if (tool.directExecution) {
-      try {
-        const directResult = await tool.directExecution(contextParams)
-        if (directResult) {
-          // Add timing data to the result
-          const endTime = new Date()
-          const endTimeISO = endTime.toISOString()
-          const duration = endTime.getTime() - startTime.getTime()
-
-          // Apply post-processing if available and not skipped
-          let finalResult = directResult
-          if (tool.postProcess && directResult.success && !skipPostProcess) {
-            try {
-              finalResult = await tool.postProcess(directResult, contextParams, executeTool)
-            } catch (error) {
-              logger.error(`[${requestId}] Post-processing error for ${toolId}:`, {
-                error: error instanceof Error ? error.message : String(error),
-              })
-              finalResult = directResult
-            }
-          }
-
-          // Process file outputs if execution context is available
-          finalResult = await processFileOutputs(finalResult, tool, executionContext)
-
-          return {
-            ...finalResult,
-            timing: {
-              startTime: startTimeISO,
-              endTime: endTimeISO,
-              duration,
-            },
-          }
-        }
-        // If directExecution returns undefined, fall back to API route
-      } catch (error: any) {
-        logger.warn(`[${requestId}] Direct execution failed for ${toolId}, falling back to API:`, {
-          error: error instanceof Error ? error.message : String(error),
-        })
-        // Fall back to API route if direct execution fails
-      }
-    }
-
     // For internal routes or when skipProxy is true, call the API directly
-    if (tool.request.isInternalRoute || skipProxy) {
+    // Internal routes are automatically detected by checking if URL starts with /api/
+    const endpointUrl =
+      typeof tool.request.url === 'function' ? tool.request.url(contextParams) : tool.request.url
+    const isInternalRoute = endpointUrl.startsWith('/api/')
+
+    if (isInternalRoute || skipProxy) {
       const result = await handleInternalRequest(toolId, tool, contextParams)
 
       // Apply post-processing if available and not skipped
@@ -280,7 +241,7 @@ export async function executeTool(
       stack: error instanceof Error ? error.stack : undefined,
     })
 
-    // Process the error to ensure we have a useful message
+    // Default error handling
     let errorMessage = 'Unknown error occurred'
     let errorDetails = {}
 
@@ -289,34 +250,31 @@ export async function executeTool(
     } else if (typeof error === 'string') {
       errorMessage = error
     } else if (error && typeof error === 'object') {
-      // Handle API response errors
-      if (error.response) {
-        const response = error.response
-        errorMessage = `API Error: ${response.statusText || response.status || 'Unknown status'}`
+      // Handle HTTP response errors
+      if (error.status) {
+        errorMessage = `HTTP ${error.status}: ${error.statusText || 'Request failed'}`
 
-        // Try to extract more details from the response
-        if (response.data) {
-          if (typeof response.data === 'string') {
-            errorMessage = `${errorMessage} - ${response.data}`
-          } else if (response.data.message) {
-            errorMessage = `${errorMessage} - ${response.data.message}`
-          } else if (response.data.error) {
+        if (error.data) {
+          if (typeof error.data === 'string') {
+            errorMessage = `${errorMessage} - ${error.data}`
+          } else if (error.data.message) {
+            errorMessage = `${errorMessage} - ${error.data.message}`
+          } else if (error.data.error) {
             errorMessage = `${errorMessage} - ${
-              typeof response.data.error === 'string'
-                ? response.data.error
-                : JSON.stringify(response.data.error)
+              typeof error.data.error === 'string'
+                ? error.data.error
+                : JSON.stringify(error.data.error)
             }`
           }
         }
 
-        // Include useful debugging information
         errorDetails = {
-          status: response.status,
-          statusText: response.statusText,
-          data: response.data,
+          status: error.status,
+          statusText: error.statusText,
+          data: error.data,
         }
       }
-      // Handle fetch or other network errors
+      // Handle other errors with messages
       else if (error.message) {
         // Don't pass along "undefined (undefined)" messages
         if (error.message === 'undefined (undefined)') {
@@ -350,6 +308,49 @@ export async function executeTool(
       },
     }
   }
+}
+
+/**
+ * Determines if a response or result represents an error condition
+ */
+function isErrorResponse(
+  response: Response | any,
+  data?: any
+): { isError: boolean; errorInfo?: { status?: number; statusText?: string; data?: any } } {
+  // HTTP Response object
+  if (response && typeof response === 'object' && 'ok' in response) {
+    if (!response.ok) {
+      return {
+        isError: true,
+        errorInfo: {
+          status: response.status,
+          statusText: response.statusText,
+          data: data,
+        },
+      }
+    }
+    return { isError: false }
+  }
+
+  // ToolResponse object
+  if (response && typeof response === 'object' && 'success' in response) {
+    return {
+      isError: !response.success,
+      errorInfo: response.success ? undefined : { data: response },
+    }
+  }
+
+  // Check for error indicators in data
+  if (data && typeof data === 'object') {
+    if (data.error || data.success === false) {
+      return {
+        isError: true,
+        errorInfo: { data: data },
+      }
+    }
+  }
+
+  return { isError: false }
 }
 
 /**
@@ -398,38 +399,73 @@ async function handleInternalRequest(
 
     const response = await fetch(fullUrl, requestOptions)
 
-    if (!response.ok) {
-      let errorData
-      try {
-        errorData = await response.json()
-        logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
-          status: response.status,
-          errorData,
-        })
-      } catch (e) {
-        logger.error(`[${requestId}] Failed to parse error response for ${toolId}:`, {
-          status: response.status,
-          statusText: response.statusText,
-        })
-        throw new Error(response.statusText || `Request failed with status ${response.status}`)
-      }
+    // Clone the response for error checking while preserving original for transformResponse
+    const responseForErrorCheck = response.clone()
 
-      // Extract error message from nested error objects (common in API responses)
-      // Prioritize detailed validation messages over generic error field
-      const errorMessage =
-        errorData.details?.[0]?.message ||
-        (typeof errorData.error === 'object'
-          ? errorData.error.message || JSON.stringify(errorData.error)
-          : errorData.error) ||
-        `Request failed with status ${response.status}`
-
-      logger.error(`[${requestId}] Internal request error for ${toolId}:`, {
-        error: errorMessage,
+    // Parse response data for error checking
+    let responseData
+    try {
+      responseData = await responseForErrorCheck.json()
+    } catch (jsonError) {
+      logger.error(`[${requestId}] JSON parse error for ${toolId}:`, {
+        error: jsonError instanceof Error ? jsonError.message : String(jsonError),
       })
-      throw new Error(errorMessage)
+      throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
     }
 
-    // Use the tool's response transformer if available
+    // Check for error conditions
+    const { isError, errorInfo } = isErrorResponse(responseForErrorCheck, responseData)
+
+    if (isError) {
+      // Handle error case
+      const errorToTransform = new Error(
+        // GraphQL errors (Linear API)
+        errorInfo?.data?.errors?.[0]?.message ||
+          // X/Twitter API specific pattern
+          errorInfo?.data?.errors?.[0]?.detail ||
+          // Generic details array
+          errorInfo?.data?.details?.[0]?.message ||
+          // Hunter API pattern
+          errorInfo?.data?.errors?.[0]?.details ||
+          // Direct errors array (when errors[0] is a string or simple object)
+          (Array.isArray(errorInfo?.data?.errors)
+            ? typeof errorInfo.data.errors[0] === 'string'
+              ? errorInfo.data.errors[0]
+              : errorInfo.data.errors[0]?.message
+            : undefined) ||
+          // Notion/Discord/GitHub/Twilio pattern
+          errorInfo?.data?.message ||
+          // SOAP/XML fault patterns
+          errorInfo?.data?.fault?.faultstring ||
+          errorInfo?.data?.faultstring ||
+          // Microsoft/OAuth error descriptions
+          errorInfo?.data?.error_description ||
+          // Airtable/Google fallback pattern
+          (typeof errorInfo?.data?.error === 'object'
+            ? errorInfo?.data?.error?.message || JSON.stringify(errorInfo?.data?.error)
+            : errorInfo?.data?.error) ||
+          // HTTP status text fallback
+          errorInfo?.statusText ||
+          // Final fallback
+          `Request failed with status ${errorInfo?.status || 'unknown'}`
+      )
+
+      // Add error context
+      Object.assign(errorToTransform, {
+        status: errorInfo?.status,
+        statusText: errorInfo?.statusText,
+        data: errorInfo?.data,
+      })
+
+      logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
+        status: errorInfo?.status,
+        errorData: errorInfo?.data,
+      })
+
+      throw errorToTransform
+    }
+
+    // Success case: use transformResponse if available
     if (tool.transformResponse) {
       try {
         const data = await tool.transformResponse(response, params)
@@ -442,85 +478,19 @@ async function handleInternalRequest(
       }
     }
 
-    // Default response handling
-    try {
-      const data = await response.json()
-      return {
-        success: true,
-        output: data.output || data,
-        error: undefined,
-      }
-    } catch (jsonError) {
-      logger.error(`[${requestId}] JSON parse error for ${toolId}:`, {
-        error: jsonError instanceof Error ? jsonError.message : String(jsonError),
-      })
-      throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
+    // Default success response handling
+    return {
+      success: true,
+      output: responseData.output || responseData,
+      error: undefined,
     }
   } catch (error: any) {
     logger.error(`[${requestId}] Internal request error for ${toolId}:`, {
       error: error instanceof Error ? error.message : String(error),
     })
 
-    // Use the tool's error transformer if available
-    if (tool.transformError) {
-      try {
-        const errorResult = tool.transformError(error)
-
-        // Handle both string and Promise return types
-        if (typeof errorResult === 'string') {
-          return {
-            success: false,
-            output: {},
-            error: errorResult,
-          }
-        }
-        // It's a Promise, await it
-        const transformedError = await errorResult
-        // If it's a string or has an error property, use it
-        if (typeof transformedError === 'string') {
-          return {
-            success: false,
-            output: {},
-            error: transformedError,
-          }
-        }
-        if (transformedError && typeof transformedError === 'object') {
-          // If it's already a ToolResponse, return it directly
-          if ('success' in transformedError) {
-            return transformedError
-          }
-          // If it has an error property, use it
-          if ('error' in transformedError) {
-            return {
-              success: false,
-              output: {},
-              error: transformedError.error,
-            }
-          }
-        }
-        // Fallback
-        return {
-          success: false,
-          output: {},
-          error: 'Unknown error',
-        }
-      } catch (transformError) {
-        logger.error(`[${requestId}] Error transform failed for ${toolId}:`, {
-          error: transformError instanceof Error ? transformError.message : String(transformError),
-        })
-        return {
-          success: false,
-          output: {},
-          error: error.message || 'Unknown error',
-        }
-      }
-    }
-
-    return {
-      success: false,
-      output: {},
-      error: error.message || 'Request failed',
-    }
+    // Let the error bubble up to be handled in the main executeTool function
+    throw error
   }
 }
 
@@ -616,12 +586,21 @@ async function handleProxyRequest(
       try {
         // Try to parse as JSON for more details
         const errorJson = JSON.parse(errorText)
-        if (errorJson.error) {
-          errorMessage =
-            typeof errorJson.error === 'string'
-              ? errorJson.error
-              : `API Error: ${response.status} ${response.statusText}`
-        }
+        // Enhanced error extraction to match internal API patterns
+        errorMessage =
+          // Primary error patterns
+          errorJson.errors?.[0]?.message ||
+          errorJson.errors?.[0]?.detail ||
+          errorJson.error?.message ||
+          (typeof errorJson.error === 'string' ? errorJson.error : undefined) ||
+          errorJson.message ||
+          errorJson.error_description ||
+          errorJson.fault?.faultstring ||
+          errorJson.faultstring ||
+          // Fallback
+          (typeof errorJson.error === 'object'
+            ? `API Error: ${response.status} ${response.statusText}`
+            : `HTTP error ${response.status}: ${response.statusText}`)
       } catch (parseError) {
         // If not JSON, use the raw text
         if (errorText) {

@@ -6,11 +6,13 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
   name: 'Create Notion Database',
   description: 'Create a new database in Notion with custom properties',
   version: '1.0.0',
+
   oauth: {
     required: true,
     provider: 'notion',
     additionalScopes: ['workspace.content', 'page.write'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -101,11 +103,6 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Notion API error: ${errorData.message || 'Unknown error'}`)
-    }
-
     const data = await response.json()
 
     // Extract database title
@@ -142,7 +139,15 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to create Notion database'
+  outputs: {
+    content: {
+      type: 'string',
+      description: 'Success message with database details and properties list',
+    },
+    metadata: {
+      type: 'object',
+      description:
+        'Database metadata including ID, title, URL, creation time, and properties schema',
+    },
   },
 }

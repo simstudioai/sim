@@ -6,11 +6,13 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
   name: 'Create Folder in Google Drive',
   description: 'Create a new folder in Google Drive',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'google-drive',
     additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -37,6 +39,7 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
       description: 'ID of the parent folder (internal use)',
     },
   },
+
   request: {
     url: 'https://www.googleapis.com/drive/v3/files',
     method: 'POST',
@@ -63,6 +66,7 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
       return metadata
     },
   },
+
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
@@ -87,7 +91,11 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
       },
     }
   },
-  transformError: (error) => {
-    return error.message || 'An error occurred while creating folder in Google Drive'
+
+  outputs: {
+    file: {
+      type: 'json',
+      description: 'Created folder metadata including ID, name, and parent information',
+    },
   },
 }

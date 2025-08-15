@@ -295,7 +295,7 @@ const BulkCreateDocumentsSchema = z.object({
   documents: z.array(CreateDocumentSchema),
   processingOptions: z.object({
     chunkSize: z.number().min(100).max(4000),
-    minCharactersPerChunk: z.number().min(50).max(2000),
+    minCharactersPerChunk: z.number().min(1).max(2000),
     recipe: z.string(),
     lang: z.string(),
     chunkOverlap: z.number().min(0).max(500),
