@@ -411,7 +411,7 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                   className={cn(
                     'font-medium',
                     'bg-[var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
-                    '47, 255, 0.15)] shadow-[0_0_0_0_var(--brand-primary-hex)] hover:shadow-[0_0_0_4px_rgba(128,',
+                    'shadow-[0_0_0_0_var(--brand-primary-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
                     'text-white transition-all duration-200',
                     'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none',
                     'h-10 rounded-md px-4 py-2'

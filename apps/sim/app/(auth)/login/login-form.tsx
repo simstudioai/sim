@@ -456,7 +456,7 @@ export default function LoginPage({
 
             <Button
               type='submit'
-              className='flex h-11 w-full items-center justify-center gap-2 bg-brand-primary font-medium text-base text-white shadow-lg transition-colors duration-200 hover:bg-brand-primary-hover'
+              className='flex h-11 w-full items-center justify-center gap-2 bg-brand-primary font-medium text-base text-white shadow-[var(--brand-primary-hex)]/20 shadow-lg transition-colors duration-200 hover:bg-brand-primary-hover'
               disabled={isLoading}
             >
               {isLoading ? 'Signing in...' : 'Sign In'}

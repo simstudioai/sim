@@ -643,7 +643,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     const debugButtonClass = cn(
       'h-12 w-12 rounded-[11px] font-medium',
       'bg-[var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
-      'shadow-[0_0_0_0_var(--brand-primary-hex)] hover:shadow-[0_0_0_4px_rgba(128, 47, 255, 0.15)]',
+      'shadow-[0_0_0_0_var(--brand-primary-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]]',
       'text-white transition-all duration-200',
       'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none'
     )
@@ -870,7 +870,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             className={cn(
               'gap-2 font-medium',
               'bg-[var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
-              '47, 255, 0.15)] shadow-[0_0_0_0_var(--brand-primary-hex)] hover:shadow-[0_0_0_4px_rgba(128,',
+              'shadow-[0_0_0_0_var(--brand-primary-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
               'text-white transition-all duration-200',
               'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none',
               'h-12 rounded-[11px] px-4 py-2'
