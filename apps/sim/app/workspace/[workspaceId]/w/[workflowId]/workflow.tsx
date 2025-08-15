@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
   Background,
@@ -66,6 +66,8 @@ interface BlockData {
   distance: number
 }
 
+export const useSocket = () => useContext(SocketContext)
+
 const WorkflowContent = React.memo(() => {
   // State
   const [isWorkflowReady, setIsWorkflowReady] = useState(false)
@@ -81,10 +83,45 @@ const WorkflowContent = React.memo(() => {
   // Hooks
   const params = useParams()
   const router = useRouter()
-  const { project, getNodes, fitView } = useReactFlow()
+  const { project, getNodes, fitView, screenToFlowPosition, flowToScreenPosition } = useReactFlow()
 
   // Get workspace ID from the params
   const workspaceId = params.workspaceId as string
+
+  window.onmousemove = (e => {
+    const { x: pointerX, y: pointerY } = screenToFlowPosition({
+      x: e.clientX,
+      y: e.clientY,
+    });
+    window.MOUSE_FLOW_X = pointerX;
+    window.MOUSE_FLOW_Y = pointerY;
+  });
+
+  setInterval(() => {
+    if (!window.otherCursors) return;
+    Object.keys(window.otherCursors).forEach(elmId => {
+      let data = window.otherCursors[elmId];
+      const flowPos = flowToScreenPosition({
+        x: data.cursor.x,
+        y: data.cursor.y,
+      });
+      if (flowPos.x == data.cursor.x && flowPos.y == data.cursor.y) {
+        return;
+      }
+      const existingElm = document.getElementById(elmId);
+      if (existingElm) {
+        existingElm.style.left = `${flowPos.x}px`
+        existingElm.style.top = `${flowPos.y}px`
+      } else {
+        const cursorElm = document.createElement('div')
+        cursorElm.id = elmId
+        cursorElm.className = 'cursor-presence'
+        cursorElm.style.left = `${flowPos.x}px`
+        cursorElm.style.top = `${flowPos.y}px`
+        document.body.appendChild(cursorElm)
+      }
+    })
+  }, 50);
 
   const { workflows, activeWorkflowId, isLoading, setActiveWorkflow, createWorkflow } =
     useWorkflowRegistry()

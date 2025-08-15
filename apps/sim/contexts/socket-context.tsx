@@ -429,6 +429,15 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           eventHandlers.current.cursorUpdate?.(data)
         })
 
+        socketInstance.on('cursor-update-2', (data) => {
+          console.log(data);
+          const elmId = `${data.socketId}|${data.userId}|${data.userName}`
+          if (!window.otherCursors) {
+            window.otherCursors = {};
+          }
+          window.otherCursors[elmId] = data;
+        })
+
         // Selection update events
         socketInstance.on('selection-update', (data) => {
           setPresenceUsers((prev) =>
@@ -731,10 +740,23 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     [socket, currentWorkflowId]
   )
 
+  window.addEventListener("mousemove", (e) => {
+    if (window.MOUSE_FLOW_X == null) {
+      return;
+    }
+    if (!socket) return;
+    console.log("Got cursor: ", window.MOUSE_FLOW_X, window.MOUSE_FLOW_Y);
+    socket.emit('cursor-update-2', {
+      x: window.MOUSE_FLOW_X,
+      y: window.MOUSE_FLOW_Y,
+    });
+  });
+
   // Cursor throttling optimized for database connection health
   const lastCursorEmit = useRef(0)
   const emitCursorUpdate = useCallback(
     (cursor: { x: number; y: number }) => {
+      console.error("SEBI HI 2");
       if (socket && currentWorkflowId) {
         const now = performance.now()
         // Reduced to 30fps (33ms) to reduce database load while maintaining smooth UX

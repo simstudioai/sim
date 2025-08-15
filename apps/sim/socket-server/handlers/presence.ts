@@ -11,6 +11,26 @@ export function setupPresenceHandlers(
 ) {
   const roomManager =
     deps instanceof Object && 'roomManager' in deps ? deps.roomManager : (deps as RoomManager)
+
+  socket.on('cursor-update-2', (cursor) => {
+    const workflowId = roomManager.getWorkflowIdForSocket(socket.id)
+    const session = roomManager.getUserSession(socket.id)
+
+    if (!workflowId || !session) return
+
+    const room = roomManager.getWorkflowRoom(workflowId)
+    if (!room) return
+
+    console.log(cursor);
+
+    socket.to(workflowId).emit('cursor-update-2', {
+      socketId: socket.id,
+      userId: session.userId,
+      userName: session.userName,
+      cursor,
+    })
+  });
+
   socket.on('cursor-update', ({ cursor }) => {
     const workflowId = roomManager.getWorkflowIdForSocket(socket.id)
     const session = roomManager.getUserSession(socket.id)
