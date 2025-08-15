@@ -73,7 +73,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // For self-hosted deployments, redirect root path based on session status
-  if (!isHosted && url.pathname === '/') {
+  // Only apply redirects to the main domain, not subdomains
+  if (!isHosted && !isCustomDomain && url.pathname === '/') {
     if (hasActiveSession) {
       // User has active session, redirect to workspace
       return NextResponse.redirect(new URL('/workspace', request.url))
