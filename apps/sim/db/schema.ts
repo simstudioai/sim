@@ -1179,3 +1179,11 @@ export const copilotFeedback = pgTable(
     createdAtIdx: index('copilot_feedback_created_at_idx').on(table.createdAt),
   })
 )
+
+export const copilotApiKeys = pgTable('copilot_api_keys', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  apiKeyEncrypted: text('api_key_encrypted').notNull(),
+})

@@ -7,6 +7,7 @@ import {
   Shield,
   UserCircle,
   Users,
+  Bot,
 } from 'lucide-react'
 import { getEnv } from '@/lib/env'
 import { cn } from '@/lib/utils'
@@ -20,11 +21,12 @@ interface SettingsNavigationProps {
       | 'environment'
       | 'account'
       | 'credentials'
-      | 'apikeys'
-      | 'subscription'
-      | 'team'
-      | 'privacy'
-  ) => void
+             | 'apikeys'
+       | 'subscription'
+       | 'team'
+       | 'privacy'
+       | 'copilot'
+   ) => void
   hasOrganization: boolean
 }
 
@@ -37,6 +39,7 @@ type NavigationItem = {
     | 'apikeys'
     | 'subscription'
     | 'team'
+    | 'copilot'
     | 'privacy'
   label: string
   icon: React.ComponentType<{ className?: string }>
@@ -69,6 +72,11 @@ const allNavigationItems: NavigationItem[] = [
     id: 'apikeys',
     label: 'API Keys',
     icon: KeySquare,
+  },
+  {
+    id: 'copilot',
+    label: 'Copilot',
+    icon: Bot,
   },
   {
     id: 'privacy',

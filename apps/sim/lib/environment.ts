@@ -11,7 +11,7 @@ export const isProd = env.NODE_ENV === 'production'
 /**
  * Is the application running in development mode
  */
-export const isDev = env.NODE_ENV === 'development'
+export const isDev = false // env.NODE_ENV === 'development'
 
 /**
  * Is the application running in test mode
