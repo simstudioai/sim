@@ -274,7 +274,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
     },
     trigger: ExecutionTrigger['type']
   ): Promise<void> {
-    // Skip cost tracking if billing is disabled
     if (!isBillingEnabled) {
       logger.debug('Billing is disabled, skipping user stats cost update')
       return
