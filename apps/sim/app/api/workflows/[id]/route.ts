@@ -12,8 +12,6 @@ import { apiKey as apiKeyTable, workflow } from '@/db/schema'
 
 const logger = createLogger('WorkflowByIdAPI')
 
-export const dynamic = 'force-dynamic'
-
 const UpdateWorkflowSchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   description: z.string().optional(),

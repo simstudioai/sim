@@ -4,9 +4,6 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { TAG_SLOTS } from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
-
-export const dynamic = 'force-dynamic'
-
 import {
   checkDocumentAccess,
   checkDocumentWriteAccess,
