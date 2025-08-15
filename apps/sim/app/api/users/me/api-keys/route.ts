@@ -9,8 +9,6 @@ import { apiKey } from '@/db/schema'
 
 const logger = createLogger('ApiKeysAPI')
 
-export const dynamic = 'force-dynamic'
-
 // GET /api/users/me/api-keys - Get all API keys for the current user
 export async function GET(request: NextRequest) {
   try {

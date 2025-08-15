@@ -4,9 +4,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-
-export const dynamic = 'force-dynamic'
-
 import { checkChunkAccess } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
 import { document, embedding } from '@/db/schema'

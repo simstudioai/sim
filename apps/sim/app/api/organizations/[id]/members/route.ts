@@ -13,8 +13,6 @@ import { invitation, member, organization, user, userStats } from '@/db/schema'
 
 const logger = createLogger('OrganizationMembersAPI')
 
-export const dynamic = 'force-dynamic'
-
 /**
  * GET /api/organizations/[id]/members
  * Get organization members with optional usage data
