@@ -628,7 +628,13 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           <div className='flex justify-end'>
             <div className='min-w-0 max-w-[80%]'>
               {/* Message content in purple box */}
-              <div className='rounded-[10px] bg-[var(--brand-primary-hover-hex)]/[0.08] px-3 py-2'>
+              <div
+                className='rounded-[10px] px-3 py-2'
+                style={{
+                  backgroundColor:
+                    'color-mix(in srgb, var(--brand-primary-hover-hex) 8%, transparent)',
+                }}
+              >
                 <div className='whitespace-pre-wrap break-words font-normal text-base text-foreground leading-relaxed'>
                   <WordWrap text={message.content} />
                 </div>
