@@ -84,7 +84,6 @@
     "date-fns": "4.1.0",
     "drizzle-orm": "^0.41.0",
     "framer-motion": "^12.5.0",
-    "freestyle-sandboxes": "^0.0.38",
     "fuse.js": "7.1.0",
     "geist": "1.4.2",
     "groq-sdk": "^0.15.0",
