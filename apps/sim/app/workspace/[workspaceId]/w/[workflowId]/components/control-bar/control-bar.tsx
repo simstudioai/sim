@@ -341,8 +341,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
    * Handle deleting the current workflow
    */
   const handleDeleteWorkflow = () => {
-    // Use the workflow ID from URL params instead of registry state
-    // This ensures we delete the correct workflow even when registry is out of sync
     const currentWorkflowId = params.workflowId as string
     if (!currentWorkflowId || !userPermissions.canEdit) return
 

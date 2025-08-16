@@ -29,12 +29,12 @@ export function ErrorUI({
 
   return (
     <div className={containerClass}>
-      {/* Include the control bar so users can delete the broken workflow */}
+      {/* Control bar */}
       <ControlBar hasValidationErrors={false} />
 
-      {/* Main content area with console panel */}
+      {/* Main content area */}
       <div className='relative flex flex-1'>
-        {/* Error message centered in main area */}
+        {/* Error message */}
         <div className='flex flex-1 items-center justify-center'>
           <Card className='max-w-md space-y-4 p-6 text-center'>
             <div className='flex justify-center'>
@@ -45,7 +45,7 @@ export function ErrorUI({
           </Card>
         </div>
 
-        {/* Include the console panel so users have familiar interface */}
+        {/* Console panel */}
         <div className='fixed top-0 right-0 z-10'>
           <Panel />
         </div>
