@@ -505,13 +505,6 @@
       "when": 1755281098957,
       "tag": "0072_powerful_legion",
       "breakpoints": true
-    },
-    {
-      "idx": 73,
-      "version": "7",
-      "when": 1755291339064,
-      "tag": "0073_first_skin",
-      "breakpoints": true
     }
   ]
 }
