@@ -968,13 +968,11 @@ const WorkflowContent = React.memo(() => {
       // Handle container nodes differently
       if (block.type === 'loop' || block.type === 'parallel') {
         const hasNestedError = nestedSubflowErrors.has(block.id)
-        const parentId = block.data?.parentId
-        const safeParentId = parentId && blocks[parentId] ? parentId : undefined
         nodeArray.push({
           id: block.id,
           type: 'subflowNode',
           position: block.position,
-          parentId: safeParentId,
+          parentId: block.data?.parentId,
           extent: block.data?.extent || undefined,
           dragHandle: '.workflow-drag-handle',
           data: {
@@ -1001,13 +999,11 @@ const WorkflowContent = React.memo(() => {
       const isActive = activeBlockIds.has(block.id)
       const isPending = isDebugModeEnabled && pendingBlocks.includes(block.id)
 
-      const parentId = block.data?.parentId
-      const safeParentId = parentId && blocks[parentId] ? parentId : undefined
       nodeArray.push({
         id: block.id,
         type: 'workflowBlock',
         position,
-        parentId: safeParentId,
+        parentId: block.data?.parentId,
         dragHandle: '.workflow-drag-handle',
         extent: block.data?.extent || undefined,
         data: {
