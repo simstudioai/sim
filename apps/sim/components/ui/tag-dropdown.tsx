@@ -51,8 +51,8 @@ export const checkTagTrigger = (text: string, cursorPosition: number): { show: b
 const BLOCK_COLORS = {
   VARIABLE: '#2F8BFF',
   DEFAULT: '#2F55FF',
-  LOOP: '#8857E6',
-  PARALLEL: '#FF5757',
+  LOOP: '#2FB3FF',
+  PARALLEL: '#FEE12B',
 } as const
 
 const TAG_PREFIXES = {
@@ -556,9 +556,14 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     )
     let containingParallelBlockId: string | null = null
     if (containingParallel) {
-      const [parallelId] = containingParallel
+      const [parallelId, parallel] = containingParallel
       containingParallelBlockId = parallelId
-      const contextualTags: string[] = ['index', 'currentItem', 'items']
+      const parallelType = parallel.parallelType || 'count'
+      const contextualTags: string[] = ['index']
+      if (parallelType === 'collection') {
+        contextualTags.push('currentItem')
+        contextualTags.push('items')
+      }
 
       const containingParallelBlock = blocks[parallelId]
       if (containingParallelBlock) {

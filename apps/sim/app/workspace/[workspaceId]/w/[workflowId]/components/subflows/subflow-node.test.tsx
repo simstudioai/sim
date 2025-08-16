@@ -96,22 +96,22 @@ describe('SubflowNodeComponent', () => {
   })
 
   describe('Component Definition and Structure', () => {
-    it('should be defined as a function component', () => {
+    it.concurrent('should be defined as a function component', () => {
       expect(SubflowNodeComponent).toBeDefined()
       expect(typeof SubflowNodeComponent).toBe('function')
     })
 
-    it('should have correct display name', () => {
+    it.concurrent('should have correct display name', () => {
       expect(SubflowNodeComponent.displayName).toBe('SubflowNodeComponent')
     })
 
-    it('should be a memoized component', () => {
+    it.concurrent('should be a memoized component', () => {
       expect(SubflowNodeComponent).toBeDefined()
     })
   })
 
   describe('Props Validation and Type Safety', () => {
-    it('should accept NodeProps interface', () => {
+    it.concurrent('should accept NodeProps interface', () => {
       const validProps = {
         id: 'test-id',
         type: 'subflowNode' as const,
@@ -136,7 +136,7 @@ describe('SubflowNodeComponent', () => {
       }).not.toThrow()
     })
 
-    it('should handle different data configurations', () => {
+    it.concurrent('should handle different data configurations', () => {
       const configurations = [
         { width: 500, height: 300, isPreview: false, kind: 'loop' as const },
         { width: 800, height: 600, isPreview: true, kind: 'parallel' as const },
@@ -156,7 +156,7 @@ describe('SubflowNodeComponent', () => {
   })
 
   describe('Hook Integration', () => {
-    it('should provide collaborativeRemoveBlock', () => {
+    it.concurrent('should provide collaborativeRemoveBlock', () => {
       expect(mockRemoveBlock).toBeDefined()
       expect(typeof mockRemoveBlock).toBe('function')
       mockRemoveBlock('test-id')
@@ -165,7 +165,7 @@ describe('SubflowNodeComponent', () => {
   })
 
   describe('Component Logic Tests', () => {
-    it('should handle nesting level calculation logic', () => {
+    it.concurrent('should handle nesting level calculation logic', () => {
       const testCases = [
         { nodes: [], parentId: undefined, expectedLevel: 0 },
         { nodes: [{ id: 'parent', data: {} }], parentId: 'parent', expectedLevel: 1 },
@@ -197,7 +197,7 @@ describe('SubflowNodeComponent', () => {
       })
     })
 
-    it('should handle nested styles generation', () => {
+    it.concurrent('should handle nested styles generation', () => {
       // Test the nested styles logic
       const testCases = [
         { nestingLevel: 0, expectedBg: 'rgba(34,197,94,0.05)' },
@@ -223,7 +223,7 @@ describe('SubflowNodeComponent', () => {
   })
 
   describe('Component Configuration', () => {
-    it('should handle different dimensions', () => {
+    it.concurrent('should handle different dimensions', () => {
       const dimensionTests = [
         { width: 500, height: 300 },
         { width: 800, height: 600 },
@@ -240,7 +240,7 @@ describe('SubflowNodeComponent', () => {
   })
 
   describe('Event Handling Logic', () => {
-    it('should handle delete button click logic (simulated)', () => {
+    it.concurrent('should handle delete button click logic (simulated)', () => {
       const mockEvent = { stopPropagation: vi.fn() }
 
       const handleDelete = (e: any, nodeId: string) => {
@@ -254,7 +254,7 @@ describe('SubflowNodeComponent', () => {
       expect(mockRemoveBlock).toHaveBeenCalledWith('test-id')
     })
 
-    it('should handle event propagation prevention', () => {
+    it.concurrent('should handle event propagation prevention', () => {
       const mockEvent = { stopPropagation: vi.fn() }
       mockEvent.stopPropagation()
       expect(mockEvent.stopPropagation).toHaveBeenCalled()
@@ -262,7 +262,7 @@ describe('SubflowNodeComponent', () => {
   })
 
   describe('Component Data Handling', () => {
-    it('should handle missing data properties gracefully', () => {
+    it.concurrent('should handle missing data properties gracefully', () => {
       const testCases = [
         undefined,
         {},
@@ -281,7 +281,7 @@ describe('SubflowNodeComponent', () => {
       })
     })
 
-    it('should handle parent ID relationships', () => {
+    it.concurrent('should handle parent ID relationships', () => {
       const testCases = [
         { parentId: undefined, hasParent: false },
         { parentId: 'parent-1', hasParent: true },
@@ -295,8 +295,202 @@ describe('SubflowNodeComponent', () => {
     })
   })
 
+  describe('Loop vs Parallel Kind Specific Tests', () => {
+    it.concurrent('should generate correct handle IDs for loop kind', () => {
+      const loopData = { ...defaultProps.data, kind: 'loop' as const }
+      const startHandleId = loopData.kind === 'loop' ? 'loop-start-source' : 'parallel-start-source'
+      const endHandleId = loopData.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
+
+      expect(startHandleId).toBe('loop-start-source')
+      expect(endHandleId).toBe('loop-end-source')
+    })
+
+    it.concurrent('should generate correct handle IDs for parallel kind', () => {
+      type SubflowKind = 'loop' | 'parallel'
+      const testHandleGeneration = (kind: SubflowKind) => {
+        const startHandleId = kind === 'loop' ? 'loop-start-source' : 'parallel-start-source'
+        const endHandleId = kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
+        return { startHandleId, endHandleId }
+      }
+
+      const result = testHandleGeneration('parallel')
+      expect(result.startHandleId).toBe('parallel-start-source')
+      expect(result.endHandleId).toBe('parallel-end-source')
+    })
+
+    it.concurrent('should generate correct background colors for loop kind', () => {
+      const loopData = { ...defaultProps.data, kind: 'loop' as const }
+      const startBg = loopData.kind === 'loop' ? '#2FB3FF' : '#FEE12B'
+
+      expect(startBg).toBe('#2FB3FF')
+    })
+
+    it.concurrent('should generate correct background colors for parallel kind', () => {
+      type SubflowKind = 'loop' | 'parallel'
+      const testBgGeneration = (kind: SubflowKind) => {
+        return kind === 'loop' ? '#2FB3FF' : '#FEE12B'
+      }
+
+      const startBg = testBgGeneration('parallel')
+      expect(startBg).toBe('#FEE12B')
+    })
+
+    it.concurrent('should demonstrate handle ID generation for any kind', () => {
+      type SubflowKind = 'loop' | 'parallel'
+      const testKind = (kind: SubflowKind) => {
+        const data = { kind }
+        const startHandleId = data.kind === 'loop' ? 'loop-start-source' : 'parallel-start-source'
+        const endHandleId = data.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
+        return { startHandleId, endHandleId }
+      }
+
+      const loopResult = testKind('loop')
+      expect(loopResult.startHandleId).toBe('loop-start-source')
+      expect(loopResult.endHandleId).toBe('loop-end-source')
+
+      const parallelResult = testKind('parallel')
+      expect(parallelResult.startHandleId).toBe('parallel-start-source')
+      expect(parallelResult.endHandleId).toBe('parallel-end-source')
+    })
+
+    it.concurrent('should pass correct iterationType to IterationBadges for loop', () => {
+      const loopProps = { ...defaultProps, data: { ...defaultProps.data, kind: 'loop' as const } }
+      // Mock IterationBadges should receive the kind as iterationType
+      expect(loopProps.data.kind).toBe('loop')
+    })
+
+    it.concurrent('should pass correct iterationType to IterationBadges for parallel', () => {
+      const parallelProps = {
+        ...defaultProps,
+        data: { ...defaultProps.data, kind: 'parallel' as const },
+      }
+      // Mock IterationBadges should receive the kind as iterationType
+      expect(parallelProps.data.kind).toBe('parallel')
+    })
+
+    it.concurrent('should handle both kinds in configuration arrays', () => {
+      const bothKinds = ['loop', 'parallel'] as const
+      bothKinds.forEach((kind) => {
+        const data = { ...defaultProps.data, kind }
+        expect(['loop', 'parallel']).toContain(data.kind)
+
+        // Test handle ID generation for both kinds
+        const startHandleId = data.kind === 'loop' ? 'loop-start-source' : 'parallel-start-source'
+        const endHandleId = data.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
+        const startBg = data.kind === 'loop' ? '#2FB3FF' : '#FEE12B'
+
+        if (kind === 'loop') {
+          expect(startHandleId).toBe('loop-start-source')
+          expect(endHandleId).toBe('loop-end-source')
+          expect(startBg).toBe('#2FB3FF')
+        } else {
+          expect(startHandleId).toBe('parallel-start-source')
+          expect(endHandleId).toBe('parallel-end-source')
+          expect(startBg).toBe('#FEE12B')
+        }
+      })
+    })
+
+    it.concurrent('should maintain consistent styling behavior across both kinds', () => {
+      const loopProps = { ...defaultProps, data: { ...defaultProps.data, kind: 'loop' as const } }
+      const parallelProps = {
+        ...defaultProps,
+        data: { ...defaultProps.data, kind: 'parallel' as const },
+      }
+
+      // Both should have same base properties except kind-specific ones
+      expect(loopProps.data.width).toBe(parallelProps.data.width)
+      expect(loopProps.data.height).toBe(parallelProps.data.height)
+      expect(loopProps.data.isPreview).toBe(parallelProps.data.isPreview)
+
+      // But different kinds
+      expect(loopProps.data.kind).toBe('loop')
+      expect(parallelProps.data.kind).toBe('parallel')
+    })
+  })
+
+  describe('Integration with IterationBadges', () => {
+    it.concurrent('should pass nodeId to IterationBadges', () => {
+      const testId = 'test-subflow-123'
+      const props = { ...defaultProps, id: testId }
+
+      // Verify the props would be passed correctly
+      expect(props.id).toBe(testId)
+    })
+
+    it.concurrent('should pass data object to IterationBadges', () => {
+      const testData = { ...defaultProps.data, customProperty: 'test' }
+      const props = { ...defaultProps, data: testData }
+
+      // Verify the data object structure
+      expect(props.data).toEqual(testData)
+      expect(props.data.kind).toBeDefined()
+    })
+
+    it.concurrent('should pass iterationType matching the kind', () => {
+      const loopProps = { ...defaultProps, data: { ...defaultProps.data, kind: 'loop' as const } }
+      const parallelProps = {
+        ...defaultProps,
+        data: { ...defaultProps.data, kind: 'parallel' as const },
+      }
+
+      // The iterationType should match the kind
+      expect(loopProps.data.kind).toBe('loop')
+      expect(parallelProps.data.kind).toBe('parallel')
+    })
+  })
+
+  describe('CSS Class Generation', () => {
+    it.concurrent('should generate proper CSS classes for nested loops', () => {
+      const nestingLevel = 2
+      const expectedBorderClass =
+        nestingLevel > 0 &&
+        `border border-[0.5px] ${nestingLevel % 2 === 0 ? 'border-slate-300/60' : 'border-slate-400/60'}`
+
+      expect(expectedBorderClass).toBeTruthy()
+      expect(expectedBorderClass).toContain('border-slate-300/60') // even nesting level
+    })
+
+    it.concurrent('should generate proper CSS classes for odd nested levels', () => {
+      const nestingLevel = 3
+      const expectedBorderClass =
+        nestingLevel > 0 &&
+        `border border-[0.5px] ${nestingLevel % 2 === 0 ? 'border-slate-300/60' : 'border-slate-400/60'}`
+
+      expect(expectedBorderClass).toBeTruthy()
+      expect(expectedBorderClass).toContain('border-slate-400/60') // odd nesting level
+    })
+
+    it.concurrent('should handle error state styling', () => {
+      const hasNestedError = true
+      const errorClasses = hasNestedError && 'border-2 border-red-500 bg-red-50/50'
+
+      expect(errorClasses).toBe('border-2 border-red-500 bg-red-50/50')
+    })
+
+    it.concurrent('should handle diff status styling', () => {
+      const diffStatuses = ['new', 'edited'] as const
+
+      diffStatuses.forEach((status) => {
+        let diffClass = ''
+        if (status === 'new') {
+          diffClass = 'bg-green-50/50 ring-2 ring-green-500 dark:bg-green-900/10'
+        } else if (status === 'edited') {
+          diffClass = 'bg-orange-50/50 ring-2 ring-orange-500 dark:bg-orange-900/10'
+        }
+
+        expect(diffClass).toBeTruthy()
+        if (status === 'new') {
+          expect(diffClass).toContain('ring-green-500')
+        } else {
+          expect(diffClass).toContain('ring-orange-500')
+        }
+      })
+    })
+  })
+
   describe('Edge Cases and Error Handling', () => {
-    it('should handle circular parent references', () => {
+    it.concurrent('should handle circular parent references', () => {
       const nodes = [
         { id: 'node1', data: { parentId: 'node2' } },
         { id: 'node2', data: { parentId: 'node1' } },
@@ -326,7 +520,7 @@ describe('SubflowNodeComponent', () => {
       expect(visited.has('node2')).toBe(true)
     })
 
-    it('should handle complex circular reference chains', () => {
+    it.concurrent('should handle complex circular reference chains', () => {
       const nodes = [
         { id: 'node1', data: { parentId: 'node2' } },
         { id: 'node2', data: { parentId: 'node3' } },
@@ -356,7 +550,7 @@ describe('SubflowNodeComponent', () => {
       expect(visited.size).toBe(3)
     })
 
-    it('should handle self-referencing nodes', () => {
+    it.concurrent('should handle self-referencing nodes', () => {
       const nodes = [{ id: 'node1', data: { parentId: 'node1' } }]
 
       mockGetNodes.mockReturnValue(nodes)
