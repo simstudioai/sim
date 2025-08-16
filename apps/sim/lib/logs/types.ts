@@ -82,19 +82,10 @@ export interface WorkflowExecutionLog {
   executionId: string
   stateSnapshotId: string
   level: 'info' | 'error'
-  message: string
   trigger: ExecutionTrigger['type']
   startedAt: string
   endedAt: string
   totalDurationMs: number
-  blockCount: number
-  successCount: number
-  errorCount: number
-  skippedCount: number
-  totalCost: number
-  totalInputCost: number
-  totalOutputCost: number
-  totalTokens: number
   files?: Array<{
     id: string
     name: string
@@ -107,9 +98,10 @@ export interface WorkflowExecutionLog {
     storageProvider?: 's3' | 'blob' | 'local'
     bucketName?: string
   }>
-  metadata: {
-    environment: ExecutionEnvironment
-    trigger: ExecutionTrigger
+  // Execution details
+  executionData: {
+    environment?: ExecutionEnvironment
+    trigger?: ExecutionTrigger
     traceSpans?: TraceSpan[]
     errorDetails?: {
       blockId: string
@@ -117,6 +109,22 @@ export interface WorkflowExecutionLog {
       error: string
       stackTrace?: string
     }
+  }
+  // Top-level cost information
+  cost?: {
+    input?: number
+    output?: number
+    total?: number
+    tokens?: { prompt?: number; completion?: number; total?: number }
+    models?: Record<
+      string,
+      {
+        input?: number
+        output?: number
+        total?: number
+        tokens?: { prompt?: number; completion?: number; total?: number }
+      }
+    >
   }
   duration?: string
   createdAt: string

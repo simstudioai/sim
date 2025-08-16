@@ -59,20 +59,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
         executionId,
         stateSnapshotId: snapshotResult.snapshot.id,
         level: 'info',
-        message: `${this.getTriggerPrefix(trigger.type)} execution started`,
         trigger: trigger.type,
         startedAt: startTime,
         endedAt: null,
         totalDurationMs: null,
-        blockCount: 0,
-        successCount: 0,
-        errorCount: 0,
-        skippedCount: 0,
-        totalCost: null,
-        totalInputCost: null,
-        totalOutputCost: null,
-        totalTokens: null,
-        metadata: {
+        executionData: {
           environment,
           trigger,
         },
@@ -88,20 +79,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
         executionId: workflowLog.executionId,
         stateSnapshotId: workflowLog.stateSnapshotId,
         level: workflowLog.level as 'info' | 'error',
-        message: workflowLog.message,
         trigger: workflowLog.trigger as ExecutionTrigger['type'],
         startedAt: workflowLog.startedAt.toISOString(),
         endedAt: workflowLog.endedAt?.toISOString() || workflowLog.startedAt.toISOString(),
         totalDurationMs: workflowLog.totalDurationMs || 0,
-        blockCount: workflowLog.blockCount,
-        successCount: workflowLog.successCount,
-        errorCount: workflowLog.errorCount,
-        skippedCount: workflowLog.skippedCount,
-        totalCost: Number(workflowLog.totalCost) || 0,
-        totalInputCost: Number(workflowLog.totalInputCost) || 0,
-        totalOutputCost: Number(workflowLog.totalOutputCost) || 0,
-        totalTokens: workflowLog.totalTokens || 0,
-        metadata: workflowLog.metadata as WorkflowExecutionLog['metadata'],
+        executionData: workflowLog.executionData as WorkflowExecutionLog['executionData'],
         createdAt: workflowLog.createdAt.toISOString(),
       },
       snapshot: snapshotResult.snapshot,
@@ -151,7 +133,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
     })
 
     const level = hasErrors ? 'error' : 'info'
-    const message = hasErrors ? 'Workflow execution failed' : 'Workflow execution completed'
 
     // Extract files from trace spans and final output
     const executionFiles = this.extractFilesFromExecution(traceSpans, finalOutput)
@@ -160,22 +141,24 @@ export class ExecutionLogger implements IExecutionLoggerService {
       .update(workflowExecutionLogs)
       .set({
         level,
-        message,
         endedAt: new Date(endedAt),
         totalDurationMs,
-        blockCount: 0,
-        successCount: 0,
-        errorCount: 0,
-        skippedCount: 0,
-        totalCost: costSummary.totalCost.toString(),
-        totalInputCost: costSummary.totalInputCost.toString(),
-        totalOutputCost: costSummary.totalOutputCost.toString(),
-        totalTokens: costSummary.totalTokens,
         files: executionFiles.length > 0 ? executionFiles : null,
-        metadata: {
+        executionData: {
           traceSpans,
           finalOutput,
           tokenBreakdown: {
+            prompt: costSummary.totalPromptTokens,
+            completion: costSummary.totalCompletionTokens,
+            total: costSummary.totalTokens,
+          },
+          models: costSummary.models,
+        },
+        cost: {
+          total: costSummary.totalCost,
+          input: costSummary.totalInputCost,
+          output: costSummary.totalOutputCost,
+          tokens: {
             prompt: costSummary.totalPromptTokens,
             completion: costSummary.totalCompletionTokens,
             total: costSummary.totalTokens,
@@ -205,20 +188,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
       executionId: updatedLog.executionId,
       stateSnapshotId: updatedLog.stateSnapshotId,
       level: updatedLog.level as 'info' | 'error',
-      message: updatedLog.message,
       trigger: updatedLog.trigger as ExecutionTrigger['type'],
       startedAt: updatedLog.startedAt.toISOString(),
       endedAt: updatedLog.endedAt?.toISOString() || endedAt,
       totalDurationMs: updatedLog.totalDurationMs || totalDurationMs,
-      blockCount: updatedLog.blockCount,
-      successCount: updatedLog.successCount,
-      errorCount: updatedLog.errorCount,
-      skippedCount: updatedLog.skippedCount,
-      totalCost: Number(updatedLog.totalCost) || 0,
-      totalInputCost: Number(updatedLog.totalInputCost) || 0,
-      totalOutputCost: Number(updatedLog.totalOutputCost) || 0,
-      totalTokens: updatedLog.totalTokens || 0,
-      metadata: updatedLog.metadata as WorkflowExecutionLog['metadata'],
+      executionData: updatedLog.executionData as WorkflowExecutionLog['executionData'],
+      cost: updatedLog.cost as any,
       createdAt: updatedLog.createdAt.toISOString(),
     }
   }
@@ -238,20 +213,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
       executionId: workflowLog.executionId,
       stateSnapshotId: workflowLog.stateSnapshotId,
       level: workflowLog.level as 'info' | 'error',
-      message: workflowLog.message,
       trigger: workflowLog.trigger as ExecutionTrigger['type'],
       startedAt: workflowLog.startedAt.toISOString(),
       endedAt: workflowLog.endedAt?.toISOString() || workflowLog.startedAt.toISOString(),
       totalDurationMs: workflowLog.totalDurationMs || 0,
-      blockCount: workflowLog.blockCount,
-      successCount: workflowLog.successCount,
-      errorCount: workflowLog.errorCount,
-      skippedCount: workflowLog.skippedCount,
-      totalCost: Number(workflowLog.totalCost) || 0,
-      totalInputCost: Number(workflowLog.totalInputCost) || 0,
-      totalOutputCost: Number(workflowLog.totalOutputCost) || 0,
-      totalTokens: workflowLog.totalTokens || 0,
-      metadata: workflowLog.metadata as WorkflowExecutionLog['metadata'],
+      executionData: workflowLog.executionData as WorkflowExecutionLog['executionData'],
+      cost: workflowLog.cost as any,
       createdAt: workflowLog.createdAt.toISOString(),
     }
   }
