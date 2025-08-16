@@ -248,48 +248,48 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
             logger.info('Successfully applied diff workflow to main store')
 
-            // Persist to database
-            try {
-              logger.info('Persisting accepted diff changes to database')
-
-              const response = await fetch(`/api/workflows/${activeWorkflowId}/state`, {
-                method: 'PUT',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  ...cleanState,
-                  lastSaved: Date.now(),
-                }),
-              })
-
-              if (!response.ok) {
-                const errorData = await response.json()
-                logger.error('Failed to persist accepted diff to database:', errorData)
-                throw new Error(errorData.error || `Failed to save: ${response.statusText}`)
-              }
-
-              const result = await response.json()
-              logger.info('Successfully persisted accepted diff to database', {
-                blocksCount: result.blocksCount,
-                edgesCount: result.edgesCount,
-              })
-            } catch (persistError) {
-              logger.error('Failed to persist accepted diff to database:', persistError)
-              // Don't throw here - the store is already updated, so the UI is correct
-              logger.warn('Diff was applied to local stores but not persisted to database')
-            }
-
-            // Clear the diff
+            // Optimistically clear the diff immediately so UI updates instantly
             get().clearDiff()
 
-            // Update copilot tool call state to 'accepted'
-            try {
-              const { useCopilotStore } = await import('@/stores/copilot/store')
-              useCopilotStore.getState().updatePreviewToolCallState('accepted')
-            } catch (error) {
-              logger.warn('Failed to update copilot tool call state after accept:', error)
-            }
+            // Fire-and-forget: persist to database and update copilot state in the background
+            ;(async () => {
+              try {
+                logger.info('Persisting accepted diff changes to database')
+
+                const response = await fetch(`/api/workflows/${activeWorkflowId}/state`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    ...cleanState,
+                    lastSaved: Date.now(),
+                  }),
+                })
+
+                if (!response.ok) {
+                  const errorData = await response.json().catch(() => ({}))
+                  logger.error('Failed to persist accepted diff to database:', errorData)
+                } else {
+                  const result = await response.json().catch(() => ({}))
+                  logger.info('Successfully persisted accepted diff to database', {
+                    blocksCount: (result as any)?.blocksCount,
+                    edgesCount: (result as any)?.edgesCount,
+                  })
+                }
+              } catch (persistError) {
+                logger.error('Failed to persist accepted diff to database:', persistError)
+                logger.warn('Diff was applied to local stores but not persisted to database')
+              }
+
+              // Update copilot tool call state to 'accepted'
+              try {
+                const { useCopilotStore } = await import('@/stores/copilot/store')
+                useCopilotStore.getState().updatePreviewToolCallState('accepted')
+              } catch (error) {
+                logger.warn('Failed to update copilot tool call state after accept:', error)
+              }
+            })()
           } catch (error) {
             logger.error('Failed to accept changes:', error)
             throw error

@@ -945,7 +945,8 @@ export function ToolInput({
     param: ToolParameterConfig,
     value: string,
     onChange: (value: string) => void,
-    toolIndex?: number
+    toolIndex?: number,
+    currentToolParams?: Record<string, string>
   ) => {
     // Create unique blockId for tool parameters to avoid conflicts with main block
     const uniqueBlockId = toolIndex !== undefined ? `${blockId}-tool-${toolIndex}` : blockId
@@ -1092,7 +1093,7 @@ export function ToolInput({
             onChange={onChange}
             uiComponent={uiComponent}
             disabled={disabled}
-            previewContextValues={tool.params as any}
+            previewContextValues={currentToolParams as any}
           />
         )
 
@@ -1678,7 +1679,8 @@ export function ToolInput({
                                     param,
                                     tool.params[param.id] || '',
                                     (value) => handleParamChange(toolIndex, param.id, value),
-                                    toolIndex
+                                    toolIndex,
+                                    tool.params
                                   )
                                 ) : (
                                   <ShortInput
