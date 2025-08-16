@@ -512,6 +512,13 @@
       "when": 1755286337930,
       "tag": "0073_hot_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1755304368539,
+      "tag": "0074_abnormal_dreadnoughts",
+      "breakpoints": true
     }
   ]
 }

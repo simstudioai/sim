@@ -1,12 +1,11 @@
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 
 const logger = createLogger('SimAgentClient')
 
 // Base URL for the sim-agent service
-const SIM_AGENT_BASE_URL =
-  process.env.NODE_ENV === 'development'
-    ? 'http://localhost:8000'
-    : process.env.NEXT_PUBLIC_SIM_AGENT_URL || 'https://sim-agent.vercel.app'
+const SIM_AGENT_BASE_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 export interface SimAgentRequest {
   workflowId: string
@@ -29,31 +28,6 @@ class SimAgentClient {
   }
 
   /**
-   * Get the API key lazily to ensure environment variables are loaded
-   */
-  private getApiKey(): string {
-    // Only try server-side env var (never expose to client)
-    let apiKey = process.env.SIM_AGENT_API_KEY || ''
-
-    // If not found, try importing env library as fallback
-    if (!apiKey) {
-      try {
-        const { env } = require('@/lib/env')
-        apiKey = env.SIM_AGENT_API_KEY || ''
-      } catch (e) {
-        // env library not available or failed to load
-      }
-    }
-
-    if (!apiKey && typeof window === 'undefined') {
-      // Only warn on server-side where API key should be available
-      logger.warn('SIM_AGENT_API_KEY not configured')
-    }
-
-    return apiKey
-  }
-
-  /**
    * Make a request to the sim-agent service
    */
   async makeRequest<T = any>(
@@ -66,23 +40,20 @@ class SimAgentClient {
     } = {}
   ): Promise<SimAgentResponse<T>> {
     const requestId = crypto.randomUUID().slice(0, 8)
-    const { method = 'POST', body, headers = {}, apiKey: providedApiKey } = options
+    const { method = 'POST', body, headers = {} } = options
 
     try {
       const url = `${this.baseUrl}${endpoint}`
 
       // Use provided API key or try to get it from environment
-      const apiKey = providedApiKey || this.getApiKey()
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...(apiKey && { 'x-api-key': apiKey }),
         ...headers,
       }
 
       logger.info(`[${requestId}] Making request to sim-agent`, {
         url,
         method,
-        hasApiKey: !!apiKey,
         hasBody: !!body,
       })
 
@@ -157,7 +128,6 @@ class SimAgentClient {
   getConfig() {
     return {
       baseUrl: this.baseUrl,
-      hasApiKey: !!this.getApiKey(),
       environment: process.env.NODE_ENV,
     }
   }

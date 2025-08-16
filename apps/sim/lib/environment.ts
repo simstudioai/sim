@@ -1,7 +1,7 @@
 /**
  * Environment utility functions for consistent environment detection across the application
  */
-import { env, getEnv, isTruthy } from './env'
+import { env, isTruthy } from './env'
 
 /**
  * Is the application running in production mode
@@ -21,13 +21,14 @@ export const isTest = env.NODE_ENV === 'test'
 /**
  * Is this the hosted version of the application
  */
-export const isHosted = env.NEXT_PUBLIC_APP_URL === 'https://www.sim.ai'
+export const isHosted =
+  env.NEXT_PUBLIC_APP_URL === 'https://www.sim.ai' ||
+  env.NEXT_PUBLIC_APP_URL === 'https://www.staging.sim.ai'
 
 /**
  * Is billing enforcement enabled
  */
-export const isBillingEnabled =
-  isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED')) || isTruthy(env.BILLING_ENABLED)
+export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
 
 /**
  * Get cost multiplier based on environment

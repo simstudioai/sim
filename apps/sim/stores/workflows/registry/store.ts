@@ -426,8 +426,12 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       setActiveWorkflow: async (id: string) => {
         const { workflows, activeWorkflowId } = get()
 
-        if (activeWorkflowId === id) {
-          logger.info(`Already active workflow ${id}, skipping switch`)
+        // Check if workflow is already active AND has data loaded
+        const workflowStoreState = useWorkflowStore.getState()
+        const hasWorkflowData = Object.keys(workflowStoreState.blocks).length > 0
+
+        if (activeWorkflowId === id && hasWorkflowData) {
+          logger.info(`Already active workflow ${id} with data loaded, skipping switch`)
           return
         }
 

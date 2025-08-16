@@ -5,7 +5,7 @@ import { HelpCircle, LibraryBig, ScrollText, Search, Settings, Shapes } from 'lu
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Button, ScrollArea, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
-import { isBillingEnabled } from '@/lib/environment'
+import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
@@ -37,6 +37,8 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 const logger = createLogger('Sidebar')
 
 const SIDEBAR_GAP = 12 // 12px gap between components - easily editable
+
+const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 /**
  * Optimized auto-scroll hook for smooth drag operations

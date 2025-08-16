@@ -1,26 +1,24 @@
 import { NextResponse } from 'next/server'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 
 const logger = createLogger('YamlHealthAPI')
 
 // Sim Agent API configuration
-const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 export async function GET() {
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
-    logger.info(`[${requestId}] Checking YAML service health`, {
-      hasApiKey: !!SIM_AGENT_API_KEY,
-    })
+    logger.info(`[${requestId}] Checking YAML service health`)
 
     // Check sim-agent health
     const response = await fetch(`${SIM_AGENT_API_URL}/health`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
       },
     })
 
