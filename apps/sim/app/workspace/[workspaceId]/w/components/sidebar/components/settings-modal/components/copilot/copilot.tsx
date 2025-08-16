@@ -42,7 +42,8 @@ export function Copilot() {
   // Create flow state
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const [newKey, setNewKey] = useState<CopilotKey | null>(null)
-  const [copySuccess, setCopySuccess] = useState(false)
+  const [copiedKeyIds, setCopiedKeyIds] = useState<Record<string, boolean>>({})
+  const [newKeyCopySuccess, setNewKeyCopySuccess] = useState(false)
 
   // Delete flow state
   const [deleteKey, setDeleteKey] = useState<CopilotKey | null>(null)
@@ -116,11 +117,18 @@ export function Copilot() {
     }
   }
 
-  const onCopy = async (value: string) => {
+  const onCopy = async (value: string, keyId?: string) => {
     try {
       await navigator.clipboard.writeText(value)
-      setCopySuccess(true)
-      setTimeout(() => setCopySuccess(false), 1500)
+      if (keyId) {
+        setCopiedKeyIds((prev) => ({ ...prev, [keyId]: true }))
+        setTimeout(() => {
+          setCopiedKeyIds((prev) => ({ ...prev, [keyId]: false }))
+        }, 1500)
+      } else {
+        setNewKeyCopySuccess(true)
+        setTimeout(() => setNewKeyCopySuccess(false), 1500)
+      }
     } catch (error) {
       logger.error('Copy failed', { error })
     }
@@ -225,10 +233,10 @@ export function Copilot() {
                           <Button
                             variant='secondary'
                             size='icon'
-                            onClick={() => onCopy(k.apiKey)}
+                            onClick={() => onCopy(k.apiKey, k.id)}
                             className='h-8 w-8'
                           >
-                            {copySuccess ? (
+                            {copiedKeyIds[k.id] ? (
                               <Check className='h-4 w-4 text-green-500' />
                             ) : (
                               <Copy className='h-4 w-4' />
@@ -296,7 +304,7 @@ export function Copilot() {
                     className='-translate-y-1/2 absolute top-1/2 right-1 h-7 w-7'
                     onClick={() => onCopy(newKey.apiKey)}
                   >
-                    {copySuccess ? (
+                    {newKeyCopySuccess ? (
                       <Check className='h-4 w-4 text-green-500' />
                     ) : (
                       <Copy className='h-4 w-4' />
@@ -305,8 +313,7 @@ export function Copilot() {
                   </Button>
                 </div>
                 <p className='mt-1 text-muted-foreground text-xs'>
-                  For security, we don\'t store the complete key. You won\'t be able to view it
-                  again.
+                  For security, we don't store the complete key. You won't be able to view it again.
                 </p>
               </div>
             </div>

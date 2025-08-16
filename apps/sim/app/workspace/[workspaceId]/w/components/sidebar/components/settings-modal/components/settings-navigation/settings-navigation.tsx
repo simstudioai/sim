@@ -9,7 +9,7 @@ import {
   UserCircle,
   Users,
 } from 'lucide-react'
-import { isBillingEnabled, isHosted } from '@/lib/environment'
+import { isHosted } from '@/lib/environment'
 import { cn } from '@/lib/utils'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
