@@ -213,7 +213,7 @@ export function SubBlock({
             subBlockId={config.id}
             isPreview={isPreview}
             previewValue={previewValue}
-            disabled={isDisabled}
+            disabled={allowExpandInPreview ? false : isDisabled}
             allowExpandInPreview={allowExpandInPreview}
           />
         )

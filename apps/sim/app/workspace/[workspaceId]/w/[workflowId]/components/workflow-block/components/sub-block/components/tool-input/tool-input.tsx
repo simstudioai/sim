@@ -780,8 +780,19 @@ export function ToolInput({
     )
   }
 
+  // Local expansion overrides for preview/diff mode
+  const [previewExpanded, setPreviewExpanded] = useState<Record<number, boolean>>({})
+
   const toggleToolExpansion = (toolIndex: number) => {
     if ((isPreview && !allowExpandInPreview) || disabled) return
+
+    if (isPreview) {
+      setPreviewExpanded((prev) => ({
+        ...prev,
+        [toolIndex]: !(prev[toolIndex] ?? !!selectedTools[toolIndex]?.isExpanded),
+      }))
+      return
+    }
 
     setStoreValue(
       selectedTools.map((tool, index) =>
@@ -1369,6 +1380,9 @@ export function ToolInput({
             const oauthConfig = !isCustomTool ? getToolOAuthConfig(currentToolId) : null
 
             // Tools are always expandable so users can access the interface
+            const isExpandedForDisplay = isPreview
+              ? previewExpanded[toolIndex] ?? !!tool.isExpanded
+              : !!tool.isExpanded
 
             return (
               <div
@@ -1464,29 +1478,27 @@ export function ToolInput({
                               </span>
                               <span
                                 className={`font-medium text-xs ${
-                                  tool.usageControl === 'force'
-                                    ? 'block text-muted-foreground'
-                                    : 'hidden'
+                                  tool.usageControl === 'force' ? 'block' : 'hidden'
                                 }`}
                               >
                                 Force
                               </span>
                               <span
                                 className={`font-medium text-xs ${
-                                  tool.usageControl === 'none'
-                                    ? 'block text-muted-foreground'
-                                    : 'hidden'
+                                  tool.usageControl === 'none' ? 'block' : 'hidden'
                                 }`}
                               >
-                                Deny
+                                None
                               </span>
                             </Toggle>
                           </TooltipTrigger>
-                          <TooltipContent side='bottom' className='max-w-[240px] p-2'>
-                            <p className='text-xs'>
+                          <TooltipContent className='max-w-[280px] p-2' side='top'>
+                            <p className='text-muted-foreground text-xs'>
+                              Control how the model uses this tool in its response.
                               {tool.usageControl === 'auto' && (
                                 <span>
-                                  <span className='font-medium'>Auto:</span> Let the agent decide
+                                  {' '}
+                                  <span className='font-medium'>Auto:</span> Let the model decide
                                   when to use the tool
                                 </span>
                               )}
@@ -1517,7 +1529,7 @@ export function ToolInput({
                     </div>
                   </div>
 
-                  {!isCustomTool && tool.isExpanded && (
+                  {!isCustomTool && isExpandedForDisplay && (
                     <div className='space-y-3 overflow-visible p-3'>
                       {/* Operation dropdown for tools with multiple operations */}
                       {(() => {
