@@ -690,7 +690,7 @@ export async function POST(req: NextRequest) {
                 )
               }
 
-              const responseId = responseIdFromDone || responseIdFromStart
+              const responseId = responseIdFromDone
 
               // Update chat in database immediately (without title)
               await db
