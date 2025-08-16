@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
+import { getEnv, isTruthy } from '@/lib/env'
 import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
@@ -20,7 +21,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components'
 import { useOrganizationStore } from '@/stores/organization'
 import { useGeneralStore } from '@/stores/settings/general/store'
-import { getEnv, isTruthy } from '@/lib/env'
 
 const logger = createLogger('SettingsModal')
 
