@@ -196,22 +196,17 @@ export function DiffControls() {
         logger.warn('Failed to clear preview YAML:', error)
       })
 
-      // Accept changes with automatic backup and rollback on failure
-      await acceptChanges()
+      // Accept changes without blocking the UI; errors will be logged by the store handler
+      acceptChanges().catch((error) => {
+        logger.error('Failed to accept changes (background):', error)
+      })
 
-      logger.info('Successfully accepted and saved workflow changes')
-      // Show success feedback if needed
+      logger.info('Accept triggered; UI will update optimistically')
     } catch (error) {
       logger.error('Failed to accept changes:', error)
 
-      // Show error notification to user
-      // Note: The acceptChanges function has already rolled back the state
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-
-      // You could add toast notification here
       console.error('Workflow update failed:', errorMessage)
-
-      // Optionally show user-facing error dialog
       alert(`Failed to save workflow changes: ${errorMessage}`)
     }
   }

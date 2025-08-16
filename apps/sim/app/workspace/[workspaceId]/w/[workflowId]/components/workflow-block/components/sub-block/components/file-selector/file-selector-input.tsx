@@ -34,6 +34,7 @@ interface FileSelectorInputProps {
   disabled: boolean
   isPreview?: boolean
   previewValue?: any | null
+  previewContextValues?: Record<string, any>
 }
 
 export function FileSelectorInput({
@@ -42,12 +43,30 @@ export function FileSelectorInput({
   disabled,
   isPreview = false,
   previewValue,
+  previewContextValues,
 }: FileSelectorInputProps) {
   const { getValue } = useSubBlockStore()
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const { activeWorkflowId } = useWorkflowRegistry()
   const params = useParams()
   const workflowIdFromUrl = (params?.workflowId as string) || activeWorkflowId || ''
+
+  // Helper to coerce various preview value shapes into a string ID
+  const coerceToIdString = (val: unknown): string => {
+    if (!val) return ''
+    if (typeof val === 'string') return val
+    if (typeof val === 'number') return String(val)
+    if (typeof val === 'object') {
+      const obj = val as Record<string, any>
+      return (obj.id ||
+        obj.fileId ||
+        obj.value ||
+        obj.documentId ||
+        obj.spreadsheetId ||
+        '') as string
+    }
+    return ''
+  }
 
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
@@ -108,19 +127,37 @@ export function FileSelectorInput({
   const isMicrosoftSharePoint = provider === 'microsoft' && subBlock.serviceId === 'sharepoint'
   const isMicrosoftPlanner = provider === 'microsoft-planner'
   // For Confluence and Jira, we need the domain and credentials
-  const domain = isConfluence || isJira ? (getValue(blockId, 'domain') as string) || '' : ''
-  const jiraCredential = isJira ? (getValue(blockId, 'credential') as string) || '' : ''
+  const domain =
+    isConfluence || isJira
+      ? (isPreview && previewContextValues?.domain?.value) ||
+        (getValue(blockId, 'domain') as string) ||
+        ''
+      : ''
+  const jiraCredential = isJira
+    ? (isPreview && previewContextValues?.credential?.value) ||
+      (getValue(blockId, 'credential') as string) ||
+      ''
+    : ''
   // For Discord, we need the bot token and server ID
-  const botToken = isDiscord ? (getValue(blockId, 'botToken') as string) || '' : ''
-  const serverId = isDiscord ? (getValue(blockId, 'serverId') as string) || '' : ''
+  const botToken = isDiscord
+    ? (isPreview && previewContextValues?.botToken?.value) ||
+      (getValue(blockId, 'botToken') as string) ||
+      ''
+    : ''
+  const serverId = isDiscord
+    ? (isPreview && previewContextValues?.serverId?.value) ||
+      (getValue(blockId, 'serverId') as string) ||
+      ''
+    : ''
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
   // Keep local selection in sync with store value (and preview)
   useEffect(() => {
-    const effective = isPreview && previewValue !== undefined ? previewValue : storeValue
-    if (typeof effective === 'string' && effective !== '') {
+    const raw = isPreview && previewValue !== undefined ? previewValue : storeValue
+    const effective = coerceToIdString(raw)
+    if (effective) {
       if (isJira) {
         setSelectedIssueId(effective)
       } else if (isDiscord) {
@@ -385,7 +422,7 @@ export function FileSelectorInput({
           <TooltipTrigger asChild>
             <div className='w-full'>
               <MicrosoftFileSelector
-                value={selectedFileId}
+                value={coerceToIdString(selectedFileId)}
                 onChange={handleFileChange}
                 provider='microsoft-excel'
                 requiredScopes={subBlock.requiredScopes || []}
@@ -418,7 +455,7 @@ export function FileSelectorInput({
           <TooltipTrigger asChild>
             <div className='w-full'>
               <MicrosoftFileSelector
-                value={selectedFileId}
+                value={coerceToIdString(selectedFileId)}
                 onChange={handleFileChange}
                 provider='microsoft-word'
                 requiredScopes={subBlock.requiredScopes || []}
@@ -450,7 +487,7 @@ export function FileSelectorInput({
           <TooltipTrigger asChild>
             <div className='w-full'>
               <MicrosoftFileSelector
-                value={selectedFileId}
+                value={coerceToIdString(selectedFileId)}
                 onChange={handleFileChange}
                 provider='microsoft'
                 requiredScopes={subBlock.requiredScopes || []}
@@ -482,7 +519,7 @@ export function FileSelectorInput({
           <TooltipTrigger asChild>
             <div className='w-full'>
               <MicrosoftFileSelector
-                value={selectedFileId}
+                value={coerceToIdString(selectedFileId)}
                 onChange={handleFileChange}
                 provider='microsoft'
                 requiredScopes={subBlock.requiredScopes || []}
@@ -662,11 +699,9 @@ export function FileSelectorInput({
   // Default to Google Drive picker
   return (
     <GoogleDrivePicker
-      value={
-        (isPreview && previewValue !== undefined
-          ? (previewValue as string)
-          : (storeValue as string)) || ''
-      }
+      value={coerceToIdString(
+        (isPreview && previewValue !== undefined ? previewValue : storeValue) as any
+      )}
       onChange={(val, info) => {
         setSelectedFileId(val)
         setFileInfo(info || null)
@@ -682,7 +717,11 @@ export function FileSelectorInput({
       onFileInfoChange={setFileInfo}
       clientId={clientId}
       apiKey={apiKey}
-      credentialId={(getValue(blockId, 'credential') as string) || ''}
+      credentialId={
+        ((isPreview && previewContextValues?.credential?.value) ||
+          (getValue(blockId, 'credential') as string) ||
+          '') as string
+      }
       workflowId={workflowIdFromUrl}
     />
   )

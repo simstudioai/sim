@@ -10,12 +10,12 @@ import {
 } from 'react'
 import {
   ArrowUp,
-  Boxes,
+  Brain,
   BrainCircuit,
-  BrainCog,
   Check,
   FileText,
   Image,
+  Infinity as InfinityIcon,
   Loader2,
   MessageCircle,
   Package,
@@ -435,14 +435,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
 
     const getDepthLabel = () => {
-      if (agentDepth === 0) return 'Lite'
+      if (agentDepth === 0) return 'Fast'
       if (agentDepth === 1) return 'Auto'
       if (agentDepth === 2) return 'Pro'
       return 'Max'
     }
 
     const getDepthLabelFor = (value: 0 | 1 | 2 | 3) => {
-      if (value === 0) return 'Lite'
+      if (value === 0) return 'Fast'
       if (value === 1) return 'Auto'
       if (value === 2) return 'Pro'
       return 'Max'
@@ -459,9 +459,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const getDepthIconFor = (value: 0 | 1 | 2 | 3) => {
       if (value === 0) return <Zap className='h-3 w-3 text-muted-foreground' />
-      if (value === 1) return <Boxes className='h-3 w-3 text-muted-foreground' />
-      if (value === 2) return <BrainCircuit className='h-3 w-3 text-muted-foreground' />
-      return <BrainCog className='h-3 w-3 text-muted-foreground' />
+      if (value === 1) return <InfinityIcon className='h-3 w-3 text-muted-foreground' />
+      if (value === 2) return <Brain className='h-3 w-3 text-muted-foreground' />
+      return <BrainCircuit className='h-3 w-3 text-muted-foreground' />
     }
 
     const getDepthIcon = () => getDepthIconFor(agentDepth)
@@ -654,7 +654,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                               )}
                             >
                               <span className='flex items-center gap-1.5'>
-                                <Boxes className='h-3 w-3 text-muted-foreground' />
+                                <InfinityIcon className='h-3 w-3 text-muted-foreground' />
                                 Auto
                               </span>
                               {agentDepth === 1 && (
@@ -682,7 +682,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             >
                               <span className='flex items-center gap-1.5'>
                                 <Zap className='h-3 w-3 text-muted-foreground' />
-                                Lite
+                                Fast
                               </span>
                               {agentDepth === 0 && (
                                 <Check className='h-3 w-3 text-muted-foreground' />
@@ -709,7 +709,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                               )}
                             >
                               <span className='flex items-center gap-1.5'>
-                                <BrainCircuit className='h-3 w-3 text-muted-foreground' />
+                                <Brain className='h-3 w-3 text-muted-foreground' />
                                 Pro
                               </span>
                               {agentDepth === 2 && (
@@ -737,7 +737,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                               )}
                             >
                               <span className='flex items-center gap-1.5'>
-                                <BrainCog className='h-3 w-3 text-muted-foreground' />
+                                <BrainCircuit className='h-3 w-3 text-muted-foreground' />
                                 Max
                               </span>
                               {agentDepth === 3 && (

@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { createLogger } from '@/lib/logs/console/logger'
+import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { account, user } from '@/db/schema'
 import { BaseCopilotTool } from '../base'
@@ -15,6 +16,7 @@ interface OAuthCredentialItem {
   provider: string
   lastUsed: string
   isDefault: boolean
+  accessToken: string | null
 }
 
 interface GetOAuthCredentialsResult {
@@ -55,6 +57,9 @@ class GetOAuthCredentialsTool extends BaseCopilotTool<
 
     const credentials: OAuthCredentialItem[] = []
 
+    // Short request id for log correlation
+    const requestId = crypto.randomUUID().slice(0, 8)
+
     for (const acc of accounts) {
       const providerId = acc.providerId
       const [baseProvider, featureType = 'default'] = providerId.split('-')
@@ -90,12 +95,26 @@ class GetOAuthCredentialsTool extends BaseCopilotTool<
         displayName = `${acc.accountId} (${baseProvider})`
       }
 
+      // Ensure we return a valid access token, refreshing if needed
+      let accessToken: string | null = acc.accessToken ?? null
+      try {
+        const { accessToken: refreshedToken } = await refreshTokenIfNeeded(
+          requestId,
+          acc as any,
+          acc.id
+        )
+        accessToken = refreshedToken || accessToken
+      } catch (_error) {
+        // If refresh fails, we still return whatever we had (may be null)
+      }
+
       credentials.push({
         id: acc.id,
         name: displayName,
         provider: providerId,
         lastUsed: acc.updatedAt.toISOString(),
         isDefault: featureType === 'default',
+        accessToken,
       })
     }
 

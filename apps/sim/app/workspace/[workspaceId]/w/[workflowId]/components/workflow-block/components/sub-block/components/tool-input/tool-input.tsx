@@ -55,6 +55,7 @@ interface ToolInputProps {
   isPreview?: boolean
   previewValue?: any
   disabled?: boolean
+  allowExpandInPreview?: boolean
 }
 
 interface StoredTool {
@@ -105,6 +106,7 @@ function FileSelectorSyncWrapper({
   onChange,
   uiComponent,
   disabled,
+  previewContextValues,
 }: {
   blockId: string
   paramId: string
@@ -112,6 +114,7 @@ function FileSelectorSyncWrapper({
   onChange: (value: string) => void
   uiComponent: any
   disabled: boolean
+  previewContextValues?: Record<string, any>
 }) {
   return (
     <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
@@ -128,6 +131,7 @@ function FileSelectorSyncWrapper({
           placeholder: uiComponent.placeholder,
         }}
         disabled={disabled}
+        previewContextValues={previewContextValues}
       />
     </GenericSyncWrapper>
   )
@@ -398,6 +402,7 @@ export function ToolInput({
   isPreview = false,
   previewValue,
   disabled = false,
+  allowExpandInPreview,
 }: ToolInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
@@ -775,8 +780,19 @@ export function ToolInput({
     )
   }
 
+  // Local expansion overrides for preview/diff mode
+  const [previewExpanded, setPreviewExpanded] = useState<Record<number, boolean>>({})
+
   const toggleToolExpansion = (toolIndex: number) => {
-    if (isPreview || disabled) return
+    if ((isPreview && !allowExpandInPreview) || disabled) return
+
+    if (isPreview) {
+      setPreviewExpanded((prev) => ({
+        ...prev,
+        [toolIndex]: !(prev[toolIndex] ?? !!selectedTools[toolIndex]?.isExpanded),
+      }))
+      return
+    }
 
     setStoreValue(
       selectedTools.map((tool, index) =>
@@ -929,7 +945,8 @@ export function ToolInput({
     param: ToolParameterConfig,
     value: string,
     onChange: (value: string) => void,
-    toolIndex?: number
+    toolIndex?: number,
+    currentToolParams?: Record<string, string>
   ) => {
     // Create unique blockId for tool parameters to avoid conflicts with main block
     const uniqueBlockId = toolIndex !== undefined ? `${blockId}-tool-${toolIndex}` : blockId
@@ -1076,6 +1093,7 @@ export function ToolInput({
             onChange={onChange}
             uiComponent={uiComponent}
             disabled={disabled}
+            previewContextValues={currentToolParams as any}
           />
         )
 
@@ -1363,6 +1381,9 @@ export function ToolInput({
             const oauthConfig = !isCustomTool ? getToolOAuthConfig(currentToolId) : null
 
             // Tools are always expandable so users can access the interface
+            const isExpandedForDisplay = isPreview
+              ? (previewExpanded[toolIndex] ?? !!tool.isExpanded)
+              : !!tool.isExpanded
 
             return (
               <div
@@ -1458,29 +1479,27 @@ export function ToolInput({
                               </span>
                               <span
                                 className={`font-medium text-xs ${
-                                  tool.usageControl === 'force'
-                                    ? 'block text-muted-foreground'
-                                    : 'hidden'
+                                  tool.usageControl === 'force' ? 'block' : 'hidden'
                                 }`}
                               >
                                 Force
                               </span>
                               <span
                                 className={`font-medium text-xs ${
-                                  tool.usageControl === 'none'
-                                    ? 'block text-muted-foreground'
-                                    : 'hidden'
+                                  tool.usageControl === 'none' ? 'block' : 'hidden'
                                 }`}
                               >
-                                Deny
+                                None
                               </span>
                             </Toggle>
                           </TooltipTrigger>
-                          <TooltipContent side='bottom' className='max-w-[240px] p-2'>
-                            <p className='text-xs'>
+                          <TooltipContent className='max-w-[280px] p-2' side='top'>
+                            <p className='text-muted-foreground text-xs'>
+                              Control how the model uses this tool in its response.
                               {tool.usageControl === 'auto' && (
                                 <span>
-                                  <span className='font-medium'>Auto:</span> Let the agent decide
+                                  {' '}
+                                  <span className='font-medium'>Auto:</span> Let the model decide
                                   when to use the tool
                                 </span>
                               )}
@@ -1511,7 +1530,7 @@ export function ToolInput({
                     </div>
                   </div>
 
-                  {!isCustomTool && tool.isExpanded && (
+                  {!isCustomTool && isExpandedForDisplay && (
                     <div className='space-y-3 overflow-visible p-3'>
                       {/* Operation dropdown for tools with multiple operations */}
                       {(() => {
@@ -1660,7 +1679,8 @@ export function ToolInput({
                                     param,
                                     tool.params[param.id] || '',
                                     (value) => handleParamChange(toolIndex, param.id, value),
-                                    toolIndex
+                                    toolIndex,
+                                    tool.params
                                   )
                                 ) : (
                                   <ShortInput

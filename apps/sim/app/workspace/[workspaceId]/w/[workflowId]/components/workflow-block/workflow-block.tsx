@@ -151,6 +151,24 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const blockAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
   const blockTriggerMode = useWorkflowStore((state) => state.blocks[id]?.triggerMode ?? false)
 
+  // Local UI state for diff mode controls
+  const [diffIsWide, setDiffIsWide] = useState<boolean>(isWide)
+  const [diffAdvancedMode, setDiffAdvancedMode] = useState<boolean>(blockAdvancedMode)
+  const [diffTriggerMode, setDiffTriggerMode] = useState<boolean>(blockTriggerMode)
+
+  useEffect(() => {
+    if (currentWorkflow.isDiffMode) {
+      setDiffIsWide(isWide)
+      setDiffAdvancedMode(blockAdvancedMode)
+      setDiffTriggerMode(blockTriggerMode)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentWorkflow.isDiffMode, id])
+
+  const displayIsWide = currentWorkflow.isDiffMode ? diffIsWide : isWide
+  const displayAdvancedMode = currentWorkflow.isDiffMode ? diffAdvancedMode : blockAdvancedMode
+  const displayTriggerMode = currentWorkflow.isDiffMode ? diffTriggerMode : blockTriggerMode
+
   // Collaborative workflow actions
   const {
     collaborativeUpdateBlockName,
@@ -414,6 +432,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
     const isAdvancedMode = useWorkflowStore.getState().blocks[blockId]?.advancedMode ?? false
     const isTriggerMode = useWorkflowStore.getState().blocks[blockId]?.triggerMode ?? false
+    const effectiveAdvanced = currentWorkflow.isDiffMode ? displayAdvancedMode : isAdvancedMode
+    const effectiveTrigger = currentWorkflow.isDiffMode ? displayTriggerMode : isTriggerMode
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
@@ -423,18 +443,18 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       if (block.type === ('trigger-config' as SubBlockType)) {
         // Show trigger-config blocks when in trigger mode OR for pure trigger blocks
         const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
-        return isTriggerMode || isPureTriggerBlock
+        return effectiveTrigger || isPureTriggerBlock
       }
 
-      if (isTriggerMode && block.type !== ('trigger-config' as SubBlockType)) {
+      if (effectiveTrigger && block.type !== ('trigger-config' as SubBlockType)) {
         // In trigger mode, hide all non-trigger-config blocks
         return false
       }
 
       // Filter by mode if specified
       if (block.mode) {
-        if (block.mode === 'basic' && isAdvancedMode) return false
-        if (block.mode === 'advanced' && !isAdvancedMode) return false
+        if (block.mode === 'basic' && effectiveAdvanced) return false
+        if (block.mode === 'advanced' && !effectiveAdvanced) return false
       }
 
       // If there's no condition, the block should be shown
@@ -562,7 +582,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         className={cn(
           'relative cursor-default select-none shadow-md',
           'transition-block-bg transition-ring',
-          isWide ? 'w-[480px]' : 'w-[320px]',
+          displayIsWide ? 'w-[480px]' : 'w-[320px]',
           !isEnabled && 'shadow-sm',
           isActive && 'animate-pulse-ring ring-2 ring-blue-500',
           isPending && 'ring-2 ring-amber-500',
@@ -658,7 +678,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   onClick={handleNameClick}
                   title={name}
                   style={{
-                    maxWidth: !isEnabled ? (isWide ? '200px' : '140px') : '180px',
+                    maxWidth: !isEnabled ? (displayIsWide ? '200px' : '140px') : '180px',
                   }}
                 >
                   {name}
@@ -758,26 +778,30 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                     variant='ghost'
                     size='sm'
                     onClick={() => {
-                      if (userPermissions.canEdit) {
+                      if (currentWorkflow.isDiffMode) {
+                        setDiffAdvancedMode((prev) => !prev)
+                      } else if (userPermissions.canEdit) {
                         collaborativeToggleBlockAdvancedMode(id)
                       }
                     }}
                     className={cn(
                       'h-7 p-1 text-gray-500',
-                      blockAdvancedMode && 'text-[var(--brand-primary-hex)]',
-                      !userPermissions.canEdit && 'cursor-not-allowed opacity-50'
+                      displayAdvancedMode && 'text-[var(--brand-primary-hex)]',
+                      !userPermissions.canEdit &&
+                        !currentWorkflow.isDiffMode &&
+                        'cursor-not-allowed opacity-50'
                     )}
-                    disabled={!userPermissions.canEdit}
+                    disabled={!userPermissions.canEdit && !currentWorkflow.isDiffMode}
                   >
                     <Code className='h-5 w-5' />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side='top'>
-                  {!userPermissions.canEdit
+                  {!userPermissions.canEdit && !currentWorkflow.isDiffMode
                     ? userPermissions.isOfflineMode
                       ? 'Connection lost - please refresh'
                       : 'Read-only mode'
-                    : blockAdvancedMode
+                    : displayAdvancedMode
                       ? 'Switch to Basic Mode'
                       : 'Switch to Advanced Mode'}
                 </TooltipContent>
@@ -791,27 +815,31 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                     variant='ghost'
                     size='sm'
                     onClick={() => {
-                      if (userPermissions.canEdit) {
+                      if (currentWorkflow.isDiffMode) {
+                        setDiffTriggerMode((prev) => !prev)
+                      } else if (userPermissions.canEdit) {
                         // Toggle trigger mode using collaborative function
                         collaborativeToggleBlockTriggerMode(id)
                       }
                     }}
                     className={cn(
                       'h-7 p-1 text-gray-500',
-                      blockTriggerMode && 'text-[#22C55E]',
-                      !userPermissions.canEdit && 'cursor-not-allowed opacity-50'
+                      displayTriggerMode && 'text-[#22C55E]',
+                      !userPermissions.canEdit &&
+                        !currentWorkflow.isDiffMode &&
+                        'cursor-not-allowed opacity-50'
                     )}
-                    disabled={!userPermissions.canEdit}
+                    disabled={!userPermissions.canEdit && !currentWorkflow.isDiffMode}
                   >
                     <Zap className='h-5 w-5' />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side='top'>
-                  {!userPermissions.canEdit
+                  {!userPermissions.canEdit && !currentWorkflow.isDiffMode
                     ? userPermissions.isOfflineMode
                       ? 'Connection lost - please refresh'
                       : 'Read-only mode'
-                    : blockTriggerMode
+                    : displayTriggerMode
                       ? 'Switch to Action Mode'
                       : 'Switch to Trigger Mode'}
                 </TooltipContent>
@@ -892,17 +920,21 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   variant='ghost'
                   size='sm'
                   onClick={() => {
-                    if (userPermissions.canEdit) {
+                    if (currentWorkflow.isDiffMode) {
+                      setDiffIsWide((prev) => !prev)
+                    } else if (userPermissions.canEdit) {
                       collaborativeToggleBlockWide(id)
                     }
                   }}
                   className={cn(
                     'h-7 p-1 text-gray-500',
-                    !userPermissions.canEdit && 'cursor-not-allowed opacity-50'
+                    !userPermissions.canEdit &&
+                      !currentWorkflow.isDiffMode &&
+                      'cursor-not-allowed opacity-50'
                   )}
-                  disabled={!userPermissions.canEdit}
+                  disabled={!userPermissions.canEdit && !currentWorkflow.isDiffMode}
                 >
-                  {isWide ? (
+                  {displayIsWide ? (
                     <RectangleHorizontal className='h-5 w-5' />
                   ) : (
                     <RectangleVertical className='h-5 w-5' />
@@ -910,11 +942,11 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 </Button>
               </TooltipTrigger>
               <TooltipContent side='top'>
-                {!userPermissions.canEdit
+                {!userPermissions.canEdit && !currentWorkflow.isDiffMode
                   ? userPermissions.isOfflineMode
                     ? 'Connection lost - please refresh'
                     : 'Read-only mode'
-                  : isWide
+                  : displayIsWide
                     ? 'Narrow Block'
                     : 'Expand Block'}
               </TooltipContent>
@@ -942,8 +974,13 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                         blockId={id}
                         config={subBlock}
                         isConnecting={isConnecting}
-                        isPreview={data.isPreview}
-                        subBlockValues={data.subBlockValues}
+                        isPreview={data.isPreview || currentWorkflow.isDiffMode}
+                        subBlockValues={
+                          data.subBlockValues ||
+                          (currentWorkflow.isDiffMode && currentBlock
+                            ? (currentBlock as any).subBlocks
+                            : undefined)
+                        }
                         disabled={!userPermissions.canEdit}
                         fieldDiffStatus={
                           fieldDiff?.changed_fields?.includes(subBlock.id)
@@ -952,6 +989,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                               ? 'unchanged'
                               : undefined
                         }
+                        allowExpandInPreview={currentWorkflow.isDiffMode}
                       />
                     </div>
                   ))}
