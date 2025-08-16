@@ -244,7 +244,13 @@ const WorkflowContent = React.memo(() => {
         () => resizeLoopNodes(getNodes, updateNodeDimensions, blocks)
       )
     },
-    [getNodes, collaborativeUpdateBlockPosition, updateParentId, updateNodeDimensions, blocks]
+    [
+      getNodes,
+      collaborativeUpdateBlockPosition,
+      updateParentId,
+      updateNodeDimensions,
+      blocks,
+    ]
   )
 
   // Function to resize all loop nodes with improved hierarchy handling
