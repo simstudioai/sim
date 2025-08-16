@@ -215,10 +215,16 @@ export class AgentBlockHandler implements BlockHandler {
     const isBlockSelectedForOutput =
       context.selectedOutputIds?.some((outputId) => {
         if (outputId === block.id) return true
-        const firstUnderscoreIndex = outputId.indexOf('_')
-        return (
-          firstUnderscoreIndex !== -1 && outputId.substring(0, firstUnderscoreIndex) === block.id
-        )
+        // Support both underscore and dot notations: blockId_path and blockId.path
+        const underscoreIdx = outputId.indexOf('_')
+        const dotIdx = outputId.indexOf('.')
+        if (underscoreIdx !== -1) {
+          return outputId.substring(0, underscoreIdx) === block.id
+        }
+        if (dotIdx !== -1) {
+          return outputId.substring(0, dotIdx) === block.id
+        }
+        return false
       }) ?? false
 
     const hasOutgoingConnections = context.edges?.some((edge) => edge.source === block.id) ?? false
@@ -666,7 +672,7 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     if (response instanceof ReadableStream) {
-      return this.createMinimalStreamingExecution(response)
+      return this.createMinimalStreamingExecution(response, block)
     }
 
     return this.processRegularResponse(response, responseFormat)
@@ -696,17 +702,21 @@ export class AgentBlockHandler implements BlockHandler {
     return streamingExec
   }
 
-  private createMinimalStreamingExecution(stream: ReadableStream): StreamingExecution {
+  private createMinimalStreamingExecution(
+    stream: ReadableStream,
+    block?: SerializedBlock
+  ): StreamingExecution {
     return {
       stream,
       execution: {
         success: true,
         output: {},
         logs: [],
-        metadata: {
-          duration: 0,
-          startTime: new Date().toISOString(),
-        },
+        metadata: { duration: 0, startTime: new Date().toISOString() },
+        isStreaming: true,
+        blockId: block?.id,
+        blockType: block?.metadata?.id,
+        blockName: block?.metadata?.name,
       },
     }
   }

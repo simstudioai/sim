@@ -278,6 +278,18 @@ export class Executor {
                   // Apply response format processing to the client stream if needed
                   const blockId = (streamingExec.execution as any).blockId
 
+                  // Stream order hint: emit a zero-length start event for each selected block
+                  // to allow the client to create a message placeholder in execution order.
+                  const blockIsSelected = (context.selectedOutputIds || []).some((outputId) => {
+                    if (outputId === blockId) return true
+                    const underscoreIdx = outputId.indexOf('_')
+                    const dotIdx = outputId.indexOf('.')
+                    if (underscoreIdx !== -1)
+                      return outputId.substring(0, underscoreIdx) === blockId
+                    if (dotIdx !== -1) return outputId.substring(0, dotIdx) === blockId
+                    return false
+                  })
+
                   // Get response format from initial block states (passed from useWorkflowExecution)
                   // The initialBlockStates contain the subblock values including responseFormat
                   let responseFormat: any
@@ -293,11 +305,29 @@ export class Executor {
                     responseFormat
                   )
 
+                  // If this block is not selected for output, drop the client stream entirely
+                  const blockIsSelectedDup = (context.selectedOutputIds || []).some((outputId) => {
+                    if (outputId === blockId) return true
+                    const underscoreIdx = outputId.indexOf('_')
+                    const dotIdx = outputId.indexOf('.')
+                    if (underscoreIdx !== -1)
+                      return outputId.substring(0, underscoreIdx) === blockId
+                    if (dotIdx !== -1) return outputId.substring(0, dotIdx) === blockId
+                    return false
+                  })
+
+                  if (!blockIsSelectedDup) {
+                    // Consume and discard the client stream to free resources
+                    processedClientStream.getReader().releaseLock()
+                  }
+
                   const clientStreamingExec = { ...streamingExec, stream: processedClientStream }
 
                   try {
-                    // Handle client stream with proper error handling
-                    await context.onStream(clientStreamingExec)
+                    // Handle client stream only if block is selected, and emit a start marker first
+                    if (blockIsSelected) {
+                      await context.onStream(clientStreamingExec)
+                    }
                   } catch (streamError: any) {
                     logger.error('Error in onStream callback:', streamError)
                     // Continue execution even if stream callback fails
@@ -1618,6 +1648,78 @@ export class Executor {
       blockLog.endedAt = new Date().toISOString()
 
       context.blockLogs.push(blockLog)
+
+      try {
+        const blockType = block.metadata?.id
+        const isStreamingEnabled = Boolean(context.stream)
+        const hasOnStream = typeof context.onStream === 'function'
+        const isSelected = (context.selectedOutputIds || []).some((outputId) => {
+          if (outputId === block.id) return true
+          const underscoreIdx = outputId.indexOf('_')
+          const dotIdx = outputId.indexOf('.')
+          if (underscoreIdx !== -1) return outputId.substring(0, underscoreIdx) === block.id
+          if (dotIdx !== -1) return outputId.substring(0, dotIdx) === block.id
+          return false
+        })
+
+        // Exclude infra/router/agent (agents already stream from handlers)
+        const excludedTypes = new Set([
+          BlockType.LOOP,
+          BlockType.PARALLEL,
+          BlockType.CONDITION,
+          BlockType.ROUTER,
+          BlockType.STARTER,
+          BlockType.WEBHOOK_TRIGGER,
+          BlockType.SCHEDULE,
+          BlockType.AGENT,
+        ])
+        const isEligible = !!blockType && !excludedTypes.has(blockType as any)
+
+        if (isEligible && isStreamingEnabled && hasOnStream && isSelected) {
+          const out = output as any
+          let formatted: string
+          if (typeof out?.result !== 'undefined') {
+            formatted =
+              typeof out.result === 'string' ? out.result : JSON.stringify(out.result, null, 2)
+          } else if (typeof out?.content === 'string') {
+            formatted = out.content
+          } else if (typeof out?.stdout === 'string' && out.stdout) {
+            formatted = out.stdout
+          } else if (typeof out?.data !== 'undefined') {
+            formatted = typeof out.data === 'string' ? out.data : JSON.stringify(out.data, null, 2)
+          } else if (typeof out?.response?.data !== 'undefined') {
+            const d = out.response.data
+            formatted = typeof d === 'string' ? d : JSON.stringify(d, null, 2)
+          } else {
+            formatted = typeof out === 'string' ? out : JSON.stringify(out ?? {}, null, 2)
+          }
+
+          const syntheticStream = new ReadableStream({
+            start(controller) {
+              const enc = new TextEncoder()
+              controller.enqueue(enc.encode(formatted))
+              controller.close()
+            },
+          })
+
+          const se: StreamingExecution = {
+            stream: syntheticStream,
+            execution: {
+              success: true,
+              output: { content: formatted },
+              logs: [],
+              metadata: { duration: 0, startTime: new Date().toISOString() },
+              blockId: block.id,
+              blockType: blockType,
+              isStreaming: true,
+            },
+          }
+
+          await context.onStream?.(se)
+        }
+      } catch (emitError) {
+        logger.warn('Failed to emit synthetic streaming for non-streaming block:', emitError)
+      }
 
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {

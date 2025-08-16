@@ -13,6 +13,8 @@ export interface ChatMessage {
   timestamp: Date
   isInitialMessage?: boolean
   isStreaming?: boolean
+  suppressCopy?: boolean
+  hideContent?: boolean
 }
 
 function EnhancedMarkdownRenderer({ content }: { content: string }) {
@@ -58,61 +60,69 @@ export const ClientChatMessage = memo(
 
     // For assistant messages (on the left)
     return (
-      <div className='px-4 pt-5 pb-2' data-message-id={message.id}>
+      <div
+        className={`px-4 ${message.hideContent ? 'pt-0 pb-2' : 'pt-5 pb-2'}`}
+        data-message-id={message.id}
+      >
         <div className='mx-auto max-w-3xl'>
-          <div className='flex flex-col space-y-3'>
+          <div className={`flex flex-col ${message.hideContent ? 'space-y-0' : 'space-y-3'}`}>
             {/* Direct content rendering - tool calls are now handled via SSE events */}
-            <div>
-              <div className='break-words text-base'>
-                {isJsonObject ? (
-                  <pre className='text-gray-800 dark:text-gray-100'>
-                    {JSON.stringify(cleanTextContent, null, 2)}
-                  </pre>
-                ) : (
-                  <EnhancedMarkdownRenderer content={cleanTextContent as string} />
-                )}
-              </div>
-            </div>
-            {message.type === 'assistant' && !isJsonObject && !message.isInitialMessage && (
-              <div className='flex items-center justify-start space-x-2'>
-                {/* Copy Button - Only show when not streaming */}
-                {!message.isStreaming && (
-                  <TooltipProvider>
-                    <Tooltip delayDuration={300}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          className='flex items-center gap-1.5 px-2 py-1'
-                          onClick={() => {
-                            const contentToCopy =
-                              typeof cleanTextContent === 'string'
-                                ? cleanTextContent
-                                : JSON.stringify(cleanTextContent, null, 2)
-                            navigator.clipboard.writeText(contentToCopy)
-                            setIsCopied(true)
-                            setTimeout(() => setIsCopied(false), 2000)
-                          }}
-                        >
-                          {isCopied ? (
-                            <>
-                              <Check className='h-3.5 w-3.5 text-green-500' />
-                            </>
-                          ) : (
-                            <>
-                              <Copy className='h-3.5 w-3.5 text-muted-foreground' />
-                            </>
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side='top' align='center' sideOffset={5}>
-                        {isCopied ? 'Copied!' : 'Copy to clipboard'}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
+            {!message.hideContent && (
+              <div>
+                <div className='break-words text-base'>
+                  {isJsonObject ? (
+                    <pre className='text-gray-800 dark:text-gray-100'>
+                      {JSON.stringify(cleanTextContent, null, 2)}
+                    </pre>
+                  ) : (
+                    <EnhancedMarkdownRenderer content={cleanTextContent as string} />
+                  )}
+                </div>
               </div>
             )}
+            {message.type === 'assistant' &&
+              !isJsonObject &&
+              !message.isInitialMessage &&
+              !message.suppressCopy && (
+                <div className='flex items-center justify-start space-x-2'>
+                  {/* Copy Button - Only show when not streaming */}
+                  {!message.isStreaming && (
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='flex items-center gap-1.5 px-2 py-1'
+                            onClick={() => {
+                              const contentToCopy =
+                                typeof cleanTextContent === 'string'
+                                  ? cleanTextContent
+                                  : JSON.stringify(cleanTextContent, null, 2)
+                              navigator.clipboard.writeText(contentToCopy)
+                              setIsCopied(true)
+                              setTimeout(() => setIsCopied(false), 2000)
+                            }}
+                          >
+                            {isCopied ? (
+                              <>
+                                <Check className='h-3.5 w-3.5 text-green-500' />
+                              </>
+                            ) : (
+                              <>
+                                <Copy className='h-3.5 w-3.5 text-muted-foreground' />
+                              </>
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side='top' align='center' sideOffset={5}>
+                          {isCopied ? 'Copied!' : 'Copy to clipboard'}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+              )}
           </div>
         </div>
       </div>

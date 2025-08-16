@@ -682,8 +682,19 @@ export async function executeWorkflowForChat(
         }
 
         // Filter outputs that have matching logs (exactly like chat panel)
+        // Exclude router blocks from chat outputs to prevent routing logic leakage
         const outputsToRender = selectedOutputIds.filter((outputId) => {
           const blockIdForOutput = extractBlockIdFromOutputId(outputId)
+          const log = nonStreamingLogs.find((log) => log.blockId === blockIdForOutput)
+
+          // Exclude router blocks from chat outputs
+          if (log?.blockType === 'router') {
+            logger.debug(
+              `[${requestId}] Excluding router block ${blockIdForOutput} from chat output`
+            )
+            return false
+          }
+
           return nonStreamingLogs.some((log) => log.blockId === blockIdForOutput)
         })
 
@@ -712,22 +723,101 @@ export async function executeWorkflowForChat(
             }
 
             if (outputValue !== undefined) {
-              // Add newline separation between different outputs
+              // Add newline separation between different outputs for final logs aggregation
               const separator = processedOutputs.size > 0 ? '\n\n' : ''
 
-              // Format the output exactly like the chat panel
-              const formattedOutput =
-                typeof outputValue === 'string' ? outputValue : JSON.stringify(outputValue, null, 2)
-
-              // Update the log content
-              if (!log.output.content) {
-                log.output.content = separator + formattedOutput
+              // Prefer the most meaningful value for display:
+              // - function blocks: use result directly (stringify non-strings)
+              // - everything else: stringify objects/arrays safely
+              let formattedOutput: string
+              if (
+                (log as any).blockType === 'function' &&
+                (outputValue as any)?.result !== undefined
+              ) {
+                const res = (outputValue as any).result
+                formattedOutput = typeof res === 'string' ? res : JSON.stringify(res, null, 2)
               } else {
-                log.output.content = separator + formattedOutput
+                formattedOutput =
+                  typeof outputValue === 'string'
+                    ? outputValue
+                    : JSON.stringify(outputValue, null, 2)
               }
+
+              // Update the log content for non-streaming outputs
+              log.output.content = separator + formattedOutput
               processedOutputs.add(log.blockId)
+
+              // Stream non-streaming selected block outputs as chunks so the client sees them
+              // as a separate section, matching multi-agent behavior.
+              const isSelected = selectedOutputIds.some((id) => {
+                const idBlock = id.includes('_') ? id.split('_')[0] : id.split('.')[0]
+                return idBlock === blockIdForOutput
+              })
+              if (isSelected) {
+                try {
+                  // Only emit separator into the stream if at least one block has already streamed
+                  if (streamedBlocks.size > 0) {
+                    controller.enqueue(
+                      encoder.encode(
+                        `data: ${JSON.stringify({ blockId: blockIdForOutput, chunk: '\n\n' })}\n\n`
+                      )
+                    )
+                  }
+
+                  // Emit only the most relevant text for the selected block
+                  const textToEmit = formattedOutput
+                  controller.enqueue(
+                    encoder.encode(
+                      `data: ${JSON.stringify({ blockId: blockIdForOutput, chunk: textToEmit })}\n\n`
+                    )
+                  )
+
+                  // Track in streamed sets for consistent separation behavior
+                  streamedBlocks.add(blockIdForOutput)
+                  streamedContent.set(
+                    blockIdForOutput,
+                    (streamedContent.get(blockIdForOutput) || '') + textToEmit
+                  )
+
+                  // Signal end of this non-streaming block section
+                  controller.enqueue(
+                    encoder.encode(
+                      `data: ${JSON.stringify({ blockId: blockIdForOutput, event: 'end' })}\n\n`
+                    )
+                  )
+                } catch (e) {
+                  logger.warn(
+                    `[${requestId}] Failed to stream non-streaming output for selected block ${blockIdForOutput}`,
+                    e
+                  )
+                }
+              }
             }
           }
+        }
+
+        // Reorder logs to reflect the actual streaming order for final aggregation
+        try {
+          const streamOrder = Array.from(streamedBlocks)
+          const selectedBlockIndex = new Map<string, number>()
+          selectedOutputIds.forEach((outputId, idx) => {
+            const bId = extractBlockIdFromOutputId(outputId)
+            if (!selectedBlockIndex.has(bId)) selectedBlockIndex.set(bId, idx)
+          })
+
+          const getOrder = (blockId: string): number => {
+            const sIdx = streamOrder.indexOf(blockId)
+            if (sIdx !== -1) return sIdx
+            const selIdx = selectedBlockIndex.get(blockId)
+            if (selIdx !== undefined) return streamOrder.length + selIdx
+            return Number.MAX_SAFE_INTEGER
+          }
+
+          executionResult.logs = [...executionResult.logs].sort((a, b) => {
+            return getOrder(a.blockId) - getOrder(b.blockId)
+          })
+        } catch (e) {
+          logger.warn(`[${requestId}] Failed to reorder logs by streaming order`, e)
         }
 
         // Process all logs for streaming tokenization

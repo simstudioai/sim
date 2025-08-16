@@ -185,7 +185,13 @@ export interface ExecutionResult {
  */
 export interface StreamingExecution {
   stream: ReadableStream // The streaming response for the UI to consume
-  execution: ExecutionResult & { isStreaming?: boolean } // The complete execution data for logging purposes
+  execution: ExecutionResult & {
+    // Streaming-specific metadata used by the UI routing path
+    isStreaming?: boolean
+    blockId?: string
+    blockType?: string
+    blockName?: string
+  } // The complete execution data for logging purposes
 }
 
 /**
