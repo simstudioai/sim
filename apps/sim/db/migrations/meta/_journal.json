@@ -512,6 +512,13 @@
       "when": 1755291339064,
       "tag": "0073_first_skin",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1755303003058,
+      "tag": "0074_overconfident_talisman",
+      "breakpoints": true
     }
   ]
 }

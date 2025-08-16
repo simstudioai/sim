@@ -466,6 +466,10 @@ export const userStats = pgTable('user_stats', {
   billingPeriodStart: timestamp('billing_period_start').defaultNow(), // When current billing period started
   billingPeriodEnd: timestamp('billing_period_end'), // When current billing period ends
   lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
+  // Copilot usage tracking
+  totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
+  totalCopilotTokens: integer('total_copilot_tokens').notNull().default(0),
+  totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
   lastActive: timestamp('last_active').notNull().defaultNow(),
 })
 

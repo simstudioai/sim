@@ -134,6 +134,10 @@ export async function POST(req: NextRequest) {
         totalTokensUsed: totalTokens,
         totalCost: costToStore.toString(),
         currentPeriodCost: costToStore.toString(),
+        // Copilot usage tracking
+        totalCopilotCost: costToStore.toString(),
+        totalCopilotTokens: totalTokens,
+        totalCopilotCalls: 1,
         lastActive: new Date(),
       })
 
@@ -148,6 +152,10 @@ export async function POST(req: NextRequest) {
         totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
         totalCost: sql`total_cost + ${costToStore}`,
         currentPeriodCost: sql`current_period_cost + ${costToStore}`,
+        // Copilot usage tracking increments
+        totalCopilotCost: sql`total_copilot_cost + ${costToStore}`,
+        totalCopilotTokens: sql`total_copilot_tokens + ${totalTokens}`,
+        totalCopilotCalls: sql`total_copilot_calls + 1`,
         totalApiCalls: sql`total_api_calls`,
         lastActive: new Date(),
       }
