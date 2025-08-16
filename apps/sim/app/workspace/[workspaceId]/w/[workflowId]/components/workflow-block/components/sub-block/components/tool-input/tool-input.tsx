@@ -55,6 +55,7 @@ interface ToolInputProps {
   isPreview?: boolean
   previewValue?: any
   disabled?: boolean
+  allowExpandInPreview?: boolean
 }
 
 interface StoredTool {
@@ -105,6 +106,7 @@ function FileSelectorSyncWrapper({
   onChange,
   uiComponent,
   disabled,
+  previewContextValues,
 }: {
   blockId: string
   paramId: string
@@ -112,6 +114,7 @@ function FileSelectorSyncWrapper({
   onChange: (value: string) => void
   uiComponent: any
   disabled: boolean
+  previewContextValues?: Record<string, any>
 }) {
   return (
     <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
@@ -128,6 +131,7 @@ function FileSelectorSyncWrapper({
           placeholder: uiComponent.placeholder,
         }}
         disabled={disabled}
+        previewContextValues={previewContextValues}
       />
     </GenericSyncWrapper>
   )
@@ -398,6 +402,7 @@ export function ToolInput({
   isPreview = false,
   previewValue,
   disabled = false,
+  allowExpandInPreview,
 }: ToolInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
@@ -776,7 +781,7 @@ export function ToolInput({
   }
 
   const toggleToolExpansion = (toolIndex: number) => {
-    if (isPreview || disabled) return
+    if ((isPreview && !allowExpandInPreview) || disabled) return
 
     setStoreValue(
       selectedTools.map((tool, index) =>
@@ -1076,6 +1081,7 @@ export function ToolInput({
             onChange={onChange}
             uiComponent={uiComponent}
             disabled={disabled}
+            previewContextValues={tool.params as any}
           />
         )
 

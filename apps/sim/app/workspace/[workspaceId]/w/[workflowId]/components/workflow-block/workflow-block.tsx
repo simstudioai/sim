@@ -942,8 +942,11 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                         blockId={id}
                         config={subBlock}
                         isConnecting={isConnecting}
-                        isPreview={data.isPreview}
-                        subBlockValues={data.subBlockValues}
+                        isPreview={data.isPreview || currentWorkflow.isDiffMode}
+                        subBlockValues={
+                          data.subBlockValues ||
+                          (currentWorkflow.isDiffMode && currentBlock ? (currentBlock as any).subBlocks : undefined)
+                        }
                         disabled={!userPermissions.canEdit}
                         fieldDiffStatus={
                           fieldDiff?.changed_fields?.includes(subBlock.id)
@@ -952,6 +955,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                               ? 'unchanged'
                               : undefined
                         }
+                        allowExpandInPreview={currentWorkflow.isDiffMode}
                       />
                     </div>
                   ))}
