@@ -6,6 +6,7 @@ import { StartIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
 import { IterationBadges } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/components/iteration-badges/iteration-badges'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -78,8 +79,10 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
 
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentWorkflow.getBlockById(id)
-  const diffStatus =
-    currentWorkflow.isDiffMode && currentBlock ? (currentBlock as any).is_diff : undefined
+  const diffStatus: DiffStatus =
+    currentWorkflow.isDiffMode && currentBlock && hasDiffStatus(currentBlock)
+      ? currentBlock.is_diff
+      : undefined
 
   const isPreview = data?.isPreview || false
 
