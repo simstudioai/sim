@@ -153,12 +153,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
       return NextResponse.json({ data: finalWorkflowData }, { status: 200 })
     }
-    // This should not happen since all workflows should have normalized data
-    logger.error(`[${requestId}] No normalized data found for workflow ${workflowId}`)
-    return NextResponse.json(
-      { error: 'Workflow has no normalized data - migration may be incomplete' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Workflow has no normalized data' }, { status: 400 })
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     logger.error(`[${requestId}] Error fetching workflow ${workflowId} after ${elapsed}ms`, error)
