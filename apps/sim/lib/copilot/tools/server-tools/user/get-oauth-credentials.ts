@@ -1,10 +1,10 @@
 import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { createLogger } from '@/lib/logs/console/logger'
+import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { account, user } from '@/db/schema'
 import { BaseCopilotTool } from '../base'
-import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 interface GetOAuthCredentialsParams {
   userId: string
@@ -98,7 +98,11 @@ class GetOAuthCredentialsTool extends BaseCopilotTool<
       // Ensure we return a valid access token, refreshing if needed
       let accessToken: string | null = acc.accessToken ?? null
       try {
-        const { accessToken: refreshedToken } = await refreshTokenIfNeeded(requestId, acc as any, acc.id)
+        const { accessToken: refreshedToken } = await refreshTokenIfNeeded(
+          requestId,
+          acc as any,
+          acc.id
+        )
         accessToken = refreshedToken || accessToken
       } catch (_error) {
         // If refresh fails, we still return whatever we had (may be null)
@@ -106,7 +110,7 @@ class GetOAuthCredentialsTool extends BaseCopilotTool<
 
       credentials.push({
         id: acc.id,
-        name: displayName, 
+        name: displayName,
         provider: providerId,
         lastUsed: acc.updatedAt.toISOString(),
         isDefault: featureType === 'default',

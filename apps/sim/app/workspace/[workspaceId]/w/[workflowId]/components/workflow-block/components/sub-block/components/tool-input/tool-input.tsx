@@ -1382,7 +1382,7 @@ export function ToolInput({
 
             // Tools are always expandable so users can access the interface
             const isExpandedForDisplay = isPreview
-              ? previewExpanded[toolIndex] ?? !!tool.isExpanded
+              ? (previewExpanded[toolIndex] ?? !!tool.isExpanded)
               : !!tool.isExpanded
 
             return (

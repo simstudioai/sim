@@ -2,11 +2,11 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
 import { type DiffAnalysis, WorkflowDiffEngine } from '@/lib/workflows/diff'
+import { Serializer } from '@/serializer'
 import { useWorkflowRegistry } from '../workflows/registry/store'
 import { useSubBlockStore } from '../workflows/subblock/store'
 import { useWorkflowStore } from '../workflows/workflow/store'
 import type { WorkflowState } from '../workflows/workflow/types'
-import { Serializer } from '@/serializer'
 
 const logger = createLogger('WorkflowDiffStore')
 
@@ -138,7 +138,8 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               // Ensure we can deserialize back without errors
               serializer.deserializeWorkflow(serialized)
             } catch (e: any) {
-              const message = e instanceof Error ? e.message : 'Invalid workflow in proposed changes'
+              const message =
+                e instanceof Error ? e.message : 'Invalid workflow in proposed changes'
               logger.error('[DiffStore] Diff validation failed:', { message, error: e })
               // Do not mark ready; store error and keep diff hidden
               batchedUpdate({ isDiffReady: false, diffError: message, isShowingDiff: false })
@@ -171,7 +172,10 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             logger.info('Diff created successfully')
           } else {
             logger.error('Failed to create diff:', result.errors)
-            batchedUpdate({ isDiffReady: false, diffError: result.errors?.join(', ') || 'Failed to create diff' })
+            batchedUpdate({
+              isDiffReady: false,
+              diffError: result.errors?.join(', ') || 'Failed to create diff',
+            })
             throw new Error(result.errors?.join(', ') || 'Failed to create diff')
           }
         },
@@ -198,7 +202,8 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               )
               serializer.deserializeWorkflow(serialized)
             } catch (e: any) {
-              const message = e instanceof Error ? e.message : 'Invalid workflow in proposed changes'
+              const message =
+                e instanceof Error ? e.message : 'Invalid workflow in proposed changes'
               logger.error('[DiffStore] Diff validation failed on merge:', { message, error: e })
               batchedUpdate({ isDiffReady: false, diffError: message, isShowingDiff: false })
               return
@@ -217,7 +222,10 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           } else {
             logger.error('Failed to merge diff:', result.errors)
             // Reset isDiffReady on failure
-            batchedUpdate({ isDiffReady: false, diffError: result.errors?.join(', ') || 'Failed to merge diff' })
+            batchedUpdate({
+              isDiffReady: false,
+              diffError: result.errors?.join(', ') || 'Failed to merge diff',
+            })
             throw new Error(result.errors?.join(', ') || 'Failed to merge diff')
           }
         },
@@ -299,6 +307,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             get().clearDiff()
 
             // Fire-and-forget: persist to database and update copilot state in the background
+
             ;(async () => {
               try {
                 logger.info('Persisting accepted diff changes to database')

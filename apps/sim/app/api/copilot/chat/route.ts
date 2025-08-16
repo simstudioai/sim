@@ -371,7 +371,8 @@ export async function POST(req: NextRequest) {
       (currentChat?.conversationId as string | undefined) || conversationId
 
     // If we have a conversationId, only send the most recent user message; else send full history
-    const latestUserMessage = [...messages].reverse().find((m) => m?.role === 'user') || messages[messages.length - 1]
+    const latestUserMessage =
+      [...messages].reverse().find((m) => m?.role === 'user') || messages[messages.length - 1]
     const messagesForAgent = effectiveConversationId ? [latestUserMessage] : messages
 
     const requestPayload = {
@@ -400,7 +401,9 @@ export async function POST(req: NextRequest) {
         messagesCount: requestPayload.messages.length,
       })
       // Full payload as JSON string
-      logger.info(`[${tracker.requestId}] Full streaming payload: ${JSON.stringify(requestPayload)}`)
+      logger.info(
+        `[${tracker.requestId}] Full streaming payload: ${JSON.stringify(requestPayload)}`
+      )
     } catch (e) {
       logger.warn(`[${tracker.requestId}] Failed to log payload preview for streaming endpoint`, e)
     }

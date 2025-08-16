@@ -10,13 +10,12 @@ import {
 } from 'react'
 import {
   ArrowUp,
-  Boxes,
-  Infinity,
-  BrainCircuit,
   Brain,
+  BrainCircuit,
   Check,
   FileText,
   Image,
+  Infinity as InfinityIcon,
   Loader2,
   MessageCircle,
   Package,
@@ -460,7 +459,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const getDepthIconFor = (value: 0 | 1 | 2 | 3) => {
       if (value === 0) return <Zap className='h-3 w-3 text-muted-foreground' />
-      if (value === 1) return <Infinity className='h-3 w-3 text-muted-foreground' />
+      if (value === 1) return <InfinityIcon className='h-3 w-3 text-muted-foreground' />
       if (value === 2) return <Brain className='h-3 w-3 text-muted-foreground' />
       return <BrainCircuit className='h-3 w-3 text-muted-foreground' />
     }
@@ -655,7 +654,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                               )}
                             >
                               <span className='flex items-center gap-1.5'>
-                                <Infinity className='h-3 w-3 text-muted-foreground' />
+                                <InfinityIcon className='h-3 w-3 text-muted-foreground' />
                                 Auto
                               </span>
                               {agentDepth === 1 && (

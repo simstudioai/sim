@@ -787,7 +787,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                     className={cn(
                       'h-7 p-1 text-gray-500',
                       displayAdvancedMode && 'text-[var(--brand-primary-hex)]',
-                      !userPermissions.canEdit && !currentWorkflow.isDiffMode && 'cursor-not-allowed opacity-50'
+                      !userPermissions.canEdit &&
+                        !currentWorkflow.isDiffMode &&
+                        'cursor-not-allowed opacity-50'
                     )}
                     disabled={!userPermissions.canEdit && !currentWorkflow.isDiffMode}
                   >
@@ -823,7 +825,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                     className={cn(
                       'h-7 p-1 text-gray-500',
                       displayTriggerMode && 'text-[#22C55E]',
-                      !userPermissions.canEdit && !currentWorkflow.isDiffMode && 'cursor-not-allowed opacity-50'
+                      !userPermissions.canEdit &&
+                        !currentWorkflow.isDiffMode &&
+                        'cursor-not-allowed opacity-50'
                     )}
                     disabled={!userPermissions.canEdit && !currentWorkflow.isDiffMode}
                   >
@@ -924,7 +928,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   }}
                   className={cn(
                     'h-7 p-1 text-gray-500',
-                    !userPermissions.canEdit && !currentWorkflow.isDiffMode && 'cursor-not-allowed opacity-50'
+                    !userPermissions.canEdit &&
+                      !currentWorkflow.isDiffMode &&
+                      'cursor-not-allowed opacity-50'
                   )}
                   disabled={!userPermissions.canEdit && !currentWorkflow.isDiffMode}
                 >
@@ -971,7 +977,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                         isPreview={data.isPreview || currentWorkflow.isDiffMode}
                         subBlockValues={
                           data.subBlockValues ||
-                          (currentWorkflow.isDiffMode && currentBlock ? (currentBlock as any).subBlocks : undefined)
+                          (currentWorkflow.isDiffMode && currentBlock
+                            ? (currentBlock as any).subBlocks
+                            : undefined)
                         }
                         disabled={!userPermissions.canEdit}
                         fieldDiffStatus={

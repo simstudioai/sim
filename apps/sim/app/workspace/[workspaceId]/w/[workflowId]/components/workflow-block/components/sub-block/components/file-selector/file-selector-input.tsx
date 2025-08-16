@@ -58,9 +58,12 @@ export function FileSelectorInput({
     if (typeof val === 'number') return String(val)
     if (typeof val === 'object') {
       const obj = val as Record<string, any>
-      return (
-        obj.id || obj.fileId || obj.value || obj.documentId || obj.spreadsheetId || ''
-      ) as string
+      return (obj.id ||
+        obj.fileId ||
+        obj.value ||
+        obj.documentId ||
+        obj.spreadsheetId ||
+        '') as string
     }
     return ''
   }
@@ -124,18 +127,27 @@ export function FileSelectorInput({
   const isMicrosoftSharePoint = provider === 'microsoft' && subBlock.serviceId === 'sharepoint'
   const isMicrosoftPlanner = provider === 'microsoft-planner'
   // For Confluence and Jira, we need the domain and credentials
-  const domain = isConfluence || isJira
-    ? ((isPreview && previewContextValues?.domain?.value) || (getValue(blockId, 'domain') as string) || '')
-    : ''
+  const domain =
+    isConfluence || isJira
+      ? (isPreview && previewContextValues?.domain?.value) ||
+        (getValue(blockId, 'domain') as string) ||
+        ''
+      : ''
   const jiraCredential = isJira
-    ? ((isPreview && previewContextValues?.credential?.value) || (getValue(blockId, 'credential') as string) || '')
+    ? (isPreview && previewContextValues?.credential?.value) ||
+      (getValue(blockId, 'credential') as string) ||
+      ''
     : ''
   // For Discord, we need the bot token and server ID
   const botToken = isDiscord
-    ? ((isPreview && previewContextValues?.botToken?.value) || (getValue(blockId, 'botToken') as string) || '')
+    ? (isPreview && previewContextValues?.botToken?.value) ||
+      (getValue(blockId, 'botToken') as string) ||
+      ''
     : ''
   const serverId = isDiscord
-    ? ((isPreview && previewContextValues?.serverId?.value) || (getValue(blockId, 'serverId') as string) || '')
+    ? (isPreview && previewContextValues?.serverId?.value) ||
+      (getValue(blockId, 'serverId') as string) ||
+      ''
     : ''
 
   // Use preview value when in preview mode, otherwise use store value
