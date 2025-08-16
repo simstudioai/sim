@@ -27,7 +27,6 @@ WITH RECURSIVE spans AS (
     COALESCE(
       CASE
         WHEN jsonb_typeof(l.execution_data->'traceSpans') = 'array' THEN l.execution_data->'traceSpans'
-        WHEN jsonb_typeof(COALESCE(l.metadata,'{}'::jsonb)->'traceSpans') = 'array' THEN l.metadata->'traceSpans'
         ELSE '[]'::jsonb
       END
     )
@@ -89,8 +88,8 @@ models AS (
 ),
 tb AS (
   SELECT l.id,
-         NULLIF((COALESCE(l.execution_data, l.metadata)->'tokenBreakdown'->>'prompt')::numeric, 0) AS prompt,
-         NULLIF((COALESCE(l.execution_data, l.metadata)->'tokenBreakdown'->>'completion')::numeric, 0) AS completion
+         NULLIF((l.execution_data->'tokenBreakdown'->>'prompt')::numeric, 0) AS prompt,
+         NULLIF((l.execution_data->'tokenBreakdown'->>'completion')::numeric, 0) AS completion
   FROM workflow_execution_logs l
 )
 UPDATE workflow_execution_logs AS l
