@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { LoopNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-node'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 
-vi.mock('@/stores/workflows/workflow/store', () => ({
-  useWorkflowStore: vi.fn(),
+// Shared spies used across mocks
+const mockRemoveBlock = vi.fn()
+const mockGetNodes = vi.fn()
+
+// Mocks
+vi.mock('@/hooks/use-collaborative-workflow', () => ({
+  useCollaborativeWorkflow: vi.fn(() => ({
+    collaborativeRemoveBlock: mockRemoveBlock,
+  })),
 }))
 
-vi.mock('@/lib/logs/logger', () => ({
+vi.mock('@/lib/logs/console/logger', () => ({
   createLogger: vi.fn(() => ({
     debug: vi.fn(),
     info: vi.fn(),
@@ -24,14 +30,13 @@ vi.mock('reactflow', () => ({
     Right: 'right',
   },
   useReactFlow: () => ({
-    getNodes: vi.fn(() => []),
+    getNodes: mockGetNodes,
   }),
-  NodeResizer: ({ isVisible }: any) => ({ isVisible }),
   memo: (component: any) => component,
 }))
 
 vi.mock('react', async () => {
-  const actual = await vi.importActual('react')
+  const actual = await vi.importActual<any>('react')
   return {
     ...actual,
     memo: (component: any) => component,
@@ -52,7 +57,6 @@ vi.mock('@/components/icons', async (importOriginal) => {
   const actual = (await importOriginal()) as any
   return {
     ...actual,
-    // Override specific icons if needed for testing
     StartIcon: ({ className }: any) => ({ className }),
   }
 })
@@ -61,20 +65,22 @@ vi.mock('@/lib/utils', () => ({
   cn: (...classes: any[]) => classes.filter(Boolean).join(' '),
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/components/loop-badges', () => ({
-  LoopBadges: ({ loopId }: any) => ({ loopId }),
-}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/components/iteration-badges/iteration-badges',
+  () => ({
+    IterationBadges: ({ nodeId, iterationType }: any) => ({ nodeId, iterationType }),
+  })
+)
 
-describe('LoopNodeComponent', () => {
-  const mockRemoveBlock = vi.fn()
-  const mockGetNodes = vi.fn()
+describe('SubflowNodeComponent', () => {
   const defaultProps = {
-    id: 'loop-1',
-    type: 'loopNode',
+    id: 'subflow-1',
+    type: 'subflowNode',
     data: {
       width: 500,
       height: 300,
-      state: 'valid',
+      isPreview: false,
+      kind: 'loop' as const,
     },
     selected: false,
     zIndex: 1,
@@ -86,29 +92,21 @@ describe('LoopNodeComponent', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-
-    ;(useWorkflowStore as any).mockImplementation((selector: any) => {
-      const state = {
-        removeBlock: mockRemoveBlock,
-      }
-      return selector(state)
-    })
-
     mockGetNodes.mockReturnValue([])
   })
 
   describe('Component Definition and Structure', () => {
     it('should be defined as a function component', () => {
-      expect(LoopNodeComponent).toBeDefined()
-      expect(typeof LoopNodeComponent).toBe('function')
+      expect(SubflowNodeComponent).toBeDefined()
+      expect(typeof SubflowNodeComponent).toBe('function')
     })
 
     it('should have correct display name', () => {
-      expect(LoopNodeComponent.displayName).toBe('LoopNodeComponent')
+      expect(SubflowNodeComponent.displayName).toBe('SubflowNodeComponent')
     })
 
     it('should be a memoized component', () => {
-      expect(LoopNodeComponent).toBeDefined()
+      expect(SubflowNodeComponent).toBeDefined()
     })
   })
 
@@ -116,11 +114,12 @@ describe('LoopNodeComponent', () => {
     it('should accept NodeProps interface', () => {
       const validProps = {
         id: 'test-id',
-        type: 'loopNode' as const,
+        type: 'subflowNode' as const,
         data: {
           width: 400,
           height: 300,
-          state: 'valid' as const,
+          isPreview: true,
+          kind: 'parallel' as const,
         },
         selected: false,
         zIndex: 1,
@@ -131,47 +130,35 @@ describe('LoopNodeComponent', () => {
       }
 
       expect(() => {
-        const _component: typeof LoopNodeComponent = LoopNodeComponent
+        const _component: typeof SubflowNodeComponent = SubflowNodeComponent
         expect(_component).toBeDefined()
+        expect(validProps.type).toBe('subflowNode')
       }).not.toThrow()
     })
 
     it('should handle different data configurations', () => {
       const configurations = [
-        { width: 500, height: 300, state: 'valid' },
-        { width: 800, height: 600, state: 'invalid' },
-        { width: 0, height: 0, state: 'pending' },
-        {},
+        { width: 500, height: 300, isPreview: false, kind: 'loop' as const },
+        { width: 800, height: 600, isPreview: true, kind: 'parallel' as const },
+        { width: 0, height: 0, isPreview: false, kind: 'loop' as const },
+        { kind: 'loop' as const },
       ]
 
       configurations.forEach((data) => {
         const props = { ...defaultProps, data }
         expect(() => {
-          const _component: typeof LoopNodeComponent = LoopNodeComponent
+          const _component: typeof SubflowNodeComponent = SubflowNodeComponent
           expect(_component).toBeDefined()
+          expect(props.data).toBeDefined()
         }).not.toThrow()
       })
     })
   })
 
-  describe('Store Integration', () => {
-    it('should integrate with workflow store', () => {
-      expect(useWorkflowStore).toBeDefined()
-
-      const mockState = { removeBlock: mockRemoveBlock }
-      const selector = vi.fn((state) => state.removeBlock)
-
-      expect(() => {
-        selector(mockState)
-      }).not.toThrow()
-
-      expect(selector(mockState)).toBe(mockRemoveBlock)
-    })
-
-    it('should handle removeBlock function', () => {
+  describe('Hook Integration', () => {
+    it('should provide collaborativeRemoveBlock', () => {
       expect(mockRemoveBlock).toBeDefined()
       expect(typeof mockRemoveBlock).toBe('function')
-
       mockRemoveBlock('test-id')
       expect(mockRemoveBlock).toHaveBeenCalledWith('test-id')
     })
@@ -213,16 +200,15 @@ describe('LoopNodeComponent', () => {
     it('should handle nested styles generation', () => {
       // Test the nested styles logic
       const testCases = [
-        { nestingLevel: 0, state: 'valid', expectedBg: 'rgba(34,197,94,0.05)' },
-        { nestingLevel: 0, state: 'invalid', expectedBg: 'transparent' },
-        { nestingLevel: 1, state: 'valid', expectedBg: '#e2e8f030' },
-        { nestingLevel: 2, state: 'valid', expectedBg: '#cbd5e130' },
+        { nestingLevel: 0, expectedBg: 'rgba(34,197,94,0.05)' },
+        { nestingLevel: 1, expectedBg: '#e2e8f030' },
+        { nestingLevel: 2, expectedBg: '#cbd5e130' },
       ]
 
-      testCases.forEach(({ nestingLevel, state, expectedBg }) => {
+      testCases.forEach(({ nestingLevel, expectedBg }) => {
         // Simulate the getNestedStyles logic
         const styles: Record<string, string> = {
-          backgroundColor: state === 'valid' ? 'rgba(34,197,94,0.05)' : 'transparent',
+          backgroundColor: 'rgba(34,197,94,0.05)',
         }
 
         if (nestingLevel > 0) {
@@ -246,29 +232,17 @@ describe('LoopNodeComponent', () => {
       ]
 
       dimensionTests.forEach(({ width, height }) => {
-        const data = { width, height, state: 'valid' }
+        const data = { width, height }
         expect(data.width).toBe(width)
         expect(data.height).toBe(height)
-      })
-    })
-
-    it('should handle different states', () => {
-      const stateTests = ['valid', 'invalid', 'pending', 'executing']
-
-      stateTests.forEach((state) => {
-        const data = { width: 500, height: 300, state }
-        expect(data.state).toBe(state)
       })
     })
   })
 
   describe('Event Handling Logic', () => {
-    it('should handle delete button click logic', () => {
-      const mockEvent = {
-        stopPropagation: vi.fn(),
-      }
+    it('should handle delete button click logic (simulated)', () => {
+      const mockEvent = { stopPropagation: vi.fn() }
 
-      // Simulate the delete button click handler
       const handleDelete = (e: any, nodeId: string) => {
         e.stopPropagation()
         mockRemoveBlock(nodeId)
@@ -281,11 +255,7 @@ describe('LoopNodeComponent', () => {
     })
 
     it('should handle event propagation prevention', () => {
-      const mockEvent = {
-        stopPropagation: vi.fn(),
-      }
-
-      // Test that stopPropagation is called
+      const mockEvent = { stopPropagation: vi.fn() }
       mockEvent.stopPropagation()
       expect(mockEvent.stopPropagation).toHaveBeenCalled()
     })
@@ -298,19 +268,16 @@ describe('LoopNodeComponent', () => {
         {},
         { width: 500 },
         { height: 300 },
-        { state: 'valid' },
         { width: 500, height: 300 },
       ]
 
-      testCases.forEach((data) => {
+      testCases.forEach((data: any) => {
         const props = { ...defaultProps, data }
-
-        // Test default values logic
         const width = Math.max(0, data?.width || 500)
         const height = Math.max(0, data?.height || 300)
-
         expect(width).toBeGreaterThanOrEqual(0)
         expect(height).toBeGreaterThanOrEqual(0)
+        expect(props.type).toBe('subflowNode')
       })
     })
 
@@ -330,7 +297,6 @@ describe('LoopNodeComponent', () => {
 
   describe('Edge Cases and Error Handling', () => {
     it('should handle circular parent references', () => {
-      // Test circular reference prevention
       const nodes = [
         { id: 'node1', data: { parentId: 'node2' } },
         { id: 'node2', data: { parentId: 'node1' } },
@@ -338,15 +304,11 @@ describe('LoopNodeComponent', () => {
 
       mockGetNodes.mockReturnValue(nodes)
 
-      // Test the actual component's nesting level calculation logic
-      // This simulates the real useMemo logic from the component
       let level = 0
       let currentParentId = 'node1'
       const visited = new Set<string>()
 
-      // This is the actual logic pattern used in the component
       while (currentParentId) {
-        // If we've seen this parent before, we have a cycle - break immediately
         if (visited.has(currentParentId)) {
           break
         }
@@ -356,23 +318,19 @@ describe('LoopNodeComponent', () => {
 
         const parentNode = nodes.find((n) => n.id === currentParentId)
         if (!parentNode) break
-
         currentParentId = parentNode.data?.parentId
       }
 
-      // With proper circular reference detection, we should stop at level 2
-      // (node1 -> node2, then detect cycle when trying to go back to node1)
       expect(level).toBe(2)
       expect(visited.has('node1')).toBe(true)
       expect(visited.has('node2')).toBe(true)
     })
 
     it('should handle complex circular reference chains', () => {
-      // Test more complex circular reference scenarios
       const nodes = [
         { id: 'node1', data: { parentId: 'node2' } },
         { id: 'node2', data: { parentId: 'node3' } },
-        { id: 'node3', data: { parentId: 'node1' } }, // Creates a 3-node cycle
+        { id: 'node3', data: { parentId: 'node1' } },
       ]
 
       mockGetNodes.mockReturnValue(nodes)
@@ -383,7 +341,7 @@ describe('LoopNodeComponent', () => {
 
       while (currentParentId) {
         if (visited.has(currentParentId)) {
-          break // Cycle detected
+          break
         }
 
         visited.add(currentParentId)
@@ -391,20 +349,15 @@ describe('LoopNodeComponent', () => {
 
         const parentNode = nodes.find((n) => n.id === currentParentId)
         if (!parentNode) break
-
         currentParentId = parentNode.data?.parentId
       }
 
-      // Should traverse node1 -> node2 -> node3, then detect cycle
       expect(level).toBe(3)
       expect(visited.size).toBe(3)
     })
 
     it('should handle self-referencing nodes', () => {
-      // Test node that references itself
-      const nodes = [
-        { id: 'node1', data: { parentId: 'node1' } }, // Self-reference
-      ]
+      const nodes = [{ id: 'node1', data: { parentId: 'node1' } }]
 
       mockGetNodes.mockReturnValue(nodes)
 
@@ -414,7 +367,7 @@ describe('LoopNodeComponent', () => {
 
       while (currentParentId) {
         if (visited.has(currentParentId)) {
-          break // Cycle detected immediately
+          break
         }
 
         visited.add(currentParentId)
@@ -422,31 +375,11 @@ describe('LoopNodeComponent', () => {
 
         const parentNode = nodes.find((n) => n.id === currentParentId)
         if (!parentNode) break
-
         currentParentId = parentNode.data?.parentId
       }
 
-      // Should detect self-reference immediately after first iteration
       expect(level).toBe(1)
       expect(visited.has('node1')).toBe(true)
-    })
-
-    it('should handle extreme values', () => {
-      const extremeValues = [
-        { width: Number.MAX_SAFE_INTEGER, height: Number.MAX_SAFE_INTEGER },
-        { width: -1, height: -1 },
-        { width: 0, height: 0 },
-        { width: null, height: null },
-      ]
-
-      extremeValues.forEach((data) => {
-        expect(() => {
-          const width = data.width || 500
-          const height = data.height || 300
-          expect(typeof width).toBe('number')
-          expect(typeof height).toBe('number')
-        }).not.toThrow()
-      })
     })
   })
 })

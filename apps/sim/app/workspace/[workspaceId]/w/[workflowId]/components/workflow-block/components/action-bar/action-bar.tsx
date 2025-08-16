@@ -1,4 +1,4 @@
-import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Copy, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Copy, LogOut, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -22,6 +22,10 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
   const isEnabled = useWorkflowStore((state) => state.blocks[blockId]?.enabled ?? true)
   const horizontalHandles = useWorkflowStore(
     (state) => state.blocks[blockId]?.horizontalHandles ?? false
+  )
+  const parentId = useWorkflowStore((state) => state.blocks[blockId]?.data?.parentId)
+  const parentType = useWorkflowStore((state) =>
+    parentId ? state.blocks[parentId]?.type : undefined
   )
   const userPermissions = useUserPermissionsContext()
 
@@ -99,6 +103,33 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
             </Button>
           </TooltipTrigger>
           <TooltipContent side='right'>{getTooltipMessage('Duplicate Block')}</TooltipContent>
+        </Tooltip>
+      )}
+
+      {/* Remove from subflow - only show when inside loop/parallel */}
+      {!isStarterBlock && parentId && (parentType === 'loop' || parentType === 'parallel') && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant='ghost'
+              size='sm'
+              onClick={() => {
+                if (!disabled && userPermissions.canEdit) {
+                  window.dispatchEvent(
+                    new CustomEvent('remove-from-subflow', { detail: { blockId } })
+                  )
+                }
+              }}
+              className={cn(
+                'text-gray-500',
+                (disabled || !userPermissions.canEdit) && 'cursor-not-allowed opacity-50'
+              )}
+              disabled={disabled || !userPermissions.canEdit}
+            >
+              <LogOut className='h-4 w-4' />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side='right'>{getTooltipMessage('Remove From Subflow')}</TooltipContent>
         </Tooltip>
       )}
 
