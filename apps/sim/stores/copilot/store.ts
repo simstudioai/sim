@@ -238,6 +238,13 @@ function createErrorMessage(messageId: string, content: string): CopilotMessage 
     role: 'assistant',
     content,
     timestamp: new Date().toISOString(),
+    contentBlocks: [
+      {
+        type: 'text',
+        content,
+        timestamp: Date.now(),
+      },
+    ],
   }
 }
 
@@ -1803,6 +1810,12 @@ async function* parseSSEStream(
   }
 }
 
+// Auth/usage assistant response messages for Copilot
+const COPILOT_AUTH_REQUIRED_MESSAGE =
+  '*Authorization failed. An API key must be configured in order to use the copilot. You can configure an api key in the settings page on sim.ai*'
+const COPILOT_USAGE_EXCEEDED_MESSAGE =
+  '*Usage limit exceeded, please upgrade your plan to continue using the copilot*'
+
 /**
  * Copilot store using the new unified API
  */
@@ -2249,7 +2262,28 @@ export const useCopilotStore = create<CopilotStore>()(
               logger.info('Message sending was aborted by user')
               return // Don't throw or update state, abort handler already did
             }
-            throw new Error(result.error || 'Failed to send message')
+
+            // Handle specific upstream statuses
+            let displayError = result.error || 'Failed to send message'
+            if (result.status === 401) {
+              displayError = COPILOT_AUTH_REQUIRED_MESSAGE
+            } else if (result.status === 402) {
+              displayError = COPILOT_USAGE_EXCEEDED_MESSAGE
+            }
+
+            const errorMessage = createErrorMessage(streamingMessage.id, displayError)
+
+            // Show as a normal assistant response without global error for auth/usage cases
+            const isAuthOrUsage = result.status === 401 || result.status === 402
+
+            set((state) => ({
+              messages: state.messages.map((msg) =>
+                msg.id === streamingMessage.id ? errorMessage : msg
+              ),
+              error: isAuthOrUsage ? null : displayError,
+              isSendingMessage: false,
+              abortController: null,
+            }))
           }
         } catch (error) {
           // Check if this was an abort
@@ -2504,7 +2538,25 @@ export const useCopilotStore = create<CopilotStore>()(
               logger.info('Implicit feedback sending was aborted by user')
               return
             }
-            throw new Error(result.error || 'Failed to send implicit feedback')
+            // Handle specific upstream statuses as normal assistant responses
+            let displayError = result.error || 'Failed to send implicit feedback'
+            if (result.status === 401) {
+              displayError = COPILOT_AUTH_REQUIRED_MESSAGE
+            } else if (result.status === 402) {
+              displayError = COPILOT_USAGE_EXCEEDED_MESSAGE
+            }
+
+            const errorMessage = createErrorMessage(newAssistantMessage.id, displayError)
+
+            const isAuthOrUsage = result.status === 401 || result.status === 402
+            set((state) => ({
+              messages: state.messages.map((msg) =>
+                msg.id === newAssistantMessage.id ? errorMessage : msg
+              ),
+              error: isAuthOrUsage ? null : displayError,
+              isSendingMessage: false,
+              abortController: null,
+            }))
           }
         } catch (error) {
           if (error instanceof Error && error.name === 'AbortError') {

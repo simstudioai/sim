@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
@@ -9,8 +11,7 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 const logger = createLogger('YamlGenerateAPI')
 
 // Sim Agent API configuration
-const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 const GenerateRequestSchema = z.object({
   workflowState: z.any(), // Let the yaml service handle validation
@@ -27,7 +28,6 @@ export async function POST(request: NextRequest) {
     logger.info(`[${requestId}] Generating YAML from workflow`, {
       blocksCount: workflowState.blocks ? Object.keys(workflowState.blocks).length : 0,
       edgesCount: workflowState.edges ? workflowState.edges.length : 0,
-      hasApiKey: !!SIM_AGENT_API_KEY,
     })
 
     // Gather block registry and utilities
@@ -51,7 +51,6 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
       },
       body: JSON.stringify({
         workflowState,

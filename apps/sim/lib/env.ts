@@ -24,8 +24,10 @@ export const env = createEnv({
     ALLOWED_LOGIN_DOMAINS:                z.string().optional(),                  // Comma-separated list of allowed email domains for login
     ENCRYPTION_KEY:                       z.string().min(32),                     // Key for encrypting sensitive data
     INTERNAL_API_SECRET:                  z.string().min(32),                     // Secret for internal API authentication
-    SIM_AGENT_API_KEY:                    z.string().min(1).optional(),           // Secret for internal sim agent API authentication
+    COPILOT_API_KEY:                      z.string().min(1).optional(),           // Secret for internal sim agent API authentication
     SIM_AGENT_API_URL:                    z.string().url().optional(),            // URL for internal sim agent API
+    AGENT_API_DB_ENCRYPTION_KEY:          z.string().min(32).optional(),          // Key for encrypting sensitive data for sim agent
+    AGENT_API_NETWORK_ENCRYPTION_KEY:     z.string().min(32).optional(),          // Key for encrypting sensitive data for sim agent
 
     // Database & Storage
     POSTGRES_URL:                         z.string().url().optional(),            // Alternative PostgreSQL connection string
@@ -69,7 +71,6 @@ export const env = createEnv({
     // Monitoring & Analytics
     TELEMETRY_ENDPOINT:                   z.string().url().optional(),            // Custom telemetry/analytics endpoint
     COST_MULTIPLIER:                      z.number().optional(),                  // Multiplier for cost calculations
-    COPILOT_COST_MULTIPLIER:              z.number().optional(),                  // Multiplier for copilot cost calculations
     SENTRY_ORG:                           z.string().optional(),                  // Sentry organization for error tracking
     SENTRY_PROJECT:                       z.string().optional(),                  // Sentry project for error tracking
     SENTRY_AUTH_TOKEN:                    z.string().optional(),                  // Sentry authentication token

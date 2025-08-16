@@ -14,9 +14,6 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 
 const logger = createLogger('WorkflowYamlExportAPI')
 
-// Get API key at module level like working routes
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
-
 export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const url = new URL(request.url)
@@ -176,7 +173,6 @@ export async function GET(request: NextRequest) {
           resolveOutputType: resolveOutputType.toString(),
         },
       },
-      apiKey: SIM_AGENT_API_KEY,
     })
 
     if (!result.success || !result.data?.yaml) {

@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
@@ -16,8 +18,7 @@ import {
 const logger = createLogger('YamlDiffCreateAPI')
 
 // Sim Agent API configuration
-const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 const CreateDiffRequestSchema = z.object({
   yamlContent: z.string().min(1),
@@ -89,7 +90,6 @@ export async function POST(request: NextRequest) {
       hasDiffAnalysis: !!diffAnalysis,
       hasOptions: !!options,
       options: options,
-      hasApiKey: !!SIM_AGENT_API_KEY,
       hasCurrentWorkflowState: !!currentWorkflowState,
       currentBlockCount: currentWorkflowState
         ? Object.keys(currentWorkflowState.blocks || {}).length
@@ -117,7 +117,6 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
       },
       body: JSON.stringify({
         yamlContent,

@@ -465,6 +465,10 @@ export const userStats = pgTable('user_stats', {
   billingPeriodStart: timestamp('billing_period_start').defaultNow(), // When current billing period started
   billingPeriodEnd: timestamp('billing_period_end'), // When current billing period ends
   lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
+  // Copilot usage tracking
+  totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
+  totalCopilotTokens: integer('total_copilot_tokens').notNull().default(0),
+  totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
   lastActive: timestamp('last_active').notNull().defaultNow(),
 })
 
@@ -1176,5 +1180,27 @@ export const copilotFeedback = pgTable(
 
     // Ordering indexes
     createdAtIdx: index('copilot_feedback_created_at_idx').on(table.createdAt),
+  })
+)
+
+export const copilotApiKeys = pgTable(
+  'copilot_api_keys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    apiKeyEncrypted: text('api_key_encrypted').notNull(),
+    apiKeyLookup: text('api_key_lookup').notNull(),
+  },
+  (table) => ({
+    apiKeyEncryptedHashIdx: index('copilot_api_keys_api_key_encrypted_hash_idx').using(
+      'hash',
+      table.apiKeyEncrypted
+    ),
+    apiKeyLookupHashIdx: index('copilot_api_keys_lookup_hash_idx').using(
+      'hash',
+      table.apiKeyLookup
+    ),
   })
 )
