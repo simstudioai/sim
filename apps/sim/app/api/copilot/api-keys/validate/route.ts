@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
 
       if (!Number.isNaN(limit) && limit > 0 && currentUsage >= limit) {
         // Usage exceeded
+        logger.info('[API VALIDATION] Usage exceeded', { userId, currentUsage, limit })
         return new NextResponse(null, { status: 402 })
       }
     }
