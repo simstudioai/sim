@@ -23,6 +23,8 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 
 const logger = createLogger('SettingsModal')
 
+const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
+
 interface SettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void

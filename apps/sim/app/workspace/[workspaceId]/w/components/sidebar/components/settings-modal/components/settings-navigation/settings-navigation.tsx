@@ -13,6 +13,8 @@ import { isBillingEnabled, isHosted } from '@/lib/environment'
 import { cn } from '@/lib/utils'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
+const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
+
 interface SettingsNavigationProps {
   activeSection: string
   onSectionChange: (
