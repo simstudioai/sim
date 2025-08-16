@@ -4,6 +4,8 @@ import { Component, type ReactNode, useEffect } from 'react'
 import { BotIcon } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { createLogger } from '@/lib/logs/console/logger'
+import { ControlBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/control-bar'
+import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/panel'
 
 const logger = createLogger('ErrorBoundary')
 
@@ -22,18 +24,32 @@ export function ErrorUI({
   fullScreen = false,
 }: ErrorUIProps) {
   const containerClass = fullScreen
-    ? 'flex items-center justify-center w-full h-screen bg-muted/40'
-    : 'flex items-center justify-center w-full h-full bg-muted/40'
+    ? 'flex flex-col w-full h-screen bg-muted/40'
+    : 'flex flex-col w-full h-full bg-muted/40'
 
   return (
     <div className={containerClass}>
-      <Card className='max-w-md space-y-4 p-6 text-center'>
-        <div className='flex justify-center'>
-          <BotIcon className='h-16 w-16 text-muted-foreground' />
+      {/* Control bar */}
+      <ControlBar hasValidationErrors={false} />
+
+      {/* Main content area */}
+      <div className='relative flex flex-1'>
+        {/* Error message */}
+        <div className='flex flex-1 items-center justify-center'>
+          <Card className='max-w-md space-y-4 p-6 text-center'>
+            <div className='flex justify-center'>
+              <BotIcon className='h-16 w-16 text-muted-foreground' />
+            </div>
+            <h3 className='font-semibold text-lg'>{title}</h3>
+            <p className='text-muted-foreground'>{message}</p>
+          </Card>
         </div>
-        <h3 className='font-semibold text-lg'>{title}</h3>
-        <p className='text-muted-foreground'>{message}</p>
-      </Card>
+
+        {/* Console panel */}
+        <div className='fixed top-0 right-0 z-10'>
+          <Panel />
+        </div>
+      </div>
     </div>
   )
 }
