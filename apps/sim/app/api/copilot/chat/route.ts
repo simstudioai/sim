@@ -370,9 +370,13 @@ export async function POST(req: NextRequest) {
     const effectiveConversationId =
       (currentChat?.conversationId as string | undefined) || conversationId
 
+    // For OpenAI with depth 0, do not send conversationId and send full message history
+    const disableConversationForOpenAI = providerToUse === 'openai' && depth === 0
+    const shouldSendConversationId = !!effectiveConversationId && !disableConversationForOpenAI
+
     // If we have a conversationId, only send the most recent user message; else send full history
     const latestUserMessage = [...messages].reverse().find((m) => m?.role === 'user') || messages[messages.length - 1]
-    const messagesForAgent = effectiveConversationId ? [latestUserMessage] : messages
+    const messagesForAgent = shouldSendConversationId ? [latestUserMessage] : messages
 
     const requestPayload = {
       messages: messagesForAgent,
@@ -382,7 +386,7 @@ export async function POST(req: NextRequest) {
       streamToolCalls: true,
       mode: mode,
       provider: providerToUse,
-      ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
+      ...(shouldSendConversationId ? { conversationId: effectiveConversationId } : {}),
       ...(typeof depth === 'number' ? { depth } : {}),
       ...(session?.user?.name && { userName: session.user.name }),
     }
@@ -395,7 +399,7 @@ export async function POST(req: NextRequest) {
         mode,
         stream,
         workflowId,
-        hasConversationId: !!effectiveConversationId,
+        hasConversationId: shouldSendConversationId,
         depth: typeof depth === 'number' ? depth : undefined,
         messagesCount: requestPayload.messages.length,
       })
