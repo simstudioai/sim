@@ -9,7 +9,6 @@ import {
   UserCircle,
   Users,
 } from 'lucide-react'
-import { getEnv } from '@/lib/env'
 import { isBillingEnabled, isHosted } from '@/lib/environment'
 import { cn } from '@/lib/utils'
 import { useSubscriptionStore } from '@/stores/subscription/store'
