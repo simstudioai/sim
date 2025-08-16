@@ -104,6 +104,7 @@ describe('Copilot Chat API Route', () => {
     vi.doMock('@/lib/env', () => ({
       env: {
         SIM_AGENT_API_URL: 'http://localhost:8000',
+        COPILOT_API_KEY: 'test-sim-agent-key',
       },
     }))
 
