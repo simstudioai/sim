@@ -9,7 +9,8 @@ import {
   UserCircle,
   Users,
 } from 'lucide-react'
-import { isBillingEnabled } from '@/lib/environment'
+import { getEnv } from '@/lib/env'
+import { isBillingEnabled, isHosted } from '@/lib/environment'
 import { cn } from '@/lib/utils'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
@@ -107,6 +108,9 @@ export function SettingsNavigation({
   const subscription = getSubscriptionStatus()
 
   const navigationItems = allNavigationItems.filter((item) => {
+    if (item.id === 'copilot' && !isHosted) {
+      return false
+    }
     if (item.hideWhenBillingDisabled && !isBillingEnabled) {
       return false
     }

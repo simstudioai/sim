@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
-import { isBillingEnabled } from '@/lib/environment'
+import { getEnv } from '@/lib/env'
+import { isBillingEnabled, isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import {
@@ -148,9 +149,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <TeamManagement />
               </div>
             )}
-            <div className={cn('h-full', activeSection === 'copilot' ? 'block' : 'hidden')}>
-              <Copilot />
-            </div>
+            {isHosted && (
+              <div className={cn('h-full', activeSection === 'copilot' ? 'block' : 'hidden')}>
+                <Copilot />
+              </div>
+            )}
             <div className={cn('h-full', activeSection === 'privacy' ? 'block' : 'hidden')}>
               <Privacy />
             </div>
