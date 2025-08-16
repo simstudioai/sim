@@ -125,15 +125,11 @@ export async function getWorkflowState(workflowId: string) {
 
     if (normalizedData) {
       // Use normalized data as source of truth
-      const existingState = workflowData[0].state || {}
-
       const finalState = {
         // Default values for expected properties
         deploymentStatuses: {},
         hasActiveWebhook: false,
-        // Preserve any existing state properties
-        ...existingState,
-        // Override with normalized data (this takes precedence)
+        // Data from normalized tables
         blocks: normalizedData.blocks,
         edges: normalizedData.edges,
         loops: normalizedData.loops,

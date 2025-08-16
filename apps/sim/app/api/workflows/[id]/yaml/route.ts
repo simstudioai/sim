@@ -18,14 +18,12 @@ import { db } from '@/db'
 import { workflowCheckpoints, workflow as workflowTable } from '@/db/schema'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
-// Sim Agent API configuration
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WorkflowYamlAPI')
 
-// Request schema for YAML workflow operations
 const YamlWorkflowRequestSchema = z.object({
   yamlContent: z.string().min(1, 'YAML content is required'),
   description: z.string().optional(),
@@ -647,14 +645,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .set({
         lastSynced: new Date(),
         updatedAt: new Date(),
-        state: saveResult.jsonBlob,
       })
       .where(eq(workflowTable.id, workflowId))
 
     // Notify socket server for real-time collaboration (for copilot and editor)
     if (source === 'copilot' || source === 'editor') {
       try {
-        const socketUrl = process.env.SOCKET_URL || 'http://localhost:3002'
+        const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
         await fetch(`${socketUrl}/api/copilot-workflow-edit`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

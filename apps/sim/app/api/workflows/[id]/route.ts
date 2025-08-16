@@ -120,8 +120,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     logger.debug(`[${requestId}] Attempting to load workflow ${workflowId} from normalized tables`)
     const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
 
-    const finalWorkflowData = { ...workflowData }
-
     if (normalizedData) {
       logger.debug(`[${requestId}] Found normalized data for workflow ${workflowId}:`, {
         blocksCount: Object.keys(normalizedData.blocks).length,
@@ -131,38 +129,31 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         loops: normalizedData.loops,
       })
 
-      // Use normalized table data - reconstruct complete state object
-      // First get any existing state properties, then override with normalized data
-      const existingState =
-        workflowData.state && typeof workflowData.state === 'object' ? workflowData.state : {}
-
-      finalWorkflowData.state = {
-        // Default values for expected properties
-        deploymentStatuses: {},
-        hasActiveWebhook: false,
-        // Preserve any existing state properties
-        ...existingState,
-        // Override with normalized data (this takes precedence)
-        blocks: normalizedData.blocks,
-        edges: normalizedData.edges,
-        loops: normalizedData.loops,
-        parallels: normalizedData.parallels,
-        lastSaved: Date.now(),
-        isDeployed: workflowData.isDeployed || false,
-        deployedAt: workflowData.deployedAt,
+      // Construct response object with workflow data and state from normalized tables
+      const finalWorkflowData = {
+        ...workflowData,
+        state: {
+          // Default values for expected properties
+          deploymentStatuses: {},
+          hasActiveWebhook: false,
+          // Data from normalized tables
+          blocks: normalizedData.blocks,
+          edges: normalizedData.edges,
+          loops: normalizedData.loops,
+          parallels: normalizedData.parallels,
+          lastSaved: Date.now(),
+          isDeployed: workflowData.isDeployed || false,
+          deployedAt: workflowData.deployedAt,
+        },
       }
+
       logger.info(`[${requestId}] Loaded workflow ${workflowId} from normalized tables`)
-    } else {
-      // Fallback to JSON blob
-      logger.info(
-        `[${requestId}] Using JSON blob for workflow ${workflowId} - no normalized data found`
-      )
+      const elapsed = Date.now() - startTime
+      logger.info(`[${requestId}] Successfully fetched workflow ${workflowId} in ${elapsed}ms`)
+
+      return NextResponse.json({ data: finalWorkflowData }, { status: 200 })
     }
-
-    const elapsed = Date.now() - startTime
-    logger.info(`[${requestId}] Successfully fetched workflow ${workflowId} in ${elapsed}ms`)
-
-    return NextResponse.json({ data: finalWorkflowData }, { status: 200 })
+    return NextResponse.json({ error: 'Workflow has no normalized data' }, { status: 400 })
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     logger.error(`[${requestId}] Error fetching workflow ${workflowId} after ${elapsed}ms`, error)
