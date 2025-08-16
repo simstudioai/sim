@@ -3,7 +3,6 @@ import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { env } from '@/lib/env'
-import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { userStats } from '@/db/schema'
@@ -17,6 +16,7 @@ const UpdateCostSchema = z.object({
   input: z.number().min(0, 'Input tokens must be a non-negative number'),
   output: z.number().min(0, 'Output tokens must be a non-negative number'),
   model: z.string().min(1, 'Model is required'),
+  multiplier: z.number().min(0),
 })
 
 // Authentication function (reused from copilot/methods route)
@@ -82,27 +82,27 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { userId, input, output, model } = validation.data
+    const { userId, input, output, model, multiplier } = validation.data
 
     logger.info(`[${requestId}] Processing cost update`, {
       userId,
       input,
       output,
       model,
+      multiplier,
     })
 
     const finalPromptTokens = input
     const finalCompletionTokens = output
     const totalTokens = input + output
 
-    // Calculate cost using COPILOT_COST_MULTIPLIER (only in production, like normal executions)
-    const copilotMultiplier = isProd ? env.COPILOT_COST_MULTIPLIER || 1 : 1
+    // Calculate cost using provided multiplier (required)
     const costResult = calculateCost(
       model,
       finalPromptTokens,
       finalCompletionTokens,
       false,
-      copilotMultiplier
+      multiplier
     )
 
     logger.info(`[${requestId}] Cost calculation result`, {
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       promptTokens: finalPromptTokens,
       completionTokens: finalCompletionTokens,
       totalTokens: totalTokens,
-      copilotMultiplier,
+      multiplier,
       costResult,
     })
 

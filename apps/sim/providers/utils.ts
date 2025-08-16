@@ -481,6 +481,17 @@ export function calculateCost(
   const finalOutputCost = outputCost * costMultiplier
   const finalTotalCost = totalCost * costMultiplier
 
+  logger.info(`[BILLING] Cost calculation result`, {
+    model,
+    promptTokens,
+    completionTokens,
+    totalTokens: promptTokens + completionTokens,
+    multiplier: costMultiplier,
+    finalInputCost,
+    finalOutputCost,
+    finalTotalCost,
+  })
+
   return {
     input: Number.parseFloat(finalInputCost.toFixed(8)), // Use 8 decimal places for small costs
     output: Number.parseFloat(finalOutputCost.toFixed(8)),
