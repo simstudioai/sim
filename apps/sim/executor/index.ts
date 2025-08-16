@@ -36,6 +36,13 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 
 const logger = createLogger('Executor')
 
+declare global {
+  interface Window {
+    __SIM_TELEMETRY_ENABLED?: boolean
+    __SIM_TRACK_EVENT?: (eventName: string, properties?: Record<string, any>) => void
+  }
+}
+
 /**
  * Tracks telemetry events for workflow execution if telemetry is enabled
  */

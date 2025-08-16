@@ -34,7 +34,6 @@ export const env = createEnv({
     REDIS_URL:                            z.string().url().optional(),            // Redis connection string for caching/sessions
 
     // Payment & Billing
-    BILLING_ENABLED:                      z.boolean().optional(),                 // Enable billing enforcement and usage tracking
     STRIPE_SECRET_KEY:                    z.string().min(1).optional(),           // Stripe secret key for payment processing
     STRIPE_BILLING_WEBHOOK_SECRET:        z.string().min(1).optional(),           // Webhook secret for billing events
     STRIPE_WEBHOOK_SECRET:                z.string().min(1).optional(),           // General Stripe webhook secret
@@ -46,6 +45,7 @@ export const env = createEnv({
     TEAM_TIER_COST_LIMIT:                 z.number().optional(),                  // Cost limit for team tier users
     STRIPE_ENTERPRISE_PRICE_ID:           z.string().min(1).optional(),           // Stripe price ID for enterprise tier
     ENTERPRISE_TIER_COST_LIMIT:           z.number().optional(),                  // Cost limit for enterprise tier users
+    BILLING_ENABLED:                      z.boolean().optional(),                 // Enable billing enforcement and usage tracking
 
     // Email & Communication
     RESEND_API_KEY:                       z.string().min(1).optional(),           // Resend API key for transactional emails
@@ -60,7 +60,6 @@ export const env = createEnv({
     ANTHROPIC_API_KEY_1:                  z.string().min(1).optional(),           // Primary Anthropic Claude API key
     ANTHROPIC_API_KEY_2:                  z.string().min(1).optional(),           // Additional Anthropic API key for load balancing
     ANTHROPIC_API_KEY_3:                  z.string().min(1).optional(),           // Additional Anthropic API key for load balancing
-    FREESTYLE_API_KEY:                    z.string().min(1).optional(),           // Freestyle AI API key
     OLLAMA_URL:                           z.string().url().optional(),            // Ollama local LLM server URL
     ELEVENLABS_API_KEY:                   z.string().min(1).optional(),           // ElevenLabs API key for text-to-speech in deployed chat
     SERPER_API_KEY:                       z.string().min(1).optional(),           // Serper API key for online search
@@ -235,6 +234,6 @@ export const env = createEnv({
 
 // Need this utility because t3-env is returning string for boolean values.
 export const isTruthy = (value: string | boolean | number | undefined) =>
-  typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value)
+  typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value)
 
 export { getEnv }

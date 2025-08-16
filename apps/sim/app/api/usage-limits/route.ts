@@ -7,8 +7,6 @@ import { isOrganizationOwnerOrAdmin } from '@/lib/permissions/utils'
 
 const logger = createLogger('UnifiedUsageLimitsAPI')
 
-export const dynamic = 'force-dynamic'
-
 /**
  * Unified Usage Limits Endpoint
  * GET/PUT /api/usage-limits?context=user|member&userId=<id>&organizationId=<id>

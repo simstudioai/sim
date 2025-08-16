@@ -12,6 +12,7 @@ vi.mock('@/lib/env', () => ({
   },
   isTruthy: (value: string | boolean | number | undefined) =>
     typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value),
+  getEnv: (variable: string) => process.env[variable],
 }))
 
 describe('unsubscribe utilities', () => {

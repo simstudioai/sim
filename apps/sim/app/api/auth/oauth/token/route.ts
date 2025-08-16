@@ -28,7 +28,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
-    const authz = await authorizeCredentialUse(request, { credentialId, workflowId })
+    // We already have workflowId from the parsed body; avoid forcing hybrid auth to re-read it
+    const authz = await authorizeCredentialUse(request, {
+      credentialId,
+      workflowId,
+      requireWorkflowIdForInternal: false,
+    })
     if (!authz.ok || !authz.credentialOwnerUserId) {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }

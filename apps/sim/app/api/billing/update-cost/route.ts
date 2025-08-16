@@ -2,7 +2,8 @@ import crypto from 'crypto'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { env } from '@/lib/env'
+import { checkInternalApiKey } from '@/lib/copilot/utils'
+import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { userStats } from '@/db/schema'
@@ -10,7 +11,6 @@ import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('billing-update-cost')
 
-// Schema for the request body
 const UpdateCostSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
   input: z.number().min(0, 'Input tokens must be a non-negative number'),
@@ -18,26 +18,6 @@ const UpdateCostSchema = z.object({
   model: z.string().min(1, 'Model is required'),
   multiplier: z.number().min(0),
 })
-
-// Authentication function (reused from copilot/methods route)
-function checkInternalApiKey(req: NextRequest) {
-  const apiKey = req.headers.get('x-api-key')
-  const expectedApiKey = env.INTERNAL_API_SECRET
-
-  if (!expectedApiKey) {
-    return { success: false, error: 'Internal API key not configured' }
-  }
-
-  if (!apiKey) {
-    return { success: false, error: 'API key required' }
-  }
-
-  if (apiKey !== expectedApiKey) {
-    return { success: false, error: 'Invalid API key' }
-  }
-
-  return { success: true }
-}
 
 /**
  * POST /api/billing/update-cost
@@ -49,6 +29,19 @@ export async function POST(req: NextRequest) {
 
   try {
     logger.info(`[${requestId}] Update cost request started`)
+
+    if (!isBillingEnabled) {
+      logger.debug(`[${requestId}] Billing is disabled, skipping cost update`)
+      return NextResponse.json({
+        success: true,
+        message: 'Billing disabled, cost update skipped',
+        data: {
+          billingEnabled: false,
+          processedAt: new Date().toISOString(),
+          requestId,
+        },
+      })
+    }
 
     // Check authentication (internal API key)
     const authResult = checkInternalApiKey(req)
