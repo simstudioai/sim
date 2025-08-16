@@ -106,7 +106,7 @@ class GetOAuthCredentialsTool extends BaseCopilotTool<
 
       credentials.push({
         id: acc.id,
-        name: displayName,
+        name: displayName, 
         provider: providerId,
         lastUsed: acc.updatedAt.toISOString(),
         isDefault: featureType === 'default',
