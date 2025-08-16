@@ -110,7 +110,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     handleSubmit,
     reset,
     watch,
-    formState: { errors, isValid },
+    formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
