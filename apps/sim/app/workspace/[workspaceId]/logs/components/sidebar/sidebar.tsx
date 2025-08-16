@@ -214,24 +214,16 @@ export function Sidebar({
 
     let blockInput: Record<string, any> | undefined
 
-    if (log.metadata?.blockInput) {
-      blockInput = log.metadata.blockInput
-    } else if (log.metadata?.traceSpans) {
-      const blockIdMatch = log.message.match(/Block .+?(\d+)/i)
-      const blockId = blockIdMatch ? blockIdMatch[1] : null
-
-      if (blockId) {
-        const matchingSpan = log.metadata.traceSpans.find(
-          (span) => span.blockId === blockId || span.name.includes(`Block ${blockId}`)
-        )
-
-        if (matchingSpan?.input) {
-          blockInput = matchingSpan.input
-        }
+    if (log.executionData?.blockInput) {
+      blockInput = log.executionData.blockInput
+    } else if (log.executionData?.traceSpans) {
+      const firstSpanWithInput = log.executionData.traceSpans.find((s) => s.input)
+      if (firstSpanWithInput?.input) {
+        blockInput = firstSpanWithInput.input as any
       }
     }
 
-    return formatJsonContent(log.message, blockInput)
+    return null
   }, [log])
 
   useEffect(() => {
@@ -243,22 +235,16 @@ export function Sidebar({
   // Determine if this is a workflow execution log
   const isWorkflowExecutionLog = useMemo(() => {
     if (!log) return false
-    // Check if message contains workflow execution phrases (success or failure)
     return (
-      log.message.toLowerCase().includes('workflow executed') ||
-      log.message.toLowerCase().includes('execution completed') ||
-      log.message.toLowerCase().includes('workflow execution failed') ||
-      log.message.toLowerCase().includes('execution failed') ||
-      (log.trigger === 'manual' && log.duration) ||
-      // Also check if we have enhanced logging metadata with trace spans
-      (log.metadata?.enhanced && log.metadata?.traceSpans)
+      (log.trigger === 'manual' && !!log.duration) ||
+      (log.executionData?.enhanced && log.executionData?.traceSpans)
     )
   }, [log])
 
   // Helper to determine if we have cost information to display
   // All workflow executions now have cost info (base charge + any model costs)
   const hasCostInfo = useMemo(() => {
-    return isWorkflowExecutionLog && log?.metadata?.cost
+    return isWorkflowExecutionLog && log?.cost
   }, [log, isWorkflowExecutionLog])
 
   const isWorkflowWithCost = useMemo(() => {
@@ -548,12 +534,12 @@ export function Sidebar({
                 </div>
 
                 {/* Trace Spans (if available and this is a workflow execution log) */}
-                {isWorkflowExecutionLog && log.metadata?.traceSpans && (
+                {isWorkflowExecutionLog && log.executionData?.traceSpans && (
                   <div className='w-full'>
                     <div className='w-full overflow-x-hidden'>
                       <TraceSpansDisplay
-                        traceSpans={log.metadata.traceSpans}
-                        totalDuration={log.metadata.totalDuration}
+                        traceSpans={log.executionData.traceSpans}
+                        totalDuration={log.executionData.totalDuration}
                         onExpansionChange={handleTraceSpanToggle}
                       />
                     </div>
@@ -561,11 +547,11 @@ export function Sidebar({
                 )}
 
                 {/* Tool Calls (if available) */}
-                {log.metadata?.toolCalls && log.metadata.toolCalls.length > 0 && (
+                {log.executionData?.toolCalls && log.executionData.toolCalls.length > 0 && (
                   <div className='w-full'>
                     <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Tool Calls</h3>
                     <div className='w-full overflow-x-hidden rounded-md bg-secondary/30 p-3'>
-                      <ToolCallsDisplay metadata={log.metadata} />
+                      <ToolCallsDisplay metadata={log.executionData} />
                     </div>
                   </div>
                 )}
@@ -584,86 +570,80 @@ export function Sidebar({
                         </div>
                         <div className='flex items-center justify-between'>
                           <span className='text-muted-foreground text-sm'>Model Input:</span>
-                          <span className='text-sm'>
-                            {formatCost(log.metadata?.cost?.input || 0)}
-                          </span>
+                          <span className='text-sm'>{formatCost(log.cost?.input || 0)}</span>
                         </div>
                         <div className='flex items-center justify-between'>
                           <span className='text-muted-foreground text-sm'>Model Output:</span>
-                          <span className='text-sm'>
-                            {formatCost(log.metadata?.cost?.output || 0)}
-                          </span>
+                          <span className='text-sm'>{formatCost(log.cost?.output || 0)}</span>
                         </div>
                         <div className='mt-1 flex items-center justify-between border-t pt-2'>
                           <span className='text-muted-foreground text-sm'>Total:</span>
                           <span className='text-foreground text-sm'>
-                            {formatCost(log.metadata?.cost?.total || 0)}
+                            {formatCost(log.cost?.total || 0)}
                           </span>
                         </div>
                         <div className='flex items-center justify-between'>
                           <span className='text-muted-foreground text-xs'>Tokens:</span>
                           <span className='text-muted-foreground text-xs'>
-                            {log.metadata?.cost?.tokens?.prompt || 0} in /{' '}
-                            {log.metadata?.cost?.tokens?.completion || 0} out
+                            {log.cost?.tokens?.prompt || 0} in / {log.cost?.tokens?.completion || 0}{' '}
+                            out
                           </span>
                         </div>
                       </div>
 
                       {/* Models Breakdown */}
-                      {log.metadata?.cost?.models &&
-                        Object.keys(log.metadata?.cost?.models).length > 0 && (
-                          <div className='border-t'>
-                            <button
-                              onClick={() => setIsModelsExpanded(!isModelsExpanded)}
-                              className='flex w-full items-center justify-between p-3 text-left transition-colors hover:bg-muted/50'
-                            >
-                              <span className='font-medium text-muted-foreground text-xs'>
-                                Model Breakdown (
-                                {Object.keys(log.metadata?.cost?.models || {}).length})
-                              </span>
-                              {isModelsExpanded ? (
-                                <ChevronUp className='h-3 w-3 text-muted-foreground' />
-                              ) : (
-                                <ChevronDown className='h-3 w-3 text-muted-foreground' />
-                              )}
-                            </button>
+                      {log.cost?.models && Object.keys(log.cost?.models).length > 0 && (
+                        <div className='border-t'>
+                          <button
+                            onClick={() => setIsModelsExpanded(!isModelsExpanded)}
+                            className='flex w-full items-center justify-between p-3 text-left transition-colors hover:bg-muted/50'
+                          >
+                            <span className='font-medium text-muted-foreground text-xs'>
+                              Model Breakdown ({Object.keys(log.cost?.models || {}).length})
+                            </span>
+                            {isModelsExpanded ? (
+                              <ChevronUp className='h-3 w-3 text-muted-foreground' />
+                            ) : (
+                              <ChevronDown className='h-3 w-3 text-muted-foreground' />
+                            )}
+                          </button>
 
-                            {isModelsExpanded && (
-                              <div className='space-y-3 border-t bg-muted/30 p-3'>
-                                {Object.entries(log.metadata?.cost?.models || {}).map(
-                                  ([model, cost]: [string, any]) => (
-                                    <div key={model} className='space-y-1'>
-                                      <div className='font-medium font-mono text-xs'>{model}</div>
-                                      <div className='space-y-1 text-xs'>
-                                        <div className='flex justify-between'>
-                                          <span className='text-muted-foreground'>Input:</span>
-                                          <span>{formatCost(cost.input || 0)}</span>
-                                        </div>
-                                        <div className='flex justify-between'>
-                                          <span className='text-muted-foreground'>Output:</span>
-                                          <span>{formatCost(cost.output || 0)}</span>
-                                        </div>
-                                        <div className='flex justify-between border-t pt-1'>
-                                          <span className='text-muted-foreground'>Total:</span>
-                                          <span className='font-medium'>
-                                            {formatCost(cost.total || 0)}
-                                          </span>
-                                        </div>
-                                        <div className='flex justify-between'>
-                                          <span className='text-muted-foreground'>Tokens:</span>
-                                          <span>
-                                            {cost.tokens?.prompt || 0} in /{' '}
-                                            {cost.tokens?.completion || 0} out
-                                          </span>
-                                        </div>
+                          {isModelsExpanded && (
+                            <div className='space-y-3 border-t bg-muted/30 p-3'>
+                              {Object.entries(log.cost?.models || {}).map(
+                                ([model, cost]: [string, any]) => (
+                                  <div key={model} className='space-y-1'>
+                                    <div className='font-medium font-mono text-xs'>{model}</div>
+                                    <div className='space-y-1 text-xs'>
+                                      <div className='flex justify-between'>
+                                        <span className='text-muted-foreground'>Input:</span>
+                                        <span>{formatCost(cost.input || 0)}</span>
+                                      </div>
+                                      <div className='flex justify-between'>
+                                        <span className='text-muted-foreground'>Output:</span>
+                                        <span>{formatCost(cost.output || 0)}</span>
+                                      </div>
+                                      <div className='flex justify-between border-t pt-1'>
+                                        <span className='text-muted-foreground'>Total:</span>
+                                        <span className='font-medium'>
+                                          {formatCost(cost.total || 0)}
+                                        </span>
+                                      </div>
+                                      <div className='flex justify-between'>
+                                        <span className='text-muted-foreground'>Tokens:</span>
+                                        <span>
+                                          {cost.tokens?.prompt || 0} in /{' '}
+                                          {cost.tokens?.completion || 0} out
+                                        </span>
                                       </div>
                                     </div>
-                                  )
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                                  </div>
+                                )
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {isWorkflowWithCost && (
                         <div className='border-t bg-muted p-3 text-muted-foreground text-xs'>
@@ -688,7 +668,7 @@ export function Sidebar({
           executionId={log.executionId}
           workflowName={log.workflow?.name}
           trigger={log.trigger || undefined}
-          traceSpans={log.metadata?.traceSpans}
+          traceSpans={log.executionData?.traceSpans}
           isOpen={isFrozenCanvasOpen}
           onClose={() => setIsFrozenCanvasOpen(false)}
         />

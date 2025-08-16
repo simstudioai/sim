@@ -282,24 +282,14 @@ export const workflowExecutionLogs = pgTable(
       .references(() => workflowExecutionSnapshots.id),
 
     level: text('level').notNull(), // 'info', 'error'
-    message: text('message').notNull(),
     trigger: text('trigger').notNull(), // 'api', 'webhook', 'schedule', 'manual', 'chat'
 
     startedAt: timestamp('started_at').notNull(),
     endedAt: timestamp('ended_at'),
     totalDurationMs: integer('total_duration_ms'),
 
-    blockCount: integer('block_count').notNull().default(0),
-    successCount: integer('success_count').notNull().default(0),
-    errorCount: integer('error_count').notNull().default(0),
-    skippedCount: integer('skipped_count').notNull().default(0),
-
-    totalCost: decimal('total_cost', { precision: 10, scale: 6 }),
-    totalInputCost: decimal('total_input_cost', { precision: 10, scale: 6 }),
-    totalOutputCost: decimal('total_output_cost', { precision: 10, scale: 6 }),
-    totalTokens: integer('total_tokens'),
-
-    metadata: jsonb('metadata').notNull().default('{}'),
+    executionData: jsonb('execution_data').notNull().default('{}'),
+    cost: jsonb('cost'),
     files: jsonb('files'), // File metadata for execution files
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },

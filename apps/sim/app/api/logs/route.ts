@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lte, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lte, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -44,8 +44,7 @@ function extractBlockExecutionsFromTraceSpans(traceSpans: any[]): any[] {
 export const revalidate = 0
 
 const QueryParamsSchema = z.object({
-  includeWorkflow: z.coerce.boolean().optional().default(false),
-  includeBlocks: z.coerce.boolean().optional().default(false),
+  details: z.enum(['basic', 'full']).optional().default('basic'),
   limit: z.coerce.number().optional().default(100),
   offset: z.coerce.number().optional().default(0),
   level: z.string().optional(),
@@ -81,20 +80,12 @@ export async function GET(request: NextRequest) {
           executionId: workflowExecutionLogs.executionId,
           stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
           level: workflowExecutionLogs.level,
-          message: workflowExecutionLogs.message,
           trigger: workflowExecutionLogs.trigger,
           startedAt: workflowExecutionLogs.startedAt,
           endedAt: workflowExecutionLogs.endedAt,
           totalDurationMs: workflowExecutionLogs.totalDurationMs,
-          blockCount: workflowExecutionLogs.blockCount,
-          successCount: workflowExecutionLogs.successCount,
-          errorCount: workflowExecutionLogs.errorCount,
-          skippedCount: workflowExecutionLogs.skippedCount,
-          totalCost: workflowExecutionLogs.totalCost,
-          totalInputCost: workflowExecutionLogs.totalInputCost,
-          totalOutputCost: workflowExecutionLogs.totalOutputCost,
-          totalTokens: workflowExecutionLogs.totalTokens,
-          metadata: workflowExecutionLogs.metadata,
+          executionData: workflowExecutionLogs.executionData,
+          cost: workflowExecutionLogs.cost,
           files: workflowExecutionLogs.files,
           createdAt: workflowExecutionLogs.createdAt,
           workflowName: workflow.name,
@@ -163,13 +154,8 @@ export async function GET(request: NextRequest) {
       // Filter by search query
       if (params.search) {
         const searchTerm = `%${params.search}%`
-        conditions = and(
-          conditions,
-          or(
-            sql`${workflowExecutionLogs.message} ILIKE ${searchTerm}`,
-            sql`${workflowExecutionLogs.executionId} ILIKE ${searchTerm}`
-          )
-        )
+        // With message removed, restrict search to executionId only
+        conditions = and(conditions, sql`${workflowExecutionLogs.executionId} ILIKE ${searchTerm}`)
       }
 
       // Execute the query using the optimized join
@@ -290,31 +276,20 @@ export async function GET(request: NextRequest) {
       const enhancedLogs = logs.map((log) => {
         const blockExecutions = blockExecutionsByExecution[log.executionId] || []
 
-        // Use stored trace spans from metadata if available, otherwise create from block executions
-        const storedTraceSpans = (log.metadata as any)?.traceSpans
+        // Use stored trace spans if available, otherwise create from block executions
+        const storedTraceSpans = (log.executionData as any)?.traceSpans
         const traceSpans =
           storedTraceSpans && Array.isArray(storedTraceSpans) && storedTraceSpans.length > 0
             ? storedTraceSpans
             : createTraceSpans(blockExecutions)
 
-        // Use extracted cost summary if available, otherwise use stored values
+        // Prefer stored cost JSON; otherwise synthesize from blocks
         const costSummary =
-          blockExecutions.length > 0
-            ? extractCostSummary(blockExecutions)
-            : {
-                input: Number(log.totalInputCost) || 0,
-                output: Number(log.totalOutputCost) || 0,
-                total: Number(log.totalCost) || 0,
-                tokens: {
-                  total: log.totalTokens || 0,
-                  prompt: (log.metadata as any)?.tokenBreakdown?.prompt || 0,
-                  completion: (log.metadata as any)?.tokenBreakdown?.completion || 0,
-                },
-                models: (log.metadata as any)?.models || {},
-              }
+          log.cost && Object.keys(log.cost as any).length > 0
+            ? (log.cost as any)
+            : extractCostSummary(blockExecutions)
 
-        // Build workflow object from joined data
-        const workflow = {
+        const workflowSummary = {
           id: log.workflowId,
           name: log.workflowName,
           description: log.workflowDescription,
@@ -329,67 +304,28 @@ export async function GET(request: NextRequest) {
         return {
           id: log.id,
           workflowId: log.workflowId,
-          executionId: log.executionId,
+          executionId: params.details === 'full' ? log.executionId : undefined,
           level: log.level,
-          message: log.message,
           duration: log.totalDurationMs ? `${log.totalDurationMs}ms` : null,
           trigger: log.trigger,
           createdAt: log.startedAt.toISOString(),
-          files: log.files || undefined,
-          workflow: params.includeWorkflow ? workflow : undefined,
-          metadata: {
-            totalDuration: log.totalDurationMs,
-            cost: costSummary,
-            blockStats: {
-              total: log.blockCount,
-              success: log.successCount,
-              error: log.errorCount,
-              skipped: log.skippedCount,
-            },
-            traceSpans,
-            blockExecutions,
-            enhanced: true,
-          },
+          files: params.details === 'full' ? log.files || undefined : undefined,
+          workflow: workflowSummary,
+          executionData:
+            params.details === 'full'
+              ? {
+                  totalDuration: log.totalDurationMs,
+                  traceSpans,
+                  blockExecutions,
+                  enhanced: true,
+                }
+              : undefined,
+          cost:
+            params.details === 'full'
+              ? (costSummary as any)
+              : { total: (costSummary as any)?.total || 0 },
         }
       })
-
-      // Include block execution data if requested
-      if (params.includeBlocks) {
-        // Block executions are now extracted from stored trace spans in metadata
-        const blockLogsByExecution: Record<string, any[]> = {}
-
-        logs.forEach((log) => {
-          const storedTraceSpans = (log.metadata as any)?.traceSpans
-          if (storedTraceSpans && Array.isArray(storedTraceSpans)) {
-            blockLogsByExecution[log.executionId] =
-              extractBlockExecutionsFromTraceSpans(storedTraceSpans)
-          } else {
-            blockLogsByExecution[log.executionId] = []
-          }
-        })
-
-        // Add block logs to metadata
-        const logsWithBlocks = enhancedLogs.map((log) => ({
-          ...log,
-          metadata: {
-            ...log.metadata,
-            blockExecutions: blockLogsByExecution[log.executionId] || [],
-          },
-        }))
-
-        return NextResponse.json(
-          {
-            data: logsWithBlocks,
-            total: Number(count),
-            page: Math.floor(params.offset / params.limit) + 1,
-            pageSize: params.limit,
-            totalPages: Math.ceil(Number(count) / params.limit),
-          },
-          { status: 200 }
-        )
-      }
-
-      // Return basic logs
       return NextResponse.json(
         {
           data: enhancedLogs,

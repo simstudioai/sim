@@ -71,9 +71,8 @@ export interface TraceSpan {
 export interface WorkflowLog {
   id: string
   workflowId: string
-  executionId: string | null
+  executionId?: string | null
   level: string
-  message: string
   duration: string | null
   trigger: string | null
   createdAt: string
@@ -90,10 +89,10 @@ export interface WorkflowLog {
     storageProvider?: 's3' | 'blob' | 'local'
     bucketName?: string
   }>
-  metadata?: ToolCallMetadata & {
+  cost?: CostMetadata
+  executionData?: ToolCallMetadata & {
     traceSpans?: TraceSpan[]
     totalDuration?: number
-    cost?: CostMetadata
     blockInput?: Record<string, any>
     enhanced?: boolean
 

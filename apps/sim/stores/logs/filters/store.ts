@@ -261,8 +261,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   buildQueryParams: (page: number, limit: number) => {
     const { workspaceId, timeRange, level, workflowIds, folderIds, searchQuery, triggers } = get()
     const params = new URLSearchParams()
-
-    params.set('includeWorkflow', 'true')
     params.set('limit', limit.toString())
     params.set('offset', ((page - 1) * limit).toString())
 
