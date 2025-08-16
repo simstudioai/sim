@@ -91,7 +91,7 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
       level++
       const parentNode = getNodes().find((n) => n.id === currentParentId)
       if (!parentNode) break
-      currentParentId = (parentNode.data as any)?.parentId
+      currentParentId = parentNode.data?.parentId
     }
 
     return level
