@@ -121,8 +121,6 @@ export const workflow = pgTable(
     folderId: text('folder_id').references(() => workflowFolder.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     description: text('description'),
-    // DEPRECATED: Use normalized tables (workflow_blocks, workflow_edges, workflow_subflows) instead
-    state: json('state').notNull(),
     color: text('color').notNull().default('#3972F6'),
     lastSynced: timestamp('last_synced').notNull(),
     createdAt: timestamp('created_at').notNull(),
@@ -130,7 +128,6 @@ export const workflow = pgTable(
     isDeployed: boolean('is_deployed').notNull().default(false),
     deployedState: json('deployed_state'),
     deployedAt: timestamp('deployed_at'),
-    // When set, only this API key is authorized for execution
     pinnedApiKey: text('pinned_api_key'),
     collaborators: json('collaborators').notNull().default('[]'),
     runCount: integer('run_count').notNull().default(0),
