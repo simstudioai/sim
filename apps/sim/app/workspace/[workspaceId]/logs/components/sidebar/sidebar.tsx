@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Eye, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, Eye, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -208,6 +208,15 @@ export function Sidebar({
       setIsTraceExpanded(false)
     }
   }, [log?.id])
+
+  const isLoadingDetails = useMemo(() => {
+    if (!log) return false
+    // Only show while we expect details to arrive (has executionId)
+    if (!log.executionId) return false
+    const hasEnhanced = !!log.executionData?.enhanced
+    const hasAnyDetails = hasEnhanced || !!log.cost || Array.isArray(log.executionData?.traceSpans)
+    return !hasAnyDetails
+  }, [log])
 
   const formattedContent = useMemo(() => {
     if (!log) return null
@@ -476,6 +485,14 @@ export function Sidebar({
                   </div>
                 )}
 
+                {/* Suspense while details load (positioned after summary fields) */}
+                {isLoadingDetails && (
+                  <div className='flex w-full items-center justify-start gap-2 py-2 text-muted-foreground'>
+                    <Loader2 className='h-4 w-4 animate-spin' />
+                    <span className='text-sm'>Loading details…</span>
+                  </div>
+                )}
+
                 {/* Files */}
                 {log.files && log.files.length > 0 && (
                   <div>
@@ -527,11 +544,7 @@ export function Sidebar({
                   </div>
                 )}
 
-                {/* Message Content */}
-                <div className='w-full pb-2'>
-                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Message</h3>
-                  <div className='w-full'>{formattedContent}</div>
-                </div>
+                {/* end suspense */}
 
                 {/* Trace Spans (if available and this is a workflow execution log) */}
                 {isWorkflowExecutionLog && log.executionData?.traceSpans && (

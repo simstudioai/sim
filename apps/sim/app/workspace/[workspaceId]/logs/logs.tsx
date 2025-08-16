@@ -85,8 +85,10 @@ export default function Logs() {
   const [selectedLog, setSelectedLog] = useState<WorkflowLog | null>(null)
   const [selectedLogIndex, setSelectedLogIndex] = useState<number>(-1)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isDetailsLoading, setIsDetailsLoading] = useState(false)
   const detailsCacheRef = useRef<Map<string, any>>(new Map())
   const detailsAbortRef = useRef<AbortController | null>(null)
+  const currentDetailsIdRef = useRef<string | null>(null)
   const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
   const loaderRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -118,6 +120,7 @@ export default function Logs() {
     const index = logs.findIndex((l) => l.id === log.id)
     setSelectedLogIndex(index)
     setIsSidebarOpen(true)
+    setIsDetailsLoading(true)
 
     // Fetch details for current, previous, and next concurrently with cache
     const currentId = log.id
@@ -134,24 +137,26 @@ export default function Logs() {
     }
     const controller = new AbortController()
     detailsAbortRef.current = controller
+    currentDetailsIdRef.current = currentId
 
     const idsToFetch: Array<{ id: string; merge: boolean }> = []
-    if (currentId && !detailsCacheRef.current.has(currentId))
-      idsToFetch.push({ id: currentId, merge: true })
+    const cachedCurrent = currentId ? detailsCacheRef.current.get(currentId) : undefined
+    if (currentId && !cachedCurrent) idsToFetch.push({ id: currentId, merge: true })
     if (prevId && !detailsCacheRef.current.has(prevId))
       idsToFetch.push({ id: prevId, merge: false })
     if (nextId && !detailsCacheRef.current.has(nextId))
       idsToFetch.push({ id: nextId, merge: false })
 
-    if (idsToFetch.length === 0) {
-      const cached = detailsCacheRef.current.get(currentId)
-      if (cached) {
-        setSelectedLog((prev) =>
-          prev && prev.id === currentId ? ({ ...(prev as any), ...(cached as any) } as any) : prev
-        )
-      }
-      return
+    // Merge cached current immediately
+    if (cachedCurrent) {
+      setSelectedLog((prev) =>
+        prev && prev.id === currentId
+          ? ({ ...(prev as any), ...(cachedCurrent as any) } as any)
+          : prev
+      )
+      setIsDetailsLoading(false)
     }
+    if (idsToFetch.length === 0) return
 
     Promise.all(
       idsToFetch.map(async ({ id, merge }) => {
@@ -166,6 +171,7 @@ export default function Logs() {
               setSelectedLog((prev) =>
                 prev && prev.id === id ? ({ ...(prev as any), ...(detailed as any) } as any) : prev
               )
+              if (currentDetailsIdRef.current === id) setIsDetailsLoading(false)
             }
           }
         } catch (e: any) {
