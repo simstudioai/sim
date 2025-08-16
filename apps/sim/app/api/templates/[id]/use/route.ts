@@ -80,7 +80,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           workspaceId: workspaceId,
           name: `${templateData.name} (copy)`,
           description: templateData.description,
-          state: templateData.state,
           color: templateData.color,
           userId: session.user.id,
           createdAt: now,
@@ -157,9 +156,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             target: blockIdMap.get(edge.target) || edge.target,
           }))
         }
-
-        // Update the workflow with the corrected state
-        await tx.update(workflow).set({ state: updatedState }).where(eq(workflow.id, newWorkflowId))
 
         // Insert blocks and edges
         if (blockEntries.length > 0) {

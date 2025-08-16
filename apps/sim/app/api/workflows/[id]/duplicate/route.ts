@@ -7,7 +7,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
-import type { LoopConfig, ParallelConfig, WorkflowState } from '@/stores/workflows/workflow/types'
+import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDuplicateAPI')
 
@@ -90,7 +90,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         folderId: folderId || source.folderId,
         name,
         description: description || source.description,
-        state: source.state, // We'll update this later with new block IDs
         color: color || source.color,
         lastSynced: now,
         createdAt: now,
@@ -111,9 +110,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       // Create a mapping from old block IDs to new block IDs
       const blockIdMapping = new Map<string, string>()
-
-      // Initialize state for updating with new block IDs
-      let updatedState: WorkflowState = source.state as WorkflowState
 
       if (sourceBlocks.length > 0) {
         // First pass: Create all block ID mappings
@@ -265,86 +261,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         )
       }
 
-      // Update the JSON state to use new block IDs
-      if (updatedState && typeof updatedState === 'object') {
-        updatedState = JSON.parse(JSON.stringify(updatedState)) as WorkflowState
-
-        // Update blocks object keys
-        if (updatedState.blocks && typeof updatedState.blocks === 'object') {
-          const newBlocks = {} as Record<string, (typeof updatedState.blocks)[string]>
-          for (const [oldId, blockData] of Object.entries(updatedState.blocks)) {
-            const newId = blockIdMapping.get(oldId) || oldId
-            newBlocks[newId] = {
-              ...blockData,
-              id: newId,
-              // Update data.parentId and extent in the JSON state as well
-              data: (() => {
-                const block = blockData as any
-                if (block.data && typeof block.data === 'object' && block.data.parentId) {
-                  return {
-                    ...block.data,
-                    parentId: blockIdMapping.get(block.data.parentId) || block.data.parentId,
-                    extent: 'parent', // Ensure extent is set for child blocks
-                  }
-                }
-                return block.data
-              })(),
-            }
-          }
-          updatedState.blocks = newBlocks
-        }
-
-        // Update edges array
-        if (updatedState.edges && Array.isArray(updatedState.edges)) {
-          updatedState.edges = updatedState.edges.map((edge) => ({
-            ...edge,
-            id: crypto.randomUUID(),
-            source: blockIdMapping.get(edge.source) || edge.source,
-            target: blockIdMapping.get(edge.target) || edge.target,
-          }))
-        }
-
-        // Update loops and parallels if they exist
-        if (updatedState.loops && typeof updatedState.loops === 'object') {
-          const newLoops = {} as Record<string, (typeof updatedState.loops)[string]>
-          for (const [oldId, loopData] of Object.entries(updatedState.loops)) {
-            const newId = blockIdMapping.get(oldId) || oldId
-            const loopConfig = loopData as any
-            newLoops[newId] = {
-              ...loopConfig,
-              id: newId,
-              // Update node references in loop config
-              nodes: loopConfig.nodes
-                ? loopConfig.nodes.map((nodeId: string) => blockIdMapping.get(nodeId) || nodeId)
-                : [],
-            }
-          }
-          updatedState.loops = newLoops
-        }
-
-        if (updatedState.parallels && typeof updatedState.parallels === 'object') {
-          const newParallels = {} as Record<string, (typeof updatedState.parallels)[string]>
-          for (const [oldId, parallelData] of Object.entries(updatedState.parallels)) {
-            const newId = blockIdMapping.get(oldId) || oldId
-            const parallelConfig = parallelData as any
-            newParallels[newId] = {
-              ...parallelConfig,
-              id: newId,
-              // Update node references in parallel config
-              nodes: parallelConfig.nodes
-                ? parallelConfig.nodes.map((nodeId: string) => blockIdMapping.get(nodeId) || nodeId)
-                : [],
-            }
-          }
-          updatedState.parallels = newParallels
-        }
-      }
-
-      // Update the workflow state with the new block IDs
+      // Update the workflow timestamp
       await tx
         .update(workflow)
         .set({
-          state: updatedState,
           updatedAt: now,
         })
         .where(eq(workflow.id, newWorkflowId))

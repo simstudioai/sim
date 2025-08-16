@@ -89,7 +89,14 @@ describe('Workflow By ID API Route', () => {
         userId: 'user-123',
         name: 'Test Workflow',
         workspaceId: null,
-        state: { blocks: {}, edges: [] },
+      }
+
+      const mockNormalizedData = {
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+        isFromNormalizedTables: true,
       }
 
       vi.doMock('@/lib/auth', () => ({
@@ -108,6 +115,10 @@ describe('Workflow By ID API Route', () => {
             }),
           }),
         },
+      }))
+
+      vi.doMock('@/lib/workflows/db-helpers', () => ({
+        loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue(mockNormalizedData),
       }))
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
@@ -127,7 +138,14 @@ describe('Workflow By ID API Route', () => {
         userId: 'other-user',
         name: 'Test Workflow',
         workspaceId: 'workspace-456',
-        state: { blocks: {}, edges: [] },
+      }
+
+      const mockNormalizedData = {
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+        isFromNormalizedTables: true,
       }
 
       vi.doMock('@/lib/auth', () => ({
@@ -146,6 +164,10 @@ describe('Workflow By ID API Route', () => {
             }),
           }),
         },
+      }))
+
+      vi.doMock('@/lib/workflows/db-helpers', () => ({
+        loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue(mockNormalizedData),
       }))
 
       vi.doMock('@/lib/permissions/utils', () => ({
@@ -170,7 +192,6 @@ describe('Workflow By ID API Route', () => {
         userId: 'other-user',
         name: 'Test Workflow',
         workspaceId: 'workspace-456',
-        state: { blocks: {}, edges: [] },
       }
 
       vi.doMock('@/lib/auth', () => ({
@@ -213,7 +234,6 @@ describe('Workflow By ID API Route', () => {
         userId: 'user-123',
         name: 'Test Workflow',
         workspaceId: null,
-        state: { blocks: {}, edges: [] },
       }
 
       const mockNormalizedData = {
