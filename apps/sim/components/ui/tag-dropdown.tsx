@@ -1298,7 +1298,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
                                 tagDescription = getOutputTypeForPath(
                                   block,
-                                  blockConfig,
+                                  blockConfig || null,
                                   group.blockId,
                                   outputPath
                                 )
@@ -1438,7 +1438,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
                                         childType = getOutputTypeForPath(
                                           block,
-                                          blockConfig,
+                                          blockConfig || null,
                                           group.blockId,
                                           childOutputPath
                                         )
