@@ -435,14 +435,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
 
     const getDepthLabel = () => {
-      if (agentDepth === 0) return 'Lite'
+      if (agentDepth === 0) return 'Fast'
       if (agentDepth === 1) return 'Auto'
       if (agentDepth === 2) return 'Pro'
       return 'Max'
     }
 
     const getDepthLabelFor = (value: 0 | 1 | 2 | 3) => {
-      if (value === 0) return 'Lite'
+      if (value === 0) return 'Fast'
       if (value === 1) return 'Auto'
       if (value === 2) return 'Pro'
       return 'Max'
