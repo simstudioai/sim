@@ -1,6 +1,6 @@
-import { type NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
 import { eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
@@ -10,7 +10,9 @@ const logger = createLogger('CopilotApiKeysValidate')
 
 function computeLookup(plaintext: string, keyString: string): string {
   // Deterministic MAC: HMAC-SHA256(DB_KEY, plaintext)
-  return createHmac('sha256', Buffer.from(keyString, 'utf8')).update(plaintext, 'utf8').digest('hex')
+  return createHmac('sha256', Buffer.from(keyString, 'utf8'))
+    .update(plaintext, 'utf8')
+    .digest('hex')
 }
 
 export async function POST(req: NextRequest) {
@@ -44,16 +46,22 @@ export async function POST(req: NextRequest) {
 
     // Check usage for the associated user
     const usage = await db
-      .select({ currentPeriodCost: userStats.currentPeriodCost, totalCost: userStats.totalCost, currentUsageLimit: userStats.currentUsageLimit })
+      .select({
+        currentPeriodCost: userStats.currentPeriodCost,
+        totalCost: userStats.totalCost,
+        currentUsageLimit: userStats.currentUsageLimit,
+      })
       .from(userStats)
       .where(eq(userStats.userId, userId))
       .limit(1)
 
     if (usage.length > 0) {
-      const currentUsage = parseFloat(
-        (usage[0].currentPeriodCost?.toString() as string) || (usage[0].totalCost as unknown as string) || '0'
+      const currentUsage = Number.parseFloat(
+        (usage[0].currentPeriodCost?.toString() as string) ||
+          (usage[0].totalCost as unknown as string) ||
+          '0'
       )
-      const limit = parseFloat((usage[0].currentUsageLimit as unknown as string) || '0')
+      const limit = Number.parseFloat((usage[0].currentUsageLimit as unknown as string) || '0')
 
       if (!Number.isNaN(limit) && limit > 0 && currentUsage >= limit) {
         // Usage exceeded
@@ -67,4 +75,4 @@ export async function POST(req: NextRequest) {
     logger.error('Error validating copilot API key', { error })
     return NextResponse.json({ error: 'Failed to validate key' }, { status: 500 })
   }
-} 
+}

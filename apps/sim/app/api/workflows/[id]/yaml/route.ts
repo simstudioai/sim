@@ -1,9 +1,10 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { simAgentClient } from '@/lib/sim-agent'
+import { SIM_AGENT_API_URL_DEFAULT, simAgentClient } from '@/lib/sim-agent'
 import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
@@ -13,8 +14,6 @@ import { getBlock } from '@/blocks'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
-import { env } from '@/lib/env'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { db } from '@/db'
 import { workflowCheckpoints, workflow as workflowTable } from '@/db/schema'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
@@ -73,9 +72,9 @@ async function createWorkflowCheckpoint(
 
       const generateResponse = await fetch(`${SIM_AGENT_API_URL}/api/workflow/to-yaml`, {
         method: 'POST',
-              headers: {
-        'Content-Type': 'application/json',
-      },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           workflowState: currentWorkflowData,
           blockRegistry,

@@ -1,4 +1,5 @@
 import {
+  Bot,
   CreditCard,
   KeyRound,
   KeySquare,
@@ -7,7 +8,6 @@ import {
   Shield,
   UserCircle,
   Users,
-  Bot,
 } from 'lucide-react'
 import { getEnv } from '@/lib/env'
 import { cn } from '@/lib/utils'
@@ -21,12 +21,12 @@ interface SettingsNavigationProps {
       | 'environment'
       | 'account'
       | 'credentials'
-             | 'apikeys'
-       | 'subscription'
-       | 'team'
-       | 'privacy'
-       | 'copilot'
-   ) => void
+      | 'apikeys'
+      | 'subscription'
+      | 'team'
+      | 'privacy'
+      | 'copilot'
+  ) => void
   hasOrganization: boolean
 }
 

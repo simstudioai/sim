@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createLogger } from '@/lib/logs/console/logger'
 import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 
 const logger = createLogger('YamlHealthAPI')

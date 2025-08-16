@@ -9,15 +9,15 @@ import { cn } from '@/lib/utils'
 import {
   Account,
   ApiKeys,
+  Copilot,
   Credentials,
   EnvironmentVariables,
   General,
-     Privacy,
-   SettingsNavigation,
-   Subscription,
-   TeamManagement,
-   Copilot,
- } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components'
+  Privacy,
+  SettingsNavigation,
+  Subscription,
+  TeamManagement,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components'
 import { useOrganizationStore } from '@/stores/organization'
 import { useGeneralStore } from '@/stores/settings/general/store'
 
@@ -36,10 +36,10 @@ type SettingsSection =
   | 'apikeys'
   | 'subscription'
   | 'team'
-     | 'privacy'
-   | 'copilot'
- 
- export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
+  | 'privacy'
+  | 'copilot'
+
+export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
   const [isLoading, setIsLoading] = useState(true)
   const loadSettings = useGeneralStore((state) => state.loadSettings)
@@ -146,17 +146,17 @@ type SettingsSection =
                 <Subscription onOpenChange={onOpenChange} />
               </div>
             )}
-                        {isBillingEnabled && (
+            {isBillingEnabled && (
               <div className={cn('h-full', activeSection === 'team' ? 'block' : 'hidden')}>
                 <TeamManagement />
               </div>
             )}
-             <div className={cn('h-full', activeSection === 'copilot' ? 'block' : 'hidden')}>
-               <Copilot />
-             </div>
-             <div className={cn('h-full', activeSection === 'privacy' ? 'block' : 'hidden')}>
-               <Privacy />
-             </div>
+            <div className={cn('h-full', activeSection === 'copilot' ? 'block' : 'hidden')}>
+              <Copilot />
+            </div>
+            <div className={cn('h-full', activeSection === 'privacy' ? 'block' : 'hidden')}>
+              <Privacy />
+            </div>
           </div>
         </div>
       </DialogContent>

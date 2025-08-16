@@ -1199,6 +1199,9 @@ export const copilotApiKeys = pgTable(
       'hash',
       table.apiKeyEncrypted
     ),
-    apiKeyLookupHashIdx: index('copilot_api_keys_lookup_hash_idx').using('hash', table.apiKeyLookup),
+    apiKeyLookupHashIdx: index('copilot_api_keys_lookup_hash_idx').using(
+      'hash',
+      table.apiKeyLookup
+    ),
   })
 )

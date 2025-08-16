@@ -1,5 +1,5 @@
-import { NextResponse, type NextRequest } from 'next/server'
-import { createCipheriv, createHash, randomBytes, createHmac } from 'crypto'
+import { createCipheriv, createHash, createHmac, randomBytes } from 'crypto'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -25,7 +25,9 @@ function encryptRandomIv(plaintext: string, keyString: string): string {
 
 function computeLookup(plaintext: string, keyString: string): string {
   // Deterministic, constant-time comparable MAC: HMAC-SHA256(DB_KEY, plaintext)
-  return createHmac('sha256', Buffer.from(keyString, 'utf8')).update(plaintext, 'utf8').digest('hex')
+  return createHmac('sha256', Buffer.from(keyString, 'utf8'))
+    .update(plaintext, 'utf8')
+    .digest('hex')
 }
 
 export async function POST(req: NextRequest) {
@@ -57,9 +59,12 @@ export async function POST(req: NextRequest) {
       .values({ userId, apiKeyEncrypted: dbEncrypted, apiKeyLookup: lookup })
       .returning({ id: copilotApiKeys.id })
 
-    return NextResponse.json({ success: true, key: { id: inserted.id, apiKey: plaintextKey } }, { status: 201 })
+    return NextResponse.json(
+      { success: true, key: { id: inserted.id, apiKey: plaintextKey } },
+      { status: 201 }
+    )
   } catch (error) {
     logger.error('Failed to generate copilot API key', { error })
     return NextResponse.json({ error: 'Failed to generate copilot API key' }, { status: 500 })
   }
-} 
+}

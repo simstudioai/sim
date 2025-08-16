@@ -2277,7 +2277,9 @@ export const useCopilotStore = create<CopilotStore>()(
             const isAuthOrUsage = result.status === 401 || result.status === 402
 
             set((state) => ({
-              messages: state.messages.map((msg) => (msg.id === streamingMessage.id ? errorMessage : msg)),
+              messages: state.messages.map((msg) =>
+                msg.id === streamingMessage.id ? errorMessage : msg
+              ),
               error: isAuthOrUsage ? null : displayError,
               isSendingMessage: false,
               abortController: null,
@@ -2296,7 +2298,9 @@ export const useCopilotStore = create<CopilotStore>()(
           )
 
           set((state) => ({
-            messages: state.messages.map((msg) => (msg.id === streamingMessage.id ? errorMessage : msg)),
+            messages: state.messages.map((msg) =>
+              msg.id === streamingMessage.id ? errorMessage : msg
+            ),
             error: handleStoreError(error, 'Failed to send message'),
             isSendingMessage: false,
             abortController: null,
@@ -2546,7 +2550,9 @@ export const useCopilotStore = create<CopilotStore>()(
 
             const isAuthOrUsage = result.status === 401 || result.status === 402
             set((state) => ({
-              messages: state.messages.map((msg) => (msg.id === newAssistantMessage.id ? errorMessage : msg)),
+              messages: state.messages.map((msg) =>
+                msg.id === newAssistantMessage.id ? errorMessage : msg
+              ),
               error: isAuthOrUsage ? null : displayError,
               isSendingMessage: false,
               abortController: null,

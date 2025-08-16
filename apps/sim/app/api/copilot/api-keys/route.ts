@@ -1,11 +1,11 @@
+import { createDecipheriv, createHash } from 'crypto'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { copilotApiKeys } from '@/db/schema'
-import { env } from '@/lib/env'
-import { createDecipheriv, createHash } from 'crypto'
 
 const logger = createLogger('CopilotApiKeys')
 
@@ -43,7 +43,10 @@ export async function GET(request: NextRequest) {
       .from(copilotApiKeys)
       .where(eq(copilotApiKeys.userId, userId))
 
-    const keys = rows.map((row) => ({ id: row.id, apiKey: decryptWithKey(row.apiKeyEncrypted, env.AGENT_API_DB_ENCRYPTION_KEY as string) }))
+    const keys = rows.map((row) => ({
+      id: row.id,
+      apiKey: decryptWithKey(row.apiKeyEncrypted, env.AGENT_API_DB_ENCRYPTION_KEY as string),
+    }))
 
     return NextResponse.json({ keys }, { status: 200 })
   } catch (error) {
@@ -66,11 +69,13 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
     }
 
-    await db.delete(copilotApiKeys).where(and(eq(copilotApiKeys.userId, userId), eq(copilotApiKeys.id, id)))
+    await db
+      .delete(copilotApiKeys)
+      .where(and(eq(copilotApiKeys.userId, userId), eq(copilotApiKeys.id, id)))
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
     logger.error('Failed to delete copilot API key', { error })
     return NextResponse.json({ error: 'Failed to delete key' }, { status: 500 })
   }
-} 
+}

@@ -8,7 +8,6 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 
 const logger = createLogger('WorkflowYamlAPI')
 
-
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
 

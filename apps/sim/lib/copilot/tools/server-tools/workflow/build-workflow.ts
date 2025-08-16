@@ -1,11 +1,11 @@
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { BaseCopilotTool } from '../base'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 
 // Sim Agent API configuration
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT

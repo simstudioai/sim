@@ -1,7 +1,7 @@
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
 import { getSession } from '@/lib/auth'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -14,14 +14,14 @@ import { getCopilotModel } from '@/lib/copilot/config'
 import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { downloadFile } from '@/lib/uploads'
 import { downloadFromS3WithConfig } from '@/lib/uploads/s3/s3-client'
 import { S3_COPILOT_CONFIG, USE_S3_STORAGE } from '@/lib/uploads/setup'
 import { db } from '@/db'
-import { copilotChats, copilotApiKeys } from '@/db/schema'
+import { copilotChats } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
 import { createAnthropicFileContent, isSupportedFileType } from './file-utils'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 
 const logger = createLogger('CopilotChatAPI')
 

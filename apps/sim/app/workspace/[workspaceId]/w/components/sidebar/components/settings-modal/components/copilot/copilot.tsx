@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { Check, Copy, Eye, EyeOff, KeySquare, Plus, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -8,10 +9,23 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  Button,
+  Card,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  Skeleton,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from '@/components/ui'
-import { Button, Card, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, Skeleton, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
-import { Check, Copy, Eye, EyeOff, KeySquare, Plus, Trash2 } from 'lucide-react'
 
 const logger = createLogger('CopilotSettings')
 
@@ -87,7 +101,9 @@ export function Copilot() {
   const onDelete = async (id: string) => {
     try {
       setIsLoading(true)
-      const res = await fetch(`/api/copilot/api-keys?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      const res = await fetch(`/api/copilot/api-keys?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error || 'Failed to delete API key')
@@ -118,11 +134,12 @@ export function Copilot() {
       <h2 className='font-semibold text-xl'>Copilot API Keys</h2>
 
       <p className='text-muted-foreground text-sm leading-relaxed'>
-        Copilot API keys let you authenticate requests to the Copilot endpoints. Keep keys
-        secret and rotate them regularly.
+        Copilot API keys let you authenticate requests to the Copilot endpoints. Keep keys secret
+        and rotate them regularly.
       </p>
       <p className='text-muted-foreground text-xs italic'>
-        For external deployments, set the <span className='font-mono'>COPILOT_API_KEY</span> environment variable on that instance to one of the keys generated here.
+        For external deployments, set the <span className='font-mono'>COPILOT_API_KEY</span>{' '}
+        environment variable on that instance to one of the keys generated here.
       </p>
 
       {isFetching ? (
@@ -156,7 +173,13 @@ export function Copilot() {
             <p className='mt-2 max-w-sm text-muted-foreground text-sm'>
               Generate a Copilot API key to authenticate requests to the Copilot SDK and methods.
             </p>
-            <Button variant='default' className='mt-4' onClick={onGenerate} size='sm' disabled={isLoading}>
+            <Button
+              variant='default'
+              className='mt-4'
+              onClick={onGenerate}
+              size='sm'
+              disabled={isLoading}
+            >
               <Plus className='mr-1.5 h-4 w-4' /> Generate Key
             </Button>
           </div>
@@ -170,9 +193,7 @@ export function Copilot() {
               <Card key={k.id} className='p-4 transition-shadow hover:shadow-sm'>
                 <div className='flex items-center justify-between gap-4'>
                   <div className='min-w-0 flex-1'>
-                    <div className='rounded bg-muted/50 px-2 py-1 font-mono text-sm'>
-                      {value}
-                    </div>
+                    <div className='rounded bg-muted/50 px-2 py-1 font-mono text-sm'>{value}</div>
                     <p className='mt-1 text-muted-foreground text-xs'>
                       Key ID: <span className='font-mono'>{k.id}</span>
                     </p>
@@ -187,7 +208,11 @@ export function Copilot() {
                             onClick={() => setVisible((v) => ({ ...v, [k.id]: !isVisible }))}
                             className='h-8 w-8'
                           >
-                            {isVisible ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
+                            {isVisible ? (
+                              <EyeOff className='h-4 w-4' />
+                            ) : (
+                              <Eye className='h-4 w-4' />
+                            )}
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>{isVisible ? 'Hide' : 'Reveal'}</TooltipContent>
@@ -203,7 +228,11 @@ export function Copilot() {
                             onClick={() => onCopy(k.apiKey)}
                             className='h-8 w-8'
                           >
-                            {copySuccess ? <Check className='h-4 w-4 text-green-500' /> : <Copy className='h-4 w-4' />}
+                            {copySuccess ? (
+                              <Check className='h-4 w-4 text-green-500' />
+                            ) : (
+                              <Copy className='h-4 w-4' />
+                            )}
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Copy</TooltipContent>
@@ -256,19 +285,28 @@ export function Copilot() {
               <div className='space-y-2'>
                 <Label>API Key</Label>
                 <div className='relative'>
-                  <Input readOnly value={newKey.apiKey} className='border-slate-300 bg-muted/50 pr-10 font-mono text-sm' />
+                  <Input
+                    readOnly
+                    value={newKey.apiKey}
+                    className='border-slate-300 bg-muted/50 pr-10 font-mono text-sm'
+                  />
                   <Button
                     variant='ghost'
                     size='sm'
                     className='-translate-y-1/2 absolute top-1/2 right-1 h-7 w-7'
                     onClick={() => onCopy(newKey.apiKey)}
                   >
-                    {copySuccess ? <Check className='h-4 w-4 text-green-500' /> : <Copy className='h-4 w-4' />}
+                    {copySuccess ? (
+                      <Check className='h-4 w-4 text-green-500' />
+                    ) : (
+                      <Copy className='h-4 w-4' />
+                    )}
                     <span className='sr-only'>Copy to clipboard</span>
                   </Button>
                 </div>
                 <p className='mt-1 text-muted-foreground text-xs'>
-                  For security, we don\'t store the complete key. You won\'t be able to view it again.
+                  For security, we don\'t store the complete key. You won\'t be able to view it
+                  again.
                 </p>
               </div>
             </div>
@@ -293,7 +331,10 @@ export function Copilot() {
             <AlertDialogTitle>Delete Copilot API Key</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteKey && (
-                <>Are you sure you want to delete this Copilot API key? This action cannot be undone.</>
+                <>
+                  Are you sure you want to delete this Copilot API key? This action cannot be
+                  undone.
+                </>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -316,4 +357,4 @@ export function Copilot() {
       </AlertDialog>
     </div>
   )
-} 
+}

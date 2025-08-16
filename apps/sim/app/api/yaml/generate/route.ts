@@ -1,12 +1,12 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { env } from '@/lib/env'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 
 const logger = createLogger('YamlGenerateAPI')
 
@@ -49,9 +49,9 @@ export async function POST(request: NextRequest) {
     // Call sim-agent API
     const response = await fetch(`${SIM_AGENT_API_URL}/api/workflow/to-yaml`, {
       method: 'POST',
-              headers: {
-          'Content-Type': 'application/json',
-        },
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         workflowState,
         subBlockValues,
