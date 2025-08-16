@@ -651,7 +651,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Notify socket server for real-time collaboration (for copilot and editor)
     if (source === 'copilot' || source === 'editor') {
       try {
-        const socketUrl = env.SOCKET_URL || 'http://localhost:3002'
+        const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
         await fetch(`${socketUrl}/api/copilot-workflow-edit`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

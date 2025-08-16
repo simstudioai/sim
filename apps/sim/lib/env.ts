@@ -17,7 +17,6 @@ export const env = createEnv({
   server: {
     // Core Database & Authentication
     DATABASE_URL:                         z.string().url(),                       // Primary database connection string
-    SOCKET_URL:                           z.string().url().optional(),            // WebSocket server URL for real-time features
     BETTER_AUTH_URL:                      z.string().url(),                       // Base URL for Better Auth service
     BETTER_AUTH_SECRET:                   z.string().min(32),                     // Secret key for Better Auth JWT signing
     DISABLE_REGISTRATION:                 z.boolean().optional(),                 // Flag to disable new user registration
