@@ -1,4 +1,5 @@
 import {
+  Bot,
   CreditCard,
   KeyRound,
   KeySquare,
@@ -9,6 +10,7 @@ import {
   Users,
 } from 'lucide-react'
 import { getEnv, isTruthy } from '@/lib/env'
+import { isHosted } from '@/lib/environment'
 import { cn } from '@/lib/utils'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
@@ -26,6 +28,7 @@ interface SettingsNavigationProps {
       | 'subscription'
       | 'team'
       | 'privacy'
+      | 'copilot'
   ) => void
   hasOrganization: boolean
 }
@@ -39,6 +42,7 @@ type NavigationItem = {
     | 'apikeys'
     | 'subscription'
     | 'team'
+    | 'copilot'
     | 'privacy'
   label: string
   icon: React.ComponentType<{ className?: string }>
@@ -73,6 +77,11 @@ const allNavigationItems: NavigationItem[] = [
     icon: KeySquare,
   },
   {
+    id: 'copilot',
+    label: 'Copilot',
+    icon: Bot,
+  },
+  {
     id: 'privacy',
     label: 'Privacy',
     icon: Shield,
@@ -101,6 +110,9 @@ export function SettingsNavigation({
   const subscription = getSubscriptionStatus()
 
   const navigationItems = allNavigationItems.filter((item) => {
+    if (item.id === 'copilot' && !isHosted) {
+      return false
+    }
     if (item.hideWhenBillingDisabled && !isBillingEnabled) {
       return false
     }

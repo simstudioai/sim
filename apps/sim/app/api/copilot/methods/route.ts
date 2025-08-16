@@ -69,12 +69,6 @@ async function pollRedisForTool(
   const pollInterval = 1000 // 1 second
   const startTime = Date.now()
 
-  logger.info('Starting to poll Redis for tool call status', {
-    toolCallId,
-    timeout,
-    pollInterval,
-  })
-
   while (Date.now() - startTime < timeout) {
     try {
       const redisValue = await redis.get(key)
@@ -110,23 +104,6 @@ async function pollRedisForTool(
           status,
           duration: Date.now() - startTime,
           rawRedisValue: redisValue,
-        })
-
-        logger.info('Tool call status resolved', {
-          toolCallId,
-          status,
-          message,
-          duration: Date.now() - startTime,
-          rawRedisValue: redisValue,
-          parsedAsJSON: redisValue
-            ? (() => {
-                try {
-                  return JSON.parse(redisValue)
-                } catch {
-                  return 'failed-to-parse'
-                }
-              })()
-            : null,
         })
 
         // Special logging for set environment variables tool when Redis status is found

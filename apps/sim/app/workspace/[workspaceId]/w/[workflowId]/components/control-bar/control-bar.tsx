@@ -999,14 +999,14 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   return (
     <div className='fixed top-4 right-4 z-20 flex items-center gap-1'>
       {renderDisconnectionNotice()}
-      {!isDev && renderToggleButton()}
-      {isExpanded && !isDev && <ExportControls />}
-      {isExpanded && !isDev && renderAutoLayoutButton()}
+      {renderToggleButton()}
+      {isExpanded && <ExportControls />}
+      {isExpanded && renderAutoLayoutButton()}
       {!isDev && isExpanded && renderDuplicateButton()}
       {isDev && renderDuplicateButton()}
       {renderDeleteButton()}
       {!isDebugging && renderDebugModeToggle()}
-      {renderPublishButton()}
+      {isExpanded && renderPublishButton()}
       {renderDeployButton()}
       {isDebugging ? renderDebugControlsBar() : renderRunButton()}
 

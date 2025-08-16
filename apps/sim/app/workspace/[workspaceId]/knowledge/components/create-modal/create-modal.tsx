@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, CheckCircle2, X } from 'lucide-react'
+import { AlertCircle, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -109,6 +109,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
@@ -119,8 +120,31 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       maxChunkSize: 1024,
       overlapSize: 200,
     },
-    mode: 'onChange',
+    mode: 'onSubmit',
   })
+
+  // Watch the name field to enable/disable the submit button
+  const nameValue = watch('name')
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (open) {
+      // Reset states when modal opens
+      setSubmitStatus(null)
+      setFileError(null)
+      setFiles([])
+      setIsDragging(false)
+      setDragCounter(0)
+      // Reset form to default values
+      reset({
+        name: '',
+        description: '',
+        minChunkSize: 1,
+        maxChunkSize: 1024,
+        overlapSize: 200,
+      })
+    }
+  }, [open, reset])
 
   const processFiles = async (fileList: FileList | File[]) => {
     setFileError(null)
@@ -292,18 +316,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
         logger.info(`Started processing ${uploadedFiles.length} documents in the background`)
       }
 
-      setSubmitStatus({
-        type: 'success',
-        message: 'Your knowledge base has been created successfully!',
-      })
-      reset({
-        name: '',
-        description: '',
-        minChunkSize: 1,
-        maxChunkSize: 1024,
-        overlapSize: 200,
-      })
-
       // Clean up file previews
       files.forEach((file) => URL.revokeObjectURL(file.preview))
       setFiles([])
@@ -313,10 +325,8 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
         onKnowledgeBaseCreated(newKnowledgeBase)
       }
 
-      // Close modal after a short delay to show success message
-      setTimeout(() => {
-        onOpenChange(false)
-      }, 1500)
+      // Close modal immediately - no need for success message
+      onOpenChange(false)
     } catch (error) {
       logger.error('Error creating knowledge base:', error)
       setSubmitStatus({
@@ -357,31 +367,13 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
               className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
             >
               <div className='flex min-h-full flex-col py-4'>
-                {submitStatus && submitStatus.type === 'success' ? (
-                  <Alert className='mb-6 border-border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30'>
-                    <div className='flex items-start gap-4 py-1'>
-                      <div className='mt-[-1.5px] flex-shrink-0'>
-                        <CheckCircle2 className='h-4 w-4 text-green-600 dark:text-green-400' />
-                      </div>
-                      <div className='mr-4 flex-1 space-y-2'>
-                        <AlertTitle className='-mt-0.5 flex items-center justify-between'>
-                          <span className='font-medium text-green-600 dark:text-green-400'>
-                            Success
-                          </span>
-                        </AlertTitle>
-                        <AlertDescription className='text-green-600 dark:text-green-400'>
-                          {submitStatus.message}
-                        </AlertDescription>
-                      </div>
-                    </div>
-                  </Alert>
-                ) : submitStatus && submitStatus.type === 'error' ? (
+                {submitStatus && submitStatus.type === 'error' && (
                   <Alert variant='destructive' className='mb-6'>
                     <AlertCircle className='h-4 w-4' />
                     <AlertTitle>Error</AlertTitle>
                     <AlertDescription>{submitStatus.message}</AlertDescription>
                   </Alert>
-                ) : null}
+                )}
 
                 {/* Form Fields Section - Fixed at top */}
                 <div className='flex-shrink-0 space-y-4'>
@@ -611,8 +603,8 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                 </Button>
                 <Button
                   type='submit'
-                  disabled={isSubmitting}
-                  className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+                  disabled={isSubmitting || !nameValue?.trim()}
+                  className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50 disabled:hover:shadow-none'
                 >
                   {isSubmitting ? 'Creating...' : 'Create Knowledge Base'}
                 </Button>

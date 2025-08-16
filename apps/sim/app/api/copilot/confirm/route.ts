@@ -48,11 +48,6 @@ async function updateToolCallStatus(
     while (Date.now() - startTime < timeout) {
       const exists = await redis.exists(key)
       if (exists) {
-        logger.info('Tool call found in Redis, updating status', {
-          toolCallId,
-          key,
-          pollDuration: Date.now() - startTime,
-        })
         break
       }
 
@@ -79,27 +74,8 @@ async function updateToolCallStatus(
       timestamp: new Date().toISOString(),
     }
 
-    // Log what we're about to update in Redis
-    logger.info('About to update Redis with tool call data', {
-      toolCallId,
-      key,
-      toolCallData,
-      serializedData: JSON.stringify(toolCallData),
-      providedStatus: status,
-      providedMessage: message,
-      messageIsUndefined: message === undefined,
-      messageIsNull: message === null,
-    })
-
     await redis.set(key, JSON.stringify(toolCallData), 'EX', 86400) // Keep 24 hour expiry
 
-    logger.info('Tool call status updated in Redis', {
-      toolCallId,
-      key,
-      status,
-      message,
-      pollDuration: Date.now() - startTime,
-    })
     return true
   } catch (error) {
     logger.error('Failed to update tool call status in Redis', {
@@ -131,13 +107,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { toolCallId, status, message } = ConfirmationSchema.parse(body)
 
-    logger.info(`[${tracker.requestId}] Tool call confirmation request`, {
-      userId: authenticatedUserId,
-      toolCallId,
-      status,
-      message,
-    })
-
     // Update the tool call status in Redis
     const updated = await updateToolCallStatus(toolCallId, status, message)
 
@@ -153,13 +122,6 @@ export async function POST(req: NextRequest) {
     }
 
     const duration = tracker.getDuration()
-    logger.info(`[${tracker.requestId}] Tool call confirmation completed`, {
-      userId: authenticatedUserId,
-      toolCallId,
-      status,
-      internalStatus: status,
-      duration,
-    })
 
     return NextResponse.json({
       success: true,
