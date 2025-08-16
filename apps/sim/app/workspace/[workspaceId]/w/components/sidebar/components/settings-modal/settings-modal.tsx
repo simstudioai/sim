@@ -20,6 +20,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components'
 import { useOrganizationStore } from '@/stores/organization'
 import { useGeneralStore } from '@/stores/settings/general/store'
+import { getEnv, isTruthy } from '@/lib/env'
 
 const logger = createLogger('SettingsModal')
 

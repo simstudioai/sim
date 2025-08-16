@@ -12,6 +12,7 @@ import {
 import { isHosted } from '@/lib/environment'
 import { cn } from '@/lib/utils'
 import { useSubscriptionStore } from '@/stores/subscription/store'
+import { isTruthy, getEnv } from '@/lib/env'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 

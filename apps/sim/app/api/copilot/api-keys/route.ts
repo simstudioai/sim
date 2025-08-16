@@ -14,7 +14,11 @@ function deriveKey(keyString: string): Buffer {
 }
 
 function decryptWithKey(encryptedValue: string, keyString: string): string {
-  const [ivHex, encryptedHex, authTagHex] = encryptedValue.split(':')
+  const parts = encryptedValue.split(':')
+  if (parts.length !== 3) {
+    throw new Error('Invalid encrypted value format')
+  }
+  const [ivHex, encryptedHex, authTagHex] = parts
   const key = deriveKey(keyString)
   const iv = Buffer.from(ivHex, 'hex')
   const decipher = createDecipheriv('aes-256-gcm', key, iv)
