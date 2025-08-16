@@ -178,7 +178,7 @@ export function findLocalFile(filename: string): string | null {
  * Create a file response with appropriate headers
  */
 export function createFileResponse(file: FileResponse): NextResponse {
-  return new NextResponse(file.buffer, {
+  return new NextResponse(file.buffer as BodyInit, {
     status: 200,
     headers: {
       'Content-Type': file.contentType,

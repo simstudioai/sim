@@ -29,9 +29,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('HelpModal')
 
-// Define form schema
 const formSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
   subject: z.string().min(1, 'Subject is required'),
   message: z.string().min(1, 'Message is required'),
   type: z.enum(['bug', 'feedback', 'feature_request', 'other'], {
@@ -77,17 +75,35 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: '',
       subject: '',
       message: '',
       type: 'bug', // Set default value to 'bug'
     },
-    mode: 'onChange',
+    mode: 'onSubmit',
   })
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (open) {
+      // Reset states when modal opens
+      setSubmitStatus(null)
+      setErrorMessage('')
+      setImageError(null)
+      setImages([])
+      setIsDragging(false)
+      setIsProcessing(false)
+      // Reset form to default values
+      reset({
+        subject: '',
+        message: '',
+        type: 'bug',
+      })
+    }
+  }, [open, reset])
 
   // Listen for the custom event to open the help modal
   useEffect(() => {
-    const handleOpenHelp = (event: CustomEvent) => {
+    const handleOpenHelp = () => {
       onOpenChange(true)
     }
 
@@ -268,8 +284,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
       // Create FormData to handle file uploads
       const formData = new FormData()
 
-      // Add form fields
-      formData.append('email', data.email)
+      // Add form fields (email will be retrieved server-side from session)
       formData.append('subject', data.subject)
       formData.append('message', data.message)
       formData.append('type', data.type)
@@ -378,19 +393,6 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                   </div>
 
                   <div className='space-y-2'>
-                    <Label htmlFor='email'>Email</Label>
-                    <Input
-                      id='email'
-                      placeholder='your.email@example.com'
-                      {...register('email')}
-                      className={`h-9 rounded-[8px] ${errors.email ? 'border-red-500' : ''}`}
-                    />
-                    {errors.email && (
-                      <p className='mt-1 text-red-500 text-sm'>{errors.email.message}</p>
-                    )}
-                  </div>
-
-                  <div className='space-y-2'>
                     <Label htmlFor='subject'>Subject</Label>
                     <Input
                       id='subject'
@@ -408,7 +410,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                     <Textarea
                       id='message'
                       placeholder='Please provide details about your request...'
-                      rows={5}
+                      rows={6}
                       {...register('message')}
                       className={`rounded-[8px] ${errors.message ? 'border-red-500' : ''}`}
                     />
@@ -426,9 +428,10 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                       onDragOver={handleDragOver}
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
-                      className={`flex items-center gap-4 ${
-                        isDragging ? 'rounded-md bg-primary/5 p-2' : ''
+                      className={`cursor-pointer rounded-lg border-2 border-muted-foreground/25 border-dashed p-6 text-center transition-colors hover:bg-muted/50 ${
+                        isDragging ? 'border-primary bg-primary/5' : ''
                       }`}
+                      onClick={() => fileInputRef.current?.click()}
                     >
                       <input
                         ref={fileInputRef}
@@ -438,17 +441,12 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                         className='hidden'
                         multiple
                       />
-                      <Button
-                        type='button'
-                        variant='outline'
-                        onClick={() => fileInputRef.current?.click()}
-                        className='flex h-9 items-center justify-center gap-2 rounded-[8px]'
-                      >
-                        <Upload className='h-4 w-4' />
-                        Upload Images
-                      </Button>
-                      <p className='text-muted-foreground text-xs'>
-                        Drop images here or click to upload. Max 20MB per image.
+                      <Upload className='mx-auto mb-2 h-8 w-8 text-muted-foreground' />
+                      <p className='text-sm'>
+                        {isDragging ? 'Drop images here!' : 'Drop images here or click to browse'}
+                      </p>
+                      <p className='mt-1 text-muted-foreground text-xs'>
+                        JPEG, PNG, WebP, GIF (max 20MB each)
                       </p>
                     </div>
                     {imageError && <p className='mt-1 text-red-500 text-sm'>{imageError}</p>}
@@ -494,18 +492,13 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
             {/* Overlay Footer */}
             <div className='absolute inset-x-0 bottom-0 bg-background'>
               <div className='flex w-full items-center justify-between px-6 py-4'>
-                <Button
-                  variant='outline'
-                  onClick={handleClose}
-                  type='button'
-                  className='h-9 rounded-[8px]'
-                >
+                <Button variant='outline' onClick={handleClose} type='button'>
                   Cancel
                 </Button>
                 <Button
                   type='submit'
                   disabled={isSubmitting || isProcessing}
-                  className='h-9 rounded-[8px]'
+                  className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50 disabled:hover:shadow-none'
                 >
                   {isSubmitting ? 'Submitting...' : 'Submit'}
                 </Button>

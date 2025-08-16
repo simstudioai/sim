@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
 const logger = createLogger('UploadModal')
@@ -152,6 +153,19 @@ export function UploadModal({
     }
   }
 
+  const getFileIcon = (mimeType: string, filename: string) => {
+    const IconComponent = getDocumentIcon(mimeType, filename)
+    return <IconComponent className='h-10 w-8' />
+  }
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
+  }
+
   // Calculate progress percentage
   const progressPercentage =
     uploadProgress.totalFiles > 0
@@ -221,11 +235,11 @@ export function UploadModal({
                     multiple
                   />
                   <p className='text-sm'>
-                    {isDragging ? 'Drop more files here!' : 'Add more files'}
+                    {isDragging ? 'Drop more files here!' : 'Drop more files or click to browse'}
                   </p>
                 </div>
 
-                <div className='max-h-60 space-y-1.5 overflow-auto'>
+                <div className='max-h-60 space-y-2 overflow-auto'>
                   {files.map((file, index) => {
                     const fileStatus = uploadProgress.fileStatuses?.[index]
                     const isCurrentlyUploading = fileStatus?.status === 'uploading'
@@ -233,26 +247,31 @@ export function UploadModal({
                     const isFailed = fileStatus?.status === 'failed'
 
                     return (
-                      <div key={index} className='space-y-1.5 rounded-md border p-2'>
-                        <div className='flex items-center justify-between'>
+                      <div key={index} className='rounded-md border p-3'>
+                        <div className='flex items-center gap-3'>
+                          {getFileIcon(file.type, file.name)}
                           <div className='min-w-0 flex-1'>
                             <div className='flex items-center gap-2'>
                               {isCurrentlyUploading && (
-                                <Loader2 className='h-4 w-4 animate-spin text-blue-500' />
+                                <Loader2 className='h-4 w-4 animate-spin text-[var(--brand-primary-hex)]' />
                               )}
                               {isCompleted && <Check className='h-4 w-4 text-green-500' />}
                               {isFailed && <X className='h-4 w-4 text-red-500' />}
-                              {!isCurrentlyUploading && !isCompleted && !isFailed && (
-                                <div className='h-4 w-4' />
-                              )}
-                              <p className='truncate text-sm'>
-                                <span className='font-medium'>{file.name}</span>
-                                <span className='text-muted-foreground'>
-                                  {' '}
-                                  • {(file.size / 1024 / 1024).toFixed(2)} MB
-                                </span>
-                              </p>
+                              <p className='truncate font-medium text-sm'>{file.name}</p>
                             </div>
+                            <div className='flex items-center gap-2'>
+                              <p className='text-muted-foreground text-xs'>
+                                {formatFileSize(file.size)}
+                              </p>
+                              {isCurrentlyUploading && (
+                                <div className='min-w-0 max-w-32 flex-1'>
+                                  <Progress value={fileStatus?.progress || 0} className='h-1' />
+                                </div>
+                              )}
+                            </div>
+                            {isFailed && fileStatus?.error && (
+                              <p className='mt-1 text-red-500 text-xs'>{fileStatus.error}</p>
+                            )}
                           </div>
                           <Button
                             type='button'
@@ -260,17 +279,11 @@ export function UploadModal({
                             size='sm'
                             onClick={() => removeFile(index)}
                             disabled={isUploading}
-                            className='h-8 w-8 p-0'
+                            className='h-8 w-8 p-0 text-muted-foreground hover:text-destructive'
                           >
                             <X className='h-4 w-4' />
                           </Button>
                         </div>
-                        {isCurrentlyUploading && (
-                          <Progress value={fileStatus?.progress || 0} className='h-1' />
-                        )}
-                        {isFailed && fileStatus?.error && (
-                          <p className='text-red-500 text-xs'>{fileStatus.error}</p>
-                        )}
                       </div>
                     )
                   })}
@@ -287,7 +300,11 @@ export function UploadModal({
           <Button variant='outline' onClick={handleClose} disabled={isUploading}>
             Cancel
           </Button>
-          <Button onClick={handleUpload} disabled={files.length === 0 || isUploading}>
+          <Button
+            onClick={handleUpload}
+            disabled={files.length === 0 || isUploading}
+            className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+          >
             {isUploading
               ? uploadProgress.stage === 'uploading'
                 ? `Uploading ${uploadProgress.filesCompleted + 1}/${uploadProgress.totalFiles}...`

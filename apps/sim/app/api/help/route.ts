@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { z } from 'zod'
+import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'
@@ -9,7 +10,6 @@ const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null
 const logger = createLogger('HelpAPI')
 
 const helpFormSchema = z.object({
-  email: z.string().email('Invalid email address'),
   subject: z.string().min(1, 'Subject is required'),
   message: z.string().min(1, 'Message is required'),
   type: z.enum(['bug', 'feedback', 'feature_request', 'other']),
@@ -19,6 +19,15 @@ export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
+    // Get user session
+    const session = await getSession()
+    if (!session?.user?.email) {
+      logger.warn(`[${requestId}] Unauthorized help request attempt`)
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const email = session.user.email
+
     // Check if Resend API key is configured
     if (!resend) {
       logger.error(`[${requestId}] RESEND_API_KEY not configured`)
@@ -35,7 +44,6 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData()
 
     // Extract form fields
-    const email = formData.get('email') as string
     const subject = formData.get('subject') as string
     const message = formData.get('message') as string
     const type = formData.get('type') as string
@@ -47,7 +55,6 @@ export async function POST(req: NextRequest) {
 
     // Validate the form data
     const result = helpFormSchema.safeParse({
-      email,
       subject,
       message,
       type,
@@ -97,9 +104,9 @@ ${message}
     }
 
     // Send email using Resend
-    const { data, error } = await resend.emails.send({
-      from: `Sim <noreply@${getEmailDomain()}>`,
-      to: [`help@${getEmailDomain()}`],
+    const { error } = await resend.emails.send({
+      from: `Sim <noreply@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
+      to: [`help@${env.EMAIL_DOMAIN || getEmailDomain()}`],
       subject: `[${type.toUpperCase()}] ${subject}`,
       replyTo: email,
       text: emailText,
@@ -121,7 +128,7 @@ ${message}
     // Send confirmation email to the user
     await resend.emails
       .send({
-        from: `Sim <noreply@${getEmailDomain()}>`,
+        from: `Sim <noreply@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
         to: [email],
         subject: `Your ${type} request has been received: ${subject}`,
         text: `
@@ -137,7 +144,7 @@ ${images.length > 0 ? `You attached ${images.length} image(s).` : ''}
 Best regards,
 The Sim Team
         `,
-        replyTo: `help@${getEmailDomain()}`,
+        replyTo: `help@${env.EMAIL_DOMAIN || getEmailDomain()}`,
       })
       .catch((err) => {
         logger.warn(`[${requestId}] Failed to send confirmation email`, err)
