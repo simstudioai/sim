@@ -46,18 +46,18 @@ export function OrganizationCreationDialog({
 
         <div className='space-y-4 py-4'>
           <div className='space-y-2'>
-            <label htmlFor='orgName' className='font-medium text-sm'>
+            <label htmlFor='orgName' className='font-medium text-xs'>
               Team Name
             </label>
             <Input id='orgName' value={orgName} onChange={onOrgNameChange} placeholder='My Team' />
           </div>
 
           <div className='space-y-2'>
-            <label htmlFor='orgSlug' className='font-medium text-sm'>
+            <label htmlFor='orgSlug' className='font-medium text-xs'>
               Team URL
             </label>
             <div className='flex items-center space-x-2'>
-              <div className='rounded-l-md bg-muted px-3 py-2 text-muted-foreground text-sm'>
+              <div className='rounded-l-[8px] bg-muted px-3 py-2 text-muted-foreground text-xs'>
                 sim.ai/team/
               </div>
               <Input
@@ -70,17 +70,26 @@ export function OrganizationCreationDialog({
         </div>
 
         {error && (
-          <Alert variant='destructive'>
+          <Alert variant='destructive' className='rounded-[8px]'>
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
         <DialogFooter>
-          <Button variant='outline' onClick={() => onOpenChange(false)} disabled={isCreating}>
+          <Button
+            variant='outline'
+            onClick={() => onOpenChange(false)}
+            disabled={isCreating}
+            className='h-9 rounded-[8px]'
+          >
             Cancel
           </Button>
-          <Button onClick={onCreateOrganization} disabled={!orgName || !orgSlug || isCreating}>
+          <Button
+            onClick={onCreateOrganization}
+            disabled={!orgName || !orgSlug || isCreating}
+            className='h-9 rounded-[8px]'
+          >
             {isCreating && <RefreshCw className='mr-2 h-4 w-4 animate-spin' />}
             Create Team Workspace
           </Button>

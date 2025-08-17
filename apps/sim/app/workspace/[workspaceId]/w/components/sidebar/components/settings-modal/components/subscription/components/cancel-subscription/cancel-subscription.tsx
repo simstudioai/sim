@@ -1,16 +1,20 @@
-import { useState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
+'use client'
+
+import { useEffect, useState } from 'react'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import { useSession, useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { cn } from '@/lib/utils'
 import { useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
@@ -36,6 +40,16 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
   const betterAuthSubscription = useSubscription()
   const { activeOrganization } = useOrganizationStore()
   const { getSubscriptionStatus } = useSubscriptionStore()
+
+  // Clear error after 3 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [error])
 
   // Don't show for free plans
   if (!subscription.isPaid) {
@@ -115,44 +129,41 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
 
   return (
     <>
-      <div className='space-y-4'>
-        <div className='flex items-center justify-between'>
-          <div>
-            <span className='font-medium text-sm'>Cancel Subscription</span>
-            <p className='mt-1 text-muted-foreground text-xs'>
-              You'll keep access until {formatDate(periodEndDate)}
-            </p>
-          </div>
-          <Button
-            variant='destructive'
-            size='sm'
-            onClick={() => setIsDialogOpen(true)}
-            disabled={isLoading}
-          >
-            Cancel
-          </Button>
+      <div className='flex items-center justify-between'>
+        <div>
+          <span className='font-medium text-sm'>Manage Subscription</span>
+          <p className='mt-1 text-muted-foreground text-xs'>
+            You'll keep access until {formatDate(periodEndDate)}
+          </p>
         </div>
-
-        {error && (
-          <Alert variant='destructive'>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+        <Button
+          variant='outline'
+          onClick={() => setIsDialogOpen(true)}
+          disabled={isLoading}
+          className={cn(
+            'h-8 rounded-[8px] font-medium text-xs transition-all duration-200',
+            error
+              ? 'border-red-500 text-red-500 dark:border-red-500 dark:text-red-500'
+              : 'text-muted-foreground hover:border-red-500 hover:bg-red-500 hover:text-white dark:hover:border-red-500 dark:hover:bg-red-500'
+          )}
+        >
+          {error ? 'Error' : 'Manage'}
+        </Button>
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel {subscription.plan} subscription?</DialogTitle>
-            <DialogDescription>
+      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel {subscription.plan} subscription?</AlertDialogTitle>
+            <AlertDialogDescription>
               You'll be redirected to Stripe to manage your subscription. You'll keep access until{' '}
               {formatDate(periodEndDate)}, then downgrade to free plan.
-            </DialogDescription>
-          </DialogHeader>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
 
-          <div className='space-y-3'>
-            <div className='rounded-lg bg-muted p-3 text-sm'>
-              <ul className='space-y-1 text-muted-foreground'>
+          <div className='py-2'>
+            <div className='rounded-[8px] bg-muted/50 p-3 text-sm'>
+              <ul className='space-y-1 text-muted-foreground text-xs'>
                 <li>• Keep all features until {formatDate(periodEndDate)}</li>
                 <li>• No more charges</li>
                 <li>• Data preserved</li>
@@ -161,16 +172,24 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant='outline' onClick={() => setIsDialogOpen(false)} disabled={isLoading}>
+          <AlertDialogFooter className='flex'>
+            <AlertDialogCancel
+              className='h-9 w-full rounded-[8px]'
+              onClick={() => setIsDialogOpen(false)}
+              disabled={isLoading}
+            >
               Keep Subscription
-            </Button>
-            <Button variant='destructive' onClick={handleCancel} disabled={isLoading}>
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancel}
+              className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+              disabled={isLoading}
+            >
               {isLoading ? 'Redirecting...' : 'Continue'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

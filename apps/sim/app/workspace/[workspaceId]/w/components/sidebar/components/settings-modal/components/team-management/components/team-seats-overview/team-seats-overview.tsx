@@ -47,12 +47,12 @@ export function TeamSeatsOverview({
 }: TeamSeatsOverviewProps) {
   if (isLoadingSubscription) {
     return (
-      <Card>
-        <CardHeader className='pb-3'>
-          <CardTitle className='text-base'>Team Seats Overview</CardTitle>
+      <Card className='rounded-[8px] shadow-xs'>
+        <CardHeader className='p-4 pb-3'>
+          <CardTitle className='font-medium text-sm'>Team Seats Overview</CardTitle>
           <CardDescription>Manage your team's seat allocation and billing</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className='p-4 pt-0'>
           <TeamSeatsSkeleton />
         </CardContent>
       </Card>
@@ -61,18 +61,18 @@ export function TeamSeatsOverview({
 
   if (!subscriptionData) {
     return (
-      <Card>
-        <CardHeader className='pb-3'>
-          <CardTitle className='text-base'>Team Seats Overview</CardTitle>
+      <Card className='rounded-[8px] shadow-xs'>
+        <CardHeader className='p-4 pb-3'>
+          <CardTitle className='font-medium text-sm'>Team Seats Overview</CardTitle>
           <CardDescription>Manage your team's seat allocation and billing</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className='p-4 pt-0'>
           <div className='space-y-4 p-6 text-center'>
             <div className='mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100'>
               <Building2 className='h-6 w-6 text-amber-600' />
             </div>
             <div className='space-y-2'>
-              <p className='font-medium'>No Team Subscription Found</p>
+              <p className='font-medium text-sm'>No Team Subscription Found</p>
               <p className='text-muted-foreground text-sm'>
                 Your subscription may need to be transferred to this organization.
               </p>
@@ -82,6 +82,7 @@ export function TeamSeatsOverview({
                 onConfirmTeamUpgrade(2) // Start with 2 seats as default
               }}
               disabled={isLoading}
+              className='h-9 rounded-[8px]'
             >
               Set Up Team Subscription
             </Button>
@@ -92,24 +93,24 @@ export function TeamSeatsOverview({
   }
 
   return (
-    <Card>
+    <Card className='rounded-[8px] shadow-xs'>
       <CardHeader className='pb-3'>
         <CardTitle className='text-base'>Team Seats Overview</CardTitle>
         <CardDescription>Manage your team's seat allocation and billing</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className='p-4 pt-0'>
         <div className='space-y-4'>
           <div className='grid grid-cols-3 gap-4 text-center'>
             <div className='space-y-1'>
-              <p className='font-bold text-2xl'>{subscriptionData.seats || 0}</p>
+              <p className='font-bold text-xl'>{subscriptionData.seats || 0}</p>
               <p className='text-muted-foreground text-xs'>Licensed Seats</p>
             </div>
             <div className='space-y-1'>
-              <p className='font-bold text-2xl'>{usedSeats}</p>
+              <p className='font-bold text-xl'>{usedSeats}</p>
               <p className='text-muted-foreground text-xs'>Used Seats</p>
             </div>
             <div className='space-y-1'>
-              <p className='font-bold text-2xl'>{(subscriptionData.seats || 0) - usedSeats}</p>
+              <p className='font-bold text-xl'>{(subscriptionData.seats || 0) - usedSeats}</p>
               <p className='text-muted-foreground text-xs'>Available</p>
             </div>
           </div>
@@ -121,7 +122,7 @@ export function TeamSeatsOverview({
                 {usedSeats} of {subscriptionData.seats || 0} seats
               </span>
             </div>
-            <Progress value={(usedSeats / (subscriptionData.seats || 1)) * 100} className='h-3' />
+            <Progress value={(usedSeats / (subscriptionData.seats || 1)) * 100} className='h-2' />
           </div>
 
           <div className='flex items-center justify-between border-t pt-2 text-sm'>
@@ -135,7 +136,7 @@ export function TeamSeatsOverview({
           </div>
 
           {checkEnterprisePlan(subscriptionData) ? (
-            <div className='rounded-lg bg-purple-50 p-4 text-center'>
+            <div className='rounded-[8px] bg-purple-50 p-4 text-center'>
               <p className='font-medium text-purple-700 text-sm'>Enterprise Plan</p>
               <p className='mt-1 text-purple-600 text-xs'>Contact support to modify seats</p>
             </div>
@@ -146,11 +147,16 @@ export function TeamSeatsOverview({
                 size='sm'
                 onClick={onReduceSeats}
                 disabled={(subscriptionData.seats || 0) <= 1 || isLoading}
-                className='flex-1'
+                className='h-9 flex-1 rounded-[8px]'
               >
                 Remove Seat
               </Button>
-              <Button size='sm' onClick={onAddSeatDialog} disabled={isLoading} className='flex-1'>
+              <Button
+                size='sm'
+                onClick={onAddSeatDialog}
+                disabled={isLoading}
+                className='h-9 flex-1 rounded-[8px]'
+              >
                 Add Seat
               </Button>
             </div>

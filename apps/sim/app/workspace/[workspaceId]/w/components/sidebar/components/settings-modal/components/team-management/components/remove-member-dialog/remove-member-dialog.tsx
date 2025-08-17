@@ -42,11 +42,11 @@ export function RemoveMemberDialog({
             <input
               type='checkbox'
               id='reduce-seats'
-              className='rounded'
+              className='rounded-[4px]'
               checked={shouldReduceSeats}
               onChange={(e) => onShouldReduceSeatsChange(e.target.checked)}
             />
-            <label htmlFor='reduce-seats' className='text-sm'>
+            <label htmlFor='reduce-seats' className='text-xs'>
               Also reduce seat count in my subscription
             </label>
           </div>
@@ -56,10 +56,14 @@ export function RemoveMemberDialog({
         </div>
 
         <DialogFooter>
-          <Button variant='outline' onClick={onCancel}>
+          <Button variant='outline' onClick={onCancel} className='h-9 rounded-[8px]'>
             Cancel
           </Button>
-          <Button variant='destructive' onClick={() => onConfirmRemove(shouldReduceSeats)}>
+          <Button
+            variant='destructive'
+            onClick={() => onConfirmRemove(shouldReduceSeats)}
+            className='h-9 rounded-[8px]'
+          >
             Remove
           </Button>
         </DialogFooter>
