@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
 import { type DiffAnalysis, WorkflowDiffEngine } from '@/lib/workflows/diff'
+import { Serializer } from '@/serializer'
 import { useWorkflowRegistry } from '../workflows/registry/store'
 import { useSubBlockStore } from '../workflows/subblock/store'
 import { useWorkflowStore } from '../workflows/workflow/store'
@@ -47,6 +48,8 @@ interface WorkflowDiffState {
     source: string
     timestamp: number
   } | null
+  // Store validation error when proposed diff is invalid for the canvas
+  diffError?: string | null
   // PERFORMANCE OPTIMIZATION: Cache frequently accessed computed values
   _cachedDisplayState?: WorkflowState
   _lastDisplayStateHash?: string
@@ -105,6 +108,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
         diffWorkflow: null,
         diffAnalysis: null,
         diffMetadata: null,
+        diffError: null,
         _cachedDisplayState: undefined,
         _lastDisplayStateHash: undefined,
 
@@ -112,7 +116,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
         setProposedChanges: async (yamlContent: string, diffAnalysis?: DiffAnalysis) => {
           // PERFORMANCE OPTIMIZATION: Immediate state update to prevent UI flicker
-          batchedUpdate({ isDiffReady: false })
+          batchedUpdate({ isDiffReady: false, diffError: null })
 
           // Clear any existing diff state to ensure a fresh start
           diffEngine.clearDiff()
@@ -120,6 +124,28 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           const result = await diffEngine.createDiffFromYaml(yamlContent, diffAnalysis)
 
           if (result.success && result.diff) {
+            // Validate proposed workflow using serializer round-trip to catch canvas-breaking issues
+            try {
+              const proposed = result.diff.proposedState
+              const serializer = new Serializer()
+              const serialized = serializer.serializeWorkflow(
+                proposed.blocks,
+                proposed.edges,
+                proposed.loops,
+                proposed.parallels,
+                false // do not enforce user-only required params at diff time
+              )
+              // Ensure we can deserialize back without errors
+              serializer.deserializeWorkflow(serialized)
+            } catch (e: any) {
+              const message =
+                e instanceof Error ? e.message : 'Invalid workflow in proposed changes'
+              logger.error('[DiffStore] Diff validation failed:', { message, error: e })
+              // Do not mark ready; store error and keep diff hidden
+              batchedUpdate({ isDiffReady: false, diffError: message, isShowingDiff: false })
+              return
+            }
+
             // PERFORMANCE OPTIMIZATION: Log diff analysis efficiently
             if (result.diff.diffAnalysis) {
               const analysis = result.diff.diffAnalysis
@@ -138,6 +164,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               diffWorkflow: result.diff.proposedState,
               diffAnalysis: result.diff.diffAnalysis || null,
               diffMetadata: result.diff.metadata,
+              diffError: null,
               _cachedDisplayState: undefined, // Clear cache
               _lastDisplayStateHash: undefined,
             })
@@ -145,7 +172,10 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             logger.info('Diff created successfully')
           } else {
             logger.error('Failed to create diff:', result.errors)
-            batchedUpdate({ isDiffReady: false })
+            batchedUpdate({
+              isDiffReady: false,
+              diffError: result.errors?.join(', ') || 'Failed to create diff',
+            })
             throw new Error(result.errors?.join(', ') || 'Failed to create diff')
           }
         },
@@ -154,11 +184,31 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           logger.info('Merging proposed changes via YAML')
 
           // First, set isDiffReady to false to prevent premature rendering
-          batchedUpdate({ isDiffReady: false })
+          batchedUpdate({ isDiffReady: false, diffError: null })
 
           const result = await diffEngine.mergeDiffFromYaml(yamlContent, diffAnalysis)
 
           if (result.success && result.diff) {
+            // Validate proposed workflow using serializer round-trip to catch canvas-breaking issues
+            try {
+              const proposed = result.diff.proposedState
+              const serializer = new Serializer()
+              const serialized = serializer.serializeWorkflow(
+                proposed.blocks,
+                proposed.edges,
+                proposed.loops,
+                proposed.parallels,
+                false
+              )
+              serializer.deserializeWorkflow(serialized)
+            } catch (e: any) {
+              const message =
+                e instanceof Error ? e.message : 'Invalid workflow in proposed changes'
+              logger.error('[DiffStore] Diff validation failed on merge:', { message, error: e })
+              batchedUpdate({ isDiffReady: false, diffError: message, isShowingDiff: false })
+              return
+            }
+
             // Set all state at once, with isDiffReady true
             batchedUpdate({
               isShowingDiff: true,
@@ -166,12 +216,16 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               diffWorkflow: result.diff.proposedState,
               diffAnalysis: result.diff.diffAnalysis || null,
               diffMetadata: result.diff.metadata,
+              diffError: null,
             })
             logger.info('Diff merged successfully')
           } else {
             logger.error('Failed to merge diff:', result.errors)
             // Reset isDiffReady on failure
-            batchedUpdate({ isDiffReady: false })
+            batchedUpdate({
+              isDiffReady: false,
+              diffError: result.errors?.join(', ') || 'Failed to merge diff',
+            })
             throw new Error(result.errors?.join(', ') || 'Failed to merge diff')
           }
         },
@@ -185,6 +239,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             diffWorkflow: null,
             diffAnalysis: null,
             diffMetadata: null,
+            diffError: null,
           })
         },
 
@@ -248,48 +303,49 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
             logger.info('Successfully applied diff workflow to main store')
 
-            // Persist to database
-            try {
-              logger.info('Persisting accepted diff changes to database')
-
-              const response = await fetch(`/api/workflows/${activeWorkflowId}/state`, {
-                method: 'PUT',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  ...cleanState,
-                  lastSaved: Date.now(),
-                }),
-              })
-
-              if (!response.ok) {
-                const errorData = await response.json()
-                logger.error('Failed to persist accepted diff to database:', errorData)
-                throw new Error(errorData.error || `Failed to save: ${response.statusText}`)
-              }
-
-              const result = await response.json()
-              logger.info('Successfully persisted accepted diff to database', {
-                blocksCount: result.blocksCount,
-                edgesCount: result.edgesCount,
-              })
-            } catch (persistError) {
-              logger.error('Failed to persist accepted diff to database:', persistError)
-              // Don't throw here - the store is already updated, so the UI is correct
-              logger.warn('Diff was applied to local stores but not persisted to database')
-            }
-
-            // Clear the diff
+            // Optimistically clear the diff immediately so UI updates instantly
             get().clearDiff()
 
-            // Update copilot tool call state to 'accepted'
-            try {
-              const { useCopilotStore } = await import('@/stores/copilot/store')
-              useCopilotStore.getState().updatePreviewToolCallState('accepted')
-            } catch (error) {
-              logger.warn('Failed to update copilot tool call state after accept:', error)
-            }
+            // Fire-and-forget: persist to database and update copilot state in the background
+
+            ;(async () => {
+              try {
+                logger.info('Persisting accepted diff changes to database')
+
+                const response = await fetch(`/api/workflows/${activeWorkflowId}/state`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    ...cleanState,
+                    lastSaved: Date.now(),
+                  }),
+                })
+
+                if (!response.ok) {
+                  const errorData = await response.json().catch(() => ({}))
+                  logger.error('Failed to persist accepted diff to database:', errorData)
+                } else {
+                  const result = await response.json().catch(() => ({}))
+                  logger.info('Successfully persisted accepted diff to database', {
+                    blocksCount: (result as any)?.blocksCount,
+                    edgesCount: (result as any)?.edgesCount,
+                  })
+                }
+              } catch (persistError) {
+                logger.error('Failed to persist accepted diff to database:', persistError)
+                logger.warn('Diff was applied to local stores but not persisted to database')
+              }
+
+              // Update copilot tool call state to 'accepted'
+              try {
+                const { useCopilotStore } = await import('@/stores/copilot/store')
+                useCopilotStore.getState().updatePreviewToolCallState('accepted')
+              } catch (error) {
+                logger.warn('Failed to update copilot tool call state after accept:', error)
+              }
+            })()
           } catch (error) {
             logger.error('Failed to accept changes:', error)
             throw error

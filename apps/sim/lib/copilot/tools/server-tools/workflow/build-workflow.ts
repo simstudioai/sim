@@ -1,5 +1,6 @@
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
@@ -7,8 +8,7 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 import { BaseCopilotTool } from '../base'
 
 // Sim Agent API configuration
-const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = env.SIM_AGENT_API_KEY
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 interface BuildWorkflowParams {
   yamlContent: string
@@ -71,7 +71,6 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
       },
       body: JSON.stringify({
         yamlContent,

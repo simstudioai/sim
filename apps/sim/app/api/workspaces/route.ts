@@ -113,64 +113,6 @@ async function createWorkspace(userId: string, name: string) {
 
       // Create initial workflow for the workspace with start block
       const starterId = crypto.randomUUID()
-      const initialState = {
-        blocks: {
-          [starterId]: {
-            id: starterId,
-            type: 'starter',
-            name: 'Start',
-            position: { x: 100, y: 100 },
-            subBlocks: {
-              startWorkflow: {
-                id: 'startWorkflow',
-                type: 'dropdown',
-                value: 'manual',
-              },
-              webhookPath: {
-                id: 'webhookPath',
-                type: 'short-input',
-                value: '',
-              },
-              webhookSecret: {
-                id: 'webhookSecret',
-                type: 'short-input',
-                value: '',
-              },
-              scheduleType: {
-                id: 'scheduleType',
-                type: 'dropdown',
-                value: 'daily',
-              },
-              minutesInterval: {
-                id: 'minutesInterval',
-                type: 'short-input',
-                value: '',
-              },
-              minutesStartingAt: {
-                id: 'minutesStartingAt',
-                type: 'short-input',
-                value: '',
-              },
-            },
-            outputs: {
-              response: { type: { input: 'any' } },
-            },
-            enabled: true,
-            horizontalHandles: true,
-            isWide: false,
-            advancedMode: false,
-            height: 95,
-          },
-        },
-        edges: [],
-        subflows: {},
-        variables: {},
-        metadata: {
-          version: '1.0.0',
-          createdAt: now.toISOString(),
-          updatedAt: now.toISOString(),
-        },
-      }
 
       // Create the workflow
       await tx.insert(workflow).values({
@@ -180,7 +122,6 @@ async function createWorkspace(userId: string, name: string) {
         folderId: null,
         name: 'default-agent',
         description: 'Your first workflow - start building here!',
-        state: initialState,
         color: '#3972F6',
         lastSynced: now,
         createdAt: now,

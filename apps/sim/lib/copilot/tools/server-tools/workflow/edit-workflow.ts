@@ -1,5 +1,6 @@
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
@@ -8,8 +9,7 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 const logger = createLogger('EditWorkflowAPI')
 
 // Sim Agent API configuration
-const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = env.SIM_AGENT_API_KEY
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 // Types for operations
 interface EditWorkflowOperation {
@@ -46,7 +46,6 @@ async function applyOperationsToYaml(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
     },
     body: JSON.stringify({
       yamlContent: currentYaml,
@@ -353,24 +352,8 @@ async function getUserWorkflow(workflowId: string): Promise<string> {
         }
       })
     })
-  } else if (workflowRecord.state) {
-    // Fallback to JSON blob
-    const jsonState = workflowRecord.state as any
-    workflowState = {
-      blocks: jsonState.blocks || {},
-      edges: jsonState.edges || [],
-      loops: jsonState.loops || {},
-      parallels: jsonState.parallels || {},
-    }
-    // For JSON blob, subblock values are embedded in the block state
-    Object.entries((workflowState.blocks as any) || {}).forEach(([blockId, block]) => {
-      subBlockValues[blockId] = {}
-      Object.entries((block as any).subBlocks || {}).forEach(([subBlockId, subBlock]) => {
-        if ((subBlock as any).value !== undefined) {
-          subBlockValues[blockId][subBlockId] = (subBlock as any).value
-        }
-      })
-    })
+  } else {
+    throw new Error('Workflow has no normalized data')
   }
 
   if (!workflowState || !workflowState.blocks) {
@@ -481,7 +464,6 @@ async function editWorkflow(params: EditWorkflowParams): Promise<EditWorkflowRes
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
     },
     body: JSON.stringify({
       workflowState,

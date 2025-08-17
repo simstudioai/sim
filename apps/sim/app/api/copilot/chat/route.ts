@@ -1,3 +1,4 @@
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -13,6 +14,7 @@ import { getCopilotModel } from '@/lib/copilot/config'
 import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { downloadFile } from '@/lib/uploads'
 import { downloadFromS3WithConfig } from '@/lib/uploads/s3/s3-client'
 import { S3_COPILOT_CONFIG, USE_S3_STORAGE } from '@/lib/uploads/setup'
@@ -22,6 +24,37 @@ import { executeProviderRequest } from '@/providers'
 import { createAnthropicFileContent, isSupportedFileType } from './file-utils'
 
 const logger = createLogger('CopilotChatAPI')
+
+// Sim Agent API configuration
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
+
+function deriveKey(keyString: string): Buffer {
+  return createHash('sha256').update(keyString, 'utf8').digest()
+}
+
+function decryptWithKey(encryptedValue: string, keyString: string): string {
+  const [ivHex, encryptedHex, authTagHex] = encryptedValue.split(':')
+  if (!ivHex || !encryptedHex || !authTagHex) {
+    throw new Error('Invalid encrypted format')
+  }
+  const key = deriveKey(keyString)
+  const iv = Buffer.from(ivHex, 'hex')
+  const decipher = createDecipheriv('aes-256-gcm', key, iv)
+  decipher.setAuthTag(Buffer.from(authTagHex, 'hex'))
+  let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
+  decrypted += decipher.final('utf8')
+  return decrypted
+}
+
+function encryptWithKey(plaintext: string, keyString: string): string {
+  const key = deriveKey(keyString)
+  const iv = randomBytes(16)
+  const cipher = createCipheriv('aes-256-gcm', key, iv)
+  let encrypted = cipher.update(plaintext, 'utf8', 'hex')
+  encrypted += cipher.final('hex')
+  const authTag = cipher.getAuthTag().toString('hex')
+  return `${iv.toString('hex')}:${encrypted}:${authTag}`
+}
 
 // Schema for file attachments
 const FileAttachmentSchema = z.object({
@@ -47,10 +80,6 @@ const ChatMessageSchema = z.object({
   provider: z.string().optional().default('openai'),
   conversationId: z.string().optional(),
 })
-
-// Sim Agent API configuration
-const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = env.SIM_AGENT_API_KEY
 
 /**
  * Generate a chat title using LLM
@@ -179,6 +208,7 @@ export async function POST(req: NextRequest) {
       hasImplicitFeedback: !!implicitFeedback,
       provider: provider || 'openai',
       hasConversationId: !!conversationId,
+      depth,
     })
 
     // Handle chat context
@@ -341,34 +371,64 @@ export async function POST(req: NextRequest) {
       (currentChat?.conversationId as string | undefined) || conversationId
 
     // If we have a conversationId, only send the most recent user message; else send full history
-    const messagesForAgent = effectiveConversationId ? [messages[messages.length - 1]] : messages
+    const latestUserMessage =
+      [...messages].reverse().find((m) => m?.role === 'user') || messages[messages.length - 1]
+    const messagesForAgent = effectiveConversationId ? [latestUserMessage] : messages
+
+    const requestPayload = {
+      messages: messagesForAgent,
+      workflowId,
+      userId: authenticatedUserId,
+      stream: stream,
+      streamToolCalls: true,
+      mode: mode,
+      provider: providerToUse,
+      ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
+      ...(typeof depth === 'number' ? { depth } : {}),
+      ...(session?.user?.name && { userName: session.user.name }),
+    }
+
+    // Log the payload being sent to the streaming endpoint
+    try {
+      logger.info(`[${tracker.requestId}] Sending payload to sim agent streaming endpoint`, {
+        url: `${SIM_AGENT_API_URL}/api/chat-completion-streaming`,
+        provider: providerToUse,
+        mode,
+        stream,
+        workflowId,
+        hasConversationId: !!effectiveConversationId,
+        depth: typeof depth === 'number' ? depth : undefined,
+        messagesCount: requestPayload.messages.length,
+      })
+      // Full payload as JSON string
+      logger.info(
+        `[${tracker.requestId}] Full streaming payload: ${JSON.stringify(requestPayload)}`
+      )
+    } catch (e) {
+      logger.warn(`[${tracker.requestId}] Failed to log payload preview for streaming endpoint`, e)
+    }
 
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
+        ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
       },
-      body: JSON.stringify({
-        messages: messagesForAgent,
-        workflowId,
-        userId: authenticatedUserId,
-        stream: stream,
-        streamToolCalls: true,
-        mode: mode,
-        provider: providerToUse,
-        ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
-        ...(typeof depth === 'number' ? { depth } : {}),
-        ...(session?.user?.name && { userName: session.user.name }),
-      }),
+      body: JSON.stringify(requestPayload),
     })
 
     if (!simAgentResponse.ok) {
-      const errorText = await simAgentResponse.text()
+      if (simAgentResponse.status === 401 || simAgentResponse.status === 402) {
+        // Rethrow status only; client will render appropriate assistant message
+        return new NextResponse(null, { status: simAgentResponse.status })
+      }
+
+      const errorText = await simAgentResponse.text().catch(() => '')
       logger.error(`[${tracker.requestId}] Sim agent API error:`, {
         status: simAgentResponse.status,
         error: errorText,
       })
+
       return NextResponse.json(
         { error: `Sim agent API error: ${simAgentResponse.statusText}` },
         { status: simAgentResponse.status }
@@ -654,7 +714,7 @@ export async function POST(req: NextRequest) {
                 )
               }
 
-              const responseId = responseIdFromDone || responseIdFromStart
+              const responseId = responseIdFromDone
 
               // Update chat in database immediately (without title)
               await db

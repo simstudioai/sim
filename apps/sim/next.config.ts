@@ -208,13 +208,13 @@ const nextConfig: NextConfig = {
           source: '/((?!api|_next|_vercel|favicon|static|.*\\..*).*)',
           destination: 'https://www.sim.ai/$1',
           permanent: true,
-          has: [{ type: 'host', key: 'host', value: 'simstudio.ai' }],
+          has: [{ type: 'host' as const, value: 'simstudio.ai' }],
         },
         {
           source: '/((?!api|_next|_vercel|favicon|static|.*\\..*).*)',
           destination: 'https://www.sim.ai/$1',
           permanent: true,
-          has: [{ type: 'host', key: 'host', value: 'www.simstudio.ai' }],
+          has: [{ type: 'host' as const, value: 'www.simstudio.ai' }],
         }
       )
     }

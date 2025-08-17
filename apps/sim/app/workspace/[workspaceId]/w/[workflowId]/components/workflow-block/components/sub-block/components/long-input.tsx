@@ -389,6 +389,8 @@ export function LongInput({
             fontFamily: 'inherit',
             lineHeight: 'inherit',
             height: `${height}px`,
+            wordBreak: 'break-word',
+            whiteSpace: 'pre-wrap',
           }}
         />
         <div
@@ -397,7 +399,7 @@ export function LongInput({
           style={{
             fontFamily: 'inherit',
             lineHeight: 'inherit',
-            width: textareaRef.current ? `${textareaRef.current.clientWidth}px` : '100%',
+            width: '100%',
             height: `${height}px`,
             overflow: 'hidden',
           }}

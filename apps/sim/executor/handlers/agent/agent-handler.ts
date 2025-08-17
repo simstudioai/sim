@@ -317,11 +317,13 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private addUserPrompt(messages: Message[], userPrompt: any) {
-    let content = userPrompt
+    let content: string
     if (typeof userPrompt === 'object' && userPrompt.input) {
-      content = userPrompt.input
+      content = String(userPrompt.input)
     } else if (typeof userPrompt === 'object') {
       content = JSON.stringify(userPrompt)
+    } else {
+      content = String(userPrompt)
     }
 
     messages.push({ role: 'user', content })

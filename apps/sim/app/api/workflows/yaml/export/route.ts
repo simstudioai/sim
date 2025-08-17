@@ -14,9 +14,6 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 
 const logger = createLogger('WorkflowYamlExportAPI')
 
-// Get API key at module level like working routes
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
-
 export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const url = new URL(request.url)
@@ -88,14 +85,10 @@ export async function GET(request: NextRequest) {
         edgesCount: normalizedData.edges.length,
       })
 
-      // Use normalized table data - reconstruct complete state object
-      const existingState =
-        workflowData.state && typeof workflowData.state === 'object' ? workflowData.state : {}
-
+      // Use normalized table data - construct state from normalized tables
       workflowState = {
         deploymentStatuses: {},
         hasActiveWebhook: false,
-        ...existingState,
         blocks: normalizedData.blocks,
         edges: normalizedData.edges,
         loops: normalizedData.loops,
@@ -119,33 +112,10 @@ export async function GET(request: NextRequest) {
 
       logger.info(`[${requestId}] Loaded workflow ${workflowId} from normalized tables`)
     } else {
-      // Fallback to JSON blob
-      logger.info(
-        `[${requestId}] Using JSON blob for workflow ${workflowId} - no normalized data found`
+      return NextResponse.json(
+        { success: false, error: 'Workflow has no normalized data' },
+        { status: 400 }
       )
-
-      if (!workflowData.state || typeof workflowData.state !== 'object') {
-        return NextResponse.json(
-          { success: false, error: 'Workflow has no valid state data' },
-          { status: 400 }
-        )
-      }
-
-      workflowState = workflowData.state as any
-
-      // Extract subblock values from JSON blob state
-      if (workflowState.blocks) {
-        Object.entries(workflowState.blocks).forEach(([blockId, block]: [string, any]) => {
-          subBlockValues[blockId] = {}
-          if (block.subBlocks) {
-            Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]: [string, any]) => {
-              if (subBlock && typeof subBlock === 'object' && 'value' in subBlock) {
-                subBlockValues[blockId][subBlockId] = subBlock.value
-              }
-            })
-          }
-        })
-      }
     }
 
     // Gather block registry and utilities for sim-agent
@@ -176,7 +146,6 @@ export async function GET(request: NextRequest) {
           resolveOutputType: resolveOutputType.toString(),
         },
       },
-      apiKey: SIM_AGENT_API_KEY,
     })
 
     if (!result.success || !result.data?.yaml) {

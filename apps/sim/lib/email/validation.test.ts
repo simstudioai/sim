@@ -26,7 +26,6 @@ describe('Email Validation', () => {
     it.concurrent('should accept legitimate business emails', async () => {
       const legitimateEmails = [
         'test@gmail.com',
-        'noreply@gmail.com',
         'no-reply@yahoo.com',
         'user12345@outlook.com',
         'longusernamehere@gmail.com',

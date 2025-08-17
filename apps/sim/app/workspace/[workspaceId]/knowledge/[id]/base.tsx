@@ -86,7 +86,7 @@ const getStatusDisplay = (doc: DocumentData) => {
           </>
         ),
         className:
-          'inline-flex items-center rounded-md bg-[var(--brand-primary-hex)]/10 px-2 py-1 text-xs font-medium text-[var(--brand-primary-hex)] dark:bg-[var(--brand-primary-hex)]/20 dark:text-[var(--brand-primary-hex)]',
+          'inline-flex items-center rounded-md bg-purple-100 px-2 py-1 text-xs font-medium text-[var(--brand-primary-hex)] dark:bg-purple-900/30 dark:text-[var(--brand-primary-hex)]',
       }
     case 'failed':
       return {
