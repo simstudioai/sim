@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { logger } from '@sentry/nextjs'
-import { Folder, Plus, Upload } from 'lucide-react'
+import { Download, Folder, Plus } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -359,7 +359,7 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
               onClick={handleImportWorkflow}
               disabled={isImporting}
             >
-              <Upload className={iconClassName} />
+              <Download className={iconClassName} />
               <span className={textClassName}>
                 {isImporting ? 'Importing...' : 'Import workflow'}
               </span>
