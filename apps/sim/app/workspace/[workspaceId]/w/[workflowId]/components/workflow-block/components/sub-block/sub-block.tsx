@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
 import { Label, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
 import { cn } from '@/lib/utils'
+import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
 import {
   ChannelSelectorInput,
   CheckboxList,
@@ -43,7 +44,7 @@ interface SubBlockProps {
   isPreview?: boolean
   subBlockValues?: Record<string, any>
   disabled?: boolean
-  fieldDiffStatus?: 'changed' | 'unchanged'
+  fieldDiffStatus?: FieldDiffStatus
   allowExpandInPreview?: boolean
 }
 

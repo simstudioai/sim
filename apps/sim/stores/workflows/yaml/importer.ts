@@ -338,7 +338,7 @@ export function convertYamlToWorkflow(yamlWorkflow: YamlWorkflow): ImportResult 
       importedBlock.data = {
         width: 500,
         height: 300,
-        type: yamlBlock.type === 'loop' ? 'loopNode' : 'parallelNode',
+        type: 'subflowNode',
         // Map YAML inputs to data properties for loop/parallel blocks
         ...(yamlBlock.inputs || {}),
       }

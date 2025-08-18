@@ -5,12 +5,14 @@ import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import { cn } from '@/lib/utils'
 import { getBlock } from '@/blocks'
+import type { BlockConfig } from '@/blocks/types'
 import { Serializer } from '@/serializer'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTool } from '@/tools/utils'
 import { getTriggersByProvider } from '@/triggers'
 
@@ -51,8 +53,8 @@ export const checkTagTrigger = (text: string, cursorPosition: number): { show: b
 const BLOCK_COLORS = {
   VARIABLE: '#2F8BFF',
   DEFAULT: '#2F55FF',
-  LOOP: '#8857E6',
-  PARALLEL: '#FF5757',
+  LOOP: '#2FB3FF',
+  PARALLEL: '#FEE12B',
 } as const
 
 const TAG_PREFIXES = {
@@ -73,11 +75,11 @@ const getSubBlockValue = (blockId: string, property: string): any => {
 
 const createTagEventHandlers = (
   tag: string,
-  group: any,
+  group: BlockTagGroup | undefined,
   tagIndex: number,
-  handleTagSelect: (tag: string, group?: any) => void,
+  handleTagSelect: (tag: string, group?: BlockTagGroup) => void,
   setSelectedIndex: (index: number) => void,
-  setHoveredNested: (value: any) => void
+  setHoveredNested: (value: { tag: string; index: number } | null) => void
 ) => ({
   onMouseEnter: () => {
     setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)
@@ -96,8 +98,8 @@ const createTagEventHandlers = (
 })
 
 const getOutputTypeForPath = (
-  block: any,
-  blockConfig: any,
+  block: BlockState,
+  blockConfig: BlockConfig | null,
   blockId: string,
   outputPath: string
 ): string => {
@@ -137,7 +139,9 @@ const getOutputTypeForPath = (
     // For API mode, check inputFormat for custom field types
     const inputFormatValue = getSubBlockValue(blockId, 'inputFormat')
     if (inputFormatValue && Array.isArray(inputFormatValue)) {
-      const field = inputFormatValue.find((f: any) => f.name === outputPath)
+      const field = inputFormatValue.find(
+        (f: { name?: string; type?: string }) => f.name === outputPath
+      )
       if (field?.type) {
         return field.type
       }
@@ -224,7 +228,7 @@ const generateOutputPathsWithTypes = (
   return paths
 }
 
-const generateToolOutputPaths = (blockConfig: any, operation: string): string[] => {
+const generateToolOutputPaths = (blockConfig: BlockConfig, operation: string): string[] => {
   if (!blockConfig?.tools?.config?.tool) return []
 
   try {
@@ -244,7 +248,7 @@ const generateToolOutputPaths = (blockConfig: any, operation: string): string[] 
   }
 }
 
-const getToolOutputType = (blockConfig: any, operation: string, path: string): string => {
+const getToolOutputType = (blockConfig: BlockConfig, operation: string, path: string): string => {
   if (!blockConfig?.tools?.config?.tool) return 'any'
 
   try {
@@ -366,9 +370,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         const metricsValue = getSubBlockValue(activeSourceBlockId, 'metrics')
 
         if (metricsValue && Array.isArray(metricsValue) && metricsValue.length > 0) {
-          const validMetrics = metricsValue.filter((metric: any) => metric?.name)
+          const validMetrics = metricsValue.filter((metric: { name?: string }) => metric?.name)
           blockTags = validMetrics.map(
-            (metric: any) => `${normalizedBlockName}.${metric.name.toLowerCase()}`
+            (metric: { name: string }) => `${normalizedBlockName}.${metric.name.toLowerCase()}`
           )
         } else {
           const outputPaths = generateOutputPaths(blockConfig.outputs)
@@ -402,8 +406,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               inputFormatValue.length > 0
             ) {
               blockTags = inputFormatValue
-                .filter((field: any) => field.name && field.name.trim() !== '')
-                .map((field: any) => `${normalizedBlockName}.${field.name}`)
+                .filter((field: { name?: string }) => field.name && field.name.trim() !== '')
+                .map((field: { name: string }) => `${normalizedBlockName}.${field.name}`)
             } else {
               blockTags = [normalizedBlockName]
             }
@@ -556,9 +560,14 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     )
     let containingParallelBlockId: string | null = null
     if (containingParallel) {
-      const [parallelId] = containingParallel
+      const [parallelId, parallel] = containingParallel
       containingParallelBlockId = parallelId
-      const contextualTags: string[] = ['index', 'currentItem', 'items']
+      const parallelType = parallel.parallelType || 'count'
+      const contextualTags: string[] = ['index']
+      if (parallelType === 'collection') {
+        contextualTags.push('currentItem')
+        contextualTags.push('items')
+      }
 
       const containingParallelBlock = blocks[parallelId]
       if (containingParallelBlock) {
@@ -629,9 +638,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         const metricsValue = getSubBlockValue(accessibleBlockId, 'metrics')
 
         if (metricsValue && Array.isArray(metricsValue) && metricsValue.length > 0) {
-          const validMetrics = metricsValue.filter((metric: any) => metric?.name)
+          const validMetrics = metricsValue.filter((metric: { name?: string }) => metric?.name)
           blockTags = validMetrics.map(
-            (metric: any) => `${normalizedBlockName}.${metric.name.toLowerCase()}`
+            (metric: { name: string }) => `${normalizedBlockName}.${metric.name.toLowerCase()}`
           )
         } else {
           const outputPaths = generateOutputPaths(blockConfig.outputs)
@@ -665,8 +674,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               inputFormatValue.length > 0
             ) {
               blockTags = inputFormatValue
-                .filter((field: any) => field.name && field.name.trim() !== '')
-                .map((field: any) => `${normalizedBlockName}.${field.name}`)
+                .filter((field: { name?: string }) => field.name && field.name.trim() !== '')
+                .map((field: { name: string }) => `${normalizedBlockName}.${field.name}`)
             } else {
               blockTags = [normalizedBlockName]
             }
@@ -880,8 +889,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           liveCursor = activeEl.selectionStart ?? cursorPosition
           // Prefer the active element value if present. This ensures we include the most
           // recently typed character(s) that might not yet be reflected in React state.
-          if (typeof (activeEl as any).value === 'string') {
-            liveValue = (activeEl as any).value
+          if ('value' in activeEl && typeof activeEl.value === 'string') {
+            liveValue = activeEl.value
           }
         }
       }
@@ -1289,7 +1298,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
                                 tagDescription = getOutputTypeForPath(
                                   block,
-                                  blockConfig,
+                                  blockConfig || null,
                                   group.blockId,
                                   outputPath
                                 )
@@ -1429,7 +1438,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
                                         childType = getOutputTypeForPath(
                                           block,
-                                          blockConfig,
+                                          blockConfig || null,
                                           group.blockId,
                                           childOutputPath
                                         )

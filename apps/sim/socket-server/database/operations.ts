@@ -490,11 +490,25 @@ async function handleBlockOperationTx(
         throw new Error('Missing block ID for update parent operation')
       }
 
+      // Fetch current parent to update subflow node list when detaching or reparenting
+      const [existing] = await tx
+        .select({
+          id: workflowBlocks.id,
+          parentId: workflowBlocks.parentId,
+        })
+        .from(workflowBlocks)
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .limit(1)
+
+      const isRemovingFromParent = !payload.parentId
+
       const updateResult = await tx
         .update(workflowBlocks)
         .set({
-          parentId: payload.parentId || null,
-          extent: payload.extent || null,
+          parentId: isRemovingFromParent ? null : payload.parentId || null,
+          extent: isRemovingFromParent ? null : payload.extent || null,
+          // When removing from a subflow, also clear data JSON entirely
+          ...(isRemovingFromParent ? { data: {} } : {}),
           updatedAt: new Date(),
         })
         .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
@@ -504,13 +518,19 @@ async function handleBlockOperationTx(
         throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
       }
 
-      // If the block now has a parent, update the parent's subflow node list
+      // If the block now has a parent, update the new parent's subflow node list
       if (payload.parentId) {
         await updateSubflowNodeList(tx, workflowId, payload.parentId)
       }
+      // If the block had a previous parent, update that parent's node list as well
+      if (existing?.parentId && existing.parentId !== payload.parentId) {
+        await updateSubflowNodeList(tx, workflowId, existing.parentId)
+      }
 
       logger.debug(
-        `Updated block parent: ${payload.id} -> parent: ${payload.parentId}, extent: ${payload.extent}`
+        `Updated block parent: ${payload.id} -> parent: ${payload.parentId || 'null'}, extent: ${payload.extent || 'null'}${
+          isRemovingFromParent ? ' (cleared data JSON)' : ''
+        }`
       )
       break
     }
@@ -807,7 +827,7 @@ async function handleSubflowOperationTx(
               collection: payload.config.forEachItems,
               width: 500,
               height: 300,
-              type: 'loopNode',
+              type: 'subflowNode',
             },
             updatedAt: new Date(),
           })
@@ -818,7 +838,7 @@ async function handleSubflowOperationTx(
           ...payload.config,
           width: 500,
           height: 300,
-          type: 'parallelNode',
+          type: 'subflowNode',
         }
 
         // Include count if provided
