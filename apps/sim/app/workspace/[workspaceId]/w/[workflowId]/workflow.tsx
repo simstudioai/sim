@@ -352,26 +352,13 @@ const WorkflowContent = React.memo(() => {
         // Remove parent-child relationship while preserving absolute position
         updateNodeParent(blockId, null)
 
-        // Clean up any edges that now cross container boundaries for this block
-        const rfNodes = getNodes()
-        const sourceOrTargetEdges = edgesForDisplay.filter(
+        // Remove all edges connected to this block
+        const connectedEdges = edgesForDisplay.filter(
           (e) => e.source === blockId || e.target === blockId
         )
 
-        sourceOrTargetEdges.forEach((edge) => {
-          const sourceNode = rfNodes.find((n) => n.id === edge.source)
-          const targetNode = rfNodes.find((n) => n.id === edge.target)
-          const sourceParent = sourceNode?.parentId
-          const targetParent = targetNode?.parentId
-
-          const crossesBoundary =
-            (sourceParent && !targetParent) ||
-            (!sourceParent && targetParent) ||
-            (sourceParent && targetParent && sourceParent !== targetParent)
-
-          if (crossesBoundary) {
-            removeEdge(edge.id)
-          }
+        connectedEdges.forEach((edge) => {
+          removeEdge(edge.id)
         })
       } catch (err) {
         logger.error('Failed to remove from subflow', { err })
