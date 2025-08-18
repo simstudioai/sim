@@ -28,6 +28,34 @@ const logger = createLogger('CopilotChatAPI')
 // Sim Agent API configuration
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
+function getRequestOrigin(req: NextRequest): string {
+  try {
+    // Prefer forwarded headers when behind proxies/CDNs
+    const forwardedProto = req.headers.get('x-forwarded-proto') || undefined
+    const forwardedHost = req.headers.get('x-forwarded-host') || undefined
+    if (forwardedHost) {
+      const proto = forwardedProto || 'https'
+      return `${proto}://${forwardedHost}`
+    }
+
+    // Fallback to the request URL origin (works in dev and test)
+    if (req.nextUrl?.origin) {
+      return req.nextUrl.origin
+    }
+
+    // Fallback to Host header with sensible protocol default
+    const host = req.headers.get('host')
+    if (host) {
+      const proto = process.env.NODE_ENV === 'development' ? 'http' : 'https'
+      return `${proto}://${host}`
+    }
+  } catch (_) {
+    // ignore and use default below
+  }
+  // Final fallback for unknown environments
+  return ''
+}
+
 function deriveKey(keyString: string): Buffer {
   return createHash('sha256').update(keyString, 'utf8').digest()
 }
@@ -197,6 +225,9 @@ export async function POST(req: NextRequest) {
       conversationId,
     } = ChatMessageSchema.parse(body)
 
+    // Derive request origin for downstream service
+    const requestOrigin = getRequestOrigin(req)
+
     logger.info(`[${tracker.requestId}] Processing copilot chat request`, {
       userId: authenticatedUserId,
       workflowId,
@@ -209,6 +240,7 @@ export async function POST(req: NextRequest) {
       provider: provider || 'openai',
       hasConversationId: !!conversationId,
       depth,
+      origin: requestOrigin,
     })
 
     // Handle chat context
@@ -386,6 +418,7 @@ export async function POST(req: NextRequest) {
       ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
       ...(typeof depth === 'number' ? { depth } : {}),
       ...(session?.user?.name && { userName: session.user.name }),
+      ...(requestOrigin ? { origin: requestOrigin } : {}),
     }
 
     // Log the payload being sent to the streaming endpoint
@@ -396,10 +429,11 @@ export async function POST(req: NextRequest) {
         mode,
         stream,
         workflowId,
-        hasConversationId: !!effectiveConversationId,
-        depth: typeof depth === 'number' ? depth : undefined,
-        messagesCount: requestPayload.messages.length,
-      })
+              hasConversationId: !!effectiveConversationId,
+      depth: typeof depth === 'number' ? depth : undefined,
+      messagesCount: requestPayload.messages.length,
+      ...(requestOrigin ? { origin: requestOrigin } : {}),
+    })
       // Full payload as JSON string
       logger.info(
         `[${tracker.requestId}] Full streaming payload: ${JSON.stringify(requestPayload)}`

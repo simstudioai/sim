@@ -212,20 +212,21 @@ describe('Copilot Chat API Route', () => {
             'x-api-key': 'test-sim-agent-key',
           },
           body: JSON.stringify({
-            messages: [
-              {
-                role: 'user',
-                content: 'Hello',
-              },
-            ],
-            workflowId: 'workflow-123',
-            userId: 'user-123',
-            stream: true,
-            streamToolCalls: true,
-            mode: 'agent',
-            provider: 'openai',
-            depth: 0,
-          }),
+             messages: [
+               {
+                 role: 'user',
+                 content: 'Hello',
+               },
+             ],
+             workflowId: 'workflow-123',
+             userId: 'user-123',
+             stream: true,
+             streamToolCalls: true,
+             mode: 'agent',
+             provider: 'openai',
+             depth: 0,
+             origin: 'http://localhost:3000',
+           }),
         })
       )
     })
@@ -276,19 +277,20 @@ describe('Copilot Chat API Route', () => {
         'http://localhost:8000/api/chat-completion-streaming',
         expect.objectContaining({
           body: JSON.stringify({
-            messages: [
-              { role: 'user', content: 'Previous message' },
-              { role: 'assistant', content: 'Previous response' },
-              { role: 'user', content: 'New message' },
-            ],
-            workflowId: 'workflow-123',
-            userId: 'user-123',
-            stream: true,
-            streamToolCalls: true,
-            mode: 'agent',
-            provider: 'openai',
-            depth: 0,
-          }),
+             messages: [
+               { role: 'user', content: 'Previous message' },
+               { role: 'assistant', content: 'Previous response' },
+               { role: 'user', content: 'New message' },
+             ],
+             workflowId: 'workflow-123',
+             userId: 'user-123',
+             stream: true,
+             streamToolCalls: true,
+             mode: 'agent',
+             provider: 'openai',
+             depth: 0,
+             origin: 'http://localhost:3000',
+           }),
         })
       )
     })
@@ -332,18 +334,19 @@ describe('Copilot Chat API Route', () => {
         'http://localhost:8000/api/chat-completion-streaming',
         expect.objectContaining({
           body: JSON.stringify({
-            messages: [
-              { role: 'system', content: 'User seems confused about the workflow' },
-              { role: 'user', content: 'Hello' },
-            ],
-            workflowId: 'workflow-123',
-            userId: 'user-123',
-            stream: true,
-            streamToolCalls: true,
-            mode: 'agent',
-            provider: 'openai',
-            depth: 0,
-          }),
+             messages: [
+               { role: 'system', content: 'User seems confused about the workflow' },
+               { role: 'user', content: 'Hello' },
+             ],
+             workflowId: 'workflow-123',
+             userId: 'user-123',
+             stream: true,
+             streamToolCalls: true,
+             mode: 'agent',
+             provider: 'openai',
+             depth: 0,
+             origin: 'http://localhost:3000',
+           }),
         })
       )
     })
@@ -430,15 +433,16 @@ describe('Copilot Chat API Route', () => {
         'http://localhost:8000/api/chat-completion-streaming',
         expect.objectContaining({
           body: JSON.stringify({
-            messages: [{ role: 'user', content: 'What is this workflow?' }],
-            workflowId: 'workflow-123',
-            userId: 'user-123',
-            stream: true,
-            streamToolCalls: true,
-            mode: 'ask',
-            provider: 'openai',
-            depth: 0,
-          }),
+             messages: [{ role: 'user', content: 'What is this workflow?' }],
+             workflowId: 'workflow-123',
+             userId: 'user-123',
+             stream: true,
+             streamToolCalls: true,
+             mode: 'ask',
+             provider: 'openai',
+             depth: 0,
+             origin: 'http://localhost:3000',
+           }),
         })
       )
     })

@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { copilotToolRegistry } from '@/lib/copilot/tools/server-tools/registry'
 import type { NotificationStatus } from '@/lib/copilot/types'
-import { checkInternalApiKey } from '@/lib/copilot/utils'
+import { checkCopilotApiKey, checkInternalApiKey } from '@/lib/copilot/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
 import { createErrorResponse } from '@/app/api/copilot/methods/utils'
@@ -233,7 +233,7 @@ export async function POST(req: NextRequest) {
 
   try {
     // Check authentication (internal API key)
-    const authResult = checkInternalApiKey(req)
+    const authResult = checkInternalApiKey(req) || checkCopilotApiKey(req)
     if (!authResult.success) {
       return NextResponse.json(createErrorResponse(authResult.error || 'Authentication failed'), {
         status: 401,
