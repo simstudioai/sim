@@ -41,7 +41,7 @@ export const airtableWebhookTrigger: TriggerConfig = {
     airtableChanges: {
       type: 'array',
       description: 'Changes made to the Airtable table',
-    }
+    },
   },
 
   instructions: [

@@ -86,7 +86,8 @@ export const telegramWebhookTrigger: TriggerConfig = {
     },
     updateType: {
       type: 'string',
-      description: 'Type of update: message, edited_message, channel_post, edited_channel_post, unknown',
+      description:
+        'Type of update: message, edited_message, channel_post, edited_channel_post, unknown',
     },
   },
 
