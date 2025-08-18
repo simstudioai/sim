@@ -1,5 +1,8 @@
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console/logger'
+
+const logger = createLogger('CopilotUtils')
 
 export function checkInternalApiKey(req: NextRequest) {
   const apiKey = req.headers.get('x-api-key')
