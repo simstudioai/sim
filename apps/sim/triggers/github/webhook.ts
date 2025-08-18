@@ -519,3 +519,4 @@ export const githubWebhookTrigger: TriggerConfig = {
     },
   },
 }
+
