@@ -1,5 +1,4 @@
 export { AirtableConfig } from './airtable'
-export { DiscordConfig } from './discord'
 export { GenericConfig } from './generic'
 export { GithubConfig } from './github'
 export { GmailConfig } from './gmail'

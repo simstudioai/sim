@@ -2,10 +2,10 @@ import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
-import { getBlobServiceClient } from '@/lib/uploads/blob/blob-client'
-import { getS3Client, sanitizeFilenameForMetadata } from '@/lib/uploads/s3/s3-client'
+// Dynamic imports for storage clients to avoid client-side bundling
 import {
   BLOB_CHAT_CONFIG,
   BLOB_CONFIG,
@@ -55,6 +55,11 @@ class ValidationError extends PresignedUrlError {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     let data: PresignedUrlRequest
     try {
       data = await request.json()
@@ -62,7 +67,7 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('Invalid JSON in request body')
     }
 
-    const { fileName, contentType, fileSize, userId, chatId } = data
+    const { fileName, contentType, fileSize } = data
 
     if (!fileName?.trim()) {
       throw new ValidationError('fileName is required and cannot be empty')
@@ -91,10 +96,13 @@ export async function POST(request: NextRequest) {
             ? 'copilot'
             : 'general'
 
-    // Validate copilot-specific requirements
+    // Evaluate user id from session for copilot uploads
+    const sessionUserId = session.user.id
+
+    // Validate copilot-specific requirements (use session user)
     if (uploadType === 'copilot') {
-      if (!userId?.trim()) {
-        throw new ValidationError('userId is required for copilot uploads')
+      if (!sessionUserId?.trim()) {
+        throw new ValidationError('Authenticated user session is required for copilot uploads')
       }
     }
 
@@ -109,9 +117,21 @@ export async function POST(request: NextRequest) {
 
     switch (storageProvider) {
       case 's3':
-        return await handleS3PresignedUrl(fileName, contentType, fileSize, uploadType, userId)
+        return await handleS3PresignedUrl(
+          fileName,
+          contentType,
+          fileSize,
+          uploadType,
+          sessionUserId
+        )
       case 'blob':
-        return await handleBlobPresignedUrl(fileName, contentType, fileSize, uploadType, userId)
+        return await handleBlobPresignedUrl(
+          fileName,
+          contentType,
+          fileSize,
+          uploadType,
+          sessionUserId
+        )
       default:
         throw new StorageConfigError(`Unknown storage provider: ${storageProvider}`)
     }
@@ -169,6 +189,7 @@ async function handleS3PresignedUrl(
 
     const uniqueKey = `${prefix}${uuidv4()}-${safeFileName}`
 
+    const { sanitizeFilenameForMetadata } = await import('@/lib/uploads/s3/s3-client')
     const sanitizedOriginalName = sanitizeFilenameForMetadata(fileName)
 
     const metadata: Record<string, string> = {
@@ -194,6 +215,7 @@ async function handleS3PresignedUrl(
 
     let presignedUrl: string
     try {
+      const { getS3Client } = await import('@/lib/uploads/s3/s3-client')
       presignedUrl = await getSignedUrl(getS3Client(), command, { expiresIn: 3600 })
     } catch (s3Error) {
       logger.error('Failed to generate S3 presigned URL:', s3Error)
@@ -272,6 +294,7 @@ async function handleBlobPresignedUrl(
 
     const uniqueKey = `${prefix}${uuidv4()}-${safeFileName}`
 
+    const { getBlobServiceClient } = await import('@/lib/uploads/blob/blob-client')
     const blobServiceClient = getBlobServiceClient()
     const containerClient = blobServiceClient.getContainerClient(config.containerName)
     const blockBlobClient = containerClient.getBlockBlobClient(uniqueKey)

@@ -57,6 +57,7 @@ export interface SendMessageRequest {
   chatId?: string
   workflowId?: string
   mode?: 'ask' | 'agent'
+  depth?: 0 | 1 | 2 | 3
   createNewChat?: boolean
   stream?: boolean
   implicitFeedback?: string
@@ -70,6 +71,7 @@ export interface SendMessageRequest {
 export interface ApiResponse {
   success: boolean
   error?: string
+  status?: number
 }
 
 /**
@@ -85,7 +87,7 @@ export interface StreamingResponse extends ApiResponse {
 async function handleApiError(response: Response, defaultMessage: string): Promise<string> {
   try {
     const data = await response.json()
-    return data.error || defaultMessage
+    return (data && (data.error || data.message)) || defaultMessage
   } catch {
     return `${defaultMessage} (${response.status})`
   }
@@ -110,11 +112,19 @@ export async function sendStreamingMessage(
 
     if (!response.ok) {
       const errorMessage = await handleApiError(response, 'Failed to send streaming message')
-      throw new Error(errorMessage)
+      return {
+        success: false,
+        error: errorMessage,
+        status: response.status,
+      }
     }
 
     if (!response.body) {
-      throw new Error('No response body received')
+      return {
+        success: false,
+        error: 'No response body received',
+        status: 500,
+      }
     }
 
     return {

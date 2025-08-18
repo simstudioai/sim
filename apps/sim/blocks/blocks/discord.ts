@@ -212,6 +212,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
   },
   outputs: {
     message: { type: 'string', description: 'Message content' },
-    data: { type: 'any', description: 'Response data' },
+    data: { type: 'json', description: 'Response data' },
   },
 }

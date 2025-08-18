@@ -187,35 +187,33 @@ export function DiffControls() {
     }
   }
 
-  const handleAccept = () => {
-    logger.info('Accepting proposed changes (optimistic)')
+  const handleAccept = async () => {
+    logger.info('Accepting proposed changes with backup protection')
 
-    // Create checkpoint in the background (don't await to avoid blocking)
-    createCheckpoint()
-      .then((checkpointCreated) => {
-        if (!checkpointCreated) {
-          logger.warn('Checkpoint creation failed, but proceeding with accept')
-        } else {
-          logger.info('Checkpoint created successfully before accept')
-        }
-      })
-      .catch((error) => {
-        logger.error('Checkpoint creation failed:', error)
+    try {
+      // Clear preview YAML immediately
+      await clearPreviewYaml().catch((error) => {
+        logger.warn('Failed to clear preview YAML:', error)
       })
 
-    // Clear preview YAML immediately
-    clearPreviewYaml().catch((error) => {
-      logger.warn('Failed to clear preview YAML:', error)
-    })
+      // Accept changes with automatic backup and rollback on failure
+      await acceptChanges()
 
-    // Start background save without awaiting
-    acceptChanges().catch((error) => {
-      logger.error('Failed to accept changes in background:', error)
-      // TODO: Consider showing a toast notification for save failures
-      // For now, the optimistic update stands since the UI state is already correct
-    })
+      logger.info('Successfully accepted and saved workflow changes')
+      // Show success feedback if needed
+    } catch (error) {
+      logger.error('Failed to accept changes:', error)
 
-    logger.info('Optimistically applied changes, saving in background')
+      // Show error notification to user
+      // Note: The acceptChanges function has already rolled back the state
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+
+      // You could add toast notification here
+      console.error('Workflow update failed:', errorMessage)
+
+      // Optionally show user-facing error dialog
+      alert(`Failed to save workflow changes: ${errorMessage}`)
+    }
   }
 
   const handleReject = () => {

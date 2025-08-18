@@ -39,6 +39,8 @@ if (typeof document !== 'undefined') {
         -webkit-font-smoothing: antialiased !important;
         -moz-osx-font-smoothing: grayscale !important;
         text-rendering: optimizeLegibility !important;
+        max-width: 100% !important;
+        overflow: auto !important;
       }
       
       .dark .copilot-markdown-wrapper pre {
@@ -58,6 +60,24 @@ if (typeof document !== 'undefined') {
         -moz-osx-font-smoothing: grayscale !important;
         text-rendering: optimizeLegibility !important;
       }
+
+      /* Prevent any markdown content from expanding beyond the panel */
+      .copilot-markdown-wrapper, .copilot-markdown-wrapper * {
+        max-width: 100% !important;
+      }
+      .copilot-markdown-wrapper p, .copilot-markdown-wrapper li {
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+      }
+      .copilot-markdown-wrapper a {
+        overflow-wrap: anywhere !important;
+        word-break: break-all !important;
+      }
+      .copilot-markdown-wrapper code:not(pre code) {
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+      }
     `
     document.head.appendChild(style)
   }
@@ -70,7 +90,7 @@ function LinkWithPreview({ href, children }: { href: string; children: React.Rea
       <TooltipTrigger asChild>
         <a
           href={href}
-          className='text-blue-600 hover:underline dark:text-blue-400'
+          className='inline break-all text-blue-600 hover:underline dark:text-blue-400'
           target='_blank'
           rel='noopener noreferrer'
         >
@@ -257,7 +277,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
         if (inline) {
           return (
             <code
-              className='rounded bg-gray-200 px-1 py-0.5 font-mono text-[0.9em] text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+              className='whitespace-normal break-all rounded bg-gray-200 px-1 py-0.5 font-mono text-[0.9em] text-gray-800 dark:bg-gray-700 dark:text-gray-200'
               {...props}
             >
               {children}

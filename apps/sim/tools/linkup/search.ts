@@ -59,11 +59,6 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Linkup API error: ${response.status} ${errorText}`)
-    }
-
     const data: LinkupSearchResponse = await response.json()
 
     return {
@@ -75,7 +70,15 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
     }
   },
 
-  transformError: (error) => {
-    return `Error searching with Linkup: ${error.message}`
+  outputs: {
+    answer: {
+      type: 'string',
+      description: 'The sourced answer to the search query',
+    },
+    sources: {
+      type: 'array',
+      description:
+        'Array of sources used to compile the answer, each containing name, url, and snippet',
+    },
   },
 }

@@ -10,11 +10,13 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
   name: 'List SharePoint Sites',
   description: 'List details of all SharePoint sites',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'sharepoint',
     additionalScopes: ['openid', 'profile', 'email', 'Sites.Read.All', 'offline_access'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -35,6 +37,7 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
       description: 'The group ID for accessing a group team site',
     },
   },
+
   request: {
     url: (params) => {
       let baseUrl: string
@@ -67,12 +70,9 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
       Accept: 'application/json',
     }),
   },
+
   transformResponse: async (response: Response, params) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to read SharePoint site(s)')
-    }
 
     // Check if this is a search result (multiple sites) or single site
     if (data.value && Array.isArray(data.value)) {
@@ -111,7 +111,49 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
       },
     }
   },
-  transformError: (error) => {
-    return error.message || 'An error occurred while reading the SharePoint site'
+
+  outputs: {
+    site: {
+      type: 'object',
+      description: 'Information about the current SharePoint site',
+      properties: {
+        id: { type: 'string', description: 'The unique ID of the site' },
+        name: { type: 'string', description: 'The name of the site' },
+        displayName: { type: 'string', description: 'The display name of the site' },
+        webUrl: { type: 'string', description: 'The URL to access the site' },
+        description: { type: 'string', description: 'The description of the site' },
+        createdDateTime: { type: 'string', description: 'When the site was created' },
+        lastModifiedDateTime: { type: 'string', description: 'When the site was last modified' },
+        isPersonalSite: { type: 'boolean', description: 'Whether this is a personal site' },
+        root: {
+          type: 'object',
+          properties: {
+            serverRelativeUrl: { type: 'string', description: 'Server relative URL' },
+          },
+        },
+        siteCollection: {
+          type: 'object',
+          properties: {
+            hostname: { type: 'string', description: 'Site collection hostname' },
+          },
+        },
+      },
+    },
+    sites: {
+      type: 'array',
+      description: 'List of all accessible SharePoint sites',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'The unique ID of the site' },
+          name: { type: 'string', description: 'The name of the site' },
+          displayName: { type: 'string', description: 'The display name of the site' },
+          webUrl: { type: 'string', description: 'The URL to access the site' },
+          description: { type: 'string', description: 'The description of the site' },
+          createdDateTime: { type: 'string', description: 'When the site was created' },
+          lastModifiedDateTime: { type: 'string', description: 'When the site was last modified' },
+        },
+      },
+    },
   },
 }

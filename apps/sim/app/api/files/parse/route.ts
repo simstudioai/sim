@@ -7,7 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console/logger'
 import { downloadFile, isUsingCloudStorage } from '@/lib/uploads'
-import { UPLOAD_DIR } from '@/lib/uploads/setup'
+import { UPLOAD_DIR_SERVER } from '@/lib/uploads/setup.server'
 import '@/lib/uploads/setup.server'
 
 export const dynamic = 'force-dynamic'
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     const requestData = await request.json()
     const { filePath, fileType } = requestData
 
-    if (!filePath) {
+    if (!filePath || (typeof filePath === 'string' && filePath.trim() === '')) {
       return NextResponse.json({ success: false, error: 'No file path provided' }, { status: 400 })
     }
 
@@ -80,6 +80,16 @@ export async function POST(request: NextRequest) {
     if (Array.isArray(filePath)) {
       const results = []
       for (const path of filePath) {
+        // Skip empty or invalid paths
+        if (!path || (typeof path === 'string' && path.trim() === '')) {
+          results.push({
+            success: false,
+            error: 'Empty file path in array',
+            filePath: path || '',
+          })
+          continue
+        }
+
         const result = await parseFileSingle(path, fileType)
         // Add processing time to metadata
         if (result.metadata) {
@@ -153,6 +163,15 @@ export async function POST(request: NextRequest) {
  */
 async function parseFileSingle(filePath: string, fileType?: string): Promise<ParseResult> {
   logger.info('Parsing file:', filePath)
+
+  // Validate that filePath is not empty
+  if (!filePath || filePath.trim() === '') {
+    return {
+      success: false,
+      error: 'Empty file path provided',
+      filePath: filePath || '',
+    }
+  }
 
   // Validate path for security before any processing
   const pathValidation = validateFilePath(filePath)
@@ -337,7 +356,7 @@ async function handleLocalFile(filePath: string, fileType?: string): Promise<Par
   try {
     // Extract filename from path
     const filename = filePath.split('/').pop() || filePath
-    const fullPath = path.join(UPLOAD_DIR, filename)
+    const fullPath = path.join(UPLOAD_DIR_SERVER, filename)
 
     logger.info('Processing local file:', fullPath)
 

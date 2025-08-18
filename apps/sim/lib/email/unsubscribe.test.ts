@@ -10,6 +10,9 @@ vi.mock('@/lib/env', () => ({
   env: {
     BETTER_AUTH_SECRET: 'test-secret-key',
   },
+  isTruthy: (value: string | boolean | number | undefined) =>
+    typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value),
+  getEnv: (variable: string) => process.env[variable],
 }))
 
 describe('unsubscribe utilities', () => {

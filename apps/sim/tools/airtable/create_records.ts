@@ -52,9 +52,6 @@ export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, Airtabl
 
   transformResponse: async (response) => {
     const data = await response.json()
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to create Airtable records')
-    }
     return {
       success: true,
       output: {
@@ -66,7 +63,22 @@ export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, Airtabl
     }
   },
 
-  transformError: (error: any) => {
-    return `Failed to create Airtable records: ${error.message || 'Unknown error'}`
+  outputs: {
+    records: {
+      type: 'json',
+      description: 'Array of created Airtable records',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          createdTime: { type: 'string' },
+          fields: { type: 'object' },
+        },
+      },
+    },
+    metadata: {
+      type: 'json',
+      description: 'Operation metadata',
+    },
   },
 }

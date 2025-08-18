@@ -5,9 +5,9 @@ import type { GitHubResponse } from '@/tools/github/types'
 export const GitHubBlock: BlockConfig<GitHubResponse> = {
   type: 'github',
   name: 'GitHub',
-  description: 'Interact with GitHub',
+  description: 'Interact with GitHub or trigger workflows from GitHub events',
   longDescription:
-    'Access GitHub repositories, pull requests, and comments through the GitHub API. Automate code reviews, PR management, and repository interactions within your workflow.',
+    'Access GitHub repositories, pull requests, and comments through the GitHub API. Automate code reviews, PR management, and repository interactions within your workflow. Trigger workflows from GitHub events like push, pull requests, and issues.',
   docsLink: 'https://docs.sim.ai/tools/github',
   category: 'tools',
   bgColor: '#181C1E',
@@ -85,6 +85,15 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       placeholder: 'Enter GitHub Token',
       password: true,
       required: true,
+    },
+    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
+    {
+      id: 'triggerConfig',
+      title: 'Trigger Configuration',
+      type: 'trigger-config',
+      layout: 'full',
+      triggerProvider: 'github',
+      availableTriggers: ['github_webhook'],
     },
     {
       id: 'commentType',
@@ -164,5 +173,27 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
   outputs: {
     content: { type: 'string', description: 'Response content' },
     metadata: { type: 'json', description: 'Response metadata' },
+    // Trigger outputs
+    action: { type: 'string', description: 'The action that was performed' },
+    event_type: { type: 'string', description: 'Type of GitHub event' },
+    repository: { type: 'string', description: 'Repository full name' },
+    repository_name: { type: 'string', description: 'Repository name only' },
+    repository_owner: { type: 'string', description: 'Repository owner username' },
+    sender: { type: 'string', description: 'Username of the user who triggered the event' },
+    sender_id: { type: 'string', description: 'User ID of the sender' },
+    ref: { type: 'string', description: 'Git reference (for push events)' },
+    before: { type: 'string', description: 'SHA of the commit before the push' },
+    after: { type: 'string', description: 'SHA of the commit after the push' },
+    commits: { type: 'string', description: 'Array of commit objects (for push events)' },
+    pull_request: { type: 'string', description: 'Pull request object (for pull_request events)' },
+    issue: { type: 'string', description: 'Issue object (for issues events)' },
+    comment: { type: 'string', description: 'Comment object (for comment events)' },
+    branch: { type: 'string', description: 'Branch name extracted from ref' },
+    commit_message: { type: 'string', description: 'Latest commit message' },
+    commit_author: { type: 'string', description: 'Author of the latest commit' },
+  },
+  triggers: {
+    enabled: true,
+    available: ['github_webhook'],
   },
 }

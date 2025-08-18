@@ -5,9 +5,9 @@ import type { GmailToolResponse } from '@/tools/gmail/types'
 export const GmailBlock: BlockConfig<GmailToolResponse> = {
   type: 'gmail',
   name: 'Gmail',
-  description: 'Send Gmail',
+  description: 'Send Gmail or trigger workflows from Gmail events',
   longDescription:
-    'Integrate Gmail functionality to send email messages within your workflow. Automate email communications and process email content using OAuth authentication.',
+    'Comprehensive Gmail integration with OAuth authentication. Send email messages, read email content, and trigger workflows from Gmail events like new emails and label changes.',
   docsLink: 'https://docs.sim.ai/tools/gmail',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -38,7 +38,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       requiredScopes: [
         'https://www.googleapis.com/auth/gmail.send',
         'https://www.googleapis.com/auth/gmail.modify',
-        // 'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.readonly',
         'https://www.googleapis.com/auth/gmail.labels',
       ],
       placeholder: 'Select Gmail account',
@@ -72,6 +72,27 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
       required: true,
     },
+    // Advanced Settings - Additional Recipients
+    {
+      id: 'cc',
+      title: 'CC',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'CC recipients (comma-separated)',
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'bcc',
+      title: 'BCC',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'BCC recipients (comma-separated)',
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+      mode: 'advanced',
+      required: false,
+    },
     // Label/folder selector (basic mode)
     {
       id: 'folder',
@@ -101,6 +122,13 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     {
       id: 'unreadOnly',
       title: 'Unread Only',
+      type: 'switch',
+      layout: 'full',
+      condition: { field: 'operation', value: 'read_gmail' },
+    },
+    {
+      id: 'includeAttachments',
+      title: 'Include Attachments',
       type: 'switch',
       layout: 'full',
       condition: { field: 'operation', value: 'read_gmail' },
@@ -137,6 +165,15 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       layout: 'full',
       placeholder: 'Maximum number of results (default: 10)',
       condition: { field: 'operation', value: ['search_gmail', 'read_gmail'] },
+    },
+    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
+    {
+      id: 'triggerConfig',
+      title: 'Trigger Configuration',
+      type: 'trigger-config',
+      layout: 'full',
+      triggerProvider: 'gmail',
+      availableTriggers: ['gmail_poller'],
     },
   ],
   tools: {
@@ -182,17 +219,40 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email content' },
+    cc: { type: 'string', description: 'CC recipients (comma-separated)' },
+    bcc: { type: 'string', description: 'BCC recipients (comma-separated)' },
     // Read operation inputs
     folder: { type: 'string', description: 'Gmail folder' },
     manualFolder: { type: 'string', description: 'Manual folder name' },
     messageId: { type: 'string', description: 'Message identifier' },
     unreadOnly: { type: 'boolean', description: 'Unread messages only' },
+    includeAttachments: { type: 'boolean', description: 'Include email attachments' },
     // Search operation inputs
     query: { type: 'string', description: 'Search query' },
     maxResults: { type: 'number', description: 'Maximum results' },
   },
   outputs: {
+    // Tool outputs
     content: { type: 'string', description: 'Response content' },
     metadata: { type: 'json', description: 'Email metadata' },
+    attachments: { type: 'json', description: 'Email attachments array' },
+    // Trigger outputs
+    email_id: { type: 'string', description: 'Gmail message ID' },
+    thread_id: { type: 'string', description: 'Gmail thread ID' },
+    subject: { type: 'string', description: 'Email subject line' },
+    from: { type: 'string', description: 'Sender email address' },
+    to: { type: 'string', description: 'Recipient email address' },
+    cc: { type: 'string', description: 'CC recipients (comma-separated)' },
+    date: { type: 'string', description: 'Email date in ISO format' },
+    body_text: { type: 'string', description: 'Plain text email body' },
+    body_html: { type: 'string', description: 'HTML email body' },
+    labels: { type: 'string', description: 'Email labels (comma-separated)' },
+    has_attachments: { type: 'boolean', description: 'Whether email has attachments' },
+    raw_email: { type: 'json', description: 'Complete raw email data from Gmail API (if enabled)' },
+    timestamp: { type: 'string', description: 'Event timestamp' },
+  },
+  triggers: {
+    enabled: true,
+    available: ['gmail_poller'],
   },
 }

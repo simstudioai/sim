@@ -39,6 +39,17 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
       description: 'The content to write to the channel',
     },
   },
+
+  outputs: {
+    success: { type: 'boolean', description: 'Teams channel message send success status' },
+    messageId: { type: 'string', description: 'Unique identifier for the sent message' },
+    teamId: { type: 'string', description: 'ID of the team where message was sent' },
+    channelId: { type: 'string', description: 'ID of the channel where message was sent' },
+    createdTime: { type: 'string', description: 'Timestamp when message was created' },
+    url: { type: 'string', description: 'Web URL to the message' },
+    updatedContent: { type: 'boolean', description: 'Whether content was successfully updated' },
+  },
+
   request: {
     url: (params) => {
       const teamId = params.teamId?.trim()
@@ -88,11 +99,6 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
     },
   },
   transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to write Microsoft Teams channel message: ${errorText}`)
-    }
-
     const data = await response.json()
 
     // Create document metadata from the response
@@ -112,24 +118,5 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
         metadata,
       },
     }
-  },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
-
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while writing Microsoft Teams channel message'
   },
 }

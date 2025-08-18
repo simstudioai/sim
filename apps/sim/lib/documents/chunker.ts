@@ -57,7 +57,7 @@ export class TextChunker {
 
   constructor(options: ChunkerOptions = {}) {
     this.chunkSize = options.chunkSize ?? 512
-    this.minChunkSize = options.minChunkSize ?? 50
+    this.minChunkSize = options.minChunkSize ?? 1
     this.overlap = options.overlap ?? 0
   }
 

@@ -35,7 +35,7 @@ export const BlogCard = ({
 }: BlogCardProps) => {
   return (
     <Link href={href}>
-      <div className='flex flex-col rounded-3xl border border-[#606060]/40 bg-[#101010] p-8 transition-all duration-500 hover:bg-[#202020]'>
+      <div className='flex flex-col rounded-3xl border border-[#606060]/40 bg-[#101010] p-8 transition-all duration-500 hover:bg-[var(--surface-elevated)]'>
         {image ? (
           <Image
             src={image}

@@ -56,21 +56,14 @@ Read content from a Wealthbox note
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Wealthbox API |
 | `noteId` | string | No | The ID of the note to read |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `note` | any | Note data |
-| `notes` | any | Notes list |
-| `contact` | any | Contact data |
-| `contacts` | any | Contacts list |
-| `task` | any | Task data |
-| `tasks` | any | Tasks list |
-| `metadata` | json | Operation metadata |
-| `success` | any | Success status |
+| `success` | boolean | Operation success status |
+| `output` | object | Note data and metadata |
 
 ### `wealthbox_write_note`
 
@@ -80,7 +73,6 @@ Create or update a Wealthbox note
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Wealthbox API |
 | `content` | string | Yes | The main body of the note |
 | `contactId` | string | No | ID of contact to link to this note |
 
@@ -88,14 +80,8 @@ Create or update a Wealthbox note
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `note` | any | Note data |
-| `notes` | any | Notes list |
-| `contact` | any | Contact data |
-| `contacts` | any | Contacts list |
-| `task` | any | Task data |
-| `tasks` | any | Tasks list |
-| `metadata` | json | Operation metadata |
-| `success` | any | Success status |
+| `success` | boolean | Operation success status |
+| `output` | object | Created or updated note data and metadata |
 
 ### `wealthbox_read_contact`
 
@@ -105,21 +91,14 @@ Read content from a Wealthbox contact
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Wealthbox API |
 | `contactId` | string | No | The ID of the contact to read |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `note` | any | Note data |
-| `notes` | any | Notes list |
-| `contact` | any | Contact data |
-| `contacts` | any | Contacts list |
-| `task` | any | Task data |
-| `tasks` | any | Tasks list |
-| `metadata` | json | Operation metadata |
-| `success` | any | Success status |
+| `success` | boolean | Operation success status |
+| `output` | object | Contact data and metadata |
 
 ### `wealthbox_write_contact`
 
@@ -129,7 +108,6 @@ Create a new Wealthbox contact
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Wealthbox API |
 | `firstName` | string | Yes | The first name of the contact |
 | `lastName` | string | Yes | The last name of the contact |
 | `emailAddress` | string | No | The email address of the contact |
@@ -139,14 +117,8 @@ Create a new Wealthbox contact
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `note` | any | Note data |
-| `notes` | any | Notes list |
-| `contact` | any | Contact data |
-| `contacts` | any | Contacts list |
-| `task` | any | Task data |
-| `tasks` | any | Tasks list |
-| `metadata` | json | Operation metadata |
-| `success` | any | Success status |
+| `success` | boolean | Operation success status |
+| `output` | object | Created or updated contact data and metadata |
 
 ### `wealthbox_read_task`
 
@@ -156,21 +128,14 @@ Read content from a Wealthbox task
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Wealthbox API |
 | `taskId` | string | No | The ID of the task to read |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `note` | any | Note data |
-| `notes` | any | Notes list |
-| `contact` | any | Contact data |
-| `contacts` | any | Contacts list |
-| `task` | any | Task data |
-| `tasks` | any | Tasks list |
-| `metadata` | json | Operation metadata |
-| `success` | any | Success status |
+| `success` | boolean | Operation success status |
+| `output` | object | Task data and metadata |
 
 ### `wealthbox_write_task`
 
@@ -180,9 +145,8 @@ Create or update a Wealthbox task
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Wealthbox API |
 | `title` | string | Yes | The name/title of the task |
-| `dueDate` | string | Yes | The due date and time of the task \(format:  |
+| `dueDate` | string | Yes | The due date and time of the task \(format: "YYYY-MM-DD HH:MM AM/PM -HHMM", e.g., "2015-05-24 11:00 AM -0400"\) |
 | `contactId` | string | No | ID of contact to link to this task |
 | `description` | string | No | Description or notes about the task |
 
@@ -190,14 +154,8 @@ Create or update a Wealthbox task
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `note` | any | Note data |
-| `notes` | any | Notes list |
-| `contact` | any | Contact data |
-| `contacts` | any | Contacts list |
-| `task` | any | Task data |
-| `tasks` | any | Tasks list |
-| `metadata` | json | Operation metadata |
-| `success` | any | Success status |
+| `success` | boolean | Operation success status |
+| `output` | object | Created or updated task data and metadata |
 
 
 

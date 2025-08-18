@@ -58,11 +58,6 @@ export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = 
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error?.message || 'Failed to perform Google search')
-    }
-
     const data = await response.json()
 
     return {
@@ -79,9 +74,33 @@ export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = 
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while performing the Google search'
+  outputs: {
+    items: {
+      type: 'array',
+      description: 'Array of search results from Google',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Title of the search result' },
+          link: { type: 'string', description: 'URL of the search result' },
+          snippet: { type: 'string', description: 'Snippet or description of the search result' },
+          displayLink: { type: 'string', description: 'Display URL', optional: true },
+          pagemap: { type: 'object', description: 'Additional page metadata', optional: true },
+        },
+      },
+    },
+    searchInformation: {
+      type: 'object',
+      description: 'Information about the search query and results',
+      properties: {
+        totalResults: { type: 'string', description: 'Total number of search results available' },
+        searchTime: { type: 'number', description: 'Time taken to perform the search in seconds' },
+        formattedSearchTime: { type: 'string', description: 'Formatted search time for display' },
+        formattedTotalResults: {
+          type: 'string',
+          description: 'Formatted total results count for display',
+        },
+      },
+    },
   },
 }

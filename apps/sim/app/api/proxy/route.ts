@@ -177,7 +177,7 @@ export async function POST(request: Request) {
       throw new Error('Invalid JSON in request body')
     }
 
-    const { toolId, params } = requestBody
+    const { toolId, params, executionContext } = requestBody
 
     if (!toolId) {
       logger.error(`[${requestId}] Missing toolId in request`)
@@ -214,50 +214,29 @@ export async function POST(request: Request) {
       })
     }
 
+    // Check if tool has file outputs - if so, don't skip post-processing
+    const hasFileOutputs =
+      tool.outputs &&
+      Object.values(tool.outputs).some(
+        (output) => output.type === 'file' || output.type === 'file[]'
+      )
+
     // Execute tool
-    const result = await executeTool(toolId, params, true, true)
+    const result = await executeTool(
+      toolId,
+      params,
+      true, // skipProxy (we're already in the proxy)
+      !hasFileOutputs, // skipPostProcess (don't skip if tool has file outputs)
+      executionContext // pass execution context for file processing
+    )
 
     if (!result.success) {
       logger.warn(`[${requestId}] Tool execution failed for ${toolId}`, {
         error: result.error || 'Unknown error',
       })
 
-      if (tool.transformError) {
-        try {
-          const errorResult = tool.transformError(result)
-
-          // Handle both string and Promise return types
-          if (typeof errorResult === 'string') {
-            throw new Error(errorResult)
-          }
-          // It's a Promise, await it
-          const transformedError = await errorResult
-          // If it's a string or has an error property, use it
-          if (typeof transformedError === 'string') {
-            throw new Error(transformedError)
-          }
-          if (
-            transformedError &&
-            typeof transformedError === 'object' &&
-            'error' in transformedError
-          ) {
-            throw new Error(transformedError.error || 'Tool returned an error')
-          }
-          // Fallback
-          throw new Error('Tool returned an error')
-        } catch (transformError) {
-          logger.error(`[${requestId}] Error transformation failed for ${toolId}`, {
-            error:
-              transformError instanceof Error ? transformError.message : String(transformError),
-          })
-          if (transformError instanceof Error) {
-            throw transformError
-          }
-          throw new Error('Tool returned an error')
-        }
-      } else {
-        throw new Error('Tool returned an error')
-      }
+      // Let the main executeTool handle error transformation to avoid double transformation
+      throw new Error(result.error || 'Tool execution failed')
     }
 
     const endTime = new Date()

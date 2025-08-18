@@ -33,7 +33,6 @@ export const emailVerifierTool: ToolConfig<HunterEmailVerifierParams, HunterEmai
         return url.toString()
       },
       method: 'GET',
-      isInternalRoute: false,
       headers: () => ({
         'Content-Type': 'application/json',
       }),
@@ -41,15 +40,6 @@ export const emailVerifierTool: ToolConfig<HunterEmailVerifierParams, HunterEmai
 
     transformResponse: async (response: Response) => {
       const data = await response.json()
-
-      if (!response.ok) {
-        // Extract specific error message from Hunter.io API
-        const errorMessage =
-          data.errors?.[0]?.details ||
-          data.message ||
-          `HTTP ${response.status}: Failed to verify email`
-        throw new Error(errorMessage)
-      }
 
       return {
         success: true,
@@ -72,11 +62,63 @@ export const emailVerifierTool: ToolConfig<HunterEmailVerifierParams, HunterEmai
       }
     },
 
-    transformError: (error) => {
-      if (error instanceof Error) {
-        // Return the exact error message from the API
-        return error.message
-      }
-      return 'An unexpected error occurred while verifying email'
+    outputs: {
+      result: {
+        type: 'string',
+        description: 'Deliverability result: deliverable, undeliverable, or risky',
+      },
+      score: {
+        type: 'number',
+        description: 'Confidence score for the verification result',
+      },
+      email: {
+        type: 'string',
+        description: 'The verified email address',
+      },
+      regexp: {
+        type: 'boolean',
+        description: 'Whether the email follows a valid regex pattern',
+      },
+      gibberish: {
+        type: 'boolean',
+        description: 'Whether the email appears to be gibberish',
+      },
+      disposable: {
+        type: 'boolean',
+        description: 'Whether the email is from a disposable email provider',
+      },
+      webmail: {
+        type: 'boolean',
+        description: 'Whether the email is from a webmail provider',
+      },
+      mx_records: {
+        type: 'boolean',
+        description: 'Whether MX records exist for the domain',
+      },
+      smtp_server: {
+        type: 'boolean',
+        description: 'Whether the SMTP server is reachable',
+      },
+      smtp_check: {
+        type: 'boolean',
+        description: 'Whether the SMTP check was successful',
+      },
+      accept_all: {
+        type: 'boolean',
+        description: 'Whether the domain accepts all email addresses',
+      },
+      block: {
+        type: 'boolean',
+        description: 'Whether the email is blocked',
+      },
+      status: {
+        type: 'string',
+        description:
+          'Verification status: valid, invalid, accept_all, webmail, disposable, or unknown',
+      },
+      sources: {
+        type: 'array',
+        description: 'Array of sources where the email was found',
+      },
     },
   }

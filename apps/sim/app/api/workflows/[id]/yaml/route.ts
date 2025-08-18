@@ -1,9 +1,10 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { simAgentClient } from '@/lib/sim-agent'
+import { SIM_AGENT_API_URL_DEFAULT, simAgentClient } from '@/lib/sim-agent'
 import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
@@ -18,8 +19,7 @@ import { workflowCheckpoints, workflow as workflowTable } from '@/db/schema'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 // Sim Agent API configuration
-const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 export const dynamic = 'force-dynamic'
 
@@ -74,7 +74,6 @@ async function createWorkflowCheckpoint(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
         },
         body: JSON.stringify({
           workflowState: currentWorkflowData,
@@ -288,7 +287,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
       },
       body: JSON.stringify({
         yamlContent,
@@ -365,6 +363,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       position: { x: number; y: number }
       subBlocks?: Record<string, any>
       data?: Record<string, any>
+      parentId?: string
+      extent?: string
     }>
     const edges = workflowState.edges
     const warnings = conversionResult.warnings || []
@@ -395,6 +395,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       if (!blockConfig && (block.type === 'loop' || block.type === 'parallel')) {
         // Handle loop/parallel blocks (they don't have regular block configs)
+        // Preserve parentId if it exists (though loop/parallel shouldn't have parents)
+        const containerData = block.data || {}
+        if (block.parentId) {
+          containerData.parentId = block.parentId
+          containerData.extent = block.extent || 'parent'
+        }
+
         newWorkflowState.blocks[newId] = {
           id: newId,
           type: block.type,
@@ -407,7 +414,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           isWide: false,
           advancedMode: false,
           height: 0,
-          data: block.data || {},
+          data: containerData,
         }
         logger.debug(`[${requestId}] Processed loop/parallel block: ${block.id} -> ${newId}`)
       } else if (blockConfig) {
@@ -440,6 +447,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         // Set up outputs from block configuration
         const outputs = resolveOutputType(blockConfig.outputs)
 
+        // Preserve parentId if it exists in the imported block
+        const blockData = block.data || {}
+        if (block.parentId) {
+          blockData.parentId = block.parentId
+          blockData.extent = block.extent || 'parent'
+        }
+
         newWorkflowState.blocks[newId] = {
           id: newId,
           type: block.type,
@@ -452,7 +466,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           isWide: false,
           advancedMode: false,
           height: 0,
-          data: block.data || {},
+          data: blockData,
         }
 
         logger.debug(`[${requestId}] Processed regular block: ${block.id} -> ${newId}`)
@@ -529,6 +543,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
+    // Debug: Log block parent-child relationships before generating loops
     // Generate loop and parallel configurations
     const loops = generateLoopBlocks(newWorkflowState.blocks)
     const parallels = generateParallelBlocks(newWorkflowState.blocks)

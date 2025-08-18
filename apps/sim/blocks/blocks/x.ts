@@ -210,12 +210,12 @@ export const XBlock: BlockConfig<XResponse> = {
   },
   outputs: {
     tweet: { type: 'json', description: 'Tweet data' },
-    replies: { type: 'any', description: 'Tweet replies' },
-    context: { type: 'any', description: 'Tweet context' },
+    replies: { type: 'json', description: 'Tweet replies' },
+    context: { type: 'json', description: 'Tweet context' },
     tweets: { type: 'json', description: 'Tweets data' },
-    includes: { type: 'any', description: 'Additional data' },
+    includes: { type: 'json', description: 'Additional data' },
     meta: { type: 'json', description: 'Response metadata' },
     user: { type: 'json', description: 'User profile data' },
-    recentTweets: { type: 'any', description: 'Recent tweets data' },
+    recentTweets: { type: 'json', description: 'Recent tweets data' },
   },
 }

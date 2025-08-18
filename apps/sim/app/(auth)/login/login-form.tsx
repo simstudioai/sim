@@ -15,25 +15,27 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
+import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 
 const logger = createLogger('LoginForm')
 
-const EMAIL_VALIDATIONS = {
-  required: {
-    test: (value: string) => Boolean(value && typeof value === 'string'),
-    message: 'Email is required.',
-  },
-  notEmpty: {
-    test: (value: string) => value.trim().length > 0,
-    message: 'Email cannot be empty.',
-  },
-  basicFormat: {
-    regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-    message: 'Please enter a valid email address.',
-  },
+const validateEmailField = (emailValue: string): string[] => {
+  const errors: string[] = []
+
+  if (!emailValue || !emailValue.trim()) {
+    errors.push('Email is required.')
+    return errors
+  }
+
+  const validation = quickValidateEmail(emailValue.trim().toLowerCase())
+  if (!validation.isValid) {
+    errors.push(validation.reason || 'Please enter a valid email address.')
+  }
+
+  return errors
 }
 
 const PASSWORD_VALIDATIONS = {
@@ -66,27 +68,6 @@ const validateCallbackUrl = (url: string): boolean => {
     logger.error('Error validating callback URL:', { error, url })
     return false
   }
-}
-
-// Validate email and return array of error messages
-const validateEmail = (emailValue: string): string[] => {
-  const errors: string[] = []
-
-  if (!EMAIL_VALIDATIONS.required.test(emailValue)) {
-    errors.push(EMAIL_VALIDATIONS.required.message)
-    return errors // Return early for required field
-  }
-
-  if (!EMAIL_VALIDATIONS.notEmpty.test(emailValue)) {
-    errors.push(EMAIL_VALIDATIONS.notEmpty.message)
-    return errors // Return early for empty field
-  }
-
-  if (!EMAIL_VALIDATIONS.basicFormat.regex.test(emailValue)) {
-    errors.push(EMAIL_VALIDATIONS.basicFormat.message)
-  }
-
-  return errors
 }
 
 // Validate password and return array of error messages
@@ -182,7 +163,7 @@ export default function LoginPage({
     setEmail(newEmail)
 
     // Silently validate but don't show errors until submit
-    const errors = validateEmail(newEmail)
+    const errors = validateEmailField(newEmail)
     setEmailErrors(errors)
     setShowEmailValidationError(false)
   }
@@ -205,7 +186,7 @@ export default function LoginPage({
     const email = formData.get('email') as string
 
     // Validate email on submit
-    const emailValidationErrors = validateEmail(email)
+    const emailValidationErrors = validateEmailField(email)
     setEmailErrors(emailValidationErrors)
     setShowEmailValidationError(emailValidationErrors.length > 0)
 
@@ -475,7 +456,7 @@ export default function LoginPage({
 
             <Button
               type='submit'
-              className='flex h-11 w-full items-center justify-center gap-2 bg-[#701ffc] font-medium text-base text-white shadow-[#701ffc]/20 shadow-lg transition-colors duration-200 hover:bg-[#802FFF]'
+              className='flex h-11 w-full items-center justify-center gap-2 bg-brand-primary font-medium text-base text-white shadow-[var(--brand-primary-hex)]/20 shadow-lg transition-colors duration-200 hover:bg-brand-primary-hover'
               disabled={isLoading}
             >
               {isLoading ? 'Signing in...' : 'Sign In'}
@@ -487,7 +468,7 @@ export default function LoginPage({
           <span className='text-neutral-400'>Don't have an account? </span>
           <Link
             href={isInviteFlow ? `/signup?invite_flow=true&callbackUrl=${callbackUrl}` : '/signup'}
-            className='font-medium text-[#9D54FF] underline-offset-4 transition hover:text-[#a66fff] hover:underline'
+            className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
           >
             Sign up
           </Link>
@@ -516,7 +497,7 @@ export default function LoginPage({
                 placeholder='Enter your email'
                 required
                 type='email'
-                className='border-neutral-700/80 bg-neutral-900 text-white placeholder:text-white/60 focus:border-[#802FFF]/70 focus:ring-[#802FFF]/20'
+                className='border-neutral-700/80 bg-neutral-900 text-white placeholder:text-white/60 focus:border-[var(--brand-primary-hover-hex)]/70 focus:ring-[var(--brand-primary-hover-hex)]/20'
               />
             </div>
             {resetStatus.type && (
@@ -531,7 +512,7 @@ export default function LoginPage({
             <Button
               type='button'
               onClick={handleForgotPassword}
-              className='h-11 w-full bg-[#701ffc] font-medium text-base text-white shadow-[#701ffc]/20 shadow-lg transition-colors duration-200 hover:bg-[#802FFF]'
+              className='h-11 w-full bg-[var(--brand-primary-hex)] font-medium text-base text-white shadow-[var(--brand-primary-hex)]/20 shadow-lg transition-colors duration-200 hover:bg-[var(--brand-primary-hover-hex)]'
               disabled={isSubmittingReset}
             >
               {isSubmittingReset ? 'Sending...' : 'Send Reset Link'}

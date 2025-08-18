@@ -1,13 +1,9 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type {
-  DiscordAPIError,
   DiscordGetUserParams,
   DiscordGetUserResponse,
   DiscordUser,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('DiscordGetUser')
 
 export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUserResponse> = {
   id: 'discord_get_user',
@@ -47,36 +43,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
   },
 
   transformResponse: async (response) => {
-    if (!response.ok) {
-      let errorMessage = `Failed to get Discord user: ${response.status} ${response.statusText}`
-
-      try {
-        const errorData = (await response.json()) as DiscordAPIError
-        errorMessage = `Failed to get Discord user: ${errorData.message || response.statusText}`
-        logger.error('Discord API error', { status: response.status, error: errorData })
-      } catch (e) {
-        logger.error('Error parsing Discord API response', { status: response.status, error: e })
-      }
-
-      return {
-        success: false,
-        output: {
-          message: errorMessage,
-        },
-        error: errorMessage,
-      }
-    }
-
-    let data: DiscordUser
-    try {
-      data = await response.clone().json()
-    } catch (_e) {
-      return {
-        success: false,
-        error: 'Failed to parse user data',
-        output: { message: 'Failed to parse user data' },
-      }
-    }
+    const data: DiscordUser = await response.json()
 
     return {
       success: true,
@@ -87,8 +54,21 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
     }
   },
 
-  transformError: (error) => {
-    logger.error('Error retrieving Discord user information', { error })
-    return `Error retrieving Discord user information: ${error.error}`
+  outputs: {
+    message: { type: 'string', description: 'Success or error message' },
+    data: {
+      type: 'object',
+      description: 'Discord user information',
+      properties: {
+        id: { type: 'string', description: 'User ID' },
+        username: { type: 'string', description: 'Username' },
+        discriminator: { type: 'string', description: 'User discriminator (4-digit number)' },
+        avatar: { type: 'string', description: 'User avatar hash' },
+        bot: { type: 'boolean', description: 'Whether user is a bot' },
+        system: { type: 'boolean', description: 'Whether user is a system user' },
+        email: { type: 'string', description: 'User email (if available)' },
+        verified: { type: 'boolean', description: 'Whether user email is verified' },
+      },
+    },
   },
 }

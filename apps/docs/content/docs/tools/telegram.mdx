@@ -1,6 +1,6 @@
 ---
 title: Telegram
-description: Send a message through Telegram
+description: Send messages through Telegram or trigger workflows from Telegram events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -67,7 +67,7 @@ In Sim, the Telegram integration enables your agents to leverage these powerful 
 
 ## Usage Instructions
 
-Send messages to any Telegram channel using your Bot API key. Integrate automated notifications and alerts into your workflow to keep your team informed.
+Send messages to any Telegram channel using your Bot API key or trigger workflows from Telegram bot messages. Integrate automated notifications and alerts into your workflow to keep your team informed.
 
 
 
@@ -89,8 +89,12 @@ Send messages to Telegram channels or users through the Telegram Bot API. Enable
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ok` | boolean | Success status |
-| `result` | json | Message result |
+| `success` | boolean | Telegram message send success status |
+| `messageId` | number | Unique Telegram message identifier |
+| `chatId` | string | Target chat ID where message was sent |
+| `text` | string | Text content of the sent message |
+| `timestamp` | number | Unix timestamp when message was sent |
+| `from` | object | Information about the bot that sent the message |
 
 
 

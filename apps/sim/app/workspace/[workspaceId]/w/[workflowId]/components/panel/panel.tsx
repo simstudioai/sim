@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { isDev } from '@/lib/environment'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
@@ -305,16 +304,14 @@ export function Panel() {
         >
           Console
         </button>
-        {!isDev && (
-          <button
-            onClick={() => handleTabClick('copilot')}
-            className={`panel-tab-base inline-flex flex-1 cursor-pointer items-center justify-center rounded-[10px] border border-transparent py-1 font-[450] text-sm outline-none transition-colors duration-200 ${
-              isOpen && activeTab === 'copilot' ? 'panel-tab-active' : 'panel-tab-inactive'
-            }`}
-          >
-            Copilot
-          </button>
-        )}
+        <button
+          onClick={() => handleTabClick('copilot')}
+          className={`panel-tab-base inline-flex flex-1 cursor-pointer items-center justify-center rounded-[10px] border border-transparent py-1 font-[450] text-sm outline-none transition-colors duration-200 ${
+            isOpen && activeTab === 'copilot' ? 'panel-tab-active' : 'panel-tab-inactive'
+          }`}
+        >
+          Copilot
+        </button>
         <button
           onClick={() => handleTabClick('variables')}
           className={`panel-tab-base inline-flex flex-1 cursor-pointer items-center justify-center rounded-[10px] border border-transparent py-1 font-[450] text-sm outline-none transition-colors duration-200 ${
@@ -401,7 +398,7 @@ export function Panel() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align='end'
-                      className='z-[200] w-48 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[#202020]'
+                      className='z-[200] w-48 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
                       sideOffset={8}
                       side='bottom'
                       avoidCollisions={true}

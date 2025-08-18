@@ -5,7 +5,9 @@
 
 import React from 'react'
 import {
+  BetweenHorizontalEnd,
   Blocks,
+  Brain,
   Check,
   CheckCircle,
   Code,
@@ -15,8 +17,12 @@ import {
   FileText,
   GitBranch,
   Globe,
+  Grid2x2,
+  Grid2x2Check,
+  Grid2x2X,
   Info,
   Lightbulb,
+  ListTodo,
   Loader2,
   type LucideIcon,
   Minus,
@@ -64,6 +70,10 @@ const ICON_MAP: Record<string, LucideIcon> = {
   eye: Eye,
   x: X,
   blocks: Blocks, // Blocks icon with missing corner
+  betweenHorizontalEnd: BetweenHorizontalEnd, // Icon for block metadata
+  grid2x2: Grid2x2, // Grid for ready for review
+  grid2x2Check: Grid2x2Check, // Grid with checkmark for accepted workflow changes
+  grid2x2X: Grid2x2X, // Grid with X for rejected workflow changes
   info: Info,
   terminal: Terminal,
   squareTerminal: SquareTerminal,
@@ -74,6 +84,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   workflow: Workflow, // Flowchart icon with boxes and connecting lines
   network: Network, // Complex network icon with multiple interconnected nodes
   gitbranch: GitBranch, // Git branching icon showing workflow paths
+  brain: Brain, // Brain icon for reasoning/AI thinking
+  listTodo: ListTodo, // List with checkboxes for planning/todos
 
   // Default
   default: Lightbulb,
@@ -177,16 +189,7 @@ export function renderToolStateIcon(
     return React.createElement(Icon, { className: `${className} animate-spin ${stateClasses}` })
   }
 
-  if (toolCall.state === 'rejected') {
-    // Special "skipped" icon style
-    return React.createElement(
-      'div',
-      {
-        className: `flex ${className} items-center justify-center rounded-full border border-gray-400`,
-      },
-      React.createElement(Minus, { className: 'h-2 w-2 text-gray-500' })
-    )
-  }
+  // Remove hardcoded rejected state override - let tool definitions control the icon
 
   return React.createElement(Icon, { className: `${className} ${stateClasses}` })
 }

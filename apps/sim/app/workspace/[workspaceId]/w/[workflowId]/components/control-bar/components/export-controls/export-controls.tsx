@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowYamlStore } from '@/stores/workflows/yaml/store'
 
 const logger = createLogger('ExportControls')
 
@@ -17,7 +16,6 @@ interface ExportControlsProps {
 export function ExportControls({ disabled = false }: ExportControlsProps) {
   const [isExporting, setIsExporting] = useState(false)
   const { workflows, activeWorkflowId } = useWorkflowRegistry()
-  const getYaml = useWorkflowYamlStore((state) => state.getYaml)
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
 
@@ -45,11 +43,23 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
 
     setIsExporting(true)
     try {
-      const yamlContent = await getYaml()
-      const filename = `${currentWorkflow.name.replace(/[^a-z0-9]/gi, '-')}.yaml`
+      // Use the new database-based export endpoint
+      const response = await fetch(`/api/workflows/yaml/export?workflowId=${activeWorkflowId}`)
 
-      downloadFile(yamlContent, filename, 'text/yaml')
-      logger.info('Workflow exported as YAML')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.error || `Failed to export YAML: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+
+      if (!result.success || !result.yaml) {
+        throw new Error(result.error || 'Failed to export YAML')
+      }
+
+      const filename = `${currentWorkflow.name.replace(/[^a-z0-9]/gi, '-')}.yaml`
+      downloadFile(result.yaml, filename, 'text/yaml')
+      logger.info('Workflow exported as YAML from database')
     } catch (error) {
       logger.error('Failed to export workflow as YAML:', error)
     } finally {
@@ -70,7 +80,7 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
     <Tooltip>
       <TooltipTrigger asChild>
         {isDisabled ? (
-          <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-[11px] border bg-card font-medium text-card-foreground text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
+          <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
             <Download className='h-5 w-5' />
           </div>
         ) : (

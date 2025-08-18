@@ -1,5 +1,6 @@
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
@@ -8,8 +9,7 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 const logger = createLogger('EditWorkflowAPI')
 
 // Sim Agent API configuration
-const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = env.SIM_AGENT_API_KEY
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 // Types for operations
 interface EditWorkflowOperation {
@@ -46,7 +46,6 @@ async function applyOperationsToYaml(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
     },
     body: JSON.stringify({
       yamlContent: currentYaml,
@@ -185,6 +184,18 @@ async function applyOperationsToYaml(
             logger.info(`Updated connections for block ${block_id}`, {
               connections: block.connections,
             })
+          }
+
+          // Update type if provided
+          if (params?.type) {
+            block.type = params.type
+            logger.info(`Updated type for block ${block_id}`, { type: block.type })
+          }
+
+          // Update name if provided
+          if (params?.name) {
+            block.name = params.name
+            logger.info(`Updated name for block ${block_id}`, { name: block.name })
           }
 
           // Handle edge removals when specified in params
@@ -469,7 +480,6 @@ async function editWorkflow(params: EditWorkflowParams): Promise<EditWorkflowRes
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
     },
     body: JSON.stringify({
       workflowState,

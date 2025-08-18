@@ -1,8 +1,6 @@
 import type { AirtableUpdateParams, AirtableUpdateResponse } from '@/tools/airtable/types'
 import type { ToolConfig } from '@/tools/types'
 
-// import { logger } from '@/utils/logger' // Removed logger due to import issues
-
 export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, AirtableUpdateResponse> = {
   id: 'airtable_update_record',
   name: 'Airtable Update Record',
@@ -44,9 +42,7 @@ export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, Airtable
       required: true,
       visibility: 'user-or-llm',
       description: 'An object containing the field names and their new values',
-      // Example: { "Field 1": "NewValue1", "Status": "Completed" }
     },
-    // TODO: Add typecast parameter
   },
 
   request: {
@@ -58,16 +54,11 @@ export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, Airtable
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    // Body should contain { fields: {...} } and optionally { typecast: true }
     body: (params) => ({ fields: params.fields }),
   },
 
   transformResponse: async (response) => {
     const data = await response.json()
-    if (!response.ok) {
-      // logger.error('Airtable API error:', data)
-      throw new Error(data.error?.message || 'Failed to update Airtable record')
-    }
     return {
       success: true,
       output: {
@@ -80,8 +71,14 @@ export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, Airtable
     }
   },
 
-  transformError: (error: any) => {
-    // logger.error('Airtable tool error:', error)
-    return `Failed to update Airtable record: ${error.message || 'Unknown error'}`
+  outputs: {
+    record: {
+      type: 'json',
+      description: 'Updated Airtable record with id, createdTime, and fields',
+    },
+    metadata: {
+      type: 'json',
+      description: 'Operation metadata including record count and updated field names',
+    },
   },
 }

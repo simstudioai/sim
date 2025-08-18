@@ -12,7 +12,7 @@ import {
   validateSeatAvailability,
 } from '@/lib/billing/validation/seat-management'
 import { sendEmail } from '@/lib/email/mailer'
-import { validateAndNormalizeEmail } from '@/lib/email/utils'
+import { quickValidateEmail } from '@/lib/email/validation'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
@@ -20,8 +20,6 @@ import { db } from '@/db'
 import { invitation, member, organization, user, workspace, workspaceInvitation } from '@/db/schema'
 
 const logger = createLogger('OrganizationInvitationsAPI')
-
-export const dynamic = 'force-dynamic'
 
 interface WorkspaceInvitation {
   workspaceId: string
@@ -201,8 +199,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Validate and normalize emails
     const processedEmails = invitationEmails
       .map((email: string) => {
-        const result = validateAndNormalizeEmail(email)
-        return result.isValid ? result.normalized : null
+        const normalized = email.trim().toLowerCase()
+        const validation = quickValidateEmail(normalized)
+        return validation.isValid ? normalized : null
       })
       .filter(Boolean) as string[]
 
@@ -401,7 +400,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           pendingEmails.includes(email)
         ),
         invalidEmails: invitationEmails.filter(
-          (email: string) => !validateAndNormalizeEmail(email)
+          (email: string) => !quickValidateEmail(email.trim().toLowerCase()).isValid
         ),
         workspaceInvitations: isBatch ? validWorkspaceInvitations.length : 0,
         seatInfo: {

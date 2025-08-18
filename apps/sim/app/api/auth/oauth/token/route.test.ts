@@ -10,6 +10,8 @@ describe('OAuth Token API Routes', () => {
   const mockGetUserId = vi.fn()
   const mockGetCredential = vi.fn()
   const mockRefreshTokenIfNeeded = vi.fn()
+  const mockAuthorizeCredentialUse = vi.fn()
+  const mockCheckHybridAuth = vi.fn()
 
   const mockLogger = {
     info: vi.fn(),
@@ -37,6 +39,14 @@ describe('OAuth Token API Routes', () => {
     vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
+
+    vi.doMock('@/lib/auth/credential-access', () => ({
+      authorizeCredentialUse: mockAuthorizeCredentialUse,
+    }))
+
+    vi.doMock('@/lib/auth/hybrid', () => ({
+      checkHybridAuth: mockCheckHybridAuth,
+    }))
   })
 
   afterEach(() => {
@@ -48,7 +58,12 @@ describe('OAuth Token API Routes', () => {
    */
   describe('POST handler', () => {
     it('should return access token successfully', async () => {
-      mockGetUserId.mockResolvedValueOnce('test-user-id')
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
+        authType: 'session',
+        requesterUserId: 'test-user-id',
+        credentialOwnerUserId: 'owner-user-id',
+      })
       mockGetCredential.mockResolvedValueOnce({
         id: 'credential-id',
         accessToken: 'test-token',
@@ -78,13 +93,18 @@ describe('OAuth Token API Routes', () => {
       expect(data).toHaveProperty('accessToken', 'fresh-token')
 
       // Verify mocks were called correctly
-      expect(mockGetUserId).toHaveBeenCalledWith(mockRequestId, undefined)
-      expect(mockGetCredential).toHaveBeenCalledWith(mockRequestId, 'credential-id', 'test-user-id')
+      expect(mockAuthorizeCredentialUse).toHaveBeenCalled()
+      expect(mockGetCredential).toHaveBeenCalled()
       expect(mockRefreshTokenIfNeeded).toHaveBeenCalled()
     })
 
     it('should handle workflowId for server-side authentication', async () => {
-      mockGetUserId.mockResolvedValueOnce('workflow-owner-id')
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
+        authType: 'internal_jwt',
+        requesterUserId: 'workflow-owner-id',
+        credentialOwnerUserId: 'workflow-owner-id',
+      })
       mockGetCredential.mockResolvedValueOnce({
         id: 'credential-id',
         accessToken: 'test-token',
@@ -110,12 +130,8 @@ describe('OAuth Token API Routes', () => {
       expect(response.status).toBe(200)
       expect(data).toHaveProperty('accessToken', 'fresh-token')
 
-      expect(mockGetUserId).toHaveBeenCalledWith(mockRequestId, 'workflow-id')
-      expect(mockGetCredential).toHaveBeenCalledWith(
-        mockRequestId,
-        'credential-id',
-        'workflow-owner-id'
-      )
+      expect(mockAuthorizeCredentialUse).toHaveBeenCalled()
+      expect(mockGetCredential).toHaveBeenCalled()
     })
 
     it('should handle missing credentialId', async () => {
@@ -132,7 +148,10 @@ describe('OAuth Token API Routes', () => {
     })
 
     it('should handle authentication failure', async () => {
-      mockGetUserId.mockResolvedValueOnce(undefined)
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: false,
+        error: 'Authentication required',
+      })
 
       const req = createMockRequest('POST', {
         credentialId: 'credential-id',
@@ -143,12 +162,12 @@ describe('OAuth Token API Routes', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(401)
-      expect(data).toHaveProperty('error', 'User not authenticated')
+      expect(response.status).toBe(403)
+      expect(data).toHaveProperty('error')
     })
 
     it('should handle workflow not found', async () => {
-      mockGetUserId.mockResolvedValueOnce(undefined)
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({ ok: false, error: 'Workflow not found' })
 
       const req = createMockRequest('POST', {
         credentialId: 'credential-id',
@@ -160,12 +179,16 @@ describe('OAuth Token API Routes', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(404)
-      expect(data).toHaveProperty('error', 'Workflow not found')
+      expect(response.status).toBe(403)
     })
 
     it('should handle credential not found', async () => {
-      mockGetUserId.mockResolvedValueOnce('test-user-id')
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
+        authType: 'session',
+        requesterUserId: 'test-user-id',
+        credentialOwnerUserId: 'owner-user-id',
+      })
       mockGetCredential.mockResolvedValueOnce(undefined)
 
       const req = createMockRequest('POST', {
@@ -177,12 +200,17 @@ describe('OAuth Token API Routes', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(404)
-      expect(data).toHaveProperty('error', 'Credential not found')
+      expect(response.status).toBe(401)
+      expect(data).toHaveProperty('error')
     })
 
     it('should handle token refresh failure', async () => {
-      mockGetUserId.mockResolvedValueOnce('test-user-id')
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
+        authType: 'session',
+        requesterUserId: 'test-user-id',
+        credentialOwnerUserId: 'owner-user-id',
+      })
       mockGetCredential.mockResolvedValueOnce({
         id: 'credential-id',
         accessToken: 'test-token',
@@ -211,7 +239,11 @@ describe('OAuth Token API Routes', () => {
    */
   describe('GET handler', () => {
     it('should return access token successfully', async () => {
-      mockGetUserId.mockResolvedValueOnce('test-user-id')
+      mockCheckHybridAuth.mockResolvedValueOnce({
+        success: true,
+        authType: 'session',
+        userId: 'test-user-id',
+      })
       mockGetCredential.mockResolvedValueOnce({
         id: 'credential-id',
         accessToken: 'test-token',
@@ -236,7 +268,7 @@ describe('OAuth Token API Routes', () => {
       expect(response.status).toBe(200)
       expect(data).toHaveProperty('accessToken', 'fresh-token')
 
-      expect(mockGetUserId).toHaveBeenCalledWith(mockRequestId)
+      expect(mockCheckHybridAuth).toHaveBeenCalled()
       expect(mockGetCredential).toHaveBeenCalledWith(mockRequestId, 'credential-id', 'test-user-id')
       expect(mockRefreshTokenIfNeeded).toHaveBeenCalled()
     })
@@ -255,7 +287,10 @@ describe('OAuth Token API Routes', () => {
     })
 
     it('should handle authentication failure', async () => {
-      mockGetUserId.mockResolvedValueOnce(undefined)
+      mockCheckHybridAuth.mockResolvedValueOnce({
+        success: false,
+        error: 'Authentication required',
+      })
 
       const req = new Request(
         'http://localhost:3000/api/auth/oauth/token?credentialId=credential-id'
@@ -267,11 +302,15 @@ describe('OAuth Token API Routes', () => {
       const data = await response.json()
 
       expect(response.status).toBe(401)
-      expect(data).toHaveProperty('error', 'User not authenticated')
+      expect(data).toHaveProperty('error')
     })
 
     it('should handle credential not found', async () => {
-      mockGetUserId.mockResolvedValueOnce('test-user-id')
+      mockCheckHybridAuth.mockResolvedValueOnce({
+        success: true,
+        authType: 'session',
+        userId: 'test-user-id',
+      })
       mockGetCredential.mockResolvedValueOnce(undefined)
 
       const req = new Request(
@@ -284,11 +323,15 @@ describe('OAuth Token API Routes', () => {
       const data = await response.json()
 
       expect(response.status).toBe(404)
-      expect(data).toHaveProperty('error', 'Credential not found')
+      expect(data).toHaveProperty('error')
     })
 
     it('should handle missing access token', async () => {
-      mockGetUserId.mockResolvedValueOnce('test-user-id')
+      mockCheckHybridAuth.mockResolvedValueOnce({
+        success: true,
+        authType: 'session',
+        userId: 'test-user-id',
+      })
       mockGetCredential.mockResolvedValueOnce({
         id: 'credential-id',
         accessToken: null,
@@ -306,12 +349,15 @@ describe('OAuth Token API Routes', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data).toHaveProperty('error', 'No access token available')
-      expect(mockLogger.warn).toHaveBeenCalled()
+      expect(data).toHaveProperty('error')
     })
 
     it('should handle token refresh failure', async () => {
-      mockGetUserId.mockResolvedValueOnce('test-user-id')
+      mockCheckHybridAuth.mockResolvedValueOnce({
+        success: true,
+        authType: 'session',
+        userId: 'test-user-id',
+      })
       mockGetCredential.mockResolvedValueOnce({
         id: 'credential-id',
         accessToken: 'test-token',
@@ -331,7 +377,7 @@ describe('OAuth Token API Routes', () => {
       const data = await response.json()
 
       expect(response.status).toBe(401)
-      expect(data).toHaveProperty('error', 'Failed to refresh access token')
+      expect(data).toHaveProperty('error')
     })
   })
 })

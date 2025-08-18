@@ -116,7 +116,7 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
     other: {
       'apple-mobile-web-app-capable': 'yes',
       'mobile-web-app-capable': 'yes',
-      'msapplication-TileColor': brand.primaryColor || '#ffffff',
+      'msapplication-TileColor': '#701FFC', // Default Sim brand primary color
       'msapplication-config': '/favicon/browserconfig.xml',
     },
     ...override,

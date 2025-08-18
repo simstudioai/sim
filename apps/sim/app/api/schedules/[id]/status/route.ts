@@ -2,9 +2,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-
-export const dynamic = 'force-dynamic'
-
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { workflow, workflowSchedule } from '@/db/schema'
 
@@ -42,7 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const [workflowRecord] = await db
-      .select({ userId: workflow.userId })
+      .select({ userId: workflow.userId, workspaceId: workflow.workspaceId })
       .from(workflow)
       .where(eq(workflow.id, schedule.workflowId))
       .limit(1)
@@ -52,7 +50,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
-    if (workflowRecord.userId !== session.user.id) {
+    // Check authorization - either the user owns the workflow or has workspace permissions
+    let isAuthorized = workflowRecord.userId === session.user.id
+
+    // If not authorized by ownership and the workflow belongs to a workspace, check workspace permissions
+    if (!isAuthorized && workflowRecord.workspaceId) {
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workflowRecord.workspaceId
+      )
+      isAuthorized = userPermission !== null
+    }
+
+    if (!isAuthorized) {
       logger.warn(`[${requestId}] User not authorized to view this schedule: ${scheduleId}`)
       return NextResponse.json({ error: 'Not authorized to view this schedule' }, { status: 403 })
     }

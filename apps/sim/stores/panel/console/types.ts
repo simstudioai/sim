@@ -16,6 +16,10 @@ export interface ConsoleEntry {
   input?: any
   error?: string
   warning?: string
+  // Iteration context for loops and parallels
+  iterationCurrent?: number
+  iterationTotal?: number
+  iterationType?: 'loop' | 'parallel'
 }
 
 export interface ConsoleUpdate {

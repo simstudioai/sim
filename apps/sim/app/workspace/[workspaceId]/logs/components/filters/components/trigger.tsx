@@ -46,7 +46,7 @@ export default function Trigger() {
         <Button
           variant='outline'
           size='sm'
-          className='w-full justify-between rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] font-normal text-sm dark:border-[#414141] dark:bg-[#202020]'
+          className='w-full justify-between rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] font-normal text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
         >
           {getSelectedTriggersText()}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
@@ -54,7 +54,7 @@ export default function Trigger() {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align='start'
-        className='w-[180px] rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[#202020]'
+        className='w-[180px] rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
       >
         <DropdownMenuItem
           key='all'

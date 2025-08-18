@@ -48,6 +48,8 @@ interface JiraProjectSelectorProps {
   domain: string
   showPreview?: boolean
   onProjectInfoChange?: (projectInfo: JiraProjectInfo | null) => void
+  credentialId?: string
+  isForeignCredential?: boolean
 }
 
 export function JiraProjectSelector({
@@ -61,11 +63,12 @@ export function JiraProjectSelector({
   domain,
   showPreview = true,
   onProjectInfoChange,
+  credentialId,
 }: JiraProjectSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [projects, setProjects] = useState<JiraProjectInfo[]>([])
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedProjectId, setSelectedProjectId] = useState(value)
   const [selectedProject, setSelectedProject] = useState<JiraProjectInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -124,25 +127,7 @@ export function JiraProjectSelector({
       if (response.ok) {
         const data = await response.json()
         setCredentials(data.credentials)
-
-        // Auto-select logic for credentials
-        if (data.credentials.length > 0) {
-          // If we already have a selected credential ID, check if it's valid
-          if (
-            selectedCredentialId &&
-            data.credentials.some((cred: Credential) => cred.id === selectedCredentialId)
-          ) {
-            // Keep the current selection
-          } else {
-            // Otherwise, select the default or first credential
-            const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-            if (defaultCred) {
-              setSelectedCredentialId(defaultCred.id)
-            } else if (data.credentials.length === 1) {
-              setSelectedCredentialId(data.credentials[0].id)
-            }
-          }
-        }
+        // Do not auto-select credentials. Only use the credentialId provided by the parent.
       }
     } catch (error) {
       logger.error('Error fetching credentials:', error)
@@ -187,15 +172,12 @@ export function JiraProjectSelector({
           return
         }
 
-        // Build query parameters for the project endpoint
-        const queryParams = new URLSearchParams({
-          domain,
-          accessToken,
-          projectId,
-          ...(cloudId && { cloudId }),
+        // Use POST /api/tools/jira/projects to fetch a single project by id
+        const response = await fetch(`/api/tools/jira/projects`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain, accessToken, projectId, cloudId }),
         })
-
-        const response = await fetch(`/api/tools/jira/project?${queryParams.toString()}`)
 
         if (!response.ok) {
           const errorData = await response.json()
@@ -203,14 +185,21 @@ export function JiraProjectSelector({
           throw new Error(errorData.error || 'Failed to fetch project details')
         }
 
-        const projectInfo = await response.json()
+        const json = await response.json()
+        const projectInfo = json?.project
+        const newCloudId = json?.cloudId
 
-        if (projectInfo.cloudId) {
-          setCloudId(projectInfo.cloudId)
+        if (newCloudId) {
+          setCloudId(newCloudId)
         }
 
-        setSelectedProject(projectInfo)
-        onProjectInfoChange?.(projectInfo)
+        if (projectInfo) {
+          setSelectedProject(projectInfo)
+          onProjectInfoChange?.(projectInfo)
+        } else {
+          setSelectedProject(null)
+          onProjectInfoChange?.(null)
+        }
       } catch (error) {
         logger.error('Error fetching project details:', error)
         setError((error as Error).message)
@@ -329,17 +318,29 @@ export function JiraProjectSelector({
     ]
   )
 
-  // Fetch credentials on initial mount
+  // Fetch credentials list when dropdown opens (for account switching UI), not on mount
   useEffect(() => {
-    if (!initialFetchRef.current) {
+    if (open) {
       fetchCredentials()
-      initialFetchRef.current = true
     }
-  }, [fetchCredentials])
+  }, [open, fetchCredentials])
+
+  // Keep local credential state in sync with persisted credential
+  useEffect(() => {
+    if (credentialId && credentialId !== selectedCredentialId) {
+      setSelectedCredentialId(credentialId)
+    }
+  }, [credentialId, selectedCredentialId])
 
   // Fetch the selected project metadata once credentials are ready or changed
   useEffect(() => {
-    if (value && selectedCredentialId && !selectedProject && domain && domain.includes('.')) {
+    if (
+      value &&
+      selectedCredentialId &&
+      domain &&
+      domain.includes('.') &&
+      (!selectedProject || selectedProject.id !== value)
+    ) {
       fetchProjectInfo(value)
     }
   }, [value, selectedCredentialId, selectedProject, domain, fetchProjectInfo])
@@ -354,8 +355,9 @@ export function JiraProjectSelector({
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
+    // Only fetch projects when a credential is present; otherwise, do nothing
     if (isOpen && selectedCredentialId && domain && domain.includes('.')) {
-      fetchProjects('') // Pass empty string to get all projects
+      fetchProjects('')
     }
   }
 
@@ -394,12 +396,17 @@ export function JiraProjectSelector({
               role='combobox'
               aria-expanded={open}
               className='w-full justify-between'
-              disabled={disabled || !domain}
+              disabled={disabled || !domain || !selectedCredentialId}
             >
               {selectedProject ? (
                 <div className='flex items-center gap-2 overflow-hidden'>
                   <JiraIcon className='h-4 w-4' />
                   <span className='truncate font-normal'>{selectedProject.name}</span>
+                </div>
+              ) : selectedProjectId ? (
+                <div className='flex items-center gap-2 overflow-hidden'>
+                  <JiraIcon className='h-4 w-4' />
+                  <span className='truncate font-normal'>{selectedProjectId}</span>
                 </div>
               ) : (
                 <div className='flex items-center gap-2'>

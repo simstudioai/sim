@@ -130,6 +130,8 @@ export const workflow = pgTable(
     isDeployed: boolean('is_deployed').notNull().default(false),
     deployedState: json('deployed_state'),
     deployedAt: timestamp('deployed_at'),
+    // When set, only this API key is authorized for execution
+    pinnedApiKey: text('pinned_api_key'),
     collaborators: json('collaborators').notNull().default('[]'),
     runCount: integer('run_count').notNull().default(0),
     lastRunAt: timestamp('last_run_at'),
@@ -162,6 +164,7 @@ export const workflowBlocks = pgTable(
     horizontalHandles: boolean('horizontal_handles').notNull().default(true),
     isWide: boolean('is_wide').notNull().default(false),
     advancedMode: boolean('advanced_mode').notNull().default(false),
+    triggerMode: boolean('trigger_mode').notNull().default(false),
     height: decimal('height').notNull().default('0'),
 
     subBlocks: jsonb('sub_blocks').notNull().default('{}'),
@@ -300,6 +303,7 @@ export const workflowExecutionLogs = pgTable(
     totalTokens: integer('total_tokens'),
 
     metadata: jsonb('metadata').notNull().default('{}'),
+    files: jsonb('files'), // File metadata for execution files
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
@@ -345,7 +349,6 @@ export const settings = pgTable('settings', {
 
   // Privacy settings
   telemetryEnabled: boolean('telemetry_enabled').notNull().default(true),
-  telemetryNotifiedUser: boolean('telemetry_notified_user').notNull().default(false),
 
   // Email preferences
   emailPreferences: json('email_preferences').notNull().default('{}'),
@@ -462,6 +465,10 @@ export const userStats = pgTable('user_stats', {
   billingPeriodStart: timestamp('billing_period_start').defaultNow(), // When current billing period started
   billingPeriodEnd: timestamp('billing_period_end'), // When current billing period ends
   lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
+  // Copilot usage tracking
+  totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
+  totalCopilotTokens: integer('total_copilot_tokens').notNull().default(0),
+  totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
   lastActive: timestamp('last_active').notNull().defaultNow(),
 })
 
@@ -717,7 +724,7 @@ export const knowledgeBase = pgTable(
     // Chunking configuration stored as JSON for flexibility
     chunkingConfig: json('chunking_config')
       .notNull()
-      .default('{"maxSize": 1024, "minSize": 100, "overlap": 200}'),
+      .default('{"maxSize": 1024, "minSize": 1, "overlap": 200}'),
 
     // Soft delete support
     deletedAt: timestamp('deleted_at'),
@@ -1003,6 +1010,7 @@ export const copilotChats = pgTable(
     title: text('title'),
     messages: jsonb('messages').notNull().default('[]'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
+    conversationId: text('conversation_id'),
     previewYaml: text('preview_yaml'), // YAML content for pending workflow preview
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -1172,5 +1180,27 @@ export const copilotFeedback = pgTable(
 
     // Ordering indexes
     createdAtIdx: index('copilot_feedback_created_at_idx').on(table.createdAt),
+  })
+)
+
+export const copilotApiKeys = pgTable(
+  'copilot_api_keys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    apiKeyEncrypted: text('api_key_encrypted').notNull(),
+    apiKeyLookup: text('api_key_lookup').notNull(),
+  },
+  (table) => ({
+    apiKeyEncryptedHashIdx: index('copilot_api_keys_api_key_encrypted_hash_idx').using(
+      'hash',
+      table.apiKeyEncrypted
+    ),
+    apiKeyLookupHashIdx: index('copilot_api_keys_lookup_hash_idx').using(
+      'hash',
+      table.apiKeyLookup
+    ),
   })
 )

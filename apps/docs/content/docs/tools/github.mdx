@@ -1,6 +1,6 @@
 ---
 title: GitHub
-description: Interact with GitHub
+description: Interact with GitHub or trigger workflows from GitHub events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -35,7 +35,7 @@ In Sim, the GitHub integration enables your agents to interact directly with Git
 
 ## Usage Instructions
 
-Access GitHub repositories, pull requests, and comments through the GitHub API. Automate code reviews, PR management, and repository interactions within your workflow.
+Access GitHub repositories, pull requests, and comments through the GitHub API. Automate code reviews, PR management, and repository interactions within your workflow. Trigger workflows from GitHub events like push, pull requests, and issues.
 
 
 
@@ -58,8 +58,8 @@ Fetch PR details including diff and files changed
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Response content |
-| `metadata` | json | Response metadata |
+| `content` | string | Human-readable PR summary |
+| `metadata` | object | Detailed PR metadata including file changes |
 
 ### `github_comment`
 
@@ -85,8 +85,8 @@ Create comments on GitHub PRs
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Response content |
-| `metadata` | json | Response metadata |
+| `content` | string | Human-readable comment confirmation |
+| `metadata` | object | Comment metadata |
 
 ### `github_repo_info`
 
@@ -104,8 +104,8 @@ Retrieve comprehensive GitHub repository metadata including stars, forks, issues
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Response content |
-| `metadata` | json | Response metadata |
+| `content` | string | Human-readable repository summary |
+| `metadata` | object | Repository metadata |
 
 ### `github_latest_commit`
 
@@ -117,15 +117,15 @@ Retrieve the latest commit from a GitHub repository
 | --------- | ---- | -------- | ----------- |
 | `owner` | string | Yes | Repository owner \(user or organization\) |
 | `repo` | string | Yes | Repository name |
-| `branch` | string | No | Branch name \(defaults to the repository |
+| `branch` | string | No | Branch name \(defaults to the repository's default branch\) |
 | `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | string | Response content |
-| `metadata` | json | Response metadata |
+| `content` | string | Human-readable commit summary |
+| `metadata` | object | Commit metadata |
 
 
 

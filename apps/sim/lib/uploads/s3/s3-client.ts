@@ -100,6 +100,7 @@ export async function uploadToS3(
  * @param contentType MIME type of the file
  * @param customConfig Custom S3 configuration (bucket and region)
  * @param size File size in bytes (optional, will use buffer length if not provided)
+ * @param skipTimestampPrefix Skip adding timestamp prefix to filename (default: false)
  * @returns Object with file information
  */
 export async function uploadToS3(
@@ -107,7 +108,8 @@ export async function uploadToS3(
   fileName: string,
   contentType: string,
   customConfig: CustomS3Config,
-  size?: number
+  size?: number,
+  skipTimestampPrefix?: boolean
 ): Promise<FileInfo>
 
 export async function uploadToS3(
@@ -115,32 +117,29 @@ export async function uploadToS3(
   fileName: string,
   contentType: string,
   configOrSize?: CustomS3Config | number,
-  size?: number
+  size?: number,
+  skipTimestampPrefix?: boolean
 ): Promise<FileInfo> {
   // Handle overloaded parameters
   let config: CustomS3Config
   let fileSize: number
+  let shouldSkipTimestamp: boolean
 
   if (typeof configOrSize === 'object') {
     // Custom config provided
     config = configOrSize
     fileSize = size ?? file.length
+    shouldSkipTimestamp = skipTimestampPrefix ?? false
   } else {
     // Use default config
     config = { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
     fileSize = configOrSize ?? file.length
+    shouldSkipTimestamp = size === undefined ? false : (skipTimestampPrefix ?? false)
   }
 
-  // Create a unique filename with timestamp to prevent collisions
-  // Use a simple timestamp without directory structure
+  // Create filename - optionally skip timestamp prefix
   const safeFileName = fileName.replace(/\s+/g, '-') // Replace spaces with hyphens
-  const uniqueKey = `${Date.now()}-${safeFileName}`
-
-  // Sanitize filename for S3 metadata (only allow ASCII printable characters)
-  const sanitizedOriginalName = fileName
-    .replace(/[^\x20-\x7E]/g, '') // Remove non-ASCII characters
-    .replace(/["\\]/g, '') // Remove quotes and backslashes
-    .trim()
+  const uniqueKey = shouldSkipTimestamp ? safeFileName : `${Date.now()}-${safeFileName}`
 
   const s3Client = getS3Client()
 
@@ -211,9 +210,21 @@ export async function getPresignedUrlWithConfig(
  * @param key S3 object key
  * @returns File buffer
  */
-export async function downloadFromS3(key: string) {
+export async function downloadFromS3(key: string): Promise<Buffer>
+
+/**
+ * Download a file from S3 with custom bucket configuration
+ * @param key S3 object key
+ * @param customConfig Custom S3 configuration
+ * @returns File buffer
+ */
+export async function downloadFromS3(key: string, customConfig: CustomS3Config): Promise<Buffer>
+
+export async function downloadFromS3(key: string, customConfig?: CustomS3Config): Promise<Buffer> {
+  const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
+
   const command = new GetObjectCommand({
-    Bucket: S3_CONFIG.bucket,
+    Bucket: config.bucket,
     Key: key,
   })
 
@@ -257,10 +268,21 @@ export async function downloadFromS3WithConfig(key: string, customConfig: Custom
  * Delete a file from S3
  * @param key S3 object key
  */
-export async function deleteFromS3(key: string) {
+export async function deleteFromS3(key: string): Promise<void>
+
+/**
+ * Delete a file from S3 with custom bucket configuration
+ * @param key S3 object key
+ * @param customConfig Custom S3 configuration
+ */
+export async function deleteFromS3(key: string, customConfig: CustomS3Config): Promise<void>
+
+export async function deleteFromS3(key: string, customConfig?: CustomS3Config): Promise<void> {
+  const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
+
   await getS3Client().send(
     new DeleteObjectCommand({
-      Bucket: S3_CONFIG.bucket,
+      Bucket: config.bucket,
       Key: key,
     })
   )

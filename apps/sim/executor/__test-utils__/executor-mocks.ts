@@ -8,7 +8,7 @@ export const createMockHandler = (
   handlerName: string,
   options?: {
     canHandleCondition?: (block: any) => boolean
-    executeResult?: any
+    executeResult?: any | ((inputs: any) => any)
   }
 ) => {
   const defaultCanHandle = (block: any) =>
@@ -20,7 +20,12 @@ export const createMockHandler = (
 
   return vi.fn().mockImplementation(() => ({
     canHandle: options?.canHandleCondition || defaultCanHandle,
-    execute: vi.fn().mockResolvedValue(options?.executeResult || defaultExecuteResult),
+    execute: vi.fn().mockImplementation(async (block, inputs) => {
+      if (typeof options?.executeResult === 'function') {
+        return options.executeResult(inputs)
+      }
+      return options?.executeResult || defaultExecuteResult
+    }),
   }))
 }
 
@@ -29,6 +34,11 @@ export const createMockHandler = (
  */
 export const setupHandlerMocks = () => {
   vi.doMock('@/executor/handlers', () => ({
+    TriggerBlockHandler: createMockHandler('trigger', {
+      canHandleCondition: (block) =>
+        block.metadata?.category === 'triggers' || block.config?.params?.triggerMode === true,
+      executeResult: (inputs: any) => inputs || {},
+    }),
     AgentBlockHandler: createMockHandler('agent'),
     RouterBlockHandler: createMockHandler('router'),
     ConditionBlockHandler: createMockHandler('condition'),

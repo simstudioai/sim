@@ -1,3 +1,4 @@
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -13,6 +14,7 @@ import { getCopilotModel } from '@/lib/copilot/config'
 import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { downloadFile } from '@/lib/uploads'
 import { downloadFromS3WithConfig } from '@/lib/uploads/s3/s3-client'
 import { S3_COPILOT_CONFIG, USE_S3_STORAGE } from '@/lib/uploads/setup'
@@ -22,6 +24,37 @@ import { executeProviderRequest } from '@/providers'
 import { createAnthropicFileContent, isSupportedFileType } from './file-utils'
 
 const logger = createLogger('CopilotChatAPI')
+
+// Sim Agent API configuration
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
+
+function deriveKey(keyString: string): Buffer {
+  return createHash('sha256').update(keyString, 'utf8').digest()
+}
+
+function decryptWithKey(encryptedValue: string, keyString: string): string {
+  const [ivHex, encryptedHex, authTagHex] = encryptedValue.split(':')
+  if (!ivHex || !encryptedHex || !authTagHex) {
+    throw new Error('Invalid encrypted format')
+  }
+  const key = deriveKey(keyString)
+  const iv = Buffer.from(ivHex, 'hex')
+  const decipher = createDecipheriv('aes-256-gcm', key, iv)
+  decipher.setAuthTag(Buffer.from(authTagHex, 'hex'))
+  let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
+  decrypted += decipher.final('utf8')
+  return decrypted
+}
+
+function encryptWithKey(plaintext: string, keyString: string): string {
+  const key = deriveKey(keyString)
+  const iv = randomBytes(16)
+  const cipher = createCipheriv('aes-256-gcm', key, iv)
+  let encrypted = cipher.update(plaintext, 'utf8', 'hex')
+  encrypted += cipher.final('hex')
+  const authTag = cipher.getAuthTag().toString('hex')
+  return `${iv.toString('hex')}:${encrypted}:${authTag}`
+}
 
 // Schema for file attachments
 const FileAttachmentSchema = z.object({
@@ -39,15 +72,14 @@ const ChatMessageSchema = z.object({
   chatId: z.string().optional(),
   workflowId: z.string().min(1, 'Workflow ID is required'),
   mode: z.enum(['ask', 'agent']).optional().default('agent'),
+  depth: z.number().int().min(0).max(3).optional().default(0),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
   implicitFeedback: z.string().optional(),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
+  provider: z.string().optional().default('openai'),
+  conversationId: z.string().optional(),
 })
-
-// Sim Agent API configuration
-const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = env.SIM_AGENT_API_KEY
 
 /**
  * Generate a chat title using LLM
@@ -156,10 +188,13 @@ export async function POST(req: NextRequest) {
       chatId,
       workflowId,
       mode,
+      depth,
       createNewChat,
       stream,
       implicitFeedback,
       fileAttachments,
+      provider,
+      conversationId,
     } = ChatMessageSchema.parse(body)
 
     logger.info(`[${tracker.requestId}] Processing copilot chat request`, {
@@ -171,6 +206,9 @@ export async function POST(req: NextRequest) {
       createNewChat,
       messageLength: message.length,
       hasImplicitFeedback: !!implicitFeedback,
+      provider: provider || 'openai',
+      hasConversationId: !!conversationId,
+      depth,
     })
 
     // Handle chat context
@@ -252,7 +290,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Build messages array for sim agent with conversation history
-    const messages = []
+    const messages: any[] = []
 
     // Add conversation history (need to rebuild these with file support if they had attachments)
     for (const msg of conversationHistory) {
@@ -327,40 +365,46 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Start title generation in parallel if this is a new chat with first message
-    if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
-      logger.info(`[${tracker.requestId}] Will start parallel title generation inside stream`)
-    }
+    // Determine provider and conversationId to use for this request
+    const providerToUse = provider || 'openai'
+    const effectiveConversationId =
+      (currentChat?.conversationId as string | undefined) || conversationId
 
-    // Forward to sim agent API
-    logger.info(`[${tracker.requestId}] Sending request to sim agent API`, {
-      messageCount: messages.length,
-      endpoint: `${SIM_AGENT_API_URL}/api/chat-completion-streaming`,
-    })
+    // If we have a conversationId, only send the most recent user message; else send full history
+    const messagesForAgent = effectiveConversationId ? [messages[messages.length - 1]] : messages
 
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
+        ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
       },
       body: JSON.stringify({
-        messages,
+        messages: messagesForAgent,
         workflowId,
         userId: authenticatedUserId,
         stream: stream,
         streamToolCalls: true,
         mode: mode,
+        provider: providerToUse,
+        ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
+        ...(typeof depth === 'number' ? { depth } : {}),
         ...(session?.user?.name && { userName: session.user.name }),
       }),
     })
 
     if (!simAgentResponse.ok) {
-      const errorText = await simAgentResponse.text()
+      if (simAgentResponse.status === 401 || simAgentResponse.status === 402) {
+        // Rethrow status only; client will render appropriate assistant message
+        return new NextResponse(null, { status: simAgentResponse.status })
+      }
+
+      const errorText = await simAgentResponse.text().catch(() => '')
       logger.error(`[${tracker.requestId}] Sim agent API error:`, {
         status: simAgentResponse.status,
         error: errorText,
       })
+
       return NextResponse.json(
         { error: `Sim agent API error: ${simAgentResponse.statusText}` },
         { status: simAgentResponse.status }
@@ -388,6 +432,8 @@ export async function POST(req: NextRequest) {
           const toolCalls: any[] = []
           let buffer = ''
           let isFirstDone = true
+          let responseIdFromStart: string | undefined
+          let responseIdFromDone: string | undefined
 
           // Send chatId as first event
           if (actualChatId) {
@@ -486,6 +532,13 @@ export async function POST(req: NextRequest) {
                         }
                         break
 
+                      case 'reasoning':
+                        // Treat like thinking: do not add to assistantContent to avoid leaking
+                        logger.debug(
+                          `[${tracker.requestId}] Reasoning chunk received (${(event.data || event.content || '').length} chars)`
+                        )
+                        break
+
                       case 'tool_call':
                         logger.info(
                           `[${tracker.requestId}] Tool call ${event.data?.partial ? '(partial)' : '(complete)'}:`,
@@ -528,7 +581,22 @@ export async function POST(req: NextRequest) {
                         })
                         break
 
+                      case 'start':
+                        if (event.data?.responseId) {
+                          responseIdFromStart = event.data.responseId
+                          logger.info(
+                            `[${tracker.requestId}] Received start event with responseId: ${responseIdFromStart}`
+                          )
+                        }
+                        break
+
                       case 'done':
+                        if (event.data?.responseId) {
+                          responseIdFromDone = event.data.responseId
+                          logger.info(
+                            `[${tracker.requestId}] Received done event with responseId: ${responseIdFromDone}`
+                          )
+                        }
                         if (isFirstDone) {
                           logger.info(
                             `[${tracker.requestId}] Initial AI response complete, tool count: ${toolCalls.length}`
@@ -622,12 +690,15 @@ export async function POST(req: NextRequest) {
                 )
               }
 
+              const responseId = responseIdFromDone || responseIdFromStart
+
               // Update chat in database immediately (without title)
               await db
                 .update(copilotChats)
                 .set({
                   messages: updatedMessages,
                   updatedAt: new Date(),
+                  ...(responseId ? { conversationId: responseId } : {}),
                 })
                 .where(eq(copilotChats.id, actualChatId!))
 
@@ -635,6 +706,7 @@ export async function POST(req: NextRequest) {
                 messageCount: updatedMessages.length,
                 savedUserMessage: true,
                 savedAssistantMessage: assistantContent.trim().length > 0,
+                updatedConversationId: responseId || null,
               })
             }
           } catch (error) {

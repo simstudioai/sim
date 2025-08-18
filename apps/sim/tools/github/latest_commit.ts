@@ -48,10 +48,6 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
   },
 
   transformResponse: async (response, params) => {
-    if (!response.ok) {
-      throw new Error(`GitHub API error: ${response.statusText}`)
-    }
-
     const data = await response.json()
 
     // Create a human-readable content string
@@ -132,16 +128,11 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
     }
   },
 
-  transformError: (error) => {
-    if (error instanceof Error) {
-      if (error.message.includes('404')) {
-        return 'Commit or repository not found. Please check the owner, repository name, and branch.'
-      }
-      if (error.message.includes('401')) {
-        return 'Authentication failed. Please check your GitHub token.'
-      }
-      return error.message
-    }
-    return 'Failed to fetch commit information'
+  outputs: {
+    content: { type: 'string', description: 'Human-readable commit summary' },
+    metadata: {
+      type: 'object',
+      description: 'Commit metadata',
+    },
   },
 }

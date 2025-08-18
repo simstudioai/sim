@@ -38,30 +38,39 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      throw new Error(`ArXiv API error: ${response.status} ${response.statusText}`)
-    }
-
     const xmlText = await response.text()
-
-    // Parse XML response
     const papers = parseArxivXML(xmlText)
-
-    if (papers.length === 0) {
-      throw new Error('Paper not found')
-    }
 
     return {
       success: true,
       output: {
-        paper: papers[0],
+        paper: papers[0] || null,
       },
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while retrieving the ArXiv paper'
+  outputs: {
+    paper: {
+      type: 'json',
+      description: 'Detailed information about the requested ArXiv paper',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          title: { type: 'string' },
+          summary: { type: 'string' },
+          authors: { type: 'string' },
+          published: { type: 'string' },
+          updated: { type: 'string' },
+          link: { type: 'string' },
+          pdfLink: { type: 'string' },
+          categories: { type: 'string' },
+          primaryCategory: { type: 'string' },
+          comment: { type: 'string' },
+          journalRef: { type: 'string' },
+          doi: { type: 'string' },
+        },
+      },
+    },
   },
 }

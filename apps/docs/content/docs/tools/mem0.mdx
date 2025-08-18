@@ -66,9 +66,8 @@ Add memories to Mem0 for persistent storage and retrieval
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ids` | any | Memory identifiers |
-| `memories` | any | Memory data |
-| `searchResults` | any | Search results |
+| `ids` | array | Array of memory IDs that were created |
+| `memories` | array | Array of memory objects that were created |
 
 ### `mem0_search_memories`
 
@@ -87,9 +86,8 @@ Search for memories in Mem0 using semantic search
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ids` | any | Memory identifiers |
-| `memories` | any | Memory data |
-| `searchResults` | any | Search results |
+| `searchResults` | array | Array of search results with memory data, each containing id, data, and score |
+| `ids` | array | Array of memory IDs found in the search results |
 
 ### `mem0_get_memories`
 
@@ -110,9 +108,8 @@ Retrieve memories from Mem0 by ID or filter criteria
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `ids` | any | Memory identifiers |
-| `memories` | any | Memory data |
-| `searchResults` | any | Search results |
+| `memories` | array | Array of retrieved memory objects |
+| `ids` | array | Array of memory IDs that were retrieved |
 
 
 

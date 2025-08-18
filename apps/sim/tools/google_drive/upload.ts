@@ -10,11 +10,13 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
   name: 'Upload to Google Drive',
   description: 'Upload a file to Google Drive',
   version: '1.0',
+
   oauth: {
     required: true,
     provider: 'google-drive',
     additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
+
   params: {
     accessToken: {
       type: 'string',
@@ -53,6 +55,7 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
       description: 'The ID of the folder to upload the file to (internal use)',
     },
   },
+
   request: {
     url: 'https://www.googleapis.com/drive/v3/files',
     method: 'POST',
@@ -79,6 +82,7 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
       return metadata
     },
   },
+
   transformResponse: async (response: Response, params?: GoogleDriveToolParams) => {
     try {
       const data = await response.json()
@@ -197,11 +201,8 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
       throw error
     }
   },
-  transformError: (error) => {
-    logger.error('Upload error', {
-      error: error.message,
-      stack: error.stack,
-    })
-    return error.message || 'An error occurred while uploading to Google Drive'
+
+  outputs: {
+    file: { type: 'json', description: 'Uploaded file metadata including ID, name, and links' },
   },
 }

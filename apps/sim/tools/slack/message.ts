@@ -72,9 +72,6 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    if (!data.ok) {
-      throw new Error(data.error || 'Slack API error')
-    }
     return {
       success: true,
       output: {
@@ -84,8 +81,8 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
     }
   },
 
-  transformError: (error: any) => {
-    const message = error.message || 'Slack message failed'
-    return message
+  outputs: {
+    ts: { type: 'string', description: 'Message timestamp' },
+    channel: { type: 'string', description: 'Channel ID where message was sent' },
   },
 }

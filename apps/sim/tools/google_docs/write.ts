@@ -74,19 +74,19 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
       return requestBody
     },
   },
-  transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      let errorText = ''
-      try {
-        const responseClone = response.clone()
-        const responseText = await responseClone.text()
-        errorText = responseText
-      } catch (_e) {
-        errorText = 'Unable to read error response'
-      }
 
-      throw new Error(`Failed to write to Google Docs document (${response.status}): ${errorText}`)
-    }
+  outputs: {
+    updatedContent: {
+      type: 'boolean',
+      description: 'Indicates if document content was updated successfully',
+    },
+    metadata: {
+      type: 'json',
+      description: 'Updated document metadata including ID, title, and URL',
+    },
+  },
+
+  transformResponse: async (response: Response) => {
     const responseText = await response.text()
 
     // Parse the response if it's not empty
@@ -120,24 +120,5 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
         metadata,
       },
     }
-  },
-  transformError: (error) => {
-    // If it's an Error instance with a message, use that
-    if (error instanceof Error) {
-      return error.message
-    }
-
-    // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
-      if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
-      }
-      if (error.message) {
-        return error.message
-      }
-    }
-
-    // Default fallback message
-    return 'An error occurred while writing to Google Docs'
   },
 }

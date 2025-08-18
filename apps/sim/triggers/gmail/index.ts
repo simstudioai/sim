@@ -1,0 +1,1 @@
+export { gmailPollingTrigger } from './poller'

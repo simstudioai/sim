@@ -245,6 +245,11 @@ describe('Chat API Route', () => {
           NODE_ENV: 'development',
           NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
         },
+        isTruthy: (value: string | boolean | number | undefined) =>
+          typeof value === 'string'
+            ? value.toLowerCase() === 'true' || value === '1'
+            : Boolean(value),
+        getEnv: (variable: string) => process.env[variable],
       }))
 
       const validData = {
@@ -287,6 +292,9 @@ describe('Chat API Route', () => {
           NODE_ENV: 'development',
           NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
         },
+        isTruthy: (value: string | boolean | number | undefined) =>
+          typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value),
+        getEnv: (variable: string) => process.env[variable],
       }))
 
       const validData = {

@@ -255,13 +255,28 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
     dueDate: { type: 'string', description: 'Due date' },
   },
   outputs: {
-    note: { type: 'any', description: 'Note data' },
-    notes: { type: 'any', description: 'Notes list' },
-    contact: { type: 'any', description: 'Contact data' },
-    contacts: { type: 'any', description: 'Contacts list' },
-    task: { type: 'any', description: 'Task data' },
-    tasks: { type: 'any', description: 'Tasks list' },
-    metadata: { type: 'json', description: 'Operation metadata' },
-    success: { type: 'any', description: 'Success status' },
+    note: {
+      type: 'json',
+      description: 'Single note object with ID, content, creator, and linked contacts',
+    },
+    notes: { type: 'json', description: 'Array of note objects from bulk read operations' },
+    contact: {
+      type: 'json',
+      description: 'Single contact object with name, email, phone, and background info',
+    },
+    contacts: { type: 'json', description: 'Array of contact objects from bulk read operations' },
+    task: {
+      type: 'json',
+      description: 'Single task object with name, due date, description, and priority',
+    },
+    tasks: { type: 'json', description: 'Array of task objects from bulk read operations' },
+    metadata: {
+      type: 'json',
+      description: 'Operation metadata including item IDs, types, and operation details',
+    },
+    success: {
+      type: 'boolean',
+      description: 'Boolean indicating whether the operation completed successfully',
+    },
   },
 }

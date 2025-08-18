@@ -1,6 +1,6 @@
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
-import { isDev } from './lib/environment'
+import { isDev, isHosted } from './lib/environment'
 import { createLogger } from './lib/logs/console/logger'
 import { generateRuntimeCSP } from './lib/security/csp'
 import { getBaseDomain } from './lib/urls/utils'
@@ -72,6 +72,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(new URL(`/chat/${subdomain}${url.pathname}`, request.url))
   }
 
+  // For self-hosted deployments, redirect root path based on session status
+  // Only apply redirects to the main domain, not subdomains
+  if (!isHosted && !isCustomDomain && url.pathname === '/') {
+    if (hasActiveSession) {
+      // User has active session, redirect to workspace
+      return NextResponse.redirect(new URL('/workspace', request.url))
+    }
+    // User doesn't have active session, redirect to login
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
   // Legacy redirect: /w -> /workspace (will be handled by workspace layout)
   if (url.pathname === '/w' || url.pathname.startsWith('/w/')) {
     // Extract workflow ID if present
@@ -93,6 +104,13 @@ export async function middleware(request: NextRequest) {
     if (!hasActiveSession) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
+
+    // Check if user needs email verification
+    const requiresVerification = request.cookies.get('requiresEmailVerification')
+    if (requiresVerification?.value === 'true') {
+      return NextResponse.redirect(new URL('/verify', request.url))
+    }
+
     return NextResponse.next()
   }
 
@@ -173,9 +191,10 @@ export async function middleware(request: NextRequest) {
   return response
 }
 
-// Update matcher to include invitation routes
+// Update matcher to include invitation routes and root path
 export const config = {
   matcher: [
+    '/', // Root path for self-hosted redirect logic
     '/w', // Legacy /w redirect
     '/w/:path*', // Legacy /w/* redirects
     '/workspace/:path*', // New workspace routes

@@ -9,12 +9,20 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 const logger = createLogger('InputResolver')
 
 /**
+ * Helper function to resolve property access
+ */
+function resolvePropertyAccess(obj: any, property: string): any {
+  return obj[property]
+}
+
+/**
  * Resolves input values for blocks by handling references and variable substitution.
  */
 export class InputResolver {
   private blockById: Map<string, SerializedBlock>
   private blockByNormalizedName: Map<string, SerializedBlock>
   private loopsByBlockId: Map<string, string> // Maps block ID to containing loop ID
+  private parallelsByBlockId: Map<string, string> // Maps block ID to containing parallel ID
 
   constructor(
     private workflow: SerializedWorkflow,
@@ -52,6 +60,14 @@ export class InputResolver {
     for (const [loopId, loop] of Object.entries(workflow.loops || {})) {
       for (const blockId of loop.nodes) {
         this.loopsByBlockId.set(blockId, loopId)
+      }
+    }
+
+    // Create efficient parallel lookup map
+    this.parallelsByBlockId = new Map()
+    for (const [parallelId, parallel] of Object.entries(workflow.parallels || {})) {
+      for (const blockId of parallel.nodes) {
+        this.parallelsByBlockId.set(blockId, parallelId)
       }
     }
   }
@@ -516,7 +532,32 @@ export class InputResolver {
                 throw new Error(`Invalid path "${part}" in "${path}" for starter block.`)
               }
 
-              replacementValue = replacementValue[part]
+              // Handle array indexing syntax like "files[0]" or "items[1]"
+              const arrayMatch = part.match(/^([^[]+)\[(\d+)\]$/)
+              if (arrayMatch) {
+                const [, arrayName, indexStr] = arrayMatch
+                const index = Number.parseInt(indexStr, 10)
+
+                // First access the array property
+                const arrayValue = replacementValue[arrayName]
+                if (!Array.isArray(arrayValue)) {
+                  throw new Error(
+                    `Property "${arrayName}" is not an array in path "${path}" for starter block.`
+                  )
+                }
+
+                // Then access the array element
+                if (index < 0 || index >= arrayValue.length) {
+                  throw new Error(
+                    `Array index ${index} is out of bounds for "${arrayName}" (length: ${arrayValue.length}) in path "${path}" for starter block.`
+                  )
+                }
+
+                replacementValue = arrayValue[index]
+              } else {
+                // Regular property access with FileReference mapping
+                replacementValue = resolvePropertyAccess(replacementValue, part)
+              }
 
               if (replacementValue === undefined) {
                 logger.warn(
@@ -619,15 +660,8 @@ export class InputResolver {
 
       // Special case for "parallel" references - allows accessing parallel properties
       if (blockRef.toLowerCase() === 'parallel') {
-        // Find which parallel this block belongs to
-        let containingParallelId: string | undefined
-
-        for (const [parallelId, parallel] of Object.entries(context.workflow?.parallels || {})) {
-          if (parallel.nodes.includes(currentBlock.id)) {
-            containingParallelId = parallelId
-            break
-          }
-        }
+        // Find which parallel this block belongs to using efficient lookup
+        const containingParallelId = this.parallelsByBlockId.get(currentBlock.id)
 
         if (containingParallelId) {
           const formattedValue = this.resolveParallelReference(
@@ -699,7 +733,32 @@ export class InputResolver {
           )
         }
 
-        replacementValue = replacementValue[part]
+        // Handle array indexing syntax like "files[0]" or "items[1]"
+        const arrayMatch = part.match(/^([^[]+)\[(\d+)\]$/)
+        if (arrayMatch) {
+          const [, arrayName, indexStr] = arrayMatch
+          const index = Number.parseInt(indexStr, 10)
+
+          // First access the array property
+          const arrayValue = replacementValue[arrayName]
+          if (!Array.isArray(arrayValue)) {
+            throw new Error(
+              `Property "${arrayName}" is not an array in path "${path}" for block "${sourceBlock.metadata?.name || sourceBlock.id}".`
+            )
+          }
+
+          // Then access the array element
+          if (index < 0 || index >= arrayValue.length) {
+            throw new Error(
+              `Array index ${index} is out of bounds for "${arrayName}" (length: ${arrayValue.length}) in path "${path}" for block "${sourceBlock.metadata?.name || sourceBlock.id}".`
+            )
+          }
+
+          replacementValue = arrayValue[index]
+        } else {
+          // Regular property access with FileReference mapping
+          replacementValue = resolvePropertyAccess(replacementValue, part)
+        }
 
         if (replacementValue === undefined) {
           throw new Error(
@@ -1034,8 +1093,10 @@ export class InputResolver {
     }
 
     // Special case: blocks in the same parallel can reference each other
-    for (const [parallelId, parallel] of Object.entries(this.workflow.parallels || {})) {
-      if (parallel.nodes.includes(currentBlockId)) {
+    const currentBlockParallel = this.parallelsByBlockId.get(currentBlockId)
+    if (currentBlockParallel) {
+      const parallel = this.workflow.parallels?.[currentBlockParallel]
+      if (parallel) {
         for (const nodeId of parallel.nodes) {
           accessibleBlocks.add(nodeId)
         }
@@ -1787,5 +1848,23 @@ export class InputResolver {
     }
 
     return value
+  }
+
+  /**
+   * Get the containing loop ID for a block
+   * @param blockId - The ID of the block
+   * @returns The containing loop ID or undefined if not in a loop
+   */
+  getContainingLoopId(blockId: string): string | undefined {
+    return this.loopsByBlockId.get(blockId)
+  }
+
+  /**
+   * Get the containing parallel ID for a block
+   * @param blockId - The ID of the block
+   * @returns The containing parallel ID or undefined if not in a parallel
+   */
+  getContainingParallelId(blockId: string): string | undefined {
+    return this.parallelsByBlockId.get(blockId)
   }
 }

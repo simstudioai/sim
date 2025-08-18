@@ -261,9 +261,18 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   ) => {
     const state = get()
 
-    // Return cached documents if they exist (no search-based caching since we do client-side filtering)
+    // Check if we have cached data that matches the exact request parameters
     const cached = state.documents[knowledgeBaseId]
-    if (cached && cached.documents.length > 0) {
+    const requestLimit = options?.limit || 50
+    const requestOffset = options?.offset || 0
+    const requestSearch = options?.search
+
+    if (
+      cached &&
+      cached.searchQuery === requestSearch &&
+      cached.pagination.limit === requestLimit &&
+      cached.pagination.offset === requestOffset
+    ) {
       return cached.documents
     }
 
@@ -277,11 +286,11 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         loadingDocuments: new Set([...state.loadingDocuments, knowledgeBaseId]),
       }))
 
-      // Build query parameters
+      // Build query parameters using the same defaults as caching
       const params = new URLSearchParams()
-      if (options?.search) params.set('search', options.search)
-      if (options?.limit) params.set('limit', options.limit.toString())
-      if (options?.offset) params.set('offset', options.offset.toString())
+      if (requestSearch) params.set('search', requestSearch)
+      params.set('limit', requestLimit.toString())
+      params.set('offset', requestOffset.toString())
 
       const url = `/api/knowledge/${knowledgeBaseId}/documents${params.toString() ? `?${params.toString()}` : ''}`
       const response = await fetch(url)
@@ -299,15 +308,15 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       const documents = result.data.documents || result.data // Handle both paginated and non-paginated responses
       const pagination = result.data.pagination || {
         total: documents.length,
-        limit: options?.limit || 50,
-        offset: options?.offset || 0,
+        limit: requestLimit,
+        offset: requestOffset,
         hasMore: false,
       }
 
       const documentsCache: DocumentsCache = {
         documents,
         pagination,
-        searchQuery: options?.search,
+        searchQuery: requestSearch,
         lastFetchTime: Date.now(),
       }
 
@@ -515,11 +524,15 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         loadingDocuments: new Set([...state.loadingDocuments, knowledgeBaseId]),
       }))
 
-      // Build query parameters - for refresh, always start from offset 0
+      // Build query parameters using consistent defaults
+      const requestLimit = options?.limit || 50
+      const requestOffset = options?.offset || 0
+      const requestSearch = options?.search
+
       const params = new URLSearchParams()
-      if (options?.search) params.set('search', options.search)
-      if (options?.limit) params.set('limit', options.limit.toString())
-      params.set('offset', '0') // Always start fresh on refresh
+      if (requestSearch) params.set('search', requestSearch)
+      params.set('limit', requestLimit.toString())
+      params.set('offset', requestOffset.toString())
 
       const url = `/api/knowledge/${knowledgeBaseId}/documents${params.toString() ? `?${params.toString()}` : ''}`
       const response = await fetch(url)
@@ -534,87 +547,33 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         throw new Error(result.error || 'Failed to fetch documents')
       }
 
-      const serverDocuments = result.data.documents || result.data
+      const documents = result.data.documents || result.data
       const pagination = result.data.pagination || {
-        total: serverDocuments.length,
-        limit: options?.limit || 50,
-        offset: 0,
+        total: documents.length,
+        limit: requestLimit,
+        offset: requestOffset,
         hasMore: false,
       }
 
-      set((state) => {
-        const currentDocuments = state.documents[knowledgeBaseId]?.documents || []
+      const documentsCache: DocumentsCache = {
+        documents,
+        pagination,
+        searchQuery: requestSearch,
+        lastFetchTime: Date.now(),
+      }
 
-        // Create a map of server documents by filename for quick lookup
-        const serverDocumentsByFilename = new Map()
-        serverDocuments.forEach((doc: DocumentData) => {
-          serverDocumentsByFilename.set(doc.filename, doc)
-        })
-
-        // Filter out temporary documents that now have real server equivalents
-        const filteredCurrentDocs = currentDocuments.filter((doc) => {
-          // If this is a temporary document (starts with temp-) and a server document exists with the same filename
-          if (doc.id.startsWith('temp-') && serverDocumentsByFilename.has(doc.filename)) {
-            return false // Remove the temporary document
-          }
-
-          // If this is a real document that still exists on the server, keep it for merging
-          if (!doc.id.startsWith('temp-')) {
-            const serverDoc = serverDocuments.find((sDoc: DocumentData) => sDoc.id === doc.id)
-            if (serverDoc) {
-              return false // Will be replaced by server version in merge below
-            }
-          }
-
-          // Keep temporary documents that don't have server equivalents yet
-          return true
-        })
-
-        // Merge server documents with any remaining local documents
-        const mergedDocuments = serverDocuments.map((serverDoc: DocumentData) => {
-          const existingDoc = currentDocuments.find((doc) => doc.id === serverDoc.id)
-
-          if (!existingDoc) {
-            // New document from server, use it as-is
-            return serverDoc
-          }
-
-          // Merge logic for existing documents (prefer server data for most fields)
-          return {
-            ...existingDoc,
-            ...serverDoc,
-            // Preserve any local optimistic updates that haven't been reflected on server yet
-            ...(existingDoc.processingStatus !== serverDoc.processingStatus &&
-            ['pending', 'processing'].includes(existingDoc.processingStatus) &&
-            !serverDoc.processingStartedAt
-              ? { processingStatus: existingDoc.processingStatus }
-              : {}),
-          }
-        })
-
-        // Add any remaining temporary documents that don't have server equivalents
-        const finalDocuments = [...mergedDocuments, ...filteredCurrentDocs]
-
-        const documentsCache: DocumentsCache = {
-          documents: finalDocuments,
-          pagination,
-          searchQuery: options?.search,
-          lastFetchTime: Date.now(),
-        }
-
-        return {
-          documents: {
-            ...state.documents,
-            [knowledgeBaseId]: documentsCache,
-          },
-          loadingDocuments: new Set(
-            [...state.loadingDocuments].filter((loadingId) => loadingId !== knowledgeBaseId)
-          ),
-        }
-      })
+      set((state) => ({
+        documents: {
+          ...state.documents,
+          [knowledgeBaseId]: documentsCache,
+        },
+        loadingDocuments: new Set(
+          [...state.loadingDocuments].filter((loadingId) => loadingId !== knowledgeBaseId)
+        ),
+      }))
 
       logger.info(`Documents refreshed for knowledge base: ${knowledgeBaseId}`)
-      return serverDocuments
+      return documents
     } catch (error) {
       logger.error(`Error refreshing documents for knowledge base ${knowledgeBaseId}:`, error)
 

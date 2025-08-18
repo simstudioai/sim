@@ -40,16 +40,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
-    // Get the credential from the database
-    const credentials = await db
+    // Get the credential from the database. Prefer session-owned credential, but
+    // if not found, resolve by credential ID to support collaborator-owned credentials.
+    let credentials = await db
       .select()
       .from(account)
       .where(and(eq(account.id, credentialId), eq(account.userId, session.user.id)))
       .limit(1)
 
     if (!credentials.length) {
-      logger.warn(`[${requestId}] Credential not found`)
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+      credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+      if (!credentials.length) {
+        logger.warn(`[${requestId}] Credential not found`)
+        return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+      }
     }
 
     const credential = credentials[0]
@@ -60,7 +64,7 @@ export async function GET(request: NextRequest) {
     )
 
     // Refresh access token if needed using the utility function
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
+    const accessToken = await refreshAccessTokenIfNeeded(credentialId, credential.userId, requestId)
 
     if (!accessToken) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })

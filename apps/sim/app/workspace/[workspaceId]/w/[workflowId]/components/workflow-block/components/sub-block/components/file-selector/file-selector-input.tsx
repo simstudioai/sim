@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { getEnv } from '@/lib/env'
 import {
@@ -45,6 +46,8 @@ export function FileSelectorInput({
   const { getValue } = useSubBlockStore()
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const { activeWorkflowId } = useWorkflowRegistry()
+  const params = useParams()
+  const workflowIdFromUrl = (params?.workflowId as string) || activeWorkflowId || ''
 
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
@@ -61,6 +64,36 @@ export function FileSelectorInput({
   const [selectedWealthboxItemId, setSelectedWealthboxItemId] = useState<string>('')
   const [wealthboxItemInfo, setWealthboxItemInfo] = useState<WealthboxItemInfo | null>(null)
 
+  // Determine if the persisted credential belongs to the current viewer
+  const [isForeignCredential, setIsForeignCredential] = useState<boolean>(false)
+  useEffect(() => {
+    const cred = (getValue(blockId, 'credential') as string) || ''
+    if (!cred) {
+      setIsForeignCredential(false)
+      return
+    }
+    let aborted = false
+    ;(async () => {
+      try {
+        const resp = await fetch(`/api/auth/oauth/credentials?credentialId=${cred}`)
+        if (aborted) return
+        if (!resp.ok) {
+          setIsForeignCredential(true)
+          return
+        }
+        const data = await resp.json()
+        // If credential not returned for this session user, it's foreign
+        setIsForeignCredential(!(data.credentials && data.credentials.length === 1))
+      } catch {
+        setIsForeignCredential(true)
+      }
+    })()
+    return () => {
+      aborted = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blockId, getValue(blockId, 'credential')])
+
   // Get provider-specific values
   const provider = subBlock.provider || 'google-drive'
   const isConfluence = provider === 'confluence'
@@ -76,6 +109,7 @@ export function FileSelectorInput({
   const isMicrosoftPlanner = provider === 'microsoft-planner'
   // For Confluence and Jira, we need the domain and credentials
   const domain = isConfluence || isJira ? (getValue(blockId, 'domain') as string) || '' : ''
+  const jiraCredential = isJira ? (getValue(blockId, 'credential') as string) || '' : ''
   // For Discord, we need the bot token and server ID
   const botToken = isDiscord ? (getValue(blockId, 'botToken') as string) || '' : ''
   const serverId = isDiscord ? (getValue(blockId, 'serverId') as string) || '' : ''
@@ -83,59 +117,53 @@ export function FileSelectorInput({
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
-  // Get the current value from the store or prop value if in preview mode
+  // Keep local selection in sync with store value (and preview)
   useEffect(() => {
-    if (isPreview && previewValue !== undefined) {
-      const value = previewValue
-      if (value && typeof value === 'string') {
-        if (isJira) {
-          setSelectedIssueId(value)
-        } else if (isDiscord) {
-          setSelectedChannelId(value)
-        } else if (isMicrosoftTeams) {
-          setSelectedMessageId(value)
-        } else if (isGoogleCalendar) {
-          setSelectedCalendarId(value)
-        } else if (isWealthbox) {
-          setSelectedWealthboxItemId(value)
-        } else if (isMicrosoftSharePoint) {
-          setSelectedFileId(value)
-        } else {
-          setSelectedFileId(value)
-        }
+    const effective = isPreview && previewValue !== undefined ? previewValue : storeValue
+    if (typeof effective === 'string' && effective !== '') {
+      if (isJira) {
+        setSelectedIssueId(effective)
+      } else if (isDiscord) {
+        setSelectedChannelId(effective)
+      } else if (isMicrosoftTeams) {
+        setSelectedMessageId(effective)
+      } else if (isGoogleCalendar) {
+        setSelectedCalendarId(effective)
+      } else if (isWealthbox) {
+        setSelectedWealthboxItemId(effective)
+      } else if (isMicrosoftSharePoint) {
+        setSelectedFileId(effective)
+      } else {
+        setSelectedFileId(effective)
       }
     } else {
-      const value = getValue(blockId, subBlock.id)
-      if (value && typeof value === 'string') {
-        if (isJira) {
-          setSelectedIssueId(value)
-        } else if (isDiscord) {
-          setSelectedChannelId(value)
-        } else if (isMicrosoftTeams) {
-          setSelectedMessageId(value)
-        } else if (isGoogleCalendar) {
-          setSelectedCalendarId(value)
-        } else if (isWealthbox) {
-          setSelectedWealthboxItemId(value)
-        } else if (isMicrosoftSharePoint) {
-          setSelectedFileId(value)
-        } else {
-          setSelectedFileId(value)
-        }
+      // Clear when value becomes empty
+      if (isJira) {
+        setSelectedIssueId('')
+      } else if (isDiscord) {
+        setSelectedChannelId('')
+      } else if (isMicrosoftTeams) {
+        setSelectedMessageId('')
+      } else if (isGoogleCalendar) {
+        setSelectedCalendarId('')
+      } else if (isWealthbox) {
+        setSelectedWealthboxItemId('')
+      } else if (isMicrosoftSharePoint) {
+        setSelectedFileId('')
+      } else {
+        setSelectedFileId('')
       }
     }
   }, [
-    blockId,
-    subBlock.id,
-    getValue,
+    isPreview,
+    previewValue,
+    storeValue,
     isJira,
     isDiscord,
     isMicrosoftTeams,
     isGoogleCalendar,
     isWealthbox,
     isMicrosoftSharePoint,
-    isPreview,
-    previewValue,
   ])
 
   // Handle file selection
@@ -155,6 +183,10 @@ export function FileSelectorInput({
     if (isJira) {
       collaborativeSetSubblockValue(blockId, 'summary', '')
       collaborativeSetSubblockValue(blockId, 'description', '')
+      if (!issueKey) {
+        // Also clear the manual issue key when cleared
+        collaborativeSetSubblockValue(blockId, 'manualIssueKey', '')
+      }
     }
   }
 
@@ -193,13 +225,22 @@ export function FileSelectorInput({
           <TooltipTrigger asChild>
             <div className='w-full'>
               <GoogleCalendarSelector
-                value={selectedCalendarId}
-                onChange={handleCalendarChange}
+                value={
+                  (isPreview && previewValue !== undefined
+                    ? (previewValue as string)
+                    : (storeValue as string)) || ''
+                }
+                onChange={(val, info) => {
+                  setSelectedCalendarId(val)
+                  setCalendarInfo(info || null)
+                  collaborativeSetSubblockValue(blockId, subBlock.id, val)
+                }}
                 label={subBlock.placeholder || 'Select Google Calendar'}
                 disabled={disabled || !credential}
                 showPreview={true}
                 onCalendarInfoChange={setCalendarInfo}
                 credentialId={credential}
+                workflowId={workflowIdFromUrl}
               />
             </div>
           </TooltipTrigger>
@@ -243,14 +284,23 @@ export function FileSelectorInput({
 
   // Render the appropriate picker based on provider
   if (isConfluence) {
+    const credential = (getValue(blockId, 'credential') as string) || ''
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
             <div className='w-full'>
               <ConfluenceFileSelector
-                value={selectedFileId}
-                onChange={handleFileChange}
+                value={
+                  (isPreview && previewValue !== undefined
+                    ? (previewValue as string)
+                    : (storeValue as string)) || ''
+                }
+                onChange={(val, info) => {
+                  setSelectedFileId(val)
+                  setFileInfo(info || null)
+                  collaborativeSetSubblockValue(blockId, subBlock.id, val)
+                }}
                 domain={domain}
                 provider='confluence'
                 requiredScopes={subBlock.requiredScopes || []}
@@ -259,6 +309,7 @@ export function FileSelectorInput({
                 disabled={disabled || !domain}
                 showPreview={true}
                 onFileInfoChange={setFileInfo as (info: ConfluenceFileInfo | null) => void}
+                credentialId={credential}
               />
             </div>
           </TooltipTrigger>
@@ -273,30 +324,52 @@ export function FileSelectorInput({
   }
 
   if (isJira) {
+    const credential = jiraCredential
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
             <div className='w-full'>
               <JiraIssueSelector
-                value={selectedIssueId}
-                onChange={handleIssueChange}
+                value={
+                  (isPreview && previewValue !== undefined
+                    ? (previewValue as string)
+                    : (storeValue as string)) || ''
+                }
+                onChange={(val, info) => {
+                  setSelectedIssueId(val)
+                  setIssueInfo(info || null)
+                  collaborativeSetSubblockValue(blockId, subBlock.id, val)
+                }}
                 domain={domain}
                 provider='jira'
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Jira issue'}
-                disabled={disabled || !domain}
+                disabled={
+                  disabled || !domain || !credential || !(getValue(blockId, 'projectId') as string)
+                }
                 showPreview={true}
                 onIssueInfoChange={setIssueInfo as (info: JiraIssueInfo | null) => void}
+                credentialId={credential}
+                projectId={(getValue(blockId, 'projectId') as string) || ''}
+                isForeignCredential={isForeignCredential}
               />
             </div>
           </TooltipTrigger>
-          {!domain && (
+          {!domain ? (
             <TooltipContent side='top'>
               <p>Please enter a Jira domain first</p>
             </TooltipContent>
-          )}
+          ) : !credential ? (
+            <TooltipContent side='top'>
+              <p>Please select Jira credentials first</p>
+            </TooltipContent>
+          ) : !(getValue(blockId, 'projectId') as string) ? (
+            <TooltipContent side='top'>
+              <p>Please select a Jira project first</p>
+            </TooltipContent>
+          ) : null}
         </Tooltip>
       </TooltipProvider>
     )
@@ -502,7 +575,11 @@ export function FileSelectorInput({
           <TooltipTrigger asChild>
             <div className='w-full'>
               <TeamsMessageSelector
-                value={selectedMessageId}
+                value={
+                  (isPreview && previewValue !== undefined
+                    ? (previewValue as string)
+                    : (storeValue as string)) || ''
+                }
                 onChange={(value, info) => {
                   setSelectedMessageId(value)
                   setMessageInfo(info || null)
@@ -547,8 +624,16 @@ export function FileSelectorInput({
             <TooltipTrigger asChild>
               <div className='w-full'>
                 <WealthboxFileSelector
-                  value={selectedWealthboxItemId}
-                  onChange={handleWealthboxItemChange}
+                  value={
+                    (isPreview && previewValue !== undefined
+                      ? (previewValue as string)
+                      : (storeValue as string)) || ''
+                  }
+                  onChange={(val, info) => {
+                    setSelectedWealthboxItemId(val)
+                    setWealthboxItemInfo(info || null)
+                    collaborativeSetSubblockValue(blockId, subBlock.id, val)
+                  }}
                   provider='wealthbox'
                   requiredScopes={subBlock.requiredScopes || []}
                   serviceId={subBlock.serviceId}
@@ -556,6 +641,7 @@ export function FileSelectorInput({
                   disabled={disabled || !credential}
                   showPreview={true}
                   onFileInfoChange={setWealthboxItemInfo}
+                  credentialId={credential}
                   itemType={itemType}
                 />
               </div>
@@ -576,8 +662,16 @@ export function FileSelectorInput({
   // Default to Google Drive picker
   return (
     <GoogleDrivePicker
-      value={selectedFileId}
-      onChange={handleFileChange}
+      value={
+        (isPreview && previewValue !== undefined
+          ? (previewValue as string)
+          : (storeValue as string)) || ''
+      }
+      onChange={(val, info) => {
+        setSelectedFileId(val)
+        setFileInfo(info || null)
+        collaborativeSetSubblockValue(blockId, subBlock.id, val)
+      }}
       provider={provider}
       requiredScopes={subBlock.requiredScopes || []}
       label={subBlock.placeholder || 'Select file'}
@@ -588,6 +682,8 @@ export function FileSelectorInput({
       onFileInfoChange={setFileInfo}
       clientId={clientId}
       apiKey={apiKey}
+      credentialId={(getValue(blockId, 'credential') as string) || ''}
+      workflowId={workflowIdFromUrl}
     />
   )
 }

@@ -78,10 +78,6 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      throw new Error(`ArXiv API error: ${response.status} ${response.statusText}`)
-    }
-
     const xmlText = await response.text()
 
     // Parse XML response
@@ -98,7 +94,32 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
     }
   },
 
-  transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while searching ArXiv'
+  outputs: {
+    papers: {
+      type: 'json',
+      description: 'Array of papers matching the search query',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          title: { type: 'string' },
+          summary: { type: 'string' },
+          authors: { type: 'string' },
+          published: { type: 'string' },
+          updated: { type: 'string' },
+          link: { type: 'string' },
+          pdfLink: { type: 'string' },
+          categories: { type: 'string' },
+          primaryCategory: { type: 'string' },
+          comment: { type: 'string' },
+          journalRef: { type: 'string' },
+          doi: { type: 'string' },
+        },
+      },
+    },
+    totalResults: {
+      type: 'number',
+      description: 'Total number of results found for the search query',
+    },
   },
 }

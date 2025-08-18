@@ -41,7 +41,6 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
   request: {
     url: 'https://api.firecrawl.dev/v1/crawl',
     method: 'POST',
-    isInternalRoute: false,
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
@@ -57,10 +56,6 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
   },
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || data.message || 'Failed to create crawl job')
-    }
 
     return {
       success: true,
@@ -140,17 +135,34 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       error: `Crawl job did not complete within the maximum polling time (${MAX_POLL_TIME_MS / 1000}s)`,
     }
   },
-  transformError: (error) => {
-    const errorMessage = error?.message || ''
-    if (errorMessage.includes('401')) {
-      return new Error('Invalid API key. Please check your Firecrawl API key.')
-    }
-    if (errorMessage.includes('429')) {
-      return new Error('Rate limit exceeded. Please try again later.')
-    }
-    if (errorMessage.includes('402')) {
-      return new Error('Insufficient credits. Please check your Firecrawl account.')
-    }
-    return error
+
+  outputs: {
+    pages: {
+      type: 'array',
+      description: 'Array of crawled pages with their content and metadata',
+      items: {
+        type: 'object',
+        properties: {
+          markdown: { type: 'string', description: 'Page content in markdown format' },
+          html: { type: 'string', description: 'Page HTML content' },
+          metadata: {
+            type: 'object',
+            description: 'Page metadata',
+            properties: {
+              title: { type: 'string', description: 'Page title' },
+              description: { type: 'string', description: 'Page description' },
+              language: { type: 'string', description: 'Page language' },
+              sourceURL: { type: 'string', description: 'Source URL of the page' },
+              statusCode: { type: 'number', description: 'HTTP status code' },
+            },
+          },
+        },
+      },
+    },
+    total: { type: 'number', description: 'Total number of pages found during crawl' },
+    creditsUsed: {
+      type: 'number',
+      description: 'Number of credits consumed by the crawl operation',
+    },
   },
 }

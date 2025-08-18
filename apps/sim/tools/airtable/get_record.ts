@@ -53,10 +53,6 @@ export const airtableGetRecordTool: ToolConfig<AirtableGetParams, AirtableGetRes
 
   transformResponse: async (response) => {
     const data = await response.json()
-    if (!response.ok) {
-      // logger.error('Airtable API error:', data)
-      throw new Error(data.error?.message || 'Failed to get Airtable record')
-    }
     return {
       success: true,
       output: {
@@ -68,8 +64,14 @@ export const airtableGetRecordTool: ToolConfig<AirtableGetParams, AirtableGetRes
     }
   },
 
-  transformError: (error: any) => {
-    // logger.error('Airtable tool error:', error)
-    return `Failed to get Airtable record: ${error.message || 'Unknown error'}`
+  outputs: {
+    record: {
+      type: 'json',
+      description: 'Retrieved Airtable record with id, createdTime, and fields',
+    },
+    metadata: {
+      type: 'json',
+      description: 'Operation metadata including record count',
+    },
   },
 }
