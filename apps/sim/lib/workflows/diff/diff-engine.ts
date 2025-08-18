@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
+import type { BlockWithDiff } from './types'
 
 const logger = createLogger('WorkflowDiffEngine')
 
@@ -334,10 +335,10 @@ export class WorkflowDiffEngine {
     for (const [blockId, block] of Object.entries(state.blocks)) {
       const cleanBlock: BlockState = { ...block }
 
-      // Remove diff markers using bracket notation to avoid TypeScript errors
-
-      ;(cleanBlock as any).is_diff = undefined
-      ;(cleanBlock as any).field_diff = undefined
+      // Remove diff markers using proper typing
+      const blockWithDiff = cleanBlock as BlockState & BlockWithDiff
+      blockWithDiff.is_diff = undefined
+      blockWithDiff.field_diffs = undefined
 
       // Ensure outputs is never null/undefined
       if (cleanBlock.outputs === undefined || cleanBlock.outputs === null) {

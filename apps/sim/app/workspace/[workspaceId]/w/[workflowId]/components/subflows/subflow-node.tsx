@@ -6,106 +6,91 @@ import { StartIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
 import { IterationBadges } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/components/iteration-badges/iteration-badges'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 
-const ParallelNodeStyles: React.FC = () => {
+const SubflowNodeStyles: React.FC = () => {
   return (
     <style jsx global>{`
+      @keyframes loop-node-pulse {
+        0% { box-shadow: 0 0 0 0 rgba(47, 179, 255, 0.3); }
+        70% { box-shadow: 0 0 0 6px rgba(47, 179, 255, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(47, 179, 255, 0); }
+      }
+
       @keyframes parallel-node-pulse {
-        0% {
-          box-shadow: 0 0 0 0 rgba(139, 195, 74, 0.3);
-        }
-        70% {
-          box-shadow: 0 0 0 6px rgba(139, 195, 74, 0);
-        }
-        100% {
-          box-shadow: 0 0 0 0 rgba(139, 195, 74, 0);
-        }
+        0% { box-shadow: 0 0 0 0 rgba(139, 195, 74, 0.3); }
+        70% { box-shadow: 0 0 0 6px rgba(139, 195, 74, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(139, 195, 74, 0); }
+      }
+
+      .loop-node-drag-over {
+        animation: loop-node-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        border-style: solid !important;
+        background-color: rgba(47, 179, 255, 0.08) !important;
+        box-shadow: 0 0 0 8px rgba(47, 179, 255, 0.1);
       }
 
       .parallel-node-drag-over {
-        animation: parallel-node-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1)
-          infinite;
+        animation: parallel-node-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         border-style: solid !important;
         background-color: rgba(139, 195, 74, 0.08) !important;
         box-shadow: 0 0 0 8px rgba(139, 195, 74, 0.1);
       }
 
-      /* Make resizer handles more visible */
-      .react-flow__resize-control {
-        z-index: 10;
-        pointer-events: all !important;
-      }
-
-      /* Ensure parent borders are visible when hovering over resize controls */
       .react-flow__node-group:hover,
       .hover-highlight {
         border-color: #1e293b !important;
       }
 
-      /* Ensure hover effects work well */
       .group-node-container:hover .react-flow__resize-control.bottom-right {
         opacity: 1 !important;
         visibility: visible !important;
       }
 
-      /* React Flow position transitions within parallel blocks */
-      .react-flow__node[data-parent-node-id] {
-        transition: transform 0.05s ease;
-        pointer-events: all;
-      }
-
-      /* Prevent jumpy drag behavior */
-      .parallel-drop-container .react-flow__node {
-        transform-origin: center;
-        position: absolute;
-      }
-
-      /* Remove default border from React Flow group nodes */
-      .react-flow__node-group {
-        border: none;
-        background-color: transparent;
-        outline: none;
-        box-shadow: none;
-      }
-
-      /* Ensure child nodes stay within parent bounds */
       .react-flow__node[data-parent-node-id] .react-flow__handle {
         z-index: 30;
       }
 
-      /* Enhanced drag detection */
       .react-flow__node-group.dragging-over {
-        background-color: rgba(139, 195, 74, 0.05);
+        background-color: rgba(34,197,94,0.05);
         transition: all 0.2s ease-in-out;
       }
     `}</style>
   )
 }
 
-export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) => {
+export interface SubflowNodeData {
+  width?: number
+  height?: number
+  parentId?: string
+  extent?: 'parent'
+  hasNestedError?: boolean
+  isPreview?: boolean
+  kind: 'loop' | 'parallel'
+}
+
+export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeData>) => {
   const { getNodes } = useReactFlow()
   const { collaborativeRemoveBlock } = useCollaborativeWorkflow()
   const blockRef = useRef<HTMLDivElement>(null)
 
-  // Use the clean abstraction for current workflow state
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentWorkflow.getBlockById(id)
-  const diffStatus =
-    currentWorkflow.isDiffMode && currentBlock ? (currentBlock as any).is_diff : undefined
+  const diffStatus: DiffStatus =
+    currentWorkflow.isDiffMode && currentBlock && hasDiffStatus(currentBlock)
+      ? currentBlock.is_diff
+      : undefined
 
-  // Check if this is preview mode
   const isPreview = data?.isPreview || false
 
-  // Determine nesting level by counting parents
   const nestingLevel = useMemo(() => {
-    const maxDepth = 100 // Prevent infinite loops
     let level = 0
     let currentParentId = data?.parentId
 
-    while (currentParentId && level < maxDepth) {
+    while (currentParentId) {
       level++
       const parentNode = getNodes().find((n) => n.id === currentParentId)
       if (!parentNode) break
@@ -115,30 +100,27 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
     return level
   }, [id, data?.parentId, getNodes])
 
-  // Generate different background styles based on nesting level
   const getNestedStyles = () => {
-    // Base styles
     const styles: Record<string, string> = {
       backgroundColor: 'rgba(0, 0, 0, 0.02)',
     }
-
-    // Apply nested styles
     if (nestingLevel > 0) {
-      // Each nesting level gets a different color
       const colors = ['#e2e8f0', '#cbd5e1', '#94a3b8', '#64748b', '#475569']
       const colorIndex = (nestingLevel - 1) % colors.length
-
-      styles.backgroundColor = `${colors[colorIndex]}30` // Slightly more visible background
+      styles.backgroundColor = `${colors[colorIndex]}30`
     }
-
     return styles
   }
 
   const nestedStyles = getNestedStyles()
 
+  const startHandleId = data.kind === 'loop' ? 'loop-start-source' : 'parallel-start-source'
+  const endHandleId = data.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
+  const startBg = data.kind === 'loop' ? '#2FB3FF' : '#FEE12B'
+
   return (
     <>
-      <ParallelNodeStyles />
+      <SubflowNodeStyles />
       <div className='group relative'>
         <Card
           ref={blockRef}
@@ -146,11 +128,9 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
             'relative cursor-default select-none',
             'transition-block-bg transition-ring',
             'z-[20]',
-            data?.state === 'valid',
             nestingLevel > 0 &&
               `border border-[0.5px] ${nestingLevel % 2 === 0 ? 'border-slate-300/60' : 'border-slate-400/60'}`,
             data?.hasNestedError && 'border-2 border-red-500 bg-red-50/50',
-            // Diff highlighting
             diffStatus === 'new' && 'bg-green-50/50 ring-2 ring-green-500 dark:bg-green-900/10',
             diffStatus === 'edited' &&
               'bg-orange-50/50 ring-2 ring-orange-500 dark:bg-orange-900/10'
@@ -164,10 +144,9 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
             pointerEvents: isPreview ? 'none' : 'all',
           }}
           data-node-id={id}
-          data-type='parallelNode'
+          data-type='subflowNode'
           data-nesting-level={nestingLevel}
         >
-          {/* Critical drag handle that controls only the parallel node movement */}
           {!isPreview && (
             <div
               className='workflow-drag-handle absolute top-0 right-0 left-0 z-10 h-10 cursor-move'
@@ -175,7 +154,6 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
             />
           )}
 
-          {/* Custom visible resize handle */}
           {!isPreview && (
             <div
               className='absolute right-2 bottom-2 z-20 flex h-8 w-8 cursor-se-resize items-center justify-center text-muted-foreground'
@@ -183,7 +161,6 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
             />
           )}
 
-          {/* Child nodes container - Set pointerEvents to allow dragging of children */}
           <div
             className='h-[calc(100%-10px)] p-4'
             data-dragarea='true'
@@ -193,7 +170,6 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
               pointerEvents: isPreview ? 'none' : 'auto',
             }}
           >
-            {/* Delete button - styled like in action-bar.tsx */}
             {!isPreview && (
               <Button
                 variant='ghost'
@@ -209,12 +185,12 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
               </Button>
             )}
 
-            {/* Parallel Start Block */}
+            {/* Subflow Start */}
             <div
-              className='-translate-y-1/2 absolute top-1/2 left-8 flex h-10 w-10 transform items-center justify-center rounded-md bg-[#FEE12B] p-2'
-              style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
+              className='-translate-y-1/2 absolute top-1/2 left-8 flex h-10 w-10 transform items-center justify-center rounded-md p-2'
+              style={{ pointerEvents: isPreview ? 'none' : 'auto', backgroundColor: startBg }}
               data-parent-id={id}
-              data-node-role='parallel-start'
+              data-node-role={`${data.kind}-start`}
               data-extent='parent'
             >
               <StartIcon className='h-6 w-6 text-white' />
@@ -222,7 +198,7 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
               <Handle
                 type='source'
                 position={Position.Right}
-                id='parallel-start-source'
+                id={startHandleId}
                 className='!w-[6px] !h-4 !bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none !z-[30] hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none !cursor-crosshair transition-[colors] duration-150'
                 style={{
                   right: '-6px',
@@ -259,15 +235,14 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
               transform: 'translateY(-50%)',
               pointerEvents: 'auto',
             }}
-            id='parallel-end-source'
+            id={endHandleId}
           />
 
-          {/* Parallel Configuration Badges */}
-          <IterationBadges nodeId={id} data={data} iterationType='parallel' />
+          <IterationBadges nodeId={id} data={data} iterationType={data.kind} />
         </Card>
       </div>
     </>
   )
 })
 
-ParallelNodeComponent.displayName = 'ParallelNodeComponent'
+SubflowNodeComponent.displayName = 'SubflowNodeComponent'

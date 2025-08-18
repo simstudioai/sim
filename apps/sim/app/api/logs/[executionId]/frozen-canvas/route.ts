@@ -46,20 +46,7 @@ export async function GET(
         startedAt: workflowLog.startedAt.toISOString(),
         endedAt: workflowLog.endedAt?.toISOString(),
         totalDurationMs: workflowLog.totalDurationMs,
-        blockStats: {
-          total: workflowLog.blockCount,
-          success: workflowLog.successCount,
-          error: workflowLog.errorCount,
-          skipped: workflowLog.skippedCount,
-        },
-        cost: {
-          total: workflowLog.totalCost ? Number.parseFloat(workflowLog.totalCost) : null,
-          input: workflowLog.totalInputCost ? Number.parseFloat(workflowLog.totalInputCost) : null,
-          output: workflowLog.totalOutputCost
-            ? Number.parseFloat(workflowLog.totalOutputCost)
-            : null,
-        },
-        totalTokens: workflowLog.totalTokens,
+        cost: workflowLog.cost || null,
       },
     }
 

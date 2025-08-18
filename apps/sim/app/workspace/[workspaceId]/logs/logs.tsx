@@ -85,6 +85,10 @@ export default function Logs() {
   const [selectedLog, setSelectedLog] = useState<WorkflowLog | null>(null)
   const [selectedLogIndex, setSelectedLogIndex] = useState<number>(-1)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isDetailsLoading, setIsDetailsLoading] = useState(false)
+  const detailsCacheRef = useRef<Map<string, any>>(new Map())
+  const detailsAbortRef = useRef<AbortController | null>(null)
+  const currentDetailsIdRef = useRef<string | null>(null)
   const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
   const loaderRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -116,13 +120,122 @@ export default function Logs() {
     const index = logs.findIndex((l) => l.id === log.id)
     setSelectedLogIndex(index)
     setIsSidebarOpen(true)
+    setIsDetailsLoading(true)
+
+    // Fetch details for current, previous, and next concurrently with cache
+    const currentId = log.id
+    const prevId = index > 0 ? logs[index - 1]?.id : undefined
+    const nextId = index < logs.length - 1 ? logs[index + 1]?.id : undefined
+
+    // Abort any previous details fetch batch
+    if (detailsAbortRef.current) {
+      try {
+        detailsAbortRef.current.abort()
+      } catch {
+        /* no-op */
+      }
+    }
+    const controller = new AbortController()
+    detailsAbortRef.current = controller
+    currentDetailsIdRef.current = currentId
+
+    const idsToFetch: Array<{ id: string; merge: boolean }> = []
+    const cachedCurrent = currentId ? detailsCacheRef.current.get(currentId) : undefined
+    if (currentId && !cachedCurrent) idsToFetch.push({ id: currentId, merge: true })
+    if (prevId && !detailsCacheRef.current.has(prevId))
+      idsToFetch.push({ id: prevId, merge: false })
+    if (nextId && !detailsCacheRef.current.has(nextId))
+      idsToFetch.push({ id: nextId, merge: false })
+
+    // Merge cached current immediately
+    if (cachedCurrent) {
+      setSelectedLog((prev) =>
+        prev && prev.id === currentId
+          ? ({ ...(prev as any), ...(cachedCurrent as any) } as any)
+          : prev
+      )
+      setIsDetailsLoading(false)
+    }
+    if (idsToFetch.length === 0) return
+
+    Promise.all(
+      idsToFetch.map(async ({ id, merge }) => {
+        try {
+          const res = await fetch(`/api/logs/by-id/${id}`, { signal: controller.signal })
+          if (!res.ok) return
+          const body = await res.json()
+          const detailed = body?.data
+          if (detailed) {
+            detailsCacheRef.current.set(id, detailed)
+            if (merge && id === currentId) {
+              setSelectedLog((prev) =>
+                prev && prev.id === id ? ({ ...(prev as any), ...(detailed as any) } as any) : prev
+              )
+              if (currentDetailsIdRef.current === id) setIsDetailsLoading(false)
+            }
+          }
+        } catch (e: any) {
+          if (e?.name === 'AbortError') return
+        }
+      })
+    ).catch(() => {})
   }
 
   const handleNavigateNext = useCallback(() => {
     if (selectedLogIndex < logs.length - 1) {
       const nextIndex = selectedLogIndex + 1
       setSelectedLogIndex(nextIndex)
-      setSelectedLog(logs[nextIndex])
+      const nextLog = logs[nextIndex]
+      setSelectedLog(nextLog)
+      // Abort any previous details fetch batch
+      if (detailsAbortRef.current) {
+        try {
+          detailsAbortRef.current.abort()
+        } catch {
+          /* no-op */
+        }
+      }
+      const controller = new AbortController()
+      detailsAbortRef.current = controller
+
+      const cached = detailsCacheRef.current.get(nextLog.id)
+      if (cached) {
+        setSelectedLog((prev) =>
+          prev && prev.id === nextLog.id ? ({ ...(prev as any), ...(cached as any) } as any) : prev
+        )
+      } else {
+        const prevId = nextIndex > 0 ? logs[nextIndex - 1]?.id : undefined
+        const afterId = nextIndex < logs.length - 1 ? logs[nextIndex + 1]?.id : undefined
+        const idsToFetch: Array<{ id: string; merge: boolean }> = []
+        if (nextLog.id && !detailsCacheRef.current.has(nextLog.id))
+          idsToFetch.push({ id: nextLog.id, merge: true })
+        if (prevId && !detailsCacheRef.current.has(prevId))
+          idsToFetch.push({ id: prevId, merge: false })
+        if (afterId && !detailsCacheRef.current.has(afterId))
+          idsToFetch.push({ id: afterId, merge: false })
+        Promise.all(
+          idsToFetch.map(async ({ id, merge }) => {
+            try {
+              const res = await fetch(`/api/logs/by-id/${id}`, { signal: controller.signal })
+              if (!res.ok) return
+              const body = await res.json()
+              const detailed = body?.data
+              if (detailed) {
+                detailsCacheRef.current.set(id, detailed)
+                if (merge && id === nextLog.id) {
+                  setSelectedLog((prev) =>
+                    prev && prev.id === id
+                      ? ({ ...(prev as any), ...(detailed as any) } as any)
+                      : prev
+                  )
+                }
+              }
+            } catch (e: any) {
+              if (e?.name === 'AbortError') return
+            }
+          })
+        ).catch(() => {})
+      }
     }
   }, [selectedLogIndex, logs])
 
@@ -130,7 +243,57 @@ export default function Logs() {
     if (selectedLogIndex > 0) {
       const prevIndex = selectedLogIndex - 1
       setSelectedLogIndex(prevIndex)
-      setSelectedLog(logs[prevIndex])
+      const prevLog = logs[prevIndex]
+      setSelectedLog(prevLog)
+      // Abort any previous details fetch batch
+      if (detailsAbortRef.current) {
+        try {
+          detailsAbortRef.current.abort()
+        } catch {
+          /* no-op */
+        }
+      }
+      const controller = new AbortController()
+      detailsAbortRef.current = controller
+
+      const cached = detailsCacheRef.current.get(prevLog.id)
+      if (cached) {
+        setSelectedLog((prev) =>
+          prev && prev.id === prevLog.id ? ({ ...(prev as any), ...(cached as any) } as any) : prev
+        )
+      } else {
+        const beforeId = prevIndex > 0 ? logs[prevIndex - 1]?.id : undefined
+        const afterId = prevIndex < logs.length - 1 ? logs[prevIndex + 1]?.id : undefined
+        const idsToFetch: Array<{ id: string; merge: boolean }> = []
+        if (prevLog.id && !detailsCacheRef.current.has(prevLog.id))
+          idsToFetch.push({ id: prevLog.id, merge: true })
+        if (beforeId && !detailsCacheRef.current.has(beforeId))
+          idsToFetch.push({ id: beforeId, merge: false })
+        if (afterId && !detailsCacheRef.current.has(afterId))
+          idsToFetch.push({ id: afterId, merge: false })
+        Promise.all(
+          idsToFetch.map(async ({ id, merge }) => {
+            try {
+              const res = await fetch(`/api/logs/by-id/${id}`, { signal: controller.signal })
+              if (!res.ok) return
+              const body = await res.json()
+              const detailed = body?.data
+              if (detailed) {
+                detailsCacheRef.current.set(id, detailed)
+                if (merge && id === prevLog.id) {
+                  setSelectedLog((prev) =>
+                    prev && prev.id === id
+                      ? ({ ...(prev as any), ...(detailed as any) } as any)
+                      : prev
+                  )
+                }
+              }
+            } catch (e: any) {
+              if (e?.name === 'AbortError') return
+            }
+          })
+        ).catch(() => {})
+      }
     }
   }, [selectedLogIndex, logs])
 
@@ -160,7 +323,7 @@ export default function Logs() {
       // Get fresh query params by calling buildQueryParams from store
       const { buildQueryParams: getCurrentQueryParams } = useFilterStore.getState()
       const queryParams = getCurrentQueryParams(pageNum, LOGS_PER_PAGE)
-      const response = await fetch(`/api/logs?${queryParams}`)
+      const response = await fetch(`/api/logs?${queryParams}&details=basic`)
 
       if (!response.ok) {
         throw new Error(`Error fetching logs: ${response.statusText}`)
@@ -262,7 +425,7 @@ export default function Logs() {
 
         // Build query params inline to avoid dependency issues
         const params = new URLSearchParams()
-        params.set('includeWorkflow', 'true')
+        params.set('details', 'basic')
         params.set('limit', LOGS_PER_PAGE.toString())
         params.set('offset', '0') // Always start from page 1
         params.set('workspaceId', workspaceId)
@@ -482,7 +645,7 @@ export default function Logs() {
               {/* Header */}
               <div>
                 <div className='border-border border-b'>
-                  <div className='grid min-w-[600px] grid-cols-[120px_80px_120px_80px_1fr] gap-2 px-2 pb-3 md:grid-cols-[140px_90px_140px_90px_1fr] md:gap-3 lg:min-w-0 lg:grid-cols-[160px_100px_160px_100px_1fr] lg:gap-4 xl:grid-cols-[160px_100px_160px_100px_100px_1fr_100px]'>
+                  <div className='grid min-w-[600px] grid-cols-[120px_80px_120px_120px] gap-2 px-2 pb-3 md:grid-cols-[140px_90px_140px_120px] md:gap-3 lg:min-w-0 lg:grid-cols-[160px_100px_160px_120px] lg:gap-4 xl:grid-cols-[160px_100px_160px_120px_120px_100px]'>
                     <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
                       Time
                     </div>
@@ -493,14 +656,12 @@ export default function Logs() {
                       Workflow
                     </div>
                     <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                      ID
+                      Cost
                     </div>
                     <div className='hidden font-[480] font-sans text-[13px] text-muted-foreground leading-normal xl:block'>
                       Trigger
                     </div>
-                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                      Message
-                    </div>
+
                     <div className='hidden font-[480] font-sans text-[13px] text-muted-foreground leading-normal xl:block'>
                       Duration
                     </div>
@@ -547,7 +708,7 @@ export default function Logs() {
                         }`}
                         onClick={() => handleLogClick(log)}
                       >
-                        <div className='grid min-w-[600px] grid-cols-[120px_80px_120px_80px_1fr] items-center gap-2 px-2 py-4 md:grid-cols-[140px_90px_140px_90px_1fr] md:gap-3 lg:min-w-0 lg:grid-cols-[160px_100px_160px_100px_1fr] lg:gap-4 xl:grid-cols-[160px_100px_160px_100px_100px_1fr_100px]'>
+                        <div className='grid min-w-[600px] grid-cols-[120px_80px_120px_120px] items-center gap-2 px-2 py-4 md:grid-cols-[140px_90px_140px_120px] md:gap-3 lg:min-w-0 lg:grid-cols-[160px_100px_160px_120px] lg:gap-4 xl:grid-cols-[160px_100px_160px_120px_120px_100px]'>
                           {/* Time */}
                           <div>
                             <div className='text-[13px]'>
@@ -584,10 +745,12 @@ export default function Logs() {
                             </div>
                           </div>
 
-                          {/* ID */}
+                          {/* Cost */}
                           <div>
                             <div className='font-medium text-muted-foreground text-xs'>
-                              #{log.id.slice(-4)}
+                              {typeof (log as any)?.cost?.total === 'number'
+                                ? `$${((log as any).cost.total as number).toFixed(4)}`
+                                : '—'}
                             </div>
                           </div>
 
@@ -612,11 +775,6 @@ export default function Logs() {
                             ) : (
                               <div className='text-muted-foreground text-xs'>—</div>
                             )}
-                          </div>
-
-                          {/* Message */}
-                          <div className='min-w-0'>
-                            <div className='truncate font-[420] text-[13px]'>{log.message}</div>
                           </div>
 
                           {/* Duration */}

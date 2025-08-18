@@ -402,11 +402,11 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_OAUTH_CREDENTIALS,
     displayConfig: {
       states: {
-        executing: { displayName: 'Retrieving OAuth credentials', icon: 'spinner' },
-        success: { displayName: 'Retrieved OAuth credentials', icon: 'key' },
-        rejected: { displayName: 'Skipped retrieving OAuth credentials', icon: 'skip' },
-        errored: { displayName: 'Failed to retrieve OAuth credentials', icon: 'error' },
-        aborted: { displayName: 'Retrieving OAuth credentials aborted', icon: 'x' },
+        executing: { displayName: 'Retrieving login IDs', icon: 'spinner' },
+        success: { displayName: 'Retrieved login IDs', icon: 'key' },
+        rejected: { displayName: 'Skipped retrieving login IDs', icon: 'skip' },
+        errored: { displayName: 'Failed to retrieve login IDs', icon: 'error' },
+        aborted: { displayName: 'Retrieving login IDs aborted', icon: 'x' },
       },
     },
     schema: {

@@ -341,10 +341,11 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
    * Handle deleting the current workflow
    */
   const handleDeleteWorkflow = () => {
-    if (!activeWorkflowId || !userPermissions.canEdit) return
+    const currentWorkflowId = params.workflowId as string
+    if (!currentWorkflowId || !userPermissions.canEdit) return
 
     const sidebarWorkflows = getSidebarOrderedWorkflows()
-    const currentIndex = sidebarWorkflows.findIndex((w) => w.id === activeWorkflowId)
+    const currentIndex = sidebarWorkflows.findIndex((w) => w.id === currentWorkflowId)
 
     // Find next workflow: try next, then previous
     let nextWorkflowId: string | null = null
@@ -363,8 +364,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       router.push(`/workspace/${workspaceId}`)
     }
 
-    // Remove the workflow from the registry
-    useWorkflowRegistry.getState().removeWorkflow(activeWorkflowId)
+    // Remove the workflow from the registry using the URL parameter
+    useWorkflowRegistry.getState().removeWorkflow(currentWorkflowId)
   }
 
   // Helper function to open subscription settings

@@ -121,8 +121,6 @@ export const workflow = pgTable(
     folderId: text('folder_id').references(() => workflowFolder.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     description: text('description'),
-    // DEPRECATED: Use normalized tables (workflow_blocks, workflow_edges, workflow_subflows) instead
-    state: json('state').notNull(),
     color: text('color').notNull().default('#3972F6'),
     lastSynced: timestamp('last_synced').notNull(),
     createdAt: timestamp('created_at').notNull(),
@@ -130,7 +128,6 @@ export const workflow = pgTable(
     isDeployed: boolean('is_deployed').notNull().default(false),
     deployedState: json('deployed_state'),
     deployedAt: timestamp('deployed_at'),
-    // When set, only this API key is authorized for execution
     pinnedApiKey: text('pinned_api_key'),
     collaborators: json('collaborators').notNull().default('[]'),
     runCount: integer('run_count').notNull().default(0),
@@ -285,24 +282,14 @@ export const workflowExecutionLogs = pgTable(
       .references(() => workflowExecutionSnapshots.id),
 
     level: text('level').notNull(), // 'info', 'error'
-    message: text('message').notNull(),
     trigger: text('trigger').notNull(), // 'api', 'webhook', 'schedule', 'manual', 'chat'
 
     startedAt: timestamp('started_at').notNull(),
     endedAt: timestamp('ended_at'),
     totalDurationMs: integer('total_duration_ms'),
 
-    blockCount: integer('block_count').notNull().default(0),
-    successCount: integer('success_count').notNull().default(0),
-    errorCount: integer('error_count').notNull().default(0),
-    skippedCount: integer('skipped_count').notNull().default(0),
-
-    totalCost: decimal('total_cost', { precision: 10, scale: 6 }),
-    totalInputCost: decimal('total_input_cost', { precision: 10, scale: 6 }),
-    totalOutputCost: decimal('total_output_cost', { precision: 10, scale: 6 }),
-    totalTokens: integer('total_tokens'),
-
-    metadata: jsonb('metadata').notNull().default('{}'),
+    executionData: jsonb('execution_data').notNull().default('{}'),
+    cost: jsonb('cost'),
     files: jsonb('files'), // File metadata for execution files
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
 import { Label, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
 import { cn } from '@/lib/utils'
+import type { FieldDiffStatus } from '@/lib/workflows/diff/types'
 import {
   ChannelSelectorInput,
   CheckboxList,
@@ -43,7 +44,8 @@ interface SubBlockProps {
   isPreview?: boolean
   subBlockValues?: Record<string, any>
   disabled?: boolean
-  fieldDiffStatus?: 'changed' | 'unchanged'
+  fieldDiffStatus?: FieldDiffStatus
+  allowExpandInPreview?: boolean
 }
 
 export function SubBlock({
@@ -54,6 +56,7 @@ export function SubBlock({
   subBlockValues,
   disabled = false,
   fieldDiffStatus,
+  allowExpandInPreview,
 }: SubBlockProps) {
   const [isValidJson, setIsValidJson] = useState(true)
 
@@ -211,7 +214,8 @@ export function SubBlock({
             subBlockId={config.id}
             isPreview={isPreview}
             previewValue={previewValue}
-            disabled={isDisabled}
+            disabled={allowExpandInPreview ? false : isDisabled}
+            allowExpandInPreview={allowExpandInPreview}
           />
         )
       case 'checkbox-list':
@@ -355,6 +359,7 @@ export function SubBlock({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
+            previewContextValues={subBlockValues}
           />
         )
       case 'project-selector':

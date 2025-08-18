@@ -371,7 +371,42 @@ export async function POST(req: NextRequest) {
       (currentChat?.conversationId as string | undefined) || conversationId
 
     // If we have a conversationId, only send the most recent user message; else send full history
-    const messagesForAgent = effectiveConversationId ? [messages[messages.length - 1]] : messages
+    const latestUserMessage =
+      [...messages].reverse().find((m) => m?.role === 'user') || messages[messages.length - 1]
+    const messagesForAgent = effectiveConversationId ? [latestUserMessage] : messages
+
+    const requestPayload = {
+      messages: messagesForAgent,
+      workflowId,
+      userId: authenticatedUserId,
+      stream: stream,
+      streamToolCalls: true,
+      mode: mode,
+      provider: providerToUse,
+      ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
+      ...(typeof depth === 'number' ? { depth } : {}),
+      ...(session?.user?.name && { userName: session.user.name }),
+    }
+
+    // Log the payload being sent to the streaming endpoint
+    try {
+      logger.info(`[${tracker.requestId}] Sending payload to sim agent streaming endpoint`, {
+        url: `${SIM_AGENT_API_URL}/api/chat-completion-streaming`,
+        provider: providerToUse,
+        mode,
+        stream,
+        workflowId,
+        hasConversationId: !!effectiveConversationId,
+        depth: typeof depth === 'number' ? depth : undefined,
+        messagesCount: requestPayload.messages.length,
+      })
+      // Full payload as JSON string
+      logger.info(
+        `[${tracker.requestId}] Full streaming payload: ${JSON.stringify(requestPayload)}`
+      )
+    } catch (e) {
+      logger.warn(`[${tracker.requestId}] Failed to log payload preview for streaming endpoint`, e)
+    }
 
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
@@ -379,18 +414,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
         ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
       },
-      body: JSON.stringify({
-        messages: messagesForAgent,
-        workflowId,
-        userId: authenticatedUserId,
-        stream: stream,
-        streamToolCalls: true,
-        mode: mode,
-        provider: providerToUse,
-        ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
-        ...(typeof depth === 'number' ? { depth } : {}),
-        ...(session?.user?.name && { userName: session.user.name }),
-      }),
+      body: JSON.stringify(requestPayload),
     })
 
     if (!simAgentResponse.ok) {
@@ -690,7 +714,7 @@ export async function POST(req: NextRequest) {
                 )
               }
 
-              const responseId = responseIdFromDone || responseIdFromStart
+              const responseId = responseIdFromDone
 
               // Update chat in database immediately (without title)
               await db

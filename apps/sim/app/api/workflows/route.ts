@@ -151,7 +151,6 @@ export async function POST(req: NextRequest) {
         folderId: folderId || null,
         name,
         description,
-        state: initialState,
         color,
         lastSynced: now,
         createdAt: now,
