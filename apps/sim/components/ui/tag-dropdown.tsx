@@ -109,7 +109,11 @@ const getOutputTypeForPath = (
 
     if (firstTrigger?.outputs) {
       const pathParts = outputPath.split('.')
-      let currentObj: any = firstTrigger.outputs
+      // For GitHub trigger, treat 'github' as an implicit root so users can reference fields directly
+      let currentObj: any =
+        firstTrigger.id === 'github_webhook' && (firstTrigger as any).outputs.github
+          ? (firstTrigger as any).outputs.github
+          : firstTrigger.outputs
 
       for (const part of pathParts) {
         if (currentObj && typeof currentObj === 'object') {
@@ -421,8 +425,13 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           const firstTrigger = triggers[0]
 
           if (firstTrigger?.outputs) {
+            // For GitHub trigger, hide the top-level 'github' wrapper for cleaner tags
+            const outputsRoot =
+              firstTrigger.id === 'github_webhook' && (firstTrigger as any).outputs.github
+                ? (firstTrigger as any).outputs.github
+                : firstTrigger.outputs
             // Use trigger outputs instead of block outputs
-            const outputPaths = generateOutputPaths(firstTrigger.outputs)
+            const outputPaths = generateOutputPaths(outputsRoot)
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           } else {
             const outputPaths = generateOutputPaths(blockConfig.outputs || {})
@@ -690,8 +699,13 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           const firstTrigger = triggers[0]
 
           if (firstTrigger?.outputs) {
+            // For GitHub trigger, hide the top-level 'github' wrapper for cleaner tags
+            const outputsRoot =
+              firstTrigger.id === 'github_webhook' && (firstTrigger as any).outputs.github
+                ? (firstTrigger as any).outputs.github
+                : firstTrigger.outputs
             // Use trigger outputs instead of block outputs
-            const outputPaths = generateOutputPaths(firstTrigger.outputs)
+            const outputPaths = generateOutputPaths(outputsRoot)
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
           } else {
             const outputPaths = generateOutputPaths(blockConfig.outputs || {})
