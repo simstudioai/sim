@@ -26,7 +26,7 @@ DECLARE
   v_rows_updated integer := 0;
 BEGIN
   LOOP
-    WITH candidate AS (
+    WITH RECURSIVE candidate AS (
       SELECT id
       FROM workflow_execution_logs
       WHERE cost IS NULL
@@ -110,14 +110,14 @@ BEGIN
     UPDATE workflow_execution_logs AS l
     SET cost = jsonb_strip_nulls(
       jsonb_build_object(
-        'total', COALESCE(l.total_cost, NULLIF(agg.agg_total,0)),
-        'input', COALESCE(l.total_input_cost, NULLIF(agg.agg_input,0)),
-        'output', COALESCE(l.total_output_cost, NULLIF(agg.agg_output,0)),
+        'total', COALESCE((to_jsonb(l)->>'total_cost')::numeric, NULLIF(agg.agg_total,0)),
+        'input', COALESCE((to_jsonb(l)->>'total_input_cost')::numeric, NULLIF(agg.agg_input,0)),
+        'output', COALESCE((to_jsonb(l)->>'total_output_cost')::numeric, NULLIF(agg.agg_output,0)),
         'tokens', CASE
-          WHEN l.total_tokens IS NOT NULL OR tb.prompt IS NOT NULL OR tb.completion IS NOT NULL OR NULLIF(agg.agg_tokens_total,0) IS NOT NULL THEN
+          WHEN (to_jsonb(l) ? 'total_tokens') OR tb.prompt IS NOT NULL OR tb.completion IS NOT NULL OR NULLIF(agg.agg_tokens_total,0) IS NOT NULL THEN
             jsonb_strip_nulls(
               jsonb_build_object(
-                'total', COALESCE(l.total_tokens, NULLIF(agg.agg_tokens_total,0)),
+                'total', COALESCE((to_jsonb(l)->>'total_tokens')::numeric, NULLIF(agg.agg_tokens_total,0)),
                 'prompt', COALESCE(tb.prompt, NULLIF(agg.agg_tokens_prompt,0)),
                 'completion', COALESCE(tb.completion, NULLIF(agg.agg_tokens_completion,0))
               )
