@@ -196,6 +196,71 @@ export async function POST(
     }
   }
 
+  // Handle generic webhook authentication if enabled
+  if (foundWebhook.provider === 'generic') {
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+
+    logger.debug(`[${requestId}] Generic webhook config: ${JSON.stringify(providerConfig)}`)
+
+    if (providerConfig.requireAuth) {
+      const configToken = providerConfig.token
+      const secretHeaderName = providerConfig.secretHeaderName
+
+      logger.debug(
+        `[${requestId}] Auth required. Token: ${configToken ? '[REDACTED]' : 'undefined'}, Header: ${secretHeaderName || 'undefined'}`
+      )
+
+      // --- Token Validation ---
+      if (configToken) {
+        let isTokenValid = false
+
+        if (secretHeaderName) {
+          // Check custom header (headers are case-insensitive)
+          const headerValue = request.headers.get(secretHeaderName.toLowerCase())
+          logger.debug(
+            `[${requestId}] Checking custom header: '${secretHeaderName}' -> '${secretHeaderName.toLowerCase()}', value: '${headerValue}', expected: '${configToken}'`
+          )
+          if (headerValue === configToken) {
+            isTokenValid = true
+            logger.debug(
+              `[${requestId}] Generic webhook authenticated via custom header: ${secretHeaderName}`
+            )
+          }
+        } else {
+          // Check standard Authorization header (case-insensitive Bearer keyword)
+          const authHeader = request.headers.get('authorization')
+          const expectedBearer = `Bearer ${configToken}`
+
+          // Case-insensitive comparison for "Bearer" keyword
+          if (authHeader?.toLowerCase().startsWith('bearer ')) {
+            const token = authHeader.substring(7) // Remove "Bearer " (7 characters)
+            if (token === configToken) {
+              isTokenValid = true
+              logger.debug(
+                `[${requestId}] Generic webhook authenticated via Bearer token (case-insensitive)`
+              )
+            }
+          }
+        }
+
+        if (!isTokenValid) {
+          const expectedHeader = secretHeaderName || 'Authorization: Bearer TOKEN'
+          logger.warn(
+            `[${requestId}] Generic webhook authentication failed. Expected header: ${expectedHeader}`
+          )
+          return new NextResponse('Unauthorized - Invalid authentication token', { status: 401 })
+        }
+      } else {
+        logger.warn(`[${requestId}] Generic webhook requires auth but no token configured`)
+        return new NextResponse('Unauthorized - Authentication required but not configured', {
+          status: 401,
+        })
+      }
+
+      logger.info(`[${requestId}] Generic webhook authentication successful`)
+    }
+  }
+
   // --- PHASE 3: Rate limiting for webhook execution ---
   try {
     // Get user subscription for rate limiting

@@ -10,8 +10,28 @@ export const genericWebhookTrigger: TriggerConfig = {
   icon: WebhookIcon,
 
   configFields: {
-    // Generic webhooks don't require any specific configuration
-    // The webhook URL is provided automatically
+    requireAuth: {
+      type: 'boolean',
+      label: 'Require Authentication',
+      description: 'Require authentication for all webhook requests',
+      defaultValue: false,
+    },
+    token: {
+      type: 'string',
+      label: 'Authentication Token',
+      placeholder: 'Enter an auth token',
+      description: 'Token used to authenticate webhook requests via Bearer token or custom header',
+      required: false,
+      isSecret: true,
+    },
+    secretHeaderName: {
+      type: 'string',
+      label: 'Secret Header Name (Optional)',
+      placeholder: 'X-Secret-Key',
+      description:
+        'Custom HTTP header name for the auth token. If blank, uses "Authorization: Bearer TOKEN"',
+      required: false,
+    },
   },
 
   outputs: {
@@ -57,9 +77,10 @@ export const genericWebhookTrigger: TriggerConfig = {
   instructions: [
     'Copy the webhook URL provided above and use it in your external service or API.',
     'Configure your service to send webhooks to this URL.',
-    'The webhook will receive any HTTP method (GET, POST, PUT, DELETE).',
+    'The webhook will receive any HTTP method (GET, POST, PUT, DELETE, etc.).',
     'All request data (headers, body, query parameters) will be available in your workflow.',
-    'Common fields will be automatically extracted from the payload when available.',
+    'If authentication is enabled, include the token in requests using either the custom header or "Authorization: Bearer TOKEN".',
+    'Common fields like "event", "id", and "data" will be automatically extracted from the payload when available.',
   ],
 
   samplePayload: {
