@@ -232,15 +232,10 @@ export async function POST(req: NextRequest) {
   const startTime = Date.now()
 
   try {
-    logger.info('[COPILOT AUTH] Checking authentication')
     // Evaluate both auth schemes; pass if either is valid
     const internalAuth = checkInternalApiKey(req)
     const copilotAuth = checkCopilotApiKey(req)
     const isAuthenticated = !!(internalAuth?.success || copilotAuth?.success)
-    logger.info('[COPILOT AUTH] Authentication evaluated', {
-      internalSuccess: internalAuth.success,
-      copilotSuccess: copilotAuth.success,
-    })
     if (!isAuthenticated) {
       const errorMessage = copilotAuth.error || internalAuth.error || 'Authentication failed'
       return NextResponse.json(createErrorResponse(errorMessage), {
