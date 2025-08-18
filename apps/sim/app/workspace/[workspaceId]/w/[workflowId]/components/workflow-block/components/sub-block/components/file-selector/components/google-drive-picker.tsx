@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronDown, ExternalLink, FileIcon, FolderIcon, RefreshCw, X } from 'lucide-react'
+import { ExternalLink, FileIcon, FolderIcon, RefreshCw, X } from 'lucide-react'
 import useDrivePicker from 'react-google-drive-picker'
 import { GoogleDocsIcon, GoogleSheetsIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -457,7 +457,6 @@ export function GoogleDrivePicker({
               </>
             )}
           </div>
-          <ChevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
         </Button>
 
         {/* File preview */}
