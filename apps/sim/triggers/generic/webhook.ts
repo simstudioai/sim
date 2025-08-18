@@ -57,9 +57,9 @@ export const genericWebhookTrigger: TriggerConfig = {
   instructions: [
     'Copy the webhook URL provided above and use it in your external service or API.',
     'Configure your service to send webhooks to this URL.',
-    'The webhook will receive any HTTP method (GET, POST, PUT, DELETE, etc.).',
+    'The webhook will receive any HTTP method (GET, POST, PUT, DELETE).',
     'All request data (headers, body, query parameters) will be available in your workflow.',
-    'Common fields like "event", "id", and "data" will be automatically extracted from the payload when available.',
+    'Common fields will be automatically extracted from the payload when available.',
   ],
 
   samplePayload: {
