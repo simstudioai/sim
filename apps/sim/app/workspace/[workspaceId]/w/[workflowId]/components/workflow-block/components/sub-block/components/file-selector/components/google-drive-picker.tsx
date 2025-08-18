@@ -5,7 +5,6 @@ import { ChevronDown, ExternalLink, FileIcon, FolderIcon, RefreshCw, X } from 'l
 import useDrivePicker from 'react-google-drive-picker'
 import { GoogleDocsIcon, GoogleSheetsIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
-// Removed dropdown/command imports as the picker opens directly
 import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -67,7 +66,6 @@ export function GoogleDrivePicker({
   credentialId,
   workflowId,
 }: GoogleDrivePickerProps) {
-  // Dropdown removed; we only keep credential and picker logic
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
   const [selectedFileId, setSelectedFileId] = useState(value)
