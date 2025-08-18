@@ -1,6 +1,6 @@
 -- One-shot data migration to create/populate execution_data & cost, then drop legacy columns
 -- Safe on reruns and across differing prior schemas
-
+-- Note: Depending on runner timeouts, might have to be run manually
 -- 1) Ensure execution_data exists (prefer rename if only metadata exists)
 DO $$
 BEGIN
@@ -24,19 +24,35 @@ DO $$
 DECLARE
   v_batch_size integer := 500; -- keep batches small to avoid timeouts/spills
   v_rows_updated integer := 0;
+  v_rows_selected integer := 0;
+  v_last_id text := '';
+  v_last_created_at timestamp := '1970-01-01 00:00:00';
 BEGIN
+  -- modest per-statement timeout; adjust based on observed per-batch runtime
+  PERFORM set_config('statement_timeout', '180s', true);
   LOOP
-    WITH RECURSIVE candidate AS (
-      SELECT id
-      FROM workflow_execution_logs
-      WHERE cost IS NULL
-      ORDER BY id
-      LIMIT v_batch_size
-    ),
+    CREATE TEMP TABLE IF NOT EXISTS _tmp_candidate_ids(id text, created_at timestamp) ON COMMIT DROP;
+    TRUNCATE _tmp_candidate_ids;
+    INSERT INTO _tmp_candidate_ids(id, created_at)
+    SELECT id, created_at
+    FROM workflow_execution_logs
+    WHERE (created_at, id) > (v_last_created_at, v_last_id) AND cost IS NULL
+    ORDER BY created_at, id
+    LIMIT v_batch_size;
+
+    SELECT COUNT(*) INTO v_rows_selected FROM _tmp_candidate_ids;
+    EXIT WHEN v_rows_selected = 0;
+    SELECT created_at, id
+    INTO v_last_created_at, v_last_id
+    FROM _tmp_candidate_ids
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1;
+
+    WITH RECURSIVE
     spans AS (
       SELECT l.id, s.span
       FROM workflow_execution_logs l
-      JOIN candidate c ON c.id = l.id
+      JOIN _tmp_candidate_ids c ON c.id = l.id
       LEFT JOIN LATERAL jsonb_array_elements(
         COALESCE(
           CASE
@@ -105,7 +121,7 @@ BEGIN
              NULLIF((l.execution_data->'tokenBreakdown'->>'prompt')::numeric, 0) AS prompt,
              NULLIF((l.execution_data->'tokenBreakdown'->>'completion')::numeric, 0) AS completion
       FROM workflow_execution_logs l
-      JOIN candidate c ON c.id = l.id
+      JOIN _tmp_candidate_ids c ON c.id = l.id
     )
     UPDATE workflow_execution_logs AS l
     SET cost = jsonb_strip_nulls(
@@ -133,7 +149,7 @@ BEGIN
     WHERE l.id = agg.id;
 
     GET DIAGNOSTICS v_rows_updated = ROW_COUNT;
-    EXIT WHEN v_rows_updated = 0; -- no more rows to backfill
+    -- continue advancing by id until no more rows are selected
   END LOOP;
 END $$;--> statement-breakpoint
 
