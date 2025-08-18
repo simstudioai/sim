@@ -28,32 +28,13 @@ const logger = createLogger('CopilotChatAPI')
 // Sim Agent API configuration
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
-function getRequestOrigin(req: NextRequest): string {
+function getRequestOrigin(_req: NextRequest): string {
   try {
-    // Prefer forwarded headers when behind proxies/CDNs
-    const forwardedProto = req.headers.get('x-forwarded-proto') || undefined
-    const forwardedHost = req.headers.get('x-forwarded-host') || undefined
-    if (forwardedHost) {
-      const proto = forwardedProto || 'https'
-      return `${proto}://${forwardedHost}`
-    }
-
-    // Fallback to the request URL origin (works in dev and test)
-    if (req.nextUrl?.origin) {
-      return req.nextUrl.origin
-    }
-
-    // Fallback to Host header with sensible protocol default
-    const host = req.headers.get('host')
-    if (host) {
-      const proto = process.env.NODE_ENV === 'development' ? 'http' : 'https'
-      return `${proto}://${host}`
-    }
+    // Strictly use configured Better Auth URL
+    return env.BETTER_AUTH_URL || ''
   } catch (_) {
-    // ignore and use default below
+    return ''
   }
-  // Final fallback for unknown environments
-  return ''
 }
 
 function deriveKey(keyString: string): Buffer {
@@ -227,6 +208,11 @@ export async function POST(req: NextRequest) {
 
     // Derive request origin for downstream service
     const requestOrigin = getRequestOrigin(req)
+
+    if (!requestOrigin) {
+      logger.error(`[${tracker.requestId}] Missing required configuration: BETTER_AUTH_URL`)
+      return createInternalServerErrorResponse('Missing required configuration: BETTER_AUTH_URL')
+    }
 
     logger.info(`[${tracker.requestId}] Processing copilot chat request`, {
       userId: authenticatedUserId,

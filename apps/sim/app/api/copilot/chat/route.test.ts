@@ -105,6 +105,7 @@ describe('Copilot Chat API Route', () => {
       env: {
         SIM_AGENT_API_URL: 'http://localhost:8000',
         COPILOT_API_KEY: 'test-sim-agent-key',
+        BETTER_AUTH_URL: 'http://localhost:3000',
       },
     }))
 
