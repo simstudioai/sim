@@ -28,6 +28,15 @@ const logger = createLogger('CopilotChatAPI')
 // Sim Agent API configuration
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
+function getRequestOrigin(_req: NextRequest): string {
+  try {
+    // Strictly use configured Better Auth URL
+    return env.BETTER_AUTH_URL || ''
+  } catch (_) {
+    return ''
+  }
+}
+
 function deriveKey(keyString: string): Buffer {
   return createHash('sha256').update(keyString, 'utf8').digest()
 }
@@ -197,6 +206,14 @@ export async function POST(req: NextRequest) {
       conversationId,
     } = ChatMessageSchema.parse(body)
 
+    // Derive request origin for downstream service
+    const requestOrigin = getRequestOrigin(req)
+
+    if (!requestOrigin) {
+      logger.error(`[${tracker.requestId}] Missing required configuration: BETTER_AUTH_URL`)
+      return createInternalServerErrorResponse('Missing required configuration: BETTER_AUTH_URL')
+    }
+
     logger.info(`[${tracker.requestId}] Processing copilot chat request`, {
       userId: authenticatedUserId,
       workflowId,
@@ -209,6 +226,7 @@ export async function POST(req: NextRequest) {
       provider: provider || 'openai',
       hasConversationId: !!conversationId,
       depth,
+      origin: requestOrigin,
     })
 
     // Handle chat context
@@ -386,6 +404,7 @@ export async function POST(req: NextRequest) {
       ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
       ...(typeof depth === 'number' ? { depth } : {}),
       ...(session?.user?.name && { userName: session.user.name }),
+      ...(requestOrigin ? { origin: requestOrigin } : {}),
     }
 
     // Log the payload being sent to the streaming endpoint
@@ -399,6 +418,7 @@ export async function POST(req: NextRequest) {
         hasConversationId: !!effectiveConversationId,
         depth: typeof depth === 'number' ? depth : undefined,
         messagesCount: requestPayload.messages.length,
+        ...(requestOrigin ? { origin: requestOrigin } : {}),
       })
       // Full payload as JSON string
       logger.info(
