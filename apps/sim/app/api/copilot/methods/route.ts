@@ -232,10 +232,13 @@ export async function POST(req: NextRequest) {
   const startTime = Date.now()
 
   try {
-    // Check authentication (internal API key)
-    const authResult = checkInternalApiKey(req) || checkCopilotApiKey(req)
-    if (!authResult.success) {
-      return NextResponse.json(createErrorResponse(authResult.error || 'Authentication failed'), {
+    // Evaluate both auth schemes; pass if either is valid
+    const internalAuth = checkInternalApiKey(req)
+    const copilotAuth = checkCopilotApiKey(req)
+    const isAuthenticated = !!(internalAuth?.success || copilotAuth?.success)
+    if (!isAuthenticated) {
+      const errorMessage = copilotAuth.error || internalAuth.error || 'Authentication failed'
+      return NextResponse.json(createErrorResponse(errorMessage), {
         status: 401,
       })
     }
@@ -243,7 +246,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { methodId, params, toolCallId } = MethodExecutionSchema.parse(body)
 
-    logger.info(`[${requestId}] Method execution request: ${methodId}`, {
+    logger.info(`[${requestId}] Method execution request`, {
       methodId,
       toolCallId,
       hasParams: !!params && Object.keys(params).length > 0,
