@@ -18,11 +18,6 @@ function shouldIncludeField(subBlockConfig: SubBlockConfig, isAdvancedMode: bool
     return false // Skip advanced-only fields when in basic mode
   }
 
-  if (fieldMode === 'basic' && isAdvancedMode) {
-    return false // Skip basic-only fields when in advanced mode
-  }
-
-  // Fields with mode: 'both' or undefined are always included
   return true
 }
 

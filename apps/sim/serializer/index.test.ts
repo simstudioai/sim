@@ -795,8 +795,8 @@ describe('Serializer', () => {
       const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
       expect(slackBlock).toBeDefined()
 
-      // In advanced mode, should exclude basic-only fields and include advanced-only fields
-      expect(slackBlock?.config.params.channel).toBeUndefined() // basic mode field excluded
+      // In advanced mode, should include ALL fields (basic, advanced, and both)
+      expect(slackBlock?.config.params.channel).toBe('general') // basic mode field included
       expect(slackBlock?.config.params.manualChannel).toBe('C1234567890') // advanced mode field included
       expect(slackBlock?.config.params.text).toBe('Hello world') // both mode field included
       expect(slackBlock?.config.params.username).toBe('bot') // both mode field included
@@ -834,7 +834,7 @@ describe('Serializer', () => {
     })
 
     it.concurrent(
-      'should exclude advanced-only fields when advancedMode is undefined (defaults to false)',
+      'should exclude advanced-only fields when advancedMode is undefined (defaults to basic mode)',
       () => {
         const serializer = new Serializer()
 
@@ -859,7 +859,7 @@ describe('Serializer', () => {
         const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
         expect(slackBlock).toBeDefined()
 
-        // Should default to basic mode behavior
+        // Should default to basic mode behavior (include basic + both, exclude advanced)
         expect(slackBlock?.config.params.channel).toBe('general') // basic mode field included
         expect(slackBlock?.config.params.manualChannel).toBeUndefined() // advanced mode field excluded
         expect(slackBlock?.config.params.text).toBe('Hello world') // both mode field included
