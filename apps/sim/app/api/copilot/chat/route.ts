@@ -415,11 +415,11 @@ export async function POST(req: NextRequest) {
         mode,
         stream,
         workflowId,
-              hasConversationId: !!effectiveConversationId,
-      depth: typeof depth === 'number' ? depth : undefined,
-      messagesCount: requestPayload.messages.length,
-      ...(requestOrigin ? { origin: requestOrigin } : {}),
-    })
+        hasConversationId: !!effectiveConversationId,
+        depth: typeof depth === 'number' ? depth : undefined,
+        messagesCount: requestPayload.messages.length,
+        ...(requestOrigin ? { origin: requestOrigin } : {}),
+      })
       // Full payload as JSON string
       logger.info(
         `[${tracker.requestId}] Full streaming payload: ${JSON.stringify(requestPayload)}`
