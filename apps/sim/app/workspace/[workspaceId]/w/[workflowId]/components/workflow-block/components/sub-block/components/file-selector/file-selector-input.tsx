@@ -697,32 +697,47 @@ export function FileSelectorInput({
   }
 
   // Default to Google Drive picker
-  return (
-    <GoogleDrivePicker
-      value={coerceToIdString(
-        (isPreview && previewValue !== undefined ? previewValue : storeValue) as any
-      )}
-      onChange={(val, info) => {
-        setSelectedFileId(val)
-        setFileInfo(info || null)
-        collaborativeSetSubblockValue(blockId, subBlock.id, val)
-      }}
-      provider={provider}
-      requiredScopes={subBlock.requiredScopes || []}
-      label={subBlock.placeholder || 'Select file'}
-      disabled={disabled}
-      serviceId={subBlock.serviceId}
-      mimeTypeFilter={subBlock.mimeType}
-      showPreview={true}
-      onFileInfoChange={setFileInfo}
-      clientId={clientId}
-      apiKey={apiKey}
-      credentialId={
-        ((isPreview && previewContextValues?.credential?.value) ||
-          (getValue(blockId, 'credential') as string) ||
-          '') as string
-      }
-      workflowId={workflowIdFromUrl}
-    />
-  )
+  {
+    const credential = ((isPreview && previewContextValues?.credential?.value) ||
+      (getValue(blockId, 'credential') as string) ||
+      '') as string
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='w-full'>
+              <GoogleDrivePicker
+                value={coerceToIdString(
+                  (isPreview && previewValue !== undefined ? previewValue : storeValue) as any
+                )}
+                onChange={(val, info) => {
+                  setSelectedFileId(val)
+                  setFileInfo(info || null)
+                  collaborativeSetSubblockValue(blockId, subBlock.id, val)
+                }}
+                provider={provider}
+                requiredScopes={subBlock.requiredScopes || []}
+                label={subBlock.placeholder || 'Select file'}
+                disabled={disabled || !credential}
+                serviceId={subBlock.serviceId}
+                mimeTypeFilter={subBlock.mimeType}
+                showPreview={true}
+                onFileInfoChange={setFileInfo}
+                clientId={clientId}
+                apiKey={apiKey}
+                credentialId={credential}
+                workflowId={workflowIdFromUrl}
+              />
+            </div>
+          </TooltipTrigger>
+          {!credential && (
+            <TooltipContent side='top'>
+              <p>Please select Google Drive credentials first</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
 }
