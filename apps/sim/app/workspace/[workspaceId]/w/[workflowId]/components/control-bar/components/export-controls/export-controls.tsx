@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Download } from 'lucide-react'
+import { Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -81,7 +81,7 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
       <TooltipTrigger asChild>
         {isDisabled ? (
           <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
-            <Download className='h-5 w-5' />
+            <Upload className='h-5 w-5' />
           </div>
         ) : (
           <Button
@@ -89,7 +89,7 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
             onClick={handleExportYaml}
             className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
           >
-            <Download className='h-5 w-5' />
+            <Upload className='h-5 w-5' />
             <span className='sr-only'>Export as YAML</span>
           </Button>
         )}
