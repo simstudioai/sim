@@ -38,38 +38,10 @@ export const airtableWebhookTrigger: TriggerConfig = {
   },
 
   outputs: {
-    event_type: {
-      type: 'string',
-      description: 'Type of Airtable event (e.g., record.created, record.updated, record.deleted)',
-    },
-    base_id: {
-      type: 'string',
-      description: 'Airtable base identifier',
-    },
-    table_id: {
-      type: 'string',
-      description: 'Airtable table identifier',
-    },
-    record_id: {
-      type: 'string',
-      description: 'Record identifier that was modified',
-    },
-    record_data: {
-      type: 'string',
-      description: 'Complete record data (when Include Full Record Data is enabled)',
-    },
-    changed_fields: {
-      type: 'string',
-      description: 'Fields that were changed in the record',
-    },
-    webhook_id: {
-      type: 'string',
-      description: 'Unique webhook identifier',
-    },
-    timestamp: {
-      type: 'string',
-      description: 'Event timestamp',
-    },
+    airtableChanges: {
+      type: 'array',
+      description: 'Changes made to the Airtable table',
+    }
   },
 
   instructions: [

@@ -32,10 +32,6 @@ export const telegramWebhookTrigger: TriggerConfig = {
         type: 'string',
         description: 'Message text content (if present)',
       },
-      caption: {
-        type: 'string',
-        description: 'Caption for media messages (if present)',
-      },
       date: {
         type: 'number',
         description: 'Date the message was sent (Unix timestamp)',
@@ -64,7 +60,6 @@ export const telegramWebhookTrigger: TriggerConfig = {
         },
         chat: {
           id: { type: 'number', description: 'Chat identifier' },
-          title: { type: 'string', description: 'Chat title (for groups/channels)' },
           username: { type: 'string', description: 'Chat username (if available)' },
           first_name: { type: 'string', description: 'First name (for private chats)' },
           last_name: { type: 'string', description: 'Last name (for private chats)' },
@@ -74,7 +69,6 @@ export const telegramWebhookTrigger: TriggerConfig = {
           is_bot: { type: 'boolean', description: 'Whether the sender is a bot' },
           first_name: { type: 'string', description: 'Sender first name' },
           last_name: { type: 'string', description: 'Sender last name' },
-          username: { type: 'string', description: 'Sender username (if available)' },
           language_code: { type: 'string', description: 'Sender language code (if available)' },
         },
       },
@@ -83,16 +77,8 @@ export const telegramWebhookTrigger: TriggerConfig = {
       id: { type: 'number', description: 'Sender user ID' },
       firstName: { type: 'string', description: 'Sender first name' },
       lastName: { type: 'string', description: 'Sender last name' },
-      username: { type: 'string', description: 'Sender username (if available)' },
       languageCode: { type: 'string', description: 'Sender language code (if available)' },
       isBot: { type: 'boolean', description: 'Whether the sender is a bot' },
-    },
-    chat: {
-      id: { type: 'number', description: 'Chat identifier' },
-      title: { type: 'string', description: 'Chat title (for groups/channels)' },
-      username: { type: 'string', description: 'Chat username (if available)' },
-      firstName: { type: 'string', description: 'First name (for private chats)' },
-      lastName: { type: 'string', description: 'Last name (for private chats)' },
     },
     updateId: {
       type: 'number',
