@@ -22,7 +22,7 @@ ALTER TABLE "workflow_execution_logs"
 -- Process the backfill in batches to avoid large temporary files on big datasets
 DO $$
 DECLARE
-  v_batch_size integer := 5000; -- tune if needed based on dataset size
+  v_batch_size integer := 500; -- keep batches small to avoid timeouts/spills
   v_rows_updated integer := 0;
 BEGIN
   LOOP
