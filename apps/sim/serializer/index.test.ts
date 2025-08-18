@@ -161,6 +161,56 @@ vi.mock('@/blocks', () => ({
           subreddit: { type: 'string' },
         },
       },
+      // Mock block with both basic and advanced mode fields for testing
+      slack: {
+        name: 'Slack',
+        description: 'Send messages to Slack',
+        category: 'tools',
+        bgColor: '#611f69',
+        tools: {
+          access: ['slack_send_message'],
+          config: {
+            tool: () => 'slack_send_message',
+          },
+        },
+        subBlocks: [
+          { id: 'channel', type: 'dropdown', title: 'Channel', mode: 'basic' },
+          { id: 'manualChannel', type: 'short-input', title: 'Channel ID', mode: 'advanced' },
+          { id: 'text', type: 'long-input', title: 'Message' }, // mode: 'both' (default)
+          { id: 'username', type: 'short-input', title: 'Username', mode: 'both' },
+        ],
+        inputs: {
+          channel: { type: 'string' },
+          manualChannel: { type: 'string' },
+          text: { type: 'string' },
+          username: { type: 'string' },
+        },
+      },
+      // Mock agent block with memories for testing
+      agentWithMemories: {
+        name: 'Agent with Memories',
+        description: 'AI Agent with memory support',
+        category: 'ai',
+        bgColor: '#2196F3',
+        tools: {
+          access: ['anthropic_chat'],
+          config: {
+            tool: () => 'anthropic_chat',
+          },
+        },
+        subBlocks: [
+          { id: 'systemPrompt', type: 'long-input', title: 'System Prompt' }, // mode: 'both' (default)
+          { id: 'userPrompt', type: 'long-input', title: 'User Prompt' }, // mode: 'both' (default)
+          { id: 'memories', type: 'short-input', title: 'Memories', mode: 'advanced' },
+          { id: 'model', type: 'dropdown', title: 'Model' }, // mode: 'both' (default)
+        ],
+        inputs: {
+          systemPrompt: { type: 'string' },
+          userPrompt: { type: 'string' },
+          memories: { type: 'array' },
+          model: { type: 'string' },
+        },
+      },
     }
 
     return mockConfigs[type] || null
@@ -714,6 +764,202 @@ describe('Serializer', () => {
       expect(() => {
         serializer.serializeWorkflow({ 'test-block': mixedBlock }, [], {}, undefined, true)
       }).toThrow('Test Reddit Block is missing required fields: Reddit Account')
+    })
+  })
+
+  /**
+   * Advanced mode field filtering tests
+   */
+  describe('advanced mode field filtering', () => {
+    it.concurrent('should include all fields when block is in advanced mode', () => {
+      const serializer = new Serializer()
+
+      const advancedModeBlock: any = {
+        id: 'slack-1',
+        type: 'slack',
+        name: 'Test Slack Block',
+        position: { x: 0, y: 0 },
+        advancedMode: true, // Advanced mode enabled
+        subBlocks: {
+          channel: { value: 'general' }, // basic mode field
+          manualChannel: { value: 'C1234567890' }, // advanced mode field
+          text: { value: 'Hello world' }, // both mode field
+          username: { value: 'bot' }, // both mode field
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const serialized = serializer.serializeWorkflow({ 'slack-1': advancedModeBlock }, [], {})
+
+      const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
+      expect(slackBlock).toBeDefined()
+
+      // In advanced mode, should include ALL fields (basic, advanced, and both)
+      expect(slackBlock?.config.params.channel).toBe('general') // basic mode field included
+      expect(slackBlock?.config.params.manualChannel).toBe('C1234567890') // advanced mode field included
+      expect(slackBlock?.config.params.text).toBe('Hello world') // both mode field included
+      expect(slackBlock?.config.params.username).toBe('bot') // both mode field included
+    })
+
+    it.concurrent('should exclude advanced-only fields when block is in basic mode', () => {
+      const serializer = new Serializer()
+
+      const basicModeBlock: any = {
+        id: 'slack-1',
+        type: 'slack',
+        name: 'Test Slack Block',
+        position: { x: 0, y: 0 },
+        advancedMode: false, // Basic mode enabled
+        subBlocks: {
+          channel: { value: 'general' }, // basic mode field
+          manualChannel: { value: 'C1234567890' }, // advanced mode field
+          text: { value: 'Hello world' }, // both mode field
+          username: { value: 'bot' }, // both mode field
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const serialized = serializer.serializeWorkflow({ 'slack-1': basicModeBlock }, [], {})
+
+      const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
+      expect(slackBlock).toBeDefined()
+
+      // In basic mode, should include basic-only fields and exclude advanced-only fields
+      expect(slackBlock?.config.params.channel).toBe('general') // basic mode field included
+      expect(slackBlock?.config.params.manualChannel).toBeUndefined() // advanced mode field excluded
+      expect(slackBlock?.config.params.text).toBe('Hello world') // both mode field included
+      expect(slackBlock?.config.params.username).toBe('bot') // both mode field included
+    })
+
+    it.concurrent(
+      'should exclude advanced-only fields when advancedMode is undefined (defaults to basic mode)',
+      () => {
+        const serializer = new Serializer()
+
+        const defaultModeBlock: any = {
+          id: 'slack-1',
+          type: 'slack',
+          name: 'Test Slack Block',
+          position: { x: 0, y: 0 },
+          // advancedMode: undefined (defaults to false)
+          subBlocks: {
+            channel: { value: 'general' }, // basic mode field
+            manualChannel: { value: 'C1234567890' }, // advanced mode field
+            text: { value: 'Hello world' }, // both mode field
+            username: { value: 'bot' }, // both mode field
+          },
+          outputs: {},
+          enabled: true,
+        }
+
+        const serialized = serializer.serializeWorkflow({ 'slack-1': defaultModeBlock }, [], {})
+
+        const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
+        expect(slackBlock).toBeDefined()
+
+        // Should default to basic mode behavior (include basic + both, exclude advanced)
+        expect(slackBlock?.config.params.channel).toBe('general') // basic mode field included
+        expect(slackBlock?.config.params.manualChannel).toBeUndefined() // advanced mode field excluded
+        expect(slackBlock?.config.params.text).toBe('Hello world') // both mode field included
+        expect(slackBlock?.config.params.username).toBe('bot') // both mode field included
+      }
+    )
+
+    it.concurrent('should filter memories field correctly in agent blocks', () => {
+      const serializer = new Serializer()
+
+      const agentInBasicMode: any = {
+        id: 'agent-1',
+        type: 'agentWithMemories',
+        name: 'Test Agent',
+        position: { x: 0, y: 0 },
+        advancedMode: false, // Basic mode
+        subBlocks: {
+          systemPrompt: { value: 'You are helpful' }, // both mode field
+          userPrompt: { value: 'Hello' }, // both mode field
+          memories: { value: [{ role: 'user', content: 'My name is John' }] }, // advanced mode field
+          model: { value: 'claude-3-sonnet' }, // both mode field
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const serialized = serializer.serializeWorkflow({ 'agent-1': agentInBasicMode }, [], {})
+
+      const agentBlock = serialized.blocks.find((b) => b.id === 'agent-1')
+      expect(agentBlock).toBeDefined()
+
+      // In basic mode, memories should be excluded
+      expect(agentBlock?.config.params.systemPrompt).toBe('You are helpful')
+      expect(agentBlock?.config.params.userPrompt).toBe('Hello')
+      expect(agentBlock?.config.params.memories).toBeUndefined() // Excluded in basic mode
+      expect(agentBlock?.config.params.model).toBe('claude-3-sonnet')
+    })
+
+    it.concurrent('should include memories field when agent is in advanced mode', () => {
+      const serializer = new Serializer()
+
+      const agentInAdvancedMode: any = {
+        id: 'agent-1',
+        type: 'agentWithMemories',
+        name: 'Test Agent',
+        position: { x: 0, y: 0 },
+        advancedMode: true, // Advanced mode
+        subBlocks: {
+          systemPrompt: { value: 'You are helpful' }, // both mode field
+          userPrompt: { value: 'Hello' }, // both mode field
+          memories: { value: [{ role: 'user', content: 'My name is John' }] }, // advanced mode field
+          model: { value: 'claude-3-sonnet' }, // both mode field
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const serialized = serializer.serializeWorkflow({ 'agent-1': agentInAdvancedMode }, [], {})
+
+      const agentBlock = serialized.blocks.find((b) => b.id === 'agent-1')
+      expect(agentBlock).toBeDefined()
+
+      // In advanced mode, memories should be included
+      expect(agentBlock?.config.params.systemPrompt).toBe('You are helpful')
+      expect(agentBlock?.config.params.userPrompt).toBe('Hello')
+      expect(agentBlock?.config.params.memories).toEqual([
+        { role: 'user', content: 'My name is John' },
+      ]) // Included in advanced mode
+      expect(agentBlock?.config.params.model).toBe('claude-3-sonnet')
+    })
+
+    it.concurrent('should handle blocks with no matching subblock config gracefully', () => {
+      const serializer = new Serializer()
+
+      const blockWithUnknownField: any = {
+        id: 'slack-1',
+        type: 'slack',
+        name: 'Test Slack Block',
+        position: { x: 0, y: 0 },
+        advancedMode: false, // Basic mode
+        subBlocks: {
+          channel: { value: 'general' }, // known field
+          unknownField: { value: 'someValue' }, // field not in config
+          text: { value: 'Hello world' }, // known field
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const serialized = serializer.serializeWorkflow({ 'slack-1': blockWithUnknownField }, [], {})
+
+      const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
+      expect(slackBlock).toBeDefined()
+
+      // Known fields should be processed according to mode rules
+      expect(slackBlock?.config.params.channel).toBe('general')
+      expect(slackBlock?.config.params.text).toBe('Hello world')
+
+      // Unknown fields are filtered out (no subblock config found, so shouldIncludeField is not called)
+      expect(slackBlock?.config.params.unknownField).toBeUndefined()
     })
   })
 })
