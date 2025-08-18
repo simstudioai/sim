@@ -102,3 +102,4 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
     },
   },
 }
+
