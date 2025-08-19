@@ -90,29 +90,14 @@ export function buildTraceSpans(result: ExecutionResult): {
     // Always add cost, token, and model information if available (regardless of provider timing)
     if (log.output?.cost) {
       ;(span as any).cost = log.output.cost
-      logger.debug(`Added cost to span ${span.id}`, {
-        blockId: log.blockId,
-        blockType: log.blockType,
-        cost: log.output.cost,
-      })
     }
 
     if (log.output?.tokens) {
       ;(span as any).tokens = log.output.tokens
-      logger.debug(`Added tokens to span ${span.id}`, {
-        blockId: log.blockId,
-        blockType: log.blockType,
-        tokens: log.output.tokens,
-      })
     }
 
     if (log.output?.model) {
       ;(span as any).model = log.output.model
-      logger.debug(`Added model to span ${span.id}`, {
-        blockId: log.blockId,
-        blockType: log.blockType,
-        model: log.output.model,
-      })
     }
 
     // Handle child workflow spans for workflow blocks
@@ -143,15 +128,6 @@ export function buildTraceSpans(result: ExecutionResult): {
 
       // Add the child spans as children of this workflow block
       span.children = flatChildSpans
-
-      logger.debug(
-        `Added ${flatChildSpans.length} child workflow spans to workflow block ${span.id}`,
-        {
-          blockId: log.blockId,
-          blockType: log.blockType,
-          childWorkflowName: log.output.childWorkflowName,
-        }
-      )
     }
 
     // Enhanced approach: Use timeSegments for sequential flow if available
@@ -202,20 +178,6 @@ export function buildTraceSpans(result: ExecutionResult): {
           status: 'success',
         }
       })
-
-      logger.debug(
-        `Created ${span.children?.length || 0} sequential segments for span ${span.id}`,
-        {
-          blockId: log.blockId,
-          blockType: log.blockType,
-          segments:
-            span.children?.map((child) => ({
-              name: child.name,
-              type: child.type,
-              duration: child.duration,
-            })) || [],
-        }
-      )
     } else {
       // Fallback: Extract tool calls using the original approach for backwards compatibility
       // Tool calls handling for different formats:
@@ -276,12 +238,6 @@ export function buildTraceSpans(result: ExecutionResult): {
             }
           })
           .filter(Boolean) // Remove any null entries from failed processing
-
-        logger.debug(`Added ${span.toolCalls?.length || 0} tool calls to span ${span.id}`, {
-          blockId: log.blockId,
-          blockType: log.blockType,
-          toolCallNames: span.toolCalls?.map((tc) => tc.name) || [],
-        })
       }
     }
 

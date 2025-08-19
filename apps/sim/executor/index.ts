@@ -2012,17 +2012,13 @@ export class Executor {
   }
 
   /**
-   * Integrates child workflow logs into parent execution context
-   * This stores child trace spans in the block output so they can be properly nested
-   * when trace spans are built, rather than adding them as separate root-level logs
+   * Preserves child workflow trace spans for proper nesting
    */
   private integrateChildWorkflowLogs(block: SerializedBlock, output: NormalizedBlockOutput): void {
-    // Only process workflow blocks
     if (block.metadata?.id !== BlockType.WORKFLOW) {
       return
     }
 
-    // Check if output contains child trace spans
     if (!output || typeof output !== 'object' || !output.childTraceSpans) {
       return
     }
@@ -2031,18 +2027,5 @@ export class Executor {
     if (!Array.isArray(childTraceSpans) || childTraceSpans.length === 0) {
       return
     }
-
-    // Instead of adding child logs directly to context.blockLogs, we keep the childTraceSpans
-    // in the output. The buildTraceSpans function will be modified to handle this properly
-    // and nest them under the workflow block span.
-    logger.info(
-      `Child workflow trace spans preserved in workflow block output for proper nesting`,
-      {
-        blockId: block.id,
-        blockName: block.metadata?.name,
-        childWorkflowName: output.childWorkflowName,
-        childSpansCount: childTraceSpans.length,
-      }
-    )
   }
 }
