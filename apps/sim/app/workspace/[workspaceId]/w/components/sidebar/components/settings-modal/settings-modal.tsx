@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/env'
 import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -48,6 +47,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const loadSettings = useGeneralStore((state) => state.loadSettings)
   const { activeOrganization } = useOrganizationStore()
   const hasLoadedInitialData = useRef(false)
+  const environmentCloseHandler = useRef<((open: boolean) => void) | null>(null)
 
   useEffect(() => {
     async function loadAllSettings() {
@@ -96,27 +96,25 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   const isSubscriptionEnabled = isBillingEnabled
 
+  // Handle dialog close - delegate to environment component if it's active
+  const handleDialogOpenChange = (newOpen: boolean) => {
+    if (!newOpen && activeSection === 'environment' && environmentCloseHandler.current) {
+      environmentCloseHandler.current(newOpen)
+    } else {
+      onOpenChange(newOpen)
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='flex h-[70vh] flex-col gap-0 p-0 sm:max-w-[800px]' hideCloseButton>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+      <DialogContent className='flex h-[70vh] flex-col gap-0 p-0 sm:max-w-[840px]'>
         <DialogHeader className='border-b px-6 py-4'>
-          <div className='flex items-center justify-between'>
-            <DialogTitle className='font-medium text-lg'>Settings</DialogTitle>
-            <Button
-              variant='ghost'
-              size='icon'
-              className='h-8 w-8 p-0'
-              onClick={() => onOpenChange(false)}
-            >
-              <X className='h-4 w-4' />
-              <span className='sr-only'>Close</span>
-            </Button>
-          </div>
+          <DialogTitle className='font-medium text-lg'>Settings</DialogTitle>
         </DialogHeader>
 
         <div className='flex min-h-0 flex-1'>
           {/* Navigation Sidebar */}
-          <div className='w-[200px] border-r'>
+          <div className='w-[180px]'>
             <SettingsNavigation
               activeSection={activeSection}
               onSectionChange={setActiveSection}
@@ -130,7 +128,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               <General />
             </div>
             <div className={cn('h-full', activeSection === 'environment' ? 'block' : 'hidden')}>
-              <EnvironmentVariables onOpenChange={onOpenChange} />
+              <EnvironmentVariables
+                onOpenChange={onOpenChange}
+                registerCloseHandler={(handler) => {
+                  environmentCloseHandler.current = handler
+                }}
+              />
             </div>
             <div className={cn('h-full', activeSection === 'account' ? 'block' : 'hidden')}>
               <Account onOpenChange={onOpenChange} />

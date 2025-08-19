@@ -124,12 +124,10 @@ export function CredentialSelector({
     }
   }, [effectiveProviderId, selectedId, activeWorkflowId])
 
-  // Fetch credentials on initial mount
+  // Fetch credentials on initial mount and whenever the subblock value changes externally
   useEffect(() => {
     fetchCredentials()
-    // This effect should only run once on mount, so empty dependency array
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [fetchCredentials, effectiveValue])
 
   // When the selectedId changes (e.g., collaborator saved a credential), determine if it's foreign
   useEffect(() => {
@@ -180,6 +178,19 @@ export function CredentialSelector({
     }
   }, [fetchCredentials])
 
+  // Also handle BFCache restores (back/forward navigation) where visibility change may not fire reliably
+  useEffect(() => {
+    const handlePageShow = (event: any) => {
+      if (event?.persisted) {
+        fetchCredentials()
+      }
+    }
+    window.addEventListener('pageshow', handlePageShow)
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow)
+    }
+  }, [fetchCredentials])
+
   // Handle popover open to fetch fresh credentials
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
@@ -192,6 +203,13 @@ export function CredentialSelector({
   // Get the selected credential
   const selectedCredential = credentials.find((cred) => cred.id === selectedId)
   const isForeign = !!(selectedId && !selectedCredential && hasForeignMeta)
+
+  // If the list doesn’t contain the effective value but meta says it exists, synthesize a non-leaky placeholder to render stable UI
+  const displayName = selectedCredential
+    ? selectedCredential.name
+    : isForeign
+      ? 'Saved by collaborator'
+      : undefined
 
   // Handle selection
   const handleSelect = (credentialId: string) => {
@@ -263,15 +281,9 @@ export function CredentialSelector({
             <div className='flex max-w-[calc(100%-20px)] items-center gap-2 overflow-hidden'>
               {getProviderIcon(provider)}
               <span
-                className={
-                  selectedCredential ? 'truncate font-normal' : 'truncate text-muted-foreground'
-                }
+                className={displayName ? 'truncate font-normal' : 'truncate text-muted-foreground'}
               >
-                {selectedCredential
-                  ? selectedCredential.name
-                  : isForeign
-                    ? 'Saved by collaborator'
-                    : label}
+                {displayName || label}
               </span>
             </div>
             <ChevronDown className='absolute right-3 h-4 w-4 shrink-0 opacity-50' />

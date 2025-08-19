@@ -355,7 +355,7 @@ describe('workflow store', () => {
       )
     })
 
-    it('should clear memories when switching from advanced to basic mode', () => {
+    it('should preserve memories when switching from advanced to basic mode', () => {
       const { addBlock, toggleBlockAdvancedMode } = useWorkflowStore.getState()
       const { setState: setSubBlockState } = useSubBlockStore
 
@@ -387,7 +387,7 @@ describe('workflow store', () => {
       // Toggle back to basic mode
       toggleBlockAdvancedMode('agent1')
 
-      // Check that prompts are preserved but memories are cleared
+      // Check that prompts and memories are all preserved
       const subBlockState = useSubBlockStore.getState()
       expect(subBlockState.workflowValues['test-workflow'].agent1.systemPrompt).toBe(
         'You are a helpful assistant'
@@ -395,7 +395,10 @@ describe('workflow store', () => {
       expect(subBlockState.workflowValues['test-workflow'].agent1.userPrompt).toBe(
         'What did we discuss?'
       )
-      expect(subBlockState.workflowValues['test-workflow'].agent1.memories).toBeNull()
+      expect(subBlockState.workflowValues['test-workflow'].agent1.memories).toEqual([
+        { role: 'user', content: 'My name is John' },
+        { role: 'assistant', content: 'Nice to meet you, John!' },
+      ])
     })
 
     it('should handle mode switching when no subblock values exist', () => {

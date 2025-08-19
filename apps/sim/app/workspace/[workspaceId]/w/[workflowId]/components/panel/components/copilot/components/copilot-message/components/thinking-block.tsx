@@ -28,6 +28,18 @@ export function ThinkingBlock({
   }, [persistedStartTime])
 
   useEffect(() => {
+    // Auto-collapse when streaming ends
+    if (!isStreaming) {
+      setIsExpanded(false)
+      return
+    }
+    // Expand once there is visible content while streaming
+    if (content && content.trim().length > 0) {
+      setIsExpanded(true)
+    }
+  }, [isStreaming, content])
+
+  useEffect(() => {
     // If we already have a persisted duration, just use it
     if (typeof persistedDuration === 'number') {
       setDuration(persistedDuration)
@@ -52,29 +64,10 @@ export function ThinkingBlock({
     return `${seconds}s`
   }
 
-  if (!isExpanded) {
-    return (
-      <button
-        onClick={() => setIsExpanded(true)}
-        className={cn(
-          'inline-flex items-center gap-1 text-gray-400 text-xs transition-colors hover:text-gray-500',
-          'font-normal italic'
-        )}
-        type='button'
-      >
-        <Brain className='h-3 w-3' />
-        <span>Thought for {formatDuration(duration)}</span>
-        {isStreaming && (
-          <span className='inline-flex h-1 w-1 animate-pulse rounded-full bg-gray-400' />
-        )}
-      </button>
-    )
-  }
-
   return (
     <div className='my-1'>
       <button
-        onClick={() => setIsExpanded(false)}
+        onClick={() => setIsExpanded((v) => !v)}
         className={cn(
           'mb-1 inline-flex items-center gap-1 text-gray-400 text-xs transition-colors hover:text-gray-500',
           'font-normal italic'
@@ -82,14 +75,25 @@ export function ThinkingBlock({
         type='button'
       >
         <Brain className='h-3 w-3' />
-        <span>Thought for {formatDuration(duration)} (click to collapse)</span>
+        <span>
+          Thought for {formatDuration(duration)}
+          {isExpanded ? ' (click to collapse)' : ''}
+        </span>
+        {isStreaming && (
+          <span className='inline-flex h-1 w-1 animate-pulse rounded-full bg-gray-400' />
+        )}
       </button>
-      <div className='ml-1 border-gray-200 border-l-2 pl-2 dark:border-gray-700'>
-        <pre className='whitespace-pre-wrap font-mono text-gray-400 text-xs dark:text-gray-500'>
-          {content}
-          {isStreaming && <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-gray-400' />}
-        </pre>
-      </div>
+
+      {isExpanded && (
+        <div className='ml-1 border-gray-200 border-l-2 pl-2 dark:border-gray-700'>
+          <pre className='whitespace-pre-wrap font-mono text-gray-400 text-xs dark:text-gray-500'>
+            {content}
+            {isStreaming && (
+              <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-gray-400' />
+            )}
+          </pre>
+        </div>
+      )}
     </div>
   )
 }

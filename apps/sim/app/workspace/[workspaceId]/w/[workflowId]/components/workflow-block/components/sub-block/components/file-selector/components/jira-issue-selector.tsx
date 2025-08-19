@@ -48,6 +48,7 @@ interface JiraIssueSelectorProps {
   projectId?: string
   credentialId?: string
   isForeignCredential?: boolean
+  workflowId?: string
 }
 
 export function JiraIssueSelector({
@@ -63,6 +64,8 @@ export function JiraIssueSelector({
   onIssueInfoChange,
   projectId,
   credentialId,
+  isForeignCredential = false,
+  workflowId,
 }: JiraIssueSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -168,6 +171,7 @@ export function JiraIssueSelector({
           },
           body: JSON.stringify({
             credentialId: selectedCredentialId,
+            workflowId,
           }),
         })
 
@@ -264,6 +268,7 @@ export function JiraIssueSelector({
           },
           body: JSON.stringify({
             credentialId: selectedCredentialId,
+            workflowId,
           }),
         })
 
@@ -377,6 +382,10 @@ export function JiraIssueSelector({
 
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
+    if (disabled || isForeignCredential) {
+      setOpen(false)
+      return
+    }
     setOpen(isOpen)
 
     // Only fetch recent/default issues when opening the dropdown
@@ -451,7 +460,7 @@ export function JiraIssueSelector({
               role='combobox'
               aria-expanded={open}
               className='h-10 w-full min-w-0 justify-between'
-              disabled={disabled || !domain || !selectedCredentialId}
+              disabled={disabled || !domain || !selectedCredentialId || isForeignCredential}
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
                 {selectedIssue ? (
@@ -469,118 +478,122 @@ export function JiraIssueSelector({
               <ChevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className='w-[300px] p-0' align='start'>
-            {/* Current account indicator */}
-            {selectedCredentialId && credentials.length > 0 && (
-              <div className='flex items-center justify-between border-b px-3 py-2'>
-                <div className='flex items-center gap-2'>
-                  <JiraIcon className='h-4 w-4' />
-                  <span className='text-muted-foreground text-xs'>
-                    {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
-                      'Unknown'}
-                  </span>
-                </div>
-                {credentials.length > 1 && (
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    className='h-6 px-2 text-xs'
-                    onClick={() => setOpen(true)}
-                  >
-                    Switch
-                  </Button>
-                )}
-              </div>
-            )}
-
-            <Command>
-              <CommandInput placeholder='Search issues...' onValueChange={handleSearch} />
-              <CommandList>
-                <CommandEmpty>
-                  {isLoading ? (
-                    <div className='flex items-center justify-center p-4'>
-                      <RefreshCw className='h-4 w-4 animate-spin' />
-                      <span className='ml-2'>Loading issues...</span>
-                    </div>
-                  ) : error ? (
-                    <div className='p-4 text-center'>
-                      <p className='text-destructive text-sm'>{error}</p>
-                    </div>
-                  ) : credentials.length === 0 ? (
-                    <div className='p-4 text-center'>
-                      <p className='font-medium text-sm'>No accounts connected.</p>
-                      <p className='text-muted-foreground text-xs'>
-                        Connect a Jira account to continue.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className='p-4 text-center'>
-                      <p className='font-medium text-sm'>No issues found.</p>
-                      <p className='text-muted-foreground text-xs'>
-                        Try a different search or account.
-                      </p>
-                    </div>
+          {!isForeignCredential && (
+            <PopoverContent className='w-[300px] p-0' align='start'>
+              {/* Current account indicator */}
+              {selectedCredentialId && credentials.length > 0 && (
+                <div className='flex items-center justify-between border-b px-3 py-2'>
+                  <div className='flex items-center gap-2'>
+                    <JiraIcon className='h-4 w-4' />
+                    <span className='text-muted-foreground text-xs'>
+                      {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
+                        'Unknown'}
+                    </span>
+                  </div>
+                  {credentials.length > 1 && (
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='h-6 px-2 text-xs'
+                      onClick={() => setOpen(true)}
+                    >
+                      Switch
+                    </Button>
                   )}
-                </CommandEmpty>
+                </div>
+              )}
 
-                {/* Account selection - only show if we have multiple accounts */}
-                {credentials.length > 1 && (
-                  <CommandGroup>
-                    <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
-                      Switch Account
-                    </div>
-                    {credentials.map((cred) => (
-                      <CommandItem
-                        key={cred.id}
-                        value={`account-${cred.id}`}
-                        onSelect={() => setSelectedCredentialId(cred.id)}
-                      >
-                        <div className='flex items-center gap-2'>
-                          <JiraIcon className='h-4 w-4' />
-                          <span className='font-normal'>{cred.name}</span>
-                        </div>
-                        {cred.id === selectedCredentialId && <Check className='ml-auto h-4 w-4' />}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-
-                {/* Issues list */}
-                {issues.length > 0 && (
-                  <CommandGroup>
-                    <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
-                      Issues
-                    </div>
-                    {issues.map((issue) => (
-                      <CommandItem
-                        key={issue.id}
-                        value={`issue-${issue.id}-${issue.name}`}
-                        onSelect={() => handleSelectIssue(issue)}
-                      >
-                        <div className='flex items-center gap-2 overflow-hidden'>
-                          <JiraIcon className='h-4 w-4' />
-                          <span className='truncate font-normal'>{issue.name}</span>
-                        </div>
-                        {issue.id === selectedIssueId && <Check className='ml-auto h-4 w-4' />}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-
-                {/* Connect account option - only show if no credentials */}
-                {credentials.length === 0 && (
-                  <CommandGroup>
-                    <CommandItem onSelect={handleAddCredential}>
-                      <div className='flex items-center gap-2 text-primary'>
-                        <JiraIcon className='h-4 w-4' />
-                        <span>Connect Jira account</span>
+              <Command>
+                <CommandInput placeholder='Search issues...' onValueChange={handleSearch} />
+                <CommandList>
+                  <CommandEmpty>
+                    {isLoading ? (
+                      <div className='flex items-center justify-center p-4'>
+                        <RefreshCw className='h-4 w-4 animate-spin' />
+                        <span className='ml-2'>Loading issues...</span>
                       </div>
-                    </CommandItem>
-                  </CommandGroup>
-                )}
-              </CommandList>
-            </Command>
-          </PopoverContent>
+                    ) : error ? (
+                      <div className='p-4 text-center'>
+                        <p className='text-destructive text-sm'>{error}</p>
+                      </div>
+                    ) : credentials.length === 0 ? (
+                      <div className='p-4 text-center'>
+                        <p className='font-medium text-sm'>No accounts connected.</p>
+                        <p className='text-muted-foreground text-xs'>
+                          Connect a Jira account to continue.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className='p-4 text-center'>
+                        <p className='font-medium text-sm'>No issues found.</p>
+                        <p className='text-muted-foreground text-xs'>
+                          Try a different search or account.
+                        </p>
+                      </div>
+                    )}
+                  </CommandEmpty>
+
+                  {/* Account selection - only show if we have multiple accounts */}
+                  {credentials.length > 1 && (
+                    <CommandGroup>
+                      <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
+                        Switch Account
+                      </div>
+                      {credentials.map((cred) => (
+                        <CommandItem
+                          key={cred.id}
+                          value={`account-${cred.id}`}
+                          onSelect={() => setSelectedCredentialId(cred.id)}
+                        >
+                          <div className='flex items-center gap-2'>
+                            <JiraIcon className='h-4 w-4' />
+                            <span className='font-normal'>{cred.name}</span>
+                          </div>
+                          {cred.id === selectedCredentialId && (
+                            <Check className='ml-auto h-4 w-4' />
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+
+                  {/* Issues list */}
+                  {issues.length > 0 && (
+                    <CommandGroup>
+                      <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
+                        Issues
+                      </div>
+                      {issues.map((issue) => (
+                        <CommandItem
+                          key={issue.id}
+                          value={`issue-${issue.id}-${issue.name}`}
+                          onSelect={() => handleSelectIssue(issue)}
+                        >
+                          <div className='flex items-center gap-2 overflow-hidden'>
+                            <JiraIcon className='h-4 w-4' />
+                            <span className='truncate font-normal'>{issue.name}</span>
+                          </div>
+                          {issue.id === selectedIssueId && <Check className='ml-auto h-4 w-4' />}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+
+                  {/* Connect account option - only show if no credentials */}
+                  {credentials.length === 0 && (
+                    <CommandGroup>
+                      <CommandItem onSelect={handleAddCredential}>
+                        <div className='flex items-center gap-2 text-primary'>
+                          <JiraIcon className='h-4 w-4' />
+                          <span>Connect Jira account</span>
+                        </div>
+                      </CommandItem>
+                    </CommandGroup>
+                  )}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          )}
         </Popover>
 
         {/* Issue preview */}

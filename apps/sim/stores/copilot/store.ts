@@ -172,7 +172,8 @@ function parseContentWithThinkingTags(content: string): Array<{ type: string; co
  */
 const initialState = {
   mode: 'agent' as const,
-  agentDepth: 1 as 0 | 1 | 2 | 3,
+  agentDepth: 0 as 0 | 1 | 2 | 3,
+  agentPrefetch: true,
   currentChat: null,
   chats: [],
   messages: [],
@@ -2240,6 +2241,7 @@ export const useCopilotStore = create<CopilotStore>()(
             workflowId,
             mode: mode === 'ask' ? 'ask' : 'agent',
             depth: get().agentDepth,
+            prefetch: get().agentPrefetch,
             createNewChat: !currentChat,
             stream,
             fileAttachments: options.fileAttachments,
@@ -2525,6 +2527,7 @@ export const useCopilotStore = create<CopilotStore>()(
             workflowId,
             mode: mode === 'ask' ? 'ask' : 'agent',
             depth: agentDepth,
+            prefetch: get().agentPrefetch,
             createNewChat: !currentChat,
             stream: true,
             implicitFeedback, // Pass the implicit feedback
@@ -3420,6 +3423,12 @@ export const useCopilotStore = create<CopilotStore>()(
         const prev = get().agentDepth
         set({ agentDepth: depth })
         logger.info(`Copilot agent depth changed from ${prev} to ${depth}`)
+      },
+
+      setAgentPrefetch: (prefetch: boolean) => {
+        const prev = get().agentPrefetch
+        set({ agentPrefetch: prefetch })
+        logger.info(`Copilot agent prefetch changed from ${prev} to ${prefetch}`)
       },
     }),
     { name: 'copilot-store' }

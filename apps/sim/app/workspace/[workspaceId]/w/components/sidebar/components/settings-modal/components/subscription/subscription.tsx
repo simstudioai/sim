@@ -1,41 +1,188 @@
-import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, Users } from 'lucide-react'
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Skeleton,
-} from '@/components/ui'
+'use client'
+
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Badge, Progress, Skeleton } from '@/components/ui'
 import { useSession, useSubscription } from '@/lib/auth-client'
-import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { createLogger } from '@/lib/logs/console/logger'
+import { cn } from '@/lib/utils'
 import {
-  BillingSummary,
   CancelSubscription,
-  TeamSeatsDialog,
-  UsageLimitEditor,
+  PlanCard,
+  UsageLimit,
+  type UsageLimitRef,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components'
+import {
+  ENTERPRISE_PLAN_FEATURES,
+  PRO_PLAN_FEATURES,
+  TEAM_PLAN_FEATURES,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/plan-configs'
+import {
+  getSubscriptionPermissions,
+  getVisiblePlans,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/subscription-permissions'
 import { useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
+// Logger
 const logger = createLogger('Subscription')
+
+// Constants
+const CONSTANTS = {
+  UPGRADE_ERROR_TIMEOUT: 3000, // 3 seconds
+  TYPEFORM_ENTERPRISE_URL: 'https://form.typeform.com/to/jqCO12pF',
+  PRO_PRICE: '$20',
+  TEAM_PRICE: '$40',
+  INITIAL_TEAM_SEATS: 1,
+} as const
+
+// Styles
+const STYLES = {
+  GRADIENT_BADGE:
+    'gradient-text h-[1.125rem] rounded-[6px] border-gradient-primary/20 bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary px-2 py-0 font-medium text-xs cursor-pointer',
+} as const
+
+// Types
+type TargetPlan = 'pro' | 'team'
 
 interface SubscriptionProps {
   onOpenChange: (open: boolean) => void
 }
 
+/**
+ * Skeleton component for subscription loading state
+ */
+function SubscriptionSkeleton() {
+  return (
+    <div className='px-6 pt-4 pb-4'>
+      <div className='flex flex-col gap-2'>
+        {/* Current Plan skeleton - matches usage indicator style */}
+        <div className='mb-2'>
+          <div className='rounded-[8px] border bg-background p-3 shadow-xs'>
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-2'>
+                  <Skeleton className='h-5 w-16' />
+                  <Skeleton className='h-[1.125rem] w-14 rounded-[6px]' />
+                </div>
+                <div className='flex items-center gap-1 text-xs tabular-nums'>
+                  <Skeleton className='h-4 w-8' />
+                  <span className='text-muted-foreground'>/</span>
+                  <Skeleton className='h-4 w-8' />
+                </div>
+              </div>
+              <Skeleton className='h-2 w-full rounded' />
+            </div>
+          </div>
+        </div>
+
+        {/* Plan cards skeleton */}
+        <div className='flex flex-col gap-2'>
+          {/* Pro and Team skeleton grid */}
+          <div className='grid grid-cols-2 gap-2'>
+            {/* Pro Plan Card Skeleton */}
+            <div className='flex flex-col rounded-[8px] border p-4'>
+              <div className='mb-4'>
+                <Skeleton className='mb-2 h-5 w-8' />
+                <div className='flex items-baseline'>
+                  <Skeleton className='h-6 w-10' />
+                  <Skeleton className='ml-1 h-3 w-12' />
+                </div>
+              </div>
+              <div className='mb-4 flex-1 space-y-2'>
+                <div className='flex items-start gap-2'>
+                  <Skeleton className='mt-0.5 h-3 w-3 rounded' />
+                  <Skeleton className='h-3 w-20' />
+                </div>
+                <div className='flex items-start gap-2'>
+                  <Skeleton className='mt-0.5 h-3 w-3 rounded' />
+                  <Skeleton className='h-3 w-24' />
+                </div>
+                <div className='flex items-start gap-2'>
+                  <Skeleton className='mt-0.5 h-3 w-3 rounded' />
+                  <Skeleton className='h-3 w-16' />
+                </div>
+                <div className='flex items-start gap-2'>
+                  <Skeleton className='mt-0.5 h-3 w-3 rounded' />
+                  <Skeleton className='h-3 w-20' />
+                </div>
+              </div>
+              <Skeleton className='h-9 w-full rounded-[8px]' />
+            </div>
+
+            {/* Team Plan Card Skeleton */}
+            <div className='flex flex-col rounded-[8px] border p-4'>
+              <div className='mb-4'>
+                <Skeleton className='mb-2 h-5 w-10' />
+                <div className='flex items-baseline'>
+                  <Skeleton className='h-6 w-10' />
+                  <Skeleton className='ml-1 h-3 w-12' />
+                </div>
+              </div>
+              <div className='mb-4 flex-1 space-y-2'>
+                <div className='flex items-start gap-2'>
+                  <Skeleton className='mt-0.5 h-3 w-3 rounded' />
+                  <Skeleton className='h-3 w-24' />
+                </div>
+                <div className='flex items-start gap-2'>
+                  <Skeleton className='mt-0.5 h-3 w-3 rounded' />
+                  <Skeleton className='h-3 w-20' />
+                </div>
+                <div className='flex items-start gap-2'>
+                  <Skeleton className='mt-0.5 h-3 w-3 rounded' />
+                  <Skeleton className='h-3 w-16' />
+                </div>
+                <div className='flex items-start gap-2'>
+                  <Skeleton className='mt-0.5 h-3 w-3 rounded' />
+                  <Skeleton className='h-3 w-28' />
+                </div>
+              </div>
+              <Skeleton className='h-9 w-full rounded-[8px]' />
+            </div>
+          </div>
+
+          {/* Enterprise skeleton - horizontal layout */}
+          <div className='flex items-center justify-between rounded-[8px] border p-4'>
+            <div>
+              <Skeleton className='mb-2 h-5 w-20' />
+              <Skeleton className='mb-3 h-3 w-64' />
+              <div className='flex items-center gap-4'>
+                <div className='flex items-center gap-2'>
+                  <Skeleton className='h-3 w-3 rounded' />
+                  <Skeleton className='h-3 w-16' />
+                </div>
+                <div className='h-4 w-px bg-border' />
+                <div className='flex items-center gap-2'>
+                  <Skeleton className='h-3 w-3 rounded' />
+                  <Skeleton className='h-3 w-20' />
+                </div>
+                <div className='h-4 w-px bg-border' />
+                <div className='flex items-center gap-2'>
+                  <Skeleton className='h-3 w-3 rounded' />
+                  <Skeleton className='h-3 w-20' />
+                </div>
+              </div>
+            </div>
+            <Skeleton className='h-9 w-16 rounded-[8px]' />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Utility functions
+const formatPlanName = (plan: string): string => plan.charAt(0).toUpperCase() + plan.slice(1)
+
+/**
+ * Subscription management component
+ * Handles plan display, upgrades, and billing management
+ */
 export function Subscription({ onOpenChange }: SubscriptionProps) {
   const { data: session } = useSession()
   const betterAuthSubscription = useSubscription()
 
   const {
     isLoading,
-    error,
     getSubscriptionStatus,
     getUsage,
     getBillingStatus,
@@ -43,18 +190,13 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     subscriptionData,
   } = useSubscriptionStore()
 
-  const {
-    activeOrganization,
-    organizationBillingData,
-    isLoadingOrgBilling,
-    loadOrganizationBillingData,
-    getUserRole,
-    addSeats,
-  } = useOrganizationStore()
+  const { activeOrganization, organizationBillingData, loadOrganizationBillingData, getUserRole } =
+    useOrganizationStore()
 
-  const [isSeatsDialogOpen, setIsSeatsDialogOpen] = useState(false)
-  const [isUpdatingSeats, setIsUpdatingSeats] = useState(false)
+  const [upgradeError, setUpgradeError] = useState<'pro' | 'team' | null>(null)
+  const usageLimitRef = useRef<UsageLimitRef | null>(null)
 
+  // Get real subscription data from store
   const subscription = getSubscriptionStatus()
   const usage = getUsage()
   const billingStatus = getBillingStatus()
@@ -64,19 +206,73 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     if (subscription.isTeam && activeOrgId) {
       loadOrganizationBillingData(activeOrgId)
     }
-  }, [activeOrgId, subscription.isTeam])
+  }, [activeOrgId, subscription.isTeam, loadOrganizationBillingData])
 
-  // Determine if user is team admin/owner
+  // Auto-clear upgrade error
+  useEffect(() => {
+    if (upgradeError) {
+      const timer = setTimeout(() => {
+        setUpgradeError(null)
+      }, CONSTANTS.UPGRADE_ERROR_TIMEOUT)
+      return () => clearTimeout(timer)
+    }
+  }, [upgradeError])
+
+  // User role and permissions
   const userRole = getUserRole(session?.user?.email)
   const isTeamAdmin = ['owner', 'admin'].includes(userRole)
-  const shouldShowOrgBilling = subscription.isTeam && isTeamAdmin && organizationBillingData
+
+  // Get permissions based on subscription state and user role
+  const permissions = getSubscriptionPermissions(
+    {
+      isFree: subscription.isFree,
+      isPro: subscription.isPro,
+      isTeam: subscription.isTeam,
+      isEnterprise: subscription.isEnterprise,
+      isPaid: subscription.isPaid,
+      plan: subscription.plan || 'free',
+      status: subscription.status || 'inactive',
+    },
+    {
+      isTeamAdmin,
+      userRole: userRole || 'member',
+    }
+  )
+
+  // Get visible plans based on current subscription
+  const visiblePlans = getVisiblePlans(
+    {
+      isFree: subscription.isFree,
+      isPro: subscription.isPro,
+      isTeam: subscription.isTeam,
+      isEnterprise: subscription.isEnterprise,
+      isPaid: subscription.isPaid,
+      plan: subscription.plan || 'free',
+      status: subscription.status || 'inactive',
+    },
+    {
+      isTeamAdmin,
+      userRole: userRole || 'member',
+    }
+  )
+
+  // UI state computed values
+  const showBadge = permissions.canEditUsageLimit && !permissions.showTeamMemberView
+  const badgeText = subscription.isFree ? 'Upgrade' : 'Add'
+
+  const handleBadgeClick = () => {
+    if (subscription.isFree) {
+      handleUpgrade('pro')
+    } else if (permissions.canEditUsageLimit && usageLimitRef.current) {
+      usageLimitRef.current.startEdit()
+    }
+  }
 
   const handleUpgrade = useCallback(
-    async (targetPlan: 'pro' | 'team') => {
+    async (targetPlan: TargetPlan) => {
       if (!session?.user?.id) return
 
-      // Get current subscription data including stripeSubscriptionId
-      const subscriptionData = useSubscriptionStore.getState().subscriptionData
+      const { subscriptionData } = useSubscriptionStore.getState()
       const currentSubscriptionId = subscriptionData?.stripeSubscriptionId
 
       let referenceId = session.user.id
@@ -84,33 +280,32 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
         referenceId = activeOrgId
       }
 
-      const currentUrl = window.location.origin + window.location.pathname
+      const currentUrl = `${window.location.origin}${window.location.pathname}`
 
       try {
-        const upgradeParams: any = {
+        const upgradeParams = {
           plan: targetPlan,
           referenceId,
           successUrl: currentUrl,
           cancelUrl: currentUrl,
-          seats: targetPlan === 'team' ? 1 : undefined,
-        }
+          ...(targetPlan === 'team' && { seats: CONSTANTS.INITIAL_TEAM_SEATS }),
+        } as const
 
-        // Add subscriptionId if we have an existing subscription to ensure proper plan switching
-        if (currentSubscriptionId) {
-          upgradeParams.subscriptionId = currentSubscriptionId
-          logger.info('Upgrading existing subscription', {
+        // Add subscriptionId for existing subscriptions to ensure proper plan switching
+        const finalParams = currentSubscriptionId
+          ? { ...upgradeParams, subscriptionId: currentSubscriptionId }
+          : upgradeParams
+
+        logger.info(
+          currentSubscriptionId ? 'Upgrading existing subscription' : 'Creating new subscription',
+          {
             targetPlan,
             currentSubscriptionId,
             referenceId,
-          })
-        } else {
-          logger.info('Creating new subscription (no existing subscription found)', {
-            targetPlan,
-            referenceId,
-          })
-        }
+          }
+        )
 
-        await betterAuthSubscription.upgrade(upgradeParams)
+        await betterAuthSubscription.upgrade(finalParams)
       } catch (error) {
         logger.error('Failed to initiate subscription upgrade:', error)
         alert('Failed to initiate upgrade. Please try again or contact support.')
@@ -119,310 +314,213 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     [session?.user?.id, subscription.isTeam, activeOrgId, betterAuthSubscription]
   )
 
-  const handleSeatsUpdate = useCallback(
-    async (seats: number) => {
-      if (!activeOrgId) {
-        logger.error('No active organization found for seat update')
-        return
-      }
+  const renderPlanCard = useCallback(
+    (planType: 'pro' | 'team' | 'enterprise', layout: 'vertical' | 'horizontal' = 'vertical') => {
+      const handleContactEnterprise = () => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')
 
-      try {
-        setIsUpdatingSeats(true)
-        await addSeats(seats)
-        setIsSeatsDialogOpen(false)
-      } catch (error) {
-        logger.error('Failed to update seats:', error)
-      } finally {
-        setIsUpdatingSeats(false)
+      switch (planType) {
+        case 'pro':
+          return (
+            <PlanCard
+              key='pro'
+              name='Pro'
+              price={CONSTANTS.PRO_PRICE}
+              priceSubtext='/month'
+              features={PRO_PLAN_FEATURES}
+              buttonText={subscription.isFree ? 'Upgrade' : 'Upgrade to Pro'}
+              onButtonClick={() => handleUpgrade('pro')}
+              isError={upgradeError === 'pro'}
+              layout={layout}
+            />
+          )
+
+        case 'team':
+          return (
+            <PlanCard
+              key='team'
+              name='Team'
+              price={CONSTANTS.TEAM_PRICE}
+              priceSubtext='/month'
+              features={TEAM_PLAN_FEATURES}
+              buttonText={subscription.isFree ? 'Upgrade' : 'Upgrade to Team'}
+              onButtonClick={() => handleUpgrade('team')}
+              isError={upgradeError === 'team'}
+              layout={layout}
+            />
+          )
+
+        case 'enterprise':
+          return (
+            <PlanCard
+              key='enterprise'
+              name='Enterprise'
+              price={<span className='font-semibold text-xl'>Custom</span>}
+              priceSubtext={
+                layout === 'horizontal'
+                  ? 'Custom solutions tailored to your enterprise needs'
+                  : undefined
+              }
+              features={ENTERPRISE_PLAN_FEATURES}
+              buttonText='Contact'
+              onButtonClick={handleContactEnterprise}
+              layout={layout}
+            />
+          )
+
+        default:
+          return null
       }
     },
-    [activeOrgId]
+    [subscription.isFree, upgradeError, handleUpgrade]
   )
 
   if (isLoading) {
-    return (
-      <div className='space-y-4 p-6'>
-        <Skeleton className='h-4 w-full' />
-        <Skeleton className='h-20 w-full' />
-        <Skeleton className='h-4 w-3/4' />
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className='p-6'>
-        <Alert variant='destructive'>
-          <AlertCircle className='h-4 w-4' />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      </div>
-    )
+    return <SubscriptionSkeleton />
   }
 
   return (
-    <div className='p-6'>
-      <div className='space-y-6'>
-        {/* Current Plan & Usage Overview */}
-        <div>
-          <div className='mb-2 flex items-center justify-between'>
-            <h3 className='font-medium text-sm'>Current Plan</h3>
-            <div className='flex items-center gap-2'>
-              <span className='text-muted-foreground text-sm capitalize'>
-                {subscription.plan} Plan
-              </span>
-              {!subscription.isFree && <BillingSummary showDetails={false} />}
-            </div>
-          </div>
+    <div className='px-6 pt-4 pb-4'>
+      <div className='flex flex-col gap-2'>
+        {/* Current Plan & Usage Overview - Styled like usage-indicator */}
+        <div className='mb-2'>
+          <div className='rounded-[8px] border bg-background p-3 shadow-xs'>
+            <div className='space-y-2'>
+              {/* Plan and usage info */}
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-2'>
+                  <span
+                    className={cn(
+                      'font-medium text-sm',
+                      subscription.isFree
+                        ? 'text-foreground'
+                        : 'gradient-text bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary'
+                    )}
+                  >
+                    {formatPlanName(subscription.plan)}
+                  </span>
+                  {showBadge && (
+                    <Badge
+                      className={STYLES.GRADIENT_BADGE}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleBadgeClick()
+                      }}
+                    >
+                      {badgeText}
+                    </Badge>
+                  )}
+                  {/* Team seats info for admins */}
+                  {permissions.canManageTeam && (
+                    <span className='text-muted-foreground text-xs'>
+                      ({organizationBillingData?.totalSeats || subscription.seats || 1} seats)
+                    </span>
+                  )}
+                </div>
+                <div className='flex items-center gap-1 text-xs tabular-nums'>
+                  <span className='text-muted-foreground'>${usage.current.toFixed(2)}</span>
+                  <span className='text-muted-foreground'>/</span>
+                  {!subscription.isFree &&
+                  (permissions.canEditUsageLimit ||
+                    permissions.showTeamMemberView ||
+                    subscription.isEnterprise) ? (
+                    <UsageLimit
+                      ref={usageLimitRef}
+                      currentLimit={usageLimitData?.currentLimit || usage.limit}
+                      currentUsage={usage.current}
+                      canEdit={permissions.canEditUsageLimit && !subscription.isEnterprise}
+                      minimumLimit={usageLimitData?.minimumLimit || (subscription.isPro ? 20 : 40)}
+                    />
+                  ) : (
+                    <span className='text-muted-foreground'>${usage.limit}</span>
+                  )}
+                </div>
+              </div>
 
-          <div className='mb-3 flex items-center justify-between'>
-            <span className='font-semibold text-2xl'>
-              ${usage.current.toFixed(2)} / ${usage.limit}
-            </span>
-            <div className='text-right'>
-              <span className='block text-muted-foreground text-sm'>
-                {usage.percentUsed}% used this period
-              </span>
+              {/* Progress Bar */}
+              <Progress value={Math.min(usage.percentUsed, 100)} className='h-2' />
             </div>
           </div>
         </div>
 
-        {/* Usage Alerts */}
-        {billingStatus === 'exceeded' && (
-          <Alert variant='destructive'>
-            <AlertCircle className='h-4 w-4' />
-            <AlertTitle>Usage Limit Exceeded</AlertTitle>
-            <AlertDescription>
-              You've exceeded your usage limit of ${usage.limit}. Please upgrade your plan or
-              increase your limit.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {billingStatus === 'warning' && (
-          <Alert>
-            <AlertCircle className='h-4 w-4' />
-            <AlertTitle>Approaching Usage Limit</AlertTitle>
-            <AlertDescription>
-              You've used {usage.percentUsed}% of your ${usage.limit} limit. Consider upgrading or
-              increasing your limit.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Usage Limit Editor */}
-        <div>
-          <div className='flex items-center justify-between'>
-            <span className='font-medium text-sm'>
-              {subscription.isTeam ? 'Individual Limit' : 'Monthly Limit'}
-            </span>
-            {isLoadingOrgBilling ? (
-              <Skeleton className='h-8 w-16' />
-            ) : (
-              <UsageLimitEditor
-                currentLimit={usageLimitData?.currentLimit ?? usage.limit}
-                canEdit={
-                  subscription.isPro ||
-                  subscription.isTeam ||
-                  subscription.isEnterprise ||
-                  (subscription.isTeam && isTeamAdmin)
-                }
-                minimumLimit={usageLimitData?.minimumLimit ?? DEFAULT_FREE_CREDITS}
-              />
-            )}
-          </div>
-          {subscription.isFree && (
-            <p className='mt-1 text-muted-foreground text-xs'>
-              Upgrade to Pro ($20 minimum) or Team ($40 minimum) to customize your usage limit.
+        {/* Team Member Notice */}
+        {permissions.showTeamMemberView && (
+          <div className='text-center'>
+            <p className='text-muted-foreground text-xs'>
+              Contact your team admin to increase limits
             </p>
-          )}
-          {subscription.isPro && (
-            <p className='mt-1 text-muted-foreground text-xs'>
-              Pro plan minimum: $20. You can set your individual limit higher.
-            </p>
-          )}
-          {subscription.isTeam && !isTeamAdmin && (
-            <p className='mt-1 text-muted-foreground text-xs'>
-              Contact your team owner to adjust your limit. Team plan minimum: $40.
-            </p>
-          )}
-          {subscription.isTeam && isTeamAdmin && (
-            <p className='mt-1 text-muted-foreground text-xs'>
-              Team plan minimum: $40 per member. Manage team member limits in the Team tab.
-            </p>
-          )}
-        </div>
-
-        {/* Team Management */}
-        {subscription.isTeam && (
-          <div className='space-y-4'>
-            {isLoadingOrgBilling ? (
-              <Card>
-                <CardHeader className='pb-3'>
-                  <div className='flex items-center justify-between'>
-                    <div className='flex items-center gap-2'>
-                      <Skeleton className='h-5 w-5' />
-                      <Skeleton className='h-6 w-24' />
-                    </div>
-                    <Skeleton className='h-8 w-24' />
-                  </div>
-                </CardHeader>
-                <CardContent className='space-y-4'>
-                  <div className='flex items-center justify-between'>
-                    <div className='space-y-1'>
-                      <Skeleton className='h-4 w-20' />
-                      <Skeleton className='h-6 w-32' />
-                    </div>
-                    <div className='space-y-1 text-right'>
-                      <Skeleton className='h-4 w-24' />
-                      <Skeleton className='h-6 w-16' />
-                    </div>
-                  </div>
-                  <Skeleton className='h-2 w-full' />
-                </CardContent>
-              </Card>
-            ) : shouldShowOrgBilling ? (
-              <Card>
-                <CardHeader className='pb-3'>
-                  <div className='flex items-center justify-between'>
-                    <CardTitle className='flex items-center gap-2 text-lg'>
-                      <Users className='h-5 w-5' />
-                      Team Plan
-                    </CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className='space-y-4'>
-                  {/* Team Summary */}
-                  <div className='space-y-3'>
-                    <div className='flex items-center justify-between'>
-                      <span className='text-muted-foreground text-sm'>Licensed Seats</span>
-                      <span className='font-semibold'>
-                        {organizationBillingData.totalSeats} seats
-                      </span>
-                    </div>
-                    <div className='flex items-center justify-between'>
-                      <span className='text-muted-foreground text-sm'>Monthly Bill</span>
-                      <span className='font-semibold'>
-                        ${organizationBillingData.totalSeats * 40}
-                      </span>
-                    </div>
-                    <div className='flex items-center justify-between'>
-                      <span className='text-muted-foreground text-sm'>Current Usage</span>
-                      <span className='font-semibold'>
-                        ${organizationBillingData.totalCurrentUsage?.toFixed(2) || 0}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Simple Explanation */}
-                  <div className='rounded-lg bg-muted/50 p-3 text-muted-foreground text-sm'>
-                    <p>
-                      You pay ${organizationBillingData.totalSeats * 40}/month for{' '}
-                      {organizationBillingData.totalSeats} licensed seats, regardless of usage. If
-                      your team uses more than ${organizationBillingData.totalSeats * 40}, you'll be
-                      charged for the overage.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardHeader className='pb-3'>
-                  <CardTitle className='flex items-center gap-2 text-lg'>
-                    <Users className='h-5 w-5' />
-                    Team Plan
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className='space-y-2'>
-                    <div className='flex items-center justify-between'>
-                      <span className='text-muted-foreground text-sm'>Your monthly allowance</span>
-                      <span className='font-semibold'>${usage.limit}</span>
-                    </div>
-                    <p className='text-muted-foreground text-xs'>
-                      Contact your team owner to adjust your limit
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
         )}
 
-        {/* Upgrade Actions */}
-        {subscription.isFree && (
-          <div className='space-y-3'>
-            <Button onClick={() => handleUpgrade('pro')} className='w-full'>
-              Upgrade to Pro - $20/month
-            </Button>
-            <Button onClick={() => handleUpgrade('team')} variant='outline' className='w-full'>
-              Upgrade to Team - $40/seat/month
-            </Button>
-            <div className='py-2 text-center'>
-              <p className='text-muted-foreground text-xs'>
-                Need a custom plan?{' '}
-                <a
-                  href='https://5fyxh22cfgi.typeform.com/to/EcJFBt9W'
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='text-blue-500 hover:underline'
-                >
-                  Contact us
-                </a>{' '}
-                for Enterprise pricing
-              </p>
-            </div>
-          </div>
-        )}
+        {/* Upgrade Plans */}
+        {permissions.showUpgradePlans && (
+          <div className='flex flex-col gap-2'>
+            {/* Render plans based on what should be visible */}
+            {(() => {
+              const totalPlans = visiblePlans.length
+              const hasEnterprise = visiblePlans.includes('enterprise')
 
-        {subscription.isPro && !subscription.isTeam && (
-          <Button onClick={() => handleUpgrade('team')} className='w-full'>
-            Upgrade to Team - $40/seat/month
-          </Button>
+              // Special handling for Pro users - show team and enterprise side by side
+              if (subscription.isPro && totalPlans === 2) {
+                return (
+                  <div className='grid grid-cols-2 gap-2'>
+                    {visiblePlans.map((plan) => renderPlanCard(plan, 'vertical'))}
+                  </div>
+                )
+              }
+
+              // Default behavior for other users
+              const otherPlans = visiblePlans.filter((p) => p !== 'enterprise')
+
+              // Layout logic:
+              // Free users (3 plans): Pro and Team vertical in grid, Enterprise horizontal below
+              // Team admins (1 plan): Enterprise horizontal
+              const enterpriseLayout =
+                totalPlans === 1 || totalPlans === 3 ? 'horizontal' : 'vertical'
+
+              return (
+                <>
+                  {otherPlans.length > 0 && (
+                    <div
+                      className={cn(
+                        'grid gap-2',
+                        otherPlans.length === 1 ? 'grid-cols-1' : 'grid-cols-2'
+                      )}
+                    >
+                      {otherPlans.map((plan) => renderPlanCard(plan, 'vertical'))}
+                    </div>
+                  )}
+
+                  {/* Enterprise plan */}
+                  {hasEnterprise && renderPlanCard('enterprise', enterpriseLayout)}
+                </>
+              )
+            })()}
+          </div>
         )}
 
         {subscription.isEnterprise && (
-          <div className='py-2 text-center'>
-            <p className='text-muted-foreground text-sm'>
-              Enterprise plan - Contact support for changes
+          <div className='text-center'>
+            <p className='text-muted-foreground text-xs'>
+              Contact enterprise for support usage limit changes
             </p>
           </div>
         )}
 
         {/* Cancel Subscription */}
-        <CancelSubscription
-          subscription={{
-            plan: subscription.plan,
-            status: subscription.status,
-            isPaid: subscription.isPaid,
-          }}
-          subscriptionData={{
-            periodEnd: subscriptionData?.periodEnd || null,
-          }}
-        />
-
-        {/* Team Seats Dialog */}
-        <TeamSeatsDialog
-          open={isSeatsDialogOpen}
-          onOpenChange={setIsSeatsDialogOpen}
-          title='Update Team Seats'
-          description='Each seat costs $40/month and provides $40 in monthly inference credits. Adjust the number of licensed seats for your team.'
-          currentSeats={
-            shouldShowOrgBilling
-              ? organizationBillingData?.totalSeats || 1
-              : subscription.seats || 1
-          }
-          initialSeats={
-            shouldShowOrgBilling
-              ? organizationBillingData?.totalSeats || 1
-              : subscription.seats || 1
-          }
-          isLoading={isUpdatingSeats}
-          onConfirm={handleSeatsUpdate}
-          confirmButtonText='Update Seats'
-          showCostBreakdown={true}
-        />
+        {permissions.canCancelSubscription && (
+          <div className='mt-2'>
+            <CancelSubscription
+              subscription={{
+                plan: subscription.plan,
+                status: subscription.status,
+                isPaid: subscription.isPaid,
+              }}
+              subscriptionData={{
+                periodEnd: subscriptionData?.periodEnd || null,
+              }}
+            />
+          </div>
+        )}
       </div>
     </div>
   )

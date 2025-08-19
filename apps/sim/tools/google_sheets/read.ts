@@ -42,9 +42,12 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
         throw new Error('Spreadsheet ID is required')
       }
 
-      // If no range is provided, get all values from the first sheet
+      // If no range is provided, default to the first sheet without hardcoding the title
+      // Using A1 notation without a sheet name targets the first sheet (per Sheets API)
+      // Keep a generous column/row bound to avoid huge payloads
       if (!params.range) {
-        return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A1:Z1000`
+        const defaultRange = 'A1:Z1000'
+        return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${defaultRange}`
       }
 
       // Otherwise, get values from the specified range

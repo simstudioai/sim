@@ -273,6 +273,27 @@ export async function updateUserUsageLimit(
       }
     }
 
+    // Get current usage to validate against
+    const userStatsRecord = await db
+      .select()
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
+      .limit(1)
+
+    if (userStatsRecord.length > 0) {
+      const currentUsage = Number.parseFloat(
+        userStatsRecord[0].currentPeriodCost?.toString() || userStatsRecord[0].totalCost.toString()
+      )
+
+      // Validate new limit is not below current usage
+      if (newLimit < currentUsage) {
+        return {
+          success: false,
+          error: `Usage limit cannot be below current usage of $${currentUsage.toFixed(2)}`,
+        }
+      }
+    }
+
     // Update the usage limit
     await db
       .update(userStats)

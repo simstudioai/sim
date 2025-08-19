@@ -7,7 +7,6 @@ import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest, mockExecutionDependencies } from '@/app/api/__test-utils__/utils'
 
-// Define mock functions at the top level to be used in mocks
 const hasProcessedMessageMock = vi.fn().mockResolvedValue(false)
 const markMessageAsProcessedMock = vi.fn().mockResolvedValue(true)
 const closeRedisConnectionMock = vi.fn().mockResolvedValue(undefined)
@@ -33,7 +32,6 @@ const executeMock = vi.fn().mockResolvedValue({
   },
 })
 
-// Mock the DB schema objects
 const webhookMock = {
   id: 'webhook-id-column',
   path: 'path-column',
@@ -43,10 +41,6 @@ const webhookMock = {
 }
 const workflowMock = { id: 'workflow-id-column' }
 
-// Mock global timers
-vi.useFakeTimers()
-
-// Mock modules at file scope before any tests
 vi.mock('@/lib/redis', () => ({
   hasProcessedMessage: hasProcessedMessageMock,
   markMessageAsProcessed: markMessageAsProcessedMock,
@@ -77,19 +71,6 @@ vi.mock('@/executor', () => ({
   })),
 }))
 
-// Mock setTimeout and other timer functions
-vi.mock('timers', () => {
-  return {
-    setTimeout: (callback: any) => {
-      // Immediately invoke the callback
-      callback()
-      // Return a fake timer id
-      return 123
-    },
-  }
-})
-
-// Mock the database and schema
 vi.mock('@/db', () => {
   const dbMock = {
     select: vi.fn().mockImplementation((columns) => ({
@@ -128,11 +109,9 @@ describe('Webhook Trigger API Route', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.resetAllMocks()
-    vi.clearAllTimers()
 
     mockExecutionDependencies()
 
-    // Mock services/queue for rate limiting
     vi.doMock('@/services/queue', () => ({
       RateLimiter: vi.fn().mockImplementation(() => ({
         checkRateLimit: vi.fn().mockResolvedValue({
@@ -284,10 +263,340 @@ describe('Webhook Trigger API Route', () => {
     expect(text).toMatch(/not found/i) // Response should contain "not found" message
   })
 
-  /**
-   * Test Slack-specific webhook handling
-   * Verifies that Slack signature verification is performed
-   */
-  // TODO: Fix failing test - returns 500 instead of 200
-  // it('should handle Slack webhooks with signature verification', async () => { ... })
+  describe('Generic Webhook Authentication', () => {
+    const setupGenericWebhook = async (config: Record<string, any>) => {
+      const { db } = await import('@/db')
+      const limitMock = vi.fn().mockReturnValue([
+        {
+          webhook: {
+            id: 'generic-webhook-id',
+            provider: 'generic',
+            path: 'test-path',
+            isActive: true,
+            providerConfig: config,
+            workflowId: 'test-workflow-id',
+          },
+          workflow: {
+            id: 'test-workflow-id',
+            userId: 'test-user-id',
+            name: 'Test Workflow',
+          },
+        },
+      ])
+      const whereMock = vi.fn().mockReturnValue({ limit: limitMock })
+      const innerJoinMock = vi.fn().mockReturnValue({ where: whereMock })
+      const fromMock = vi.fn().mockReturnValue({ innerJoin: innerJoinMock })
+
+      const subscriptionLimitMock = vi.fn().mockReturnValue([{ plan: 'pro' }])
+      const subscriptionWhereMock = vi.fn().mockReturnValue({ limit: subscriptionLimitMock })
+      const subscriptionFromMock = vi.fn().mockReturnValue({ where: subscriptionWhereMock })
+
+      // @ts-ignore - mocking the query chain
+      db.select.mockImplementation((columns: any) => {
+        if (columns.plan) {
+          return { from: subscriptionFromMock }
+        }
+        return { from: fromMock }
+      })
+    }
+
+    /**
+     * Test generic webhook without authentication (default behavior)
+     */
+    it('should process generic webhook without authentication', async () => {
+      await setupGenericWebhook({ requireAuth: false })
+
+      const req = createMockRequest('POST', { event: 'test', id: 'test-123' })
+      const params = Promise.resolve({ path: 'test-path' })
+
+      vi.doMock('@trigger.dev/sdk/v3', () => ({
+        tasks: {
+          trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
+        },
+      }))
+
+      const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
+      const response = await POST(req, { params })
+
+      // Authentication passed if we don't get 401
+      expect(response.status).not.toBe(401)
+    })
+
+    /**
+     * Test generic webhook with Bearer token authentication (no custom header)
+     */
+    it('should authenticate with Bearer token when no custom header is configured', async () => {
+      await setupGenericWebhook({
+        requireAuth: true,
+        token: 'test-token-123',
+        // No secretHeaderName - should default to Bearer
+      })
+
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test-token-123',
+      }
+      const req = createMockRequest('POST', { event: 'bearer.test' }, headers)
+      const params = Promise.resolve({ path: 'test-path' })
+
+      vi.doMock('@trigger.dev/sdk/v3', () => ({
+        tasks: {
+          trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
+        },
+      }))
+
+      const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
+      const response = await POST(req, { params })
+
+      // Authentication passed if we don't get 401
+      expect(response.status).not.toBe(401)
+    })
+
+    /**
+     * Test generic webhook with custom header authentication
+     */
+    it('should authenticate with custom header when configured', async () => {
+      await setupGenericWebhook({
+        requireAuth: true,
+        token: 'secret-token-456',
+        secretHeaderName: 'X-Custom-Auth',
+      })
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-Custom-Auth': 'secret-token-456',
+      }
+      const req = createMockRequest('POST', { event: 'custom.header.test' }, headers)
+      const params = Promise.resolve({ path: 'test-path' })
+
+      vi.doMock('@trigger.dev/sdk/v3', () => ({
+        tasks: {
+          trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
+        },
+      }))
+
+      const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
+      const response = await POST(req, { params })
+
+      // Authentication passed if we don't get 401
+      expect(response.status).not.toBe(401)
+    })
+
+    /**
+     * Test case insensitive Bearer token authentication
+     */
+    it('should handle case insensitive Bearer token authentication', async () => {
+      await setupGenericWebhook({
+        requireAuth: true,
+        token: 'case-test-token',
+      })
+
+      vi.doMock('@trigger.dev/sdk/v3', () => ({
+        tasks: {
+          trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
+        },
+      }))
+
+      const testCases = [
+        'Bearer case-test-token',
+        'bearer case-test-token',
+        'BEARER case-test-token',
+        'BeArEr case-test-token',
+      ]
+
+      for (const authHeader of testCases) {
+        const headers = {
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        }
+        const req = createMockRequest('POST', { event: 'case.test' }, headers)
+        const params = Promise.resolve({ path: 'test-path' })
+
+        const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
+        const response = await POST(req, { params })
+
+        // Authentication passed if we don't get 401
+        expect(response.status).not.toBe(401)
+      }
+    })
+
+    /**
+     * Test case insensitive custom header authentication
+     */
+    it('should handle case insensitive custom header authentication', async () => {
+      await setupGenericWebhook({
+        requireAuth: true,
+        token: 'custom-token-789',
+        secretHeaderName: 'X-Secret-Key',
+      })
+
+      vi.doMock('@trigger.dev/sdk/v3', () => ({
+        tasks: {
+          trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
+        },
+      }))
+
+      const testCases = ['X-Secret-Key', 'x-secret-key', 'X-SECRET-KEY', 'x-Secret-Key']
+
+      for (const headerName of testCases) {
+        const headers = {
+          'Content-Type': 'application/json',
+          [headerName]: 'custom-token-789',
+        }
+        const req = createMockRequest('POST', { event: 'custom.case.test' }, headers)
+        const params = Promise.resolve({ path: 'test-path' })
+
+        const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
+        const response = await POST(req, { params })
+
+        // Authentication passed if we don't get 401
+        expect(response.status).not.toBe(401)
+      }
+    })
+
+    /**
+     * Test rejection of wrong Bearer token
+     */
+    it('should reject wrong Bearer token', async () => {
+      await setupGenericWebhook({
+        requireAuth: true,
+        token: 'correct-token',
+      })
+
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer wrong-token',
+      }
+      const req = createMockRequest('POST', { event: 'wrong.token.test' }, headers)
+      const params = Promise.resolve({ path: 'test-path' })
+
+      const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
+      const response = await POST(req, { params })
+
+      expect(response.status).toBe(401)
+      expect(await response.text()).toContain('Unauthorized - Invalid authentication token')
+      expect(processWebhookMock).not.toHaveBeenCalled()
+    })
+
+    /**
+     * Test rejection of wrong custom header token
+     */
+    it('should reject wrong custom header token', async () => {
+      await setupGenericWebhook({
+        requireAuth: true,
+        token: 'correct-custom-token',
+        secretHeaderName: 'X-Auth-Key',
+      })
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-Auth-Key': 'wrong-custom-token',
+      }
+      const req = createMockRequest('POST', { event: 'wrong.custom.test' }, headers)
+      const params = Promise.resolve({ path: 'test-path' })
+
+      const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
+      const response = await POST(req, { params })
+
+      expect(response.status).toBe(401)
+      expect(await response.text()).toContain('Unauthorized - Invalid authentication token')
+      expect(processWebhookMock).not.toHaveBeenCalled()
+    })
+
+    /**
+     * Test rejection of missing authentication
+     */
+    it('should reject missing authentication when required', async () => {
+      await setupGenericWebhook({
+        requireAuth: true,
+        token: 'required-token',
+      })
+
+      const req = createMockRequest('POST', { event: 'no.auth.test' })
+      const params = Promise.resolve({ path: 'test-path' })
+
+      const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
+      const response = await POST(req, { params })
+
+      expect(response.status).toBe(401)
+      expect(await response.text()).toContain('Unauthorized - Invalid authentication token')
+      expect(processWebhookMock).not.toHaveBeenCalled()
+    })
+
+    /**
+     * Test exclusivity - Bearer token should be rejected when custom header is configured
+     */
+    it('should reject Bearer token when custom header is configured', async () => {
+      await setupGenericWebhook({
+        requireAuth: true,
+        token: 'exclusive-token',
+        secretHeaderName: 'X-Only-Header',
+      })
+
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer exclusive-token', // Correct token but wrong header type
+      }
+      const req = createMockRequest('POST', { event: 'exclusivity.test' }, headers)
+      const params = Promise.resolve({ path: 'test-path' })
+
+      const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
+      const response = await POST(req, { params })
+
+      expect(response.status).toBe(401)
+      expect(await response.text()).toContain('Unauthorized - Invalid authentication token')
+      expect(processWebhookMock).not.toHaveBeenCalled()
+    })
+
+    /**
+     * Test wrong custom header name is rejected
+     */
+    it('should reject wrong custom header name', async () => {
+      await setupGenericWebhook({
+        requireAuth: true,
+        token: 'correct-token',
+        secretHeaderName: 'X-Expected-Header',
+      })
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-Wrong-Header': 'correct-token', // Correct token but wrong header name
+      }
+      const req = createMockRequest('POST', { event: 'wrong.header.name.test' }, headers)
+      const params = Promise.resolve({ path: 'test-path' })
+
+      const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
+      const response = await POST(req, { params })
+
+      expect(response.status).toBe(401)
+      expect(await response.text()).toContain('Unauthorized - Invalid authentication token')
+      expect(processWebhookMock).not.toHaveBeenCalled()
+    })
+
+    /**
+     * Test authentication required but no token configured
+     */
+    it('should reject when auth is required but no token is configured', async () => {
+      await setupGenericWebhook({
+        requireAuth: true,
+        // No token configured
+      })
+
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer any-token',
+      }
+      const req = createMockRequest('POST', { event: 'no.token.config.test' }, headers)
+      const params = Promise.resolve({ path: 'test-path' })
+
+      const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
+      const response = await POST(req, { params })
+
+      expect(response.status).toBe(401)
+      expect(await response.text()).toContain(
+        'Unauthorized - Authentication required but not configured'
+      )
+      expect(processWebhookMock).not.toHaveBeenCalled()
+    })
+  })
 })
