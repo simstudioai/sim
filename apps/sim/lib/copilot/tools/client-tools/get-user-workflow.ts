@@ -15,6 +15,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { Serializer } from '@/serializer'
+import { postToMethods } from '@/lib/copilot/tools/client-tools/client-utils'
 
 interface GetUserWorkflowParams {
   workflowId?: string
@@ -119,21 +120,17 @@ export class GetUserWorkflowTool extends BaseTool {
         includeMetadata: params.includeMetadata,
       })
 
-      // Try to get workflow from diff/preview store first, then main store
       let workflowState: any = null
 
-      // Check diff store first
       const diffStore = useWorkflowDiffStore.getState()
       if (diffStore.diffWorkflow && Object.keys(diffStore.diffWorkflow.blocks || {}).length > 0) {
         workflowState = diffStore.diffWorkflow
         logger.info('Using workflow from diff/preview store', { workflowId })
       } else {
-        // Get the actual workflow state from the workflow store
         const workflowStore = useWorkflowStore.getState()
         const fullWorkflowState = workflowStore.getWorkflowState()
 
         if (!fullWorkflowState || !fullWorkflowState.blocks) {
-          // Fallback to workflow registry metadata if no workflow state
           const workflowRegistry = useWorkflowRegistry.getState()
           const workflow = workflowRegistry.workflows[workflowId]
 
@@ -156,7 +153,6 @@ export class GetUserWorkflowTool extends BaseTool {
         }
       }
 
-      // Ensure workflow state has all required properties with proper defaults
       if (workflowState) {
         if (!workflowState.loops) {
           workflowState.loops = {}
@@ -172,7 +168,6 @@ export class GetUserWorkflowTool extends BaseTool {
         }
       }
 
-      // Merge latest subblock values from the subblock store so subblock edits are reflected
       try {
         if (workflowState?.blocks) {
           workflowState = {
@@ -211,7 +206,6 @@ export class GetUserWorkflowTool extends BaseTool {
         }
       }
 
-      // Convert workflow state to JSON string
       let workflowJson: string
       try {
         workflowJson = JSON.stringify(workflowState, null, 2)
@@ -233,68 +227,25 @@ export class GetUserWorkflowTool extends BaseTool {
         }
       }
 
-      // Post to server to execute server-side tool and complete
-      options?.onStateChange?.('executing')
-      logger.info('Posting get_user_workflow to methods route', {
-        toolCallId: toolCall.id,
-        methodId: 'get_user_workflow',
-        payloadPreview: workflowJson.substring(0, 200),
-        payloadLength: workflowJson.length,
-      })
-      const response = await fetch('/api/copilot/methods', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          methodId: 'get_user_workflow',
-          params: { confirmationMessage: workflowJson, fullData: { userWorkflow: workflowJson } },
-          toolId: toolCall.id,
-        }),
-      })
+      // Post to server via shared utility
+      const result = await postToMethods(
+        'get_user_workflow',
+        { confirmationMessage: workflowJson, fullData: { userWorkflow: workflowJson } },
+        { toolCallId: toolCall.id, toolId: toolCall.id },
+        options
+      )
 
-      logger.info('Methods route response received', {
-        ok: response.ok,
-        status: response.status,
-      })
+      if (!result.success) return result
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        logger.error('Methods route returned error', {
-          status: response.status,
-          error: errorData?.error,
-        })
-        options?.onStateChange?.('errored')
-        return {
-          success: false,
-          error: errorData?.error || 'Failed to execute server method',
-        }
-      }
-
-      const result = await response.json()
-      logger.info('Methods route parsed JSON', {
-        success: result?.success,
-        hasData: !!result?.data,
-      })
-      if (!result.success) {
-        options?.onStateChange?.('errored')
-        return {
-          success: false,
-          error: result.error || 'Server method execution failed',
-        }
-      }
-
-      // Trigger diff view using returned YAML/content
       try {
         const diffStore = useWorkflowDiffStore.getState()
         const serverData = result.data
-        // Accept either string YAML/JSON or object with yamlContent
         let yamlContent: string | null = null
         if (serverData && typeof serverData === 'object' && (serverData as any).yamlContent) {
           yamlContent = (serverData as any).yamlContent
         } else if (typeof serverData === 'string') {
           const trimmed = serverData.trim()
           if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-            // JSON string -> attempt to convert to YAML via Serializer
             try {
               const parsed = JSON.parse(serverData)
               if (parsed && typeof parsed === 'object' && parsed.blocks && parsed.edges) {
@@ -310,7 +261,6 @@ export class GetUserWorkflowTool extends BaseTool {
               }
             } catch {}
           } else {
-            // Assume already YAML
             yamlContent = serverData
           }
         }
@@ -329,14 +279,7 @@ export class GetUserWorkflowTool extends BaseTool {
         })
       }
 
-      options?.onStateChange?.('success')
-      logger.info('Client tool completed successfully', {
-        toolCallId: toolCall.id,
-      })
-      return {
-        success: true,
-        data: result.data,
-      }
+      return result
     } catch (error: any) {
       logger.error('Error in client tool execution:', {
         toolCallId: toolCall.id,

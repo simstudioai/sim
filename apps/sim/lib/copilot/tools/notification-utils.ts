@@ -7,12 +7,6 @@ import { toolRegistry } from '@/lib/copilot/tools/registry'
 import type { NotificationStatus, ToolState } from '@/lib/copilot/tools/types'
 
 /**
- * Send a notification for a tool state change
- * @param toolId - The unique identifier for the tool call
- * @param toolName - The name of the tool (e.g., 'set_environment_variables')
- * @param toolState - The current state of the tool
- */
-/**
  * Maps tool states to notification statuses
  */
 const STATE_MAPPINGS: Partial<Record<ToolState, NotificationStatus>> = {
@@ -48,36 +42,13 @@ export async function notify(
   toolState: ToolState,
   executionStartTime?: string
 ): Promise<void> {
-  // toolState must be in STATE_MAPPINGS
-  const notificationStatus = STATE_MAPPINGS[toolState]
-  if (!notificationStatus) {
-    throw new Error(`Invalid tool state: ${toolState}`)
-  }
-
-  // Get the state message from tool metadata
+  // Previously called the confirm API (Redis-backed). Now a no-op with optional console log.
   const metadata = toolRegistry.getToolMetadata(toolId)
-  let stateMessage = metadata?.stateMessages?.[notificationStatus]
-
-  // If no message from metadata, provide default messages
-  if (!stateMessage) {
-    if (notificationStatus === 'background') {
-      const timeInfo = executionStartTime ? ` Started at: ${executionStartTime}.` : ''
-      stateMessage = `The user has moved tool execution to the background and it is not complete, it will run asynchronously.${timeInfo}`
-    } else {
-      stateMessage = ''
-    }
+  const status = STATE_MAPPINGS[toolState]
+  const message = metadata?.stateMessages?.[status as NotificationStatus]
+  // Intentionally do nothing server-side; client tools update UI state locally.
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.debug('[CopilotNotify] (noop)', { toolId, toolName, toolState, status, message, executionStartTime })
   }
-
-  // Call backend confirm route
-  await fetch('/api/copilot/confirm', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      toolCallId: toolId,
-      status: notificationStatus,
-      message: stateMessage,
-    }),
-  })
 }

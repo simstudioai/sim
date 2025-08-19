@@ -16,6 +16,7 @@ export class BuildWorkflowClientTool extends BaseTool {
       states: {
         executing: { displayName: 'Building workflow from YAML', icon: 'spinner' },
         success: { displayName: 'Built workflow', icon: 'grid2x2Check' },
+        ready_for_review: { displayName: 'Ready for review', icon: 'grid2x2' },
         rejected: { displayName: 'Skipped building workflow', icon: 'skip' },
         errored: { displayName: 'Failed to build workflow', icon: 'error' },
         aborted: { displayName: 'Aborted building workflow', icon: 'abort' },
@@ -68,7 +69,10 @@ export class BuildWorkflowClientTool extends BaseTool {
         logger.warn('Failed to update diff from build_workflow YAML', { error: e instanceof Error ? e.message : String(e) })
       }
 
+      // Transition to ready_for_review for store compatibility
       options?.onStateChange?.('success')
+      options?.onStateChange?.('ready_for_review')
+
       return {
         success: true,
         data: {

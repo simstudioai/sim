@@ -2698,12 +2698,22 @@ export const useCopilotStore = create<CopilotStore>()(
           .slice()
           .reverse()
           .find((msg) =>
-            msg.toolCalls?.some(
+            // Check either toolCalls array or contentBlocks for a workflow tool in a terminal-ish state
+            (msg.toolCalls?.some(
               (tc) =>
                 (tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
                   tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
-                (tc.state === 'ready_for_review' || tc.state === 'completed')
-            )
+                (tc.state === 'ready_for_review' || tc.state === 'completed' || tc.state === 'success')
+            ) ||
+              msg.contentBlocks?.some(
+                (block) =>
+                  block.type === 'tool_call' &&
+                  ((block as any).toolCall?.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+                    (block as any).toolCall?.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
+                  (((block as any).toolCall?.state === 'ready_for_review') ||
+                    ((block as any).toolCall?.state === 'completed') ||
+                    ((block as any).toolCall?.state === 'success'))
+              ))
           )
 
         if (!lastMessageWithPreview) {
@@ -2711,12 +2721,21 @@ export const useCopilotStore = create<CopilotStore>()(
           return
         }
 
-        const lastWorkflowToolCall = lastMessageWithPreview.toolCalls?.find(
-          (tc) =>
-            (tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-              tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
-            (tc.state === 'ready_for_review' || tc.state === 'completed')
-        )
+        const lastWorkflowToolCall =
+          lastMessageWithPreview.toolCalls?.find(
+            (tc) =>
+              (tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+                tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
+              (tc.state === 'ready_for_review' || tc.state === 'completed' || tc.state === 'success')
+          ) ??
+          (lastMessageWithPreview.contentBlocks || [])
+            .filter((block: any) => block.type === 'tool_call')
+            .map((block: any) => block.toolCall)
+            .find(
+              (tc: any) =>
+                (tc?.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tc?.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
+                (tc?.state === 'ready_for_review' || tc?.state === 'completed' || tc?.state === 'success')
+            )
 
         if (!lastWorkflowToolCall) {
           logger.error('No workflow tool call found in message')

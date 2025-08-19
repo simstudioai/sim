@@ -5,6 +5,7 @@
 import { BaseTool } from '@/lib/copilot/tools/base-tool'
 import type { CopilotToolCall, ToolExecuteResult, ToolExecutionOptions, ToolMetadata } from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getProvidedParams, normalizeToolCallArguments, postToMethods } from '@/lib/copilot/tools/client-tools/client-utils'
 
 export class MakeApiRequestClientTool extends BaseTool {
   static readonly id = 'make_api_request'
@@ -43,11 +44,8 @@ export class MakeApiRequestClientTool extends BaseTool {
     const logger = createLogger('MakeApiRequestClientTool')
 
     try {
-      options?.onStateChange?.('executing')
-
-      const ext = toolCall as CopilotToolCall & { arguments?: any }
-      if (ext.arguments && !toolCall.parameters && !toolCall.input) { toolCall.input = ext.arguments; toolCall.parameters = ext.arguments }
-      const provided = toolCall.parameters || toolCall.input || ext.arguments || {}
+      normalizeToolCallArguments(toolCall)
+      const provided = getProvidedParams(toolCall)
 
       const url = provided.url
       const method = provided.method
@@ -55,21 +53,23 @@ export class MakeApiRequestClientTool extends BaseTool {
       const headers = provided.headers
       const body = provided.body
 
-      if (!url || !method) { options?.onStateChange?.('errored'); return { success:false, error:'url and method are required' } }
+      if (!url || !method) {
+        options?.onStateChange?.('errored')
+        return { success: false, error: 'url and method are required' }
+      }
 
-      const requestBody = { methodId: 'make_api_request', params: { url, method, ...(queryParams?{queryParams}:{}) , ...(headers?{headers}:{}) , ...(body?{body}:{}) }, toolCallId: toolCall.id, toolId: toolCall.id }
+      const paramsToSend = {
+        url,
+        method,
+        ...(queryParams ? { queryParams } : {}),
+        ...(headers ? { headers } : {}),
+        ...(body ? { body } : {}),
+      }
 
-      const response = await fetch('/api/copilot/methods', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(requestBody) })
-      if (!response.ok) { const e = await response.json().catch(()=>({})); options?.onStateChange?.('errored'); return { success:false, error: e?.error || 'Failed to make API request' } }
-
-      const result = await response.json()
-      if (!result.success) { options?.onStateChange?.('errored'); return { success:false, error: result.error || 'Server method failed' } }
-
-      options?.onStateChange?.('success')
-      return { success:true, data: result.data }
-    } catch (error:any) {
+      return await postToMethods('make_api_request', paramsToSend, { toolCallId: toolCall.id, toolId: toolCall.id }, options)
+    } catch (error: any) {
       options?.onStateChange?.('errored')
-      return { success:false, error: error?.message || 'Unexpected error' }
+      return { success: false, error: error?.message || 'Unexpected error' }
     }
   }
 } 

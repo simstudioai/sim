@@ -21,40 +21,14 @@ export abstract class BaseTool implements Tool {
 
   /**
    * Notify the backend about the tool state change
+   * Deprecated: previously called /api/copilot/confirm (Redis-backed). Now a no-op.
    */
   protected async notify(
     toolCallId: string,
     state: ToolState,
     message?: string
   ): Promise<ToolConfirmResponse> {
-    try {
-      // Map ToolState to NotificationStatus for API
-      const notificationStatus = state === 'errored' ? 'error' : state
-
-      const response = await fetch('/api/copilot/confirm', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          toolCallId,
-          status: notificationStatus,
-          message,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        console.error(`Failed to confirm tool ${toolCallId}:`, error)
-        return { success: false, message: error.error || 'Failed to confirm tool' }
-      }
-
-      const result = await response.json()
-      return { success: true, message: result.message }
-    } catch (error) {
-      console.error('Error confirming tool:', error)
-      return { success: false, message: error instanceof Error ? error.message : 'Unknown error' }
-    }
+    return { success: true, message }
   }
 
   /**
@@ -117,7 +91,7 @@ export abstract class BaseTool implements Tool {
   ): Promise<void> {
     // Map actions to states
     const actionToState: Record<string, ToolState> = {
-      run: 'executing', // Changed from 'accepted' to 'executing'
+      run: 'executing',
       skip: 'rejected',
       background: 'background',
     }
@@ -129,16 +103,10 @@ export abstract class BaseTool implements Tool {
 
     // Special handling for run action
     if (action === 'run') {
-      // Directly call execute method - no wrapper
       await this.execute(toolCall, options)
     } else {
-      // For skip/background, just notify
-      const message =
-        action === 'skip'
-          ? this.getDisplayName({ ...toolCall, state: 'rejected' })
-          : 'The user moved execution to the background'
-
-      await this.notify(toolCall.id, newState, message)
+      // Skip/background are now UI-only; no server-side confirmation
+      await this.notify(toolCall.id, newState)
     }
   }
 }

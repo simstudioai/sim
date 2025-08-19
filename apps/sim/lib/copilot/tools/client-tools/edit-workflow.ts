@@ -17,6 +17,7 @@ export class EditWorkflowClientTool extends BaseTool {
       states: {
         executing: { displayName: 'Editing workflow', icon: 'spinner' },
         success: { displayName: 'Edited workflow', icon: 'grid2x2Check' },
+        ready_for_review: { displayName: 'Ready for review', icon: 'grid2x2' },
         rejected: { displayName: 'Skipped editing workflow', icon: 'skip' },
         errored: { displayName: 'Failed to edit workflow', icon: 'error' },
         aborted: { displayName: 'Aborted editing workflow', icon: 'abort' },
@@ -79,6 +80,7 @@ export class EditWorkflowClientTool extends BaseTool {
       }
 
       options?.onStateChange?.('success')
+      options?.onStateChange?.('ready_for_review')
       return { success:true, data: result.data }
     } catch (error:any) {
       options?.onStateChange?.('errored')
