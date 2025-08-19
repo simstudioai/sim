@@ -22,6 +22,7 @@ import {
   Paperclip,
   X,
   Zap,
+  FlaskConical,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -429,26 +430,30 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const { agentDepth, setAgentDepth } = useCopilotStore()
 
     const cycleDepth = () => {
-      // Allowed UI values: 0 (Lite), 1 (Default), 2 (Pro), 3 (Max)
-      const next = agentDepth === 0 ? 1 : agentDepth === 1 ? 2 : agentDepth === 2 ? 3 : 0
+      // Allowed UI values: -1 (Experimental), 0 (Fast), 1 (Auto), 2 (Pro), 3 (Max)
+      const next =
+        agentDepth === -1 ? 0 : agentDepth === 0 ? 1 : agentDepth === 1 ? 2 : agentDepth === 2 ? 3 : -1
       setAgentDepth(next)
     }
 
     const getDepthLabel = () => {
+      if (agentDepth === -1) return 'Experimental'
       if (agentDepth === 0) return 'Fast'
       if (agentDepth === 1) return 'Auto'
       if (agentDepth === 2) return 'Pro'
       return 'Max'
     }
 
-    const getDepthLabelFor = (value: 0 | 1 | 2 | 3) => {
+    const getDepthLabelFor = (value: -1 | 0 | 1 | 2 | 3) => {
+      if (value === -1) return 'Experimental'
       if (value === 0) return 'Fast'
       if (value === 1) return 'Auto'
       if (value === 2) return 'Pro'
       return 'Max'
     }
 
-    const getDepthDescription = (value: 0 | 1 | 2 | 3) => {
+    const getDepthDescription = (value: -1 | 0 | 1 | 2 | 3) => {
+      if (value === -1) return 'Early features and behaviors. May be unstable; best for trying new capabilities.'
       if (value === 0)
         return 'Fastest and cheapest. Good for small edits, simple workflows, and small tasks.'
       if (value === 1) return 'Automatically balances speed and reasoning. Good fit for most tasks.'
@@ -457,7 +462,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       return 'Maximum reasoning power. Best for complex workflow building and debugging.'
     }
 
-    const getDepthIconFor = (value: 0 | 1 | 2 | 3) => {
+    const getDepthIconFor = (value: -1 | 0 | 1 | 2 | 3) => {
+      if (value === -1) return <FlaskConical className='h-3 w-3 text-muted-foreground' />
       if (value === 0) return <Zap className='h-3 w-3 text-muted-foreground' />
       if (value === 1) return <InfinityIcon className='h-3 w-3 text-muted-foreground' />
       if (value === 2) return <Brain className='h-3 w-3 text-muted-foreground' />
@@ -644,6 +650,33 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   <DropdownMenuContent align='start' className='p-0'>
                     <TooltipProvider>
                       <div className='w-[180px] p-1'>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <DropdownMenuItem
+                              onSelect={() => setAgentDepth(-1)}
+                              className={cn(
+                                'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
+                                agentDepth === -1 && 'bg-muted/40'
+                              )}
+                            >
+                              <span className='flex items-center gap-1.5'>
+                                <FlaskConical className='h-3 w-3 text-muted-foreground' />
+                                Experimental
+                              </span>
+                              {agentDepth === -1 && (
+                                <Check className='h-3 w-3 text-muted-foreground' />
+                              )}
+                            </DropdownMenuItem>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side='right'
+                            sideOffset={6}
+                            align='center'
+                            className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
+                          >
+                            Early features and behaviors. May be unstable; best for trying new capabilities.
+                          </TooltipContent>
+                        </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <DropdownMenuItem
