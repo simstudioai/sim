@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { account, webhook } from '@/db/schema'
 
@@ -1284,29 +1284,42 @@ export async function configureGmailPolling(
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
 
     const credentialId: string | undefined = providerConfig.credentialId
-    if (!credentialId) {
-      logger.error(
-        `[${requestId}] Missing credentialId for Gmail webhook ${webhookData.id}. Refusing to proceed.`
-      )
-      return false
-    }
 
-    // Resolve owner user ID from the credential and refresh token if needed
-    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-    if (rows.length === 0) {
-      logger.error(
-        `[${requestId}] Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`
-      )
-      return false
-    }
-    const ownerUserId = rows[0].userId
+    let effectiveUserId: string | null = null
+    let accessToken: string | null = null
 
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
-    if (!accessToken) {
-      logger.error(
-        `[${requestId}] Failed to refresh/access Gmail token for credential ${credentialId}`
-      )
-      return false
+    if (credentialId) {
+      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+      if (rows.length === 0) {
+        logger.error(
+          `[${requestId}] Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`
+        )
+        return false
+      }
+      effectiveUserId = rows[0].userId
+      accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
+      if (!accessToken) {
+        logger.error(
+          `[${requestId}] Failed to refresh/access Gmail token for credential ${credentialId}`
+        )
+        return false
+      }
+    } else {
+      // Backward-compat: fall back to workflow owner
+      if (!userId) {
+        logger.error(
+          `[${requestId}] Missing credentialId and userId for Gmail webhook ${webhookData.id}`
+        )
+        return false
+      }
+      effectiveUserId = userId
+      accessToken = await getOAuthToken(effectiveUserId, 'google-email')
+      if (!accessToken) {
+        logger.error(
+          `[${requestId}] Failed to obtain Gmail token for user ${effectiveUserId} (fallback)`
+        )
+        return false
+      }
     }
 
     const maxEmailsPerPoll =
@@ -1326,8 +1339,8 @@ export async function configureGmailPolling(
       .set({
         providerConfig: {
           ...providerConfig,
-          userId: ownerUserId,
-          credentialId,
+          userId: effectiveUserId,
+          ...(credentialId ? { credentialId } : {}),
           maxEmailsPerPoll,
           pollingInterval,
           markAsRead: providerConfig.markAsRead || false,
@@ -1371,40 +1384,45 @@ export async function configureOutlookPolling(
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
 
     const credentialId: string | undefined = providerConfig.credentialId
-    if (!credentialId) {
-      logger.error(
-        `[${requestId}] Missing credentialId for Outlook webhook ${webhookData.id}. Refusing to proceed.`
-      )
-      return false
+
+    let effectiveUserId: string | null = null
+    let accessToken: string | null = null
+
+    if (credentialId) {
+      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+      if (rows.length === 0) {
+        logger.error(
+          `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
+        )
+        return false
+      }
+      effectiveUserId = rows[0].userId
+      accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
+      if (!accessToken) {
+        logger.error(
+          `[${requestId}] Failed to refresh/access Outlook token for credential ${credentialId}`
+        )
+        return false
+      }
+    } else {
+      // Backward-compat: fall back to workflow owner
+      if (!userId) {
+        logger.error(
+          `[${requestId}] Missing credentialId and userId for Outlook webhook ${webhookData.id}`
+        )
+        return false
+      }
+      effectiveUserId = userId
+      accessToken = await getOAuthToken(effectiveUserId, 'outlook')
+      if (!accessToken) {
+        logger.error(
+          `[${requestId}] Failed to obtain Outlook token for user ${effectiveUserId} (fallback)`
+        )
+        return false
+      }
     }
 
-    // Resolve owner user ID from the credential and refresh token if needed
-    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-    if (rows.length === 0) {
-      logger.error(
-        `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
-      )
-      return false
-    }
-    const ownerUserId = rows[0].userId
-
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
-    if (!accessToken) {
-      logger.error(
-        `[${requestId}] Failed to refresh/access Outlook token for credential ${credentialId}`
-      )
-      return false
-    }
-
-    const maxEmailsPerPoll =
-      typeof providerConfig.maxEmailsPerPoll === 'string'
-        ? Number.parseInt(providerConfig.maxEmailsPerPoll, 10) || 25
-        : providerConfig.maxEmailsPerPoll || 25
-
-    const pollingInterval =
-      typeof providerConfig.pollingInterval === 'string'
-        ? Number.parseInt(providerConfig.pollingInterval, 10) || 5
-        : providerConfig.pollingInterval || 5
+    const providerCfg = (webhookData.providerConfig as Record<string, any>) || {}
 
     const now = new Date()
 
@@ -1412,15 +1430,21 @@ export async function configureOutlookPolling(
       .update(webhook)
       .set({
         providerConfig: {
-          ...providerConfig,
-          userId: ownerUserId,
-          credentialId,
-          maxEmailsPerPoll,
-          pollingInterval,
-          markAsRead: providerConfig.markAsRead || false,
-          includeRawEmail: providerConfig.includeRawEmail || false,
-          folderIds: providerConfig.folderIds || ['inbox'],
-          folderFilterBehavior: providerConfig.folderFilterBehavior || 'INCLUDE',
+          ...providerCfg,
+          userId: effectiveUserId,
+          ...(credentialId ? { credentialId } : {}),
+          maxEmailsPerPoll:
+            typeof providerCfg.maxEmailsPerPoll === 'string'
+              ? Number.parseInt(providerCfg.maxEmailsPerPoll, 10) || 25
+              : providerCfg.maxEmailsPerPoll || 25,
+          pollingInterval:
+            typeof providerCfg.pollingInterval === 'string'
+              ? Number.parseInt(providerCfg.pollingInterval, 10) || 5
+              : providerCfg.pollingInterval || 5,
+          markAsRead: providerCfg.markAsRead || false,
+          includeRawEmail: providerCfg.includeRawEmail || false,
+          folderIds: providerCfg.folderIds || ['inbox'],
+          folderFilterBehavior: providerCfg.folderFilterBehavior || 'INCLUDE',
           lastCheckedTimestamp: now.toISOString(),
           setupCompleted: true,
         },
