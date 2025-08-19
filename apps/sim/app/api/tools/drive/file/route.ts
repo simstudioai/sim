@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     // Fetch the file from Google Drive API
     logger.info(`[${requestId}] Fetching file ${fileId} from Google Drive API`)
     const response = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners,exportLinks`,
+      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners,exportLinks,shortcutDetails&supportsAllDrives=true`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -75,6 +75,34 @@ export async function GET(request: NextRequest) {
       'application/vnd.google-apps.spreadsheet':
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // Google Sheets to XLSX
       'application/vnd.google-apps.presentation': 'application/pdf', // Google Slides to PDF
+    }
+
+    // Resolve shortcuts transparently for UI stability
+    if (
+      file.mimeType === 'application/vnd.google-apps.shortcut' &&
+      file.shortcutDetails?.targetId
+    ) {
+      const targetId = file.shortcutDetails.targetId
+      const shortcutResp = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${targetId}?fields=id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners,exportLinks&supportsAllDrives=true`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      )
+      if (shortcutResp.ok) {
+        const targetFile = await shortcutResp.json()
+        file.id = targetFile.id
+        file.name = targetFile.name
+        file.mimeType = targetFile.mimeType
+        file.iconLink = targetFile.iconLink
+        file.webViewLink = targetFile.webViewLink
+        file.thumbnailLink = targetFile.thumbnailLink
+        file.createdTime = targetFile.createdTime
+        file.modifiedTime = targetFile.modifiedTime
+        file.size = targetFile.size
+        file.owners = targetFile.owners
+        file.exportLinks = targetFile.exportLinks
+      }
     }
 
     // If the file is a Google Docs, Sheets, or Slides file, we need to provide the export link

@@ -37,6 +37,10 @@ export function useSubBlockValue<T = any>(
 
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
+  // Subscribe to active workflow id to avoid races where the workflow id is set after mount.
+  // This ensures our selector recomputes when the active workflow changes.
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+
   const blockType = useWorkflowStore(
     useCallback((state) => state.blocks?.[blockId]?.type, [blockId])
   )
@@ -56,9 +60,16 @@ export function useSubBlockValue<T = any>(
   const streamingValueRef = useRef<T | null>(null)
   const wasStreamingRef = useRef<boolean>(false)
 
-  // Get value from subblock store - always call this hook unconditionally
+  // Get value from subblock store, keyed by active workflow id
+  // We intentionally depend on activeWorkflowId so this recomputes when it changes.
   const storeValue = useSubBlockStore(
-    useCallback((state) => state.getValue(blockId, subBlockId), [blockId, subBlockId])
+    useCallback(
+      (state) => {
+        if (!activeWorkflowId) return null
+        return state.workflowValues[activeWorkflowId]?.[blockId]?.[subBlockId] ?? null
+      },
+      [activeWorkflowId, blockId, subBlockId]
+    )
   )
 
   // Check if we're in diff mode and get diff value if available
@@ -123,12 +134,10 @@ export function useSubBlockValue<T = any>(
         useSubBlockStore.setState((state) => ({
           workflowValues: {
             ...state.workflowValues,
-            [useWorkflowRegistry.getState().activeWorkflowId || '']: {
-              ...state.workflowValues[useWorkflowRegistry.getState().activeWorkflowId || ''],
+            [activeWorkflowId || '']: {
+              ...state.workflowValues[activeWorkflowId || ''],
               [blockId]: {
-                ...state.workflowValues[useWorkflowRegistry.getState().activeWorkflowId || '']?.[
-                  blockId
-                ],
+                ...state.workflowValues[activeWorkflowId || '']?.[blockId],
                 [subBlockId]: newValue,
               },
             },
@@ -190,6 +199,7 @@ export function useSubBlockValue<T = any>(
       isStreaming,
       emitValue,
       isShowingDiff,
+      activeWorkflowId,
     ]
   )
 
