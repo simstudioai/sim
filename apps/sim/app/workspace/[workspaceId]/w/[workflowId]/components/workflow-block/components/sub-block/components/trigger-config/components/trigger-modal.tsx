@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -58,6 +58,7 @@ export function TriggerModal({
   const [dynamicOptions, setDynamicOptions] = useState<
     Record<string, Array<{ id: string; name: string }>>
   >({})
+  const lastCredentialIdRef = useRef<string | null>(null)
 
   // Reset provider-dependent config fields when credentials change
   const resetFieldsForCredentialChange = () => {
@@ -103,7 +104,8 @@ export function TriggerModal({
         const credentialValue = subBlockStore.getValue(blockId, 'triggerCredentials') as
           | string
           | null
-        const hasCredential = Boolean(credentialValue)
+        const currentCredentialId = credentialValue || null
+        const hasCredential = Boolean(currentCredentialId)
         setHasCredentials(hasCredential)
 
         // If credential was cleared by another user, reset local state and dynamic options
@@ -113,22 +115,44 @@ export function TriggerModal({
           }
           // Clear provider-specific dynamic options
           setDynamicOptions({})
-          // Clear any selected values that depend on the credential
-          resetFieldsForCredentialChange()
+          // Per requirements: only clear dependent selections on actual credential CHANGE,
+          // not when it becomes empty. So we do NOT reset fields here.
+          lastCredentialIdRef.current = null
           return
         }
 
         // If credential changed, clear options immediately and load for new cred
-        if (credentialValue && credentialValue !== selectedCredentialId) {
-          setSelectedCredentialId(credentialValue)
+        const previousCredentialId = lastCredentialIdRef.current
+
+        // First detection (prev null → current non-null): do not clear selections
+        if (previousCredentialId === null) {
+          setSelectedCredentialId(currentCredentialId)
+          lastCredentialIdRef.current = currentCredentialId
+          if (typeof currentCredentialId === 'string') {
+            if (triggerDef.provider === 'gmail') {
+              void loadGmailLabels(currentCredentialId)
+            } else if (triggerDef.provider === 'outlook') {
+              void loadOutlookFolders(currentCredentialId)
+            }
+          }
+          return
+        }
+
+        // Real change (prev non-null → different non-null): clear dependent selections
+        if (
+          typeof currentCredentialId === 'string' &&
+          currentCredentialId !== previousCredentialId
+        ) {
+          setSelectedCredentialId(currentCredentialId)
+          lastCredentialIdRef.current = currentCredentialId
           // Clear stale options before loading new ones
           setDynamicOptions({})
           // Clear any selected values that depend on the credential
           resetFieldsForCredentialChange()
           if (triggerDef.provider === 'gmail') {
-            void loadGmailLabels(credentialValue)
+            void loadGmailLabels(currentCredentialId)
           } else if (triggerDef.provider === 'outlook') {
-            void loadOutlookFolders(credentialValue)
+            void loadOutlookFolders(currentCredentialId)
           }
         }
       }
