@@ -353,7 +353,7 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
           </button>
 
           {/* Import Workflow */}
-          {userPermissions.canEdit && !isDev && (
+          {userPermissions.canEdit && (
             <button
               className={cn(menuItemClassName, isImporting && 'cursor-not-allowed opacity-50')}
               onClick={handleImportWorkflow}
