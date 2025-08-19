@@ -43,6 +43,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       provider: 'discord',
       serviceId: 'discord',
       placeholder: 'Select Discord server',
+      dependsOn: ['botToken'],
       mode: 'basic',
       condition: {
         field: 'operation',
@@ -71,6 +72,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       provider: 'discord',
       serviceId: 'discord',
       placeholder: 'Select Discord channel',
+      dependsOn: ['botToken', 'serverId'],
       mode: 'basic',
       condition: { field: 'operation', value: ['discord_send_message', 'discord_get_messages'] },
     },

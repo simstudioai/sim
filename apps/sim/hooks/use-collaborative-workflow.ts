@@ -840,6 +840,24 @@ export function useCollaborativeWorkflow() {
 
       // Apply locally first (immediate UI feedback)
       subBlockStore.setValue(blockId, subblockId, value)
+
+      // Declarative clearing: clear sub-blocks that depend on this subblockId
+      try {
+        const blockType = useWorkflowStore.getState().blocks?.[blockId]?.type
+        const blockConfig = blockType ? getBlock(blockType) : null
+        if (blockConfig?.subBlocks && Array.isArray(blockConfig.subBlocks)) {
+          const dependents = blockConfig.subBlocks.filter(
+            (sb: any) => Array.isArray(sb.dependsOn) && sb.dependsOn.includes(subblockId)
+          )
+          for (const dep of dependents) {
+            // Skip clearing if the dependent is the same field
+            if (!dep?.id || dep.id === subblockId) continue
+            subBlockStore.setValue(blockId, dep.id, '')
+          }
+        }
+      } catch {
+        // Best-effort; do not block on clearing
+      }
     },
     [
       subBlockStore,

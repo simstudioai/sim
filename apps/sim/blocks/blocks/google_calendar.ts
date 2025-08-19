@@ -48,6 +48,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       serviceId: 'google-calendar',
       requiredScopes: ['https://www.googleapis.com/auth/calendar'],
       placeholder: 'Select calendar',
+      dependsOn: ['credential'],
       mode: 'basic',
     },
     // Manual calendar ID input (advanced mode)

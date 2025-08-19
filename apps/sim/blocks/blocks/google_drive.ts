@@ -82,6 +82,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a parent folder',
       mode: 'basic',
+      dependsOn: ['credential'],
       condition: { field: 'operation', value: 'upload' },
     },
     {
@@ -155,6 +156,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a parent folder',
       mode: 'basic',
+      dependsOn: ['credential'],
       condition: { field: 'operation', value: 'create_folder' },
     },
     // Manual Folder ID input (advanced mode)
@@ -179,6 +181,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a folder to list files from',
       mode: 'basic',
+      dependsOn: ['credential'],
       condition: { field: 'operation', value: 'list' },
     },
     // Manual Folder ID input (advanced mode)

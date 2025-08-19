@@ -279,29 +279,33 @@ export function FolderSelector({
 
   // Fetch credentials on initial mount
   useEffect(() => {
+    if (disabled) return
     if (!initialFetchRef.current) {
       fetchCredentials()
       initialFetchRef.current = true
     }
-  }, [fetchCredentials])
+  }, [fetchCredentials, disabled])
 
   // Fetch folders when credential is selected
   useEffect(() => {
+    if (disabled) return
     if (selectedCredentialId) {
       fetchFolders()
     }
-  }, [selectedCredentialId, fetchFolders])
+  }, [selectedCredentialId, fetchFolders, disabled])
 
   // Keep internal selectedFolderId in sync with the value prop
   useEffect(() => {
+    if (disabled) return
     const currentValue = isPreview ? previewValue : value
     if (currentValue !== selectedFolderId) {
       setSelectedFolderId(currentValue || '')
     }
-  }, [value, isPreview, previewValue])
+  }, [value, isPreview, previewValue, disabled])
 
   // Fetch the selected folder metadata once credentials are ready or value changes
   useEffect(() => {
+    if (disabled) return
     const currentValue = isPreview ? (previewValue as string) : (value as string)
     if (
       currentValue &&
@@ -310,7 +314,15 @@ export function FolderSelector({
     ) {
       fetchFolderById(currentValue)
     }
-  }, [value, selectedCredentialId, selectedFolder, fetchFolderById, isPreview, previewValue])
+  }, [
+    value,
+    selectedCredentialId,
+    selectedFolder,
+    fetchFolderById,
+    isPreview,
+    previewValue,
+    disabled,
+  ])
 
   // Handle folder selection
   const handleSelectFolder = (folder: FolderInfo) => {

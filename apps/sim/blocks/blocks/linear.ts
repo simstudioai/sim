@@ -42,6 +42,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       provider: 'linear',
       serviceId: 'linear',
       placeholder: 'Select a team',
+      dependsOn: ['credential'],
       mode: 'basic',
     },
     {
@@ -52,6 +53,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       provider: 'linear',
       serviceId: 'linear',
       placeholder: 'Select a project',
+      dependsOn: ['credential', 'teamId'],
       mode: 'basic',
     },
     // Manual team ID input (advanced mode)

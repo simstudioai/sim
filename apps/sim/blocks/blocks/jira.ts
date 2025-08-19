@@ -62,6 +62,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       provider: 'jira',
       serviceId: 'jira',
       placeholder: 'Select Jira project',
+      dependsOn: ['credential', 'domain'],
       mode: 'basic',
     },
     // Manual project ID input (advanced mode)
@@ -82,6 +83,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       provider: 'jira',
       serviceId: 'jira',
       placeholder: 'Select Jira issue',
+      dependsOn: ['credential', 'domain', 'projectId'],
       condition: { field: 'operation', value: ['read', 'update'] },
       mode: 'basic',
     },
