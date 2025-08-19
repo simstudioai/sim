@@ -20,7 +20,7 @@ export class ReadGDriveFileClientTool extends BaseTool {
       states: {
         executing: { displayName: 'Reading Google Drive file', icon: 'spinner' },
         success: { displayName: 'Read Google Drive file', icon: 'file' },
-        rejected: { displayName: 'Skipped reading file', icon: 'skip' },
+        rejected: { displayName: 'Skipped reading file', icon: 'circle-slash' },
         errored: { displayName: 'Failed to read file', icon: 'error' },
         aborted: { displayName: 'Aborted reading file', icon: 'abort' },
       },

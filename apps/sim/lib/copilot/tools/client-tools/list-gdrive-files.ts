@@ -25,7 +25,7 @@ export class ListGDriveFilesClientTool extends BaseTool {
       states: {
         executing: { displayName: 'Listing Google Drive files', icon: 'spinner' },
         success: { displayName: 'Listed Google Drive files', icon: 'file' },
-        rejected: { displayName: 'Skipped listing Google Drive files', icon: 'skip' },
+        rejected: { displayName: 'Skipped listing Google Drive files', icon: 'circle-slash' },
         errored: { displayName: 'Failed to list Google Drive files', icon: 'error' },
         aborted: { displayName: 'Aborted listing Google Drive files', icon: 'abort' },
       },

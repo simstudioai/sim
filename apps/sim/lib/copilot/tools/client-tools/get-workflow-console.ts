@@ -21,9 +21,9 @@ export class GetWorkflowConsoleClientTool extends BaseTool {
       states: {
         executing: { displayName: 'Reading workflow console', icon: 'spinner' },
         success: { displayName: 'Read workflow console', icon: 'squareTerminal' },
-        rejected: { displayName: 'Skipped reading console', icon: 'skip' },
+        rejected: { displayName: 'Skipped reading console', icon: 'circle-slash' },
         errored: { displayName: 'Failed to read console', icon: 'error' },
-        aborted: { displayName: 'Aborted reading console', icon: 'abort' },
+        aborted: { displayName: 'Aborted reading console', icon: 'abort' }
       },
     },
     schema: {

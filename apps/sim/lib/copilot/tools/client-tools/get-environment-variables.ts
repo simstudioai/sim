@@ -21,7 +21,7 @@ export class GetEnvironmentVariablesClientTool extends BaseTool {
       states: {
         executing: { displayName: 'Getting environment variables', icon: 'spinner' },
         success: { displayName: 'Found environment variables', icon: 'wrench' },
-        rejected: { displayName: 'Skipped viewing environment variables', icon: 'skip' },
+        rejected: { displayName: 'Skipped viewing environment variables', icon: 'circle-slash' },
         errored: { displayName: 'Failed to get environment variables', icon: 'error' },
         aborted: { displayName: 'Environment variables viewing aborted', icon: 'abort' },
       },

@@ -21,7 +21,7 @@ export class SetEnvironmentVariablesClientTool extends BaseTool {
         pending: { displayName: 'Set environment variables?', icon: 'edit' },
         executing: { displayName: 'Setting environment variables', icon: 'spinner' },
         success: { displayName: 'Set environment variables', icon: 'wrench' },
-        rejected: { displayName: 'Skipped setting environment variables', icon: 'skip' },
+        rejected: { displayName: 'Skipped setting environment variables', icon: 'circle-slash' },
         errored: { displayName: 'Failed to set environment variables', icon: 'error' },
         background: { displayName: 'Setting moved to background', icon: 'wrench' },
         aborted: { displayName: 'Aborted setting environment variables', icon: 'abort' },

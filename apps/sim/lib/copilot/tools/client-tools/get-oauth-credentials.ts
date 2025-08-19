@@ -20,7 +20,7 @@ export class GetOAuthCredentialsClientTool extends BaseTool {
       states: {
         executing: { displayName: 'Retrieving login IDs', icon: 'spinner' },
         success: { displayName: 'Retrieved login IDs', icon: 'key' },
-        rejected: { displayName: 'Skipped retrieving login IDs', icon: 'skip' },
+        rejected: { displayName: 'Skipped retrieving login IDs', icon: 'circle-slash' },
         errored: { displayName: 'Failed to retrieve login IDs', icon: 'error' },
         aborted: { displayName: 'Retrieving login IDs aborted', icon: 'abort' },
       },

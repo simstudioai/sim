@@ -41,7 +41,7 @@ export class GetUserWorkflowTool extends BaseTool {
         },
         rejected: {
           displayName: 'Skipped workflow analysis',
-          icon: 'skip',
+          icon: 'circle-slash',
         },
         errored: {
           displayName: 'Failed to analyze workflow',

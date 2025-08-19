@@ -39,6 +39,7 @@ import {
   X,
   XCircle,
   Zap,
+  CircleSlash,
 } from 'lucide-react'
 import { toolRegistry } from '@/lib/copilot/tools/registry'
 import type { CopilotToolCall, ToolState } from '@/lib/copilot/tools/types'
@@ -53,7 +54,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   spinner: Loader2, // Standard spinner icon
   check: Check,
   checkCircle: CheckCircle,
-  skip: Minus,
+  skip: CircleSlash,
   error: XCircle,
   background: Eye,
   play: Play,
@@ -86,6 +87,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   gitbranch: GitBranch, // Git branching icon showing workflow paths
   brain: Brain, // Brain icon for reasoning/AI thinking
   listTodo: ListTodo, // List with checkboxes for planning/todos
+  'circle-slash': CircleSlash,
 
   // Default
   default: Lightbulb,

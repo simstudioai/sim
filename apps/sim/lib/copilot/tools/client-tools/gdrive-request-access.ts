@@ -32,7 +32,7 @@ export class GDriveRequestAccessTool extends BaseTool {
         },
         rejected: {
           displayName: 'Skipped Google Drive access request',
-          icon: 'skip',
+          icon: 'circle-slash',
         },
         errored: {
           displayName: 'Failed to request Google Drive access',

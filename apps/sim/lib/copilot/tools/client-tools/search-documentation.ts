@@ -20,7 +20,7 @@ export class SearchDocumentationClientTool extends BaseTool {
       states: {
         executing: { displayName: 'Searching documentation', icon: 'spinner' },
         success: { displayName: 'Searched documentation', icon: 'file' },
-        rejected: { displayName: 'Skipped documentation search', icon: 'skip' },
+        rejected: { displayName: 'Skipped documentation search', icon: 'circle-slash' },
         errored: { displayName: 'Failed to search documentation', icon: 'error' },
         aborted: { displayName: 'Documentation search aborted', icon: 'x' },
       },

@@ -25,7 +25,7 @@ export class GetBlocksMetadataClientTool extends BaseTool {
       states: {
         executing: { displayName: 'Evaluating workflow options', icon: 'spinner' },
         success: { displayName: 'Evaluated workflow options', icon: 'betweenHorizontalEnd' },
-        rejected: { displayName: 'Skipped evaluating workflow options', icon: 'skip' },
+        rejected: { displayName: 'Skipped evaluating workflow options', icon: 'circle-slash' },
         errored: { displayName: 'Failed to evaluate workflow options', icon: 'error' },
         aborted: { displayName: 'Options evaluation aborted', icon: 'abort' },
       },

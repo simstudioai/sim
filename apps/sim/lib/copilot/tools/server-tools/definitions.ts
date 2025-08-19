@@ -42,7 +42,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Searching documentation', icon: 'spinner' },
         success: { displayName: 'Searched documentation', icon: 'file' },
-        rejected: { displayName: 'Skipped documentation search', icon: 'skip' },
+        rejected: { displayName: 'Skipped documentation search', icon: 'circle-slash' },
         errored: { displayName: 'Failed to search documentation', icon: 'error' },
         aborted: { displayName: 'Documentation search aborted', icon: 'x' },
       },
@@ -60,7 +60,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Analyzing your workflow', icon: 'spinner' },
         success: { displayName: 'Analyzed your workflow', icon: 'workflow' },
-        rejected: { displayName: 'Skipped analyzing your workflow', icon: 'skip' },
+        rejected: { displayName: 'Skipped analyzing your workflow', icon: 'circle-slash' },
         errored: { displayName: 'Failed to analyze your workflow', icon: 'error' },
         aborted: { displayName: 'Workflow analysis aborted', icon: 'x' },
       },
@@ -118,7 +118,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Exploring available options', icon: 'spinner' },
         success: { displayName: 'Explored available options', icon: 'blocks' },
-        rejected: { displayName: 'Skipped exploring options', icon: 'skip' },
+        rejected: { displayName: 'Skipped exploring options', icon: 'circle-slash' },
         errored: { displayName: 'Failed to explore options', icon: 'error' },
         aborted: { displayName: 'Options exploration aborted', icon: 'x' },
       },
@@ -136,7 +136,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Evaluating workflow options', icon: 'spinner' },
         success: { displayName: 'Evaluated workflow options', icon: 'betweenHorizontalEnd' },
-        rejected: { displayName: 'Skipped evaluating workflow options', icon: 'skip' },
+        rejected: { displayName: 'Skipped evaluating workflow options', icon: 'circle-slash' },
         errored: { displayName: 'Failed to evaluate workflow options', icon: 'error' },
         aborted: { displayName: 'Options evaluation aborted', icon: 'x' },
       },
@@ -154,7 +154,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Analyzing workflow structure', icon: 'spinner' },
         success: { displayName: 'Analyzed workflow structure', icon: 'tree' },
-        rejected: { displayName: 'Skipped workflow structure analysis', icon: 'skip' },
+        rejected: { displayName: 'Skipped workflow structure analysis', icon: 'circle-slash' },
         errored: { displayName: 'Failed to analyze workflow structure', icon: 'error' },
         aborted: { displayName: 'Workflow structure analysis aborted', icon: 'x' },
       },
@@ -172,7 +172,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Optimizing edit approach', icon: 'spinner' },
         success: { displayName: 'Optimized edit approach', icon: 'gitbranch' },
-        rejected: { displayName: 'Skipped optimizing edit approach', icon: 'skip' },
+        rejected: { displayName: 'Skipped optimizing edit approach', icon: 'circle-slash' },
         errored: { displayName: 'Failed to optimize edit approach', icon: 'error' },
         aborted: { displayName: 'Edit approach optimization aborted', icon: 'x' },
       },
@@ -190,7 +190,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Discovering workflow patterns', icon: 'spinner' },
         success: { displayName: 'Discovered workflow patterns', icon: 'gitbranch' },
-        rejected: { displayName: 'Skipped discovering patterns', icon: 'skip' },
+        rejected: { displayName: 'Skipped discovering patterns', icon: 'circle-slash' },
         errored: { displayName: 'Failed to discover patterns', icon: 'error' },
         aborted: { displayName: 'Discovering patterns aborted', icon: 'x' },
       },
@@ -208,7 +208,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Viewing environment variables', icon: 'spinner' },
         success: { displayName: 'Found environment variables', icon: 'wrench' },
-        rejected: { displayName: 'Skipped viewing environment variables', icon: 'skip' },
+        rejected: { displayName: 'Skipped viewing environment variables', icon: 'circle-slash' },
         errored: { displayName: 'Failed to get environment variables', icon: 'error' },
         aborted: { displayName: 'Environment variables viewing aborted', icon: 'x' },
       },
@@ -227,7 +227,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         pending: { displayName: 'Set environment variables', icon: 'edit' },
         executing: { displayName: 'Setting environment variables', icon: 'spinner' },
         success: { displayName: 'Set environment variables', icon: 'wrench' },
-        rejected: { displayName: 'Skipped setting environment variables', icon: 'skip' },
+        rejected: { displayName: 'Skipped setting environment variables', icon: 'circle-slash' },
         errored: { displayName: 'Failed to set environment variables', icon: 'error' },
         aborted: { displayName: 'Environment variables setting aborted', icon: 'x' },
       },
@@ -271,7 +271,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Reading workflow console', icon: 'spinner' },
         success: { displayName: 'Read workflow console', icon: 'squareTerminal' },
-        rejected: { displayName: 'Skipped reading workflow console', icon: 'skip' },
+        rejected: { displayName: 'Skipped reading workflow console', icon: 'circle-slash' },
         errored: { displayName: 'Failed to read workflow console', icon: 'error' },
         aborted: { displayName: 'Workflow console reading aborted', icon: 'x' },
       },
@@ -289,7 +289,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Searching online', icon: 'spinner' },
         success: { displayName: 'Searched online', icon: 'globe' },
-        rejected: { displayName: 'Skipped online search', icon: 'skip' },
+        rejected: { displayName: 'Skipped online search', icon: 'circle-slash' },
         errored: { displayName: 'Failed to search online', icon: 'error' },
         aborted: { displayName: 'Online search aborted', icon: 'x' },
       },
@@ -307,7 +307,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Crafting an approach', icon: 'spinner' },
         success: { displayName: 'Crafted a plan', icon: 'listTodo' },
-        rejected: { displayName: 'Skipped crafting a plan', icon: 'skip' },
+        rejected: { displayName: 'Skipped crafting a plan', icon: 'circle-slash' },
         errored: { displayName: 'Failed to craft a plan', icon: 'error' },
         aborted: { displayName: 'Crafting a plan aborted', icon: 'x' },
       },
@@ -325,7 +325,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Designing an approach', icon: 'spinner' },
         success: { displayName: 'Designed an approach', icon: 'brain' },
-        rejected: { displayName: 'Skipped reasoning', icon: 'skip' },
+        rejected: { displayName: 'Skipped reasoning', icon: 'circle-slash' },
         errored: { displayName: 'Failed to design an approach', icon: 'error' },
         aborted: { displayName: 'Reasoning aborted', icon: 'x' },
       },
@@ -343,7 +343,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Reviewing recommendations', icon: 'spinner' },
         success: { displayName: 'Reviewed recommendations', icon: 'network' },
-        rejected: { displayName: 'Skipped recommendations review', icon: 'skip' },
+        rejected: { displayName: 'Skipped recommendations review', icon: 'circle-slash' },
         errored: { displayName: 'Failed to review recommendations', icon: 'error' },
         aborted: { displayName: 'Recommendations review aborted', icon: 'x' },
       },
@@ -377,7 +377,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Listing Google Drive files', icon: 'spinner' },
         success: { displayName: 'Listed Google Drive files', icon: 'file' },
-        rejected: { displayName: 'Skipped listing Google Drive files', icon: 'skip' },
+        rejected: { displayName: 'Skipped listing Google Drive files', icon: 'circle-slash' },
         errored: { displayName: 'Failed to list Google Drive files', icon: 'error' },
         aborted: { displayName: 'Listing Google Drive files aborted', icon: 'x' },
       },
@@ -404,7 +404,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Retrieving login IDs', icon: 'spinner' },
         success: { displayName: 'Retrieved login IDs', icon: 'key' },
-        rejected: { displayName: 'Skipped retrieving login IDs', icon: 'skip' },
+        rejected: { displayName: 'Skipped retrieving login IDs', icon: 'circle-slash' },
         errored: { displayName: 'Failed to retrieve login IDs', icon: 'error' },
         aborted: { displayName: 'Retrieving login IDs aborted', icon: 'x' },
       },
@@ -429,7 +429,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       states: {
         executing: { displayName: 'Reading Google Drive file', icon: 'spinner' },
         success: { displayName: 'Read Google Drive file', icon: 'file' },
-        rejected: { displayName: 'Skipped reading Google Drive file', icon: 'skip' },
+        rejected: { displayName: 'Skipped reading Google Drive file', icon: 'circle-slash' },
         errored: { displayName: 'Failed to read Google Drive file', icon: 'error' },
         aborted: { displayName: 'Reading Google Drive file aborted', icon: 'x' },
       },
@@ -458,7 +458,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         pending: { displayName: 'Execute API request?', icon: 'api' },
         executing: { displayName: 'Executing API request', icon: 'spinner' },
         success: { displayName: 'Executed API request', icon: 'api' },
-        rejected: { displayName: 'Skipped API request', icon: 'skip' },
+        rejected: { displayName: 'Skipped API request', icon: 'circle-slash' },
         errored: { displayName: 'Failed to execute API request', icon: 'error' },
         aborted: { displayName: 'API request aborted', icon: 'x' },
       },

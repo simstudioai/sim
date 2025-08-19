@@ -24,7 +24,7 @@ export class EditWorkflowClientTool extends BaseTool {
         executing: { displayName: 'Editing workflow', icon: 'spinner' },
         success: { displayName: 'Edited workflow', icon: 'grid2x2Check' },
         ready_for_review: { displayName: 'Ready for review', icon: 'grid2x2' },
-        rejected: { displayName: 'Skipped editing workflow', icon: 'skip' },
+        rejected: { displayName: 'Skipped editing workflow', icon: 'circle-slash' },
         errored: { displayName: 'Failed to edit workflow', icon: 'error' },
         aborted: { displayName: 'Aborted editing workflow', icon: 'abort' },
         accepted: { displayName: 'Edited workflow', icon: 'grid2x2Check' },

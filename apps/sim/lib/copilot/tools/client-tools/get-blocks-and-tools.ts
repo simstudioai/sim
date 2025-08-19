@@ -24,7 +24,7 @@ export class GetBlocksAndToolsClientTool extends BaseTool {
       states: {
         executing: { displayName: 'Getting block information', icon: 'spinner' },
         success: { displayName: 'Retrieved block information', icon: 'blocks' },
-        rejected: { displayName: 'Skipped getting block information', icon: 'skip' },
+        rejected: { displayName: 'Skipped getting block information', icon: 'circle-slash' },
         errored: { displayName: 'Failed to get block information', icon: 'error' },
         aborted: { displayName: 'Aborted getting block information', icon: 'abort' },
       },

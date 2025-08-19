@@ -26,7 +26,7 @@ export class MakeApiRequestClientTool extends BaseTool {
         pending: { displayName: 'Make API request?', icon: 'edit' },
         executing: { displayName: 'Making API request', icon: 'spinner' },
         success: { displayName: 'Made API request', icon: 'globe' },
-        rejected: { displayName: 'Skipped API request', icon: 'skip' },
+        rejected: { displayName: 'Skipped API request', icon: 'circle-slash' },
         errored: { displayName: 'Failed to make API request', icon: 'error' },
         aborted: { displayName: 'Aborted API request', icon: 'abort' },
       },

@@ -45,7 +45,7 @@ export class RunWorkflowTool extends BaseTool {
         },
         rejected: {
           displayName: 'Skipped workflow execution',
-          icon: 'skip',
+          icon: 'circle-slash',
         },
         errored: {
           displayName: 'Failed to execute workflow',
