@@ -90,7 +90,6 @@ export class OnlineSearchClientTool extends BaseTool {
         toolCallId: toolCall.id,
         toolId: toolCall.id,
       }
-      logger.info('Sending request', { body: safeStringify(body, 1200) })
 
       const response = await fetch('/api/copilot/methods', {
         method: 'POST',

@@ -70,7 +70,6 @@ export class GDriveRequestAccessTool extends BaseTool {
         toolCallId: toolCall.id,
         toolId: toolCall.id,
       }
-      logger.info('Sending request access method call', { toolCallId: toolCall.id })
 
       const response = await fetch('/api/copilot/methods', {
         method: 'POST',

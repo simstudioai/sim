@@ -62,14 +62,6 @@ export class SearchDocumentationClientTool extends BaseTool {
     try {
       options?.onStateChange?.('executing')
 
-      // Log the entire tool call object first
-      logger.info('FULL TOOL CALL OBJECT:', {
-        toolCallStringified: safeStringify(toolCall, 2000),
-        toolCallKeys: Object.keys(toolCall),
-        toolCallId: toolCall.id,
-        toolCallName: (toolCall as any).name,
-      })
-
       // Extended tool call interface to handle streaming arguments
       const extendedToolCall = toolCall as CopilotToolCall & { arguments?: any }
 
@@ -85,21 +77,11 @@ export class SearchDocumentationClientTool extends BaseTool {
 
       // Log the raw tool call to understand what we're receiving
       try {
-        logger.info('Raw tool call received:', {
+        logger.info('Received tool call', {
           toolCallId: toolCall.id,
           hasParameters: !!toolCall.parameters,
           hasInput: !!toolCall.input,
           hasArguments: !!extendedToolCall.arguments,
-          parametersType: typeof toolCall.parameters,
-          inputType: typeof toolCall.input,
-          argumentsType: typeof extendedToolCall.arguments,
-          parametersKeys:
-            toolCall.parameters && typeof toolCall.parameters === 'object'
-              ? Object.keys(toolCall.parameters)
-              : [],
-          rawParameters: safeStringify(toolCall.parameters),
-          rawInput: safeStringify(toolCall.input),
-          rawArguments: safeStringify(extendedToolCall.arguments),
         })
       } catch (logError) {
         logger.error('Error logging raw tool call:', logError)
@@ -109,19 +91,10 @@ export class SearchDocumentationClientTool extends BaseTool {
       // Priority: parameters > input > arguments (all should be the same now)
       const provided = toolCall.parameters || toolCall.input || extendedToolCall.arguments || {}
 
-      logger.info('Parameter sources:', {
+      logger.info('Parameter sources', {
         hasArguments: !!extendedToolCall.arguments,
         hasParameters: !!toolCall.parameters,
         hasInput: !!toolCall.input,
-        providedSource: toolCall.parameters
-          ? 'parameters'
-          : toolCall.input
-            ? 'input'
-            : extendedToolCall.arguments
-              ? 'arguments'
-              : 'none',
-        providedKeys: Object.keys(provided),
-        providedStringified: safeStringify(provided),
       })
 
       // Extract search parameters
@@ -130,11 +103,9 @@ export class SearchDocumentationClientTool extends BaseTool {
       const threshold = provided.threshold || provided.similarity_threshold || undefined
 
       logger.info('Extracted search parameters', {
-        query,
-        queryLength: query.length,
-        topK,
-        threshold,
         hasQuery: !!query,
+        topK,
+        hasThreshold: threshold !== undefined,
       })
 
       if (!query || typeof query !== 'string' || query.trim().length === 0) {
@@ -153,13 +124,6 @@ export class SearchDocumentationClientTool extends BaseTool {
         ...(threshold !== undefined && { threshold }),
       }
 
-      logger.info('Final params for search_documentation', {
-        params: paramsToSend,
-        queryLength: paramsToSend.query.length,
-        topK: paramsToSend.topK,
-        hasThreshold: 'threshold' in paramsToSend,
-      })
-
       const requestBody = {
         methodId: 'search_documentation',
         params: paramsToSend,
@@ -167,10 +131,7 @@ export class SearchDocumentationClientTool extends BaseTool {
         toolId: toolCall.id,
       }
 
-      logger.info('Sending request to methods route', {
-        url: '/api/copilot/methods',
-        body: safeStringify(requestBody, 1000),
-      })
+      logger.info('Sending request to methods route', { url: '/api/copilot/methods' })
 
       const response = await fetch('/api/copilot/methods', {
         method: 'POST',
@@ -179,10 +140,7 @@ export class SearchDocumentationClientTool extends BaseTool {
         body: JSON.stringify(requestBody),
       })
 
-      logger.info('Methods route response received', {
-        ok: response.ok,
-        status: response.status,
-      })
+      logger.info('Methods route response received', { status: response.status })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
@@ -195,12 +153,6 @@ export class SearchDocumentationClientTool extends BaseTool {
       }
 
       const result = await response.json()
-      logger.info('Methods route parsed JSON', {
-        success: result?.success,
-        hasData: !!result?.data,
-        resultsCount: result?.data?.results?.length,
-        totalResults: result?.data?.totalResults,
-      })
 
       if (!result.success) {
         options?.onStateChange?.('errored')

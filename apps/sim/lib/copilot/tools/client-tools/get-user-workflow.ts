@@ -91,10 +91,7 @@ export class GetUserWorkflowTool extends BaseTool {
   ): Promise<ToolExecuteResult> {
     const logger = createLogger('GetUserWorkflowTool')
 
-    logger.info('Starting client tool execution', {
-      toolCallId: toolCall.id,
-      toolName: toolCall.name,
-    })
+    logger.info('Starting client tool execution', { toolCallId: toolCall.id })
 
     try {
       // Parse parameters
@@ -114,11 +111,6 @@ export class GetUserWorkflowTool extends BaseTool {
         }
         workflowId = activeWorkflowId
       }
-
-      logger.info('Fetching user workflow from stores', {
-        workflowId,
-        includeMetadata: params.includeMetadata,
-      })
 
       let workflowState: any = null
 
@@ -142,14 +134,10 @@ export class GetUserWorkflowTool extends BaseTool {
             }
           }
 
-          logger.warn('No workflow state found, using workflow metadata only', { workflowId })
+          logger.warn('No workflow state found, using workflow metadata only')
           workflowState = workflow
         } else {
           workflowState = fullWorkflowState
-          logger.info('Using workflow state from workflow store', {
-            workflowId,
-            blockCount: Object.keys(fullWorkflowState.blocks || {}).length,
-          })
         }
       }
 
@@ -180,25 +168,11 @@ export class GetUserWorkflowTool extends BaseTool {
           })
         }
       } catch (mergeError) {
-        logger.warn('Failed to merge subblock values; proceeding with raw workflow state', {
-          workflowId,
-          error: mergeError instanceof Error ? mergeError.message : String(mergeError),
-        })
+        logger.warn('Failed to merge subblock values; proceeding with raw workflow state')
       }
 
-      logger.info('Validating workflow state', {
-        workflowId,
-        hasWorkflowState: !!workflowState,
-        hasBlocks: !!workflowState?.blocks,
-        workflowStateType: typeof workflowState,
-      })
-
       if (!workflowState || !workflowState.blocks) {
-        logger.error('Workflow state validation failed', {
-          workflowId,
-          workflowState: workflowState,
-          hasBlocks: !!workflowState?.blocks,
-        })
+        logger.error('Workflow state validation failed')
         options?.onStateChange?.('errored')
         return {
           success: false,
@@ -209,15 +183,7 @@ export class GetUserWorkflowTool extends BaseTool {
       let workflowJson: string
       try {
         workflowJson = JSON.stringify(workflowState, null, 2)
-        logger.info('Successfully stringified workflow state', {
-          workflowId,
-          jsonLength: workflowJson.length,
-        })
       } catch (stringifyError) {
-        logger.error('Error stringifying workflow state', {
-          workflowId,
-          error: stringifyError,
-        })
         options?.onStateChange?.('errored')
         return {
           success: false,
@@ -267,9 +233,6 @@ export class GetUserWorkflowTool extends BaseTool {
 
         if (yamlContent) {
           await diffStore.setProposedChanges(yamlContent)
-          logger.info('Diff store updated from get_user_workflow result', {
-            yamlLength: yamlContent.length,
-          })
         } else {
           logger.warn('No yamlContent found/derived in server result to trigger diff')
         }

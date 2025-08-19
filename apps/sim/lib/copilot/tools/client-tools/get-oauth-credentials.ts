@@ -51,12 +51,6 @@ export class GetOAuthCredentialsClientTool extends BaseTool {
       const provided = (toolCall.parameters || toolCall.input || {}) as Record<string, any>
       const userId: string | undefined = provided.userId
 
-      logger.info('Posting get_oauth_credentials to methods route', {
-        toolCallId: toolCall.id,
-        methodId: 'get_oauth_credentials',
-        hasUserId: !!userId,
-      })
-
       const response = await fetch('/api/copilot/methods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -68,10 +62,7 @@ export class GetOAuthCredentialsClientTool extends BaseTool {
         }),
       })
 
-      logger.info('Methods route response received', {
-        ok: response.ok,
-        status: response.status,
-      })
+      logger.info('Methods route response received', { status: response.status })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))

@@ -57,48 +57,17 @@ export async function POST(req: NextRequest) {
     const { methodId, params, toolCallId, toolId } = MethodExecutionSchema.parse(body)
 
     if (methodId === 'get_user_workflow') {
-      const confirmationMessage = (params as any)?.confirmationMessage
-      const fullData = (params as any)?.fullData
-      logger.info(`[${requestId}] [NEW_FLOW] get_user_workflow payload received`, {
-        methodId,
-        toolId,
+      logger.info(`[${requestId}] get_user_workflow request`, {
         toolCallId,
-        fromSessionAuth: sessionAuth.isAuthenticated,
-        hasConfirmationMessage: typeof confirmationMessage === 'string',
-        confirmationMessageLength:
-          typeof confirmationMessage === 'string' ? confirmationMessage.length : null,
-        hasFullData: !!fullData,
-        fullDataKeys: fullData ? Object.keys(fullData) : [],
-        fullDataUserWorkflowLength:
-          fullData && typeof fullData.userWorkflow === 'string'
-            ? fullData.userWorkflow.length
-            : null,
+        hasParams: !!params,
       })
     }
 
     if (methodId === 'get_blocks_metadata') {
       const blockIds = (params as any)?.blockIds
-      logger.info(`[${requestId}] [NEW_FLOW] get_blocks_metadata payload received`, {
-        methodId,
-        toolId,
+      logger.info(`[${requestId}] get_blocks_metadata request`, {
         toolCallId,
         hasBlockIds: Array.isArray(blockIds),
-        blockIdsType:
-          blockIds === undefined
-            ? 'undefined'
-            : Array.isArray(blockIds)
-              ? 'array'
-              : typeof blockIds,
-        blockIdsCount: Array.isArray(blockIds) ? blockIds.length : null,
-        blockIdsPreview: Array.isArray(blockIds) ? blockIds.slice(0, 10) : undefined,
-        paramsRawKeys: Object.keys((params as any) || {}),
-        paramsRawPreview: (() => {
-          try {
-            return JSON.stringify(params).substring(0, 200)
-          } catch {
-            return 'unserializable'
-          }
-        })(),
       })
     }
 

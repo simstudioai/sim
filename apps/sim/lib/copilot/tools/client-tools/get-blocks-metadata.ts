@@ -7,7 +7,6 @@ import {
   getProvidedParams,
   normalizeToolCallArguments,
   postToMethods,
-  safeStringify,
 } from '@/lib/copilot/tools/client-tools/client-utils'
 import type {
   CopilotToolCall,
@@ -65,12 +64,6 @@ export class GetBlocksMetadataClientTool extends BaseTool {
           values: blockIds,
         })
       } else {
-        logger.info('blockIds not found directly, trying alternative extraction', {
-          hasBlockIds: !!provided.blockIds,
-          blockIdsType: provided.blockIds ? typeof provided.blockIds : 'undefined',
-          blockIdsValue: safeStringify(provided.blockIds),
-        })
-
         const args = (provided as any).arguments || provided
 
         const candidate =
@@ -88,13 +81,6 @@ export class GetBlocksMetadataClientTool extends BaseTool {
           provided.block_types
 
         const raw = candidate
-
-        logger.info('Candidate extraction result', {
-          hasCandidate: !!raw,
-          candidateType:
-            raw === undefined ? 'undefined' : Array.isArray(raw) ? 'array' : typeof raw,
-          candidateValue: safeStringify(raw),
-        })
 
         if (Array.isArray(raw)) {
           blockIds = raw.map((v) => String(v))
@@ -131,24 +117,9 @@ export class GetBlocksMetadataClientTool extends BaseTool {
         }
       }
 
-      logger.info('Parsed tool call for get_blocks_metadata', {
-        toolCallId: toolCall.id,
-        hasBlockIds: !!blockIds,
-        parsedIsArray: Array.isArray(blockIds),
-        parsedCount: Array.isArray(blockIds) ? blockIds.length : 0,
-        parsedValues: Array.isArray(blockIds) ? blockIds : undefined,
-      })
-
       const paramsToSend = {
         blockIds: Array.isArray(blockIds) ? blockIds : [],
       }
-
-      logger.info('Final params for get_blocks_metadata', {
-        params: paramsToSend,
-        blockIdsType: Array.isArray(paramsToSend.blockIds) ? 'array' : typeof paramsToSend.blockIds,
-        blockIdsCount: paramsToSend.blockIds.length,
-        blockIdsValue: paramsToSend.blockIds,
-      })
 
       return await postToMethods(
         'get_blocks_metadata',

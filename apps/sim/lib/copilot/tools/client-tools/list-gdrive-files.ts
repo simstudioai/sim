@@ -7,7 +7,6 @@ import {
   getProvidedParams,
   normalizeToolCallArguments,
   postToMethods,
-  safeStringify,
 } from '@/lib/copilot/tools/client-tools/client-utils'
 import type {
   CopilotToolCall,
@@ -57,7 +56,6 @@ export class ListGDriveFilesClientTool extends BaseTool {
     try {
       normalizeToolCallArguments(toolCall)
       const provided = getProvidedParams(toolCall)
-      logger.info('Provided params', { toolCallId: toolCall.id, provided: safeStringify(provided) })
 
       const userId = provided.userId || provided.user_id || provided.user || ''
       const search_query =

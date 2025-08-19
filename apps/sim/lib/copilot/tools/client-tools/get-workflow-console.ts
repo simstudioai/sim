@@ -78,8 +78,6 @@ export class GetWorkflowConsoleClientTool extends BaseTool {
       logger.info('get_workflow_console: prepared params', {
         toolCallId: toolCall.id,
         hasWorkflowId: !!workflowId,
-        limit,
-        includeDetails,
       })
 
       if (!workflowId) {
@@ -97,7 +95,6 @@ export class GetWorkflowConsoleClientTool extends BaseTool {
         toolCallId: toolCall.id,
         toolId: toolCall.id,
       }
-      logger.info('Sending request', { body: safeStringify(body, 1200) })
 
       const response = await fetch('/api/copilot/methods', {
         method: 'POST',

@@ -49,10 +49,6 @@ export class GetBlocksAndToolsClientTool extends BaseTool {
 
     try {
       normalizeToolCallArguments(toolCall)
-      logger.info('Posting get_blocks_and_tools to methods route', {
-        toolCallId: toolCall.id,
-        methodId: 'get_blocks_and_tools',
-      })
 
       return await postToMethods(
         'get_blocks_and_tools',

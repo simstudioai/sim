@@ -23,10 +23,6 @@ export function normalizeToolCallArguments(toolCall: CopilotToolCall): CopilotTo
   if (extended.arguments && !toolCall.parameters && !toolCall.input) {
     toolCall.input = extended.arguments
     toolCall.parameters = extended.arguments
-    logger.info('Mapped arguments to input/parameters', {
-      toolCallId: toolCall.id,
-      argumentsPreview: safeStringify(extended.arguments, 400),
-    })
   }
   return toolCall
 }
@@ -52,11 +48,6 @@ export async function postToMethods(
       toolId: toolIdentifiers.toolId ?? toolIdentifiers.toolCallId ?? null,
     }
 
-    logger.info('Sending request to methods route', {
-      methodId,
-      body: safeStringify(requestBody, 1000),
-    })
-
     const response = await fetch('/api/copilot/methods', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -64,7 +55,7 @@ export async function postToMethods(
       body: JSON.stringify(requestBody),
     })
 
-    logger.info('Methods route response received', { ok: response.ok, status: response.status })
+    logger.info('Methods route response received', { status: response.status })
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))

@@ -57,12 +57,6 @@ export class GetEnvironmentVariablesClientTool extends BaseTool {
         workflowId = activeWorkflowId || undefined
       }
 
-      logger.info('Posting get_environment_variables to methods route', {
-        toolCallId: toolCall.id,
-        methodId: 'get_environment_variables',
-        hasWorkflowId: !!workflowId,
-      })
-
       const response = await fetch('/api/copilot/methods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -74,10 +68,7 @@ export class GetEnvironmentVariablesClientTool extends BaseTool {
         }),
       })
 
-      logger.info('Methods route response received', {
-        ok: response.ok,
-        status: response.status,
-      })
+      logger.info('Methods route response received', { status: response.status })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
