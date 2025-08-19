@@ -164,8 +164,12 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
         if (data && typeof data === 'string' && data.trim()) {
           try {
             parsedData = JSON.parse(data)
-          } catch (_e) {
-            throw new Error('Invalid JSON data format')
+          } catch (parseError) {
+            // Provide more detailed error information
+            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+            throw new Error(
+              `Invalid JSON data format: ${errorMsg}. Please check your JSON syntax (e.g., strings must be quoted like "value").`
+            )
           }
         } else if (data && typeof data === 'object') {
           parsedData = data
