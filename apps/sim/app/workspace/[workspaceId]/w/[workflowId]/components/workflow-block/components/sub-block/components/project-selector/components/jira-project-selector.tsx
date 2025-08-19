@@ -149,15 +149,14 @@ export function JiraProjectSelector({
 
       try {
         // Get the access token from the selected credential
-        const tokenUrl = new URL('/api/auth/oauth/token', window.location.origin)
-        if (workflowId) tokenUrl.searchParams.set('workflowId', workflowId)
-        const tokenResponse = await fetch(tokenUrl.toString(), {
+        const tokenResponse = await fetch('/api/auth/oauth/token', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             credentialId: selectedCredentialId,
+            workflowId,
           }),
         })
 
@@ -236,15 +235,14 @@ export function JiraProjectSelector({
 
       try {
         // Get the access token from the selected credential
-        const tokenUrl = new URL('/api/auth/oauth/token', window.location.origin)
-        if (workflowId) tokenUrl.searchParams.set('workflowId', workflowId)
-        const tokenResponse = await fetch(tokenUrl.toString(), {
+        const tokenResponse = await fetch('/api/auth/oauth/token', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             credentialId: selectedCredentialId,
+            workflowId,
           }),
         })
 
