@@ -301,7 +301,7 @@ export function EnvironmentVariables({
         ref={scrollContainerRef}
         className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
       >
-        <div className='space-y-2 py-2'>
+        <div className='h-full space-y-2 py-2'>
           {isLoading ? (
             <>
               {/* Show 3 skeleton rows */}
@@ -320,7 +320,7 @@ export function EnvironmentVariables({
               )}
               {/* Show message when search has no results but there are variables */}
               {searchTerm.trim() && filteredEnvVars.length === 0 && envVars.length > 0 && (
-                <div className='py-8 text-center text-muted-foreground text-sm'>
+                <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
                   No environment variables found matching "{searchTerm}"
                 </div>
               )}

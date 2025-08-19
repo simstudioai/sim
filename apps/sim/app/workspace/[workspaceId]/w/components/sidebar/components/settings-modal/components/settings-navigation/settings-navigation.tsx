@@ -1,13 +1,13 @@
 import {
   Bot,
   CreditCard,
-  KeyRound,
-  KeySquare,
-  Lock,
+  FileCode,
+  Key,
   Settings,
   Shield,
-  UserCircle,
+  User,
   Users,
+  Waypoints,
 } from 'lucide-react'
 import { getEnv, isTruthy } from '@/lib/env'
 import { isHosted } from '@/lib/environment'
@@ -57,28 +57,28 @@ const allNavigationItems: NavigationItem[] = [
     icon: Settings,
   },
   {
+    id: 'credentials',
+    label: 'Integrations',
+    icon: Waypoints,
+  },
+  {
     id: 'environment',
     label: 'Environment',
-    icon: KeyRound,
+    icon: FileCode,
   },
   {
     id: 'account',
     label: 'Account',
-    icon: UserCircle,
-  },
-  {
-    id: 'credentials',
-    label: 'Credentials',
-    icon: Lock,
+    icon: User,
   },
   {
     id: 'apikeys',
     label: 'API Keys',
-    icon: KeySquare,
+    icon: Key,
   },
   {
     id: 'copilot',
-    label: 'Copilot',
+    label: 'Copilot Keys',
     icon: Bot,
   },
   {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, Copy, KeySquare, Plus, Search } from 'lucide-react'
+import { Check, Copy, Plus, Search } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -173,7 +173,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
 
       {/* Scrollable Content */}
       <div className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'>
-        <div className='space-y-2 py-2'>
+        <div className='h-full space-y-2 py-2'>
           {isLoading ? (
             <div className='space-y-2'>
               <ApiKeySkeleton />
@@ -181,13 +181,8 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
               <ApiKeySkeleton />
             </div>
           ) : apiKeys.length === 0 ? (
-            <div className='py-8 text-center'>
-              <div className='mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted'>
-                <KeySquare className='h-6 w-6 text-primary' />
-              </div>
-              <p className='text-muted-foreground text-sm'>
-                No API keys yet. Click "Create Key" below to get started.
-              </p>
+            <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
+              Click "Create Key" below to get started
             </div>
           ) : (
             <div className='space-y-2'>

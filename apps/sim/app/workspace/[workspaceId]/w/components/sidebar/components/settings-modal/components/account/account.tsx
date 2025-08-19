@@ -194,7 +194,7 @@ export function Account({ onOpenChange }: AccountProps) {
 
   return (
     <div className='px-6 pt-4 pb-4'>
-      <div className='flex flex-col gap-6'>
+      <div className='flex flex-col gap-4'>
         {isLoadingProfile || isPending ? (
           <>
             {/* User Info Section Skeleton */}
@@ -212,7 +212,7 @@ export function Account({ onOpenChange }: AccountProps) {
             {/* Name Field Skeleton */}
             <div className='flex flex-col gap-2'>
               <Skeleton className='h-4 w-16' />
-              <div className='flex items-center gap-6'>
+              <div className='flex items-center gap-4'>
                 <Skeleton className='h-5 w-40' />
                 <Skeleton className='h-5 w-[42px]' />
               </div>
@@ -227,7 +227,7 @@ export function Account({ onOpenChange }: AccountProps) {
             {/* Password Field Skeleton */}
             <div className='flex flex-col gap-2'>
               <Skeleton className='h-4 w-16' />
-              <div className='flex items-center gap-6'>
+              <div className='flex items-center gap-4'>
                 <Skeleton className='h-5 w-20' />
                 <Skeleton className='h-5 w-[42px]' />
               </div>
@@ -285,7 +285,7 @@ export function Account({ onOpenChange }: AccountProps) {
                   spellCheck='false'
                 />
               ) : (
-                <div className='flex items-center gap-6'>
+                <div className='flex items-center gap-4'>
                   <span className='text-sm'>{name}</span>
                   <Button
                     variant='ghost'
@@ -308,7 +308,7 @@ export function Account({ onOpenChange }: AccountProps) {
             {/* Password Field */}
             <div className='flex flex-col gap-2'>
               <Label className='font-normal text-muted-foreground text-xs'>Password</Label>
-              <div className='flex items-center gap-6'>
+              <div className='flex items-center gap-4'>
                 <span className='text-sm'>••••••••</span>
                 <Button
                   variant='ghost'
