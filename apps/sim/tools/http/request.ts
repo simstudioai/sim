@@ -67,12 +67,12 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       const processedUrl = processUrl(params.url, params.pathParams, params.params)
       const allHeaders = getDefaultHeaders(headers, processedUrl)
 
-      // Set appropriate Content-Type
+      // Set appropriate Content-Type only if not already specified by user
       if (params.formData) {
         // Don't set Content-Type for FormData, browser will set it with boundary
         return allHeaders
       }
-      if (params.body) {
+      if (params.body && !allHeaders['Content-Type'] && !allHeaders['content-type']) {
         allHeaders['Content-Type'] = 'application/json'
       }
 
@@ -89,6 +89,24 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       }
 
       if (params.body) {
+        // Check if user wants URL-encoded form data
+        const headers = transformTable(params.headers || null)
+        const contentType = headers['Content-Type'] || headers['content-type']
+
+        if (
+          contentType === 'application/x-www-form-urlencoded' &&
+          typeof params.body === 'object'
+        ) {
+          // Convert JSON object to URL-encoded string
+          const urlencoded = new URLSearchParams()
+          Object.entries(params.body).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+              urlencoded.append(key, String(value))
+            }
+          })
+          return urlencoded.toString()
+        }
+
         return params.body
       }
 

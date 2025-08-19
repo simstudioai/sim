@@ -164,7 +164,7 @@ describe('formatRequestParams', () => {
     })
 
     // Return a preformatted body
-    mockTool.request.body = vi.fn().mockReturnValue({ body: 'key1=value1&key2=value2' })
+    mockTool.request.body = vi.fn().mockReturnValue('key1=value1&key2=value2')
 
     const params = { method: 'POST' }
     const result = formatRequestParams(mockTool, params)
@@ -179,9 +179,7 @@ describe('formatRequestParams', () => {
     })
 
     // Return a preformatted body for NDJSON
-    mockTool.request.body = vi.fn().mockReturnValue({
-      body: '{"prompt": "Hello"}\n{"prompt": "World"}',
-    })
+    mockTool.request.body = vi.fn().mockReturnValue('{"prompt": "Hello"}\n{"prompt": "World"}')
 
     const params = { method: 'POST' }
     const result = formatRequestParams(mockTool, params)
