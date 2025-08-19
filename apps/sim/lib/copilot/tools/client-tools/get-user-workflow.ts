@@ -12,10 +12,8 @@ import type {
 } from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import { Serializer } from '@/serializer'
+import { buildUserWorkflowJson } from '@/lib/copilot/tools/client-tools/workflow-helpers'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { mergeSubblockState } from '@/stores/workflows/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface GetUserWorkflowParams {
   workflowId?: string
@@ -98,100 +96,8 @@ export class GetUserWorkflowTool extends BaseTool {
       const rawParams = toolCall.parameters || toolCall.input || {}
       const params = rawParams as GetUserWorkflowParams
 
-      // Get workflow ID - use provided or active workflow
-      let workflowId = params.workflowId
-      if (!workflowId) {
-        const { activeWorkflowId } = useWorkflowRegistry.getState()
-        if (!activeWorkflowId) {
-          options?.onStateChange?.('errored')
-          return {
-            success: false,
-            error: 'No active workflow found',
-          }
-        }
-        workflowId = activeWorkflowId
-      }
-
-      let workflowState: any = null
-
-      const diffStore = useWorkflowDiffStore.getState()
-      if (diffStore.diffWorkflow && Object.keys(diffStore.diffWorkflow.blocks || {}).length > 0) {
-        workflowState = diffStore.diffWorkflow
-        logger.info('Using workflow from diff/preview store', { workflowId })
-      } else {
-        const workflowStore = useWorkflowStore.getState()
-        const fullWorkflowState = workflowStore.getWorkflowState()
-
-        if (!fullWorkflowState || !fullWorkflowState.blocks) {
-          const workflowRegistry = useWorkflowRegistry.getState()
-          const workflow = workflowRegistry.workflows[workflowId]
-
-          if (!workflow) {
-            options?.onStateChange?.('errored')
-            return {
-              success: false,
-              error: `Workflow ${workflowId} not found in any store`,
-            }
-          }
-
-          logger.warn('No workflow state found, using workflow metadata only')
-          workflowState = workflow
-        } else {
-          workflowState = fullWorkflowState
-        }
-      }
-
-      if (workflowState) {
-        if (!workflowState.loops) {
-          workflowState.loops = {}
-        }
-        if (!workflowState.parallels) {
-          workflowState.parallels = {}
-        }
-        if (!workflowState.edges) {
-          workflowState.edges = []
-        }
-        if (!workflowState.blocks) {
-          workflowState.blocks = {}
-        }
-      }
-
-      try {
-        if (workflowState?.blocks) {
-          workflowState = {
-            ...workflowState,
-            blocks: mergeSubblockState(workflowState.blocks, workflowId),
-          }
-          logger.info('Merged subblock values into workflow state', {
-            workflowId,
-            blockCount: Object.keys(workflowState.blocks || {}).length,
-          })
-        }
-      } catch (mergeError) {
-        logger.warn('Failed to merge subblock values; proceeding with raw workflow state')
-      }
-
-      if (!workflowState || !workflowState.blocks) {
-        logger.error('Workflow state validation failed')
-        options?.onStateChange?.('errored')
-        return {
-          success: false,
-          error: 'Workflow state is empty or invalid',
-        }
-      }
-
-      let workflowJson: string
-      try {
-        workflowJson = JSON.stringify(workflowState, null, 2)
-      } catch (stringifyError) {
-        options?.onStateChange?.('errored')
-        return {
-          success: false,
-          error: `Failed to convert workflow to JSON: ${
-            stringifyError instanceof Error ? stringifyError.message : 'Unknown error'
-          }`,
-        }
-      }
+      // Build workflow JSON using shared helper
+      const workflowJson = buildUserWorkflowJson(params.workflowId)
 
       // Post to server via shared utility
       const result = await postToMethods(
