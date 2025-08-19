@@ -13,6 +13,7 @@ import {
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console/logger'
+import { redactApiKeys } from '@/lib/utils'
 import {
   CodeDisplay,
   JSONView,
@@ -349,9 +350,10 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
       // For code display, copy just the code string
       textToCopy = entry.input.code
     } else {
-      // For regular JSON display, copy the full JSON
+      // For regular JSON display, copy the full JSON with redaction applied
       const dataToCopy = showInput ? entry.input : entry.output
-      textToCopy = JSON.stringify(dataToCopy, null, 2)
+      const redactedData = redactApiKeys(dataToCopy)
+      textToCopy = JSON.stringify(redactedData, null, 2)
     }
 
     navigator.clipboard.writeText(textToCopy)

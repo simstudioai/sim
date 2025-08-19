@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, validateName } from '@/lib/utils'
+import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -76,12 +77,16 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     : (currentBlock?.enabled ?? true)
 
   // Get diff status from the block itself (set by diff engine)
-  const diffStatus =
-    currentWorkflow.isDiffMode && currentBlock ? (currentBlock as any).is_diff : undefined
+  const diffStatus: DiffStatus =
+    currentWorkflow.isDiffMode && currentBlock && hasDiffStatus(currentBlock)
+      ? currentBlock.is_diff
+      : undefined
 
-  // Get field-level diff information
+  // Get field-level diff information for this specific block
   const fieldDiff =
-    currentWorkflow.isDiffMode && currentBlock ? (currentBlock as any).field_diffs : undefined
+    currentWorkflow.isDiffMode && currentBlock && hasDiffStatus(currentBlock)
+      ? currentBlock.field_diffs?.[id]
+      : undefined
 
   // Debug: Log diff status for this block
   useEffect(() => {

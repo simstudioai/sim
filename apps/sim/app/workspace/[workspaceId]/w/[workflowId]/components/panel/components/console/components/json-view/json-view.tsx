@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { redactApiKeys } from '@/lib/utils'
 
 interface JSONViewProps {
   data: any
@@ -154,6 +155,9 @@ export const JSONView = ({ data }: JSONViewProps) => {
     y: number
   } | null>(null)
 
+  // Apply redaction to the data before displaying
+  const redactedData = redactApiKeys(data)
+
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
     setContextMenuPosition({ x: e.clientX, y: e.clientY })
@@ -167,18 +171,18 @@ export const JSONView = ({ data }: JSONViewProps) => {
     }
   }, [contextMenuPosition])
 
-  if (data === null)
+  if (redactedData === null)
     return <span className='font-[380] text-muted-foreground leading-normal'>null</span>
 
   // For non-object data, show simple JSON
-  if (typeof data !== 'object') {
-    const stringValue = JSON.stringify(data)
+  if (typeof redactedData !== 'object') {
+    const stringValue = JSON.stringify(redactedData)
     return (
       <span
         onContextMenu={handleContextMenu}
         className='relative max-w-full overflow-hidden break-all font-[380] font-mono text-muted-foreground leading-normal'
       >
-        {typeof data === 'string' ? (
+        {typeof redactedData === 'string' ? (
           <TruncatedValue value={stringValue} />
         ) : (
           <span className='break-all font-[380] text-muted-foreground leading-normal'>
@@ -192,7 +196,7 @@ export const JSONView = ({ data }: JSONViewProps) => {
           >
             <button
               className='w-full px-3 py-1.5 text-left font-[380] text-sm hover:bg-accent'
-              onClick={() => copyToClipboard(data)}
+              onClick={() => copyToClipboard(redactedData)}
             >
               Copy value
             </button>
@@ -206,7 +210,7 @@ export const JSONView = ({ data }: JSONViewProps) => {
   return (
     <div onContextMenu={handleContextMenu}>
       <pre className='max-w-full overflow-hidden whitespace-pre-wrap break-all font-mono'>
-        <CollapsibleJSON data={data} />
+        <CollapsibleJSON data={redactedData} />
       </pre>
       {contextMenuPosition && (
         <div
@@ -215,7 +219,7 @@ export const JSONView = ({ data }: JSONViewProps) => {
         >
           <button
             className='w-full px-3 py-1.5 text-left font-[380] text-sm hover:bg-accent'
-            onClick={() => copyToClipboard(data)}
+            onClick={() => copyToClipboard(redactedData)}
           >
             Copy object
           </button>

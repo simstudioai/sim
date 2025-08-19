@@ -32,7 +32,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
-import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -341,10 +340,11 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
    * Handle deleting the current workflow
    */
   const handleDeleteWorkflow = () => {
-    if (!activeWorkflowId || !userPermissions.canEdit) return
+    const currentWorkflowId = params.workflowId as string
+    if (!currentWorkflowId || !userPermissions.canEdit) return
 
     const sidebarWorkflows = getSidebarOrderedWorkflows()
-    const currentIndex = sidebarWorkflows.findIndex((w) => w.id === activeWorkflowId)
+    const currentIndex = sidebarWorkflows.findIndex((w) => w.id === currentWorkflowId)
 
     // Find next workflow: try next, then previous
     let nextWorkflowId: string | null = null
@@ -363,8 +363,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       router.push(`/workspace/${workspaceId}`)
     }
 
-    // Remove the workflow from the registry
-    useWorkflowRegistry.getState().removeWorkflow(activeWorkflowId)
+    // Remove the workflow from the registry using the URL parameter
+    useWorkflowRegistry.getState().removeWorkflow(currentWorkflowId)
   }
 
   // Helper function to open subscription settings
@@ -413,7 +413,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         <Tooltip>
           <TooltipTrigger asChild>
             <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
-              <Trash2 className='h-5 w-5' />
+              <Trash2 className='h-4 w-4' />
             </div>
           </TooltipTrigger>
           <TooltipContent>{getTooltipText()}</TooltipContent>
@@ -498,7 +498,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         <TooltipTrigger asChild>
           {isDisabled ? (
             <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
-              <Copy className='h-5 w-5' />
+              <Copy className='h-4 w-4' />
             </div>
           ) : (
             <Button
@@ -563,9 +563,9 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
           {isDisabled ? (
             <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
               {isAutoLayouting ? (
-                <RefreshCw className='h-5 w-5 animate-spin' />
+                <RefreshCw className='h-4 w-4 animate-spin' />
               ) : (
-                <Layers className='h-5 w-5' />
+                <Layers className='h-4 w-4' />
               )}
             </div>
           ) : (
@@ -721,7 +721,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         <TooltipTrigger asChild>
           {isDisabled ? (
             <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
-              <Store className='h-5 w-5' />
+              <Store className='h-4 w-4' />
             </div>
           ) : (
             <Button
@@ -775,7 +775,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
                 isDebugging && 'text-amber-500'
               )}
             >
-              <Bug className='h-5 w-5' />
+              <Bug className='h-4 w-4' />
             </div>
           ) : (
             <Button variant='outline' onClick={handleDebugToggle} className={buttonClass}>
@@ -1002,8 +1002,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       {renderToggleButton()}
       {isExpanded && <ExportControls />}
       {isExpanded && renderAutoLayoutButton()}
-      {!isDev && isExpanded && renderDuplicateButton()}
-      {isDev && renderDuplicateButton()}
+      {renderDuplicateButton()}
       {renderDeleteButton()}
       {!isDebugging && renderDebugModeToggle()}
       {isExpanded && renderPublishButton()}

@@ -14,7 +14,8 @@ const isContainerType = (blockType: string): boolean => {
     blockType === 'loop' ||
     blockType === 'parallel' ||
     blockType === 'loopNode' ||
-    blockType === 'parallelNode'
+    blockType === 'parallelNode' ||
+    blockType === 'subflowNode'
   )
 }
 
@@ -325,7 +326,10 @@ export const updateNodeParent = (
   } else if (currentParentId) {
     const absolutePosition = getNodeAbsolutePosition(nodeId, getNodes)
 
+    // First set the absolute position so the node visually stays in place
     updateBlockPosition(nodeId, absolutePosition)
+    // Then clear the parent relationship in the store (empty string removes parentId/extent)
+    updateParentId(nodeId, '', 'parent')
   }
 
   resizeLoopNodes()

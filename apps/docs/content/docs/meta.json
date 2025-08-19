@@ -12,6 +12,8 @@
     "connections",
     "---Execution---",
     "execution",
+    "---Copilot---",
+    "copilot",
     "---Advanced---",
     "./variables/index",
     "yaml",

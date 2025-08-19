@@ -1,11 +1,25 @@
 import type { Edge } from 'reactflow'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBlock } from '@/blocks'
+import type { SubBlockConfig } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 import { getTool } from '@/tools/utils'
 
 const logger = createLogger('Serializer')
+
+/**
+ * Helper function to check if a subblock should be included in serialization based on current mode
+ */
+function shouldIncludeField(subBlockConfig: SubBlockConfig, isAdvancedMode: boolean): boolean {
+  const fieldMode = subBlockConfig.mode
+
+  if (fieldMode === 'advanced' && !isAdvancedMode) {
+    return false // Skip advanced-only fields when in basic mode
+  }
+
+  return true
+}
 
 export class Serializer {
   serializeWorkflow(
@@ -198,16 +212,26 @@ export class Serializer {
     }
 
     const params: Record<string, any> = {}
+    const isAdvancedMode = block.advancedMode ?? false
 
-    // First collect all current values from subBlocks
+    // First collect all current values from subBlocks, filtering by mode
     Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
-      params[id] = subBlock.value
+      // Find the corresponding subblock config to check its mode
+      const subBlockConfig = blockConfig.subBlocks.find((config) => config.id === id)
+
+      if (subBlockConfig && shouldIncludeField(subBlockConfig, isAdvancedMode)) {
+        params[id] = subBlock.value
+      }
     })
 
     // Then check for any subBlocks with default values
     blockConfig.subBlocks.forEach((subBlockConfig) => {
       const id = subBlockConfig.id
-      if (params[id] === null && subBlockConfig.value) {
+      if (
+        params[id] === null &&
+        subBlockConfig.value &&
+        shouldIncludeField(subBlockConfig, isAdvancedMode)
+      ) {
         // If the value is null and there's a default value function, use it
         params[id] = subBlockConfig.value(params)
       }
