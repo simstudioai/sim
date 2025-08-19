@@ -40,14 +40,16 @@ class SimAgentClient {
     } = {}
   ): Promise<SimAgentResponse<T>> {
     const requestId = crypto.randomUUID().slice(0, 8)
-    const { method = 'POST', body, headers = {} } = options
+    const { method = 'POST', body, headers = {}, apiKey } = options
 
     try {
       const url = `${this.baseUrl}${endpoint}`
 
       // Use provided API key or try to get it from environment
+      const resolvedApiKey = apiKey || env.COPILOT_API_KEY
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
+        ...(resolvedApiKey ? { 'x-api-key': resolvedApiKey } : {}),
         ...headers,
       }
 
@@ -55,6 +57,7 @@ class SimAgentClient {
         url,
         method,
         hasBody: !!body,
+        hasApiKey: !!resolvedApiKey,
       })
 
       const fetchOptions: RequestInit = {

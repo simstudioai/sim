@@ -81,7 +81,7 @@ export class GetUserWorkflowTool extends BaseTool {
   }
 
   /**
-   * Execute the tool - fetch the workflow from stores and write to Redis
+   * Execute the tool - fetch the workflow from stores and call the server method
    */
   async execute(
     toolCall: CopilotToolCall,
@@ -210,23 +210,6 @@ export class GetUserWorkflowTool extends BaseTool {
         }
       }
 
-      // Include metadata if requested and available
-      if (params.includeMetadata && workflowState.metadata) {
-        // Metadata is already included in the workflow state
-      }
-
-      logger.info('Successfully fetched user workflow from stores', {
-        workflowId,
-        blockCount: Object.keys(workflowState.blocks || {}).length,
-        fromDiffStore:
-          !!diffStore.diffWorkflow && Object.keys(diffStore.diffWorkflow.blocks || {}).length > 0,
-      })
-
-      logger.info('About to stringify workflow state', {
-        workflowId,
-        workflowStateKeys: Object.keys(workflowState),
-      })
-
       // Convert workflow state to JSON string
       let workflowJson: string
       try {
@@ -243,36 +226,70 @@ export class GetUserWorkflowTool extends BaseTool {
         options?.onStateChange?.('errored')
         return {
           success: false,
-          error: `Failed to convert workflow to JSON: ${stringifyError instanceof Error ? stringifyError.message : 'Unknown error'}`,
+          error: `Failed to convert workflow to JSON: ${
+            stringifyError instanceof Error ? stringifyError.message : 'Unknown error'
+          }`,
         }
       }
-      logger.info('About to notify server with workflow data', {
-        workflowId,
+
+      // Post to server to execute server-side tool and complete
+      options?.onStateChange?.('executing')
+      logger.info('Posting get_user_workflow to methods route', {
         toolCallId: toolCall.id,
-        dataLength: workflowJson.length,
+        methodId: 'get_user_workflow',
+        payloadPreview: workflowJson.substring(0, 200),
+        payloadLength: workflowJson.length,
+      })
+      const response = await fetch('/api/copilot/methods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          methodId: 'get_user_workflow',
+          params: { confirmationMessage: workflowJson, fullData: { userWorkflow: workflowJson } },
+          toolId: toolCall.id,
+        }),
       })
 
-      // Notify server of success with structured data containing userWorkflow
-      const structuredData = JSON.stringify({
-        userWorkflow: workflowJson,
+      logger.info('Methods route response received', {
+        ok: response.ok,
+        status: response.status,
       })
 
-      logger.info('Calling notify with structured data', {
-        toolCallId: toolCall.id,
-        structuredDataLength: structuredData.length,
-      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        logger.error('Methods route returned error', {
+          status: response.status,
+          error: errorData?.error,
+        })
+        options?.onStateChange?.('errored')
+        return {
+          success: false,
+          error: errorData?.error || 'Failed to execute server method',
+        }
+      }
 
-      await this.notify(toolCall.id, 'success', structuredData)
-
-      logger.info('Successfully notified server of success', {
-        toolCallId: toolCall.id,
+      const result = await response.json()
+      logger.info('Methods route parsed JSON', {
+        success: result?.success,
+        hasData: !!result?.data,
       })
+      if (!result.success) {
+        options?.onStateChange?.('errored')
+        return {
+          success: false,
+          error: result.error || 'Server method execution failed',
+        }
+      }
 
       options?.onStateChange?.('success')
-
+      logger.info('Client tool completed successfully', {
+        toolCallId: toolCall.id,
+        returnedDataLength: workflowJson.length,
+      })
       return {
         success: true,
-        data: workflowJson, // Return the same data that goes to Redis
+        data: workflowJson,
       }
     } catch (error: any) {
       logger.error('Error in client tool execution:', {
@@ -281,19 +298,6 @@ export class GetUserWorkflowTool extends BaseTool {
         stack: error instanceof Error ? error.stack : undefined,
         message: error instanceof Error ? error.message : String(error),
       })
-
-      try {
-        // Notify server of error
-        await this.notify(toolCall.id, 'errored', error.message || 'Failed to fetch workflow')
-        logger.info('Successfully notified server of error', {
-          toolCallId: toolCall.id,
-        })
-      } catch (notifyError) {
-        logger.error('Failed to notify server of error:', {
-          toolCallId: toolCall.id,
-          notifyError: notifyError,
-        })
-      }
 
       options?.onStateChange?.('errored')
 

@@ -6,6 +6,8 @@ import { checkCopilotApiKey, checkInternalApiKey } from '@/lib/copilot/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
 import { createErrorResponse } from '@/app/api/copilot/methods/utils'
+import { simAgentClient } from '@/lib/sim-agent'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/auth'
 
 const logger = createLogger('CopilotMethodsAPI')
 
@@ -217,10 +219,36 @@ async function interruptHandler(toolCallId: string): Promise<{
   }
 }
 
+// MethodId for /api/complete-tool payload
+export type MethodId =
+  | 'get_blocks_and_tools'
+  | 'get_blocks_metadata'
+  | 'search_documentation'
+  | 'list_gdrive_files'
+  | 'read_gdrive_file'
+  | 'make_api_request'
+  | 'no_op'
+  | 'search_online'
+  | 'get_environment_variables'
+  | 'get_oauth_credentials'
+  | 'set_environment_variables'
+  | 'build_workflow'
+  | 'edit_workflow'
+  | 'get_user_workflow'
+  | 'get_workflow_console'
+
+// Payload type for sim-agent completion callback
+interface CompleteToolRequestBody {
+  toolId: string
+  methodId: MethodId
+  data: unknown
+}
+
 const MethodExecutionSchema = z.object({
   methodId: z.string().min(1, 'Method ID is required'),
   params: z.record(z.any()).optional().default({}),
   toolCallId: z.string().nullable().optional().default(null),
+  toolId: z.string().nullable().optional().default(null),
 })
 
 /**
@@ -235,7 +263,8 @@ export async function POST(req: NextRequest) {
     // Evaluate both auth schemes; pass if either is valid
     const internalAuth = checkInternalApiKey(req)
     const copilotAuth = checkCopilotApiKey(req)
-    const isAuthenticated = !!(internalAuth?.success || copilotAuth?.success)
+    const sessionAuth = await authenticateCopilotRequestSessionOnly()
+    const isAuthenticated = !!(internalAuth?.success || copilotAuth?.success || sessionAuth.isAuthenticated)
     if (!isAuthenticated) {
       const errorMessage = copilotAuth.error || internalAuth.error || 'Authentication failed'
       return NextResponse.json(createErrorResponse(errorMessage), {
@@ -244,11 +273,30 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { methodId, params, toolCallId } = MethodExecutionSchema.parse(body)
+    const { methodId, params, toolCallId, toolId } = MethodExecutionSchema.parse(body)
+
+    // Additional logging for new client-posted flow
+    if (methodId === 'get_user_workflow') {
+      const confirmationMessage = (params as any)?.confirmationMessage
+      const fullData = (params as any)?.fullData
+      logger.info(`[${requestId}] [NEW_FLOW] get_user_workflow payload received`, {
+        methodId,
+        toolId,
+        toolCallId,
+        fromSessionAuth: sessionAuth.isAuthenticated,
+        hasConfirmationMessage: typeof confirmationMessage === 'string',
+        confirmationMessageLength: typeof confirmationMessage === 'string' ? confirmationMessage.length : null,
+        hasFullData: !!fullData,
+        fullDataKeys: fullData ? Object.keys(fullData) : [],
+        fullDataUserWorkflowLength:
+          fullData && typeof fullData.userWorkflow === 'string' ? fullData.userWorkflow.length : null,
+      })
+    }
 
     logger.info(`[${requestId}] Method execution request`, {
       methodId,
       toolCallId,
+      toolId,
       hasParams: !!params && Object.keys(params).length > 0,
     })
 
@@ -262,7 +310,9 @@ export async function POST(req: NextRequest) {
       })
       return NextResponse.json(
         createErrorResponse(
-          `Unknown method: ${methodId}. Available methods: ${copilotToolRegistry.getAvailableIds().join(', ')}`
+          `Unknown method: ${methodId}. Available methods: ${copilotToolRegistry
+            .getAvailableIds()
+            .join(', ')}`
         ),
         { status: 400 }
       )
@@ -270,6 +320,7 @@ export async function POST(req: NextRequest) {
 
     logger.info(`[${requestId}] Tool found in registry: ${methodId}`, {
       toolCallId,
+      toolId,
     })
 
     // Check if the tool requires interrupt/approval
@@ -338,28 +389,78 @@ export async function POST(req: NextRequest) {
 
       // For tools that need confirmation data, pass the message and/or fullData as parameters
       if (message) {
-        params.confirmationMessage = message
+        ;(params as any).confirmationMessage = message
       }
       if (fullData) {
-        params.fullData = fullData
+        ;(params as any).fullData = fullData
       }
     }
 
     // Execute the tool directly via registry
     const result = await copilotToolRegistry.execute(methodId, params)
 
+    let dataLength: number | null = null
+    try {
+      if (typeof result?.data === 'string') dataLength = result.data.length
+      else if (result?.data !== undefined) dataLength = JSON.stringify(result.data).length
+    } catch {}
+
     logger.info(`[${requestId}] Tool execution result:`, {
       methodId,
       toolCallId,
+      toolId,
       success: result.success,
       hasData: !!result.data,
+      dataLength,
       hasError: !!result.error,
     })
+
+    // Temporary: only send completion callback for get_user_workflow while refactor progresses
+    if (methodId === 'get_user_workflow' && result.success) {
+      const completionPayload: CompleteToolRequestBody = {
+        toolId: (toolId || toolCallId || requestId) as string,
+        methodId: methodId as MethodId,
+        data: result.data as unknown,
+      }
+
+      let completionDataLength: number | null = null
+      try {
+        completionDataLength =
+          typeof completionPayload.data === 'string'
+            ? (completionPayload.data as string).length
+            : JSON.stringify(completionPayload.data).length
+      } catch {}
+
+      logger.info(`[${requestId}] Sending completion payload to sim-agent`, {
+        endpoint: '/api/complete-tool',
+        methodId: completionPayload.methodId,
+        toolId: completionPayload.toolId,
+        hasData: !!completionPayload.data,
+        dataLength: completionDataLength,
+      })
+
+      // Best-effort callback; do not fail the route if this call fails
+      try {
+        const resp = await simAgentClient.makeRequest('/api/complete-tool', {
+          method: 'POST',
+          body: completionPayload as any,
+        })
+        logger.info(`[${requestId}] Sim-agent completion response`, {
+          success: resp.success,
+          status: resp.status,
+        })
+      } catch (callbackError) {
+        logger.error(`[${requestId}] Failed to send completion payload to sim-agent`, {
+          error: callbackError instanceof Error ? callbackError.message : 'Unknown error',
+        })
+      }
+    }
 
     const duration = Date.now() - startTime
     logger.info(`[${requestId}] Method execution completed: ${methodId}`, {
       methodId,
       toolCallId,
+      toolId,
       duration,
       success: result.success,
     })
@@ -371,7 +472,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
       logger.error(`[${requestId}] Request validation error:`, {
         duration,
-        errors: error.errors,
+      errors: error.errors,
       })
       return NextResponse.json(
         createErrorResponse(

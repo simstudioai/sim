@@ -11,7 +11,6 @@ interface GetUserWorkflowParams {
 class GetUserWorkflowTool extends BaseCopilotTool<GetUserWorkflowParams, string> {
   readonly id = 'get_user_workflow'
   readonly displayName = 'Analyzing your workflow'
-  readonly requiresInterrupt = true // This triggers automatic Redis polling
 
   protected async executeImpl(params: GetUserWorkflowParams): Promise<string> {
     const logger = createLogger('GetUserWorkflow')

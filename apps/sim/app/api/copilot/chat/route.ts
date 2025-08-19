@@ -622,6 +622,15 @@ export async function POST(req: NextRequest) {
                           if (event.data?.id) {
                             announcedToolCallIds.add(event.data.id)
                           }
+                          if (event.data?.name === 'get_user_workflow') {
+                            logger.info(
+                              `[${tracker.requestId}] get_user_workflow tool call received in stream; client will execute locally and post to /api/copilot/methods`,
+                              {
+                                toolCallId: event.data?.id,
+                                hasArgs: !!event.data?.arguments,
+                              }
+                            )
+                          }
                         }
                         break
 
