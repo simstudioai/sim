@@ -5,6 +5,7 @@
 import { BaseTool } from '@/lib/copilot/tools/base-tool'
 import type { CopilotToolCall, ToolExecuteResult, ToolExecutionOptions, ToolMetadata } from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 export class GetWorkflowConsoleClientTool extends BaseTool {
   static readonly id = 'get_workflow_console'
@@ -46,9 +47,21 @@ export class GetWorkflowConsoleClientTool extends BaseTool {
       if (ext.arguments && !toolCall.parameters && !toolCall.input) { toolCall.input = ext.arguments; toolCall.parameters = ext.arguments }
       const provided = toolCall.parameters || toolCall.input || ext.arguments || {}
 
-      const workflowId = provided.workflowId || provided.workflow_id || ''
+      let workflowId = provided.workflowId || provided.workflow_id || ''
       const limit = provided.limit
       const includeDetails = provided.includeDetails ?? provided.include_details
+
+      if (!workflowId) {
+        const { activeWorkflowId } = useWorkflowRegistry.getState()
+        if (activeWorkflowId) workflowId = activeWorkflowId
+      }
+
+      logger.info('get_workflow_console: prepared params', {
+        toolCallId: toolCall.id,
+        hasWorkflowId: !!workflowId,
+        limit,
+        includeDetails,
+      })
 
       if (!workflowId) { options?.onStateChange?.('errored'); return { success:false, error:'workflowId is required' } }
 
@@ -60,6 +73,7 @@ export class GetWorkflowConsoleClientTool extends BaseTool {
       logger.info('Sending request', { body: safeStringify(body, 1200) })
 
       const response = await fetch('/api/copilot/methods', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(body) })
+      logger.info('Methods route response', { ok: response.ok, status: response.status })
       if (!response.ok) { const e = await response.json().catch(()=>({})); options?.onStateChange?.('errored'); return { success:false, error: e?.error || 'Failed to get console' } }
       const result = await response.json()
       if (!result.success) { options?.onStateChange?.('errored'); return { success:false, error: result.error || 'Server method failed' } }

@@ -12,6 +12,7 @@ import type {
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { createLogger } from '@/lib/logs/console/logger'
 
 interface RunWorkflowParams {
   workflowId?: string
@@ -101,10 +102,29 @@ export class RunWorkflowTool extends BaseTool {
     toolCall: CopilotToolCall,
     options?: ToolExecutionOptions
   ): Promise<ToolExecuteResult> {
+    const logger = createLogger('RunWorkflowTool')
     try {
-      // Parse parameters from either toolCall.parameters or toolCall.input
+      // Parse parameters from either toolCall.parameters or toolCall.input, support streaming arguments
+      const ext = toolCall as CopilotToolCall & { arguments?: any }
+      if (ext.arguments && !toolCall.parameters && !toolCall.input) {
+        toolCall.input = ext.arguments
+        toolCall.parameters = ext.arguments
+        logger.info('Mapped arguments to input/parameters', {
+          toolCallId: toolCall.id,
+        })
+      }
+
+      options?.onStateChange?.('executing')
+
       const rawParams = toolCall.parameters || toolCall.input || {}
       const params = rawParams as RunWorkflowParams
+
+      logger.info('Starting run_workflow execution', {
+        toolCallId: toolCall.id,
+        hasWorkflowId: !!params.workflowId,
+        hasDescription: !!params.description,
+        hasInput: !!params.workflow_input,
+      })
 
       // Check if workflow is already executing
       const { isExecuting } = useExecutionStore.getState()
@@ -137,18 +157,13 @@ export class RunWorkflowTool extends BaseTool {
       const { setIsExecuting } = useExecutionStore.getState()
       setIsExecuting(true)
 
-      // Note: toolCall.state is already set to 'executing' by clientAcceptTool
-
       // Capture the execution timestamp
       const executionStartTime = new Date().toISOString()
-
-      // Store execution start time in context for background notifications
       if (options?.context) {
         options.context.executionStartTime = executionStartTime
       }
 
       // Use the standalone execution utility with full logging support
-      // This works for both deployed and non-deployed workflows
       const result = await executeWorkflowWithFullLogging({
         workflowInput,
         executionId: toolCall.id, // Use tool call ID as execution ID
