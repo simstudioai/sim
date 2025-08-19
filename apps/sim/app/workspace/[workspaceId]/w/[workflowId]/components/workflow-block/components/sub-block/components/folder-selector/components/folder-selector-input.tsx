@@ -8,6 +8,7 @@ import {
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface FolderSelectorInputProps {
   blockId: string
@@ -25,7 +26,9 @@ export function FolderSelectorInput({
   previewValue,
 }: FolderSelectorInputProps) {
   const [storeValue, _setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+  const [connectedCredential] = useSubBlockValue(blockId, 'credential')
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
+  const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
   const [_folderInfo, setFolderInfo] = useState<FolderInfo | null>(null)
 
@@ -67,6 +70,8 @@ export function FolderSelectorInput({
       disabled={disabled}
       serviceId={subBlock.serviceId}
       onFolderInfoChange={setFolderInfo}
+      credentialId={(connectedCredential as string) || ''}
+      workflowId={activeWorkflowId || ''}
     />
   )
 }
