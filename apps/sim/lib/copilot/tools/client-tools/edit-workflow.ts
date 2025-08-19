@@ -10,9 +10,9 @@ import type {
   ToolMetadata,
 } from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useCopilotStore } from '@/stores/copilot/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useCopilotStore } from '@/stores/copilot/store'
 
 export class EditWorkflowClientTool extends BaseTool {
   static readonly id = 'edit_workflow'
@@ -89,7 +89,11 @@ export class EditWorkflowClientTool extends BaseTool {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ operations, workflowId, ...(currentUserWorkflow ? { currentUserWorkflow } : {}) }),
+        body: JSON.stringify({
+          operations,
+          workflowId,
+          ...(currentUserWorkflow ? { currentUserWorkflow } : {}),
+        }),
       })
       if (!execResp.ok) {
         const e = await execResp.json().catch(() => ({}))

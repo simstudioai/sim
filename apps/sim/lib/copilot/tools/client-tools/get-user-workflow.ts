@@ -4,6 +4,7 @@
 
 import { BaseTool } from '@/lib/copilot/tools/base-tool'
 import { postToMethods } from '@/lib/copilot/tools/client-tools/client-utils'
+import { buildUserWorkflowJson } from '@/lib/copilot/tools/client-tools/workflow-helpers'
 import type {
   CopilotToolCall,
   ToolExecuteResult,
@@ -12,7 +13,6 @@ import type {
 } from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import { Serializer } from '@/serializer'
-import { buildUserWorkflowJson } from '@/lib/copilot/tools/client-tools/workflow-helpers'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 
 interface GetUserWorkflowParams {

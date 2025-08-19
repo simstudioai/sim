@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createLogger } from '@/lib/logs/console/logger'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/auth'
 import { copilotToolRegistry } from '@/lib/copilot/tools/server-tools/registry'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CopilotWorkflowsEditExecuteAPI')
 
@@ -53,4 +53,4 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

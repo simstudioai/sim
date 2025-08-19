@@ -10,6 +10,7 @@ import {
   Brain,
   Check,
   CheckCircle,
+  CircleSlash,
   Code,
   Database,
   Edit,
@@ -25,7 +26,6 @@ import {
   ListTodo,
   Loader2,
   type LucideIcon,
-  Minus,
   Network,
   Play,
   Search,
@@ -39,7 +39,6 @@ import {
   X,
   XCircle,
   Zap,
-  CircleSlash,
 } from 'lucide-react'
 import { toolRegistry } from '@/lib/copilot/tools/registry'
 import type { CopilotToolCall, ToolState } from '@/lib/copilot/tools/types'

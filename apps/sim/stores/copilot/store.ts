@@ -2313,7 +2313,9 @@ export const useCopilotStore = create<CopilotStore>()(
             ...(get().agentPrefetch
               ? (() => {
                   try {
-                    const { buildUserWorkflowJson } = require('@/lib/copilot/tools/client-tools/workflow-helpers')
+                    const {
+                      buildUserWorkflowJson,
+                    } = require('@/lib/copilot/tools/client-tools/workflow-helpers')
                     return { userWorkflow: buildUserWorkflowJson(workflowId) }
                   } catch (e) {
                     logger.warn('Failed to build userWorkflow for prefetch; continuing without it')

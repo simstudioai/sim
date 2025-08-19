@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createLogger } from '@/lib/logs/console/logger'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/auth'
+import { createLogger } from '@/lib/logs/console/logger'
 import { simAgentClient } from '@/lib/sim-agent'
 
 const logger = createLogger('CopilotToolsCompleteAPI')
@@ -60,4 +60,4 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

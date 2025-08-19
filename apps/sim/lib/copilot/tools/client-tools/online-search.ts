@@ -22,7 +22,7 @@ export class OnlineSearchClientTool extends BaseTool {
         success: { displayName: 'Searched online', icon: 'globe' },
         rejected: { displayName: 'Skipped online search', icon: 'circle-slash' },
         errored: { displayName: 'Failed to search online', icon: 'error' },
-        aborted: { displayName: 'Aborted online search', icon: 'abort' }
+        aborted: { displayName: 'Aborted online search', icon: 'abort' },
       },
     },
     schema: {
