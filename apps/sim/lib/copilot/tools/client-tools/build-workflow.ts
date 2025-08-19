@@ -25,6 +25,7 @@ export class BuildWorkflowClientTool extends BaseTool {
         rejected: { displayName: 'Skipped building workflow', icon: 'skip' },
         errored: { displayName: 'Failed to build workflow', icon: 'error' },
         aborted: { displayName: 'Aborted building workflow', icon: 'abort' },
+        accepted: { displayName: 'Built workflow', icon: 'grid2x2Check' },
       },
     },
     schema: {

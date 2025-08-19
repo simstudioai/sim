@@ -27,6 +27,7 @@ export class EditWorkflowClientTool extends BaseTool {
         rejected: { displayName: 'Skipped editing workflow', icon: 'skip' },
         errored: { displayName: 'Failed to edit workflow', icon: 'error' },
         aborted: { displayName: 'Aborted editing workflow', icon: 'abort' },
+        accepted: { displayName: 'Edited workflow', icon: 'grid2x2Check' },
       },
     },
     schema: {
