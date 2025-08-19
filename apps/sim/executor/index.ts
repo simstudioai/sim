@@ -225,7 +225,7 @@ export class Executor {
 
       let hasMoreLayers = true
       let iteration = 0
-      const maxIterations = 100 // Safety limit for infinite loops
+      const maxIterations = 500 // Safety limit for infinite loops
 
       while (hasMoreLayers && iteration < maxIterations && !this.isCancelled) {
         const nextLayer = this.getNextExecutionLayer(context)

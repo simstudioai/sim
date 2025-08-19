@@ -807,7 +807,7 @@ export function useWorkflowExecution() {
 
       // Continue execution until there are no more pending blocks
       let iterationCount = 0
-      const maxIterations = 100 // Safety to prevent infinite loops
+      const maxIterations = 500 // Safety to prevent infinite loops
 
       while (currentPendingBlocks.length > 0 && iterationCount < maxIterations) {
         logger.info(
