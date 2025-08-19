@@ -291,11 +291,17 @@ export function MicrosoftFileSelector({
 
   // Fetch Microsoft Planner tasks when planId and credentials are available
   const fetchPlannerTasks = useCallback(async () => {
-    if (!selectedCredentialId || !planId || serviceId !== 'microsoft-planner') {
+    if (
+      !selectedCredentialId ||
+      !planId ||
+      serviceId !== 'microsoft-planner' ||
+      isForeignCredential
+    ) {
       logger.info('Skipping task fetch - missing requirements:', {
         selectedCredentialId: !!selectedCredentialId,
         planId: !!planId,
         serviceId,
+        isForeignCredential,
       })
       return
     }
@@ -342,11 +348,17 @@ export function MicrosoftFileSelector({
         setPlannerTasks(transformedTasks)
       } else {
         const errorText = await response.text()
-        logger.error('API response not ok:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorText,
-        })
+        if (response.status === 401 || response.status === 403) {
+          logger.info('Planner list fetch unauthorized (expected for collaborator)', {
+            status: response.status,
+          })
+        } else {
+          logger.warn('Planner tasks fetch non-OK', {
+            status: response.status,
+            statusText: response.statusText,
+            errorText,
+          })
+        }
         setPlannerTasks([])
       }
     } catch (error) {
@@ -355,7 +367,7 @@ export function MicrosoftFileSelector({
     } finally {
       setIsLoadingTasks(false)
     }
-  }, [selectedCredentialId, planId, serviceId])
+  }, [selectedCredentialId, planId, serviceId, isForeignCredential])
 
   // Fetch a single planner task by ID for collaborator preview
   const fetchPlannerTaskById = useCallback(
@@ -428,10 +440,15 @@ export function MicrosoftFileSelector({
 
   // Fetch planner tasks when credentials and planId change
   useEffect(() => {
-    if (serviceId === 'microsoft-planner' && selectedCredentialId && planId) {
+    if (
+      serviceId === 'microsoft-planner' &&
+      selectedCredentialId &&
+      planId &&
+      !isForeignCredential
+    ) {
       fetchPlannerTasks()
     }
-  }, [selectedCredentialId, planId, serviceId, fetchPlannerTasks])
+  }, [selectedCredentialId, planId, serviceId, isForeignCredential, fetchPlannerTasks])
 
   // Handle task selection for planner
   const handleTaskSelect = (task: PlannerTask) => {
@@ -446,26 +463,23 @@ export function MicrosoftFileSelector({
       modifiedTime: task.createdDateTime,
     }
 
+    // Update internal state first to avoid race with list refetch
     setSelectedFileId(taskId)
     setSelectedFile(taskAsFileInfo)
     setSelectedTask(task)
+    // Then propagate up
     onChange(taskId, taskAsFileInfo)
     onFileInfoChange?.(taskAsFileInfo)
     setOpen(false)
     setSearchQuery('')
   }
 
-  // Keep internal selectedFileId in sync with the value prop
+  // Keep internal selectedFileId in sync with the value prop (do not clear selectedFile; we'll resolve new metadata below)
   useEffect(() => {
     if (value !== selectedFileId) {
-      const previousFileId = selectedFileId
       setSelectedFileId(value)
-      // Only clear selected file info if we had a different file before (not initial load)
-      if (previousFileId && previousFileId !== value && selectedFile) {
-        setSelectedFile(null)
-      }
     }
-  }, [value, selectedFileId, selectedFile])
+  }, [value, selectedFileId])
 
   // Track previous credential ID to detect changes
   const prevCredentialIdRef = useRef<string>('')
@@ -492,15 +506,19 @@ export function MicrosoftFileSelector({
 
   // Fetch the selected file metadata once credentials are loaded or changed
   useEffect(() => {
-    // Only fetch if we have both a file ID and credentials, credentials are loaded, but no file info yet
+    // Fetch metadata when the external value doesn't match our current selectedFile
     if (
       value &&
       selectedCredentialId &&
       credentialsLoaded &&
-      !selectedFile &&
+      (!selectedFile || selectedFile.id !== value) &&
       !isLoadingSelectedFile
     ) {
-      fetchFileById(value)
+      if (serviceId === 'microsoft-planner') {
+        void fetchPlannerTaskById(value)
+      } else {
+        fetchFileById(value)
+      }
     }
   }, [
     value,
@@ -509,6 +527,7 @@ export function MicrosoftFileSelector({
     selectedFile,
     isLoadingSelectedFile,
     fetchFileById,
+    fetchPlannerTaskById,
     serviceId,
   ])
 
