@@ -8,7 +8,6 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 /**
  * Centralized dependsOn gating for sub-block components.
  * - Computes dependency values from the active workflow/block
- * - Infers ['credential'] for OAuth-backed selectors without explicit dependsOn
  * - Returns a stable disabled flag to pass to inputs and to guard effects
  */
 export function useDependsOnGate(
