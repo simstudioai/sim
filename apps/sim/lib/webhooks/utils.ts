@@ -1,9 +1,9 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getOAuthToken } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
-import { webhook } from '@/db/schema'
+import { account, webhook } from '@/db/schema'
 
 const logger = createLogger('WebhookUtils')
 
@@ -860,6 +860,31 @@ export async function fetchAndProcessAirtablePayloads(
       return // Exit early
     }
 
+    // Require credentialId
+    const credentialId: string | undefined = localProviderConfig.credentialId
+    if (!credentialId) {
+      logger.error(
+        `[${requestId}] Missing credentialId in providerConfig for Airtable webhook ${webhookData.id}.`
+      )
+      return
+    }
+
+    // Resolve owner and access token strictly via credentialId (no fallback)
+    let ownerUserId: string | null = null
+    try {
+      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+      ownerUserId = rows.length ? rows[0].userId : null
+    } catch (_e) {
+      ownerUserId = null
+    }
+
+    if (!ownerUserId) {
+      logger.error(
+        `[${requestId}] Could not resolve owner for Airtable credential ${credentialId} on webhook ${webhookData.id}`
+      )
+      return
+    }
+
     // --- Retrieve Stored Cursor from localProviderConfig ---
     const storedCursor = localProviderConfig.externalWebhookCursor
 
@@ -908,14 +933,13 @@ export async function fetchAndProcessAirtablePayloads(
       )
     }
 
-    // --- Get OAuth Token ---
+    // --- Get OAuth Token (strict via credentialId) ---
     let accessToken: string | null = null
     try {
-      accessToken = await getOAuthToken(workflowData.userId, 'airtable')
+      accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
       if (!accessToken) {
         logger.error(
-          `[${requestId}] Failed to obtain valid Airtable access token. Cannot proceed.`,
-          { userId: workflowData.userId }
+          `[${requestId}] Failed to obtain valid Airtable access token via credential ${credentialId}.`
         )
         throw new Error('Airtable access token not found.')
       }
@@ -923,11 +947,11 @@ export async function fetchAndProcessAirtablePayloads(
       logger.info(`[${requestId}] Successfully obtained Airtable access token`)
     } catch (tokenError: any) {
       logger.error(
-        `[${requestId}] Failed to get Airtable OAuth token for user ${workflowData.userId}`,
+        `[${requestId}] Failed to get Airtable OAuth token for credential ${credentialId}`,
         {
           error: tokenError.message,
           stack: tokenError.stack,
-          userId: workflowData.userId,
+          credentialId,
         }
       )
       // Error logging handled by logging session
@@ -1102,7 +1126,7 @@ export async function fetchAndProcessAirtablePayloads(
 
           // DEBUG: Log totals for this batch
           logger.debug(
-            `[${requestId}] TRACE: Processed ${changeCount} changes in API call ${apiCallCount}`,
+            `[${requestId}] TRACE: Processed ${changeCount} changes in API call ${apiCallCount})`,
             {
               currentMapSize: consolidatedChangesMap.size,
             }
@@ -1257,13 +1281,33 @@ export async function configureGmailPolling(
   logger.info(`[${requestId}] Setting up Gmail polling for webhook ${webhookData.id}`)
 
   try {
-    const accessToken = await getOAuthToken(userId, 'google-email')
-    if (!accessToken) {
-      logger.error(`[${requestId}] Failed to retrieve Gmail access token for user ${userId}`)
+    const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
+
+    const credentialId: string | undefined = providerConfig.credentialId
+    if (!credentialId) {
+      logger.error(
+        `[${requestId}] Missing credentialId for Gmail webhook ${webhookData.id}. Refusing to proceed.`
+      )
       return false
     }
 
-    const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
+    // Resolve owner user ID from the credential and refresh token if needed
+    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    if (rows.length === 0) {
+      logger.error(
+        `[${requestId}] Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`
+      )
+      return false
+    }
+    const ownerUserId = rows[0].userId
+
+    const accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
+    if (!accessToken) {
+      logger.error(
+        `[${requestId}] Failed to refresh/access Gmail token for credential ${credentialId}`
+      )
+      return false
+    }
 
     const maxEmailsPerPoll =
       typeof providerConfig.maxEmailsPerPoll === 'string'
@@ -1282,7 +1326,8 @@ export async function configureGmailPolling(
       .set({
         providerConfig: {
           ...providerConfig,
-          userId, // Store user ID for OAuth access during polling
+          userId: ownerUserId,
+          credentialId,
           maxEmailsPerPoll,
           pollingInterval,
           markAsRead: providerConfig.markAsRead || false,
@@ -1323,13 +1368,33 @@ export async function configureOutlookPolling(
   logger.info(`[${requestId}] Setting up Outlook polling for webhook ${webhookData.id}`)
 
   try {
-    const accessToken = await getOAuthToken(userId, 'outlook')
-    if (!accessToken) {
-      logger.error(`[${requestId}] Failed to retrieve Outlook access token for user ${userId}`)
+    const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
+
+    const credentialId: string | undefined = providerConfig.credentialId
+    if (!credentialId) {
+      logger.error(
+        `[${requestId}] Missing credentialId for Outlook webhook ${webhookData.id}. Refusing to proceed.`
+      )
       return false
     }
 
-    const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
+    // Resolve owner user ID from the credential and refresh token if needed
+    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    if (rows.length === 0) {
+      logger.error(
+        `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
+      )
+      return false
+    }
+    const ownerUserId = rows[0].userId
+
+    const accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
+    if (!accessToken) {
+      logger.error(
+        `[${requestId}] Failed to refresh/access Outlook token for credential ${credentialId}`
+      )
+      return false
+    }
 
     const maxEmailsPerPoll =
       typeof providerConfig.maxEmailsPerPoll === 'string'
@@ -1348,7 +1413,8 @@ export async function configureOutlookPolling(
       .set({
         providerConfig: {
           ...providerConfig,
-          userId, // Store user ID for OAuth access during polling
+          userId: ownerUserId,
+          credentialId,
           maxEmailsPerPoll,
           pollingInterval,
           markAsRead: providerConfig.markAsRead || false,
