@@ -91,7 +91,6 @@ export class GetWorkflowConsoleClientTool extends BaseTool {
         toolId: toolCall.id,
       }
 
-
       const response = await fetch('/api/copilot/methods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
