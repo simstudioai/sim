@@ -44,7 +44,7 @@ const LOG_CONFIG = {
     colorize: true,
   },
   production: {
-    enabled: false, // Disable all console logs in production
+    enabled: typeof window === 'undefined', // Enable only on server-side in production
     minLevel: LogLevel.ERROR,
     colorize: false,
   },
