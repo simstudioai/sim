@@ -353,6 +353,14 @@ export function JiraProjectSelector({
     }
   }, [value])
 
+  // Clear local preview when value is cleared remotely or via collaborator
+  useEffect(() => {
+    if (!value) {
+      setSelectedProject(null)
+      onProjectInfoChange?.(null)
+    }
+  }, [value, onProjectInfoChange])
+
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
@@ -387,6 +395,8 @@ export function JiraProjectSelector({
     onProjectInfoChange?.(null)
   }
 
+  const canShowPreview = !!(showPreview && selectedProject && value && selectedProject.id === value)
+
   return (
     <>
       <div className='space-y-2'>
@@ -399,7 +409,7 @@ export function JiraProjectSelector({
               className='w-full justify-between'
               disabled={disabled || !domain || !selectedCredentialId || isForeignCredential}
             >
-              {selectedProject ? (
+              {canShowPreview ? (
                 <div className='flex items-center gap-2 overflow-hidden'>
                   <JiraIcon className='h-4 w-4' />
                   <span className='truncate font-normal'>{selectedProject.name}</span>
@@ -546,7 +556,7 @@ export function JiraProjectSelector({
         </Popover>
 
         {/* Project preview */}
-        {showPreview && selectedProject && (
+        {canShowPreview && (
           <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
             <div className='absolute top-2 right-2'>
               <Button
