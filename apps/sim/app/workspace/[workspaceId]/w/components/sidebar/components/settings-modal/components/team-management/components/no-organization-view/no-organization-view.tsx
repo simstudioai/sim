@@ -2,7 +2,7 @@ import { RefreshCw } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { OrganizationCreationDialog } from './'
+import { OrganizationCreationDialog } from '../organization-creation-dialog'
 
 interface NoOrganizationViewProps {
   hasTeamPlan: boolean
@@ -35,11 +35,11 @@ export function NoOrganizationView({
 }: NoOrganizationViewProps) {
   if (hasTeamPlan || hasEnterprisePlan) {
     return (
-      <div className='space-y-6 p-6'>
+      <div className='space-y-4 p-6'>
         <div className='space-y-6'>
-          <h3 className='font-medium text-lg'>Create Your Team Workspace</h3>
+          <h3 className='font-medium text-sm'>Create Your Team Workspace</h3>
 
-          <div className='space-y-6 rounded-lg border p-6'>
+          <div className='space-y-4 rounded-[8px] border p-4 shadow-xs'>
             <p className='text-muted-foreground text-sm'>
               You're subscribed to a {hasEnterprisePlan ? 'enterprise' : 'team'} plan. Create your
               workspace to start collaborating with your team.
@@ -47,7 +47,7 @@ export function NoOrganizationView({
 
             <div className='space-y-4'>
               <div className='space-y-2'>
-                <label htmlFor='orgName' className='font-medium text-sm'>
+                <label htmlFor='orgName' className='font-medium text-xs'>
                   Team Name
                 </label>
                 <Input
@@ -59,11 +59,11 @@ export function NoOrganizationView({
               </div>
 
               <div className='space-y-2'>
-                <label htmlFor='orgSlug' className='font-medium text-sm'>
+                <label htmlFor='orgSlug' className='font-medium text-xs'>
                   Team URL
                 </label>
                 <div className='flex items-center space-x-2'>
-                  <div className='rounded-l-md bg-muted px-3 py-2 text-muted-foreground text-sm'>
+                  <div className='rounded-l-[8px] bg-muted px-3 py-2 text-muted-foreground text-xs'>
                     sim.ai/team/
                   </div>
                   <Input
@@ -77,7 +77,7 @@ export function NoOrganizationView({
             </div>
 
             {error && (
-              <Alert variant='destructive'>
+              <Alert variant='destructive' className='rounded-[8px]'>
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
@@ -87,6 +87,7 @@ export function NoOrganizationView({
               <Button
                 onClick={onCreateOrganization}
                 disabled={!orgName || !orgSlug || isCreatingOrg}
+                className='h-9 rounded-[8px]'
               >
                 {isCreatingOrg && <RefreshCw className='mr-2 h-4 w-4 animate-spin' />}
                 Create Team Workspace
@@ -111,9 +112,9 @@ export function NoOrganizationView({
   }
 
   return (
-    <div className='space-y-6 p-6'>
+    <div className='space-y-4 p-6'>
       <div className='space-y-6'>
-        <h3 className='font-medium text-lg'>No Team Workspace</h3>
+        <h3 className='font-medium text-sm'>No Team Workspace</h3>
         <p className='text-muted-foreground text-sm'>
           You don't have a team workspace yet. To collaborate with others, first upgrade to a team
           or enterprise plan.
@@ -127,6 +128,7 @@ export function NoOrganizationView({
             })
             window.dispatchEvent(event)
           }}
+          className='h-9 rounded-[8px]'
         >
           Upgrade to Team Plan
         </Button>

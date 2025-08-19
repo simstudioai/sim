@@ -28,23 +28,23 @@ export function OrganizationSettingsTab({
   orgSettingsSuccess,
 }: OrganizationSettingsTabProps) {
   return (
-    <div className='mt-4 space-y-6'>
+    <div className='mt-4 space-y-4'>
       {orgSettingsError && (
-        <Alert variant='destructive'>
+        <Alert variant='destructive' className='rounded-[8px]'>
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{orgSettingsError}</AlertDescription>
         </Alert>
       )}
 
       {orgSettingsSuccess && (
-        <Alert>
+        <Alert className='rounded-[8px]'>
           <AlertTitle>Success</AlertTitle>
           <AlertDescription>{orgSettingsSuccess}</AlertDescription>
         </Alert>
       )}
 
       {!isAdminOrOwner && (
-        <Alert>
+        <Alert className='rounded-[8px]'>
           <AlertTitle>Read Only</AlertTitle>
           <AlertDescription>
             You need owner or admin permissions to modify team settings.
@@ -52,12 +52,12 @@ export function OrganizationSettingsTab({
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className='text-base'>Basic Information</CardTitle>
+      <Card className='rounded-[8px] shadow-xs'>
+        <CardHeader className='p-4 pb-3'>
+          <CardTitle className='font-medium text-sm'>Basic Information</CardTitle>
           <CardDescription>Update your team's basic information and branding</CardDescription>
         </CardHeader>
-        <CardContent className='space-y-4'>
+        <CardContent className='space-y-4 p-4 pt-0'>
           <div className='space-y-2'>
             <Label htmlFor='team-name'>Team Name</Label>
             <Input
@@ -112,11 +112,11 @@ export function OrganizationSettingsTab({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className='text-base'>Team Information</CardTitle>
+      <Card className='rounded-[8px] shadow-xs'>
+        <CardHeader className='p-4 pb-3'>
+          <CardTitle className='font-medium text-sm'>Team Information</CardTitle>
         </CardHeader>
-        <CardContent className='space-y-2 text-sm'>
+        <CardContent className='space-y-2 p-4 pt-0 text-xs'>
           <div className='flex justify-between'>
             <span className='text-muted-foreground'>Team ID:</span>
             <span className='font-mono'>{organization.id}</span>

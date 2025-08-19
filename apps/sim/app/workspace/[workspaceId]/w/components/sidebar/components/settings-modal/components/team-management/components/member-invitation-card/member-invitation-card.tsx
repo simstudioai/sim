@@ -98,14 +98,14 @@ export function MemberInvitationCard({
   const selectedCount = selectedWorkspaces.length
 
   return (
-    <Card>
-      <CardHeader className='pb-4'>
-        <CardTitle className='text-base'>Invite Team Members</CardTitle>
+    <Card className='rounded-[8px] shadow-xs'>
+      <CardHeader className='p-4 pb-3'>
+        <CardTitle className='font-medium text-sm'>Invite Team Members</CardTitle>
         <CardDescription>
           Add new members to your team and optionally give them access to specific workspaces
         </CardDescription>
       </CardHeader>
-      <CardContent className='space-y-4'>
+      <CardContent className='space-y-4 p-4 pt-0'>
         <div className='flex items-center gap-3'>
           <div className='flex-1'>
             <Input
@@ -126,11 +126,14 @@ export function MemberInvitationCard({
               }
             }}
             disabled={isInviting}
-            className='shrink-0 gap-1'
+            className='h-9 shrink-0 gap-1 rounded-[8px]'
           >
             {showWorkspaceInvite ? 'Hide' : 'Add'} Workspaces
             {selectedCount > 0 && (
-              <Badge variant='secondary' className='ml-1 h-5 px-1.5 text-xs'>
+              <Badge
+                variant='secondary'
+                className='ml-1 h-[1.125rem] rounded-[6px] px-2 py-0 text-xs'
+              >
                 {selectedCount}
               </Badge>
             )}
@@ -142,7 +145,7 @@ export function MemberInvitationCard({
             size='sm'
             onClick={onInviteMember}
             disabled={!inviteEmail || isInviting}
-            className='shrink-0 gap-2'
+            className='h-9 shrink-0 gap-2 rounded-[8px]'
           >
             {isInviting ? <ButtonSkeleton /> : <PlusCircle className='h-4 w-4' />}
             Invite
@@ -153,8 +156,8 @@ export function MemberInvitationCard({
           <div className='space-y-3 pt-1'>
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
-                <h5 className='font-medium text-sm'>Workspace Access</h5>
-                <Badge variant='outline' className='text-xs'>
+                <h5 className='font-medium text-xs'>Workspace Access</h5>
+                <Badge variant='outline' className='h-[1.125rem] rounded-[6px] px-2 py-0 text-xs'>
                   Optional
                 </Badge>
               </div>
@@ -174,7 +177,7 @@ export function MemberInvitationCard({
                 </p>
               </div>
             ) : (
-              <div className='max-h-48 space-y-2 overflow-y-auto rounded-md border bg-muted/20 p-3'>
+              <div className='max-h-48 space-y-2 overflow-y-auto rounded-[8px] border bg-muted/20 p-3'>
                 {userWorkspaces.map((workspace) => {
                   const isSelected = selectedWorkspaces.some((w) => w.workspaceId === workspace.id)
                   const selectedWorkspace = selectedWorkspaces.find(
@@ -185,13 +188,13 @@ export function MemberInvitationCard({
                     <div
                       key={workspace.id}
                       className={cn(
-                        'flex items-center justify-between rounded-md border bg-background p-3 transition-all',
+                        'flex items-center justify-between rounded-[8px] border bg-background p-3 transition-all',
                         isSelected
                           ? 'border-primary/20 bg-primary/5'
                           : 'hover:border-border hover:bg-muted/50'
                       )}
                     >
-                      <div className='flex items-center gap-3'>
+                      <div className='flex items-center gap-2'>
                         <Checkbox
                           id={`workspace-${workspace.id}`}
                           checked={isSelected}
@@ -206,12 +209,15 @@ export function MemberInvitationCard({
                         />
                         <Label
                           htmlFor={`workspace-${workspace.id}`}
-                          className='cursor-pointer font-medium text-sm leading-none'
+                          className='cursor-pointer font-medium text-xs leading-none'
                         >
                           {workspace.name}
                         </Label>
                         {workspace.isOwner && (
-                          <Badge variant='outline' className='text-xs'>
+                          <Badge
+                            variant='outline'
+                            className='h-[1.125rem] rounded-[6px] px-2 py-0 text-xs'
+                          >
                             Owner
                           </Badge>
                         )}
@@ -242,7 +248,7 @@ export function MemberInvitationCard({
         )}
 
         {inviteSuccess && (
-          <Alert className='border-green-200 bg-green-50 text-green-800 dark:border-green-800/50 dark:bg-green-950/20 dark:text-green-300'>
+          <Alert className='rounded-[8px] border-green-200 bg-green-50 text-green-800 dark:border-green-800/50 dark:bg-green-950/20 dark:text-green-300'>
             <CheckCircle className='h-4 w-4 text-green-600 dark:text-green-400' />
             <AlertDescription>
               Invitation sent successfully

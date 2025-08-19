@@ -14,7 +14,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-interface EditMemberLimitDialogProps {
+interface MemberLimitProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   member: {
@@ -30,14 +30,14 @@ interface EditMemberLimitDialogProps {
   planType?: string
 }
 
-export function EditMemberLimitDialog({
+export function MemberLimit({
   open,
   onOpenChange,
   member,
   onSave,
   isLoading,
   planType = 'team',
-}: EditMemberLimitDialogProps) {
+}: MemberLimitProps) {
   const [limitValue, setLimitValue] = useState('')
   const [error, setError] = useState<string | null>(null)
 

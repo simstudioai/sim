@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select'
 import { env } from '@/lib/env'
 
-interface TeamSeatsDialogProps {
+interface TeamSeatsProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   title: string
@@ -31,7 +31,7 @@ interface TeamSeatsDialogProps {
   showCostBreakdown?: boolean
 }
 
-export function TeamSeatsDialog({
+export function TeamSeats({
   open,
   onOpenChange,
   title,
@@ -42,7 +42,7 @@ export function TeamSeatsDialog({
   onConfirm,
   confirmButtonText,
   showCostBreakdown = false,
-}: TeamSeatsDialogProps) {
+}: TeamSeatsProps) {
   const [selectedSeats, setSelectedSeats] = useState(initialSeats)
 
   useEffect(() => {
@@ -73,7 +73,7 @@ export function TeamSeatsDialog({
             value={selectedSeats.toString()}
             onValueChange={(value) => setSelectedSeats(Number.parseInt(value))}
           >
-            <SelectTrigger id='seats'>
+            <SelectTrigger id='seats' className='rounded-[8px]'>
               <SelectValue placeholder='Select number of seats' />
             </SelectTrigger>
             <SelectContent>

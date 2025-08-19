@@ -20,8 +20,8 @@ export function PendingInvitationsList({
   }
 
   return (
-    <div className='rounded-md border'>
-      <h4 className='border-b p-4 font-medium text-sm'>Pending Invitations</h4>
+    <div className='rounded-[8px] border shadow-xs'>
+      <h4 className='border-b p-4 pb-3 font-medium text-sm'>Pending Invitations</h4>
       <div className='divide-y'>
         {pendingInvitations.map((invitation: Invitation) => (
           <div key={invitation.id} className='flex items-center justify-between p-4'>
@@ -31,13 +31,18 @@ export function PendingInvitationsList({
                   {invitation.email.charAt(0).toUpperCase()}
                 </div>
                 <div className='flex-1'>
-                  <div className='font-medium'>{invitation.email}</div>
-                  <div className='text-muted-foreground text-sm'>Invitation pending</div>
+                  <div className='font-medium text-sm'>{invitation.email}</div>
+                  <div className='text-muted-foreground text-xs'>Invitation pending</div>
                 </div>
               </div>
             </div>
 
-            <Button variant='outline' size='sm' onClick={() => onCancelInvitation(invitation.id)}>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => onCancelInvitation(invitation.id)}
+              className='h-8 w-8 rounded-[8px] p-0'
+            >
               <X className='h-4 w-4' />
             </Button>
           </div>

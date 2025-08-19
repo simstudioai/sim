@@ -17,8 +17,8 @@ export function TeamMembersList({
 }: TeamMembersListProps) {
   if (!organization.members || organization.members.length === 0) {
     return (
-      <div className='rounded-md border'>
-        <h4 className='border-b p-4 font-medium text-sm'>Team Members</h4>
+      <div className='rounded-[8px] border shadow-xs'>
+        <h4 className='border-b p-4 pb-3 font-medium text-sm'>Team Members</h4>
         <div className='p-4 text-muted-foreground text-sm'>
           No members in this organization yet.
         </div>
@@ -27,8 +27,8 @@ export function TeamMembersList({
   }
 
   return (
-    <div className='rounded-md border'>
-      <h4 className='border-b p-4 font-medium text-sm'>Team Members</h4>
+    <div className='rounded-[8px] border shadow-xs'>
+      <h4 className='border-b p-4 pb-3 font-medium text-sm'>Team Members</h4>
       <div className='divide-y'>
         {organization.members.map((member: Member) => (
           <div key={member.id} className='flex items-center justify-between p-4'>
@@ -38,10 +38,10 @@ export function TeamMembersList({
                   {(member.user?.name || member.user?.email || 'U').charAt(0).toUpperCase()}
                 </div>
                 <div className='flex-1'>
-                  <div className='font-medium'>{member.user?.name || 'Unknown'}</div>
-                  <div className='text-muted-foreground text-sm'>{member.user?.email}</div>
+                  <div className='font-medium text-sm'>{member.user?.name || 'Unknown'}</div>
+                  <div className='text-muted-foreground text-xs'>{member.user?.email}</div>
                 </div>
-                <div className='rounded-full bg-primary/10 px-3 py-1 font-medium text-primary text-xs'>
+                <div className='h-[1.125rem] rounded-[6px] bg-primary/10 px-2 py-0 font-medium text-primary text-xs'>
                   {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                 </div>
               </div>
@@ -51,7 +51,12 @@ export function TeamMembersList({
             {isAdminOrOwner &&
               member.role !== 'owner' &&
               member.user?.email !== currentUserEmail && (
-                <Button variant='outline' size='sm' onClick={() => onRemoveMember(member)}>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={() => onRemoveMember(member)}
+                  className='h-8 w-8 rounded-[8px] p-0'
+                >
                   <UserX className='h-4 w-4' />
                 </Button>
               )}

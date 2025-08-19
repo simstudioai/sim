@@ -9,15 +9,15 @@ import { useActiveOrganization } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useOrganizationStore } from '@/stores/organization'
 import type { MemberUsageData } from '@/stores/organization/types'
-import { EditMemberLimitDialog } from './'
+import { MemberLimit } from '../member-limit'
 
-const logger = createLogger('TeamUsageOverview')
+const logger = createLogger('TeamUsage')
 
-interface TeamUsageOverviewProps {
+interface TeamUsageProps {
   hasAdminAccess: boolean
 }
 
-export function TeamUsageOverview({ hasAdminAccess }: TeamUsageOverviewProps) {
+export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
   const { data: activeOrg } = useActiveOrganization()
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [selectedMember, setSelectedMember] = useState<MemberUsageData | null>(null)
@@ -335,7 +335,7 @@ export function TeamUsageOverview({ hasAdminAccess }: TeamUsageOverviewProps) {
       </Card>
 
       {/* Edit Member Limit Dialog */}
-      <EditMemberLimitDialog
+      <MemberLimit
         open={editDialogOpen}
         onOpenChange={handleCloseEditDialog}
         member={selectedMember}

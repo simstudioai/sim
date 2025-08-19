@@ -1,13 +1,13 @@
 import {
   Bot,
   CreditCard,
-  KeyRound,
-  KeySquare,
-  Lock,
+  FileCode,
+  Key,
   Settings,
   Shield,
-  UserCircle,
+  User,
   Users,
+  Waypoints,
 } from 'lucide-react'
 import { getEnv, isTruthy } from '@/lib/env'
 import { isHosted } from '@/lib/environment'
@@ -57,28 +57,28 @@ const allNavigationItems: NavigationItem[] = [
     icon: Settings,
   },
   {
+    id: 'credentials',
+    label: 'Integrations',
+    icon: Waypoints,
+  },
+  {
     id: 'environment',
     label: 'Environment',
-    icon: KeyRound,
+    icon: FileCode,
   },
   {
     id: 'account',
     label: 'Account',
-    icon: UserCircle,
-  },
-  {
-    id: 'credentials',
-    label: 'Credentials',
-    icon: Lock,
+    icon: User,
   },
   {
     id: 'apikeys',
     label: 'API Keys',
-    icon: KeySquare,
+    icon: Key,
   },
   {
     id: 'copilot',
-    label: 'Copilot',
+    label: 'Copilot Keys',
     icon: Bot,
   },
   {
@@ -126,22 +126,36 @@ export function SettingsNavigation({
   })
 
   return (
-    <div className='py-4'>
+    <div className='px-2 py-4'>
       {navigationItems.map((item) => (
-        <button
-          key={item.id}
-          onClick={() => onSectionChange(item.id)}
-          className={cn(
-            'flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors',
-            'hover:bg-muted/50',
-            activeSection === item.id
-              ? 'bg-muted/50 font-medium text-foreground'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <item.icon className='h-4 w-4' />
-          <span>{item.label}</span>
-        </button>
+        <div key={item.id} className='mb-1'>
+          <button
+            onClick={() => onSectionChange(item.id)}
+            className={cn(
+              'group flex h-9 w-full cursor-pointer items-center rounded-[8px] px-2 py-2 font-medium font-sans text-sm transition-colors',
+              activeSection === item.id ? 'bg-muted' : 'hover:bg-muted'
+            )}
+          >
+            <item.icon
+              className={cn(
+                'mr-2 h-[14px] w-[14px] flex-shrink-0 transition-colors',
+                activeSection === item.id
+                  ? 'text-foreground'
+                  : 'text-muted-foreground group-hover:text-foreground'
+              )}
+            />
+            <span
+              className={cn(
+                'min-w-0 flex-1 select-none truncate pr-1 text-left transition-colors',
+                activeSection === item.id
+                  ? 'text-foreground'
+                  : 'text-muted-foreground group-hover:text-foreground'
+              )}
+            >
+              {item.label}
+            </span>
+          </button>
+        </div>
       ))}
     </div>
   )
