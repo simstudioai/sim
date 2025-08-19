@@ -44,6 +44,9 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   // Scroll state
   const [isNearBottom, setIsNearBottom] = useState(true)
   const [showScrollButton, setShowScrollButton] = useState(false)
+  // New state to track if user has intentionally scrolled during streaming
+  const [userHasScrolledDuringStream, setUserHasScrolledDuringStream] = useState(false)
+  const isUserScrollingRef = useRef(false) // Track if scroll event is user-initiated
 
   const { activeWorkflowId } = useWorkflowRegistry()
 
@@ -119,6 +122,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
         '[data-radix-scroll-area-viewport]'
       )
       if (scrollContainer) {
+        // Mark that we're programmatically scrolling
+        isUserScrollingRef.current = false
         scrollContainer.scrollTo({
           top: scrollContainer.scrollHeight,
           behavior: 'smooth',
@@ -143,7 +148,15 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     const nearBottom = distanceFromBottom <= 100
     setIsNearBottom(nearBottom)
     setShowScrollButton(!nearBottom)
-  }, [])
+
+    // If user scrolled up during streaming, mark it
+    if (isSendingMessage && !nearBottom && isUserScrollingRef.current) {
+      setUserHasScrolledDuringStream(true)
+    }
+
+    // Reset the user scrolling flag after processing
+    isUserScrollingRef.current = true
+  }, [isSendingMessage])
 
   // Attach scroll listener
   useEffect(() => {
@@ -154,7 +167,13 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     const viewport = scrollArea.querySelector('[data-radix-scroll-area-viewport]')
     if (!viewport) return
 
-    viewport.addEventListener('scroll', handleScroll, { passive: true })
+    // Mark user-initiated scrolls
+    const handleUserScroll = () => {
+      isUserScrollingRef.current = true
+      handleScroll()
+    }
+
+    viewport.addEventListener('scroll', handleUserScroll, { passive: true })
 
     // Also listen for scrollend event if available (for smooth scrolling)
     if ('onscrollend' in viewport) {
@@ -165,34 +184,63 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     setTimeout(handleScroll, 100)
 
     return () => {
-      viewport.removeEventListener('scroll', handleScroll)
+      viewport.removeEventListener('scroll', handleUserScroll)
       if ('onscrollend' in viewport) {
         viewport.removeEventListener('scrollend', handleScroll)
       }
     }
   }, [handleScroll])
 
-  // Smart auto-scroll: only scroll if user is near bottom or for user messages
+  // Smart auto-scroll: only scroll if user hasn't intentionally scrolled up during streaming
   useEffect(() => {
     if (messages.length === 0) return
 
     const lastMessage = messages[messages.length - 1]
     const isNewUserMessage = lastMessage?.role === 'user'
 
-    // Always scroll for new user messages, or only if near bottom for assistant messages
-    if ((isNewUserMessage || isNearBottom) && scrollAreaRef.current) {
+    // Conditions for auto-scrolling:
+    // 1. Always scroll for new user messages (resets the user scroll state)
+    // 2. For assistant messages during streaming: only if user hasn't scrolled up
+    // 3. For assistant messages when not streaming: only if near bottom
+    const shouldAutoScroll =
+      isNewUserMessage ||
+      (isSendingMessage && !userHasScrolledDuringStream) ||
+      (!isSendingMessage && isNearBottom)
+
+    if (shouldAutoScroll && scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector(
         '[data-radix-scroll-area-viewport]'
       )
       if (scrollContainer) {
+        // Mark that we're programmatically scrolling
+        isUserScrollingRef.current = false
         scrollContainer.scrollTo({
           top: scrollContainer.scrollHeight,
           behavior: 'smooth',
         })
-        // Let the scroll event handler update the state naturally after animation completes
       }
     }
-  }, [messages, isNearBottom])
+  }, [messages, isNearBottom, isSendingMessage, userHasScrolledDuringStream])
+
+  // Reset user scroll state when streaming starts or when user sends a message
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1]
+    if (lastMessage?.role === 'user') {
+      // User sent a new message - reset scroll state
+      setUserHasScrolledDuringStream(false)
+      isUserScrollingRef.current = false
+    }
+  }, [messages])
+
+  // Reset user scroll state when streaming completes
+  const prevIsSendingRef = useRef(false)
+  useEffect(() => {
+    // When streaming transitions from true to false, reset the user scroll state
+    if (prevIsSendingRef.current && !isSendingMessage) {
+      setUserHasScrolledDuringStream(false)
+    }
+    prevIsSendingRef.current = isSendingMessage
+  }, [isSendingMessage])
 
   // Auto-scroll to bottom when chat loads in
   useEffect(() => {

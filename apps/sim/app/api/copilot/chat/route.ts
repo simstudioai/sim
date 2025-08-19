@@ -81,7 +81,8 @@ const ChatMessageSchema = z.object({
   chatId: z.string().optional(),
   workflowId: z.string().min(1, 'Workflow ID is required'),
   mode: z.enum(['ask', 'agent']).optional().default('agent'),
-  depth: z.number().int().min(0).max(3).optional().default(0),
+  depth: z.number().int().min(-2).max(3).optional().default(0),
+  prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
   implicitFeedback: z.string().optional(),
@@ -198,6 +199,7 @@ export async function POST(req: NextRequest) {
       workflowId,
       mode,
       depth,
+      prefetch,
       createNewChat,
       stream,
       implicitFeedback,
@@ -214,6 +216,19 @@ export async function POST(req: NextRequest) {
       return createInternalServerErrorResponse('Missing required configuration: BETTER_AUTH_URL')
     }
 
+    // Consolidation mapping: map negative depths to base depth with prefetch=true
+    let effectiveDepth: number | undefined = typeof depth === 'number' ? depth : undefined
+    let effectivePrefetch: boolean | undefined = prefetch
+    if (typeof effectiveDepth === 'number') {
+      if (effectiveDepth === -2) {
+        effectiveDepth = 1
+        effectivePrefetch = true
+      } else if (effectiveDepth === -1) {
+        effectiveDepth = 0
+        effectivePrefetch = true
+      }
+    }
+
     logger.info(`[${tracker.requestId}] Processing copilot chat request`, {
       userId: authenticatedUserId,
       workflowId,
@@ -226,6 +241,7 @@ export async function POST(req: NextRequest) {
       provider: provider || 'openai',
       hasConversationId: !!conversationId,
       depth,
+      prefetch,
       origin: requestOrigin,
     })
 
@@ -402,7 +418,8 @@ export async function POST(req: NextRequest) {
       mode: mode,
       provider: providerToUse,
       ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
-      ...(typeof depth === 'number' ? { depth } : {}),
+      ...(typeof effectiveDepth === 'number' ? { depth: effectiveDepth } : {}),
+      ...(typeof effectivePrefetch === 'boolean' ? { prefetch: effectivePrefetch } : {}),
       ...(session?.user?.name && { userName: session.user.name }),
       ...(requestOrigin ? { origin: requestOrigin } : {}),
     }
@@ -416,7 +433,8 @@ export async function POST(req: NextRequest) {
         stream,
         workflowId,
         hasConversationId: !!effectiveConversationId,
-        depth: typeof depth === 'number' ? depth : undefined,
+        depth: typeof effectiveDepth === 'number' ? effectiveDepth : undefined,
+        prefetch: typeof effectivePrefetch === 'boolean' ? effectivePrefetch : undefined,
         messagesCount: requestPayload.messages.length,
         ...(requestOrigin ? { origin: requestOrigin } : {}),
       })
@@ -478,6 +496,12 @@ export async function POST(req: NextRequest) {
           let isFirstDone = true
           let responseIdFromStart: string | undefined
           let responseIdFromDone: string | undefined
+          // Track tool call progress to identify a safe done event
+          const announcedToolCallIds = new Set<string>()
+          const startedToolExecutionIds = new Set<string>()
+          const completedToolExecutionIds = new Set<string>()
+          let lastDoneResponseId: string | undefined
+          let lastSafeDoneResponseId: string | undefined
 
           // Send chatId as first event
           if (actualChatId) {
@@ -595,6 +619,9 @@ export async function POST(req: NextRequest) {
                         )
                         if (!event.data?.partial) {
                           toolCalls.push(event.data)
+                          if (event.data?.id) {
+                            announcedToolCallIds.add(event.data.id)
+                          }
                         }
                         break
 
@@ -604,6 +631,14 @@ export async function POST(req: NextRequest) {
                           toolName: event.toolName,
                           status: event.status,
                         })
+                        if (event.toolCallId) {
+                          if (event.status === 'completed') {
+                            startedToolExecutionIds.add(event.toolCallId)
+                            completedToolExecutionIds.add(event.toolCallId)
+                          } else {
+                            startedToolExecutionIds.add(event.toolCallId)
+                          }
+                        }
                         break
 
                       case 'tool_result':
@@ -614,6 +649,9 @@ export async function POST(req: NextRequest) {
                           result: `${JSON.stringify(event.result).substring(0, 200)}...`,
                           resultSize: JSON.stringify(event.result).length,
                         })
+                        if (event.toolCallId) {
+                          completedToolExecutionIds.add(event.toolCallId)
+                        }
                         break
 
                       case 'tool_error':
@@ -623,6 +661,9 @@ export async function POST(req: NextRequest) {
                           error: event.error,
                           success: event.success,
                         })
+                        if (event.toolCallId) {
+                          completedToolExecutionIds.add(event.toolCallId)
+                        }
                         break
 
                       case 'start':
@@ -637,9 +678,25 @@ export async function POST(req: NextRequest) {
                       case 'done':
                         if (event.data?.responseId) {
                           responseIdFromDone = event.data.responseId
+                          lastDoneResponseId = responseIdFromDone
                           logger.info(
                             `[${tracker.requestId}] Received done event with responseId: ${responseIdFromDone}`
                           )
+                          // Mark this done as safe only if no tool call is currently in progress or pending
+                          const announced = announcedToolCallIds.size
+                          const completed = completedToolExecutionIds.size
+                          const started = startedToolExecutionIds.size
+                          const hasToolInProgress = announced > completed || started > completed
+                          if (!hasToolInProgress) {
+                            lastSafeDoneResponseId = responseIdFromDone
+                            logger.info(
+                              `[${tracker.requestId}] Marked done as SAFE (no tools in progress)`
+                            )
+                          } else {
+                            logger.info(
+                              `[${tracker.requestId}] Done received but tools are in progress (announced=${announced}, started=${started}, completed=${completed})`
+                            )
+                          }
                         }
                         if (isFirstDone) {
                           logger.info(
@@ -734,7 +791,9 @@ export async function POST(req: NextRequest) {
                 )
               }
 
-              const responseId = responseIdFromDone
+              // Persist only a safe conversationId to avoid continuing from a state that expects tool outputs
+              const previousConversationId = currentChat?.conversationId as string | undefined
+              const responseId = lastSafeDoneResponseId || previousConversationId || undefined
 
               // Update chat in database immediately (without title)
               await db
