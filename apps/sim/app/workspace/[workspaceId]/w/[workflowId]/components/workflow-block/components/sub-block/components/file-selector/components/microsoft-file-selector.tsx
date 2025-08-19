@@ -191,8 +191,8 @@ export function MicrosoftFileSelector({
 
       setIsLoadingSelectedFile(true)
       try {
-        // For Excel (default service), use owner-scoped token to fetch metadata to support collaborators
-        if (serviceId !== 'onedrive' && serviceId !== 'sharepoint') {
+        // Use owner-scoped token for OneDrive items (files/folders) and Excel
+        if (serviceId !== 'sharepoint') {
           const tokenRes = await fetch('/api/auth/oauth/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -206,9 +206,12 @@ export function MicrosoftFileSelector({
           const { accessToken } = await tokenRes.json()
           if (!accessToken) return null
 
-          const graphUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(
-            fileId
-          )}?$select=id,name,mimeType,webUrl,thumbnails,createdDateTime,lastModifiedDateTime,size,createdBy`
+          const graphUrl =
+            `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(fileId)}?` +
+            new URLSearchParams({
+              $select:
+                'id,name,webUrl,thumbnails,createdDateTime,lastModifiedDateTime,size,createdBy,file,folder',
+            }).toString()
           const resp = await fetch(graphUrl, {
             headers: { Authorization: `Bearer ${accessToken}` },
           })
@@ -227,7 +230,7 @@ export function MicrosoftFileSelector({
             id: file.id,
             name: file.name,
             mimeType:
-              file.mimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              file?.file?.mimeType || (file.folder ? 'application/vnd.ms-onedrive.folder' : ''),
             iconLink: file.thumbnails?.[0]?.small?.url,
             webViewLink: file.webUrl,
             thumbnailLink: file.thumbnails?.[0]?.medium?.url,
@@ -248,31 +251,32 @@ export function MicrosoftFileSelector({
           return fileInfo
         }
 
-        // OneDrive / SharePoint fallback to existing server endpoints (same-user scenarios)
-        const queryParams = new URLSearchParams({
-          credentialId: selectedCredentialId,
-          fileId: fileId,
+        // SharePoint site: fetch via Graph sites endpoint for collaborator visibility
+        const tokenRes = await fetch('/api/auth/oauth/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credentialId: selectedCredentialId, workflowId }),
         })
-        let endpoint: string
-        if (serviceId === 'onedrive') {
-          endpoint = `/api/tools/onedrive/folder?${queryParams.toString()}`
-        } else {
-          const sharepointParams = new URLSearchParams({
-            credentialId: selectedCredentialId,
-            siteId: fileId,
-          })
-          endpoint = `/api/tools/sharepoint/site?${sharepointParams.toString()}`
-        }
-        const response = await fetch(endpoint)
-        if (response.ok) {
-          const data = await response.json()
-          if (data.file) {
-            setSelectedFile(data.file)
-            onFileInfoChange?.(data.file)
-            return data.file
+        if (!tokenRes.ok) return null
+        const { accessToken: spToken } = await tokenRes.json()
+        if (!spToken) return null
+        const spResp = await fetch(
+          `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(fileId)}?$select=id,displayName,webUrl`,
+          {
+            headers: { Authorization: `Bearer ${spToken}` },
           }
+        )
+        if (!spResp.ok) return null
+        const site = await spResp.json()
+        const siteInfo: MicrosoftFileInfo = {
+          id: site.id,
+          name: site.displayName,
+          mimeType: 'sharepoint/site',
+          webViewLink: site.webUrl,
         }
-        return null
+        setSelectedFile(siteInfo)
+        onFileInfoChange?.(siteInfo)
+        return siteInfo
       } catch (error) {
         logger.error('Error fetching file by ID:', { error })
         return null

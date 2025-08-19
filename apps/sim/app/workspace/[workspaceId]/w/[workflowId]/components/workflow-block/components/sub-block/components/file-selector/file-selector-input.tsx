@@ -566,6 +566,9 @@ export function FileSelectorInput({
                 showPreview={true}
                 onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
                 planId={planId}
+                workflowId={activeWorkflowId || ''}
+                credentialId={credential}
+                isForeignCredential={isForeignCredential}
               />
             </div>
           </TooltipTrigger>
