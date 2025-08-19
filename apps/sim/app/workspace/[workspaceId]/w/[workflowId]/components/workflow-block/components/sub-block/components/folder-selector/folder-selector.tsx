@@ -300,21 +300,17 @@ export function FolderSelector({
     }
   }, [value, isPreview, previewValue])
 
-  // Fetch the selected folder metadata once credentials are ready (Gmail only)
+  // Fetch the selected folder metadata once credentials are ready or value changes
   useEffect(() => {
-    const currentValue = isPreview ? previewValue : value
-    if (currentValue && selectedCredentialId && !selectedFolder && provider !== 'outlook') {
+    const currentValue = isPreview ? (previewValue as string) : (value as string)
+    if (
+      currentValue &&
+      selectedCredentialId &&
+      (!selectedFolder || selectedFolder.id !== currentValue)
+    ) {
       fetchFolderById(currentValue)
     }
-  }, [
-    value,
-    selectedCredentialId,
-    selectedFolder,
-    fetchFolderById,
-    provider,
-    isPreview,
-    previewValue,
-  ])
+  }, [value, selectedCredentialId, selectedFolder, fetchFolderById, isPreview, previewValue])
 
   // Handle folder selection
   const handleSelectFolder = (folder: FolderInfo) => {
