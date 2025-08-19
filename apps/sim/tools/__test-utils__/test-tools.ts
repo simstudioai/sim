@@ -192,7 +192,18 @@ export class ToolTester<P = any, R = any> {
       const response = await this.mockFetch(url, {
         method: method,
         headers: this.tool.request.headers(params),
-        body: this.tool.request.body ? JSON.stringify(this.tool.request.body(params)) : undefined,
+        body: this.tool.request.body
+          ? (() => {
+              const bodyResult = this.tool.request.body(params)
+              const headers = this.tool.request.headers(params)
+              const isPreformattedContent =
+                headers['Content-Type'] === 'application/x-ndjson' ||
+                headers['Content-Type'] === 'application/x-www-form-urlencoded'
+              return isPreformattedContent && typeof bodyResult === 'string'
+                ? bodyResult
+                : JSON.stringify(bodyResult)
+            })()
+          : undefined,
       })
 
       if (!response.ok) {

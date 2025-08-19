@@ -63,8 +63,8 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
     headers['Content-Type'] === 'application/x-ndjson' ||
     headers['Content-Type'] === 'application/x-www-form-urlencoded'
   const body = hasBody
-    ? isPreformattedContent && bodyResult
-      ? bodyResult.body
+    ? isPreformattedContent && typeof bodyResult === 'string'
+      ? bodyResult
       : JSON.stringify(bodyResult)
     : undefined
 
