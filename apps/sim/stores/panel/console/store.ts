@@ -4,7 +4,7 @@ import { redactApiKeys } from '@/lib/utils'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { ConsoleEntry, ConsoleStore } from '@/stores/panel/console/types'
 
-const MAX_ENTRIES = 50 // MAX across all workflows
+const MAX_ENTRIES = 500 // MAX across all workflows - allows for 100 loop iterations + other workflow logs
 const MAX_IMAGE_DATA_SIZE = 1000 // Maximum size of image data to store (in characters)
 const MAX_ANY_DATA_SIZE = 5000 // Maximum size of any data to store (in characters)
 const MAX_TOTAL_ENTRY_SIZE = 50000 // Maximum size of entire entry to prevent localStorage overflow
