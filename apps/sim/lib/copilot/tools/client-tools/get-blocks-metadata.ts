@@ -3,6 +3,12 @@
  */
 
 import { BaseTool } from '@/lib/copilot/tools/base-tool'
+import {
+  getProvidedParams,
+  normalizeToolCallArguments,
+  postToMethods,
+  safeStringify,
+} from '@/lib/copilot/tools/client-tools/client-utils'
 import type {
   CopilotToolCall,
   ToolExecuteResult,
@@ -10,7 +16,6 @@ import type {
   ToolMetadata,
 } from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getProvidedParams, normalizeToolCallArguments, postToMethods, safeStringify } from '@/lib/copilot/tools/client-tools/client-utils'
 
 export class GetBlocksMetadataClientTool extends BaseTool {
   static readonly id = 'get_blocks_metadata'
@@ -86,7 +91,8 @@ export class GetBlocksMetadataClientTool extends BaseTool {
 
         logger.info('Candidate extraction result', {
           hasCandidate: !!raw,
-          candidateType: raw === undefined ? 'undefined' : Array.isArray(raw) ? 'array' : typeof raw,
+          candidateType:
+            raw === undefined ? 'undefined' : Array.isArray(raw) ? 'array' : typeof raw,
           candidateValue: safeStringify(raw),
         })
 
@@ -144,7 +150,12 @@ export class GetBlocksMetadataClientTool extends BaseTool {
         blockIdsValue: paramsToSend.blockIds,
       })
 
-      return await postToMethods('get_blocks_metadata', paramsToSend, { toolCallId: toolCall.id, toolId: toolCall.id }, options)
+      return await postToMethods(
+        'get_blocks_metadata',
+        paramsToSend,
+        { toolCallId: toolCall.id, toolId: toolCall.id },
+        options
+      )
     } catch (error: any) {
       logger.error('Error in client tool execution:', {
         toolCallId: toolCall.id,
@@ -155,4 +166,4 @@ export class GetBlocksMetadataClientTool extends BaseTool {
       return { success: false, error: error?.message || 'Failed to get blocks metadata' }
     }
   }
-} 
+}

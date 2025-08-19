@@ -3,10 +3,15 @@
  */
 
 import { BaseTool } from '@/lib/copilot/tools/base-tool'
-import type { CopilotToolCall, ToolExecuteResult, ToolExecutionOptions, ToolMetadata } from '@/lib/copilot/tools/types'
+import type {
+  CopilotToolCall,
+  ToolExecuteResult,
+  ToolExecutionOptions,
+  ToolMetadata,
+} from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 export class EditWorkflowClientTool extends BaseTool {
   static readonly id = 'edit_workflow'
@@ -39,14 +44,28 @@ export class EditWorkflowClientTool extends BaseTool {
     requiresInterrupt: false,
   }
 
-  async execute(toolCall: CopilotToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult> {
+  async execute(
+    toolCall: CopilotToolCall,
+    options?: ToolExecutionOptions
+  ): Promise<ToolExecuteResult> {
     const logger = createLogger('EditWorkflowClientTool')
-    const safeStringify = (o:any,m:number=800)=>{try{if(o===undefined)return'undefined';if(o===null)return'null';return JSON.stringify(o).substring(0,m)}catch{return'[unserializable]'}}
+    const safeStringify = (o: any, m = 800) => {
+      try {
+        if (o === undefined) return 'undefined'
+        if (o === null) return 'null'
+        return JSON.stringify(o).substring(0, m)
+      } catch {
+        return '[unserializable]'
+      }
+    }
 
     try {
       options?.onStateChange?.('executing')
       const ext = toolCall as CopilotToolCall & { arguments?: any }
-      if (ext.arguments && !toolCall.parameters && !toolCall.input) { toolCall.input = ext.arguments; toolCall.parameters = ext.arguments }
+      if (ext.arguments && !toolCall.parameters && !toolCall.input) {
+        toolCall.input = ext.arguments
+        toolCall.parameters = ext.arguments
+      }
       const provided = toolCall.parameters || toolCall.input || ext.arguments || {}
 
       const operations = provided.operations || provided.ops || []
@@ -58,33 +77,57 @@ export class EditWorkflowClientTool extends BaseTool {
         if (activeWorkflowId) workflowId = activeWorkflowId
       }
 
-      if (!Array.isArray(operations) || !workflowId) { options?.onStateChange?.('errored'); return { success:false, error:'operations and workflowId are required' } }
+      if (!Array.isArray(operations) || !workflowId) {
+        options?.onStateChange?.('errored')
+        return { success: false, error: 'operations and workflowId are required' }
+      }
 
-      const body = { methodId: 'edit_workflow', params: { operations, workflowId, ...(currentUserWorkflow?{currentUserWorkflow}:{}) }, toolCallId: toolCall.id, toolId: toolCall.id }
+      const body = {
+        methodId: 'edit_workflow',
+        params: { operations, workflowId, ...(currentUserWorkflow ? { currentUserWorkflow } : {}) },
+        toolCallId: toolCall.id,
+        toolId: toolCall.id,
+      }
       logger.info('Sending request', { body: safeStringify(body, 1200) })
 
-      const response = await fetch('/api/copilot/methods', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(body) })
-      if (!response.ok) { const e = await response.json().catch(()=>({})); options?.onStateChange?.('errored'); return { success:false, error: e?.error || 'Failed to edit workflow' } }
+      const response = await fetch('/api/copilot/methods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        const e = await response.json().catch(() => ({}))
+        options?.onStateChange?.('errored')
+        return { success: false, error: e?.error || 'Failed to edit workflow' }
+      }
       const result = await response.json()
-      if (!result.success) { options?.onStateChange?.('errored'); return { success:false, error: result.error || 'Server method failed' } }
+      if (!result.success) {
+        options?.onStateChange?.('errored')
+        return { success: false, error: result.error || 'Server method failed' }
+      }
 
       // If server returned YAML, trigger diff view
       try {
         const yamlContent: string | undefined = result?.data?.yamlContent
         if (yamlContent && typeof yamlContent === 'string') {
           await useWorkflowDiffStore.getState().setProposedChanges(yamlContent)
-          logger.info('Diff store updated from edit_workflow result', { yamlLength: yamlContent.length })
+          logger.info('Diff store updated from edit_workflow result', {
+            yamlLength: yamlContent.length,
+          })
         }
       } catch (e) {
-        logger.warn('Failed to update diff store from edit_workflow result', { error: e instanceof Error ? e.message : String(e) })
+        logger.warn('Failed to update diff store from edit_workflow result', {
+          error: e instanceof Error ? e.message : String(e),
+        })
       }
 
       options?.onStateChange?.('success')
       options?.onStateChange?.('ready_for_review')
-      return { success:true, data: result.data }
-    } catch (error:any) {
+      return { success: true, data: result.data }
+    } catch (error: any) {
       options?.onStateChange?.('errored')
-      return { success:false, error: error?.message || 'Unexpected error' }
+      return { success: false, error: error?.message || 'Unexpected error' }
     }
   }
-} 
+}

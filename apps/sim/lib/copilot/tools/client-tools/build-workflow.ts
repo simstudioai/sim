@@ -3,7 +3,12 @@
  */
 
 import { BaseTool } from '@/lib/copilot/tools/base-tool'
-import type { CopilotToolCall, ToolExecuteResult, ToolExecutionOptions, ToolMetadata } from '@/lib/copilot/tools/types'
+import type {
+  CopilotToolCall,
+  ToolExecuteResult,
+  ToolExecutionOptions,
+  ToolMetadata,
+} from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 
@@ -37,14 +42,28 @@ export class BuildWorkflowClientTool extends BaseTool {
     requiresInterrupt: false,
   }
 
-  async execute(toolCall: CopilotToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult> {
+  async execute(
+    toolCall: CopilotToolCall,
+    options?: ToolExecutionOptions
+  ): Promise<ToolExecuteResult> {
     const logger = createLogger('BuildWorkflowClientTool')
-    const safeStringify = (o:any,m:number=800)=>{try{if(o===undefined)return'undefined';if(o===null)return'null';return JSON.stringify(o).substring(0,m)}catch{return'[unserializable]'}}
+    const safeStringify = (o: any, m = 800) => {
+      try {
+        if (o === undefined) return 'undefined'
+        if (o === null) return 'null'
+        return JSON.stringify(o).substring(0, m)
+      } catch {
+        return '[unserializable]'
+      }
+    }
 
     try {
       options?.onStateChange?.('executing')
       const ext = toolCall as CopilotToolCall & { arguments?: any }
-      if (ext.arguments && !toolCall.parameters && !toolCall.input) { toolCall.input = ext.arguments; toolCall.parameters = ext.arguments }
+      if (ext.arguments && !toolCall.parameters && !toolCall.input) {
+        toolCall.input = ext.arguments
+        toolCall.parameters = ext.arguments
+      }
       const provided = toolCall.parameters || toolCall.input || ext.arguments || {}
 
       const yamlContent: string = provided.yamlContent || provided.yaml || provided.content || ''
@@ -52,7 +71,7 @@ export class BuildWorkflowClientTool extends BaseTool {
 
       if (!yamlContent || typeof yamlContent !== 'string') {
         options?.onStateChange?.('errored')
-        return { success:false, error:'yamlContent is required' }
+        return { success: false, error: 'yamlContent is required' }
       }
 
       // Do not call /api/copilot/methods for build_workflow. Succeed locally and pass through data.
@@ -66,7 +85,9 @@ export class BuildWorkflowClientTool extends BaseTool {
         await useWorkflowDiffStore.getState().setProposedChanges(yamlContent)
         logger.info('Diff store updated from build_workflow YAML')
       } catch (e) {
-        logger.warn('Failed to update diff from build_workflow YAML', { error: e instanceof Error ? e.message : String(e) })
+        logger.warn('Failed to update diff from build_workflow YAML', {
+          error: e instanceof Error ? e.message : String(e),
+        })
       }
 
       // Transition to ready_for_review for store compatibility
@@ -81,9 +102,9 @@ export class BuildWorkflowClientTool extends BaseTool {
           note: 'Build workflow handled on client without server call',
         },
       }
-    } catch (error:any) {
+    } catch (error: any) {
       options?.onStateChange?.('errored')
-      return { success:false, error: error?.message || 'Unexpected error' }
+      return { success: false, error: error?.message || 'Unexpected error' }
     }
   }
-} 
+}

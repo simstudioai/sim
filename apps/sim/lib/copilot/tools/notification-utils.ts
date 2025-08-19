@@ -49,6 +49,13 @@ export async function notify(
   // Intentionally do nothing server-side; client tools update UI state locally.
   if (process.env.NODE_ENV !== 'production') {
     // eslint-disable-next-line no-console
-    console.debug('[CopilotNotify] (noop)', { toolId, toolName, toolState, status, message, executionStartTime })
+    console.debug('[CopilotNotify] (noop)', {
+      toolId,
+      toolName,
+      toolState,
+      status,
+      message,
+      executionStartTime,
+    })
   }
 }

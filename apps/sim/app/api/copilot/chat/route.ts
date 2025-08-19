@@ -12,6 +12,7 @@ import {
 } from '@/lib/copilot/auth'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
+import { getBlocksAndToolsTool } from '@/lib/copilot/tools/server-tools/blocks/get-blocks-and-tools'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
@@ -22,7 +23,6 @@ import { db } from '@/db'
 import { copilotChats } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
 import { createAnthropicFileContent, isSupportedFileType } from './file-utils'
-import { getBlocksAndToolsTool } from '@/lib/copilot/tools/server-tools/blocks/get-blocks-and-tools'
 
 const logger = createLogger('CopilotChatAPI')
 

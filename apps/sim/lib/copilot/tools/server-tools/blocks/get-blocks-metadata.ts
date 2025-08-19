@@ -28,9 +28,9 @@ class GetBlocksMetadataTool extends BaseCopilotTool<GetBlocksMetadataParams, Blo
       paramsKeys: params ? Object.keys(params) : [],
       timestamp: new Date().toISOString(),
     })
-    
+
     const result = await getBlocksMetadata(params)
-    
+
     logger.info('=== GetBlocksMetadataTool.executeImpl COMPLETE ===', {
       success: result.success,
       hasData: !!result.data,
@@ -38,7 +38,7 @@ class GetBlocksMetadataTool extends BaseCopilotTool<GetBlocksMetadataParams, Blo
       error: result.error,
       timestamp: new Date().toISOString(),
     })
-    
+
     return result
   }
 }
@@ -55,7 +55,7 @@ function resolveSubBlockOptions(options: any): any[] {
     isFunction: typeof options === 'function',
     isArray: Array.isArray(options),
   })
-  
+
   try {
     if (typeof options === 'function') {
       logger.info('Options is a function, attempting to resolve')
@@ -67,14 +67,14 @@ function resolveSubBlockOptions(options: any): any[] {
       })
       return Array.isArray(resolved) ? resolved : []
     }
-    
+
     if (Array.isArray(options)) {
       logger.info('Options is an array', {
         count: options.length,
         sample: options.slice(0, 3),
       })
     }
-    
+
     return Array.isArray(options) ? options : []
   } catch (error) {
     logger.warn('Failed to resolve subblock options:', {
@@ -93,7 +93,7 @@ function processSubBlocks(subBlocks: any[]): any[] {
     isArray: Array.isArray(subBlocks),
     count: Array.isArray(subBlocks) ? subBlocks.length : 0,
   })
-  
+
   if (!Array.isArray(subBlocks)) {
     logger.warn('subBlocks is not an array', {
       type: typeof subBlocks,
@@ -103,7 +103,7 @@ function processSubBlocks(subBlocks: any[]): any[] {
 
   logger.info('Processing subBlocks array', {
     totalCount: subBlocks.length,
-    subBlockIds: subBlocks.map(sb => sb.id),
+    subBlockIds: subBlocks.map((sb) => sb.id),
   })
 
   return subBlocks.map((subBlock, index) => {
@@ -116,7 +116,7 @@ function processSubBlocks(subBlocks: any[]): any[] {
       hasCondition: !!subBlock.condition,
       required: subBlock.required,
     })
-    
+
     const processedSubBlock: any = {
       id: subBlock.id,
       title: subBlock.title,
@@ -165,7 +165,7 @@ function processSubBlocks(subBlocks: any[]): any[] {
           count: resolvedOptions.length,
           hasOptions: resolvedOptions.length > 0,
         })
-        
+
         processedSubBlock.options = resolvedOptions.map((option) => {
           const processedOption = {
             label: option.label,
@@ -189,7 +189,9 @@ function processSubBlocks(subBlocks: any[]): any[] {
     }
 
     // Count defined properties before filtering
-    const definedPropsCount = Object.entries(processedSubBlock).filter(([_, value]) => value !== undefined).length
+    const definedPropsCount = Object.entries(processedSubBlock).filter(
+      ([_, value]) => value !== undefined
+    ).length
     logger.info(`SubBlock ${subBlock.id} processed`, {
       totalProps: Object.keys(processedSubBlock).length,
       definedProps: definedPropsCount,
@@ -223,7 +225,8 @@ export async function getBlocksMetadata(
       paramsType: typeof params,
       paramsKeys: params ? Object.keys(params) : [],
       hasBlockIds: blockIds !== undefined,
-      blockIdsType: blockIds === undefined ? 'undefined' : Array.isArray(blockIds) ? 'array' : typeof blockIds,
+      blockIdsType:
+        blockIds === undefined ? 'undefined' : Array.isArray(blockIds) ? 'array' : typeof blockIds,
       isArray: Array.isArray(blockIds),
       blockIdsCount: Array.isArray(blockIds) ? blockIds.length : null,
       blockIdsPreview: Array.isArray(blockIds) ? blockIds.slice(0, 10) : undefined,
@@ -275,7 +278,7 @@ export async function getBlocksMetadata(
         index: blockIds.indexOf(blockId),
         total: blockIds.length,
       })
-      
+
       let metadata: any = {}
 
       // Check if it's a special block first
@@ -284,7 +287,7 @@ export async function getBlocksMetadata(
         isSpecialBlock,
         specialBlocksKeys: Object.keys(SPECIAL_BLOCKS_METADATA),
       })
-      
+
       if (SPECIAL_BLOCKS_METADATA[blockId]) {
         logger.info(`✓ Found ${blockId} in SPECIAL_BLOCKS_METADATA`)
         // Start with the special block metadata
@@ -305,7 +308,7 @@ export async function getBlocksMetadata(
           registryKeys: Object.keys(blockRegistry).slice(0, 10),
           hasBlock: !!blockRegistry[blockId],
         })
-        
+
         const blockConfig = blockRegistry[blockId]
         if (!blockConfig) {
           logger.warn(`Block not found in registry: ${blockId}`, {
@@ -341,7 +344,7 @@ export async function getBlocksMetadata(
         // Process and include subBlocks configuration
         if (blockConfig.subBlocks && Array.isArray(blockConfig.subBlocks)) {
           logger.info(`Processing ${blockConfig.subBlocks.length} subBlocks for ${blockId}`)
-          
+
           try {
             metadata.subBlocks = processSubBlocks(blockConfig.subBlocks)
             logger.info(`✓ Processed subBlocks for ${blockId}:`, {
@@ -374,13 +377,13 @@ export async function getBlocksMetadata(
           // Handle both monorepo root and apps/sim as working directory
           const workingDir = process.cwd()
           logger.info(`Current working directory: ${workingDir}`)
-          
+
           const isInAppsSim = workingDir.endsWith('/apps/sim') || workingDir.endsWith('\\apps\\sim')
           logger.info(`Is in apps/sim: ${isInAppsSim}`)
-          
+
           const basePath = isInAppsSim ? join(workingDir, '..', '..') : workingDir
           logger.info(`Base path for docs: ${basePath}`)
-          
+
           const docPath = join(
             basePath,
             'apps',
@@ -392,7 +395,7 @@ export async function getBlocksMetadata(
             `${docFileName}.mdx`
           )
           logger.info(`Looking for docs at: ${docPath}`)
-          
+
           const fileExists = existsSync(docPath)
           logger.info(`File exists: ${fileExists}`)
 
@@ -428,7 +431,7 @@ export async function getBlocksMetadata(
           toolCount: metadata.tools.length,
           toolIds: metadata.tools,
         })
-        
+
         metadata.toolDetails = {}
         for (const toolId of metadata.tools) {
           const tool = toolsRegistry[toolId]
@@ -467,9 +470,13 @@ export async function getBlocksMetadata(
     logger.info('Detailed result summary:', {
       totalBlocks: Object.keys(result).length,
       blockIds: Object.keys(result),
-      blocksWithYaml: Object.keys(result).filter(id => result[id].yamlDocumentation).length,
-      blocksWithSubBlocks: Object.keys(result).filter(id => result[id].subBlocks && result[id].subBlocks.length > 0).length,
-      blocksWithTools: Object.keys(result).filter(id => result[id].tools && result[id].tools.length > 0).length,
+      blocksWithYaml: Object.keys(result).filter((id) => result[id].yamlDocumentation).length,
+      blocksWithSubBlocks: Object.keys(result).filter(
+        (id) => result[id].subBlocks && result[id].subBlocks.length > 0
+      ).length,
+      blocksWithTools: Object.keys(result).filter(
+        (id) => result[id].tools && result[id].tools.length > 0
+      ).length,
     })
 
     // Log the full result for parallel block if it's included

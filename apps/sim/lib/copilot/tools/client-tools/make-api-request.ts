@@ -3,9 +3,18 @@
  */
 
 import { BaseTool } from '@/lib/copilot/tools/base-tool'
-import type { CopilotToolCall, ToolExecuteResult, ToolExecutionOptions, ToolMetadata } from '@/lib/copilot/tools/types'
+import {
+  getProvidedParams,
+  normalizeToolCallArguments,
+  postToMethods,
+} from '@/lib/copilot/tools/client-tools/client-utils'
+import type {
+  CopilotToolCall,
+  ToolExecuteResult,
+  ToolExecutionOptions,
+  ToolMetadata,
+} from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getProvidedParams, normalizeToolCallArguments, postToMethods } from '@/lib/copilot/tools/client-tools/client-utils'
 
 export class MakeApiRequestClientTool extends BaseTool {
   static readonly id = 'make_api_request'
@@ -40,7 +49,10 @@ export class MakeApiRequestClientTool extends BaseTool {
     requiresInterrupt: true,
   }
 
-  async execute(toolCall: CopilotToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult> {
+  async execute(
+    toolCall: CopilotToolCall,
+    options?: ToolExecutionOptions
+  ): Promise<ToolExecuteResult> {
     const logger = createLogger('MakeApiRequestClientTool')
 
     try {
@@ -66,10 +78,15 @@ export class MakeApiRequestClientTool extends BaseTool {
         ...(body ? { body } : {}),
       }
 
-      return await postToMethods('make_api_request', paramsToSend, { toolCallId: toolCall.id, toolId: toolCall.id }, options)
+      return await postToMethods(
+        'make_api_request',
+        paramsToSend,
+        { toolCallId: toolCall.id, toolId: toolCall.id },
+        options
+      )
     } catch (error: any) {
       options?.onStateChange?.('errored')
       return { success: false, error: error?.message || 'Unexpected error' }
     }
   }
-} 
+}

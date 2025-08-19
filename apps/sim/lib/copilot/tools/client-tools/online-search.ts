@@ -3,7 +3,12 @@
  */
 
 import { BaseTool } from '@/lib/copilot/tools/base-tool'
-import type { CopilotToolCall, ToolExecuteResult, ToolExecutionOptions, ToolMetadata } from '@/lib/copilot/tools/types'
+import type {
+  CopilotToolCall,
+  ToolExecuteResult,
+  ToolExecutionOptions,
+  ToolMetadata,
+} from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
 
 export class OnlineSearchClientTool extends BaseTool {
@@ -38,14 +43,28 @@ export class OnlineSearchClientTool extends BaseTool {
     requiresInterrupt: false,
   }
 
-  async execute(toolCall: CopilotToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult> {
+  async execute(
+    toolCall: CopilotToolCall,
+    options?: ToolExecutionOptions
+  ): Promise<ToolExecuteResult> {
     const logger = createLogger('OnlineSearchClientTool')
-    const safeStringify = (o:any,m:number=800)=>{try{if(o===undefined)return'undefined';if(o===null)return'null';return JSON.stringify(o).substring(0,m)}catch{return'[unserializable]'}}
+    const safeStringify = (o: any, m = 800) => {
+      try {
+        if (o === undefined) return 'undefined'
+        if (o === null) return 'null'
+        return JSON.stringify(o).substring(0, m)
+      } catch {
+        return '[unserializable]'
+      }
+    }
 
     try {
       options?.onStateChange?.('executing')
       const ext = toolCall as CopilotToolCall & { arguments?: any }
-      if (ext.arguments && !toolCall.parameters && !toolCall.input) { toolCall.input = ext.arguments; toolCall.parameters = ext.arguments }
+      if (ext.arguments && !toolCall.parameters && !toolCall.input) {
+        toolCall.input = ext.arguments
+        toolCall.parameters = ext.arguments
+      }
       const provided = toolCall.parameters || toolCall.input || ext.arguments || {}
 
       const query = provided.query || provided.search || provided.q || ''
@@ -56,7 +75,7 @@ export class OnlineSearchClientTool extends BaseTool {
 
       if (!query || typeof query !== 'string' || !query.trim()) {
         options?.onStateChange?.('errored')
-        return { success:false, error: 'query is required' }
+        return { success: false, error: 'query is required' }
       }
 
       const paramsToSend: any = { query: query.trim() }
@@ -65,18 +84,35 @@ export class OnlineSearchClientTool extends BaseTool {
       if (typeof gl === 'string') paramsToSend.gl = gl
       if (typeof hl === 'string') paramsToSend.hl = hl
 
-      const body = { methodId: 'search_online', params: paramsToSend, toolCallId: toolCall.id, toolId: toolCall.id }
+      const body = {
+        methodId: 'search_online',
+        params: paramsToSend,
+        toolCallId: toolCall.id,
+        toolId: toolCall.id,
+      }
       logger.info('Sending request', { body: safeStringify(body, 1200) })
 
-      const response = await fetch('/api/copilot/methods', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(body) })
-      if (!response.ok) { const e = await response.json().catch(()=>({})); options?.onStateChange?.('errored'); return { success:false, error: e?.error || 'Failed to search online' } }
+      const response = await fetch('/api/copilot/methods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        const e = await response.json().catch(() => ({}))
+        options?.onStateChange?.('errored')
+        return { success: false, error: e?.error || 'Failed to search online' }
+      }
       const result = await response.json()
-      if (!result.success) { options?.onStateChange?.('errored'); return { success:false, error: result.error || 'Server method failed' } }
-      options?.onStateChange?.('success');
-      return { success:true, data: result.data }
-    } catch (error:any) {
+      if (!result.success) {
+        options?.onStateChange?.('errored')
+        return { success: false, error: result.error || 'Server method failed' }
+      }
+      options?.onStateChange?.('success')
+      return { success: true, data: result.data }
+    } catch (error: any) {
       options?.onStateChange?.('errored')
-      return { success:false, error: error?.message || 'Unexpected error' }
+      return { success: false, error: error?.message || 'Unexpected error' }
     }
   }
-} 
+}

@@ -3,9 +3,19 @@
  */
 
 import { BaseTool } from '@/lib/copilot/tools/base-tool'
-import type { CopilotToolCall, ToolExecuteResult, ToolExecutionOptions, ToolMetadata } from '@/lib/copilot/tools/types'
+import {
+  getProvidedParams,
+  normalizeToolCallArguments,
+  postToMethods,
+  safeStringify,
+} from '@/lib/copilot/tools/client-tools/client-utils'
+import type {
+  CopilotToolCall,
+  ToolExecuteResult,
+  ToolExecutionOptions,
+  ToolMetadata,
+} from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getProvidedParams, normalizeToolCallArguments, postToMethods, safeStringify } from '@/lib/copilot/tools/client-tools/client-utils'
 
 export class ListGDriveFilesClientTool extends BaseTool {
   static readonly id = 'list_gdrive_files'
@@ -38,7 +48,10 @@ export class ListGDriveFilesClientTool extends BaseTool {
     requiresInterrupt: false,
   }
 
-  async execute(toolCall: CopilotToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult> {
+  async execute(
+    toolCall: CopilotToolCall,
+    options?: ToolExecutionOptions
+  ): Promise<ToolExecuteResult> {
     const logger = createLogger('ListGDriveFilesClientTool')
 
     try {
@@ -47,19 +60,26 @@ export class ListGDriveFilesClientTool extends BaseTool {
       logger.info('Provided params', { toolCallId: toolCall.id, provided: safeStringify(provided) })
 
       const userId = provided.userId || provided.user_id || provided.user || ''
-      const search_query = provided.search_query ?? provided.searchQuery ?? provided.query ?? undefined
+      const search_query =
+        provided.search_query ?? provided.searchQuery ?? provided.query ?? undefined
       const num_results = provided.num_results ?? provided.limit ?? undefined
 
       const paramsToSend: any = {}
       if (typeof userId === 'string' && userId.trim()) paramsToSend.userId = userId.trim()
-      if (typeof search_query === 'string' && search_query.trim()) paramsToSend.search_query = search_query.trim()
+      if (typeof search_query === 'string' && search_query.trim())
+        paramsToSend.search_query = search_query.trim()
       if (typeof num_results === 'number') paramsToSend.num_results = num_results
 
-      return await postToMethods('list_gdrive_files', paramsToSend, { toolCallId: toolCall.id, toolId: toolCall.id }, options)
+      return await postToMethods(
+        'list_gdrive_files',
+        paramsToSend,
+        { toolCallId: toolCall.id, toolId: toolCall.id },
+        options
+      )
     } catch (error: any) {
       logger.error('Client tool error', { toolCallId: toolCall.id, message: error?.message })
       options?.onStateChange?.('errored')
       return { success: false, error: error?.message || 'Unexpected error' }
     }
   }
-} 
+}

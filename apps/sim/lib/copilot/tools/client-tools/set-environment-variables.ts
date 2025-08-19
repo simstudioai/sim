@@ -3,7 +3,12 @@
  */
 
 import { BaseTool } from '@/lib/copilot/tools/base-tool'
-import type { CopilotToolCall, ToolExecuteResult, ToolExecutionOptions, ToolMetadata } from '@/lib/copilot/tools/types'
+import type {
+  CopilotToolCall,
+  ToolExecuteResult,
+  ToolExecutionOptions,
+  ToolMetadata,
+} from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
 
 export class SetEnvironmentVariablesClientTool extends BaseTool {
@@ -37,13 +42,19 @@ export class SetEnvironmentVariablesClientTool extends BaseTool {
     requiresInterrupt: true,
   }
 
-  async execute(toolCall: CopilotToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult> {
+  async execute(
+    toolCall: CopilotToolCall,
+    options?: ToolExecutionOptions
+  ): Promise<ToolExecuteResult> {
     const logger = createLogger('SetEnvironmentVariablesClientTool')
 
     try {
       options?.onStateChange?.('executing')
       const ext = toolCall as CopilotToolCall & { arguments?: any }
-      if (ext.arguments && !toolCall.parameters && !toolCall.input) { toolCall.input = ext.arguments; toolCall.parameters = ext.arguments }
+      if (ext.arguments && !toolCall.parameters && !toolCall.input) {
+        toolCall.input = ext.arguments
+        toolCall.parameters = ext.arguments
+      }
       const provided = toolCall.parameters || toolCall.input || ext.arguments || {}
 
       const variables = provided.variables || {}
@@ -51,20 +62,37 @@ export class SetEnvironmentVariablesClientTool extends BaseTool {
 
       if (!variables || typeof variables !== 'object' || Object.keys(variables).length === 0) {
         options?.onStateChange?.('errored')
-        return { success:false, error:'variables is required' }
+        return { success: false, error: 'variables is required' }
       }
 
-      const requestBody = { methodId: 'set_environment_variables', params: { variables, ...(workflowId?{workflowId}:{}) }, toolCallId: toolCall.id, toolId: toolCall.id }
+      const requestBody = {
+        methodId: 'set_environment_variables',
+        params: { variables, ...(workflowId ? { workflowId } : {}) },
+        toolCallId: toolCall.id,
+        toolId: toolCall.id,
+      }
 
-      const response = await fetch('/api/copilot/methods', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(requestBody) })
-      if (!response.ok) { const e = await response.json().catch(()=>({})); options?.onStateChange?.('errored'); return { success:false, error: e?.error || 'Failed to set environment variables' } }
+      const response = await fetch('/api/copilot/methods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(requestBody),
+      })
+      if (!response.ok) {
+        const e = await response.json().catch(() => ({}))
+        options?.onStateChange?.('errored')
+        return { success: false, error: e?.error || 'Failed to set environment variables' }
+      }
       const result = await response.json()
-      if (!result.success) { options?.onStateChange?.('errored'); return { success:false, error: result.error || 'Server method failed' } }
+      if (!result.success) {
+        options?.onStateChange?.('errored')
+        return { success: false, error: result.error || 'Server method failed' }
+      }
       options?.onStateChange?.('success')
-      return { success:true, data: result.data }
-    } catch (error:any) {
+      return { success: true, data: result.data }
+    } catch (error: any) {
       options?.onStateChange?.('errored')
-      return { success:false, error: error?.message || 'Unexpected error' }
+      return { success: false, error: error?.message || 'Unexpected error' }
     }
   }
-} 
+}

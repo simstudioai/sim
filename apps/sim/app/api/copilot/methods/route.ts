@@ -1,12 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/auth'
 import { copilotToolRegistry } from '@/lib/copilot/tools/server-tools/registry'
-import type { NotificationStatus } from '@/lib/copilot/types'
 import { checkCopilotApiKey, checkInternalApiKey } from '@/lib/copilot/utils'
 import { createLogger } from '@/lib/logs/console/logger'
-import { createErrorResponse } from '@/app/api/copilot/methods/utils'
 import { simAgentClient } from '@/lib/sim-agent'
-import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/auth'
+import { createErrorResponse } from '@/app/api/copilot/methods/utils'
 
 const logger = createLogger('CopilotMethodsAPI')
 
@@ -42,7 +41,11 @@ export async function POST(req: NextRequest) {
     const internalAuth = checkInternalApiKey(req)
     const copilotAuth = checkCopilotApiKey(req)
     const sessionAuth = await authenticateCopilotRequestSessionOnly()
-    const isAuthenticated = !!(internalAuth?.success || copilotAuth?.success || sessionAuth.isAuthenticated)
+    const isAuthenticated = !!(
+      internalAuth?.success ||
+      copilotAuth?.success ||
+      sessionAuth.isAuthenticated
+    )
     if (!isAuthenticated) {
       const errorMessage = copilotAuth.error || internalAuth.error || 'Authentication failed'
       return NextResponse.json(createErrorResponse(errorMessage), {
@@ -62,11 +65,14 @@ export async function POST(req: NextRequest) {
         toolCallId,
         fromSessionAuth: sessionAuth.isAuthenticated,
         hasConfirmationMessage: typeof confirmationMessage === 'string',
-        confirmationMessageLength: typeof confirmationMessage === 'string' ? confirmationMessage.length : null,
+        confirmationMessageLength:
+          typeof confirmationMessage === 'string' ? confirmationMessage.length : null,
         hasFullData: !!fullData,
         fullDataKeys: fullData ? Object.keys(fullData) : [],
         fullDataUserWorkflowLength:
-          fullData && typeof fullData.userWorkflow === 'string' ? fullData.userWorkflow.length : null,
+          fullData && typeof fullData.userWorkflow === 'string'
+            ? fullData.userWorkflow.length
+            : null,
       })
     }
 
@@ -77,7 +83,12 @@ export async function POST(req: NextRequest) {
         toolId,
         toolCallId,
         hasBlockIds: Array.isArray(blockIds),
-        blockIdsType: blockIds === undefined ? 'undefined' : Array.isArray(blockIds) ? 'array' : typeof blockIds,
+        blockIdsType:
+          blockIds === undefined
+            ? 'undefined'
+            : Array.isArray(blockIds)
+              ? 'array'
+              : typeof blockIds,
         blockIdsCount: Array.isArray(blockIds) ? blockIds.length : null,
         blockIdsPreview: Array.isArray(blockIds) ? blockIds.slice(0, 10) : undefined,
         paramsRawKeys: Object.keys((params as any) || {}),
@@ -162,7 +173,7 @@ export async function POST(req: NextRequest) {
     {
       const completionPayload: CompleteToolRequestBody = {
         toolId: (toolId || toolCallId || requestId) as string,
-        methodId: (methodId === 'run_workflow' ? 'no_op' : (methodId as MethodId)),
+        methodId: methodId === 'run_workflow' ? 'no_op' : (methodId as MethodId),
         success: !!result.success,
         ...(result.success
           ? { data: result.data as unknown }

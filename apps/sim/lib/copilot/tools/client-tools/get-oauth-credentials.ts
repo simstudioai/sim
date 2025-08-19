@@ -102,4 +102,4 @@ export class GetOAuthCredentialsClientTool extends BaseTool {
       return { success: false, error: error.message || 'Failed to retrieve login IDs' }
     }
   }
-} 
+}

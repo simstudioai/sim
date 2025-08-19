@@ -1,9 +1,13 @@
-import type { CopilotToolCall, ToolExecuteResult, ToolExecutionOptions } from '@/lib/copilot/tools/types'
+import type {
+  CopilotToolCall,
+  ToolExecuteResult,
+  ToolExecutionOptions,
+} from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CopilotClientUtils')
 
-export function safeStringify(obj: any, maxLength: number = 1000): string {
+export function safeStringify(obj: any, maxLength = 1000): string {
   try {
     if (obj === undefined) return 'undefined'
     if (obj === null) return 'null'
@@ -65,7 +69,10 @@ export async function postToMethods(
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       options?.onStateChange?.('errored')
-      return { success: false, error: (errorData as any)?.error || 'Failed to execute server method' }
+      return {
+        success: false,
+        error: (errorData as any)?.error || 'Failed to execute server method',
+      }
     }
 
     const result = await response.json()
@@ -78,6 +85,9 @@ export async function postToMethods(
     return { success: true, data: result.data }
   } catch (error: any) {
     options?.onStateChange?.('errored')
-    return { success: false, error: error?.message || 'Unexpected error while calling methods route' }
+    return {
+      success: false,
+      error: error?.message || 'Unexpected error while calling methods route',
+    }
   }
-} 
+}

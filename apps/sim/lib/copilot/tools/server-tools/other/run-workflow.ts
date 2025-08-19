@@ -32,4 +32,4 @@ class RunWorkflowServerTool extends BaseCopilotTool<
   }
 }
 
-export const runWorkflowServerTool = new RunWorkflowServerTool() 
+export const runWorkflowServerTool = new RunWorkflowServerTool()

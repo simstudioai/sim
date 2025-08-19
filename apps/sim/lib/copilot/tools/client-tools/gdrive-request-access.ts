@@ -64,7 +64,12 @@ export class GDriveRequestAccessTool extends BaseTool {
       options?.onStateChange?.('executing')
 
       // Mirror pattern used by other client tools: call methods route
-      const body = { methodId: 'gdrive_request_access', params: {}, toolCallId: toolCall.id, toolId: toolCall.id }
+      const body = {
+        methodId: 'gdrive_request_access',
+        params: {},
+        toolCallId: toolCall.id,
+        toolId: toolCall.id,
+      }
       logger.info('Sending request access method call', { toolCallId: toolCall.id })
 
       const response = await fetch('/api/copilot/methods', {
@@ -77,7 +82,10 @@ export class GDriveRequestAccessTool extends BaseTool {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         options?.onStateChange?.('errored')
-        return { success: false, error: errorData?.error || 'Failed to request Google Drive access' }
+        return {
+          success: false,
+          error: errorData?.error || 'Failed to request Google Drive access',
+        }
       }
 
       const result = await response.json()

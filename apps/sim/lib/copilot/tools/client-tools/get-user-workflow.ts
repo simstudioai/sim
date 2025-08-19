@@ -3,6 +3,7 @@
  */
 
 import { BaseTool } from '@/lib/copilot/tools/base-tool'
+import { postToMethods } from '@/lib/copilot/tools/client-tools/client-utils'
 import type {
   CopilotToolCall,
   ToolExecuteResult,
@@ -10,12 +11,11 @@ import type {
   ToolMetadata,
 } from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
+import { Serializer } from '@/serializer'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { Serializer } from '@/serializer'
-import { postToMethods } from '@/lib/copilot/tools/client-tools/client-utils'
 
 interface GetUserWorkflowParams {
   workflowId?: string

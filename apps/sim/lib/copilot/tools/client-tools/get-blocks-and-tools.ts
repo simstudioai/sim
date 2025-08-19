@@ -3,6 +3,10 @@
  */
 
 import { BaseTool } from '@/lib/copilot/tools/base-tool'
+import {
+  normalizeToolCallArguments,
+  postToMethods,
+} from '@/lib/copilot/tools/client-tools/client-utils'
 import type {
   CopilotToolCall,
   ToolExecuteResult,
@@ -10,7 +14,6 @@ import type {
   ToolMetadata,
 } from '@/lib/copilot/tools/types'
 import { createLogger } from '@/lib/logs/console/logger'
-import { normalizeToolCallArguments, postToMethods } from '@/lib/copilot/tools/client-tools/client-utils'
 
 export class GetBlocksAndToolsClientTool extends BaseTool {
   static readonly id = 'get_blocks_and_tools'
@@ -51,7 +54,12 @@ export class GetBlocksAndToolsClientTool extends BaseTool {
         methodId: 'get_blocks_and_tools',
       })
 
-      return await postToMethods('get_blocks_and_tools', {}, { toolCallId: toolCall.id, toolId: toolCall.id }, options)
+      return await postToMethods(
+        'get_blocks_and_tools',
+        {},
+        { toolCallId: toolCall.id, toolId: toolCall.id },
+        options
+      )
     } catch (error: any) {
       logger.error('Error in client tool execution:', {
         toolCallId: toolCall.id,
@@ -62,4 +70,4 @@ export class GetBlocksAndToolsClientTool extends BaseTool {
       return { success: false, error: error?.message || 'Failed to get block information' }
     }
   }
-} 
+}

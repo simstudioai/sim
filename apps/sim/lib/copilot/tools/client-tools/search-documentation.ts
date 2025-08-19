@@ -48,7 +48,7 @@ export class SearchDocumentationClientTool extends BaseTool {
     const logger = createLogger('SearchDocumentationClientTool')
 
     // Safe stringify helper
-    const safeStringify = (obj: any, maxLength: number = 500): string => {
+    const safeStringify = (obj: any, maxLength = 500): string => {
       try {
         if (obj === undefined) return 'undefined'
         if (obj === null) return 'null'
@@ -93,9 +93,10 @@ export class SearchDocumentationClientTool extends BaseTool {
           parametersType: typeof toolCall.parameters,
           inputType: typeof toolCall.input,
           argumentsType: typeof extendedToolCall.arguments,
-          parametersKeys: toolCall.parameters && typeof toolCall.parameters === 'object' 
-            ? Object.keys(toolCall.parameters) 
-            : [],
+          parametersKeys:
+            toolCall.parameters && typeof toolCall.parameters === 'object'
+              ? Object.keys(toolCall.parameters)
+              : [],
           rawParameters: safeStringify(toolCall.parameters),
           rawInput: safeStringify(toolCall.input),
           rawArguments: safeStringify(extendedToolCall.arguments),
@@ -112,7 +113,13 @@ export class SearchDocumentationClientTool extends BaseTool {
         hasArguments: !!extendedToolCall.arguments,
         hasParameters: !!toolCall.parameters,
         hasInput: !!toolCall.input,
-        providedSource: toolCall.parameters ? 'parameters' : toolCall.input ? 'input' : extendedToolCall.arguments ? 'arguments' : 'none',
+        providedSource: toolCall.parameters
+          ? 'parameters'
+          : toolCall.input
+            ? 'input'
+            : extendedToolCall.arguments
+              ? 'arguments'
+              : 'none',
         providedKeys: Object.keys(provided),
         providedStringified: safeStringify(provided),
       })
@@ -213,4 +220,4 @@ export class SearchDocumentationClientTool extends BaseTool {
       return { success: false, error: error.message || 'Failed to search documentation' }
     }
   }
-} 
+}

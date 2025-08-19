@@ -108,4 +108,4 @@ export class GetEnvironmentVariablesClientTool extends BaseTool {
       return { success: false, error: error.message || 'Failed to get environment variables' }
     }
   }
-} 
+}

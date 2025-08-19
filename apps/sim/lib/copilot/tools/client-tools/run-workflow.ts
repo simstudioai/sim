@@ -9,10 +9,10 @@ import type {
   ToolExecutionOptions,
   ToolMetadata,
 } from '@/lib/copilot/tools/types'
+import { createLogger } from '@/lib/logs/console/logger'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { createLogger } from '@/lib/logs/console/logger'
 
 interface RunWorkflowParams {
   workflowId?: string
@@ -172,7 +172,10 @@ export class RunWorkflowTool extends BaseTool {
       // Reset execution state
       setIsExecuting(false)
 
-      const postCompletion = async (status: 'success' | 'errored' | 'rejected', message: string) => {
+      const postCompletion = async (
+        status: 'success' | 'errored' | 'rejected',
+        message: string
+      ) => {
         const body = {
           methodId: 'run_workflow',
           params: {

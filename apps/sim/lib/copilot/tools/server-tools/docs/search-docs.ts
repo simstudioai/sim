@@ -42,9 +42,9 @@ class SearchDocsTool extends BaseCopilotTool<DocsSearchParams, DocsSearchResult>
       threshold: params?.threshold,
       timestamp: new Date().toISOString(),
     })
-    
+
     const result = await searchDocs(params)
-    
+
     logger.info('=== SearchDocsTool.executeImpl COMPLETE ===', {
       resultsCount: result.results.length,
       totalResults: result.totalResults,
@@ -53,7 +53,7 @@ class SearchDocsTool extends BaseCopilotTool<DocsSearchParams, DocsSearchResult>
       topSimilarity: result.results[0]?.similarity,
       timestamp: new Date().toISOString(),
     })
-    
+
     return result
   }
 }
@@ -108,7 +108,7 @@ async function searchDocs(params: DocsSearchParams): Promise<DocsSearchResult> {
     logger.info('Getting copilot config for RAG settings')
     const config = getCopilotConfig()
     const similarityThreshold = threshold ?? config.rag.similarityThreshold
-    
+
     logger.info('Configuration loaded', {
       similarityThreshold,
       configThreshold: config.rag.similarityThreshold,
@@ -122,8 +122,8 @@ async function searchDocs(params: DocsSearchParams): Promise<DocsSearchResult> {
     logger.info('Importing embedding generation module')
     const { generateEmbeddings } = await import('@/app/api/knowledge/utils')
 
-    logger.info('About to generate embeddings for query', { 
-      query, 
+    logger.info('About to generate embeddings for query', {
+      query,
       queryLength: query.length,
       queryWords: query.split(' ').length,
       queryPreview: query.substring(0, 200),
@@ -132,7 +132,7 @@ async function searchDocs(params: DocsSearchParams): Promise<DocsSearchResult> {
     const startEmbedTime = Date.now()
     const embeddings = await generateEmbeddings([query])
     const embeddingDuration = Date.now() - startEmbedTime
-    
+
     logger.info('Embedding generation complete', {
       duration: embeddingDuration,
       embeddingsCount: embeddings.length,
@@ -182,7 +182,7 @@ async function searchDocs(params: DocsSearchParams): Promise<DocsSearchResult> {
       .from(docsEmbeddings)
       .orderBy(sql`${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector`)
       .limit(topK)
-    
+
     const searchDuration = Date.now() - startSearchTime
 
     logger.info('Database search complete', {
@@ -219,7 +219,7 @@ async function searchDocs(params: DocsSearchParams): Promise<DocsSearchResult> {
       afterCount: filteredResults.length,
       filtered: results.length - filteredResults.length,
       threshold: similarityThreshold,
-      passedThreshold: filteredResults.map(r => r.similarity),
+      passedThreshold: filteredResults.map((r) => r.similarity),
     })
 
     const documentationResults: DocumentationSearchResult[] = filteredResults.map(
@@ -231,7 +231,7 @@ async function searchDocs(params: DocsSearchParams): Promise<DocsSearchResult> {
           content: String(result.chunkText || ''),
           similarity: result.similarity,
         }
-        
+
         logger.info(`Processing documentation result ${index + 1}/${filteredResults.length}`, {
           id: docResult.id,
           title: docResult.title,
@@ -240,18 +240,18 @@ async function searchDocs(params: DocsSearchParams): Promise<DocsSearchResult> {
           similarity: docResult.similarity,
           contentPreview: docResult.content.substring(0, 100),
         })
-        
+
         return docResult
       }
     )
 
-    logger.info(`Found ${documentationResults.length} documentation results`, { 
+    logger.info(`Found ${documentationResults.length} documentation results`, {
       query,
       totalResults: documentationResults.length,
       topK,
       threshold: similarityThreshold,
-      similarities: documentationResults.map(r => r.similarity),
-      titles: documentationResults.map(r => r.title),
+      similarities: documentationResults.map((r) => r.similarity),
+      titles: documentationResults.map((r) => r.title),
     })
 
     logger.info('=== searchDocs FUNCTION COMPLETE ===', {
@@ -276,14 +276,14 @@ async function searchDocs(params: DocsSearchParams): Promise<DocsSearchResult> {
       errorDetails: error,
       timestamp: new Date().toISOString(),
     })
-    
+
     logger.info('=== searchDocs FUNCTION ERROR ===', {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
       query,
       timestamp: new Date().toISOString(),
     })
-    
+
     throw new Error(
       `Documentation search failed: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
