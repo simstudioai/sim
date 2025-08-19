@@ -142,7 +142,7 @@ export function MicrosoftFileSelector({
 
   // Fetch available files for the selected credential
   const fetchAvailableFiles = useCallback(async () => {
-    if (!selectedCredentialId) return
+    if (!selectedCredentialId || isForeignCredential) return
 
     setIsLoadingFiles(true)
     try {
@@ -171,9 +171,13 @@ export function MicrosoftFileSelector({
         const data = await response.json()
         setAvailableFiles(data.files || [])
       } else {
-        logger.error('Error fetching available files:', {
-          error: await response.text(),
-        })
+        const txt = await response.text()
+        if (response.status === 401 || response.status === 403) {
+          // Suppress noisy auth errors for collaborators; lists are intentionally gated
+          logger.info('Skipping list fetch (auth)', { status: response.status })
+        } else {
+          logger.warn('Non-OK list fetch', { status: response.status, txt })
+        }
         setAvailableFiles([])
       }
     } catch (error) {
@@ -182,7 +186,7 @@ export function MicrosoftFileSelector({
     } finally {
       setIsLoadingFiles(false)
     }
-  }, [selectedCredentialId, searchQuery, serviceId])
+  }, [selectedCredentialId, searchQuery, serviceId, isForeignCredential])
 
   // Fetch a single file by ID when we have a selectedFileId but no metadata
   const fetchFileById = useCallback(
@@ -217,11 +221,9 @@ export function MicrosoftFileSelector({
           })
           if (!resp.ok) {
             const t = await resp.text()
-            logger.error('Graph error fetching file by ID', { status: resp.status, t })
-            if (resp.status === 404 || resp.status === 403) {
-              setSelectedFileId('')
-              onChange('')
-              onFileInfoChange?.(null)
+            // For 404/403, keep current selection; this often means the item moved or is shared differently.
+            if (resp.status !== 404 && resp.status !== 403) {
+              logger.warn('Graph error fetching file by ID', { status: resp.status, t })
             }
             return null
           }
