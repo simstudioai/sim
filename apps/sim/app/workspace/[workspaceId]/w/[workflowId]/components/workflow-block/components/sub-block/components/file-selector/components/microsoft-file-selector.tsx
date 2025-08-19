@@ -56,6 +56,8 @@ interface MicrosoftFileSelectorProps {
   onFileInfoChange?: (fileInfo: MicrosoftFileInfo | null) => void
   planId?: string
   workflowId?: string
+  credentialId?: string
+  isForeignCredential?: boolean
 }
 
 export function MicrosoftFileSelector({
@@ -70,10 +72,12 @@ export function MicrosoftFileSelector({
   onFileInfoChange,
   planId,
   workflowId,
+  credentialId,
+  isForeignCredential = false,
 }: MicrosoftFileSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedFileId, setSelectedFileId] = useState(value)
   const [selectedFile, setSelectedFile] = useState<MicrosoftFileInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -114,23 +118,11 @@ export function MicrosoftFileSelector({
         const data = await response.json()
         setCredentials(data.credentials)
 
-        // Auto-select logic for credentials
-        if (data.credentials.length > 0) {
-          // If we already have a selected credential ID, check if it's valid
-          if (
-            selectedCredentialId &&
-            data.credentials.some((cred: Credential) => cred.id === selectedCredentialId)
-          ) {
-            // Keep the current selection
-          } else {
-            // Otherwise, select the default or first credential
-            const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-            if (defaultCred) {
-              setSelectedCredentialId(defaultCred.id)
-            } else if (data.credentials.length === 1) {
-              setSelectedCredentialId(data.credentials[0].id)
-            }
-          }
+        // If a credentialId prop is provided (collaborator case), do not auto-select
+        if (!credentialId && data.credentials.length > 0 && !selectedCredentialId) {
+          const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
+          if (defaultCred) setSelectedCredentialId(defaultCred.id)
+          else if (data.credentials.length === 1) setSelectedCredentialId(data.credentials[0].id)
         }
       }
     } catch (error) {
@@ -139,7 +131,14 @@ export function MicrosoftFileSelector({
       setIsLoading(false)
       setCredentialsLoaded(true)
     }
-  }, [provider, getProviderId, selectedCredentialId])
+  }, [provider, getProviderId, selectedCredentialId, credentialId])
+
+  // Keep internal credential in sync with prop
+  useEffect(() => {
+    if (credentialId && credentialId !== selectedCredentialId) {
+      setSelectedCredentialId(credentialId)
+    }
+  }, [credentialId, selectedCredentialId])
 
   // Fetch available files for the selected credential
   const fetchAvailableFiles = useCallback(async () => {
@@ -352,6 +351,49 @@ export function MicrosoftFileSelector({
     }
   }, [selectedCredentialId, planId, serviceId])
 
+  // Fetch a single planner task by ID for collaborator preview
+  const fetchPlannerTaskById = useCallback(
+    async (taskId: string) => {
+      if (!selectedCredentialId || !taskId || serviceId !== 'microsoft-planner') return null
+      setIsLoadingTasks(true)
+      try {
+        const tokenRes = await fetch('/api/auth/oauth/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credentialId: selectedCredentialId, workflowId }),
+        })
+        if (!tokenRes.ok) return null
+        const { accessToken } = await tokenRes.json()
+        if (!accessToken) return null
+        const resp = await fetch(
+          `https://graph.microsoft.com/v1.0/planner/tasks/${encodeURIComponent(taskId)}`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        )
+        if (!resp.ok) return null
+        const task = await resp.json()
+        const taskAsFileInfo: MicrosoftFileInfo = {
+          id: task.id,
+          name: task.title,
+          mimeType: 'planner/task',
+          webViewLink: `https://tasks.office.com/planner/task/${task.id}`,
+          createdTime: task.createdDateTime,
+          modifiedTime: task.createdDateTime,
+        }
+        setSelectedTask(task)
+        setSelectedFile(taskAsFileInfo)
+        onFileInfoChange?.(taskAsFileInfo)
+        return taskAsFileInfo
+      } catch {
+        return null
+      } finally {
+        setIsLoadingTasks(false)
+      }
+    },
+    [selectedCredentialId, workflowId, onFileInfoChange, serviceId]
+  )
+
   // Fetch credentials on initial mount
   useEffect(() => {
     if (!initialFetchRef.current) {
@@ -465,6 +507,26 @@ export function MicrosoftFileSelector({
     isLoadingSelectedFile,
     fetchFileById,
     serviceId,
+  ])
+
+  // Resolve planner task selection for collaborators
+  useEffect(() => {
+    if (
+      value &&
+      selectedCredentialId &&
+      credentialsLoaded &&
+      !selectedTask &&
+      serviceId === 'microsoft-planner'
+    ) {
+      void fetchPlannerTaskById(value)
+    }
+  }, [
+    value,
+    selectedCredentialId,
+    credentialsLoaded,
+    selectedTask,
+    serviceId,
+    fetchPlannerTaskById,
   ])
 
   // Handle selecting a file from the available files

@@ -181,7 +181,7 @@ export function CredentialSelector({
   // Also handle BFCache restores (back/forward navigation) where visibility change may not fire reliably
   useEffect(() => {
     const handlePageShow = (event: any) => {
-      if (event && event.persisted) {
+      if (event?.persisted) {
         fetchCredentials()
       }
     }
