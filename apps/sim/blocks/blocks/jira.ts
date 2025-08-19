@@ -72,6 +72,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter Jira project ID',
+      dependsOn: ['credential', 'domain'],
       mode: 'advanced',
     },
     // Issue selector (basic mode)
@@ -94,6 +95,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter Jira issue key',
+      dependsOn: ['credential', 'domain', 'projectId'],
       condition: { field: 'operation', value: ['read', 'update'] },
       mode: 'advanced',
     },
