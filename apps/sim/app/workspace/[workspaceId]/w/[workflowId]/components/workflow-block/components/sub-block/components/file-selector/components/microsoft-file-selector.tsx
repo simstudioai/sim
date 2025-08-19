@@ -55,6 +55,7 @@ interface MicrosoftFileSelectorProps {
   showPreview?: boolean
   onFileInfoChange?: (fileInfo: MicrosoftFileInfo | null) => void
   planId?: string
+  workflowId?: string
 }
 
 export function MicrosoftFileSelector({
@@ -68,6 +69,7 @@ export function MicrosoftFileSelector({
   showPreview = true,
   onFileInfoChange,
   planId,
+  workflowId,
 }: MicrosoftFileSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -190,46 +192,85 @@ export function MicrosoftFileSelector({
 
       setIsLoadingSelectedFile(true)
       try {
-        // Construct query parameters
+        // For Excel (default service), use owner-scoped token to fetch metadata to support collaborators
+        if (serviceId !== 'onedrive' && serviceId !== 'sharepoint') {
+          const tokenRes = await fetch('/api/auth/oauth/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credentialId: selectedCredentialId, workflowId }),
+          })
+          if (!tokenRes.ok) {
+            const err = await tokenRes.text()
+            logger.error('Failed to get access token for Microsoft file fetch', { err })
+            return null
+          }
+          const { accessToken } = await tokenRes.json()
+          if (!accessToken) return null
+
+          const graphUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(
+            fileId
+          )}?$select=id,name,mimeType,webUrl,thumbnails,createdDateTime,lastModifiedDateTime,size,createdBy`
+          const resp = await fetch(graphUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+          if (!resp.ok) {
+            const t = await resp.text()
+            logger.error('Graph error fetching file by ID', { status: resp.status, t })
+            if (resp.status === 404 || resp.status === 403) {
+              setSelectedFileId('')
+              onChange('')
+              onFileInfoChange?.(null)
+            }
+            return null
+          }
+          const file = await resp.json()
+          const fileInfo: MicrosoftFileInfo = {
+            id: file.id,
+            name: file.name,
+            mimeType:
+              file.mimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            iconLink: file.thumbnails?.[0]?.small?.url,
+            webViewLink: file.webUrl,
+            thumbnailLink: file.thumbnails?.[0]?.medium?.url,
+            createdTime: file.createdDateTime,
+            modifiedTime: file.lastModifiedDateTime,
+            size: file.size?.toString(),
+            owners: file.createdBy
+              ? [
+                  {
+                    displayName: file.createdBy.user?.displayName || 'Unknown',
+                    emailAddress: file.createdBy.user?.email || '',
+                  },
+                ]
+              : [],
+          }
+          setSelectedFile(fileInfo)
+          onFileInfoChange?.(fileInfo)
+          return fileInfo
+        }
+
+        // OneDrive / SharePoint fallback to existing server endpoints (same-user scenarios)
         const queryParams = new URLSearchParams({
           credentialId: selectedCredentialId,
           fileId: fileId,
         })
-
-        // Route to correct endpoint based on service
         let endpoint: string
         if (serviceId === 'onedrive') {
           endpoint = `/api/tools/onedrive/folder?${queryParams.toString()}`
-        } else if (serviceId === 'sharepoint') {
-          // Change from fileId to siteId for SharePoint
+        } else {
           const sharepointParams = new URLSearchParams({
             credentialId: selectedCredentialId,
-            siteId: fileId, // Use siteId instead of fileId
+            siteId: fileId,
           })
           endpoint = `/api/tools/sharepoint/site?${sharepointParams.toString()}`
-        } else {
-          endpoint = `/api/auth/oauth/microsoft/file?${queryParams.toString()}`
         }
-
         const response = await fetch(endpoint)
-
         if (response.ok) {
           const data = await response.json()
           if (data.file) {
             setSelectedFile(data.file)
             onFileInfoChange?.(data.file)
             return data.file
-          }
-        } else {
-          const errorText = await response.text()
-          logger.error('Error fetching file by ID:', { error: errorText })
-
-          // If file not found or access denied, clear the selection
-          if (response.status === 404 || response.status === 403) {
-            logger.info('File not accessible, clearing selection')
-            setSelectedFileId('')
-            onChange('')
-            onFileInfoChange?.(null)
           }
         }
         return null
@@ -240,7 +281,7 @@ export function MicrosoftFileSelector({
         setIsLoadingSelectedFile(false)
       }
     },
-    [selectedCredentialId, onFileInfoChange, serviceId]
+    [selectedCredentialId, onFileInfoChange, serviceId, workflowId, onChange]
   )
 
   // Fetch Microsoft Planner tasks when planId and credentials are available

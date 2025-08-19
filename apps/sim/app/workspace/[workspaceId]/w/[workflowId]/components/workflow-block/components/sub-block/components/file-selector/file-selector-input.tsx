@@ -432,6 +432,7 @@ export function FileSelectorInput({
                 disabled={disabled || !credential}
                 showPreview={true}
                 onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
+                workflowId={activeWorkflowId || ''}
               />
             </div>
           </TooltipTrigger>
