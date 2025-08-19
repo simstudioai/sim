@@ -240,6 +240,7 @@ export function ProjectSelectorInput({
               onProjectInfoChange={setProjectInfo}
               credentialId={(jiraCredential as string) || ''}
               isForeignCredential={isForeignCredential}
+              workflowId={activeWorkflowId || ''}
             />
           </div>
         </TooltipTrigger>

@@ -50,6 +50,7 @@ interface JiraProjectSelectorProps {
   onProjectInfoChange?: (projectInfo: JiraProjectInfo | null) => void
   credentialId?: string
   isForeignCredential?: boolean
+  workflowId?: string
 }
 
 export function JiraProjectSelector({
@@ -65,6 +66,7 @@ export function JiraProjectSelector({
   onProjectInfoChange,
   credentialId,
   isForeignCredential = false,
+  workflowId,
 }: JiraProjectSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -147,7 +149,9 @@ export function JiraProjectSelector({
 
       try {
         // Get the access token from the selected credential
-        const tokenResponse = await fetch('/api/auth/oauth/token', {
+        const tokenUrl = new URL('/api/auth/oauth/token', window.location.origin)
+        if (workflowId) tokenUrl.searchParams.set('workflowId', workflowId)
+        const tokenResponse = await fetch(tokenUrl.toString(), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -232,7 +236,9 @@ export function JiraProjectSelector({
 
       try {
         // Get the access token from the selected credential
-        const tokenResponse = await fetch('/api/auth/oauth/token', {
+        const tokenUrl = new URL('/api/auth/oauth/token', window.location.origin)
+        if (workflowId) tokenUrl.searchParams.set('workflowId', workflowId)
+        const tokenResponse = await fetch(tokenUrl.toString(), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

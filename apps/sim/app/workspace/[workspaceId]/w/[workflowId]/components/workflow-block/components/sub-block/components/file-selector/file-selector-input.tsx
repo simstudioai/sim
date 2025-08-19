@@ -391,6 +391,7 @@ export function FileSelectorInput({
                 credentialId={credential}
                 projectId={(getValue(blockId, 'projectId') as string) || ''}
                 isForeignCredential={isForeignCredential}
+                workflowId={activeWorkflowId || ''}
               />
             </div>
           </TooltipTrigger>
