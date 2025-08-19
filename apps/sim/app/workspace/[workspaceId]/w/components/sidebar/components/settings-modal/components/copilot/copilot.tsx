@@ -202,9 +202,6 @@ export function Copilot() {
                 <div className='flex items-center justify-between gap-4'>
                   <div className='min-w-0 flex-1'>
                     <div className='rounded bg-muted/50 px-2 py-1 font-mono text-sm'>{value}</div>
-                    <p className='mt-1 text-muted-foreground text-xs'>
-                      Key ID: <span className='font-mono'>{k.id}</span>
-                    </p>
                   </div>
                   <div className='flex items-center gap-2'>
                     <TooltipProvider>

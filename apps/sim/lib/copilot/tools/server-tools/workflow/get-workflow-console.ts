@@ -39,15 +39,10 @@ interface ExecutionEntry {
   id: string
   executionId: string
   level: string
-  message: string
   trigger: string
   startedAt: string
   endedAt: string | null
   durationMs: number | null
-  blockCount: number
-  successCount: number
-  errorCount: number
-  skippedCount: number
   totalCost: number | null
   totalTokens: number | null
   blockExecutions: BlockExecution[]
@@ -124,18 +119,12 @@ async function getWorkflowConsole(
       id: workflowExecutionLogs.id,
       executionId: workflowExecutionLogs.executionId,
       level: workflowExecutionLogs.level,
-      message: workflowExecutionLogs.message,
       trigger: workflowExecutionLogs.trigger,
       startedAt: workflowExecutionLogs.startedAt,
       endedAt: workflowExecutionLogs.endedAt,
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
-      blockCount: workflowExecutionLogs.blockCount,
-      successCount: workflowExecutionLogs.successCount,
-      errorCount: workflowExecutionLogs.errorCount,
-      skippedCount: workflowExecutionLogs.skippedCount,
-      totalCost: workflowExecutionLogs.totalCost,
-      totalTokens: workflowExecutionLogs.totalTokens,
-      metadata: workflowExecutionLogs.metadata,
+      executionData: workflowExecutionLogs.executionData,
+      cost: workflowExecutionLogs.cost,
     })
     .from(workflowExecutionLogs)
     .where(eq(workflowExecutionLogs.workflowId, workflowId))
@@ -144,9 +133,8 @@ async function getWorkflowConsole(
 
   // Format the response with detailed block execution data
   const formattedEntries: ExecutionEntry[] = executionLogs.map((log) => {
-    // Extract trace spans from metadata
-    const metadata = log.metadata as any
-    const traceSpans = metadata?.traceSpans || []
+    // Extract trace spans from execution data
+    const traceSpans = (log.executionData as any)?.traceSpans || []
     const blockExecutions = extractBlockExecutionsFromTraceSpans(traceSpans)
 
     // Try to find the final output from the last executed block
@@ -172,17 +160,12 @@ async function getWorkflowConsole(
       id: log.id,
       executionId: log.executionId,
       level: log.level,
-      message: log.message,
       trigger: log.trigger,
       startedAt: log.startedAt.toISOString(),
       endedAt: log.endedAt?.toISOString() || null,
       durationMs: log.totalDurationMs,
-      blockCount: log.blockCount,
-      successCount: log.successCount,
-      errorCount: log.errorCount,
-      skippedCount: log.skippedCount || 0,
-      totalCost: log.totalCost ? Number.parseFloat(log.totalCost.toString()) : null,
-      totalTokens: log.totalTokens,
+      totalCost: (log.cost as any)?.total ?? null,
+      totalTokens: (log.cost as any)?.tokens?.total ?? null,
       blockExecutions: includeDetails ? blockExecutions : [],
       output: finalOutput,
     }

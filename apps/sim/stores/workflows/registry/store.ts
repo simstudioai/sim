@@ -1212,10 +1212,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }))
         }
 
-        // Set as active workflow and update store
-        set({ activeWorkflowId: id })
-        useWorkflowStore.setState(newState)
-
         // Workflow has already been persisted to the database via the duplication endpoint
 
         logger.info(

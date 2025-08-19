@@ -519,6 +519,20 @@
       "when": 1755304368539,
       "tag": "0074_abnormal_dreadnoughts",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1755319635487,
+      "tag": "0075_lush_moonstone",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1755375658161,
+      "tag": "0076_damp_vector",
+      "breakpoints": true
     }
   ]
 }

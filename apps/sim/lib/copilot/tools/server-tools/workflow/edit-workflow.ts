@@ -352,24 +352,8 @@ async function getUserWorkflow(workflowId: string): Promise<string> {
         }
       })
     })
-  } else if (workflowRecord.state) {
-    // Fallback to JSON blob
-    const jsonState = workflowRecord.state as any
-    workflowState = {
-      blocks: jsonState.blocks || {},
-      edges: jsonState.edges || [],
-      loops: jsonState.loops || {},
-      parallels: jsonState.parallels || {},
-    }
-    // For JSON blob, subblock values are embedded in the block state
-    Object.entries((workflowState.blocks as any) || {}).forEach(([blockId, block]) => {
-      subBlockValues[blockId] = {}
-      Object.entries((block as any).subBlocks || {}).forEach(([subBlockId, subBlock]) => {
-        if ((subBlock as any).value !== undefined) {
-          subBlockValues[blockId][subBlockId] = (subBlock as any).value
-        }
-      })
-    })
+  } else {
+    throw new Error('Workflow has no normalized data')
   }
 
   if (!workflowState || !workflowState.blocks) {

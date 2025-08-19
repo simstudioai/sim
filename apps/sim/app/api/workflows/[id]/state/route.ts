@@ -220,7 +220,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .set({
         lastSynced: new Date(),
         updatedAt: new Date(),
-        state: saveResult.jsonBlob, // Also update JSON blob for backward compatibility
       })
       .where(eq(workflow.id, workflowId))
 

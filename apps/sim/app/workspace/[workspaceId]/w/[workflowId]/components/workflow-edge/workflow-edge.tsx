@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
+import type { EdgeDiffStatus } from '@/lib/workflows/diff/types'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useCurrentWorkflow } from '../../hooks'
 
@@ -114,7 +115,7 @@ export const WorkflowEdge = ({
   }, [diffAnalysis, id, currentWorkflow.blocks, currentWorkflow.edges, isShowingDiff])
 
   // Determine edge diff status
-  let edgeDiffStatus: 'new' | 'deleted' | 'unchanged' | null = null
+  let edgeDiffStatus: EdgeDiffStatus = null
 
   // Only attempt to determine diff status if all required data is available
   if (diffAnalysis?.edge_diff && edgeIdentifier && isDiffReady) {
