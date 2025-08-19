@@ -89,7 +89,7 @@ export function ChannelSelectorInput({
                 }}
                 credential={credential}
                 label={subBlock.placeholder || 'Select Slack channel'}
-                disabled={finalDisabled || !credential}
+                disabled={finalDisabled}
               />
             </div>
           </TooltipTrigger>
