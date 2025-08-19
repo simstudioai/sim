@@ -107,6 +107,10 @@ describe('Copilot Chat API Route', () => {
         COPILOT_API_KEY: 'test-sim-agent-key',
         BETTER_AUTH_URL: 'http://localhost:3000',
       },
+      isTruthy: (value: string | boolean | number | undefined) =>
+        typeof value === 'string'
+          ? value.toLowerCase() === 'true' || value === '1'
+          : Boolean(value),
     }))
 
     global.fetch = vi.fn()
