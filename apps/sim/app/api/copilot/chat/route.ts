@@ -22,6 +22,7 @@ import { db } from '@/db'
 import { copilotChats } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
 import { createAnthropicFileContent, isSupportedFileType } from './file-utils'
+import { getBlocksAndToolsTool } from '@/lib/copilot/tools/server-tools/blocks/get-blocks-and-tools'
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -409,6 +410,26 @@ export async function POST(req: NextRequest) {
       [...messages].reverse().find((m) => m?.role === 'user') || messages[messages.length - 1]
     const messagesForAgent = effectiveConversationId ? [latestUserMessage] : messages
 
+    // Prepare optional prefetch results
+    let prefetchResults: Record<string, any> | undefined
+    if (effectivePrefetch === true) {
+      try {
+        const prefetchResp = await getBlocksAndToolsTool.execute({})
+        if (prefetchResp.success) {
+          prefetchResults = { get_blocks_and_tools: prefetchResp.data }
+          logger.info(`[${tracker.requestId}] Prepared prefetchResults for streaming payload`, {
+            hasBlocksAndTools: !!prefetchResp.data,
+          })
+        } else {
+          logger.warn(`[${tracker.requestId}] Failed to prefetch get_blocks_and_tools`, {
+            error: prefetchResp.error,
+          })
+        }
+      } catch (e) {
+        logger.error(`[${tracker.requestId}] Error while preparing prefetchResults`, e)
+      }
+    }
+
     const requestPayload = {
       messages: messagesForAgent,
       workflowId,
@@ -422,6 +443,7 @@ export async function POST(req: NextRequest) {
       ...(typeof effectivePrefetch === 'boolean' ? { prefetch: effectivePrefetch } : {}),
       ...(session?.user?.name && { userName: session.user.name }),
       ...(requestOrigin ? { origin: requestOrigin } : {}),
+      ...(prefetchResults ? { prefetchResults } : {}),
     }
 
     // Log the payload being sent to the streaming endpoint
