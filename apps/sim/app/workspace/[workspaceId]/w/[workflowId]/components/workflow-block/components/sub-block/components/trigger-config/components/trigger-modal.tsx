@@ -59,6 +59,22 @@ export function TriggerModal({
     Record<string, Array<{ id: string; name: string }>>
   >({})
 
+  // Reset provider-dependent config fields when credentials change
+  const resetFieldsForCredentialChange = () => {
+    setConfig((prev) => {
+      const next = { ...prev }
+      if (triggerDef.provider === 'gmail') {
+        if (Array.isArray(next.labelIds)) next.labelIds = []
+      } else if (triggerDef.provider === 'outlook') {
+        if (Array.isArray(next.folderIds)) next.folderIds = []
+      } else if (triggerDef.provider === 'airtable') {
+        if (typeof next.baseId === 'string') next.baseId = ''
+        if (typeof next.tableId === 'string') next.tableId = ''
+      }
+      return next
+    })
+  }
+
   // Initialize config with default values from trigger definition
   useEffect(() => {
     const defaultConfig: Record<string, any> = {}
@@ -97,6 +113,8 @@ export function TriggerModal({
           }
           // Clear provider-specific dynamic options
           setDynamicOptions({})
+          // Clear any selected values that depend on the credential
+          resetFieldsForCredentialChange()
           return
         }
 
@@ -105,6 +123,8 @@ export function TriggerModal({
           setSelectedCredentialId(credentialValue)
           // Clear stale options before loading new ones
           setDynamicOptions({})
+          // Clear any selected values that depend on the credential
+          resetFieldsForCredentialChange()
           if (triggerDef.provider === 'gmail') {
             void loadGmailLabels(credentialValue)
           } else if (triggerDef.provider === 'outlook') {
