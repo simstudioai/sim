@@ -436,8 +436,8 @@ export async function POST(req: NextRequest) {
       hasError: !!result.error,
     })
 
-    // Temporary: only send completion callback for get_user_workflow while refactor progresses
-    if ((methodId === 'get_user_workflow' || methodId === 'get_blocks_and_tools' || methodId === 'get_environment_variables' || methodId === 'get_oauth_credentials' || methodId === 'get_blocks_metadata') && result.success) {
+    // Temporary: send completion callback for selected methods while refactor progresses
+    if ((methodId === 'get_user_workflow' || methodId === 'get_blocks_and_tools' || methodId === 'get_environment_variables' || methodId === 'get_oauth_credentials' || methodId === 'get_blocks_metadata' || methodId === 'search_documentation') && result.success) {
       const completionPayload: CompleteToolRequestBody = {
         toolId: (toolId || toolCallId || requestId) as string,
         methodId: methodId as MethodId,

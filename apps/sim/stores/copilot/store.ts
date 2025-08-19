@@ -632,6 +632,16 @@ function createToolCall(id: string, name: string, input: any = {}): any {
 
   setToolCallState(toolCall, initialState, { preserveTerminalStates: false })
 
+  // Debug logging for search_documentation
+  if (name === 'search_documentation') {
+    logger.info('DEBUG: search_documentation tool check', {
+      requiresInterrupt,
+      hasToolInRegistry: !!toolRegistry.getTool(name),
+      registryTools: toolRegistry.getToolIds(),
+      willAutoExecute: !requiresInterrupt && !!toolRegistry.getTool(name),
+    })
+  }
+
   // Auto-execute client tools that don't require interrupt
   if (!requiresInterrupt && toolRegistry.getTool(name)) {
     logger.info('Auto-executing client tool:', name, toolCall.id)
@@ -1153,6 +1163,23 @@ const sseHandlers: Record<string, SSEHandler> = {
   tool_call: (data, context, get, set) => {
     const toolData = data.data
     if (!toolData) return
+
+    // Ignore partial tool_call deltas; wait for complete payload to avoid executing with empty args
+    if (toolData.partial === true) {
+      logger.info('tool_call partial received, deferring until complete', {
+        toolId: toolData.id,
+        toolName: toolData.name,
+      })
+      return
+    }
+
+    // Debug logging for all tools
+    logger.info('tool_call event received', {
+      toolId: toolData.id,
+      toolName: toolData.name,
+      hasArguments: !!toolData.arguments,
+      isSearchDoc: toolData.name === 'search_documentation',
+    })
 
     // Check if tool call already exists
     const existingToolCall = context.toolCalls.find((tc) => tc.id === toolData.id)

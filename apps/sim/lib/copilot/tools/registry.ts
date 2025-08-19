@@ -17,6 +17,7 @@ import type { Tool, ToolMetadata } from '@/lib/copilot/tools/types'
 import { GetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client-tools/get-environment-variables'
 import { GetOAuthCredentialsClientTool } from '@/lib/copilot/tools/client-tools/get-oauth-credentials'
 import { GetBlocksMetadataClientTool } from '@/lib/copilot/tools/client-tools/get-blocks-metadata'
+import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client-tools/search-documentation'
 
 /**
  * Tool Registry class that manages all available tools
@@ -124,6 +125,7 @@ export class ToolRegistry {
     this.register(new GetEnvironmentVariablesClientTool())
     this.register(new GetOAuthCredentialsClientTool())
     this.register(new GetBlocksMetadataClientTool())
+    this.register(new SearchDocumentationClientTool())
   }
 }
 
