@@ -46,6 +46,8 @@ interface ConfluenceFileSelectorProps {
   showPreview?: boolean
   onFileInfoChange?: (fileInfo: ConfluenceFileInfo | null) => void
   credentialId?: string
+  workflowId?: string
+  isForeignCredential?: boolean
 }
 
 export function ConfluenceFileSelector({
@@ -60,6 +62,8 @@ export function ConfluenceFileSelector({
   showPreview = true,
   onFileInfoChange,
   credentialId,
+  workflowId,
+  isForeignCredential = false,
 }: ConfluenceFileSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -156,6 +160,7 @@ export function ConfluenceFileSelector({
           },
           body: JSON.stringify({
             credentialId: selectedCredentialId,
+            workflowId,
           }),
         })
 
@@ -197,13 +202,14 @@ export function ConfluenceFileSelector({
         setIsLoading(false)
       }
     },
-    [selectedCredentialId, domain, onFileInfoChange]
+    [selectedCredentialId, domain, onFileInfoChange, workflowId]
   )
 
   // Fetch pages from Confluence
   const fetchFiles = useCallback(
     async (searchQuery?: string) => {
       if (!selectedCredentialId || !domain) return
+      if (isForeignCredential) return
 
       // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
@@ -228,6 +234,7 @@ export function ConfluenceFileSelector({
           },
           body: JSON.stringify({
             credentialId: selectedCredentialId,
+            workflowId,
           }),
         })
 
@@ -267,6 +274,12 @@ export function ConfluenceFileSelector({
 
         if (!response.ok) {
           const errorData = await response.json()
+          if (response.status === 401 || response.status === 403) {
+            logger.info('Confluence pages fetch unauthorized (expected for collaborator)')
+            setFiles([])
+            setIsLoading(false)
+            return
+          }
           logger.error('Confluence API error:', errorData)
           throw new Error(errorData.error || 'Failed to fetch pages')
         }
@@ -294,7 +307,15 @@ export function ConfluenceFileSelector({
         setIsLoading(false)
       }
     },
-    [selectedCredentialId, domain, selectedFileId, onFileInfoChange, fetchPageInfo]
+    [
+      selectedCredentialId,
+      domain,
+      selectedFileId,
+      onFileInfoChange,
+      fetchPageInfo,
+      workflowId,
+      isForeignCredential,
+    ]
   )
 
   // Fetch credentials on initial mount
@@ -310,7 +331,7 @@ export function ConfluenceFileSelector({
     setOpen(isOpen)
 
     // Only fetch files when opening the dropdown and if we have valid credentials and domain
-    if (isOpen && selectedCredentialId && domain && domain.includes('.')) {
+    if (isOpen && !isForeignCredential && selectedCredentialId && domain && domain.includes('.')) {
       fetchFiles()
     }
   }
@@ -320,7 +341,15 @@ export function ConfluenceFileSelector({
     if (value && selectedCredentialId && !selectedFile && domain && domain.includes('.')) {
       fetchPageInfo(value)
     }
-  }, [value, selectedCredentialId, selectedFile, domain, fetchPageInfo])
+  }, [
+    value,
+    selectedCredentialId,
+    selectedFile,
+    domain,
+    fetchPageInfo,
+    workflowId,
+    isForeignCredential,
+  ])
 
   // Keep internal selectedFileId in sync with the value prop
   useEffect(() => {
@@ -363,7 +392,7 @@ export function ConfluenceFileSelector({
               role='combobox'
               aria-expanded={open}
               className='h-10 w-full min-w-0 justify-between'
-              disabled={disabled || !domain}
+              disabled={disabled || !domain || isForeignCredential}
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
                 {selectedFile ? (
@@ -381,118 +410,122 @@ export function ConfluenceFileSelector({
               <ChevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className='w-[300px] p-0' align='start'>
-            {/* Current account indicator */}
-            {selectedCredentialId && credentials.length > 0 && (
-              <div className='flex items-center justify-between border-b px-3 py-2'>
-                <div className='flex items-center gap-2'>
-                  <ConfluenceIcon className='h-4 w-4' />
-                  <span className='text-muted-foreground text-xs'>
-                    {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
-                      'Unknown'}
-                  </span>
-                </div>
-                {credentials.length > 1 && (
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    className='h-6 px-2 text-xs'
-                    onClick={() => setOpen(true)}
-                  >
-                    Switch
-                  </Button>
-                )}
-              </div>
-            )}
-
-            <Command>
-              <CommandInput placeholder='Search pages...' onValueChange={handleSearch} />
-              <CommandList>
-                <CommandEmpty>
-                  {isLoading ? (
-                    <div className='flex items-center justify-center p-4'>
-                      <RefreshCw className='h-4 w-4 animate-spin' />
-                      <span className='ml-2'>Loading pages...</span>
-                    </div>
-                  ) : error ? (
-                    <div className='p-4 text-center'>
-                      <p className='text-destructive text-sm'>{error}</p>
-                    </div>
-                  ) : credentials.length === 0 ? (
-                    <div className='p-4 text-center'>
-                      <p className='font-medium text-sm'>No accounts connected.</p>
-                      <p className='text-muted-foreground text-xs'>
-                        Connect a Confluence account to continue.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className='p-4 text-center'>
-                      <p className='font-medium text-sm'>No pages found.</p>
-                      <p className='text-muted-foreground text-xs'>
-                        Try a different search or account.
-                      </p>
-                    </div>
+          {!isForeignCredential && (
+            <PopoverContent className='w-[300px] p-0' align='start'>
+              {/* Current account indicator */}
+              {selectedCredentialId && credentials.length > 0 && (
+                <div className='flex items-center justify-between border-b px-3 py-2'>
+                  <div className='flex items-center gap-2'>
+                    <ConfluenceIcon className='h-4 w-4' />
+                    <span className='text-muted-foreground text-xs'>
+                      {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
+                        'Unknown'}
+                    </span>
+                  </div>
+                  {credentials.length > 1 && (
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='h-6 px-2 text-xs'
+                      onClick={() => setOpen(true)}
+                    >
+                      Switch
+                    </Button>
                   )}
-                </CommandEmpty>
+                </div>
+              )}
 
-                {/* Account selection - only show if we have multiple accounts */}
-                {credentials.length > 1 && (
-                  <CommandGroup>
-                    <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
-                      Switch Account
-                    </div>
-                    {credentials.map((cred) => (
-                      <CommandItem
-                        key={cred.id}
-                        value={`account-${cred.id}`}
-                        onSelect={() => setSelectedCredentialId(cred.id)}
-                      >
-                        <div className='flex items-center gap-2'>
-                          <ConfluenceIcon className='h-4 w-4' />
-                          <span className='font-normal'>{cred.name}</span>
-                        </div>
-                        {cred.id === selectedCredentialId && <Check className='ml-auto h-4 w-4' />}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-
-                {/* Files list */}
-                {files.length > 0 && (
-                  <CommandGroup>
-                    <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
-                      Pages
-                    </div>
-                    {files.map((file) => (
-                      <CommandItem
-                        key={file.id}
-                        value={`file-${file.id}-${file.name}`}
-                        onSelect={() => handleSelectFile(file)}
-                      >
-                        <div className='flex items-center gap-2 overflow-hidden'>
-                          <ConfluenceIcon className='h-4 w-4' />
-                          <span className='truncate font-normal'>{file.name}</span>
-                        </div>
-                        {file.id === selectedFileId && <Check className='ml-auto h-4 w-4' />}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-
-                {/* Connect account option - only show if no credentials */}
-                {credentials.length === 0 && (
-                  <CommandGroup>
-                    <CommandItem onSelect={handleAddCredential}>
-                      <div className='flex items-center gap-2 text-primary'>
-                        <ConfluenceIcon className='h-4 w-4' />
-                        <span>Connect Confluence account</span>
+              <Command>
+                <CommandInput placeholder='Search pages...' onValueChange={handleSearch} />
+                <CommandList>
+                  <CommandEmpty>
+                    {isLoading ? (
+                      <div className='flex items-center justify-center p-4'>
+                        <RefreshCw className='h-4 w-4 animate-spin' />
+                        <span className='ml-2'>Loading pages...</span>
                       </div>
-                    </CommandItem>
-                  </CommandGroup>
-                )}
-              </CommandList>
-            </Command>
-          </PopoverContent>
+                    ) : error ? (
+                      <div className='p-4 text-center'>
+                        <p className='text-destructive text-sm'>{error}</p>
+                      </div>
+                    ) : credentials.length === 0 ? (
+                      <div className='p-4 text-center'>
+                        <p className='font-medium text-sm'>No accounts connected.</p>
+                        <p className='text-muted-foreground text-xs'>
+                          Connect a Confluence account to continue.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className='p-4 text-center'>
+                        <p className='font-medium text-sm'>No pages found.</p>
+                        <p className='text-muted-foreground text-xs'>
+                          Try a different search or account.
+                        </p>
+                      </div>
+                    )}
+                  </CommandEmpty>
+
+                  {/* Account selection - only show if we have multiple accounts */}
+                  {credentials.length > 1 && (
+                    <CommandGroup>
+                      <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
+                        Switch Account
+                      </div>
+                      {credentials.map((cred) => (
+                        <CommandItem
+                          key={cred.id}
+                          value={`account-${cred.id}`}
+                          onSelect={() => setSelectedCredentialId(cred.id)}
+                        >
+                          <div className='flex items-center gap-2'>
+                            <ConfluenceIcon className='h-4 w-4' />
+                            <span className='font-normal'>{cred.name}</span>
+                          </div>
+                          {cred.id === selectedCredentialId && (
+                            <Check className='ml-auto h-4 w-4' />
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+
+                  {/* Files list */}
+                  {files.length > 0 && (
+                    <CommandGroup>
+                      <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
+                        Pages
+                      </div>
+                      {files.map((file) => (
+                        <CommandItem
+                          key={file.id}
+                          value={`file-${file.id}-${file.name}`}
+                          onSelect={() => handleSelectFile(file)}
+                        >
+                          <div className='flex items-center gap-2 overflow-hidden'>
+                            <ConfluenceIcon className='h-4 w-4' />
+                            <span className='truncate font-normal'>{file.name}</span>
+                          </div>
+                          {file.id === selectedFileId && <Check className='ml-auto h-4 w-4' />}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+
+                  {/* Connect account option - only show if no credentials */}
+                  {credentials.length === 0 && (
+                    <CommandGroup>
+                      <CommandItem onSelect={handleAddCredential}>
+                        <div className='flex items-center gap-2 text-primary'>
+                          <ConfluenceIcon className='h-4 w-4' />
+                          <span>Connect Confluence account</span>
+                        </div>
+                      </CommandItem>
+                    </CommandGroup>
+                  )}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          )}
         </Popover>
 
         {/* File preview */}

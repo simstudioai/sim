@@ -347,6 +347,8 @@ export function FileSelectorInput({
                 showPreview={true}
                 onFileInfoChange={setFileInfo as (info: ConfluenceFileInfo | null) => void}
                 credentialId={credential}
+                workflowId={workflowIdFromUrl}
+                isForeignCredential={isForeignCredential}
               />
             </div>
           </TooltipTrigger>
