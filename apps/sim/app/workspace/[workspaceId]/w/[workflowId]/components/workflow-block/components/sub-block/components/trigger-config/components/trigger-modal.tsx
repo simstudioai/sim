@@ -46,15 +46,31 @@ export function TriggerModal({
   const [config, setConfig] = useState<Record<string, any>>(initialConfig)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Track if config has changed from initial values
+  // Snapshot initial values at open for stable dirty-checking across collaborators
+  const initialConfigRef = useRef<Record<string, any>>(initialConfig)
+  const initialCredentialRef = useRef<string | null>(null)
+
+  // Capture initial credential on first detect
+  useEffect(() => {
+    if (initialCredentialRef.current !== null) return
+    const subBlockStore = useSubBlockStore.getState()
+    const cred = (subBlockStore.getValue(blockId, 'triggerCredentials') as string | null) || null
+    initialCredentialRef.current = cred
+  }, [blockId])
+
+  // Track if config has changed from initial snapshot
   const hasConfigChanged = useMemo(() => {
-    return JSON.stringify(config) !== JSON.stringify(initialConfig)
-  }, [config, initialConfig])
+    return JSON.stringify(config) !== JSON.stringify(initialConfigRef.current)
+  }, [config])
+
+  // Track if credential has changed from initial snapshot (computed later once selectedCredentialId is declared)
+  let hasCredentialChanged = false
   const [isDeleting, setIsDeleting] = useState(false)
   const [webhookUrl, setWebhookUrl] = useState('')
   const [generatedPath, setGeneratedPath] = useState('')
   const [hasCredentials, setHasCredentials] = useState(false)
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
+  hasCredentialChanged = selectedCredentialId !== initialCredentialRef.current
   const [dynamicOptions, setDynamicOptions] = useState<
     Record<string, Array<{ id: string; name: string }>>
   >({})
@@ -420,10 +436,14 @@ export function TriggerModal({
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving || !isConfigValid() || (!hasConfigChanged && !!triggerId)}
+                disabled={
+                  isSaving ||
+                  !isConfigValid() ||
+                  (!(hasConfigChanged || hasCredentialChanged) && !!triggerId)
+                }
                 className={cn(
                   'h-10',
-                  isConfigValid() && (hasConfigChanged || !triggerId)
+                  isConfigValid() && (hasConfigChanged || hasCredentialChanged || !triggerId)
                     ? 'bg-primary hover:bg-primary/90'
                     : '',
                   isSaving &&
