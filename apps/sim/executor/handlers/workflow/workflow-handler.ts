@@ -1,5 +1,6 @@
 import { generateInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console/logger'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { getBaseUrl } from '@/lib/urls/utils'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
@@ -107,12 +108,16 @@ export class WorkflowBlockHandler implements BlockHandler {
       // Log execution completion
       logger.info(`Child workflow ${childWorkflowName} completed in ${Math.round(duration)}ms`)
 
+      // Capture child workflow logs and build trace spans for integration into parent logs
+      const childTraceSpans = this.captureChildWorkflowLogs(result, childWorkflowName, context)
+
       // Map child workflow output to parent block output
       const mappedResult = this.mapChildOutputToParent(
         result,
         workflowId,
         childWorkflowName,
-        duration
+        duration,
+        childTraceSpans
       )
 
       // If the child workflow failed, throw an error to trigger proper error handling in the parent
@@ -222,13 +227,122 @@ export class WorkflowBlockHandler implements BlockHandler {
   }
 
   /**
+   * Captures child workflow execution logs and converts them to trace spans
+   * that can be integrated into the parent workflow's execution context
+   */
+  private captureChildWorkflowLogs(
+    childResult: any,
+    childWorkflowName: string,
+    parentContext: ExecutionContext
+  ): any[] {
+    try {
+      // Child workflow results contain execution logs that we need to capture
+      if (!childResult.logs || !Array.isArray(childResult.logs)) {
+        logger.debug(`No child workflow logs found for ${childWorkflowName}`)
+        return []
+      }
+
+      // Build trace spans from child workflow logs using the same logic as parent workflows
+      const { traceSpans } = buildTraceSpans(childResult)
+
+      if (!traceSpans || traceSpans.length === 0) {
+        logger.debug(`No trace spans generated from child workflow logs for ${childWorkflowName}`)
+        return []
+      }
+
+      // Transform child trace spans to have a child workflow context
+      // This helps distinguish them in the parent workflow's log viewer
+      const transformedSpans = traceSpans.map((span: any) => {
+        return this.transformSpanForChildWorkflow(span, childWorkflowName)
+      })
+
+      logger.info(
+        `Captured ${transformedSpans.length} trace spans from child workflow: ${childWorkflowName}`
+      )
+
+      return transformedSpans
+    } catch (error) {
+      logger.error(`Error capturing child workflow logs for ${childWorkflowName}:`, error)
+      return []
+    }
+  }
+
+  /**
+   * Transforms a trace span to indicate it came from a child workflow
+   */
+  private transformSpanForChildWorkflow(span: any, childWorkflowName: string): any {
+    const transformedSpan = {
+      ...span,
+      // Clean up the span name - remove redundant workflow name prefixes and improve formatting
+      name: this.cleanChildSpanName(span.name, childWorkflowName),
+      // Add metadata to indicate this is from a child workflow
+      metadata: {
+        ...span.metadata,
+        isFromChildWorkflow: true,
+        childWorkflowName,
+      },
+    }
+
+    // Recursively transform any children
+    if (span.children && Array.isArray(span.children)) {
+      transformedSpan.children = span.children.map((childSpan: any) =>
+        this.transformSpanForChildWorkflow(childSpan, childWorkflowName)
+      )
+    }
+
+    // Preserve childTraceSpans in output if they exist (for nested workflow blocks)
+    // This ensures deeply nested workflows maintain their structure
+    if (span.output?.childTraceSpans) {
+      transformedSpan.output = {
+        ...transformedSpan.output,
+        childTraceSpans: span.output.childTraceSpans, // Keep the original childTraceSpans
+      }
+    }
+
+    return transformedSpan
+  }
+
+  /**
+   * Cleans up child span names to be more readable and less verbose
+   */
+  private cleanChildSpanName(spanName: string, childWorkflowName: string): string {
+    // If the span name already contains the workflow name, clean it up
+    if (spanName.includes(`${childWorkflowName}:`)) {
+      // Remove the workflow name prefix and clean up the remaining name
+      const cleanName = spanName.replace(`${childWorkflowName}:`, '').trim()
+
+      // Handle special cases for better readability
+      if (cleanName === 'Workflow Execution') {
+        return `${childWorkflowName} workflow`
+      }
+
+      // For agent blocks, make it clearer
+      if (cleanName.startsWith('Agent ')) {
+        return `${cleanName}`
+      }
+
+      // For other blocks, return clean name without prefix
+      return `${cleanName}`
+    }
+
+    // If span name doesn't contain workflow name, add it for context
+    if (spanName === 'Workflow Execution') {
+      return `${childWorkflowName} workflow`
+    }
+
+    // For regular blocks without workflow name prefix, return clean name
+    return `${spanName}`
+  }
+
+  /**
    * Maps child workflow output to parent block output format
    */
   private mapChildOutputToParent(
     childResult: any,
     childWorkflowId: string,
     childWorkflowName: string,
-    duration: number
+    duration: number,
+    childTraceSpans?: any[]
   ): BlockOutput {
     const success = childResult.success !== false
 
@@ -249,10 +363,12 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
 
     // Return a properly structured response with all required fields
+    // Include child trace spans so they can be integrated into parent execution logs
     return {
       success: true,
       childWorkflowName,
       result,
+      childTraceSpans: childTraceSpans || [],
     } as Record<string, any>
   }
 }

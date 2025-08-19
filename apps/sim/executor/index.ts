@@ -1,5 +1,6 @@
 import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { TraceSpan } from '@/lib/logs/types'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/consts'
 import {
@@ -1510,6 +1511,9 @@ export class Executor {
         blockLog.durationMs = Math.round(executionTime)
         blockLog.endedAt = new Date().toISOString()
 
+        // Handle child workflow logs integration
+        this.integrateChildWorkflowLogs(block, output)
+
         context.blockLogs.push(blockLog)
 
         // Skip console logging for infrastructure blocks like loops and parallels
@@ -1616,6 +1620,9 @@ export class Executor {
       blockLog.output = output
       blockLog.durationMs = Math.round(executionTime)
       blockLog.endedAt = new Date().toISOString()
+
+      // Handle child workflow logs integration
+      this.integrateChildWorkflowLogs(block, output)
 
       context.blockLogs.push(blockLog)
 
@@ -2002,5 +2009,40 @@ export class Executor {
       }
       context.blockLogs.push(starterBlockLog)
     }
+  }
+
+  /**
+   * Integrates child workflow logs into parent execution context
+   * This stores child trace spans in the block output so they can be properly nested
+   * when trace spans are built, rather than adding them as separate root-level logs
+   */
+  private integrateChildWorkflowLogs(block: SerializedBlock, output: NormalizedBlockOutput): void {
+    // Only process workflow blocks
+    if (block.metadata?.id !== BlockType.WORKFLOW) {
+      return
+    }
+
+    // Check if output contains child trace spans
+    if (!output || typeof output !== 'object' || !output.childTraceSpans) {
+      return
+    }
+
+    const childTraceSpans = output.childTraceSpans as TraceSpan[]
+    if (!Array.isArray(childTraceSpans) || childTraceSpans.length === 0) {
+      return
+    }
+
+    // Instead of adding child logs directly to context.blockLogs, we keep the childTraceSpans
+    // in the output. The buildTraceSpans function will be modified to handle this properly
+    // and nest them under the workflow block span.
+    logger.info(
+      `Child workflow trace spans preserved in workflow block output for proper nesting`,
+      {
+        blockId: block.id,
+        blockName: block.metadata?.name,
+        childWorkflowName: output.childWorkflowName,
+        childSpansCount: childTraceSpans.length,
+      }
+    )
   }
 }
