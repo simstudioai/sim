@@ -18,6 +18,10 @@ import { GetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client-to
 import { GetOAuthCredentialsClientTool } from '@/lib/copilot/tools/client-tools/get-oauth-credentials'
 import { GetBlocksMetadataClientTool } from '@/lib/copilot/tools/client-tools/get-blocks-metadata'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client-tools/search-documentation'
+import { OnlineSearchClientTool } from '@/lib/copilot/tools/client-tools/online-search'
+import { ListGDriveFilesClientTool } from '@/lib/copilot/tools/client-tools/list-gdrive-files'
+import { ReadGDriveFileClientTool } from '@/lib/copilot/tools/client-tools/read-gdrive-file'
+import { GetWorkflowConsoleClientTool } from '@/lib/copilot/tools/client-tools/get-workflow-console'
 
 /**
  * Tool Registry class that manages all available tools
@@ -126,6 +130,10 @@ export class ToolRegistry {
     this.register(new GetOAuthCredentialsClientTool())
     this.register(new GetBlocksMetadataClientTool())
     this.register(new SearchDocumentationClientTool())
+    this.register(new OnlineSearchClientTool())
+    this.register(new ListGDriveFilesClientTool())
+    this.register(new ReadGDriveFileClientTool())
+    this.register(new GetWorkflowConsoleClientTool())
   }
 }
 

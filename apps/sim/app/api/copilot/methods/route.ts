@@ -321,6 +321,24 @@ export async function POST(req: NextRequest) {
       hasParams: !!params && Object.keys(params).length > 0,
     })
 
+    // Auto-inject session userId for selected methods if missing
+    if (
+      (methodId === 'get_oauth_credentials' ||
+        methodId === 'list_gdrive_files' ||
+        methodId === 'read_gdrive_file') &&
+      (!params || typeof (params as any).userId !== 'string' || !(params as any).userId)
+    ) {
+      if (sessionAuth.userId) {
+        ;(params as any).userId = sessionAuth.userId
+        logger.info(`[${requestId}] Injected session userId into params`, {
+          methodId,
+          injectedUserId: sessionAuth.userId,
+        })
+      } else {
+        logger.warn(`[${requestId}] No session userId available to inject`, { methodId })
+      }
+    }
+
     // Check if tool exists in registry
     if (!copilotToolRegistry.has(methodId)) {
       logger.error(`[${requestId}] Tool not found in registry: ${methodId}`, {
@@ -437,7 +455,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Temporary: send completion callback for selected methods while refactor progresses
-    if ((methodId === 'get_user_workflow' || methodId === 'get_blocks_and_tools' || methodId === 'get_environment_variables' || methodId === 'get_oauth_credentials' || methodId === 'get_blocks_metadata' || methodId === 'search_documentation') && result.success) {
+    if ((methodId === 'get_user_workflow' || methodId === 'get_blocks_and_tools' || methodId === 'get_environment_variables' || methodId === 'get_oauth_credentials' || methodId === 'get_blocks_metadata' || methodId === 'search_documentation' || methodId === 'list_gdrive_files' || methodId === 'read_gdrive_file' || methodId === 'search_online' || methodId === 'get_workflow_console' || methodId === 'make_api_request') && result.success) {
       const completionPayload: CompleteToolRequestBody = {
         toolId: (toolId || toolCallId || requestId) as string,
         methodId: methodId as MethodId,
