@@ -376,6 +376,14 @@ export function ConfluenceFileSelector({
     }
   }, [value])
 
+  // Clear preview when value is cleared (e.g., collaborator cleared or domain change cascade)
+  useEffect(() => {
+    if (!value) {
+      setSelectedFile(null)
+      onFileInfoChange?.(null)
+    }
+  }, [value, onFileInfoChange])
+
   // Handle file selection
   const handleSelectFile = (file: ConfluenceFileInfo) => {
     setSelectedFileId(file.id)
@@ -547,7 +555,7 @@ export function ConfluenceFileSelector({
         </Popover>
 
         {/* File preview */}
-        {showPreview && selectedFile && (
+        {showPreview && selectedFile && selectedFileId && selectedFile.id === selectedFileId && (
           <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
             <div className='absolute top-2 right-2'>
               <Button
