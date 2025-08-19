@@ -137,7 +137,7 @@ export function FileSelectorInput({
                   collaborativeSetSubblockValue(blockId, subBlock.id, val)
                 }}
                 label={subBlock.placeholder || 'Select Google Calendar'}
-                disabled={finalDisabled || !credential}
+                disabled={finalDisabled}
                 showPreview={true}
                 credentialId={credential}
                 workflowId={workflowIdFromUrl}
@@ -164,7 +164,7 @@ export function FileSelectorInput({
                 botToken={botToken}
                 serverId={serverId}
                 label={subBlock.placeholder || 'Select Discord channel'}
-                disabled={finalDisabled || !botToken || !serverId}
+                disabled={finalDisabled}
                 showPreview={true}
               />
             </div>
@@ -196,7 +196,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Confluence page'}
-                disabled={finalDisabled || !domain}
+                disabled={finalDisabled}
                 showPreview={true}
                 credentialId={credential}
                 workflowId={workflowIdFromUrl}
@@ -236,9 +236,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Jira issue'}
-                disabled={
-                  finalDisabled || !domain || !credential || !((projectIdValue as string) || '')
-                }
+                disabled={finalDisabled}
                 showPreview={true}
                 credentialId={credential}
                 projectId={(projectIdValue as string) || ''}
@@ -268,7 +266,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Microsoft Excel file'}
-                disabled={finalDisabled || !credential}
+                disabled={finalDisabled}
                 showPreview={true}
                 workflowId={activeWorkflowId || ''}
                 credentialId={credential}
@@ -298,7 +296,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Microsoft Word document'}
-                disabled={finalDisabled || !credential}
+                disabled={finalDisabled}
                 showPreview={true}
               />
             </div>
@@ -325,7 +323,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select OneDrive folder'}
-                disabled={finalDisabled || !credential}
+                disabled={finalDisabled}
                 showPreview={true}
                 workflowId={activeWorkflowId || ''}
                 credentialId={credential}
