@@ -22,7 +22,24 @@ class GetBlocksMetadataTool extends BaseCopilotTool<GetBlocksMetadataParams, Blo
   readonly displayName = 'Getting block metadata'
 
   protected async executeImpl(params: GetBlocksMetadataParams): Promise<BlocksMetadataResult> {
-    return getBlocksMetadata(params)
+    logger.info('=== GetBlocksMetadataTool.executeImpl START ===', {
+      params: JSON.stringify(params),
+      hasParams: !!params,
+      paramsKeys: params ? Object.keys(params) : [],
+      timestamp: new Date().toISOString(),
+    })
+    
+    const result = await getBlocksMetadata(params)
+    
+    logger.info('=== GetBlocksMetadataTool.executeImpl COMPLETE ===', {
+      success: result.success,
+      hasData: !!result.data,
+      dataKeys: result.data ? Object.keys(result.data) : [],
+      error: result.error,
+      timestamp: new Date().toISOString(),
+    })
+    
+    return result
   }
 }
 
@@ -33,14 +50,37 @@ export const getBlocksMetadataTool = new GetBlocksMetadataTool()
  * Safely resolve subblock options, handling both static arrays and functions
  */
 function resolveSubBlockOptions(options: any): any[] {
+  logger.info('resolveSubBlockOptions called', {
+    optionsType: typeof options,
+    isFunction: typeof options === 'function',
+    isArray: Array.isArray(options),
+  })
+  
   try {
     if (typeof options === 'function') {
+      logger.info('Options is a function, attempting to resolve')
       const resolved = options()
+      logger.info('Function resolved', {
+        resultType: typeof resolved,
+        isArray: Array.isArray(resolved),
+        count: Array.isArray(resolved) ? resolved.length : 0,
+      })
       return Array.isArray(resolved) ? resolved : []
     }
+    
+    if (Array.isArray(options)) {
+      logger.info('Options is an array', {
+        count: options.length,
+        sample: options.slice(0, 3),
+      })
+    }
+    
     return Array.isArray(options) ? options : []
   } catch (error) {
-    logger.warn('Failed to resolve subblock options:', error)
+    logger.warn('Failed to resolve subblock options:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      optionsType: typeof options,
+    })
     return []
   }
 }
@@ -49,11 +89,34 @@ function resolveSubBlockOptions(options: any): any[] {
  * Process subBlocks configuration to include all UI metadata
  */
 function processSubBlocks(subBlocks: any[]): any[] {
+  logger.info('processSubBlocks called', {
+    isArray: Array.isArray(subBlocks),
+    count: Array.isArray(subBlocks) ? subBlocks.length : 0,
+  })
+  
   if (!Array.isArray(subBlocks)) {
+    logger.warn('subBlocks is not an array', {
+      type: typeof subBlocks,
+    })
     return []
   }
 
-  return subBlocks.map((subBlock) => {
+  logger.info('Processing subBlocks array', {
+    totalCount: subBlocks.length,
+    subBlockIds: subBlocks.map(sb => sb.id),
+  })
+
+  return subBlocks.map((subBlock, index) => {
+    logger.info(`Processing subBlock at index ${index}`, {
+      id: subBlock.id,
+      type: subBlock.type,
+      title: subBlock.title,
+      hasOptions: !!subBlock.options,
+      optionsType: subBlock.options ? typeof subBlock.options : undefined,
+      hasCondition: !!subBlock.condition,
+      required: subBlock.required,
+    })
+    
     const processedSubBlock: any = {
       id: subBlock.id,
       title: subBlock.title,
@@ -95,19 +158,44 @@ function processSubBlocks(subBlocks: any[]): any[] {
 
     // Resolve options if present
     if (subBlock.options) {
+      logger.info(`Resolving options for subBlock ${subBlock.id}`)
       try {
         const resolvedOptions = resolveSubBlockOptions(subBlock.options)
-        processedSubBlock.options = resolvedOptions.map((option) => ({
-          label: option.label,
-          id: option.id,
-          // Note: Icons are React components, so we'll just indicate if they exist
-          hasIcon: !!option.icon,
-        }))
+        logger.info(`Options resolved for subBlock ${subBlock.id}`, {
+          count: resolvedOptions.length,
+          hasOptions: resolvedOptions.length > 0,
+        })
+        
+        processedSubBlock.options = resolvedOptions.map((option) => {
+          const processedOption = {
+            label: option.label,
+            id: option.id,
+            // Note: Icons are React components, so we'll just indicate if they exist
+            hasIcon: !!option.icon,
+          }
+          logger.info(`Processed option for subBlock ${subBlock.id}`, {
+            optionId: option.id,
+            label: option.label,
+            hasIcon: !!option.icon,
+          })
+          return processedOption
+        })
       } catch (error) {
-        logger.warn(`Failed to resolve options for subBlock ${subBlock.id}:`, error)
+        logger.warn(`Failed to resolve options for subBlock ${subBlock.id}:`, {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
         processedSubBlock.options = []
       }
     }
+
+    // Count defined properties before filtering
+    const definedPropsCount = Object.entries(processedSubBlock).filter(([_, value]) => value !== undefined).length
+    logger.info(`SubBlock ${subBlock.id} processed`, {
+      totalProps: Object.keys(processedSubBlock).length,
+      definedProps: definedPropsCount,
+      hasOptions: !!processedSubBlock.options,
+      optionsCount: processedSubBlock.options ? processedSubBlock.options.length : 0,
+    })
 
     // Remove undefined properties to keep the response clean
     return Object.fromEntries(
@@ -120,16 +208,48 @@ function processSubBlocks(subBlocks: any[]): any[] {
 export async function getBlocksMetadata(
   params: GetBlocksMetadataParams
 ): Promise<BlocksMetadataResult> {
+  logger.info('=== getBlocksMetadata FUNCTION START ===', {
+    receivedParams: JSON.stringify(params),
+    paramsType: typeof params,
+    timestamp: new Date().toISOString(),
+  })
+
   const { blockIds } = params
 
+  // Validation logs
+  try {
+    logger.info('VALIDATION: get_blocks_metadata received params', {
+      hasParams: params !== undefined && params !== null,
+      paramsType: typeof params,
+      paramsKeys: params ? Object.keys(params) : [],
+      hasBlockIds: blockIds !== undefined,
+      blockIdsType: blockIds === undefined ? 'undefined' : Array.isArray(blockIds) ? 'array' : typeof blockIds,
+      isArray: Array.isArray(blockIds),
+      blockIdsCount: Array.isArray(blockIds) ? blockIds.length : null,
+      blockIdsPreview: Array.isArray(blockIds) ? blockIds.slice(0, 10) : undefined,
+      rawBlockIds: blockIds,
+    })
+  } catch (err) {
+    logger.error('VALIDATION: Error during parameter validation logging', {
+      error: err instanceof Error ? err.message : 'Unknown error',
+    })
+  }
+
   if (!blockIds || !Array.isArray(blockIds)) {
+    logger.error('VALIDATION FAILED: blockIds is not an array', {
+      blockIds,
+      blockIdsType: typeof blockIds,
+      isArray: Array.isArray(blockIds),
+      isNull: blockIds === null,
+      isUndefined: blockIds === undefined,
+    })
     return {
       success: false,
       error: 'blockIds must be an array of block IDs',
     }
   }
 
-  logger.info('Getting block metadata', {
+  logger.info('Getting block metadata - VALIDATION PASSED', {
     blockIds,
     blockCount: blockIds.length,
     requestedBlocks: blockIds.join(', '),
@@ -141,13 +261,30 @@ export async function getBlocksMetadata(
 
     logger.info('=== GET BLOCKS METADATA DEBUG ===')
     logger.info('Requested block IDs:', blockIds)
+    logger.info('Starting to process blocks', {
+      totalBlocks: blockIds.length,
+      blockRegistry: !!blockRegistry,
+      specialBlocksMetadata: !!SPECIAL_BLOCKS_METADATA,
+    })
 
     // Process each requested block ID
     for (const blockId of blockIds) {
       logger.info(`\n--- Processing block: ${blockId} ---`)
+      logger.info(`Processing block iteration`, {
+        currentBlock: blockId,
+        index: blockIds.indexOf(blockId),
+        total: blockIds.length,
+      })
+      
       let metadata: any = {}
 
       // Check if it's a special block first
+      const isSpecialBlock = !!SPECIAL_BLOCKS_METADATA[blockId]
+      logger.info(`Checking if ${blockId} is a special block`, {
+        isSpecialBlock,
+        specialBlocksKeys: Object.keys(SPECIAL_BLOCKS_METADATA),
+      })
+      
       if (SPECIAL_BLOCKS_METADATA[blockId]) {
         logger.info(`✓ Found ${blockId} in SPECIAL_BLOCKS_METADATA`)
         // Start with the special block metadata
@@ -155,13 +292,38 @@ export async function getBlocksMetadata(
         // Normalize tools structure to match regular blocks
         metadata.tools = metadata.tools?.access || []
         logger.info(`Initial metadata keys for ${blockId}:`, Object.keys(metadata))
+        logger.info(`Special block metadata loaded`, {
+          blockId,
+          metadataKeys: Object.keys(metadata),
+          hasSubBlocks: !!metadata.subBlocks,
+          subBlocksCount: metadata.subBlocks ? metadata.subBlocks.length : 0,
+          tools: metadata.tools,
+        })
       } else {
         // Check if the block exists in the registry
+        logger.info(`Checking block registry for ${blockId}`, {
+          registryKeys: Object.keys(blockRegistry).slice(0, 10),
+          hasBlock: !!blockRegistry[blockId],
+        })
+        
         const blockConfig = blockRegistry[blockId]
         if (!blockConfig) {
-          logger.warn(`Block not found in registry: ${blockId}`)
+          logger.warn(`Block not found in registry: ${blockId}`, {
+            availableBlocks: Object.keys(blockRegistry).slice(0, 20),
+          })
           continue
         }
+
+        logger.info(`Found ${blockId} in block registry`, {
+          hasName: !!blockConfig.name,
+          hasDescription: !!blockConfig.description,
+          hasSubBlocks: !!blockConfig.subBlocks,
+          subBlocksCount: blockConfig.subBlocks ? blockConfig.subBlocks.length : 0,
+          hasInputs: !!blockConfig.inputs,
+          hasOutputs: !!blockConfig.outputs,
+          hasTools: !!blockConfig.tools,
+          category: blockConfig.category,
+        })
 
         metadata = {
           id: blockId,
@@ -179,8 +341,19 @@ export async function getBlocksMetadata(
         // Process and include subBlocks configuration
         if (blockConfig.subBlocks && Array.isArray(blockConfig.subBlocks)) {
           logger.info(`Processing ${blockConfig.subBlocks.length} subBlocks for ${blockId}`)
-          metadata.subBlocks = processSubBlocks(blockConfig.subBlocks)
-          logger.info(`✓ Processed subBlocks for ${blockId}:`, metadata.subBlocks.length)
+          
+          try {
+            metadata.subBlocks = processSubBlocks(blockConfig.subBlocks)
+            logger.info(`✓ Processed subBlocks for ${blockId}:`, {
+              count: metadata.subBlocks.length,
+              subBlockIds: metadata.subBlocks.map((sb: any) => sb.id),
+            })
+          } catch (err) {
+            logger.error(`Failed to process subBlocks for ${blockId}`, {
+              error: err instanceof Error ? err.message : 'Unknown error',
+            })
+            metadata.subBlocks = []
+          }
         } else {
           logger.info(`No subBlocks found for ${blockId}`)
           metadata.subBlocks = []
@@ -189,18 +362,25 @@ export async function getBlocksMetadata(
 
       // Read YAML schema from documentation if available (for both regular and special blocks)
       const docFileName = DOCS_FILE_MAPPING[blockId] || blockId
-      logger.info(
-        `Checking if ${blockId} is in CORE_BLOCKS_WITH_DOCS:`,
-        CORE_BLOCKS_WITH_DOCS.includes(blockId)
-      )
+      logger.info(`Checking documentation for ${blockId}`, {
+        docFileName,
+        isInCoreBlocks: CORE_BLOCKS_WITH_DOCS.includes(blockId),
+        coreBlocksList: CORE_BLOCKS_WITH_DOCS,
+      })
 
       if (CORE_BLOCKS_WITH_DOCS.includes(blockId)) {
         try {
           // Updated path to point to the actual YAML documentation location
           // Handle both monorepo root and apps/sim as working directory
           const workingDir = process.cwd()
+          logger.info(`Current working directory: ${workingDir}`)
+          
           const isInAppsSim = workingDir.endsWith('/apps/sim') || workingDir.endsWith('\\apps\\sim')
+          logger.info(`Is in apps/sim: ${isInAppsSim}`)
+          
           const basePath = isInAppsSim ? join(workingDir, '..', '..') : workingDir
+          logger.info(`Base path for docs: ${basePath}`)
+          
           const docPath = join(
             basePath,
             'apps',
@@ -212,27 +392,43 @@ export async function getBlocksMetadata(
             `${docFileName}.mdx`
           )
           logger.info(`Looking for docs at: ${docPath}`)
-          logger.info(`File exists: ${existsSync(docPath)}`)
+          
+          const fileExists = existsSync(docPath)
+          logger.info(`File exists: ${fileExists}`)
 
-          if (existsSync(docPath)) {
+          if (fileExists) {
             const docContent = readFileSync(docPath, 'utf-8')
             logger.info(`Doc content length: ${docContent.length}`)
+            logger.info(`Doc content preview: ${docContent.substring(0, 200)}...`)
 
             // Include the entire YAML documentation content
             metadata.yamlDocumentation = docContent
-            logger.info(`✓ Added full YAML documentation for ${blockId}`)
+            logger.info(`✓ Added full YAML documentation for ${blockId}`, {
+              docLength: docContent.length,
+              hasYamlBlock: docContent.includes('```yaml'),
+            })
           } else {
-            logger.warn(`Documentation file not found for ${blockId}`)
+            logger.warn(`Documentation file not found for ${blockId}`, {
+              attemptedPath: docPath,
+            })
           }
         } catch (error) {
-          logger.warn(`Failed to read documentation for ${blockId}:`, error)
+          logger.warn(`Failed to read documentation for ${blockId}:`, {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+          })
         }
       } else {
-        logger.info(`${blockId} is NOT in CORE_BLOCKS_WITH_DOCS`)
+        logger.info(`${blockId} is NOT in CORE_BLOCKS_WITH_DOCS, skipping documentation`)
       }
 
       // Add tool metadata if requested
       if (metadata.tools && metadata.tools.length > 0) {
+        logger.info(`Processing tool details for ${blockId}`, {
+          toolCount: metadata.tools.length,
+          toolIds: metadata.tools,
+        })
+        
         metadata.toolDetails = {}
         for (const toolId of metadata.tools) {
           const tool = toolsRegistry[toolId]
@@ -241,6 +437,11 @@ export async function getBlocksMetadata(
               name: tool.name,
               description: tool.description,
             }
+            logger.info(`Added tool detail for ${toolId}`, {
+              name: tool.name,
+            })
+          } else {
+            logger.warn(`Tool not found in registry: ${toolId}`)
           }
         }
       }
@@ -248,6 +449,14 @@ export async function getBlocksMetadata(
       logger.info(`Final metadata keys for ${blockId}:`, Object.keys(metadata))
       logger.info(`Has YAML documentation: ${!!metadata.yamlDocumentation}`)
       logger.info(`Has subBlocks: ${!!metadata.subBlocks && metadata.subBlocks.length > 0}`)
+      logger.info(`Block ${blockId} processing complete`, {
+        metadataKeys: Object.keys(metadata),
+        hasYamlDoc: !!metadata.yamlDocumentation,
+        yamlDocLength: metadata.yamlDocumentation ? metadata.yamlDocumentation.length : 0,
+        subBlocksCount: metadata.subBlocks ? metadata.subBlocks.length : 0,
+        toolsCount: metadata.tools ? metadata.tools.length : 0,
+        toolDetailsCount: metadata.toolDetails ? Object.keys(metadata.toolDetails).length : 0,
+      })
 
       result[blockId] = metadata
     }
@@ -255,6 +464,13 @@ export async function getBlocksMetadata(
     logger.info('\n=== FINAL RESULT ===')
     logger.info(`Successfully retrieved metadata for ${Object.keys(result).length} blocks`)
     logger.info('Result keys:', Object.keys(result))
+    logger.info('Detailed result summary:', {
+      totalBlocks: Object.keys(result).length,
+      blockIds: Object.keys(result),
+      blocksWithYaml: Object.keys(result).filter(id => result[id].yamlDocumentation).length,
+      blocksWithSubBlocks: Object.keys(result).filter(id => result[id].subBlocks && result[id].subBlocks.length > 0).length,
+      blocksWithTools: Object.keys(result).filter(id => result[id].tools && result[id].tools.length > 0).length,
+    })
 
     // Log the full result for parallel block if it's included
     if (result.parallel) {
@@ -264,12 +480,23 @@ export async function getBlocksMetadata(
       }
     }
 
+    logger.info('=== getBlocksMetadata FUNCTION COMPLETE ===', {
+      success: true,
+      resultCount: Object.keys(result).length,
+      timestamp: new Date().toISOString(),
+    })
+
     return {
       success: true,
       data: result,
     }
   } catch (error) {
-    logger.error('Get block metadata failed', error)
+    logger.error('Get block metadata failed', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      blockIds,
+      timestamp: new Date().toISOString(),
+    })
     return {
       success: false,
       error: `Failed to get block metadata: ${error instanceof Error ? error.message : 'Unknown error'}`,

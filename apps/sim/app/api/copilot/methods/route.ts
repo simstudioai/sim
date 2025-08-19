@@ -293,6 +293,27 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    if (methodId === 'get_blocks_metadata') {
+      const blockIds = (params as any)?.blockIds
+      logger.info(`[${requestId}] [NEW_FLOW] get_blocks_metadata payload received`, {
+        methodId,
+        toolId,
+        toolCallId,
+        hasBlockIds: Array.isArray(blockIds),
+        blockIdsType: blockIds === undefined ? 'undefined' : Array.isArray(blockIds) ? 'array' : typeof blockIds,
+        blockIdsCount: Array.isArray(blockIds) ? blockIds.length : null,
+        blockIdsPreview: Array.isArray(blockIds) ? blockIds.slice(0, 10) : undefined,
+        paramsRawKeys: Object.keys((params as any) || {}),
+        paramsRawPreview: (() => {
+          try {
+            return JSON.stringify(params).substring(0, 200)
+          } catch {
+            return 'unserializable'
+          }
+        })(),
+      })
+    }
+
     logger.info(`[${requestId}] Method execution request`, {
       methodId,
       toolCallId,
@@ -416,7 +437,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Temporary: only send completion callback for get_user_workflow while refactor progresses
-    if ((methodId === 'get_user_workflow' || methodId === 'get_blocks_and_tools' || methodId === 'get_environment_variables' || methodId === 'get_oauth_credentials') && result.success) {
+    if ((methodId === 'get_user_workflow' || methodId === 'get_blocks_and_tools' || methodId === 'get_environment_variables' || methodId === 'get_oauth_credentials' || methodId === 'get_blocks_metadata') && result.success) {
       const completionPayload: CompleteToolRequestBody = {
         toolId: (toolId || toolCallId || requestId) as string,
         methodId: methodId as MethodId,
