@@ -53,8 +53,8 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
   },
 
   transformResponse: async (response: Response) => {
-    // Handle empty response case
     const text = await response.text()
+
     if (!text || text.trim() === '') {
       return {
         success: true,
@@ -66,12 +66,34 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       }
     }
 
-    const data = JSON.parse(text)
+    let data
+    try {
+      data = JSON.parse(text)
+    } catch (parseError) {
+      throw new Error(`Failed to parse Supabase response: ${parseError}`)
+    }
 
+    // Check if results array is empty and provide better feedback
+    const resultsArray = Array.isArray(data) ? data : [data]
+    const isEmpty = resultsArray.length === 0 || (resultsArray.length === 1 && !resultsArray[0])
+
+    if (isEmpty) {
+      return {
+        success: false,
+        output: {
+          message: 'No data was inserted into Supabase',
+          results: data,
+        },
+        error:
+          'No data was inserted into Supabase. This usually indicates invalid data format or schema mismatch. Please check that your JSON is valid and matches your table schema.',
+      }
+    }
+
+    const insertedCount = resultsArray.length
     return {
       success: true,
       output: {
-        message: 'Successfully inserted data into Supabase',
+        message: `Successfully inserted ${insertedCount} row${insertedCount === 1 ? '' : 's'} into Supabase`,
         results: data,
       },
       error: undefined,

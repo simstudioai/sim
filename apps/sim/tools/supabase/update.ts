@@ -63,28 +63,36 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
   },
 
   transformResponse: async (response: Response) => {
-    // Handle potentially empty response from update operations
     const text = await response.text()
     let data
 
     if (text?.trim()) {
       try {
         data = JSON.parse(text)
-      } catch (e) {
-        // If we can't parse it, just use the text
-        data = text
+      } catch (parseError) {
+        throw new Error(`Failed to parse Supabase response: ${parseError}`)
       }
     } else {
-      // Empty response means successful update
       data = []
     }
 
-    const updatedCount = Array.isArray(data) ? data.length : text ? 1 : 0
+    const updatedCount = Array.isArray(data) ? data.length : 0
+
+    if (updatedCount === 0) {
+      return {
+        success: true,
+        output: {
+          message: 'No rows were updated (no matching records found)',
+          results: data,
+        },
+        error: undefined,
+      }
+    }
 
     return {
       success: true,
       output: {
-        message: `Successfully updated ${updatedCount === 0 ? 'row(s)' : `${updatedCount} row(s)`}`,
+        message: `Successfully updated ${updatedCount} row${updatedCount === 1 ? '' : 's'}`,
         results: data,
       },
       error: undefined,
