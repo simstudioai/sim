@@ -75,6 +75,12 @@ export function ConfluenceFileSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
+  // Keep internal credential in sync with prop (handles late arrival and BFCache restores)
+  useEffect(() => {
+    if (credentialId && credentialId !== selectedCredentialId) {
+      setSelectedCredentialId(credentialId)
+    }
+  }, [credentialId, selectedCredentialId])
 
   // Handle search with debounce
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)

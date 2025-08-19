@@ -340,7 +340,6 @@ export function JiraProjectSelector({
   // Fetch the selected project metadata once credentials are ready or changed
   useEffect(() => {
     if (value && selectedCredentialId && domain && domain.includes('.')) {
-      // Always try to resolve the name on value change, even if dropdown never opens
       if (!selectedProject || selectedProject.id !== value) {
         fetchProjectInfo(value)
       }
