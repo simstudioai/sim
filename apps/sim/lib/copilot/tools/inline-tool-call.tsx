@@ -96,10 +96,28 @@ async function rejectTool(
   setToolCallState(toolCall, 'rejected')
 
   try {
-    // Notify server for both client and server tools
+    // Notify server for both client and server tools (legacy noop)
     await notifyServerTool(toolCall.id, toolCall.name, 'rejected')
   } catch (error) {
     console.error('Failed to notify server of tool rejection:', error)
+  }
+
+  try {
+    // Also trigger the agent completion via methods route using no_op
+    const confirmationMessage = `User skipped tool: ${toolCall.name}`
+    await fetch('/api/copilot/methods', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        methodId: 'no_op',
+        params: { confirmationMessage },
+        toolCallId: toolCall.id,
+        toolId: toolCall.id,
+      }),
+    })
+  } catch (error) {
+    console.error('Failed to notify agent of skip via complete-tool:', error)
   }
 }
 

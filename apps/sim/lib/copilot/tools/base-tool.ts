@@ -107,6 +107,25 @@ export abstract class BaseTool implements Tool {
     } else {
       // Skip/background are now UI-only; no server-side confirmation
       await this.notify(toolCall.id, newState)
+
+      // Additionally, when skipping, notify the agent via methods route (complete-tool)
+      if (action === 'skip') {
+        try {
+          await fetch('/api/copilot/methods', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              methodId: 'no_op',
+              params: { confirmationMessage: `User skipped tool: ${toolCall.name}` },
+              toolCallId: toolCall.id,
+              toolId: toolCall.id,
+            }),
+          })
+        } catch (e) {
+          // Swallow errors; skip should not break UI
+        }
+      }
     }
   }
 }
