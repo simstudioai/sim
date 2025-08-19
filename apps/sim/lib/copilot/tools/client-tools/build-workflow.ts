@@ -19,7 +19,7 @@ export class BuildWorkflowClientTool extends BaseTool {
     id: BuildWorkflowClientTool.id,
     displayConfig: {
       states: {
-        executing: { displayName: 'Building workflow from YAML', icon: 'spinner' },
+        executing: { displayName: 'Building workflow', icon: 'spinner' },
         success: { displayName: 'Built workflow', icon: 'grid2x2Check' },
         ready_for_review: { displayName: 'Ready for review', icon: 'grid2x2' },
         rejected: { displayName: 'Skipped building workflow', icon: 'circle-slash' },
