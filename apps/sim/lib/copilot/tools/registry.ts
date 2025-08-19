@@ -11,8 +11,11 @@
 import { GDriveRequestAccessTool } from '@/lib/copilot/tools/client-tools/gdrive-request-access'
 import { GetUserWorkflowTool } from '@/lib/copilot/tools/client-tools/get-user-workflow'
 import { RunWorkflowTool } from '@/lib/copilot/tools/client-tools/run-workflow'
+import { GetBlocksAndToolsClientTool } from '@/lib/copilot/tools/client-tools/get-blocks-and-tools'
 import { SERVER_TOOL_METADATA } from '@/lib/copilot/tools/server-tools/definitions'
 import type { Tool, ToolMetadata } from '@/lib/copilot/tools/types'
+import { GetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client-tools/get-environment-variables'
+import { GetOAuthCredentialsClientTool } from '@/lib/copilot/tools/client-tools/get-oauth-credentials'
 
 /**
  * Tool Registry class that manages all available tools
@@ -116,6 +119,9 @@ export class ToolRegistry {
     this.register(new RunWorkflowTool())
     this.register(new GetUserWorkflowTool())
     this.register(new GDriveRequestAccessTool())
+    this.register(new GetBlocksAndToolsClientTool())
+    this.register(new GetEnvironmentVariablesClientTool())
+    this.register(new GetOAuthCredentialsClientTool())
   }
 }
 

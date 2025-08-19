@@ -416,7 +416,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Temporary: only send completion callback for get_user_workflow while refactor progresses
-    if (methodId === 'get_user_workflow' && result.success) {
+    if ((methodId === 'get_user_workflow' || methodId === 'get_blocks_and_tools' || methodId === 'get_environment_variables' || methodId === 'get_oauth_credentials') && result.success) {
       const completionPayload: CompleteToolRequestBody = {
         toolId: (toolId || toolCallId || requestId) as string,
         methodId: methodId as MethodId,
