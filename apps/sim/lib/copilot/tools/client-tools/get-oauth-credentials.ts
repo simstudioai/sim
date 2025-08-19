@@ -62,8 +62,6 @@ export class GetOAuthCredentialsClientTool extends BaseTool {
         }),
       })
 
-      logger.info('Methods route response received', { status: response.status })
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         options?.onStateChange?.('errored')

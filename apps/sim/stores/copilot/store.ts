@@ -1865,6 +1865,8 @@ const COPILOT_AUTH_REQUIRED_MESSAGE =
   '*Authorization failed. An API key must be configured in order to use the copilot. You can configure an API key at [sim.ai](https://sim.ai).*'
 const COPILOT_USAGE_EXCEEDED_MESSAGE =
   '*Usage limit exceeded, please upgrade your plan or top up credits at [sim.ai](https://sim.ai) to continue using the copilot*'
+const COPILOT_RATE_LIMIT_EXCEEDED_MESSAGE =
+  '*Too many requests, please try again later*'
 
 /**
  * Copilot store using the new unified API
@@ -2320,6 +2322,8 @@ export const useCopilotStore = create<CopilotStore>()(
               displayError = COPILOT_AUTH_REQUIRED_MESSAGE
             } else if (result.status === 402) {
               displayError = COPILOT_USAGE_EXCEEDED_MESSAGE
+            } else if (result.status === 429) {
+              displayError = COPILOT_RATE_LIMIT_EXCEEDED_MESSAGE
             }
 
             const errorMessage = createErrorMessage(streamingMessage.id, displayError)

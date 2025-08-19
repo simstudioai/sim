@@ -474,7 +474,7 @@ export async function POST(req: NextRequest) {
     })
 
     if (!simAgentResponse.ok) {
-      if (simAgentResponse.status === 401 || simAgentResponse.status === 402) {
+      if (simAgentResponse.status === 401 || simAgentResponse.status === 402 || simAgentResponse.status === 429) {
         // Rethrow status only; client will render appropriate assistant message
         return new NextResponse(null, { status: simAgentResponse.status })
       }

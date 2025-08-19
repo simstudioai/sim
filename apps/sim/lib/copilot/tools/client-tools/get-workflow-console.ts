@@ -75,11 +75,6 @@ export class GetWorkflowConsoleClientTool extends BaseTool {
         if (activeWorkflowId) workflowId = activeWorkflowId
       }
 
-      logger.info('get_workflow_console: prepared params', {
-        toolCallId: toolCall.id,
-        hasWorkflowId: !!workflowId,
-      })
-
       if (!workflowId) {
         options?.onStateChange?.('errored')
         return { success: false, error: 'workflowId is required' }
@@ -96,13 +91,13 @@ export class GetWorkflowConsoleClientTool extends BaseTool {
         toolId: toolCall.id,
       }
 
+
       const response = await fetch('/api/copilot/methods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(body),
       })
-      logger.info('Methods route response', { ok: response.ok, status: response.status })
       if (!response.ok) {
         const e = await response.json().catch(() => ({}))
         options?.onStateChange?.('errored')
