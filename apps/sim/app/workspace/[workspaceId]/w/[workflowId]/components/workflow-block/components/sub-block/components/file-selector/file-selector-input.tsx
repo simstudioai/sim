@@ -500,6 +500,9 @@ export function FileSelectorInput({
                 disabled={disabled || !credential}
                 showPreview={true}
                 onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
+                workflowId={activeWorkflowId || ''}
+                credentialId={credential}
+                isForeignCredential={isForeignCredential}
               />
             </div>
           </TooltipTrigger>
@@ -532,6 +535,9 @@ export function FileSelectorInput({
                 disabled={disabled || !credential}
                 showPreview={true}
                 onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
+                workflowId={activeWorkflowId || ''}
+                credentialId={credential}
+                isForeignCredential={isForeignCredential}
               />
             </div>
           </TooltipTrigger>
