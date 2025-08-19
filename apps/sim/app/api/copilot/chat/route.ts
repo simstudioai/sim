@@ -81,7 +81,8 @@ const ChatMessageSchema = z.object({
   chatId: z.string().optional(),
   workflowId: z.string().min(1, 'Workflow ID is required'),
   mode: z.enum(['ask', 'agent']).optional().default('agent'),
-  depth: z.number().int().min(-1).max(3).optional().default(0),
+  depth: z.number().int().min(-2).max(3).optional().default(0),
+  prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
   implicitFeedback: z.string().optional(),
@@ -198,6 +199,7 @@ export async function POST(req: NextRequest) {
       workflowId,
       mode,
       depth,
+      prefetch,
       createNewChat,
       stream,
       implicitFeedback,
@@ -214,6 +216,19 @@ export async function POST(req: NextRequest) {
       return createInternalServerErrorResponse('Missing required configuration: BETTER_AUTH_URL')
     }
 
+    // Consolidation mapping: map negative depths to base depth with prefetch=true
+    let effectiveDepth: number | undefined = typeof depth === 'number' ? depth : undefined
+    let effectivePrefetch: boolean | undefined = prefetch
+    if (typeof effectiveDepth === 'number') {
+      if (effectiveDepth === -2) {
+        effectiveDepth = 1
+        effectivePrefetch = true
+      } else if (effectiveDepth === -1) {
+        effectiveDepth = 0
+        effectivePrefetch = true
+      }
+    }
+
     logger.info(`[${tracker.requestId}] Processing copilot chat request`, {
       userId: authenticatedUserId,
       workflowId,
@@ -226,6 +241,7 @@ export async function POST(req: NextRequest) {
       provider: provider || 'openai',
       hasConversationId: !!conversationId,
       depth,
+      prefetch,
       origin: requestOrigin,
     })
 
@@ -402,7 +418,8 @@ export async function POST(req: NextRequest) {
       mode: mode,
       provider: providerToUse,
       ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
-      ...(typeof depth === 'number' ? { depth } : {}),
+      ...(typeof effectiveDepth === 'number' ? { depth: effectiveDepth } : {}),
+      ...(typeof effectivePrefetch === 'boolean' ? { prefetch: effectivePrefetch } : {}),
       ...(session?.user?.name && { userName: session.user.name }),
       ...(requestOrigin ? { origin: requestOrigin } : {}),
     }
@@ -416,7 +433,8 @@ export async function POST(req: NextRequest) {
         stream,
         workflowId,
         hasConversationId: !!effectiveConversationId,
-        depth: typeof depth === 'number' ? depth : undefined,
+        depth: typeof effectiveDepth === 'number' ? effectiveDepth : undefined,
+        prefetch: typeof effectivePrefetch === 'boolean' ? effectivePrefetch : undefined,
         messagesCount: requestPayload.messages.length,
         ...(requestOrigin ? { origin: requestOrigin } : {}),
       })

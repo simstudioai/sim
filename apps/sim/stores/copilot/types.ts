@@ -171,7 +171,9 @@ export interface CopilotState {
   // Current mode
   mode: CopilotMode
   // Depth for agent mode (0-3)
-  agentDepth: -1 | 0 | 1 | 2 | 3
+  agentDepth: 0 | 1 | 2 | 3
+  // Whether to enable prefetch variant for the selected depth
+  agentPrefetch: boolean
 
   // Chat management
   currentChat: CopilotChat | null
@@ -219,7 +221,8 @@ export interface CopilotState {
 export interface CopilotActions {
   // Mode management
   setMode: (mode: CopilotMode) => void
-  setAgentDepth: (depth: -1 | 0 | 1 | 2 | 3) => void
+  setAgentDepth: (depth: 0 | 1 | 2 | 3) => void
+  setAgentPrefetch: (prefetch: boolean) => void
 
   // Chat management
   setWorkflowId: (workflowId: string | null) => Promise<void>
