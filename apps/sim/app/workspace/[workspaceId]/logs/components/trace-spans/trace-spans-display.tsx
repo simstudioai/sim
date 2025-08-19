@@ -82,14 +82,21 @@ function transformBlockData(data: any, blockType: string, isInput: boolean) {
 interface CollapsibleInputOutputProps {
   span: TraceSpan
   spanId: string
+  depth: number
 }
 
-function CollapsibleInputOutput({ span, spanId }: CollapsibleInputOutputProps) {
+function CollapsibleInputOutput({ span, spanId, depth }: CollapsibleInputOutputProps) {
   const [inputExpanded, setInputExpanded] = useState(false)
   const [outputExpanded, setOutputExpanded] = useState(false)
 
+  // Calculate the left margin based on depth to match the parent span's indentation
+  const leftMargin = depth * 16 + 8 + 24 // Base depth indentation + icon width + extra padding
+
   return (
-    <div className='mt-2 mr-4 mb-4 ml-8 space-y-3 overflow-hidden'>
+    <div
+      className='mt-2 mr-4 mb-4 space-y-3 overflow-hidden'
+      style={{ marginLeft: `${leftMargin}px` }}
+    >
       {/* Input Data - Collapsible */}
       {span.input && (
         <div>
@@ -592,7 +599,9 @@ function TraceSpanItem({
       {expanded && (
         <div>
           {/* Block Input/Output Data - Collapsible */}
-          {(span.input || span.output) && <CollapsibleInputOutput span={span} spanId={spanId} />}
+          {(span.input || span.output) && (
+            <CollapsibleInputOutput span={span} spanId={spanId} depth={depth} />
+          )}
 
           {/* Children and tool calls */}
           {/* Render child spans */}
