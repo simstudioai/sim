@@ -449,7 +449,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const getDepthDescription = (value: 0 | 1 | 2 | 3) => {
       if (value === 0)
         return 'Fastest and cheapest. Good for small edits, simple workflows, and small tasks.'
-      if (value === 1) return 'Automatically balances speed and reasoning. Good fit for most tasks.'
+      if (value === 1) return 'Balances speed and reasoning. Good fit for most tasks.'
       if (value === 2)
         return 'More reasoning for larger workflows and complex edits, still balanced for speed.'
       return 'Maximum reasoning power. Best for complex workflow building and debugging.'
@@ -546,7 +546,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             placeholder={isDragging ? 'Drop files here...' : placeholder}
             disabled={disabled}
             rows={1}
-            className='mb-2 min-h-[32px] w-full resize-none overflow-hidden border-0 bg-transparent px-[2px] py-1 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='mb-2 min-h-[32px] w-full resize-none overflow-hidden border-0 bg-transparent px-[2px] py-1 text-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
             style={{ height: 'auto' }}
           />
 

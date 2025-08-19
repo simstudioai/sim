@@ -172,7 +172,7 @@ function parseContentWithThinkingTags(content: string): Array<{ type: string; co
  */
 const initialState = {
   mode: 'agent' as const,
-  agentDepth: 1 as 0 | 1 | 2 | 3,
+  agentDepth: 0 as 0 | 1 | 2 | 3,
   agentPrefetch: true,
   currentChat: null,
   chats: [],
