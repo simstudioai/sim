@@ -86,7 +86,6 @@ export class WorkflowDiffEngine {
       // Call the API route to create the diff
       const body: any = {
         yamlContent,
-        currentWorkflowState: mergedBaseline,
       }
 
       if (diffAnalysis !== undefined && diffAnalysis !== null) {
@@ -109,6 +108,14 @@ export class WorkflowDiffEngine {
             y: 250,
           },
         },
+      }
+
+      // Provide the current workflow state to the server for context-aware diffs
+      body.currentWorkflowState = {
+        blocks: mergedBaseline.blocks,
+        edges: mergedBaseline.edges,
+        loops: mergedBaseline.loops || {},
+        parallels: mergedBaseline.parallels || {},
       }
 
       const response = await fetch('/api/yaml/diff/create', {

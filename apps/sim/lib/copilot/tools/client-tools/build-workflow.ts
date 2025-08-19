@@ -74,13 +74,25 @@ export class BuildWorkflowClientTool extends BaseTool {
         return { success: false, error: 'yamlContent is required' }
       }
 
-      // Do not call /api/copilot/methods for build_workflow. Succeed locally and pass through data.
-      logger.info('build_workflow: performing local success without server call', {
-        hasDescription: !!description,
-        yamlLength: yamlContent.length,
+      // 1) Call logic-only execute route to get build result without emitting completion
+      const execResp = await fetch('/api/copilot/workflows/build/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ yamlContent, ...(description ? { description } : {}) }),
       })
+      if (!execResp.ok) {
+        const e = await execResp.json().catch(() => ({}))
+        options?.onStateChange?.('errored')
+        return { success: false, error: e?.error || 'Failed to build workflow' }
+      }
+      const execResult = await execResp.json()
+      if (!execResult.success) {
+        options?.onStateChange?.('errored')
+        return { success: false, error: execResult.error || 'Server method failed' }
+      }
 
-      // Trigger diff directly
+      // 2) Update diff from YAML
       try {
         await useWorkflowDiffStore.getState().setProposedChanges(yamlContent)
         logger.info('Diff store updated from build_workflow YAML')
@@ -89,6 +101,21 @@ export class BuildWorkflowClientTool extends BaseTool {
           error: e instanceof Error ? e.message : String(e),
         })
       }
+
+      // 3) Notify completion to agent without re-executing logic
+      try {
+        await fetch('/api/copilot/tools/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            toolId: toolCall.id,
+            methodId: 'build_workflow',
+            success: true,
+            data: execResult.data,
+          }),
+        })
+      } catch {}
 
       // Transition to ready_for_review for store compatibility
       options?.onStateChange?.('success')
@@ -99,7 +126,7 @@ export class BuildWorkflowClientTool extends BaseTool {
         data: {
           yamlContent,
           ...(description ? { description } : {}),
-          note: 'Build workflow handled on client without server call',
+          ...(execResult?.data ? { data: execResult.data } : {}),
         },
       }
     } catch (error: any) {

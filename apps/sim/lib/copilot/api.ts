@@ -103,13 +103,27 @@ export async function sendStreamingMessage(
 ): Promise<StreamingResponse> {
   try {
     const { abortSignal, ...requestBody } = request
-    const response = await fetch('/api/copilot/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...requestBody, stream: true }),
-      signal: abortSignal,
-      credentials: 'include', // Include cookies for session authentication
-    })
+
+    // Simple, single retry for transient failures
+    const attempt = async (): Promise<Response> => {
+      return fetch('/api/copilot/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...requestBody, stream: true }),
+        signal: abortSignal,
+        credentials: 'include', // Include cookies for session authentication
+      })
+    }
+
+    let response = await attempt()
+
+    // Retry once on likely transient server/network issues (5xx)
+    if (!response.ok && response.status >= 500 && response.status < 600) {
+      try {
+        await new Promise((r) => setTimeout(r, 200))
+      } catch {}
+      response = await attempt()
+    }
 
     if (!response.ok) {
       const errorMessage = await handleApiError(response, 'Failed to send streaming message')

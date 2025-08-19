@@ -201,6 +201,22 @@ export async function POST(request: NextRequest) {
     const finalResult = result
 
     if (result.success && result.diff?.proposedState) {
+      // Remove invalid blocks that are missing required properties to avoid canvas warnings
+      try {
+        const rawBlocks = result.diff.proposedState.blocks || {}
+        const sanitizedBlocks: Record<string, any> = {}
+        Object.entries(rawBlocks).forEach(([id, block]: [string, any]) => {
+          if (block && typeof block === 'object' && block.type && block.name) {
+            sanitizedBlocks[id] = block
+          } else {
+            logger.warn(`[${requestId}] Dropping invalid proposed block`, { id, block })
+          }
+        })
+        result.diff.proposedState.blocks = sanitizedBlocks
+      } catch (e) {
+        logger.warn(`[${requestId}] Failed to sanitize proposed blocks`, e)
+      }
+
       // First, fix parent-child relationships based on edges
       const blocks = result.diff.proposedState.blocks
       const edges = result.diff.proposedState.edges || []
@@ -273,6 +289,21 @@ export async function POST(request: NextRequest) {
       // First, fix parent-child relationships based on edges
       const blocks = result.blocks
       const edges = result.edges || []
+
+      // Remove invalid blocks prior to transformation
+      try {
+        const sanitized: Record<string, any> = {}
+        Object.entries(blocks).forEach(([id, block]: [string, any]) => {
+          if (block && typeof block === 'object' && block.type && block.name) {
+            sanitized[id] = block
+          } else {
+            logger.warn(`[${requestId}] Dropping invalid block in auto-layout response`, { id })
+          }
+        })
+        ;(result as any).blocks = sanitized
+      } catch (e) {
+        logger.warn(`[${requestId}] Failed to sanitize auto-layout blocks`, e)
+      }
 
       // Find all loop and parallel blocks
       const containerBlocks = Object.values(blocks).filter(
