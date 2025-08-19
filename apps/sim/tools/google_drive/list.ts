@@ -59,6 +59,10 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
         'fields',
         'files(id,name,mimeType,webViewLink,webContentLink,size,createdTime,modifiedTime,parents),nextPageToken'
       )
+      // Ensure shared drives support
+      url.searchParams.append('supportsAllDrives', 'true')
+      url.searchParams.append('includeItemsFromAllDrives', 'true')
+      url.searchParams.append('spaces', 'drive')
 
       // Build the query conditions
       const conditions = ['trashed = false'] // Always exclude trashed files

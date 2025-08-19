@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -46,18 +46,51 @@ export function TriggerModal({
   const [config, setConfig] = useState<Record<string, any>>(initialConfig)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Track if config has changed from initial values
+  // Snapshot initial values at open for stable dirty-checking across collaborators
+  const initialConfigRef = useRef<Record<string, any>>(initialConfig)
+  const initialCredentialRef = useRef<string | null>(null)
+
+  // Capture initial credential on first detect
+  useEffect(() => {
+    if (initialCredentialRef.current !== null) return
+    const subBlockStore = useSubBlockStore.getState()
+    const cred = (subBlockStore.getValue(blockId, 'triggerCredentials') as string | null) || null
+    initialCredentialRef.current = cred
+  }, [blockId])
+
+  // Track if config has changed from initial snapshot
   const hasConfigChanged = useMemo(() => {
-    return JSON.stringify(config) !== JSON.stringify(initialConfig)
-  }, [config, initialConfig])
+    return JSON.stringify(config) !== JSON.stringify(initialConfigRef.current)
+  }, [config])
+
+  // Track if credential has changed from initial snapshot (computed later once selectedCredentialId is declared)
+  let hasCredentialChanged = false
   const [isDeleting, setIsDeleting] = useState(false)
   const [webhookUrl, setWebhookUrl] = useState('')
   const [generatedPath, setGeneratedPath] = useState('')
   const [hasCredentials, setHasCredentials] = useState(false)
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
+  hasCredentialChanged = selectedCredentialId !== initialCredentialRef.current
   const [dynamicOptions, setDynamicOptions] = useState<
     Record<string, Array<{ id: string; name: string }>>
   >({})
+  const lastCredentialIdRef = useRef<string | null>(null)
+
+  // Reset provider-dependent config fields when credentials change
+  const resetFieldsForCredentialChange = () => {
+    setConfig((prev) => {
+      const next = { ...prev }
+      if (triggerDef.provider === 'gmail') {
+        if (Array.isArray(next.labelIds)) next.labelIds = []
+      } else if (triggerDef.provider === 'outlook') {
+        if (Array.isArray(next.folderIds)) next.folderIds = []
+      } else if (triggerDef.provider === 'airtable') {
+        if (typeof next.baseId === 'string') next.baseId = ''
+        if (typeof next.tableId === 'string') next.tableId = ''
+      }
+      return next
+    })
+  }
 
   // Initialize config with default values from trigger definition
   useEffect(() => {
@@ -79,35 +112,71 @@ export function TriggerModal({
     }
   }, [triggerDef.configFields, initialConfig])
 
-  // Monitor credential selection
+  // Monitor credential selection across collaborators; clear options on change/clear
   useEffect(() => {
     if (triggerDef.requiresCredentials && triggerDef.credentialProvider) {
-      // Check if credentials are selected by monitoring the sub-block store
       const checkCredentials = () => {
         const subBlockStore = useSubBlockStore.getState()
-        const credentialValue = subBlockStore.getValue(blockId, 'triggerCredentials')
-        const hasCredential = Boolean(credentialValue)
+        const credentialValue = subBlockStore.getValue(blockId, 'triggerCredentials') as
+          | string
+          | null
+        const currentCredentialId = credentialValue || null
+        const hasCredential = Boolean(currentCredentialId)
         setHasCredentials(hasCredential)
 
-        // If credential changed and it's a Gmail trigger, load labels
-        if (hasCredential && credentialValue !== selectedCredentialId) {
-          setSelectedCredentialId(credentialValue)
+        // If credential was cleared by another user, reset local state and dynamic options
+        if (!hasCredential) {
+          if (selectedCredentialId !== null) {
+            setSelectedCredentialId(null)
+          }
+          // Clear provider-specific dynamic options
+          setDynamicOptions({})
+          // Per requirements: only clear dependent selections on actual credential CHANGE,
+          // not when it becomes empty. So we do NOT reset fields here.
+          lastCredentialIdRef.current = null
+          return
+        }
+
+        // If credential changed, clear options immediately and load for new cred
+        const previousCredentialId = lastCredentialIdRef.current
+
+        // First detection (prev null → current non-null): do not clear selections
+        if (previousCredentialId === null) {
+          setSelectedCredentialId(currentCredentialId)
+          lastCredentialIdRef.current = currentCredentialId
+          if (typeof currentCredentialId === 'string') {
+            if (triggerDef.provider === 'gmail') {
+              void loadGmailLabels(currentCredentialId)
+            } else if (triggerDef.provider === 'outlook') {
+              void loadOutlookFolders(currentCredentialId)
+            }
+          }
+          return
+        }
+
+        // Real change (prev non-null → different non-null): clear dependent selections
+        if (
+          typeof currentCredentialId === 'string' &&
+          currentCredentialId !== previousCredentialId
+        ) {
+          setSelectedCredentialId(currentCredentialId)
+          lastCredentialIdRef.current = currentCredentialId
+          // Clear stale options before loading new ones
+          setDynamicOptions({})
+          // Clear any selected values that depend on the credential
+          resetFieldsForCredentialChange()
           if (triggerDef.provider === 'gmail') {
-            loadGmailLabels(credentialValue)
+            void loadGmailLabels(currentCredentialId)
           } else if (triggerDef.provider === 'outlook') {
-            loadOutlookFolders(credentialValue)
+            void loadOutlookFolders(currentCredentialId)
           }
         }
       }
 
       checkCredentials()
-
-      // Set up a subscription to monitor changes
       const unsubscribe = useSubBlockStore.subscribe(checkCredentials)
-
       return unsubscribe
     }
-    // If credentials aren't required, set to true
     setHasCredentials(true)
   }, [
     blockId,
@@ -367,10 +436,14 @@ export function TriggerModal({
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving || !isConfigValid() || (!hasConfigChanged && !!triggerId)}
+                disabled={
+                  isSaving ||
+                  !isConfigValid() ||
+                  (!(hasConfigChanged || hasCredentialChanged) && !!triggerId)
+                }
                 className={cn(
                   'h-10',
-                  isConfigValid() && (hasConfigChanged || !triggerId)
+                  isConfigValid() && (hasConfigChanged || hasCredentialChanged || !triggerId)
                     ? 'bg-primary hover:bg-primary/90'
                     : '',
                   isSaving &&

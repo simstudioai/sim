@@ -124,6 +124,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       serviceId: 'outlook',
       requiredScopes: ['Mail.ReadWrite', 'Mail.ReadBasic', 'Mail.Read'],
       placeholder: 'Select Outlook folder',
+      dependsOn: ['credential'],
       mode: 'basic',
       condition: { field: 'operation', value: 'read_outlook' },
     },

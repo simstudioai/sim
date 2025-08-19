@@ -6,9 +6,9 @@ import {
   type SlackChannelInfo,
   SlackChannelSelector,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/channel-selector/components/slack-channel-selector'
+import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 interface ChannelSelectorInputProps {
   blockId: string
@@ -29,8 +29,6 @@ export function ChannelSelectorInput({
   isPreview = false,
   previewValue,
 }: ChannelSelectorInputProps) {
-  const { getValue } = useSubBlockStore()
-
   // Use the proper hook to get the current value and setter (same as file-selector)
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
   // Reactive upstream fields
@@ -43,6 +41,8 @@ export function ChannelSelectorInput({
   // Get provider-specific values
   const provider = subBlock.provider || 'slack'
   const isSlack = provider === 'slack'
+  // Central dependsOn gating
+  const { finalDisabled } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
 
   // Get the credential for the provider - use provided credential or fall back to reactive values
   let credential: string
@@ -89,15 +89,10 @@ export function ChannelSelectorInput({
                 }}
                 credential={credential}
                 label={subBlock.placeholder || 'Select Slack channel'}
-                disabled={disabled || !credential}
+                disabled={finalDisabled}
               />
             </div>
           </TooltipTrigger>
-          {!credential && (
-            <TooltipContent side='top'>
-              <p>Please select a Slack account or enter a bot token first</p>
-            </TooltipContent>
-          )}
         </Tooltip>
       </TooltipProvider>
     )

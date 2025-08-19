@@ -46,6 +46,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       requiredScopes: [],
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       placeholder: 'Select a spreadsheet',
+      dependsOn: ['credential'],
       mode: 'basic',
     },
     {
@@ -54,6 +55,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter spreadsheet ID',
+      dependsOn: ['credential'],
       mode: 'advanced',
     },
     {

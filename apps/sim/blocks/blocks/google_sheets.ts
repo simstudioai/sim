@@ -50,6 +50,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       requiredScopes: [],
       mimeType: 'application/vnd.google-apps.spreadsheet',
       placeholder: 'Select a spreadsheet',
+      dependsOn: ['credential'],
       mode: 'basic',
     },
     // Manual Spreadsheet ID (advanced mode)
@@ -59,6 +60,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'ID of the spreadsheet (from URL)',
+      dependsOn: ['credential'],
       mode: 'advanced',
     },
     // Range

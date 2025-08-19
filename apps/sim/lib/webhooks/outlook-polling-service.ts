@@ -3,9 +3,9 @@ import { nanoid } from 'nanoid'
 import { Logger } from '@/lib/logs/console/logger'
 import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { getOAuthToken } from '@/app/api/auth/oauth/utils'
+import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
-import { webhook } from '@/db/schema'
+import { account, webhook } from '@/db/schema'
 
 const logger = new Logger('OutlookPollingService')
 
@@ -108,28 +108,37 @@ export async function pollOutlookWebhooks() {
       try {
         logger.info(`[${requestId}] Processing Outlook webhook: ${webhookId}`)
 
-        // Extract user ID from webhook metadata if available
+        // Extract credentialId and/or userId
         const metadata = webhookData.providerConfig as any
-        const userId = metadata?.userId
+        const credentialId: string | undefined = metadata?.credentialId
+        const userId: string | undefined = metadata?.userId
 
-        // Debug: Webhook metadata extraction
-        logger.debug(
-          `[${requestId}] Webhook ${webhookId} providerConfig:`,
-          JSON.stringify(metadata, null, 2)
-        )
-        logger.debug(`[${requestId}] Extracted userId:`, userId)
-
-        if (!userId) {
-          logger.error(`[${requestId}] No user ID found for webhook ${webhookId}`)
-          logger.debug(`[${requestId}] No userId found in providerConfig for webhook ${webhookId}`)
-          return { success: false, webhookId, error: 'No user ID' }
+        if (!credentialId && !userId) {
+          logger.error(`[${requestId}] Missing credentialId and userId for webhook ${webhookId}`)
+          return { success: false, webhookId, error: 'Missing credentialId and userId' }
         }
 
-        // Get OAuth token for Outlook API
-        const accessToken = await getOAuthToken(userId, 'outlook')
+        // Resolve access token
+        let accessToken: string | null = null
+        if (credentialId) {
+          const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+          if (!rows.length) {
+            logger.error(
+              `[${requestId}] Credential ${credentialId} not found for webhook ${webhookId}`
+            )
+            return { success: false, webhookId, error: 'Credential not found' }
+          }
+          const ownerUserId = rows[0].userId
+          accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
+        } else if (userId) {
+          // Backward-compat fallback to workflow owner token
+          accessToken = await getOAuthToken(userId, 'outlook')
+        }
 
         if (!accessToken) {
-          logger.error(`[${requestId}] Failed to get Outlook access token for webhook ${webhookId}`)
+          logger.error(
+            `[${requestId}] Failed to get Outlook access token for webhook ${webhookId} (cred or fallback)`
+          )
           return { success: false, webhookId, error: 'No access token' }
         }
 

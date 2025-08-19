@@ -1,10 +1,8 @@
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { account } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,64 +30,48 @@ export async function GET(request: NextRequest) {
     const credentialId = searchParams.get('credentialId')
     const mimeType = searchParams.get('mimeType')
     const query = searchParams.get('query') || ''
+    const folderId = searchParams.get('folderId') || searchParams.get('parentId') || ''
+    const workflowId = searchParams.get('workflowId') || undefined
 
     if (!credentialId) {
       logger.warn(`[${requestId}] Missing credential ID`)
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
-    // Get the credential from the database
-    const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-
-    if (!credentials.length) {
-      logger.warn(`[${requestId}] Credential not found`, { credentialId })
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-    }
-
-    const credential = credentials[0]
-
-    // Check if the credential belongs to the user
-    if (credential.userId !== session.user.id) {
-      logger.warn(`[${requestId}] Unauthorized credential access attempt`, {
-        credentialUserId: credential.userId,
-        requestUserId: session.user.id,
-      })
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    // Authorize use of the credential (supports collaborator credentials via workflow)
+    const authz = await authorizeCredentialUse(request, { credentialId: credentialId!, workflowId })
+    if (!authz.ok || !authz.credentialOwnerUserId) {
+      logger.warn(`[${requestId}] Unauthorized credential access attempt`, authz)
+      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
 
     // Refresh access token if needed using the utility function
-    const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
+    const accessToken = await refreshAccessTokenIfNeeded(
+      credentialId!,
+      authz.credentialOwnerUserId,
+      requestId
+    )
 
     if (!accessToken) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Build the query parameters for Google Drive API
-    let queryParams = 'trashed=false'
-
-    // Add mimeType filter if provided
+    // Build Drive 'q' expression safely
+    const qParts: string[] = ['trashed = false']
+    if (folderId) {
+      qParts.push(`'${folderId.replace(/'/g, "\\'")}' in parents`)
+    }
     if (mimeType) {
-      // For Google Drive API, we need to use 'q' parameter for mimeType filtering
-      // Instead of using the mimeType parameter directly, we'll add it to the query
-      if (queryParams.includes('q=')) {
-        queryParams += ` and mimeType='${mimeType}'`
-      } else {
-        queryParams += `&q=mimeType='${mimeType}'`
-      }
+      qParts.push(`mimeType = '${mimeType.replace(/'/g, "\\'")}'`)
     }
-
-    // Add search query if provided
     if (query) {
-      if (queryParams.includes('q=')) {
-        queryParams += ` and name contains '${query}'`
-      } else {
-        queryParams += `&q=name contains '${query}'`
-      }
+      qParts.push(`name contains '${query.replace(/'/g, "\\'")}'`)
     }
+    const q = encodeURIComponent(qParts.join(' and '))
 
-    // Fetch files from Google Drive API
+    // Fetch files from Google Drive API with shared drives support
     const response = await fetch(
-      `https://www.googleapis.com/drive/v3/files?${queryParams}&fields=files(id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners)`,
+      `https://www.googleapis.com/drive/v3/files?q=${q}&supportsAllDrives=true&includeItemsFromAllDrives=true&spaces=drive&fields=files(id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners,parents)`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,

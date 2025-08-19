@@ -171,6 +171,9 @@ export interface SubBlockConfig {
   // Trigger-specific configuration
   availableTriggers?: string[] // List of trigger IDs available for this subblock
   triggerProvider?: string // Which provider's triggers to show
+  // Declarative dependency hints for cross-field clearing or invalidation
+  // Example: dependsOn: ['credential'] means this field should be cleared when credential changes
+  dependsOn?: string[]
 }
 
 // Main block definition

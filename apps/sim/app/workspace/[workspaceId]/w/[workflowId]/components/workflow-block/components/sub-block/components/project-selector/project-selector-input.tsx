@@ -18,6 +18,7 @@ import {
   type LinearTeamInfo,
   LinearTeamSelector,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/project-selector/components/linear-team-selector'
+import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -51,16 +52,11 @@ export function ProjectSelectorInput({
     subBlock.provider || subBlock.serviceId || 'jira',
     (connectedCredential as string) || ''
   )
-  // Local setters for related Jira fields to ensure immediate UI clearing
-  const [_issueKeyValue, setIssueKeyValue] = useSubBlockValue<string>(blockId, 'issueKey')
-  const [_manualIssueKeyValue, setManualIssueKeyValue] = useSubBlockValue<string>(
-    blockId,
-    'manualIssueKey'
-  )
   // Reactive dependencies from store for Linear
   const [linearCredential] = useSubBlockValue(blockId, 'credential')
   const [linearTeamId] = useSubBlockValue(blockId, 'teamId')
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId) as string | null
+  const { finalDisabled } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
 
   // Get provider-specific values
   const provider = subBlock.provider || 'jira'
@@ -94,27 +90,6 @@ export function ProjectSelectorInput({
     setSelectedProjectId(projectId)
     setProjectInfo(info || null)
     setStoreValue(projectId)
-
-    // Clear the issue-related fields when a new project is selected
-    if (provider === 'jira') {
-      collaborativeSetSubblockValue(blockId, 'summary', '')
-      collaborativeSetSubblockValue(blockId, 'description', '')
-      // Clear both the basic and advanced issue key fields to ensure UI resets
-      collaborativeSetSubblockValue(blockId, 'issueKey', '')
-      collaborativeSetSubblockValue(blockId, 'manualIssueKey', '')
-      // Also clear locally for immediate UI feedback on this client
-      setIssueKeyValue('')
-      setManualIssueKeyValue('')
-    } else if (provider === 'discord') {
-      collaborativeSetSubblockValue(blockId, 'channelId', '')
-    } else if (provider === 'linear') {
-      if (subBlock.id === 'teamId') {
-        collaborativeSetSubblockValue(blockId, 'teamId', projectId)
-        collaborativeSetSubblockValue(blockId, 'projectId', '')
-      } else if (subBlock.id === 'projectId') {
-        collaborativeSetSubblockValue(blockId, 'projectId', projectId)
-      }
-    }
 
     onProjectSelect?.(projectId)
   }
@@ -163,7 +138,7 @@ export function ProjectSelectorInput({
                   }}
                   credential={(linearCredential as string) || ''}
                   label={subBlock.placeholder || 'Select Linear team'}
-                  disabled={disabled || !(linearCredential as string)}
+                  disabled={finalDisabled}
                   showPreview={true}
                   workflowId={activeWorkflowId || ''}
                 />
@@ -171,7 +146,7 @@ export function ProjectSelectorInput({
                 (() => {
                   const credential = (linearCredential as string) || ''
                   const teamId = (linearTeamId as string) || ''
-                  const isDisabled = disabled || !credential || !teamId
+                  const isDisabled = finalDisabled
                   return (
                     <LinearProjectSelector
                       value={selectedProjectId}
@@ -213,7 +188,7 @@ export function ProjectSelectorInput({
               requiredScopes={subBlock.requiredScopes || []}
               serviceId={subBlock.serviceId}
               label={subBlock.placeholder || 'Select Jira project'}
-              disabled={disabled || !domain || !(jiraCredential as string)}
+              disabled={finalDisabled}
               showPreview={true}
               onProjectInfoChange={setProjectInfo}
               credentialId={(jiraCredential as string) || ''}
@@ -222,15 +197,6 @@ export function ProjectSelectorInput({
             />
           </div>
         </TooltipTrigger>
-        {!domain ? (
-          <TooltipContent side='top'>
-            <p>Please enter a Jira domain first</p>
-          </TooltipContent>
-        ) : !(jiraCredential as string) ? (
-          <TooltipContent side='top'>
-            <p>Please select a Jira account first</p>
-          </TooltipContent>
-        ) : null}
       </Tooltip>
     </TooltipProvider>
   )
