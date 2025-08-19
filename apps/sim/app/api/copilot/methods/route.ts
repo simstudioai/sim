@@ -220,29 +220,15 @@ async function interruptHandler(toolCallId: string): Promise<{
 }
 
 // MethodId for /api/complete-tool payload
-export type MethodId =
-  | 'get_blocks_and_tools'
-  | 'get_blocks_metadata'
-  | 'search_documentation'
-  | 'list_gdrive_files'
-  | 'read_gdrive_file'
-  | 'make_api_request'
-  | 'no_op'
-  | 'search_online'
-  | 'get_environment_variables'
-  | 'get_oauth_credentials'
-  | 'set_environment_variables'
-  | 'build_workflow'
-  | 'edit_workflow'
-  | 'get_user_workflow'
-  | 'get_workflow_console'
-  | 'gdrive_request_access'
+export type MethodId = string
 
 // Payload type for sim-agent completion callback
 interface CompleteToolRequestBody {
   toolId: string
   methodId: MethodId
-  data: unknown
+  success: boolean
+  data?: unknown
+  error?: string
 }
 
 const MethodExecutionSchema = z.object({
@@ -455,27 +441,34 @@ export async function POST(req: NextRequest) {
       hasError: !!result.error,
     })
 
-    // Temporary: send completion callback for selected methods while refactor progresses
-    if ((methodId === 'get_user_workflow' || methodId === 'get_blocks_and_tools' || methodId === 'get_environment_variables' || methodId === 'get_oauth_credentials' || methodId === 'get_blocks_metadata' || methodId === 'search_documentation' || methodId === 'list_gdrive_files' || methodId === 'read_gdrive_file' || methodId === 'gdrive_request_access' || methodId === 'run_workflow' || methodId === 'search_online' || methodId === 'get_workflow_console' || methodId === 'make_api_request' || methodId === 'edit_workflow' || methodId === 'build_workflow') && result.success) {
+    // Send completion callback to sim-agent for all methods, on both success and failure
+    {
       const completionPayload: CompleteToolRequestBody = {
         toolId: (toolId || toolCallId || requestId) as string,
         methodId: (methodId === 'run_workflow' ? 'no_op' : (methodId as MethodId)),
-        data: result.data as unknown,
+        success: !!result.success,
+        ...(result.success
+          ? { data: result.data as unknown }
+          : { error: (result as any)?.error || 'Unknown error' }),
       }
 
       let completionDataLength: number | null = null
       try {
-        completionDataLength =
-          typeof completionPayload.data === 'string'
-            ? (completionPayload.data as string).length
-            : JSON.stringify(completionPayload.data).length
+        if (completionPayload.data !== undefined) {
+          completionDataLength =
+            typeof completionPayload.data === 'string'
+              ? (completionPayload.data as string).length
+              : JSON.stringify(completionPayload.data).length
+        }
       } catch {}
 
       logger.info(`[${requestId}] Sending completion payload to sim-agent`, {
         endpoint: '/api/complete-tool',
         methodId: completionPayload.methodId,
         toolId: completionPayload.toolId,
+        success: completionPayload.success,
         hasData: !!completionPayload.data,
+        hasError: !!completionPayload.error,
         dataLength: completionDataLength,
       })
 

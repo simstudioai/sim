@@ -697,6 +697,15 @@ function finalizeToolCall(
   if (success) {
     toolCall.result = result
 
+    // Do not override if tool is already in a terminal failure state
+    if (
+      toolCall.state === 'errored' ||
+      toolCall.state === 'rejected' ||
+      toolCall.state === 'background'
+    ) {
+      return
+    }
+
     // For tools with ready_for_review and interrupt tools, check if they're already in a terminal state in the store
     if (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) {
       // Get current state from store if get function is available
@@ -937,7 +946,18 @@ const sseHandlers: Record<string, SSEHandler> = {
           : result
 
       // NEW LOGIC: Use centralized state management
-      setToolCallState(toolCall, 'success', { result: parsedResult })
+      if (
+        toolCall.state === 'errored' ||
+        toolCall.state === 'rejected' ||
+        toolCall.state === 'background'
+      ) {
+        logger.info('Ignoring success tool_result due to existing terminal state', {
+          toolCallId,
+          state: toolCall.state,
+        })
+      } else {
+        setToolCallState(toolCall, 'success', { result: parsedResult })
+      }
 
       // Check if this is the plan tool and extract todos
       if (toolCall.name === 'plan' && parsedResult?.todoList) {
@@ -1533,7 +1553,8 @@ function preserveToolTerminalState(newToolCall: any, existingToolCall: any): any
     !existingToolCall ||
     (existingToolCall.state !== 'accepted' &&
       existingToolCall.state !== 'rejected' &&
-      existingToolCall.state !== 'background')
+      existingToolCall.state !== 'background' &&
+      existingToolCall.state !== 'errored')
   ) {
     return newToolCall
   }
@@ -1550,6 +1571,7 @@ function preserveToolTerminalState(newToolCall: any, existingToolCall: any): any
     ...newToolCall,
     state: existingToolCall.state,
     displayName: existingToolCall.displayName,
+    error: existingToolCall.error ?? newToolCall.error,
   }
 }
 
