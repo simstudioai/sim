@@ -79,35 +79,44 @@ export function TriggerModal({
     }
   }, [triggerDef.configFields, initialConfig])
 
-  // Monitor credential selection
+  // Monitor credential selection across collaborators; clear options on change/clear
   useEffect(() => {
     if (triggerDef.requiresCredentials && triggerDef.credentialProvider) {
-      // Check if credentials are selected by monitoring the sub-block store
       const checkCredentials = () => {
         const subBlockStore = useSubBlockStore.getState()
-        const credentialValue = subBlockStore.getValue(blockId, 'triggerCredentials')
+        const credentialValue = subBlockStore.getValue(blockId, 'triggerCredentials') as
+          | string
+          | null
         const hasCredential = Boolean(credentialValue)
         setHasCredentials(hasCredential)
 
-        // If credential changed and it's a Gmail trigger, load labels
-        if (hasCredential && credentialValue !== selectedCredentialId) {
+        // If credential was cleared by another user, reset local state and dynamic options
+        if (!hasCredential) {
+          if (selectedCredentialId !== null) {
+            setSelectedCredentialId(null)
+          }
+          // Clear provider-specific dynamic options
+          setDynamicOptions({})
+          return
+        }
+
+        // If credential changed, clear options immediately and load for new cred
+        if (credentialValue && credentialValue !== selectedCredentialId) {
           setSelectedCredentialId(credentialValue)
+          // Clear stale options before loading new ones
+          setDynamicOptions({})
           if (triggerDef.provider === 'gmail') {
-            loadGmailLabels(credentialValue)
+            void loadGmailLabels(credentialValue)
           } else if (triggerDef.provider === 'outlook') {
-            loadOutlookFolders(credentialValue)
+            void loadOutlookFolders(credentialValue)
           }
         }
       }
 
       checkCredentials()
-
-      // Set up a subscription to monitor changes
       const unsubscribe = useSubBlockStore.subscribe(checkCredentials)
-
       return unsubscribe
     }
-    // If credentials aren't required, set to true
     setHasCredentials(true)
   }, [
     blockId,
