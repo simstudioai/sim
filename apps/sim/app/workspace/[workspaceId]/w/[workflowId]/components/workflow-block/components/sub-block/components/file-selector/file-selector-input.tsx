@@ -70,6 +70,7 @@ export function FileSelectorInput({
 
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+  const [connectedCredential] = useSubBlockValue(blockId, 'credential')
   const [selectedFileId, setSelectedFileId] = useState<string>('')
   const [_fileInfo, setFileInfo] = useState<FileInfo | ConfluenceFileInfo | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string>('')
@@ -86,7 +87,7 @@ export function FileSelectorInput({
   // Determine if the persisted credential belongs to the current viewer
   const [isForeignCredential, setIsForeignCredential] = useState<boolean>(false)
   useEffect(() => {
-    const cred = (getValue(blockId, 'credential') as string) || ''
+    const cred = (connectedCredential as string) || ''
     if (!cred) {
       setIsForeignCredential(false)
       return
@@ -110,8 +111,7 @@ export function FileSelectorInput({
     return () => {
       aborted = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blockId, getValue(blockId, 'credential')])
+  }, [blockId, connectedCredential])
 
   // Get provider-specific values
   const provider = subBlock.provider || 'google-drive'
@@ -254,7 +254,7 @@ export function FileSelectorInput({
 
   // Render Google Calendar selector
   if (isGoogleCalendar) {
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    const credential = (connectedCredential as string) || ''
 
     return (
       <TooltipProvider>
@@ -321,7 +321,7 @@ export function FileSelectorInput({
 
   // Render the appropriate picker based on provider
   if (isConfluence) {
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    const credential = (connectedCredential as string) || ''
     return (
       <TooltipProvider>
         <Tooltip>
@@ -361,7 +361,7 @@ export function FileSelectorInput({
   }
 
   if (isJira) {
-    const credential = jiraCredential
+    const credential = (connectedCredential as string) || ''
     return (
       <TooltipProvider>
         <Tooltip>
@@ -413,8 +413,8 @@ export function FileSelectorInput({
   }
 
   if (isMicrosoftExcel) {
-    // Get credential using the same pattern as other tools
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    // Get credential reactively
+    const credential = (connectedCredential as string) || ''
 
     return (
       <TooltipProvider>
@@ -446,8 +446,8 @@ export function FileSelectorInput({
 
   // Handle Microsoft Word selector
   if (isMicrosoftWord) {
-    // Get credential using the same pattern as other tools
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    // Get credential reactively
+    const credential = (connectedCredential as string) || ''
 
     return (
       <TooltipProvider>
@@ -479,7 +479,7 @@ export function FileSelectorInput({
 
   // Handle Microsoft OneDrive selector
   if (isMicrosoftOneDrive) {
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    const credential = (connectedCredential as string) || ''
 
     return (
       <TooltipProvider>
@@ -511,7 +511,7 @@ export function FileSelectorInput({
 
   // Handle Microsoft SharePoint selector
   if (isMicrosoftSharePoint) {
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    const credential = (connectedCredential as string) || ''
 
     return (
       <TooltipProvider>
@@ -543,7 +543,7 @@ export function FileSelectorInput({
 
   // Handle Microsoft Planner task selector
   if (isMicrosoftPlanner) {
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    const credential = (connectedCredential as string) || ''
     const planId = (getValue(blockId, 'planId') as string) || ''
 
     return (
@@ -582,7 +582,7 @@ export function FileSelectorInput({
   // Handle Microsoft Teams selector
   if (isMicrosoftTeams) {
     // Get credential using the same pattern as other tools
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    const credential = (connectedCredential as string) || ''
 
     // Determine the selector type based on the subBlock ID
     let selectionType: 'team' | 'channel' | 'chat' = 'team'
@@ -633,6 +633,7 @@ export function FileSelectorInput({
                 selectionType={selectionType}
                 initialTeamId={selectedTeamId}
                 workflowId={activeWorkflowId || ''}
+                isForeignCredential={isForeignCredential}
               />
             </div>
           </TooltipTrigger>
@@ -648,8 +649,8 @@ export function FileSelectorInput({
 
   // Render Wealthbox selector
   if (isWealthbox) {
-    // Get credential using the same pattern as other tools
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    // Get credential reactively
+    const credential = (connectedCredential as string) || ''
 
     // Only handle contacts now - both notes and tasks use short-input
     if (subBlock.id === 'contactId') {
@@ -699,7 +700,7 @@ export function FileSelectorInput({
   // Default to Google Drive picker
   {
     const credential = ((isPreview && previewContextValues?.credential?.value) ||
-      (getValue(blockId, 'credential') as string) ||
+      (connectedCredential as string) ||
       '') as string
 
     return (

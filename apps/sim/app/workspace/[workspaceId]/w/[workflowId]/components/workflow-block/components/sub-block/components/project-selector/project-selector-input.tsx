@@ -47,6 +47,7 @@ export function ProjectSelectorInput({
 
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+  const [connectedCredential] = useSubBlockValue(blockId, 'credential')
   // Local setters for related Jira fields to ensure immediate UI clearing
   const [_issueKeyValue, setIssueKeyValue] = useSubBlockValue<string>(blockId, 'issueKey')
   const [_manualIssueKeyValue, setManualIssueKeyValue] = useSubBlockValue<string>(
@@ -71,7 +72,7 @@ export function ProjectSelectorInput({
 
   // Verify Jira credential belongs to current user; if not, treat as absent
   useEffect(() => {
-    const cred = (jiraCredential as string) || ''
+    const cred = (connectedCredential as string) || ''
     if (!cred) {
       setIsForeignCredential(false)
       return
@@ -94,8 +95,7 @@ export function ProjectSelectorInput({
     return () => {
       aborted = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blockId, jiraCredential])
+  }, [blockId, connectedCredential])
 
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
