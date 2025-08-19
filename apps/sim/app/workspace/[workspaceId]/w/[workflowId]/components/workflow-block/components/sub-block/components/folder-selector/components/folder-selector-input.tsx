@@ -5,6 +5,7 @@ import {
   type FolderInfo,
   FolderSelector,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/folder-selector/folder-selector'
+import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -31,31 +32,10 @@ export function FolderSelectorInput({
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
   const [_folderInfo, setFolderInfo] = useState<FolderInfo | null>(null)
-  const [isForeignCredential, setIsForeignCredential] = useState<boolean>(false)
-
-  // Determine if credential is foreign so we can gate the dropdown
-  useEffect(() => {
-    const checkForeign = async () => {
-      try {
-        const cred = (connectedCredential as string) || ''
-        if (!cred) {
-          setIsForeignCredential(false)
-          return
-        }
-        const res = await fetch(`/api/auth/oauth/credentials?provider=${subBlock.provider}`)
-        if (!res.ok) {
-          setIsForeignCredential(true)
-          return
-        }
-        const data = await res.json()
-        const isOwn = (data.credentials || []).some((c: any) => c.id === cred)
-        setIsForeignCredential(!isOwn)
-      } catch {
-        setIsForeignCredential(true)
-      }
-    }
-    void checkForeign()
-  }, [connectedCredential, subBlock.provider])
+  const { isForeignCredential } = useForeignCredential(
+    subBlock.provider || subBlock.serviceId || 'outlook',
+    (connectedCredential as string) || ''
+  )
 
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {

@@ -22,6 +22,7 @@ import {
   WealthboxFileSelector,
   type WealthboxItemInfo,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components'
+import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -85,33 +86,10 @@ export function FileSelectorInput({
   const [wealthboxItemInfo, setWealthboxItemInfo] = useState<WealthboxItemInfo | null>(null)
 
   // Determine if the persisted credential belongs to the current viewer
-  const [isForeignCredential, setIsForeignCredential] = useState<boolean>(false)
-  useEffect(() => {
-    const cred = (connectedCredential as string) || ''
-    if (!cred) {
-      setIsForeignCredential(false)
-      return
-    }
-    let aborted = false
-    ;(async () => {
-      try {
-        const resp = await fetch(`/api/auth/oauth/credentials?credentialId=${cred}`)
-        if (aborted) return
-        if (!resp.ok) {
-          setIsForeignCredential(true)
-          return
-        }
-        const data = await resp.json()
-        // If credential not returned for this session user, it's foreign
-        setIsForeignCredential(!(data.credentials && data.credentials.length === 1))
-      } catch {
-        setIsForeignCredential(true)
-      }
-    })()
-    return () => {
-      aborted = true
-    }
-  }, [blockId, connectedCredential])
+  const { isForeignCredential } = useForeignCredential(
+    subBlock.provider || subBlock.serviceId || '',
+    (connectedCredential as string) || ''
+  )
 
   // Get provider-specific values
   const provider = subBlock.provider || 'google-drive'
