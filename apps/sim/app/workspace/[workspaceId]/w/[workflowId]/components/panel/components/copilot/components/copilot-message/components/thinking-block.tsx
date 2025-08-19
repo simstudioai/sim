@@ -76,7 +76,8 @@ export function ThinkingBlock({
       >
         <Brain className='h-3 w-3' />
         <span>
-          Thought for {formatDuration(duration)}{isExpanded ? ' (click to collapse)' : ''}
+          Thought for {formatDuration(duration)}
+          {isExpanded ? ' (click to collapse)' : ''}
         </span>
         {isStreaming && (
           <span className='inline-flex h-1 w-1 animate-pulse rounded-full bg-gray-400' />
@@ -87,7 +88,9 @@ export function ThinkingBlock({
         <div className='ml-1 border-gray-200 border-l-2 pl-2 dark:border-gray-700'>
           <pre className='whitespace-pre-wrap font-mono text-gray-400 text-xs dark:text-gray-500'>
             {content}
-            {isStreaming && <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-gray-400' />}
+            {isStreaming && (
+              <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-gray-400' />
+            )}
           </pre>
         </div>
       )}

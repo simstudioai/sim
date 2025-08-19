@@ -686,8 +686,7 @@ export async function POST(req: NextRequest) {
                           const announced = announcedToolCallIds.size
                           const completed = completedToolExecutionIds.size
                           const started = startedToolExecutionIds.size
-                          const hasToolInProgress =
-                            announced > completed || started > completed
+                          const hasToolInProgress = announced > completed || started > completed
                           if (!hasToolInProgress) {
                             lastSafeDoneResponseId = responseIdFromDone
                             logger.info(

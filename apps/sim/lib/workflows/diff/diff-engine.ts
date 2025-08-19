@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { mergeSubblockState } from '@/stores/workflows/utils'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import type { BlockWithDiff } from './types'
 
 const logger = createLogger('WorkflowDiffEngine')

@@ -84,7 +84,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
   // Get field-level diff information for this specific block from the diff store
   const diffAnalysisForFields = useWorkflowDiffStore((state) => state.diffAnalysis)
-  const fieldDiff = currentWorkflow.isDiffMode ? diffAnalysisForFields?.field_diffs?.[id] : undefined
+  const fieldDiff = currentWorkflow.isDiffMode
+    ? diffAnalysisForFields?.field_diffs?.[id]
+    : undefined
 
   // Debug: Log diff status for this block
   useEffect(() => {

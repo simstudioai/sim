@@ -12,8 +12,8 @@ import type {
 import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface GetUserWorkflowParams {
   workflowId?: string

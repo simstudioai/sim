@@ -202,8 +202,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     // 1. Always scroll for new user messages (resets the user scroll state)
     // 2. For assistant messages during streaming: only if user hasn't scrolled up
     // 3. For assistant messages when not streaming: only if near bottom
-    const shouldAutoScroll = 
-      isNewUserMessage || 
+    const shouldAutoScroll =
+      isNewUserMessage ||
       (isSendingMessage && !userHasScrolledDuringStream) ||
       (!isSendingMessage && isNearBottom)
 

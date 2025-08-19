@@ -23,17 +23,21 @@ import {
   Paperclip,
   X,
   Zap,
-  FlaskConical,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { CopilotSlider as Slider } from './copilot-slider'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
+import { CopilotSlider as Slider } from './copilot-slider'
 
 export interface MessageFileAttachment {
   id: string
@@ -429,7 +433,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const cycleDepth = () => {
       // 8 modes: depths 0-3, each with prefetch off/on. Cycle depth, then toggle prefetch when wrapping.
-      const nextDepth = agentDepth === 3 ? 0 : (agentDepth + 1) as 0 | 1 | 2 | 3
+      const nextDepth = agentDepth === 3 ? 0 : ((agentDepth + 1) as 0 | 1 | 2 | 3)
       if (nextDepth === 0 && agentDepth === 3) {
         setAgentPrefetch(!agentPrefetch)
       }
@@ -644,7 +648,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                       <div className='w-[260px] p-3'>
                         <div className='mb-3 flex items-center justify-between'>
                           <div className='flex items-center gap-1.5'>
-                            <span className='text-xs font-medium'>MAX mode</span>
+                            <span className='font-medium text-xs'>MAX mode</span>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <button
@@ -675,8 +679,10 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                         </div>
                         <div className='mb-3'>
                           <div className='mb-2 flex items-center justify-between'>
-                            <span className='text-xs font-medium'>Mode</span>
-                            <span className='text-xs text-muted-foreground'>{getDepthLabelFor(agentDepth)}</span>
+                            <span className='font-medium text-xs'>Mode</span>
+                            <span className='text-muted-foreground text-xs'>
+                              {getDepthLabelFor(agentDepth)}
+                            </span>
                           </div>
                           <div className='relative'>
                             <Slider
@@ -684,11 +690,13 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                               max={3}
                               step={1}
                               value={[agentDepth]}
-                              onValueChange={(val) => setAgentDepth((val?.[0] ?? 0) as 0 | 1 | 2 | 3)}
+                              onValueChange={(val) =>
+                                setAgentDepth((val?.[0] ?? 0) as 0 | 1 | 2 | 3)
+                              }
                             />
                             <div className='pointer-events-none absolute inset-0'>
-                              <div className='absolute left-[33.333%] top-1/2 h-2 w-[3px] -translate-x-1/2 -translate-y-1/2 bg-background' />
-                              <div className='absolute left-[66.667%] top-1/2 h-2 w-[3px] -translate-x-1/2 -translate-y-1/2 bg-background' />
+                              <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-[33.333%] h-2 w-[3px] bg-background' />
+                              <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-[66.667%] h-2 w-[3px] bg-background' />
                             </div>
                           </div>
                         </div>
