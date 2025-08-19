@@ -804,7 +804,7 @@ export function useCollaborativeWorkflow() {
   )
 
   const collaborativeSetSubblockValue = useCallback(
-    (blockId: string, subblockId: string, value: any) => {
+    (blockId: string, subblockId: string, value: any, options?: { _visited?: Set<string> }) => {
       if (isApplyingRemoteChange.current) return
 
       // Skip socket operations when in diff mode
@@ -843,6 +843,9 @@ export function useCollaborativeWorkflow() {
 
       // Declarative clearing: clear sub-blocks that depend on this subblockId
       try {
+        const visited = options?._visited || new Set<string>()
+        if (visited.has(subblockId)) return
+        visited.add(subblockId)
         const blockType = useWorkflowStore.getState().blocks?.[blockId]?.type
         const blockConfig = blockType ? getBlock(blockType) : null
         if (blockConfig?.subBlocks && Array.isArray(blockConfig.subBlocks)) {
@@ -852,7 +855,8 @@ export function useCollaborativeWorkflow() {
           for (const dep of dependents) {
             // Skip clearing if the dependent is the same field
             if (!dep?.id || dep.id === subblockId) continue
-            subBlockStore.setValue(blockId, dep.id, '')
+            // Cascade using the same collaborative path so it emits and further cascades
+            collaborativeSetSubblockValue(blockId, dep.id, '', { _visited: visited })
           }
         }
       } catch {
