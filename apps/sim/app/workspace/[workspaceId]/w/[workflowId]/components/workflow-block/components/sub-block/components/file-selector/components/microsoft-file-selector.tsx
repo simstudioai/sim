@@ -55,6 +55,9 @@ interface MicrosoftFileSelectorProps {
   showPreview?: boolean
   onFileInfoChange?: (fileInfo: MicrosoftFileInfo | null) => void
   planId?: string
+  workflowId?: string
+  credentialId?: string
+  isForeignCredential?: boolean
 }
 
 export function MicrosoftFileSelector({
@@ -68,10 +71,13 @@ export function MicrosoftFileSelector({
   showPreview = true,
   onFileInfoChange,
   planId,
+  workflowId,
+  credentialId,
+  isForeignCredential = false,
 }: MicrosoftFileSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credentialId || '')
   const [selectedFileId, setSelectedFileId] = useState(value)
   const [selectedFile, setSelectedFile] = useState<MicrosoftFileInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -112,23 +118,11 @@ export function MicrosoftFileSelector({
         const data = await response.json()
         setCredentials(data.credentials)
 
-        // Auto-select logic for credentials
-        if (data.credentials.length > 0) {
-          // If we already have a selected credential ID, check if it's valid
-          if (
-            selectedCredentialId &&
-            data.credentials.some((cred: Credential) => cred.id === selectedCredentialId)
-          ) {
-            // Keep the current selection
-          } else {
-            // Otherwise, select the default or first credential
-            const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-            if (defaultCred) {
-              setSelectedCredentialId(defaultCred.id)
-            } else if (data.credentials.length === 1) {
-              setSelectedCredentialId(data.credentials[0].id)
-            }
-          }
+        // If a credentialId prop is provided (collaborator case), do not auto-select
+        if (!credentialId && data.credentials.length > 0 && !selectedCredentialId) {
+          const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
+          if (defaultCred) setSelectedCredentialId(defaultCred.id)
+          else if (data.credentials.length === 1) setSelectedCredentialId(data.credentials[0].id)
         }
       }
     } catch (error) {
@@ -137,11 +131,18 @@ export function MicrosoftFileSelector({
       setIsLoading(false)
       setCredentialsLoaded(true)
     }
-  }, [provider, getProviderId, selectedCredentialId])
+  }, [provider, getProviderId, selectedCredentialId, credentialId])
+
+  // Keep internal credential in sync with prop
+  useEffect(() => {
+    if (credentialId && credentialId !== selectedCredentialId) {
+      setSelectedCredentialId(credentialId)
+    }
+  }, [credentialId, selectedCredentialId])
 
   // Fetch available files for the selected credential
   const fetchAvailableFiles = useCallback(async () => {
-    if (!selectedCredentialId) return
+    if (!selectedCredentialId || isForeignCredential) return
 
     setIsLoadingFiles(true)
     try {
@@ -170,9 +171,13 @@ export function MicrosoftFileSelector({
         const data = await response.json()
         setAvailableFiles(data.files || [])
       } else {
-        logger.error('Error fetching available files:', {
-          error: await response.text(),
-        })
+        const txt = await response.text()
+        if (response.status === 401 || response.status === 403) {
+          // Suppress noisy auth errors for collaborators; lists are intentionally gated
+          logger.info('Skipping list fetch (auth)', { status: response.status })
+        } else {
+          logger.warn('Non-OK list fetch', { status: response.status, txt })
+        }
         setAvailableFiles([])
       }
     } catch (error) {
@@ -181,7 +186,7 @@ export function MicrosoftFileSelector({
     } finally {
       setIsLoadingFiles(false)
     }
-  }, [selectedCredentialId, searchQuery, serviceId])
+  }, [selectedCredentialId, searchQuery, serviceId, isForeignCredential])
 
   // Fetch a single file by ID when we have a selectedFileId but no metadata
   const fetchFileById = useCallback(
@@ -190,49 +195,90 @@ export function MicrosoftFileSelector({
 
       setIsLoadingSelectedFile(true)
       try {
-        // Construct query parameters
-        const queryParams = new URLSearchParams({
-          credentialId: selectedCredentialId,
-          fileId: fileId,
-        })
-
-        // Route to correct endpoint based on service
-        let endpoint: string
-        if (serviceId === 'onedrive') {
-          endpoint = `/api/tools/onedrive/folder?${queryParams.toString()}`
-        } else if (serviceId === 'sharepoint') {
-          // Change from fileId to siteId for SharePoint
-          const sharepointParams = new URLSearchParams({
-            credentialId: selectedCredentialId,
-            siteId: fileId, // Use siteId instead of fileId
+        // Use owner-scoped token for OneDrive items (files/folders) and Excel
+        if (serviceId !== 'sharepoint') {
+          const tokenRes = await fetch('/api/auth/oauth/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credentialId: selectedCredentialId, workflowId }),
           })
-          endpoint = `/api/tools/sharepoint/site?${sharepointParams.toString()}`
-        } else {
-          endpoint = `/api/auth/oauth/microsoft/file?${queryParams.toString()}`
+          if (!tokenRes.ok) {
+            const err = await tokenRes.text()
+            logger.error('Failed to get access token for Microsoft file fetch', { err })
+            return null
+          }
+          const { accessToken } = await tokenRes.json()
+          if (!accessToken) return null
+
+          const graphUrl =
+            `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(fileId)}?` +
+            new URLSearchParams({
+              $select:
+                'id,name,webUrl,thumbnails,createdDateTime,lastModifiedDateTime,size,createdBy,file,folder',
+            }).toString()
+          const resp = await fetch(graphUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+          if (!resp.ok) {
+            const t = await resp.text()
+            // For 404/403, keep current selection; this often means the item moved or is shared differently.
+            if (resp.status !== 404 && resp.status !== 403) {
+              logger.warn('Graph error fetching file by ID', { status: resp.status, t })
+            }
+            return null
+          }
+          const file = await resp.json()
+          const fileInfo: MicrosoftFileInfo = {
+            id: file.id,
+            name: file.name,
+            mimeType:
+              file?.file?.mimeType || (file.folder ? 'application/vnd.ms-onedrive.folder' : ''),
+            iconLink: file.thumbnails?.[0]?.small?.url,
+            webViewLink: file.webUrl,
+            thumbnailLink: file.thumbnails?.[0]?.medium?.url,
+            createdTime: file.createdDateTime,
+            modifiedTime: file.lastModifiedDateTime,
+            size: file.size?.toString(),
+            owners: file.createdBy
+              ? [
+                  {
+                    displayName: file.createdBy.user?.displayName || 'Unknown',
+                    emailAddress: file.createdBy.user?.email || '',
+                  },
+                ]
+              : [],
+          }
+          setSelectedFile(fileInfo)
+          onFileInfoChange?.(fileInfo)
+          return fileInfo
         }
 
-        const response = await fetch(endpoint)
-
-        if (response.ok) {
-          const data = await response.json()
-          if (data.file) {
-            setSelectedFile(data.file)
-            onFileInfoChange?.(data.file)
-            return data.file
+        // SharePoint site: fetch via Graph sites endpoint for collaborator visibility
+        const tokenRes = await fetch('/api/auth/oauth/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credentialId: selectedCredentialId, workflowId }),
+        })
+        if (!tokenRes.ok) return null
+        const { accessToken: spToken } = await tokenRes.json()
+        if (!spToken) return null
+        const spResp = await fetch(
+          `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(fileId)}?$select=id,displayName,webUrl`,
+          {
+            headers: { Authorization: `Bearer ${spToken}` },
           }
-        } else {
-          const errorText = await response.text()
-          logger.error('Error fetching file by ID:', { error: errorText })
-
-          // If file not found or access denied, clear the selection
-          if (response.status === 404 || response.status === 403) {
-            logger.info('File not accessible, clearing selection')
-            setSelectedFileId('')
-            onChange('')
-            onFileInfoChange?.(null)
-          }
+        )
+        if (!spResp.ok) return null
+        const site = await spResp.json()
+        const siteInfo: MicrosoftFileInfo = {
+          id: site.id,
+          name: site.displayName,
+          mimeType: 'sharepoint/site',
+          webViewLink: site.webUrl,
         }
-        return null
+        setSelectedFile(siteInfo)
+        onFileInfoChange?.(siteInfo)
+        return siteInfo
       } catch (error) {
         logger.error('Error fetching file by ID:', { error })
         return null
@@ -240,16 +286,22 @@ export function MicrosoftFileSelector({
         setIsLoadingSelectedFile(false)
       }
     },
-    [selectedCredentialId, onFileInfoChange, serviceId]
+    [selectedCredentialId, onFileInfoChange, serviceId, workflowId, onChange]
   )
 
   // Fetch Microsoft Planner tasks when planId and credentials are available
   const fetchPlannerTasks = useCallback(async () => {
-    if (!selectedCredentialId || !planId || serviceId !== 'microsoft-planner') {
+    if (
+      !selectedCredentialId ||
+      !planId ||
+      serviceId !== 'microsoft-planner' ||
+      isForeignCredential
+    ) {
       logger.info('Skipping task fetch - missing requirements:', {
         selectedCredentialId: !!selectedCredentialId,
         planId: !!planId,
         serviceId,
+        isForeignCredential,
       })
       return
     }
@@ -296,11 +348,17 @@ export function MicrosoftFileSelector({
         setPlannerTasks(transformedTasks)
       } else {
         const errorText = await response.text()
-        logger.error('API response not ok:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorText,
-        })
+        if (response.status === 401 || response.status === 403) {
+          logger.info('Planner list fetch unauthorized (expected for collaborator)', {
+            status: response.status,
+          })
+        } else {
+          logger.warn('Planner tasks fetch non-OK', {
+            status: response.status,
+            statusText: response.statusText,
+            errorText,
+          })
+        }
         setPlannerTasks([])
       }
     } catch (error) {
@@ -309,7 +367,50 @@ export function MicrosoftFileSelector({
     } finally {
       setIsLoadingTasks(false)
     }
-  }, [selectedCredentialId, planId, serviceId])
+  }, [selectedCredentialId, planId, serviceId, isForeignCredential])
+
+  // Fetch a single planner task by ID for collaborator preview
+  const fetchPlannerTaskById = useCallback(
+    async (taskId: string) => {
+      if (!selectedCredentialId || !taskId || serviceId !== 'microsoft-planner') return null
+      setIsLoadingTasks(true)
+      try {
+        const tokenRes = await fetch('/api/auth/oauth/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credentialId: selectedCredentialId, workflowId }),
+        })
+        if (!tokenRes.ok) return null
+        const { accessToken } = await tokenRes.json()
+        if (!accessToken) return null
+        const resp = await fetch(
+          `https://graph.microsoft.com/v1.0/planner/tasks/${encodeURIComponent(taskId)}`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        )
+        if (!resp.ok) return null
+        const task = await resp.json()
+        const taskAsFileInfo: MicrosoftFileInfo = {
+          id: task.id,
+          name: task.title,
+          mimeType: 'planner/task',
+          webViewLink: `https://tasks.office.com/planner/task/${task.id}`,
+          createdTime: task.createdDateTime,
+          modifiedTime: task.createdDateTime,
+        }
+        setSelectedTask(task)
+        setSelectedFile(taskAsFileInfo)
+        onFileInfoChange?.(taskAsFileInfo)
+        return taskAsFileInfo
+      } catch {
+        return null
+      } finally {
+        setIsLoadingTasks(false)
+      }
+    },
+    [selectedCredentialId, workflowId, onFileInfoChange, serviceId]
+  )
 
   // Fetch credentials on initial mount
   useEffect(() => {
@@ -339,10 +440,15 @@ export function MicrosoftFileSelector({
 
   // Fetch planner tasks when credentials and planId change
   useEffect(() => {
-    if (serviceId === 'microsoft-planner' && selectedCredentialId && planId) {
+    if (
+      serviceId === 'microsoft-planner' &&
+      selectedCredentialId &&
+      planId &&
+      !isForeignCredential
+    ) {
       fetchPlannerTasks()
     }
-  }, [selectedCredentialId, planId, serviceId, fetchPlannerTasks])
+  }, [selectedCredentialId, planId, serviceId, isForeignCredential, fetchPlannerTasks])
 
   // Handle task selection for planner
   const handleTaskSelect = (task: PlannerTask) => {
@@ -357,26 +463,23 @@ export function MicrosoftFileSelector({
       modifiedTime: task.createdDateTime,
     }
 
+    // Update internal state first to avoid race with list refetch
     setSelectedFileId(taskId)
     setSelectedFile(taskAsFileInfo)
     setSelectedTask(task)
+    // Then propagate up
     onChange(taskId, taskAsFileInfo)
     onFileInfoChange?.(taskAsFileInfo)
     setOpen(false)
     setSearchQuery('')
   }
 
-  // Keep internal selectedFileId in sync with the value prop
+  // Keep internal selectedFileId in sync with the value prop (do not clear selectedFile; we'll resolve new metadata below)
   useEffect(() => {
     if (value !== selectedFileId) {
-      const previousFileId = selectedFileId
       setSelectedFileId(value)
-      // Only clear selected file info if we had a different file before (not initial load)
-      if (previousFileId && previousFileId !== value && selectedFile) {
-        setSelectedFile(null)
-      }
     }
-  }, [value, selectedFileId, selectedFile])
+  }, [value, selectedFileId])
 
   // Track previous credential ID to detect changes
   const prevCredentialIdRef = useRef<string>('')
@@ -403,18 +506,19 @@ export function MicrosoftFileSelector({
 
   // Fetch the selected file metadata once credentials are loaded or changed
   useEffect(() => {
-    // Only fetch if we have both a file ID and credentials, credentials are loaded, but no file info yet
+    // Fetch metadata when the external value doesn't match our current selectedFile
     if (
       value &&
       selectedCredentialId &&
       credentialsLoaded &&
-      !selectedFile &&
-      !isLoadingSelectedFile &&
-      serviceId !== 'microsoft-planner' &&
-      serviceId !== 'sharepoint' &&
-      serviceId !== 'onedrive'
+      (!selectedFile || selectedFile.id !== value) &&
+      !isLoadingSelectedFile
     ) {
-      fetchFileById(value)
+      if (serviceId === 'microsoft-planner') {
+        void fetchPlannerTaskById(value)
+      } else {
+        fetchFileById(value)
+      }
     }
   }, [
     value,
@@ -423,7 +527,28 @@ export function MicrosoftFileSelector({
     selectedFile,
     isLoadingSelectedFile,
     fetchFileById,
+    fetchPlannerTaskById,
     serviceId,
+  ])
+
+  // Resolve planner task selection for collaborators
+  useEffect(() => {
+    if (
+      value &&
+      selectedCredentialId &&
+      credentialsLoaded &&
+      !selectedTask &&
+      serviceId === 'microsoft-planner'
+    ) {
+      void fetchPlannerTaskById(value)
+    }
+  }, [
+    value,
+    selectedCredentialId,
+    credentialsLoaded,
+    selectedTask,
+    serviceId,
+    fetchPlannerTaskById,
   ])
 
   // Handle selecting a file from the available files
@@ -620,7 +745,9 @@ export function MicrosoftFileSelector({
               role='combobox'
               aria-expanded={open}
               className='h-10 w-full min-w-0 justify-between'
-              disabled={disabled || (serviceId === 'microsoft-planner' && !planId)}
+              disabled={
+                disabled || isForeignCredential || (serviceId === 'microsoft-planner' && !planId)
+              }
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
                 {selectedFile ? (
@@ -643,154 +770,158 @@ export function MicrosoftFileSelector({
               <ChevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className='w-[300px] p-0' align='start'>
-            {/* Current account indicator */}
-            {selectedCredentialId && credentials.length > 0 && (
-              <div className='flex items-center justify-between border-b px-3 py-2'>
-                <div className='flex items-center gap-2'>
-                  {getProviderIcon(provider)}
-                  <span className='text-muted-foreground text-xs'>
-                    {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
-                      'Unknown'}
-                  </span>
+          {!isForeignCredential && (
+            <PopoverContent className='w-[300px] p-0' align='start'>
+              {/* Current account indicator */}
+              {selectedCredentialId && credentials.length > 0 && (
+                <div className='flex items-center justify-between border-b px-3 py-2'>
+                  <div className='flex items-center gap-2'>
+                    {getProviderIcon(provider)}
+                    <span className='text-muted-foreground text-xs'>
+                      {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
+                        'Unknown'}
+                    </span>
+                  </div>
+                  {credentials.length > 1 && (
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='h-6 px-2 text-xs'
+                      onClick={() => setOpen(true)}
+                    >
+                      Switch
+                    </Button>
+                  )}
                 </div>
-                {credentials.length > 1 && (
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    className='h-6 px-2 text-xs'
-                    onClick={() => setOpen(true)}
-                  >
-                    Switch
-                  </Button>
-                )}
-              </div>
-            )}
+              )}
 
-            <Command>
-              <CommandInput placeholder={getSearchPlaceholder()} onValueChange={handleSearch} />
-              <CommandList>
-                <CommandEmpty>
-                  {isLoading || isLoadingFiles || isLoadingTasks ? (
-                    <div className='flex items-center justify-center p-4'>
-                      <RefreshCw className='h-4 w-4 animate-spin' />
-                      <span className='ml-2'>Loading...</span>
-                    </div>
-                  ) : credentials.length === 0 ? (
-                    <div className='p-4 text-center'>
-                      <p className='font-medium text-sm'>No accounts connected.</p>
-                      <p className='text-muted-foreground text-xs'>
-                        Connect a {getProviderName(provider)} account to continue.
-                      </p>
-                    </div>
-                  ) : serviceId === 'microsoft-planner' && !planId ? (
-                    <div className='p-4 text-center'>
-                      <p className='font-medium text-sm'>Plan ID required.</p>
-                      <p className='text-muted-foreground text-xs'>
-                        Please enter a Plan ID first to see tasks.
-                      </p>
-                    </div>
-                  ) : filteredTasks.length === 0 ? (
-                    <div className='p-4 text-center'>
-                      <p className='font-medium text-sm'>{getEmptyStateText().title}</p>
-                      <p className='text-muted-foreground text-xs'>
-                        {getEmptyStateText().description}
-                      </p>
-                    </div>
-                  ) : null}
-                </CommandEmpty>
-
-                {/* Account selection - only show if we have multiple accounts */}
-                {credentials.length > 1 && (
-                  <CommandGroup>
-                    <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
-                      Switch Account
-                    </div>
-                    {credentials.map((cred) => (
-                      <CommandItem
-                        key={cred.id}
-                        value={`account-${cred.id}`}
-                        onSelect={() => setSelectedCredentialId(cred.id)}
-                      >
-                        <div className='flex items-center gap-2'>
-                          {getProviderIcon(cred.provider)}
-                          <span className='font-normal'>{cred.name}</span>
-                        </div>
-                        {cred.id === selectedCredentialId && <Check className='ml-auto h-4 w-4' />}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-
-                {/* Available files/tasks - only show if we have credentials and items */}
-                {credentials.length > 0 && selectedCredentialId && filteredTasks.length > 0 && (
-                  <CommandGroup>
-                    <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
-                      {getFileTypeTitleCase()}
-                    </div>
-                    {filteredTasks.map((item) => {
-                      const isPlanner = serviceId === 'microsoft-planner'
-                      const isPlannerTask = isPlanner && 'title' in item
-                      const plannerTask = item as PlannerTask
-                      const fileInfo = item as MicrosoftFileInfo
-
-                      const displayName = isPlannerTask ? plannerTask.title : fileInfo.name
-                      const dateField = isPlannerTask
-                        ? plannerTask.createdDateTime
-                        : fileInfo.createdTime
-
-                      return (
-                        <CommandItem
-                          key={item.id}
-                          value={`file-${item.id}-${displayName}`}
-                          onSelect={() =>
-                            isPlannerTask
-                              ? handleTaskSelect(plannerTask)
-                              : handleFileSelect(fileInfo)
-                          }
-                        >
-                          <div className='flex items-center gap-2 overflow-hidden'>
-                            {getFileIcon(
-                              isPlannerTask
-                                ? {
-                                    ...fileInfo,
-                                    id: plannerTask.id || '',
-                                    name: plannerTask.title,
-                                    mimeType: 'planner/task',
-                                  }
-                                : fileInfo,
-                              'sm'
-                            )}
-                            <div className='min-w-0 flex-1'>
-                              <span className='truncate font-normal'>{displayName}</span>
-                              {dateField && (
-                                <div className='text-muted-foreground text-xs'>
-                                  Modified {new Date(dateField).toLocaleDateString()}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          {item.id === selectedFileId && <Check className='ml-auto h-4 w-4' />}
-                        </CommandItem>
-                      )
-                    })}
-                  </CommandGroup>
-                )}
-
-                {/* Connect account option - only show if no credentials */}
-                {credentials.length === 0 && (
-                  <CommandGroup>
-                    <CommandItem onSelect={handleAddCredential}>
-                      <div className='flex items-center gap-2 text-primary'>
-                        {getProviderIcon(provider)}
-                        <span>Connect {getProviderName(provider)} account</span>
+              <Command>
+                <CommandInput placeholder={getSearchPlaceholder()} onValueChange={handleSearch} />
+                <CommandList>
+                  <CommandEmpty>
+                    {isLoading || isLoadingFiles || isLoadingTasks ? (
+                      <div className='flex items-center justify-center p-4'>
+                        <RefreshCw className='h-4 w-4 animate-spin' />
+                        <span className='ml-2'>Loading...</span>
                       </div>
-                    </CommandItem>
-                  </CommandGroup>
-                )}
-              </CommandList>
-            </Command>
-          </PopoverContent>
+                    ) : credentials.length === 0 ? (
+                      <div className='p-4 text-center'>
+                        <p className='font-medium text-sm'>No accounts connected.</p>
+                        <p className='text-muted-foreground text-xs'>
+                          Connect a {getProviderName(provider)} account to continue.
+                        </p>
+                      </div>
+                    ) : serviceId === 'microsoft-planner' && !planId ? (
+                      <div className='p-4 text-center'>
+                        <p className='font-medium text-sm'>Plan ID required.</p>
+                        <p className='text-muted-foreground text-xs'>
+                          Please enter a Plan ID first to see tasks.
+                        </p>
+                      </div>
+                    ) : filteredTasks.length === 0 ? (
+                      <div className='p-4 text-center'>
+                        <p className='font-medium text-sm'>{getEmptyStateText().title}</p>
+                        <p className='text-muted-foreground text-xs'>
+                          {getEmptyStateText().description}
+                        </p>
+                      </div>
+                    ) : null}
+                  </CommandEmpty>
+
+                  {/* Account selection - only show if we have multiple accounts */}
+                  {credentials.length > 1 && (
+                    <CommandGroup>
+                      <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
+                        Switch Account
+                      </div>
+                      {credentials.map((cred) => (
+                        <CommandItem
+                          key={cred.id}
+                          value={`account-${cred.id}`}
+                          onSelect={() => setSelectedCredentialId(cred.id)}
+                        >
+                          <div className='flex items-center gap-2'>
+                            {getProviderIcon(cred.provider)}
+                            <span className='font-normal'>{cred.name}</span>
+                          </div>
+                          {cred.id === selectedCredentialId && (
+                            <Check className='ml-auto h-4 w-4' />
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+
+                  {/* Available files/tasks - only show if we have credentials and items */}
+                  {credentials.length > 0 && selectedCredentialId && filteredTasks.length > 0 && (
+                    <CommandGroup>
+                      <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
+                        {getFileTypeTitleCase()}
+                      </div>
+                      {filteredTasks.map((item) => {
+                        const isPlanner = serviceId === 'microsoft-planner'
+                        const isPlannerTask = isPlanner && 'title' in item
+                        const plannerTask = item as PlannerTask
+                        const fileInfo = item as MicrosoftFileInfo
+
+                        const displayName = isPlannerTask ? plannerTask.title : fileInfo.name
+                        const dateField = isPlannerTask
+                          ? plannerTask.createdDateTime
+                          : fileInfo.createdTime
+
+                        return (
+                          <CommandItem
+                            key={item.id}
+                            value={`file-${item.id}-${displayName}`}
+                            onSelect={() =>
+                              isPlannerTask
+                                ? handleTaskSelect(plannerTask)
+                                : handleFileSelect(fileInfo)
+                            }
+                          >
+                            <div className='flex items-center gap-2 overflow-hidden'>
+                              {getFileIcon(
+                                isPlannerTask
+                                  ? {
+                                      ...fileInfo,
+                                      id: plannerTask.id || '',
+                                      name: plannerTask.title,
+                                      mimeType: 'planner/task',
+                                    }
+                                  : fileInfo,
+                                'sm'
+                              )}
+                              <div className='min-w-0 flex-1'>
+                                <span className='truncate font-normal'>{displayName}</span>
+                                {dateField && (
+                                  <div className='text-muted-foreground text-xs'>
+                                    Modified {new Date(dateField).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            {item.id === selectedFileId && <Check className='ml-auto h-4 w-4' />}
+                          </CommandItem>
+                        )
+                      })}
+                    </CommandGroup>
+                  )}
+
+                  {/* Connect account option - only show if no credentials */}
+                  {credentials.length === 0 && (
+                    <CommandGroup>
+                      <CommandItem onSelect={handleAddCredential}>
+                        <div className='flex items-center gap-2 text-primary'>
+                          {getProviderIcon(provider)}
+                          <span>Connect {getProviderName(provider)} account</span>
+                        </div>
+                      </CommandItem>
+                    </CommandGroup>
+                  )}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          )}
         </Popover>
 
         {/* File preview */}
