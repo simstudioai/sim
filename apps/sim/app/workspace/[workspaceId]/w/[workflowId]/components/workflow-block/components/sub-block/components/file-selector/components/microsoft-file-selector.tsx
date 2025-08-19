@@ -496,10 +496,7 @@ export function MicrosoftFileSelector({
       selectedCredentialId &&
       credentialsLoaded &&
       !selectedFile &&
-      !isLoadingSelectedFile &&
-      serviceId !== 'microsoft-planner' &&
-      serviceId !== 'sharepoint' &&
-      serviceId !== 'onedrive'
+      !isLoadingSelectedFile
     ) {
       fetchFileById(value)
     }
