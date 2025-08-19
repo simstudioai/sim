@@ -16,6 +16,8 @@ import { buildWorkflowTool } from './workflow/build-workflow'
 import { editWorkflowTool } from './workflow/edit-workflow'
 import { getUserWorkflowTool } from './workflow/get-user-workflow'
 import { getWorkflowConsoleTool } from './workflow/get-workflow-console'
+import { gdriveRequestAccessServerTool } from './other/gdrive-request-access'
+import { runWorkflowServerTool } from './other/run-workflow'
 
 // Registry of all copilot tools
 export class CopilotToolRegistry {
@@ -104,6 +106,8 @@ copilotToolRegistry.register(editWorkflowTool)
 copilotToolRegistry.register(listGDriveFilesTool)
 copilotToolRegistry.register(readGDriveFileTool)
 copilotToolRegistry.register(makeApiRequestTool)
+copilotToolRegistry.register(gdriveRequestAccessServerTool)
+copilotToolRegistry.register(runWorkflowServerTool)
 
 // Dynamically generated constants - single source of truth
 export const COPILOT_TOOL_IDS = copilotToolRegistry.getAvailableIds()

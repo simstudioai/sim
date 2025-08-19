@@ -172,11 +172,32 @@ export class RunWorkflowTool extends BaseTool {
       // Reset execution state
       setIsExecuting(false)
 
+      const postCompletion = async (status: 'success' | 'errored' | 'rejected', message: string) => {
+        const body = {
+          methodId: 'run_workflow',
+          params: {
+            source: 'run_workflow',
+            status,
+            message,
+            workflowId: params.workflowId || activeWorkflowId,
+            description: params.description,
+            startedAt: executionStartTime,
+            finishedAt: new Date().toISOString(),
+          },
+          toolCallId: toolCall.id,
+          toolId: toolCall.id,
+        }
+        await fetch('/api/copilot/methods', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(body),
+        })
+      }
+
       // Check if execution was successful
       if (result && (!('success' in result) || result.success !== false)) {
-        // Notify server of success with execution timestamp
-        await this.notify(
-          toolCall.id,
+        await postCompletion(
           'success',
           `Workflow execution completed successfully. Started at: ${executionStartTime}`
         )
@@ -202,7 +223,8 @@ export class RunWorkflowTool extends BaseTool {
         targetState === 'rejected'
           ? `Workflow execution skipped (failed dependency): ${errorMessage}`
           : `Workflow execution failed: ${errorMessage}`
-      await this.notify(toolCall.id, targetState, message)
+
+      await postCompletion(targetState, message)
 
       options?.onStateChange?.(targetState)
 
@@ -220,7 +242,24 @@ export class RunWorkflowTool extends BaseTool {
 
       // Check if failedDependency is true to notify 'rejected' instead of 'errored'
       const targetState = failedDependency === true ? 'rejected' : 'errored'
-      await this.notify(toolCall.id, targetState, `Workflow execution failed: ${errorMessage}`)
+
+      // Post completion to methods route
+      await fetch('/api/copilot/methods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          methodId: 'run_workflow',
+          params: {
+            source: 'run_workflow',
+            status: targetState,
+            message: `Workflow execution failed: ${errorMessage}`,
+            finishedAt: new Date().toISOString(),
+          },
+          toolCallId: toolCall.id,
+          toolId: toolCall.id,
+        }),
+      })
 
       options?.onStateChange?.(targetState)
 

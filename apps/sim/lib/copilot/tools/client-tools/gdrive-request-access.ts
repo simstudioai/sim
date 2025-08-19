@@ -5,6 +5,7 @@ import type {
   ToolExecutionOptions,
   ToolMetadata,
 } from '@/lib/copilot/tools/types'
+import { createLogger } from '@/lib/logs/console/logger'
 
 export class GDriveRequestAccessTool extends BaseTool {
   static readonly id = 'gdrive_request_access'
@@ -57,16 +58,40 @@ export class GDriveRequestAccessTool extends BaseTool {
     toolCall: CopilotToolCall,
     options?: ToolExecutionOptions
   ): Promise<ToolExecuteResult> {
-    // Execution is trivial: we only notify the server that the user completed the action.
-    // Any data transfer happens via the picker; if needed later, it can be included in the message.
-    await this.notify(toolCall.id, 'success', 'User completed Google Drive access picker')
-    options?.onStateChange?.('success')
+    const logger = createLogger('GDriveRequestAccessTool')
 
-    return {
-      success: true,
-      data: {
-        message: 'Google Drive access confirmed by user',
-      },
+    try {
+      options?.onStateChange?.('executing')
+
+      // Mirror pattern used by other client tools: call methods route
+      const body = { methodId: 'gdrive_request_access', params: {}, toolCallId: toolCall.id, toolId: toolCall.id }
+      logger.info('Sending request access method call', { toolCallId: toolCall.id })
+
+      const response = await fetch('/api/copilot/methods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        options?.onStateChange?.('errored')
+        return { success: false, error: errorData?.error || 'Failed to request Google Drive access' }
+      }
+
+      const result = await response.json()
+      if (!result?.success) {
+        options?.onStateChange?.('errored')
+        return { success: false, error: result?.error || 'Request access method failed' }
+      }
+
+      options?.onStateChange?.('success')
+      return { success: true, data: result.data }
+    } catch (error: any) {
+      logger.error('Client tool error', { toolCallId: toolCall.id, message: error?.message })
+      options?.onStateChange?.('errored')
+      return { success: false, error: error?.message || 'Unexpected error' }
     }
   }
 }
