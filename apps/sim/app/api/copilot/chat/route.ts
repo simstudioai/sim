@@ -496,6 +496,12 @@ export async function POST(req: NextRequest) {
           let isFirstDone = true
           let responseIdFromStart: string | undefined
           let responseIdFromDone: string | undefined
+          // Track tool call progress to identify a safe done event
+          const announcedToolCallIds = new Set<string>()
+          const startedToolExecutionIds = new Set<string>()
+          const completedToolExecutionIds = new Set<string>()
+          let lastDoneResponseId: string | undefined
+          let lastSafeDoneResponseId: string | undefined
 
           // Send chatId as first event
           if (actualChatId) {
@@ -613,6 +619,9 @@ export async function POST(req: NextRequest) {
                         )
                         if (!event.data?.partial) {
                           toolCalls.push(event.data)
+                          if (event.data?.id) {
+                            announcedToolCallIds.add(event.data.id)
+                          }
                         }
                         break
 
@@ -622,6 +631,14 @@ export async function POST(req: NextRequest) {
                           toolName: event.toolName,
                           status: event.status,
                         })
+                        if (event.toolCallId) {
+                          if (event.status === 'completed') {
+                            startedToolExecutionIds.add(event.toolCallId)
+                            completedToolExecutionIds.add(event.toolCallId)
+                          } else {
+                            startedToolExecutionIds.add(event.toolCallId)
+                          }
+                        }
                         break
 
                       case 'tool_result':
@@ -632,6 +649,9 @@ export async function POST(req: NextRequest) {
                           result: `${JSON.stringify(event.result).substring(0, 200)}...`,
                           resultSize: JSON.stringify(event.result).length,
                         })
+                        if (event.toolCallId) {
+                          completedToolExecutionIds.add(event.toolCallId)
+                        }
                         break
 
                       case 'tool_error':
@@ -641,6 +661,9 @@ export async function POST(req: NextRequest) {
                           error: event.error,
                           success: event.success,
                         })
+                        if (event.toolCallId) {
+                          completedToolExecutionIds.add(event.toolCallId)
+                        }
                         break
 
                       case 'start':
@@ -655,9 +678,26 @@ export async function POST(req: NextRequest) {
                       case 'done':
                         if (event.data?.responseId) {
                           responseIdFromDone = event.data.responseId
+                          lastDoneResponseId = responseIdFromDone
                           logger.info(
                             `[${tracker.requestId}] Received done event with responseId: ${responseIdFromDone}`
                           )
+                          // Mark this done as safe only if no tool call is currently in progress or pending
+                          const announced = announcedToolCallIds.size
+                          const completed = completedToolExecutionIds.size
+                          const started = startedToolExecutionIds.size
+                          const hasToolInProgress =
+                            announced > completed || started > completed
+                          if (!hasToolInProgress) {
+                            lastSafeDoneResponseId = responseIdFromDone
+                            logger.info(
+                              `[${tracker.requestId}] Marked done as SAFE (no tools in progress)`
+                            )
+                          } else {
+                            logger.info(
+                              `[${tracker.requestId}] Done received but tools are in progress (announced=${announced}, started=${started}, completed=${completed})`
+                            )
+                          }
                         }
                         if (isFirstDone) {
                           logger.info(
@@ -752,7 +792,9 @@ export async function POST(req: NextRequest) {
                 )
               }
 
-              const responseId = responseIdFromDone
+              // Persist only a safe conversationId to avoid continuing from a state that expects tool outputs
+              const previousConversationId = currentChat?.conversationId as string | undefined
+              const responseId = lastSafeDoneResponseId || previousConversationId || undefined
 
               // Update chat in database immediately (without title)
               await db
