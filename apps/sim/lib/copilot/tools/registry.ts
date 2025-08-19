@@ -22,6 +22,10 @@ import { OnlineSearchClientTool } from '@/lib/copilot/tools/client-tools/online-
 import { ListGDriveFilesClientTool } from '@/lib/copilot/tools/client-tools/list-gdrive-files'
 import { ReadGDriveFileClientTool } from '@/lib/copilot/tools/client-tools/read-gdrive-file'
 import { GetWorkflowConsoleClientTool } from '@/lib/copilot/tools/client-tools/get-workflow-console'
+import { MakeApiRequestClientTool } from '@/lib/copilot/tools/client-tools/make-api-request'
+import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client-tools/set-environment-variables'
+import { BuildWorkflowClientTool } from '@/lib/copilot/tools/client-tools/build-workflow'
+import { EditWorkflowClientTool } from '@/lib/copilot/tools/client-tools/edit-workflow'
 
 /**
  * Tool Registry class that manages all available tools
@@ -134,6 +138,10 @@ export class ToolRegistry {
     this.register(new ListGDriveFilesClientTool())
     this.register(new ReadGDriveFileClientTool())
     this.register(new GetWorkflowConsoleClientTool())
+    this.register(new MakeApiRequestClientTool())
+    this.register(new SetEnvironmentVariablesClientTool())
+    this.register(new BuildWorkflowClientTool())
+    this.register(new EditWorkflowClientTool())
   }
 }
 

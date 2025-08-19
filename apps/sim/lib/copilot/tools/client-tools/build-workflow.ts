@@ -1,0 +1,85 @@
+/**
+ * Build Workflow - Client-side wrapper that posts to methods route
+ */
+
+import { BaseTool } from '@/lib/copilot/tools/base-tool'
+import type { CopilotToolCall, ToolExecuteResult, ToolExecutionOptions, ToolMetadata } from '@/lib/copilot/tools/types'
+import { createLogger } from '@/lib/logs/console/logger'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+
+export class BuildWorkflowClientTool extends BaseTool {
+  static readonly id = 'build_workflow'
+
+  metadata: ToolMetadata = {
+    id: BuildWorkflowClientTool.id,
+    displayConfig: {
+      states: {
+        executing: { displayName: 'Building workflow from YAML', icon: 'spinner' },
+        success: { displayName: 'Built workflow', icon: 'grid2x2Check' },
+        rejected: { displayName: 'Skipped building workflow', icon: 'skip' },
+        errored: { displayName: 'Failed to build workflow', icon: 'error' },
+        aborted: { displayName: 'Aborted building workflow', icon: 'abort' },
+      },
+    },
+    schema: {
+      name: BuildWorkflowClientTool.id,
+      description: 'Build a new workflow from YAML',
+      parameters: {
+        type: 'object',
+        properties: {
+          yamlContent: { type: 'string' },
+          description: { type: 'string' },
+        },
+        required: ['yamlContent'],
+      },
+    },
+    requiresInterrupt: false,
+  }
+
+  async execute(toolCall: CopilotToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult> {
+    const logger = createLogger('BuildWorkflowClientTool')
+    const safeStringify = (o:any,m:number=800)=>{try{if(o===undefined)return'undefined';if(o===null)return'null';return JSON.stringify(o).substring(0,m)}catch{return'[unserializable]'}}
+
+    try {
+      options?.onStateChange?.('executing')
+      const ext = toolCall as CopilotToolCall & { arguments?: any }
+      if (ext.arguments && !toolCall.parameters && !toolCall.input) { toolCall.input = ext.arguments; toolCall.parameters = ext.arguments }
+      const provided = toolCall.parameters || toolCall.input || ext.arguments || {}
+
+      const yamlContent: string = provided.yamlContent || provided.yaml || provided.content || ''
+      const description: string | undefined = provided.description || provided.desc
+
+      if (!yamlContent || typeof yamlContent !== 'string') {
+        options?.onStateChange?.('errored')
+        return { success:false, error:'yamlContent is required' }
+      }
+
+      // Do not call /api/copilot/methods for build_workflow. Succeed locally and pass through data.
+      logger.info('build_workflow: performing local success without server call', {
+        hasDescription: !!description,
+        yamlLength: yamlContent.length,
+      })
+
+      // Trigger diff directly
+      try {
+        await useWorkflowDiffStore.getState().setProposedChanges(yamlContent)
+        logger.info('Diff store updated from build_workflow YAML')
+      } catch (e) {
+        logger.warn('Failed to update diff from build_workflow YAML', { error: e instanceof Error ? e.message : String(e) })
+      }
+
+      options?.onStateChange?.('success')
+      return {
+        success: true,
+        data: {
+          yamlContent,
+          ...(description ? { description } : {}),
+          note: 'Build workflow handled on client without server call',
+        },
+      }
+    } catch (error:any) {
+      options?.onStateChange?.('errored')
+      return { success:false, error: error?.message || 'Unexpected error' }
+    }
+  }
+} 

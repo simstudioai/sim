@@ -455,7 +455,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Temporary: send completion callback for selected methods while refactor progresses
-    if ((methodId === 'get_user_workflow' || methodId === 'get_blocks_and_tools' || methodId === 'get_environment_variables' || methodId === 'get_oauth_credentials' || methodId === 'get_blocks_metadata' || methodId === 'search_documentation' || methodId === 'list_gdrive_files' || methodId === 'read_gdrive_file' || methodId === 'search_online' || methodId === 'get_workflow_console' || methodId === 'make_api_request') && result.success) {
+    if ((methodId === 'get_user_workflow' || methodId === 'get_blocks_and_tools' || methodId === 'get_environment_variables' || methodId === 'get_oauth_credentials' || methodId === 'get_blocks_metadata' || methodId === 'search_documentation' || methodId === 'list_gdrive_files' || methodId === 'read_gdrive_file' || methodId === 'search_online' || methodId === 'get_workflow_console' || methodId === 'make_api_request' || methodId === 'edit_workflow' || methodId === 'build_workflow') && result.success) {
       const completionPayload: CompleteToolRequestBody = {
         toolId: (toolId || toolCallId || requestId) as string,
         methodId: methodId as MethodId,

@@ -14,6 +14,7 @@ import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { Serializer } from '@/serializer'
 
 interface GetUserWorkflowParams {
   workflowId?: string
@@ -282,14 +283,59 @@ export class GetUserWorkflowTool extends BaseTool {
         }
       }
 
+      // Trigger diff view using returned YAML/content
+      try {
+        const diffStore = useWorkflowDiffStore.getState()
+        const serverData = result.data
+        // Accept either string YAML/JSON or object with yamlContent
+        let yamlContent: string | null = null
+        if (serverData && typeof serverData === 'object' && (serverData as any).yamlContent) {
+          yamlContent = (serverData as any).yamlContent
+        } else if (typeof serverData === 'string') {
+          const trimmed = serverData.trim()
+          if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            // JSON string -> attempt to convert to YAML via Serializer
+            try {
+              const parsed = JSON.parse(serverData)
+              if (parsed && typeof parsed === 'object' && parsed.blocks && parsed.edges) {
+                const serializer = new Serializer()
+                const serialized = serializer.serializeWorkflow(
+                  parsed.blocks,
+                  parsed.edges,
+                  parsed.loops || {},
+                  parsed.parallels || {},
+                  false
+                )
+                if (typeof serialized === 'string') yamlContent = serialized
+              }
+            } catch {}
+          } else {
+            // Assume already YAML
+            yamlContent = serverData
+          }
+        }
+
+        if (yamlContent) {
+          await diffStore.setProposedChanges(yamlContent)
+          logger.info('Diff store updated from get_user_workflow result', {
+            yamlLength: yamlContent.length,
+          })
+        } else {
+          logger.warn('No yamlContent found/derived in server result to trigger diff')
+        }
+      } catch (e) {
+        logger.error('Failed to update diff store from get_user_workflow result', {
+          error: e instanceof Error ? e.message : String(e),
+        })
+      }
+
       options?.onStateChange?.('success')
       logger.info('Client tool completed successfully', {
         toolCallId: toolCall.id,
-        returnedDataLength: workflowJson.length,
       })
       return {
         success: true,
-        data: workflowJson,
+        data: result.data,
       }
     } catch (error: any) {
       logger.error('Error in client tool execution:', {
