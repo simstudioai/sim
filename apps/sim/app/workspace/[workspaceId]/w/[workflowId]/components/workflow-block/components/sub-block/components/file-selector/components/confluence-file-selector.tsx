@@ -200,6 +200,18 @@ export function ConfluenceFileSelector({
         if (data.file) {
           setSelectedFile(data.file)
           onFileInfoChange?.(data.file)
+        } else {
+          const fileInfo: ConfluenceFileInfo = {
+            id: data.id || pageId,
+            name: data.title || `Page ${pageId}`,
+            mimeType: 'confluence/page',
+            webViewLink: undefined,
+            modifiedTime: undefined,
+            spaceId: undefined,
+            url: undefined,
+          }
+          setSelectedFile(fileInfo)
+          onFileInfoChange?.(fileInfo)
         }
       } catch (error) {
         logger.error('Error fetching page info:', error)
