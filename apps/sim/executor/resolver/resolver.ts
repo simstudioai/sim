@@ -23,28 +23,7 @@ function resolveFromWebhookPayload(container: any, property: string): any {
   return undefined
 }
 
-// Global fallback: scan any block state's webhook payload for the property (e.g., when referencing
-// a GitHub field from a non-trigger block). This allows <github1.sender> to resolve even if the
-// referenced block doesn't carry the webhook metadata on its own output.
-function resolveFromAnyWebhookPayload(context: ExecutionContext | undefined, property: string): any {
-  try {
-    if (!context) return undefined
-    for (const state of context.blockStates.values()) {
-      const payload = (state as any)?.output?.webhook?.data?.payload
-      if (payload && typeof payload === 'object' && Object.prototype.hasOwnProperty.call(payload, property)) {
-        return payload[property]
-      }
-    }
-  } catch (_) {
-    // ignore
-  }
-  return undefined
-}
-
-
-
 /**
- * 
  * Helper function to resolve property access
  */
 function resolvePropertyAccess(obj: any, property: string): any {
@@ -70,44 +49,13 @@ export class InputResolver {
     // Create maps for efficient lookups
     this.blockById = new Map(workflow.blocks.map((block) => [block.id, block]))
 
-    // Initialize the normalized name map with trigger-preference for duplicate names
-    this.blockByNormalizedName = new Map()
-    const isTriggerDef = (b: SerializedBlock | undefined) =>
-      !!b && (b.metadata?.category === 'triggers' || b.config?.params?.triggerMode === true)
-
-    for (const block of workflow.blocks) {
-      const key = block.metadata?.name ? this.normalizeBlockName(block.metadata.name) : block.id
-      const existing = this.blockByNormalizedName.get(key)
-      if (!existing) {
-        this.blockByNormalizedName.set(key, block)
-      } else {
-        // Prefer trigger blocks when duplicate names exist
-        if (!isTriggerDef(existing) && isTriggerDef(block)) {
-          this.blockByNormalizedName.set(key, block)
-        }
-      }
-    }
-
-    // Add provider-index aliases for trigger blocks to ensure intuitive references like <github1>
-    // regardless of the block's display name (e.g., "GitHub Webhook 1"). Only applies to triggers.
-    const providerToBlocks: Record<string, SerializedBlock[]> = {}
-    for (const block of workflow.blocks) {
-      if (!isTriggerDef(block)) continue
-      const typeId = (block.metadata?.id || '').toLowerCase()
-      // Detect GitHub triggers by id containing 'github' (covers 'github_webhook')
-      if (typeId.includes('github')) {
-        providerToBlocks.github = providerToBlocks.github || []
-        providerToBlocks.github.push(block)
-      }
-    }
-
-    // Register aliases like 'github1', 'github2', ...
-    if (providerToBlocks.github && providerToBlocks.github.length > 0) {
-      providerToBlocks.github.forEach((b, idx) => {
-        const alias = `github${idx + 1}`
-        this.blockByNormalizedName.set(alias, b)
-      })
-    }
+    // Initialize the normalized name map
+    this.blockByNormalizedName = new Map(
+      workflow.blocks.map((block) => [
+        block.metadata?.name ? this.normalizeBlockName(block.metadata.name) : block.id,
+        block,
+      ])
+    )
 
     // Add special handling for the starter block - allow referencing it as "start"
     const starterBlock = workflow.blocks.find((block) => block.metadata?.id === 'starter')
@@ -625,13 +573,11 @@ export class InputResolver {
 
                 replacementValue = arrayValue[index]
               } else {
-                // Regular property access with webhook metadata fallback; then global webhook payload fallback
+                // Regular property access with webhook metadata fallback only
                 let nextValue = resolvePropertyAccess(replacementValue, part)
                 if (nextValue === undefined) {
+                  // Fallback to webhook metadata payload if present
                   nextValue = resolveFromWebhookPayload(replacementValue, part)
-                  if (nextValue === undefined) {
-                    nextValue = resolveFromAnyWebhookPayload(context, part)
-                  }
                 }
                 replacementValue = nextValue
               }
@@ -835,13 +781,11 @@ export class InputResolver {
 
           replacementValue = arrayValue[index]
         } else {
-          // Regular property access with webhook metadata fallback; then global webhook payload fallback
+          // Regular property access with webhook metadata fallback only
           let nextValue = resolvePropertyAccess(replacementValue, part)
           if (nextValue === undefined) {
+            // Fallback to webhook metadata payload if present
             nextValue = resolveFromWebhookPayload(replacementValue, part)
-            if (nextValue === undefined) {
-              nextValue = resolveFromAnyWebhookPayload(context, part)
-            }
           }
           replacementValue = nextValue
         }
