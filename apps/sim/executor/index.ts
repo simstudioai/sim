@@ -881,8 +881,25 @@ export class Executor {
               // This ensures files are captured in trace spans and execution logs
               this.createStartedBlockWithFilesLog(initBlock, starterOutput, context)
             } else {
-              // API workflow: spread the raw data directly (no wrapping)
-              const starterOutput = { ...this.workflowInput }
+              // API/Trigger workflow: spread the raw data directly (no wrapping)
+              // Special case for GitHub webhooks: if input contains a nested 'github' object,
+              // promote it to root so fields can be accessed at <github1.field>.
+              const provider = this.workflowInput?.webhook?.data?.provider
+              let starterOutput: any
+
+              if (provider === 'github') {
+                const flattened =
+                  this.workflowInput && typeof this.workflowInput.github === 'object'
+                    ? this.workflowInput.github
+                    : this.workflowInput
+
+                starterOutput = {
+                  ...flattened,
+                  webhook: this.workflowInput?.webhook,
+                }
+              } else {
+                starterOutput = { ...this.workflowInput }
+              }
 
               context.blockStates.set(initBlock.id, {
                 output: starterOutput,
