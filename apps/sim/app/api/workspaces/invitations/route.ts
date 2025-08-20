@@ -251,7 +251,7 @@ async function sendInvitationEmail({
       html: emailHtml,
       from: fromAddress,
       emailType: 'transactional',
-      useCustomFromFormat: true, // Use the formatted address as-is
+      useCustomFromFormat: true,
     })
 
     if (result.success) {

@@ -90,7 +90,6 @@ ${message}
       emailText += `\n\n${images.length} image(s) attached.`
     }
 
-    // Send email using consolidated mailer
     const emailResult = await sendEmail({
       to: [`help@${env.EMAIL_DOMAIN || getEmailDomain()}`],
       subject: `[${type.toUpperCase()}] ${subject}`,
@@ -142,7 +141,6 @@ The Sim Team
       { status: 200 }
     )
   } catch (error) {
-    // Check if error is related to email service configuration
     if (error instanceof Error && error.message.includes('not configured')) {
       logger.error(`[${requestId}] Email service configuration error`, error)
       return NextResponse.json(
