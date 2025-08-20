@@ -57,7 +57,8 @@ export interface SendMessageRequest {
   chatId?: string
   workflowId?: string
   mode?: 'ask' | 'agent'
-  depth?: 0 | 1 | 2 | 3
+  depth?: -2 | -1 | 0 | 1 | 2 | 3
+  prefetch?: boolean
   createNewChat?: boolean
   stream?: boolean
   implicitFeedback?: string

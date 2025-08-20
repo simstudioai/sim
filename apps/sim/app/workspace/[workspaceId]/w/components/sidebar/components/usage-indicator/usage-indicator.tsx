@@ -67,7 +67,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         : 'free'
 
   // Determine badge to show
-  const showAddBadge = planType !== 'free' && usage.percentUsed >= 85
+  const showAddBadge = planType !== 'free' && usage.percentUsed >= 50
   const badgeText = planType === 'free' ? 'Upgrade' : 'Add'
   const badgeType = planType === 'free' ? 'upgrade' : 'add'
 

@@ -5,9 +5,11 @@ import {
   type FolderInfo,
   FolderSelector,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/folder-selector/folder-selector'
+import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface FolderSelectorInputProps {
   blockId: string
@@ -25,9 +27,15 @@ export function FolderSelectorInput({
   previewValue,
 }: FolderSelectorInputProps) {
   const [storeValue, _setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+  const [connectedCredential] = useSubBlockValue(blockId, 'credential')
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
+  const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
   const [_folderInfo, setFolderInfo] = useState<FolderInfo | null>(null)
+  const { isForeignCredential } = useForeignCredential(
+    subBlock.provider || subBlock.serviceId || 'outlook',
+    (connectedCredential as string) || ''
+  )
 
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
@@ -67,6 +75,9 @@ export function FolderSelectorInput({
       disabled={disabled}
       serviceId={subBlock.serviceId}
       onFolderInfoChange={setFolderInfo}
+      credentialId={(connectedCredential as string) || ''}
+      workflowId={activeWorkflowId || ''}
+      isForeignCredential={isForeignCredential}
     />
   )
 }

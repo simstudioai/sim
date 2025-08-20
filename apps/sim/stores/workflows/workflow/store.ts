@@ -974,35 +974,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         set(newState)
 
-        // Clear the appropriate subblock values based on the new mode
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        if (activeWorkflowId) {
-          const subBlockStore = useSubBlockStore.getState()
-          const blockValues = subBlockStore.workflowValues[activeWorkflowId]?.[id] || {}
-          const updatedValues = { ...blockValues }
-
-          if (!block.advancedMode) {
-            // Switching TO advanced mode
-            // Preserve systemPrompt and userPrompt, memories starts empty
-            // No need to clear anything since advanced mode has all fields
-          } else {
-            // Switching TO basic mode
-            // Preserve systemPrompt and userPrompt, but clear memories
-            updatedValues.memories = null
-          }
-
-          // Update subblock store with the cleared values
-          useSubBlockStore.setState({
-            workflowValues: {
-              ...subBlockStore.workflowValues,
-              [activeWorkflowId]: {
-                ...subBlockStore.workflowValues[activeWorkflowId],
-                [id]: updatedValues,
-              },
-            },
-          })
-        }
-
         get().triggerUpdate()
         // Note: Socket.IO handles real-time sync automatically
       },

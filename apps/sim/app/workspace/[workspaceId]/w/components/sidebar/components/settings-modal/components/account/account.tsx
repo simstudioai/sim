@@ -1,21 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { ChevronDown, Lock, LogOut, User, UserPlus } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { AgentIcon } from '@/components/icons'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { signOut, useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
-import { cn } from '@/lib/utils'
-import { RequestResetForm } from '@/app/(auth)/reset-password/reset-password-form'
 import { clearUserData } from '@/stores'
 
 const logger = createLogger('Account')
@@ -24,329 +17,334 @@ interface AccountProps {
   onOpenChange: (open: boolean) => void
 }
 
-// Mock user data - in a real app, this would come from an auth provider
-interface UserData {
-  isLoggedIn: boolean
-  name?: string
-  email?: string
-}
-
-interface AccountData {
-  id: string
-  name: string
-  email: string
-  isActive?: boolean
-}
-
 export function Account({ onOpenChange }: AccountProps) {
   const router = useRouter()
 
-  // In a real app, this would be fetched from an auth provider
-  const [userData, setUserData] = useState<UserData>({
-    isLoggedIn: false,
-    name: '',
-    email: '',
-  })
-
   // Get session data using the client hook
   const { data: session, isPending, error } = useSession()
-  const [isLoadingUserData, _setIsLoadingUserData] = useState(false)
 
-  // Reset password states
-  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false)
-  const [resetPasswordEmail, setResetPasswordEmail] = useState('')
-  const [isSubmittingResetPassword, setIsSubmittingResetPassword] = useState(false)
-  const [resetPasswordStatus, setResetPasswordStatus] = useState<{
-    type: 'success' | 'error' | null
-    message: string
-  }>({ type: null, message: '' })
+  // Form states
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [userImage, setUserImage] = useState<string | null>(null)
 
-  // Mock accounts for the multi-account UI
-  const [accounts, setAccounts] = useState<AccountData[]>([])
-  const [open, setOpen] = useState(false)
+  // Loading states
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false)
+  const [isUpdatingName, setIsUpdatingName] = useState(false)
 
-  // Update user data when session changes
+  // Edit states
+  const [isEditingName, setIsEditingName] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Reset password state
+  const [isResettingPassword, setIsResettingPassword] = useState(false)
+  const [resetPasswordMessage, setResetPasswordMessage] = useState<{
+    type: 'success' | 'error'
+    text: string
+  } | null>(null)
+
+  // Fetch user profile on component mount
   useEffect(() => {
-    const updateUserData = async () => {
-      if (!isPending && session?.user) {
-        // User is logged in
-        setUserData({
-          isLoggedIn: true,
-          name: session.user.name || 'User',
-          email: session.user.email,
-        })
+    const fetchProfile = async () => {
+      if (!session?.user) return
 
-        setAccounts([
-          {
-            id: '1',
-            name: session.user.name || 'User',
-            email: session.user.email,
-            isActive: true,
-          },
-        ])
+      setIsLoadingProfile(true)
 
-        // Pre-fill the reset password email with the current user's email
-        setResetPasswordEmail(session.user.email)
-      } else if (!isPending) {
-        // User is not logged in
-        setUserData({
-          isLoggedIn: false,
-          name: '',
-          email: '',
-        })
-        setAccounts([])
+      try {
+        const response = await fetch('/api/users/me/profile')
+        if (!response.ok) {
+          throw new Error('Failed to fetch profile')
+        }
+
+        const data = await response.json()
+        setName(data.user.name)
+        setEmail(data.user.email)
+        setUserImage(data.user.image)
+      } catch (error) {
+        logger.error('Error fetching profile:', error)
+        // Fallback to session data
+        if (session?.user) {
+          setName(session.user.name || '')
+          setEmail(session.user.email || '')
+          setUserImage(session.user.image || null)
+        }
+      } finally {
+        setIsLoadingProfile(false)
       }
     }
 
-    updateUserData()
-  }, [session, isPending])
+    fetchProfile()
+  }, [session])
 
-  const handleSignIn = () => {
-    // Use Next.js router to navigate to login page
-    router.push('/login')
-    setOpen(false)
+  // Focus input when entering edit mode
+  useEffect(() => {
+    if (isEditingName && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditingName])
+
+  const handleUpdateName = async () => {
+    const trimmedName = name.trim()
+
+    if (!trimmedName) {
+      return
+    }
+
+    if (trimmedName === (session?.user?.name || '')) {
+      setIsEditingName(false)
+      return
+    }
+
+    setIsUpdatingName(true)
+
+    try {
+      const response = await fetch('/api/users/me/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmedName }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update name')
+      }
+
+      setIsEditingName(false)
+    } catch (error) {
+      logger.error('Error updating name:', error)
+      setName(session?.user?.name || '')
+    } finally {
+      setIsUpdatingName(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleUpdateName()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      handleCancelEdit()
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setIsEditingName(false)
+    setName(session?.user?.name || '')
+  }
+
+  const handleInputBlur = () => {
+    handleUpdateName()
   }
 
   const handleSignOut = async () => {
     try {
-      // Start the sign-out process
-      const signOutPromise = signOut()
-
-      // Clear all user data to prevent persistence between accounts
-      await clearUserData()
-
-      // Set a short timeout to improve perceived performance
-      // while still ensuring auth state starts to clear
-      setTimeout(() => {
-        router.push('/login?fromLogout=true')
-      }, 100)
-
-      // Still wait for the promise to resolve/reject to catch errors
-      await signOutPromise
+      await Promise.all([signOut(), clearUserData()])
+      router.push('/login?fromLogout=true')
     } catch (error) {
       logger.error('Error signing out:', { error })
-      // Still navigate even if there's an error
       router.push('/login?fromLogout=true')
-    } finally {
-      setOpen(false)
     }
   }
 
   const handleResetPassword = async () => {
-    if (!resetPasswordEmail) {
-      setResetPasswordStatus({
-        type: 'error',
-        message: 'Please enter your email address',
-      })
-      return
-    }
+    setIsResettingPassword(true)
+    setResetPasswordMessage(null)
 
     try {
-      setIsSubmittingResetPassword(true)
-      setResetPasswordStatus({ type: null, message: '' })
-
       const response = await fetch('/api/auth/forget-password', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: resetPasswordEmail,
+          email,
           redirectTo: `${window.location.origin}/reset-password`,
         }),
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to request password reset')
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to send reset password email')
       }
 
-      setResetPasswordStatus({
+      setResetPasswordMessage({
         type: 'success',
-        message: 'Password reset link sent to your email',
+        text: 'email sent',
       })
 
-      // Close dialog after successful submission with a small delay for user to see success message
+      // Clear success message after 5 seconds
       setTimeout(() => {
-        setResetPasswordDialogOpen(false)
-        setResetPasswordStatus({ type: null, message: '' })
-      }, 2000)
+        setResetPasswordMessage(null)
+      }, 5000)
     } catch (error) {
-      logger.error('Error requesting password reset:', { error })
-      setResetPasswordStatus({
+      logger.error('Error resetting password:', error)
+      setResetPasswordMessage({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Failed to request password reset',
+        text: 'error',
       })
+
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setResetPasswordMessage(null)
+      }, 5000)
     } finally {
-      setIsSubmittingResetPassword(false)
+      setIsResettingPassword(false)
     }
   }
 
-  const activeAccount = accounts.find((acc) => acc.isActive) || accounts[0]
-
-  // Loading animation component
-  const LoadingAccountBlock = () => (
-    <div className='group flex items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm'>
-      <div className='flex items-center gap-3'>
-        <div className='relative flex h-10 w-10 shrink-0 animate-pulse items-center justify-center overflow-hidden rounded-lg bg-muted'>
-          <div
-            className='absolute inset-0 animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent'
-            style={{
-              transform: 'translateX(-100%)',
-              animation: 'shimmer 1.5s infinite',
-            }}
-          />
-        </div>
-        <div className='flex flex-col gap-2'>
-          <div className='h-4 w-24 animate-pulse rounded bg-muted' />
-          <div className='h-3 w-32 animate-pulse rounded bg-muted' />
-        </div>
-      </div>
-      <div className='h-4 w-4 rounded bg-muted' />
-    </div>
-  )
-
   return (
-    <div className='space-y-6 p-6'>
-      <div>
-        <h3 className='mb-4 font-medium text-lg'>Account</h3>
-      </div>
+    <div className='px-6 pt-4 pb-4'>
+      <div className='flex flex-col gap-4'>
+        {isLoadingProfile || isPending ? (
+          <>
+            {/* User Info Section Skeleton */}
+            <div className='flex items-center gap-4'>
+              {/* User Avatar Skeleton */}
+              <Skeleton className='h-10 w-10 rounded-full' />
 
-      {/* Account Dropdown Component */}
-      <div className='max-w-xs'>
-        <div className='relative'>
-          {isPending || isLoadingUserData ? (
-            <LoadingAccountBlock />
-          ) : (
-            <DropdownMenu open={open} onOpenChange={setOpen}>
-              <DropdownMenuTrigger asChild>
-                <div
-                  className={cn(
-                    'group flex cursor-pointer items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm transition-all',
-                    'hover:bg-accent/50 hover:shadow-md',
-                    open && 'bg-accent/50 shadow-md'
-                  )}
-                  data-state={open ? 'open' : 'closed'}
-                >
-                  <div className='flex items-center gap-3'>
-                    <div className='relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-blue-500'>
-                      {userData.isLoggedIn ? (
-                        <div className='flex h-full w-full items-center justify-center bg-[var(--brand-primary-hover-hex)]'>
-                          <AgentIcon className='-translate-y-[0.5px] text-white transition-transform duration-200 group-hover:scale-110' />
-                        </div>
-                      ) : (
-                        <div className='flex h-full w-full items-center justify-center bg-gray-500'>
-                          <AgentIcon className='text-white transition-transform duration-200 group-hover:scale-110' />
-                        </div>
-                      )}
-                      {userData.isLoggedIn && accounts.length > 1 && (
-                        <div className='-bottom-1 -right-1 absolute flex h-5 w-5 items-center justify-center rounded-full bg-primary font-medium text-[10px] text-primary-foreground'>
-                          {accounts.length}
-                        </div>
-                      )}
-                    </div>
-                    <div className='mb-[-2px] flex flex-col gap-1'>
-                      <h3 className='max-w-[200px] truncate font-medium leading-none'>
-                        {userData.isLoggedIn ? activeAccount?.name : 'Sign in'}
-                      </h3>
-                      <p className='max-w-[200px] truncate text-muted-foreground text-sm'>
-                        {userData.isLoggedIn ? activeAccount?.email : 'Click to sign in'}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronDown
-                    className={cn(
-                      'h-4 w-4 text-muted-foreground transition-transform',
-                      open && 'rotate-180'
-                    )}
+              {/* User Details Skeleton */}
+              <div className='flex flex-col'>
+                <Skeleton className='mb-1 h-5 w-32' />
+                <Skeleton className='h-5 w-48' />
+              </div>
+            </div>
+
+            {/* Name Field Skeleton */}
+            <div className='flex flex-col gap-2'>
+              <Skeleton className='h-4 w-16' />
+              <div className='flex items-center gap-4'>
+                <Skeleton className='h-5 w-40' />
+                <Skeleton className='h-5 w-[42px]' />
+              </div>
+            </div>
+
+            {/* Email Field Skeleton */}
+            <div className='flex flex-col gap-2'>
+              <Skeleton className='h-4 w-16' />
+              <Skeleton className='h-5 w-48' />
+            </div>
+
+            {/* Password Field Skeleton */}
+            <div className='flex flex-col gap-2'>
+              <Skeleton className='h-4 w-16' />
+              <div className='flex items-center gap-4'>
+                <Skeleton className='h-5 w-20' />
+                <Skeleton className='h-5 w-[42px]' />
+              </div>
+            </div>
+
+            {/* Sign Out Button Skeleton */}
+            <div>
+              <Skeleton className='h-8 w-[71px] rounded-[8px]' />
+            </div>
+          </>
+        ) : (
+          <>
+            {/* User Info Section */}
+            <div className='flex items-center gap-4'>
+              {/* User Avatar */}
+              <div className='relative flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#802FFF]'>
+                {userImage ? (
+                  <Image
+                    src={userImage}
+                    alt={name || 'User'}
+                    width={40}
+                    height={40}
+                    className='h-full w-full object-cover'
                   />
-                </div>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align='start'
-                className='max-h-[350px] w-[280px] overflow-y-auto'
-                sideOffset={8}
-              >
-                {userData.isLoggedIn ? (
-                  <>
-                    {accounts.length > 1 && (
-                      <>
-                        <div className='mb-2 px-2 py-1.5 font-medium text-muted-foreground text-sm'>
-                          Switch Account
-                        </div>
-                        {accounts.map((account) => (
-                          <DropdownMenuItem
-                            key={account.id}
-                            className={cn(
-                              'flex cursor-pointer items-center gap-2 p-3',
-                              account.isActive && 'bg-accent'
-                            )}
-                          >
-                            <div className='relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--brand-primary-hover-hex)]'>
-                              <User className='h-4 w-4 text-white' />
-                            </div>
-                            <div className='flex flex-col'>
-                              <span className='font-medium leading-none'>{account.name}</span>
-                              <span className='text-muted-foreground text-xs'>{account.email}</span>
-                            </div>
-                          </DropdownMenuItem>
-                        ))}
-                        <DropdownMenuSeparator />
-                      </>
-                    )}
-                    <DropdownMenuItem
-                      className='flex cursor-pointer items-center gap-2 py-2.5 pl-3'
-                      onClick={() => {
-                        setResetPasswordDialogOpen(true)
-                        setOpen(false)
-                      }}
-                    >
-                      <Lock className='h-4 w-4' />
-                      <span>Reset Password</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className='flex cursor-pointer items-center gap-2 py-2.5 pl-3 text-destructive focus:text-destructive'
-                      onClick={handleSignOut}
-                    >
-                      <LogOut className='h-4 w-4' />
-                      <span>Sign Out</span>
-                    </DropdownMenuItem>
-                  </>
                 ) : (
-                  <>
-                    <DropdownMenuItem
-                      className='flex cursor-pointer items-center gap-2 py-2.5 pl-3'
-                      onClick={handleSignIn}
-                    >
-                      <UserPlus className='h-4 w-4' />
-                      <span>Sign in</span>
-                    </DropdownMenuItem>
-                  </>
+                  <AgentIcon className='h-5 w-5 text-white' />
                 )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-      </div>
+              </div>
 
-      {/* Reset Password Dialog */}
-      <Dialog open={resetPasswordDialogOpen} onOpenChange={setResetPasswordDialogOpen}>
-        <DialogContent className='sm:max-w-[425px]'>
-          <DialogHeader>
-            <DialogTitle>Reset Password</DialogTitle>
-          </DialogHeader>
-          <RequestResetForm
-            email={resetPasswordEmail}
-            onEmailChange={setResetPasswordEmail}
-            onSubmit={handleResetPassword}
-            isSubmitting={isSubmittingResetPassword}
-            statusType={resetPasswordStatus.type}
-            statusMessage={resetPasswordStatus.message}
-            className='py-4'
-          />
-        </DialogContent>
-      </Dialog>
+              {/* User Details */}
+              <div className='flex flex-col'>
+                <h3 className='font-medium text-sm'>{name}</h3>
+                <p className='font-normal text-muted-foreground text-sm'>{email}</p>
+              </div>
+            </div>
+
+            {/* Name Field */}
+            <div className='flex flex-col gap-2'>
+              <Label htmlFor='name' className='font-normal text-muted-foreground text-xs'>
+                Name
+              </Label>
+              {isEditingName ? (
+                <input
+                  ref={inputRef}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={handleInputBlur}
+                  className='min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                  maxLength={100}
+                  disabled={isUpdatingName}
+                  autoComplete='off'
+                  autoCorrect='off'
+                  autoCapitalize='off'
+                  spellCheck='false'
+                />
+              ) : (
+                <div className='flex items-center gap-4'>
+                  <span className='text-sm'>{name}</span>
+                  <Button
+                    variant='ghost'
+                    className='h-auto p-0 font-normal text-muted-foreground text-xs transition-colors hover:bg-transparent hover:text-foreground'
+                    onClick={() => setIsEditingName(true)}
+                  >
+                    update
+                    <span className='sr-only'>Update name</span>
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Email Field - Read Only */}
+            <div className='flex flex-col gap-2'>
+              <Label className='font-normal text-muted-foreground text-xs'>Email</Label>
+              <p className='text-sm'>{email}</p>
+            </div>
+
+            {/* Password Field */}
+            <div className='flex flex-col gap-2'>
+              <Label className='font-normal text-muted-foreground text-xs'>Password</Label>
+              <div className='flex items-center gap-4'>
+                <span className='text-sm'>••••••••</span>
+                <Button
+                  variant='ghost'
+                  className={`h-auto p-0 font-normal text-xs transition-colors hover:bg-transparent ${
+                    resetPasswordMessage
+                      ? resetPasswordMessage.type === 'success'
+                        ? 'text-green-500 hover:text-green-600'
+                        : 'text-destructive hover:text-destructive/80'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  onClick={handleResetPassword}
+                  disabled={isResettingPassword}
+                >
+                  {isResettingPassword
+                    ? 'sending...'
+                    : resetPasswordMessage
+                      ? resetPasswordMessage.text
+                      : 'reset'}
+                  <span className='sr-only'>Reset password</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Sign Out Button */}
+            <div>
+              <Button
+                onClick={handleSignOut}
+                variant='destructive'
+                className='h-8 rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600'
+              >
+                Sign Out
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

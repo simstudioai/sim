@@ -13,10 +13,8 @@ import { useSession } from '@/lib/auth-client'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  TeamSeatsDialog,
-  TeamUsageOverview,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components'
+import { generateSlug, useOrganizationStore } from '@/stores/organization'
+import { useSubscriptionStore } from '@/stores/subscription/store'
 import {
   MemberInvitationCard,
   NoOrganizationView,
@@ -24,10 +22,10 @@ import {
   PendingInvitationsList,
   RemoveMemberDialog,
   TeamMembersList,
+  TeamSeats,
   TeamSeatsOverview,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/team-management/components'
-import { generateSlug, useOrganizationStore } from '@/stores/organization'
-import { useSubscriptionStore } from '@/stores/subscription/store'
+  TeamUsage,
+} from './components'
 
 const logger = createLogger('TeamManagement')
 
@@ -243,7 +241,7 @@ export function TeamManagement() {
 
   if (isLoading && !activeOrganization && !(hasTeamPlan || hasEnterprisePlan)) {
     return (
-      <div className='space-y-4 p-6'>
+      <div className='space-y-2 p-6'>
         <Skeleton className='h-4 w-full' />
         <Skeleton className='h-20 w-full' />
         <Skeleton className='h-4 w-3/4' />
@@ -271,14 +269,14 @@ export function TeamManagement() {
   }
 
   return (
-    <div className='space-y-6 p-6'>
+    <div className='space-y-4 p-6'>
       <div className='flex items-center justify-between'>
-        <h3 className='font-medium text-lg'>Team Management</h3>
+        <h3 className='font-medium text-sm'>Team Management</h3>
 
         {organizations.length > 1 && (
           <div className='flex items-center space-x-2'>
             <select
-              className='rounded-md border border-input bg-background px-3 py-2 text-sm'
+              className='h-9 rounded-[8px] border border-input bg-background px-3 py-2 text-xs'
               value={activeOrganization.id}
               onChange={(e) => setActiveOrganization(e.target.value)}
             >
@@ -293,7 +291,7 @@ export function TeamManagement() {
       </div>
 
       {error && (
-        <Alert variant='destructive'>
+        <Alert variant='destructive' className='rounded-[8px]'>
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
@@ -351,7 +349,7 @@ export function TeamManagement() {
         </TabsContent>
 
         <TabsContent value='usage' className='mt-4 space-y-4'>
-          <TeamUsageOverview hasAdminAccess={adminOrOwner} />
+          <TeamUsage hasAdminAccess={adminOrOwner} />
         </TabsContent>
 
         <TabsContent value='settings'>
@@ -373,10 +371,10 @@ export function TeamManagement() {
         open={removeMemberDialog.open}
         memberName={removeMemberDialog.memberName}
         shouldReduceSeats={removeMemberDialog.shouldReduceSeats}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (!open) setRemoveMemberDialog({ ...removeMemberDialog, open: false })
         }}
-        onShouldReduceSeatsChange={(shouldReduce) =>
+        onShouldReduceSeatsChange={(shouldReduce: boolean) =>
           setRemoveMemberDialog({
             ...removeMemberDialog,
             shouldReduceSeats: shouldReduce,
@@ -393,11 +391,11 @@ export function TeamManagement() {
         }
       />
 
-      <TeamSeatsDialog
+      <TeamSeats
         open={isAddSeatDialogOpen}
         onOpenChange={setIsAddSeatDialogOpen}
         title='Add Team Seats'
-        description={`Update your team size. Each seat costs $${env.TEAM_TIER_COST_LIMIT}/month and gets $${env.TEAM_TIER_COST_LIMIT} of inference credits.`}
+        description={`Each seat costs $${env.TEAM_TIER_COST_LIMIT}/month and provides $${env.TEAM_TIER_COST_LIMIT} in monthly inference credits. Adjust the number of licensed seats for your team.`}
         currentSeats={subscriptionData?.seats || 1}
         initialSeats={newSeatCount}
         isLoading={isUpdatingSeats}

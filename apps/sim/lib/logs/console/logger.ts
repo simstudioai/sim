@@ -44,7 +44,7 @@ const LOG_CONFIG = {
     colorize: true,
   },
   production: {
-    enabled: false, // Disable all console logs in production
+    enabled: true, // Will be checked at runtime
     minLevel: LogLevel.ERROR,
     colorize: false,
   },
@@ -105,6 +105,11 @@ export class Logger {
    */
   private shouldLog(level: LogLevel): boolean {
     if (!config.enabled) return false
+
+    // In production, only log on server-side (where window is undefined)
+    if (ENV === 'production' && typeof window !== 'undefined') {
+      return false
+    }
 
     const levels = [LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR]
     const minLevelIndex = levels.indexOf(config.minLevel)

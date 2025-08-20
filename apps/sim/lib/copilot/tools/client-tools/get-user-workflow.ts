@@ -12,6 +12,7 @@ import type {
 import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface GetUserWorkflowParams {
@@ -168,6 +169,25 @@ export class GetUserWorkflowTool extends BaseTool {
         if (!workflowState.blocks) {
           workflowState.blocks = {}
         }
+      }
+
+      // Merge latest subblock values from the subblock store so subblock edits are reflected
+      try {
+        if (workflowState?.blocks) {
+          workflowState = {
+            ...workflowState,
+            blocks: mergeSubblockState(workflowState.blocks, workflowId),
+          }
+          logger.info('Merged subblock values into workflow state', {
+            workflowId,
+            blockCount: Object.keys(workflowState.blocks || {}).length,
+          })
+        }
+      } catch (mergeError) {
+        logger.warn('Failed to merge subblock values; proceeding with raw workflow state', {
+          workflowId,
+          error: mergeError instanceof Error ? mergeError.message : String(mergeError),
+        })
       }
 
       logger.info('Validating workflow state', {

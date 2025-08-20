@@ -1,18 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, FileIcon, FolderIcon, RefreshCw, X } from 'lucide-react'
+import { ExternalLink, FileIcon, FolderIcon, RefreshCw, X } from 'lucide-react'
 import useDrivePicker from 'react-google-drive-picker'
 import { GoogleDocsIcon, GoogleSheetsIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -74,7 +66,6 @@ export function GoogleDrivePicker({
   credentialId,
   workflowId,
 }: GoogleDrivePickerProps) {
-  const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
   const [selectedFileId, setSelectedFileId] = useState(value)
@@ -237,8 +228,9 @@ export function GoogleDrivePicker({
   ])
 
   // Fetch the access token for the selected credential
-  const fetchAccessToken = async (): Promise<string | null> => {
-    if (!selectedCredentialId) {
+  const fetchAccessToken = async (credentialOverrideId?: string): Promise<string | null> => {
+    const effectiveCredentialId = credentialOverrideId || selectedCredentialId
+    if (!effectiveCredentialId) {
       logger.error('No credential ID selected for Google Drive Picker')
       return null
     }
@@ -246,7 +238,7 @@ export function GoogleDrivePicker({
     setIsLoading(true)
     try {
       const url = new URL('/api/auth/oauth/token', window.location.origin)
-      url.searchParams.set('credentialId', selectedCredentialId)
+      url.searchParams.set('credentialId', effectiveCredentialId)
       // include workflowId if available via global registry (server adds session owner otherwise)
       const response = await fetch(url.toString())
 
@@ -265,10 +257,10 @@ export function GoogleDrivePicker({
   }
 
   // Handle opening the Google Drive Picker
-  const handleOpenPicker = async () => {
+  const handleOpenPicker = async (credentialOverrideId?: string) => {
     try {
       // First, get the access token for the selected credential
-      const accessToken = await fetchAccessToken()
+      const accessToken = await fetchAccessToken(credentialOverrideId)
 
       if (!accessToken) {
         logger.error('Failed to get access token for Google Drive Picker')
@@ -335,7 +327,6 @@ export function GoogleDrivePicker({
   const handleAddCredential = () => {
     // Show the OAuth modal
     setShowOAuthModal(true)
-    setOpen(false)
   }
 
   // Clear selection
@@ -426,136 +417,47 @@ export function GoogleDrivePicker({
   return (
     <>
       <div className='space-y-2'>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant='outline'
-              role='combobox'
-              aria-expanded={open}
-              className='h-10 w-full min-w-0 justify-between'
-              disabled={disabled}
-            >
-              <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
-                {selectedFile ? (
-                  <>
-                    {getFileIcon(selectedFile, 'sm')}
-                    <span className='truncate font-normal'>{selectedFile.name}</span>
-                  </>
-                ) : selectedFileId && isLoadingSelectedFile && selectedCredentialId ? (
-                  <>
-                    <RefreshCw className='h-4 w-4 animate-spin' />
-                    <span className='truncate text-muted-foreground'>Loading document...</span>
-                  </>
-                ) : (
-                  <>
-                    {getProviderIcon(provider)}
-                    <span className='truncate text-muted-foreground'>{label}</span>
-                  </>
-                )}
-              </div>
-              <ChevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className='w-[300px] p-0' align='start'>
-            {/* Current account indicator */}
-            {selectedCredentialId && credentials.length > 0 && (
-              <div className='flex items-center justify-between border-b px-3 py-2'>
-                <div className='flex items-center gap-2'>
-                  {getProviderIcon(provider)}
-                  <span className='text-muted-foreground text-xs'>
-                    {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
-                      'Unknown'}
-                  </span>
-                </div>
-                {credentials.length > 1 && (
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    className='h-6 px-2 text-xs'
-                    onClick={() => setOpen(true)}
-                  >
-                    Switch
-                  </Button>
-                )}
-              </div>
+        <Button
+          variant='outline'
+          role='combobox'
+          className='h-10 w-full min-w-0 justify-between'
+          disabled={disabled || isLoading}
+          onClick={async () => {
+            // Decide which credential to use
+            let idToUse = selectedCredentialId
+            if (!idToUse && credentials.length === 1) {
+              idToUse = credentials[0].id
+              setSelectedCredentialId(idToUse)
+            }
+
+            if (!idToUse) {
+              // No credentials — prompt OAuth
+              handleAddCredential()
+              return
+            }
+
+            await handleOpenPicker(idToUse)
+          }}
+        >
+          <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
+            {selectedFile ? (
+              <>
+                {getFileIcon(selectedFile, 'sm')}
+                <span className='truncate font-normal'>{selectedFile.name}</span>
+              </>
+            ) : selectedFileId && isLoadingSelectedFile && selectedCredentialId ? (
+              <>
+                <RefreshCw className='h-4 w-4 animate-spin' />
+                <span className='truncate text-muted-foreground'>Loading document...</span>
+              </>
+            ) : (
+              <>
+                {getProviderIcon(provider)}
+                <span className='truncate text-muted-foreground'>{label}</span>
+              </>
             )}
-
-            <Command>
-              <CommandList>
-                <CommandEmpty>
-                  {isLoading ? (
-                    <div className='flex items-center justify-center p-4'>
-                      <RefreshCw className='h-4 w-4 animate-spin' />
-                      <span className='ml-2'>Loading...</span>
-                    </div>
-                  ) : credentials.length === 0 ? (
-                    <div className='p-4 text-center'>
-                      <p className='font-medium text-sm'>No accounts connected.</p>
-                      <p className='text-muted-foreground text-xs'>
-                        Connect a {getProviderName(provider)} account to continue.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className='p-4 text-center'>
-                      <p className='font-medium text-sm'>No documents available.</p>
-                    </div>
-                  )}
-                </CommandEmpty>
-
-                {/* Account selection - only show if we have multiple accounts */}
-                {credentials.length > 1 && (
-                  <CommandGroup>
-                    <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
-                      Switch Account
-                    </div>
-                    {credentials.map((cred) => (
-                      <CommandItem
-                        key={cred.id}
-                        value={`account-${cred.id}`}
-                        onSelect={() => setSelectedCredentialId(cred.id)}
-                      >
-                        <div className='flex items-center gap-2'>
-                          {getProviderIcon(cred.provider)}
-                          <span className='font-normal'>{cred.name}</span>
-                        </div>
-                        {cred.id === selectedCredentialId && <Check className='ml-auto h-4 w-4' />}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-
-                {/* Open picker button - only show if we have credentials */}
-                {credentials.length > 0 && selectedCredentialId && (
-                  <CommandGroup>
-                    <div className='p-2'>
-                      <Button
-                        className='w-full'
-                        onClick={() => {
-                          setOpen(false)
-                          handleOpenPicker()
-                        }}
-                      >
-                        Open Google Drive Picker
-                      </Button>
-                    </div>
-                  </CommandGroup>
-                )}
-
-                {/* Connect account option - only show if no credentials */}
-                {credentials.length === 0 && (
-                  <CommandGroup>
-                    <CommandItem onSelect={handleAddCredential}>
-                      <div className='flex items-center gap-2 text-primary'>
-                        {getProviderIcon(provider)}
-                        <span>Connect {getProviderName(provider)} account</span>
-                      </div>
-                    </CommandItem>
-                  </CommandGroup>
-                )}
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+          </div>
+        </Button>
 
         {/* File preview */}
         {showPreview && selectedFile && (

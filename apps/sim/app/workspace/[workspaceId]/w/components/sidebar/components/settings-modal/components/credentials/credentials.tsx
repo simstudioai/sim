@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, RefreshCw, Search } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, Search } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { client, useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -294,192 +294,166 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
   }
 
   return (
-    <div className='space-y-6 p-6'>
-      <div>
-        <div className='mb-1 flex items-center justify-between'>
-          <h3 className='font-medium text-lg'>Credentials</h3>
-
-          {/* Search Input */}
-          <div className='relative w-48'>
-            <Search className='-translate-y-1/2 absolute top-1/2 left-3 h-4 w-4 text-muted-foreground' />
-            <Input
-              placeholder='Search...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className='h-9 pl-9 text-sm'
-            />
-          </div>
+    <div className='relative flex h-full flex-col'>
+      {/* Search Input */}
+      <div className='px-6 pt-4 pb-2'>
+        <div className='flex h-9 w-56 items-center gap-2 rounded-[8px] border bg-transparent pr-2 pl-3'>
+          <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
+          <Input
+            placeholder='Search services...'
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className='flex-1 border-0 bg-transparent px-0 font-[380] font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+          />
         </div>
-        <p className='mb-6 text-muted-foreground text-sm'>
-          Connect your accounts to use tools that require authentication.
-        </p>
       </div>
 
-      {/* Success message */}
-      {authSuccess && (
-        <div className='mb-4 rounded-md border border-green-200 bg-green-50 p-4'>
-          <div className='flex'>
-            <div className='flex-shrink-0'>
-              <Check className='h-5 w-5 text-green-400' />
+      {/* Scrollable Content */}
+      <div className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'>
+        <div className='flex flex-col gap-6 pt-2 pb-6'>
+          {/* Success message */}
+          {authSuccess && (
+            <div className='rounded-[8px] border border-green-200 bg-green-50 p-4'>
+              <div className='flex'>
+                <div className='flex-shrink-0'>
+                  <Check className='h-5 w-5 text-green-400' />
+                </div>
+                <div className='ml-3'>
+                  <p className='font-medium text-green-800 text-sm'>
+                    Account connected successfully!
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className='ml-3'>
-              <p className='font-medium text-green-800 text-sm'>Account connected successfully!</p>
+          )}
+
+          {/* Pending service message - only shown when coming from OAuth required modal */}
+          {pendingService && showActionRequired && (
+            <div className='flex items-start gap-3 rounded-[8px] border border-primary/20 bg-primary/5 p-5 text-sm shadow-sm'>
+              <div className='mt-0.5 min-w-5'>
+                <ExternalLink className='h-4 w-4 text-primary' />
+              </div>
+              <div className='flex flex-1 flex-col'>
+                <p className='text-muted-foreground'>
+                  <span className='font-medium text-primary'>Action Required:</span> Please connect
+                  your account to enable the requested features. The required service is highlighted
+                  below.
+                </p>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={scrollToHighlightedService}
+                  className='mt-3 flex h-8 items-center gap-1.5 self-start border-primary/20 px-3 font-medium text-primary text-sm transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary'
+                >
+                  <span>Go to service</span>
+                  <ChevronDown className='h-3.5 w-3.5' />
+                </Button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* Pending service message - only shown when coming from OAuth required modal */}
-      {pendingService && showActionRequired && (
-        <div className='mb-6 flex items-start gap-3 rounded-md border border-primary/20 bg-primary/5 p-5 text-sm shadow-sm'>
-          <div className='mt-0.5 min-w-5'>
-            <ExternalLink className='h-4 w-4 text-primary' />
-          </div>
-          <div className='flex flex-1 flex-col'>
-            <p className='text-muted-foreground'>
-              <span className='font-medium text-primary'>Action Required:</span> Please connect your
-              account to enable the requested features. The required service is highlighted below.
-            </p>
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={scrollToHighlightedService}
-              className='mt-3 flex h-8 items-center gap-1.5 self-start border-primary/20 px-3 font-medium text-primary text-sm transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary'
-            >
-              <span>Go to service</span>
-              <ChevronDown className='h-3.5 w-3.5' />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Loading state */}
-      {isLoading ? (
-        <div className='space-y-4'>
-          <ConnectionSkeleton />
-          <ConnectionSkeleton />
-          <ConnectionSkeleton />
-          <ConnectionSkeleton />
-        </div>
-      ) : (
-        <div className='space-y-6'>
-          {/* Group services by provider */}
-          {Object.entries(filteredGroupedServices).map(([providerKey, providerServices]) => (
-            <div key={providerKey} className='space-y-4'>
-              <h4 className='font-medium text-muted-foreground text-sm'>
-                {OAUTH_PROVIDERS[providerKey]?.name || 'Other Services'}
-              </h4>
-              <div className='space-y-4'>
-                {providerServices.map((service) => (
-                  <Card
-                    key={service.id}
-                    className={cn(
-                      'p-6 transition-all hover:shadow-md',
-                      pendingService === service.id && 'border-primary shadow-md'
-                    )}
-                    ref={pendingService === service.id ? pendingServiceRef : undefined}
-                  >
-                    <div className='flex w-full items-start gap-4'>
-                      <div className='flex w-full items-start gap-4'>
-                        <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted'>
+          {/* Loading state */}
+          {isLoading ? (
+            <div className='flex flex-col gap-6'>
+              {/* Google section - 5 blocks */}
+              <div className='flex flex-col gap-2'>
+                <Skeleton className='h-4 w-16' /> {/* "GOOGLE" label */}
+                <ConnectionSkeleton />
+                <ConnectionSkeleton />
+                <ConnectionSkeleton />
+                <ConnectionSkeleton />
+                <ConnectionSkeleton />
+              </div>
+              {/* Microsoft section - 6 blocks */}
+              <div className='flex flex-col gap-2'>
+                <Skeleton className='h-4 w-20' /> {/* "MICROSOFT" label */}
+                <ConnectionSkeleton />
+                <ConnectionSkeleton />
+                <ConnectionSkeleton />
+                <ConnectionSkeleton />
+                <ConnectionSkeleton />
+                <ConnectionSkeleton />
+              </div>
+            </div>
+          ) : (
+            <div className='flex flex-col gap-6'>
+              {/* Services list */}
+              {Object.entries(filteredGroupedServices).map(([providerKey, providerServices]) => (
+                <div key={providerKey} className='flex flex-col gap-2'>
+                  <Label className='font-normal text-muted-foreground text-xs uppercase'>
+                    {OAUTH_PROVIDERS[providerKey]?.name || 'Other Services'}
+                  </Label>
+                  {providerServices.map((service) => (
+                    <div
+                      key={service.id}
+                      className={cn(
+                        'flex items-center justify-between gap-4',
+                        pendingService === service.id && '-m-2 rounded-[8px] bg-primary/5 p-2'
+                      )}
+                      ref={pendingService === service.id ? pendingServiceRef : undefined}
+                    >
+                      <div className='flex items-center gap-3'>
+                        <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-muted'>
                           {typeof service.icon === 'function'
                             ? service.icon({ className: 'h-5 w-5' })
                             : service.icon}
                         </div>
-                        <div className='w-full space-y-1'>
-                          <div>
-                            <h4 className='font-medium leading-none'>{service.name}</h4>
-                            <p className='mt-1 text-muted-foreground text-sm'>
+                        <div className='min-w-0'>
+                          <div className='flex items-center gap-2'>
+                            <span className='font-normal text-sm'>{service.name}</span>
+                          </div>
+                          {service.accounts && service.accounts.length > 0 ? (
+                            <p className='truncate text-muted-foreground text-xs'>
+                              {service.accounts.map((a) => a.name).join(', ')}
+                            </p>
+                          ) : (
+                            <p className='truncate text-muted-foreground text-xs'>
                               {service.description}
                             </p>
-                          </div>
-                          {service.accounts && service.accounts.length > 0 && (
-                            <div className='w-full space-y-2 pt-3'>
-                              {service.accounts.map((account) => (
-                                <div
-                                  key={account.id}
-                                  className='flex w-full items-center justify-between gap-2 rounded-md border bg-card/50 p-2'
-                                >
-                                  <div className='flex items-center gap-2'>
-                                    <div className='flex h-6 w-6 items-center justify-center rounded-full bg-green-500/10'>
-                                      <Check className='h-3 w-3 text-green-600' />
-                                    </div>
-                                    <span className='font-medium text-sm'>{account.name}</span>
-                                  </div>
-                                  <Button
-                                    variant='ghost'
-                                    size='sm'
-                                    onClick={() => handleDisconnect(service, account.id)}
-                                    disabled={isConnecting === `${service.id}-${account.id}`}
-                                    className='h-7 px-2'
-                                  >
-                                    {isConnecting === `${service.id}-${account.id}` ? (
-                                      <RefreshCw className='h-3 w-3 animate-spin' />
-                                    ) : (
-                                      'Disconnect'
-                                    )}
-                                  </Button>
-                                </div>
-                              ))}
-                              {/* <Button
-                                variant="outline"
-                                size="sm"
-                                className="w-full mt-2"
-                                onClick={() => handleConnect(service)}
-                                disabled={isConnecting === service.id}
-                              >
-                                {isConnecting === service.id ? (
-                                  <>
-                                    <RefreshCw className="h-3 w-3 animate-spin mr-2" />
-                                    Connecting...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Plus className="h-3 w-3 mr-2" />
-                                    Connect Another Account
-                                  </>
-                                )}
-                              </Button> */}
-                            </div>
                           )}
                         </div>
                       </div>
 
-                      {!service.accounts?.length && (
-                        <div className='ml-auto flex justify-end'>
-                          <Button
-                            variant='default'
-                            size='sm'
-                            onClick={() => handleConnect(service)}
-                            disabled={isConnecting === service.id}
-                            className='shrink-0'
-                          >
-                            {isConnecting === service.id ? (
-                              <>
-                                <RefreshCw className='mr-2 h-4 w-4 animate-spin' />
-                                Connecting...
-                              </>
-                            ) : (
-                              'Connect'
-                            )}
-                          </Button>
-                        </div>
+                      {service.accounts && service.accounts.length > 0 ? (
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          onClick={() => handleDisconnect(service, service.accounts![0].id)}
+                          disabled={isConnecting === `${service.id}-${service.accounts![0].id}`}
+                          className={cn(
+                            'h-8 text-muted-foreground hover:text-foreground',
+                            isConnecting === `${service.id}-${service.accounts![0].id}` &&
+                              'cursor-not-allowed'
+                          )}
+                        >
+                          Disconnect
+                        </Button>
+                      ) : (
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => handleConnect(service)}
+                          disabled={isConnecting === service.id}
+                          className={cn('h-8', isConnecting === service.id && 'cursor-not-allowed')}
+                        >
+                          Connect
+                        </Button>
                       )}
                     </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          ))}
+                  ))}
+                </div>
+              ))}
 
-          {/* Show message when search has no results */}
-          {searchTerm.trim() && Object.keys(filteredGroupedServices).length === 0 && (
-            <div className='py-8 text-center text-muted-foreground text-sm'>
-              No services found matching "{searchTerm}"
+              {/* Show message when search has no results */}
+              {searchTerm.trim() && Object.keys(filteredGroupedServices).length === 0 && (
+                <div className='py-8 text-center text-muted-foreground text-sm'>
+                  No services found matching "{searchTerm}"
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -487,17 +461,15 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
 // Loading skeleton for connections
 function ConnectionSkeleton() {
   return (
-    <Card className='p-6'>
-      <div className='flex items-start justify-between gap-4'>
-        <div className='flex items-start gap-4'>
-          <Skeleton className='h-12 w-12 rounded-lg' />
-          <div className='space-y-2'>
-            <Skeleton className='h-5 w-32' />
-            <Skeleton className='h-4 w-48' />
-          </div>
+    <div className='flex items-center justify-between gap-4'>
+      <div className='flex items-center gap-3'>
+        <Skeleton className='h-10 w-10 rounded-[8px]' />
+        <div className='space-y-1'>
+          <Skeleton className='h-5 w-24' />
+          <Skeleton className='h-4 w-32' />
         </div>
-        <Skeleton className='h-9 w-24 shrink-0' />
       </div>
-    </Card>
+      <Skeleton className='h-8 w-20' />
+    </div>
   )
 }

@@ -16,6 +16,7 @@ import {
   FileText,
   Image,
   Infinity as InfinityIcon,
+  Info,
   Loader2,
   MessageCircle,
   Package,
@@ -30,11 +31,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
+import { CopilotSlider as Slider } from './copilot-slider'
 
 export interface MessageFileAttachment {
   id: string
@@ -426,32 +429,31 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
 
     // Depth toggle state comes from global store; access via useCopilotStore
-    const { agentDepth, setAgentDepth } = useCopilotStore()
+    const { agentDepth, agentPrefetch, setAgentDepth, setAgentPrefetch } = useCopilotStore()
 
     const cycleDepth = () => {
-      // Allowed UI values: 0 (Lite), 1 (Default), 2 (Pro), 3 (Max)
-      const next = agentDepth === 0 ? 1 : agentDepth === 1 ? 2 : agentDepth === 2 ? 3 : 0
-      setAgentDepth(next)
+      // 8 modes: depths 0-3, each with prefetch off/on. Cycle depth, then toggle prefetch when wrapping.
+      const nextDepth = agentDepth === 3 ? 0 : ((agentDepth + 1) as 0 | 1 | 2 | 3)
+      if (nextDepth === 0 && agentDepth === 3) {
+        setAgentPrefetch(!agentPrefetch)
+      }
+      setAgentDepth(nextDepth)
     }
 
-    const getDepthLabel = () => {
-      if (agentDepth === 0) return 'Fast'
-      if (agentDepth === 1) return 'Auto'
-      if (agentDepth === 2) return 'Pro'
-      return 'Max'
+    const getCollapsedModeLabel = () => {
+      const base = getDepthLabelFor(agentDepth)
+      return !agentPrefetch ? `${base} MAX` : base
     }
 
     const getDepthLabelFor = (value: 0 | 1 | 2 | 3) => {
-      if (value === 0) return 'Fast'
-      if (value === 1) return 'Auto'
-      if (value === 2) return 'Pro'
-      return 'Max'
+      return value === 0 ? 'Fast' : value === 1 ? 'Balanced' : value === 2 ? 'Advanced' : 'Expert'
     }
 
+    // Removed descriptive suffixes; concise labels only
     const getDepthDescription = (value: 0 | 1 | 2 | 3) => {
       if (value === 0)
         return 'Fastest and cheapest. Good for small edits, simple workflows, and small tasks.'
-      if (value === 1) return 'Automatically balances speed and reasoning. Good fit for most tasks.'
+      if (value === 1) return 'Balances speed and reasoning. Good fit for most tasks.'
       if (value === 2)
         return 'More reasoning for larger workflows and complex edits, still balanced for speed.'
       return 'Maximum reasoning power. Best for complex workflow building and debugging.'
@@ -548,7 +550,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             placeholder={isDragging ? 'Drop files here...' : placeholder}
             disabled={disabled}
             rows={1}
-            className='mb-2 min-h-[32px] w-full resize-none overflow-hidden border-0 bg-transparent px-[2px] py-1 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='mb-2 min-h-[32px] w-full resize-none overflow-hidden border-0 bg-transparent px-[2px] py-1 text-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
             style={{ height: 'auto' }}
           />
 
@@ -635,126 +637,72 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                       variant='ghost'
                       size='sm'
                       className='flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs'
-                      title='Choose depth'
+                      title='Choose mode'
                     >
                       {getDepthIcon()}
-                      <span>{getDepthLabel()}</span>
+                      <span>{getCollapsedModeLabel()}</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align='start' className='p-0'>
-                    <TooltipProvider>
-                      <div className='w-[180px] p-1'>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <DropdownMenuItem
-                              onSelect={() => setAgentDepth(1)}
-                              className={cn(
-                                'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
-                                agentDepth === 1 && 'bg-muted/40'
-                              )}
-                            >
-                              <span className='flex items-center gap-1.5'>
-                                <InfinityIcon className='h-3 w-3 text-muted-foreground' />
-                                Auto
-                              </span>
-                              {agentDepth === 1 && (
-                                <Check className='h-3 w-3 text-muted-foreground' />
-                              )}
-                            </DropdownMenuItem>
-                          </TooltipTrigger>
-                          <TooltipContent
-                            side='right'
-                            sideOffset={6}
-                            align='center'
-                            className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
-                          >
-                            Automatically balances speed and reasoning. Good fit for most tasks.
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <DropdownMenuItem
-                              onSelect={() => setAgentDepth(0)}
-                              className={cn(
-                                'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
-                                agentDepth === 0 && 'bg-muted/40'
-                              )}
-                            >
-                              <span className='flex items-center gap-1.5'>
-                                <Zap className='h-3 w-3 text-muted-foreground' />
-                                Fast
-                              </span>
-                              {agentDepth === 0 && (
-                                <Check className='h-3 w-3 text-muted-foreground' />
-                              )}
-                            </DropdownMenuItem>
-                          </TooltipTrigger>
-                          <TooltipContent
-                            side='right'
-                            sideOffset={6}
-                            align='center'
-                            className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
-                          >
-                            Fastest and cheapest. Good for small edits, simple workflows, and small
-                            tasks.
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <DropdownMenuItem
-                              onSelect={() => setAgentDepth(2)}
-                              className={cn(
-                                'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
-                                agentDepth === 2 && 'bg-muted/40'
-                              )}
-                            >
-                              <span className='flex items-center gap-1.5'>
-                                <Brain className='h-3 w-3 text-muted-foreground' />
-                                Pro
-                              </span>
-                              {agentDepth === 2 && (
-                                <Check className='h-3 w-3 text-muted-foreground' />
-                              )}
-                            </DropdownMenuItem>
-                          </TooltipTrigger>
-                          <TooltipContent
-                            side='right'
-                            sideOffset={6}
-                            align='center'
-                            className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
-                          >
-                            More reasoning for larger workflows and complex edits, still balanced
-                            for speed.
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <DropdownMenuItem
-                              onSelect={() => setAgentDepth(3)}
-                              className={cn(
-                                'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
-                                agentDepth === 3 && 'bg-muted/40'
-                              )}
-                            >
-                              <span className='flex items-center gap-1.5'>
-                                <BrainCircuit className='h-3 w-3 text-muted-foreground' />
-                                Max
-                              </span>
-                              {agentDepth === 3 && (
-                                <Check className='h-3 w-3 text-muted-foreground' />
-                              )}
-                            </DropdownMenuItem>
-                          </TooltipTrigger>
-                          <TooltipContent
-                            side='right'
-                            sideOffset={6}
-                            align='center'
-                            className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
-                          >
-                            Maximum reasoning power. Best for complex workflow building and
-                            debugging.
-                          </TooltipContent>
-                        </Tooltip>
+                    <TooltipProvider delayDuration={100} skipDelayDuration={0}>
+                      <div className='w-[260px] p-3'>
+                        <div className='mb-3 flex items-center justify-between'>
+                          <div className='flex items-center gap-1.5'>
+                            <span className='font-medium text-xs'>MAX mode</span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type='button'
+                                  className='h-3.5 w-3.5 rounded text-muted-foreground transition-colors hover:text-foreground'
+                                  aria-label='MAX mode info'
+                                >
+                                  <Info className='h-3.5 w-3.5' />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side='right'
+                                sideOffset={6}
+                                align='center'
+                                className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
+                              >
+                                Significantly increases depth of reasoning
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Switch
+                            checked={!agentPrefetch}
+                            onCheckedChange={(checked) => setAgentPrefetch(!checked)}
+                          />
+                        </div>
+                        <div className='my-2 flex justify-center'>
+                          <div className='h-px w-[100%] bg-border' />
+                        </div>
+                        <div className='mb-3'>
+                          <div className='mb-2 flex items-center justify-between'>
+                            <span className='font-medium text-xs'>Mode</span>
+                            <span className='text-muted-foreground text-xs'>
+                              {getDepthLabelFor(agentDepth)}
+                            </span>
+                          </div>
+                          <div className='relative'>
+                            <Slider
+                              min={0}
+                              max={3}
+                              step={1}
+                              value={[agentDepth]}
+                              onValueChange={(val) =>
+                                setAgentDepth((val?.[0] ?? 0) as 0 | 1 | 2 | 3)
+                              }
+                            />
+                            <div className='pointer-events-none absolute inset-0'>
+                              <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-[33.333%] h-2 w-[3px] bg-background' />
+                              <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-[66.667%] h-2 w-[3px] bg-background' />
+                            </div>
+                          </div>
+                        </div>
+                        <div className='mt-3 text-[11px] text-muted-foreground'>
+                          {getDepthDescription(agentDepth)}
+                        </div>
                       </div>
                     </TooltipProvider>
                   </DropdownMenuContent>

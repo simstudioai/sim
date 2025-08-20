@@ -18,6 +18,7 @@ import {
   type LinearTeamInfo,
   LinearTeamSelector,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/project-selector/components/linear-team-selector'
+import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -43,10 +44,13 @@ export function ProjectSelectorInput({
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const [_projectInfo, setProjectInfo] = useState<JiraProjectInfo | DiscordServerInfo | null>(null)
-  const [isForeignCredential, setIsForeignCredential] = useState<boolean>(false)
-
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+  const [connectedCredential] = useSubBlockValue(blockId, 'credential')
+  const { isForeignCredential } = useForeignCredential(
+    subBlock.provider || subBlock.serviceId || 'jira',
+    (connectedCredential as string) || ''
+  )
   // Local setters for related Jira fields to ensure immediate UI clearing
   const [_issueKeyValue, setIssueKeyValue] = useSubBlockValue<string>(blockId, 'issueKey')
   const [_manualIssueKeyValue, setManualIssueKeyValue] = useSubBlockValue<string>(
@@ -70,32 +74,6 @@ export function ProjectSelectorInput({
   const botToken = ''
 
   // Verify Jira credential belongs to current user; if not, treat as absent
-  useEffect(() => {
-    const cred = (jiraCredential as string) || ''
-    if (!cred) {
-      setIsForeignCredential(false)
-      return
-    }
-    let aborted = false
-    ;(async () => {
-      try {
-        const resp = await fetch(`/api/auth/oauth/credentials?credentialId=${cred}`)
-        if (aborted) return
-        if (!resp.ok) {
-          setIsForeignCredential(true)
-          return
-        }
-        const data = await resp.json()
-        setIsForeignCredential(!(data.credentials && data.credentials.length === 1))
-      } catch {
-        setIsForeignCredential(true)
-      }
-    })()
-    return () => {
-      aborted = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blockId, jiraCredential])
 
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
@@ -240,6 +218,7 @@ export function ProjectSelectorInput({
               onProjectInfoChange={setProjectInfo}
               credentialId={(jiraCredential as string) || ''}
               isForeignCredential={isForeignCredential}
+              workflowId={activeWorkflowId || ''}
             />
           </div>
         </TooltipTrigger>

@@ -1,4 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { mergeSubblockState } from '@/stores/workflows/utils'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import type { BlockWithDiff } from './types'
 
@@ -66,10 +67,26 @@ export class WorkflowDiffEngine {
         hasParallels: Object.keys(currentWorkflowState.parallels || {}).length > 0,
       })
 
+      // Merge subblock values from subblock store to ensure manual edits are included in baseline
+      let mergedBaseline: WorkflowState = currentWorkflowState
+      try {
+        mergedBaseline = {
+          ...currentWorkflowState,
+          blocks: mergeSubblockState(currentWorkflowState.blocks),
+        }
+        logger.info('Merged subblock values into baseline for diff creation', {
+          blockCount: Object.keys(mergedBaseline.blocks || {}).length,
+        })
+      } catch (mergeError) {
+        logger.warn('Failed to merge subblock values into baseline; proceeding with raw state', {
+          error: mergeError instanceof Error ? mergeError.message : String(mergeError),
+        })
+      }
+
       // Call the API route to create the diff
       const body: any = {
         yamlContent,
-        currentWorkflowState: currentWorkflowState,
+        currentWorkflowState: mergedBaseline,
       }
 
       if (diffAnalysis !== undefined && diffAnalysis !== null) {

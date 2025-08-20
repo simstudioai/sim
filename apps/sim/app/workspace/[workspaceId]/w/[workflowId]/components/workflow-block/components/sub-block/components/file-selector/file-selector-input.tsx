@@ -22,6 +22,7 @@ import {
   WealthboxFileSelector,
   type WealthboxItemInfo,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components'
+import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -70,6 +71,7 @@ export function FileSelectorInput({
 
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+  const [connectedCredential] = useSubBlockValue(blockId, 'credential')
   const [selectedFileId, setSelectedFileId] = useState<string>('')
   const [_fileInfo, setFileInfo] = useState<FileInfo | ConfluenceFileInfo | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string>('')
@@ -84,34 +86,10 @@ export function FileSelectorInput({
   const [wealthboxItemInfo, setWealthboxItemInfo] = useState<WealthboxItemInfo | null>(null)
 
   // Determine if the persisted credential belongs to the current viewer
-  const [isForeignCredential, setIsForeignCredential] = useState<boolean>(false)
-  useEffect(() => {
-    const cred = (getValue(blockId, 'credential') as string) || ''
-    if (!cred) {
-      setIsForeignCredential(false)
-      return
-    }
-    let aborted = false
-    ;(async () => {
-      try {
-        const resp = await fetch(`/api/auth/oauth/credentials?credentialId=${cred}`)
-        if (aborted) return
-        if (!resp.ok) {
-          setIsForeignCredential(true)
-          return
-        }
-        const data = await resp.json()
-        // If credential not returned for this session user, it's foreign
-        setIsForeignCredential(!(data.credentials && data.credentials.length === 1))
-      } catch {
-        setIsForeignCredential(true)
-      }
-    })()
-    return () => {
-      aborted = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blockId, getValue(blockId, 'credential')])
+  const { isForeignCredential } = useForeignCredential(
+    subBlock.provider || subBlock.serviceId || '',
+    (connectedCredential as string) || ''
+  )
 
   // Get provider-specific values
   const provider = subBlock.provider || 'google-drive'
@@ -254,7 +232,7 @@ export function FileSelectorInput({
 
   // Render Google Calendar selector
   if (isGoogleCalendar) {
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    const credential = (connectedCredential as string) || ''
 
     return (
       <TooltipProvider>
@@ -321,7 +299,7 @@ export function FileSelectorInput({
 
   // Render the appropriate picker based on provider
   if (isConfluence) {
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    const credential = (connectedCredential as string) || ''
     return (
       <TooltipProvider>
         <Tooltip>
@@ -347,6 +325,8 @@ export function FileSelectorInput({
                 showPreview={true}
                 onFileInfoChange={setFileInfo as (info: ConfluenceFileInfo | null) => void}
                 credentialId={credential}
+                workflowId={workflowIdFromUrl}
+                isForeignCredential={isForeignCredential}
               />
             </div>
           </TooltipTrigger>
@@ -361,7 +341,7 @@ export function FileSelectorInput({
   }
 
   if (isJira) {
-    const credential = jiraCredential
+    const credential = (connectedCredential as string) || ''
     return (
       <TooltipProvider>
         <Tooltip>
@@ -391,6 +371,7 @@ export function FileSelectorInput({
                 credentialId={credential}
                 projectId={(getValue(blockId, 'projectId') as string) || ''}
                 isForeignCredential={isForeignCredential}
+                workflowId={activeWorkflowId || ''}
               />
             </div>
           </TooltipTrigger>
@@ -413,8 +394,8 @@ export function FileSelectorInput({
   }
 
   if (isMicrosoftExcel) {
-    // Get credential using the same pattern as other tools
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    // Get credential reactively
+    const credential = (connectedCredential as string) || ''
 
     return (
       <TooltipProvider>
@@ -431,6 +412,9 @@ export function FileSelectorInput({
                 disabled={disabled || !credential}
                 showPreview={true}
                 onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
+                workflowId={activeWorkflowId || ''}
+                credentialId={credential}
+                isForeignCredential={isForeignCredential}
               />
             </div>
           </TooltipTrigger>
@@ -446,8 +430,8 @@ export function FileSelectorInput({
 
   // Handle Microsoft Word selector
   if (isMicrosoftWord) {
-    // Get credential using the same pattern as other tools
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    // Get credential reactively
+    const credential = (connectedCredential as string) || ''
 
     return (
       <TooltipProvider>
@@ -479,7 +463,7 @@ export function FileSelectorInput({
 
   // Handle Microsoft OneDrive selector
   if (isMicrosoftOneDrive) {
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    const credential = (connectedCredential as string) || ''
 
     return (
       <TooltipProvider>
@@ -496,6 +480,9 @@ export function FileSelectorInput({
                 disabled={disabled || !credential}
                 showPreview={true}
                 onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
+                workflowId={activeWorkflowId || ''}
+                credentialId={credential}
+                isForeignCredential={isForeignCredential}
               />
             </div>
           </TooltipTrigger>
@@ -511,7 +498,7 @@ export function FileSelectorInput({
 
   // Handle Microsoft SharePoint selector
   if (isMicrosoftSharePoint) {
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    const credential = (connectedCredential as string) || ''
 
     return (
       <TooltipProvider>
@@ -528,6 +515,9 @@ export function FileSelectorInput({
                 disabled={disabled || !credential}
                 showPreview={true}
                 onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
+                workflowId={activeWorkflowId || ''}
+                credentialId={credential}
+                isForeignCredential={isForeignCredential}
               />
             </div>
           </TooltipTrigger>
@@ -543,7 +533,7 @@ export function FileSelectorInput({
 
   // Handle Microsoft Planner task selector
   if (isMicrosoftPlanner) {
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    const credential = (connectedCredential as string) || ''
     const planId = (getValue(blockId, 'planId') as string) || ''
 
     return (
@@ -562,6 +552,9 @@ export function FileSelectorInput({
                 showPreview={true}
                 onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
                 planId={planId}
+                workflowId={activeWorkflowId || ''}
+                credentialId={credential}
+                isForeignCredential={isForeignCredential}
               />
             </div>
           </TooltipTrigger>
@@ -582,7 +575,7 @@ export function FileSelectorInput({
   // Handle Microsoft Teams selector
   if (isMicrosoftTeams) {
     // Get credential using the same pattern as other tools
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    const credential = (connectedCredential as string) || ''
 
     // Determine the selector type based on the subBlock ID
     let selectionType: 'team' | 'channel' | 'chat' = 'team'
@@ -633,6 +626,7 @@ export function FileSelectorInput({
                 selectionType={selectionType}
                 initialTeamId={selectedTeamId}
                 workflowId={activeWorkflowId || ''}
+                isForeignCredential={isForeignCredential}
               />
             </div>
           </TooltipTrigger>
@@ -648,8 +642,8 @@ export function FileSelectorInput({
 
   // Render Wealthbox selector
   if (isWealthbox) {
-    // Get credential using the same pattern as other tools
-    const credential = (getValue(blockId, 'credential') as string) || ''
+    // Get credential reactively
+    const credential = (connectedCredential as string) || ''
 
     // Only handle contacts now - both notes and tasks use short-input
     if (subBlock.id === 'contactId') {
@@ -697,32 +691,47 @@ export function FileSelectorInput({
   }
 
   // Default to Google Drive picker
-  return (
-    <GoogleDrivePicker
-      value={coerceToIdString(
-        (isPreview && previewValue !== undefined ? previewValue : storeValue) as any
-      )}
-      onChange={(val, info) => {
-        setSelectedFileId(val)
-        setFileInfo(info || null)
-        collaborativeSetSubblockValue(blockId, subBlock.id, val)
-      }}
-      provider={provider}
-      requiredScopes={subBlock.requiredScopes || []}
-      label={subBlock.placeholder || 'Select file'}
-      disabled={disabled}
-      serviceId={subBlock.serviceId}
-      mimeTypeFilter={subBlock.mimeType}
-      showPreview={true}
-      onFileInfoChange={setFileInfo}
-      clientId={clientId}
-      apiKey={apiKey}
-      credentialId={
-        ((isPreview && previewContextValues?.credential?.value) ||
-          (getValue(blockId, 'credential') as string) ||
-          '') as string
-      }
-      workflowId={workflowIdFromUrl}
-    />
-  )
+  {
+    const credential = ((isPreview && previewContextValues?.credential?.value) ||
+      (connectedCredential as string) ||
+      '') as string
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='w-full'>
+              <GoogleDrivePicker
+                value={coerceToIdString(
+                  (isPreview && previewValue !== undefined ? previewValue : storeValue) as any
+                )}
+                onChange={(val, info) => {
+                  setSelectedFileId(val)
+                  setFileInfo(info || null)
+                  collaborativeSetSubblockValue(blockId, subBlock.id, val)
+                }}
+                provider={provider}
+                requiredScopes={subBlock.requiredScopes || []}
+                label={subBlock.placeholder || 'Select file'}
+                disabled={disabled || !credential}
+                serviceId={subBlock.serviceId}
+                mimeTypeFilter={subBlock.mimeType}
+                showPreview={true}
+                onFileInfoChange={setFileInfo}
+                clientId={clientId}
+                apiKey={apiKey}
+                credentialId={credential}
+                workflowId={workflowIdFromUrl}
+              />
+            </div>
+          </TooltipTrigger>
+          {!credential && (
+            <TooltipContent side='top'>
+              <p>Please select Google Drive credentials first</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
 }

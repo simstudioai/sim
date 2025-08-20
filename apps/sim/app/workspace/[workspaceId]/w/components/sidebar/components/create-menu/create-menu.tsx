@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { logger } from '@sentry/nextjs'
-import { Folder, Plus, Upload } from 'lucide-react'
+import { Download, Folder, Plus } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { isDev } from '@/lib/environment'
 import { generateFolderName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -353,13 +352,13 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
           </button>
 
           {/* Import Workflow */}
-          {userPermissions.canEdit && !isDev && (
+          {userPermissions.canEdit && (
             <button
               className={cn(menuItemClassName, isImporting && 'cursor-not-allowed opacity-50')}
               onClick={handleImportWorkflow}
               disabled={isImporting}
             >
-              <Upload className={iconClassName} />
+              <Download className={iconClassName} />
               <span className={textClassName}>
                 {isImporting ? 'Importing...' : 'Import workflow'}
               </span>

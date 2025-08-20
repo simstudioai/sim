@@ -33,6 +33,10 @@ export function ChannelSelectorInput({
 
   // Use the proper hook to get the current value and setter (same as file-selector)
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+  // Reactive upstream fields
+  const [authMethod] = useSubBlockValue(blockId, 'authMethod')
+  const [botToken] = useSubBlockValue(blockId, 'botToken')
+  const [connectedCredential] = useSubBlockValue(blockId, 'credential')
   const [selectedChannelId, setSelectedChannelId] = useState<string>('')
   const [_channelInfo, setChannelInfo] = useState<SlackChannelInfo | null>(null)
 
@@ -40,17 +44,14 @@ export function ChannelSelectorInput({
   const provider = subBlock.provider || 'slack'
   const isSlack = provider === 'slack'
 
-  // Get the credential for the provider - use provided credential or fall back to store
-  const authMethod = getValue(blockId, 'authMethod') as string
-  const botToken = getValue(blockId, 'botToken') as string
-
+  // Get the credential for the provider - use provided credential or fall back to reactive values
   let credential: string
   if (providedCredential) {
     credential = providedCredential
-  } else if (authMethod === 'bot_token' && botToken) {
-    credential = botToken
+  } else if ((authMethod as string) === 'bot_token' && (botToken as string)) {
+    credential = botToken as string
   } else {
-    credential = (getValue(blockId, 'credential') as string) || ''
+    credential = (connectedCredential as string) || ''
   }
 
   // Use preview value when in preview mode, otherwise use store value
@@ -58,18 +59,11 @@ export function ChannelSelectorInput({
 
   // Get the current value from the store or prop value if in preview mode (same pattern as file-selector)
   useEffect(() => {
-    if (isPreview && previewValue !== undefined) {
-      const value = previewValue
-      if (value && typeof value === 'string') {
-        setSelectedChannelId(value)
-      }
-    } else {
-      const value = getValue(blockId, subBlock.id)
-      if (value && typeof value === 'string') {
-        setSelectedChannelId(value)
-      }
+    const val = isPreview && previewValue !== undefined ? previewValue : storeValue
+    if (val && typeof val === 'string') {
+      setSelectedChannelId(val)
     }
-  }, [blockId, subBlock.id, getValue, isPreview, previewValue])
+  }, [isPreview, previewValue, storeValue])
 
   // Handle channel selection (same pattern as file-selector)
   const handleChannelChange = (channelId: string, info?: SlackChannelInfo) => {

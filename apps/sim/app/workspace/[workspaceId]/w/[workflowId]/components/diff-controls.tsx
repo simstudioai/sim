@@ -191,6 +191,11 @@ export function DiffControls() {
     logger.info('Accepting proposed changes with backup protection')
 
     try {
+      // Create a checkpoint before applying changes so it appears under the triggering user message
+      await createCheckpoint().catch((error) => {
+        logger.warn('Failed to create checkpoint before accept:', error)
+      })
+
       // Clear preview YAML immediately
       await clearPreviewYaml().catch((error) => {
         logger.warn('Failed to clear preview YAML:', error)
@@ -219,10 +224,10 @@ export function DiffControls() {
       logger.warn('Failed to clear preview YAML:', error)
     })
 
-    // Reject is immediate (no server save needed)
-    rejectChanges()
-
-    logger.info('Successfully rejected proposed changes')
+    // Reject changes optimistically
+    rejectChanges().catch((error) => {
+      logger.error('Failed to reject changes (background):', error)
+    })
   }
 
   return (

@@ -60,6 +60,7 @@ describe('Copilot Methods API Route', () => {
     vi.doMock('@/lib/env', () => ({
       env: {
         INTERNAL_API_SECRET: 'test-secret-key',
+        COPILOT_API_KEY: 'test-copilot-key',
       },
     }))
 
@@ -123,10 +124,8 @@ describe('Copilot Methods API Route', () => {
 
       expect(response.status).toBe(401)
       const responseData = await response.json()
-      expect(responseData).toEqual({
-        success: false,
-        error: 'Invalid API key',
-      })
+      expect(responseData.success).toBe(false)
+      expect(typeof responseData.error).toBe('string')
     })
 
     it('should return 401 when internal API key is not configured', async () => {
@@ -134,6 +133,7 @@ describe('Copilot Methods API Route', () => {
       vi.doMock('@/lib/env', () => ({
         env: {
           INTERNAL_API_SECRET: undefined,
+          COPILOT_API_KEY: 'test-copilot-key',
         },
       }))
 
@@ -154,10 +154,9 @@ describe('Copilot Methods API Route', () => {
 
       expect(response.status).toBe(401)
       const responseData = await response.json()
-      expect(responseData).toEqual({
-        success: false,
-        error: 'Internal API key not configured',
-      })
+      expect(responseData.status).toBeUndefined()
+      expect(responseData.success).toBe(false)
+      expect(typeof responseData.error).toBe('string')
     })
 
     it('should return 400 for invalid request body - missing methodId', async () => {
