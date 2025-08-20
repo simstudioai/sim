@@ -800,6 +800,7 @@ export class InputResolver {
       const blockType = currentBlock.metadata?.id
 
       let formattedValue: string
+      
 
       if (currentBlock.metadata?.id === 'condition') {
         formattedValue = this.stringifyForCondition(replacementValue)
