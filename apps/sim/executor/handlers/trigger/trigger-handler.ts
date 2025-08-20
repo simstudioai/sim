@@ -64,6 +64,7 @@ export class TriggerBlockHandler implements BlockHandler {
             }
           }
 
+          
           // Extract the flattened properties that should be at root level (non-GitHub)
           const result: any = {
             // Always keep the input at root level
