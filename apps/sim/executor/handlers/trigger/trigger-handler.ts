@@ -44,7 +44,6 @@ export class TriggerBlockHandler implements BlockHandler {
 
         // Generic handling for webhook triggers - extract provider-specific data
 
-        
         // Check if this is a webhook execution
         if (starterOutput.webhook?.data) {
           const webhookData = starterOutput.webhook?.data || {}
@@ -64,7 +63,6 @@ export class TriggerBlockHandler implements BlockHandler {
             }
           }
 
-          
           // Extract the flattened properties that should be at root level (non-GitHub)
           const result: any = {
             // Always keep the input at root level

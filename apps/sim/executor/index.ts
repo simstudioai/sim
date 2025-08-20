@@ -1599,10 +1599,9 @@ export class Executor {
 
         return streamingExec
       }
-      
 
       // Handle error outputs and ensure object structure
-      let output: NormalizedBlockOutput =
+      const output: NormalizedBlockOutput =
         rawOutput && typeof rawOutput === 'object' && rawOutput.error
           ? { error: rawOutput.error, status: rawOutput.status || 500 }
           : typeof rawOutput === 'object' && rawOutput !== null

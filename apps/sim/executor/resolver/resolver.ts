@@ -14,7 +14,7 @@ const logger = createLogger('InputResolver')
 function resolveFromWebhookPayload(container: any, property: string): any {
   try {
     const payload = container?.webhook?.data?.payload
-    if (payload && typeof payload === 'object' && Object.prototype.hasOwnProperty.call(payload, property)) {
+    if (payload && typeof payload === 'object' && Object.hasOwn(payload, property)) {
       return payload[property]
     }
   } catch (_) {
@@ -560,7 +560,6 @@ export class InputResolver {
                 if (!Array.isArray(arrayValue)) {
                   throw new Error(
                     `Property "${arrayName}" is not an array in path "${path}" for starter block.`
-                    
                   )
                 }
 
@@ -800,7 +799,6 @@ export class InputResolver {
       const blockType = currentBlock.metadata?.id
 
       let formattedValue: string
-      
 
       if (currentBlock.metadata?.id === 'condition') {
         formattedValue = this.stringifyForCondition(replacementValue)
