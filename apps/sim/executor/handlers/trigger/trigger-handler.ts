@@ -63,7 +63,12 @@ export class TriggerBlockHandler implements BlockHandler {
             }
           }
 
-          // Extract the flattened properties that should be at root level (non-GitHub)
+          // Provider-specific early return for Airtable: preserve raw shape entirely
+          if (provider === 'airtable') {
+            return starterOutput
+          }
+
+          // Extract the flattened properties that should be at root level (non-GitHub/Airtable)
           const result: any = {
             // Always keep the input at root level
             input: starterOutput.input,

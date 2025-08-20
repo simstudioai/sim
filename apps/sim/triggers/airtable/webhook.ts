@@ -38,6 +38,40 @@ export const airtableWebhookTrigger: TriggerConfig = {
   },
 
   outputs: {
+    payloads: {
+      type: 'array',
+      description: 'The payloads of the Airtable changes',
+    },
+    latestPayload: {
+      timestamp: {
+        type: 'string',
+        description: 'The timestamp of the Airtable change',
+      },
+      payloadFormat: {
+        type: 'object',
+        description: 'The format of the Airtable change',
+      },
+      actionMetadata: {
+        source: {
+          type: 'string',
+          description: 'The source of the Airtable change',
+        },
+        sourceMetadata: {
+          pageId: {
+            type: 'string',
+            description: 'The ID of the page that triggered the Airtable change',
+          },
+        },
+        changedTablesById: {
+          type: 'object',
+          description: 'The tables that were changed',
+        },
+        baseTransactionNumber: {
+          type: 'number',
+          description: 'The transaction number of the Airtable change',
+        },
+      },
+    },
     airtableChanges: {
       type: 'array',
       description: 'Changes made to the Airtable table',
