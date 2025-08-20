@@ -55,8 +55,6 @@ export class TriggerBlockHandler implements BlockHandler {
               ...payload,
               // Keep metadata available
               webhook: starterOutput.webhook,
-              // Back-compat alias to allow <github1.github.*>
-              github: payload,
             }
 
             return result
