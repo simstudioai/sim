@@ -43,6 +43,7 @@ function resolveFromAnyWebhookPayload(context: ExecutionContext | undefined, pro
 
 
 /**
+ * 
  * Helper function to resolve property access
  */
 function resolvePropertyAccess(obj: any, property: string): any {
