@@ -67,6 +67,7 @@ export const env = createEnv({
     // Azure OpenAI Configuration
     AZURE_OPENAI_ENDPOINT:                z.string().url().optional(),            // Azure OpenAI service endpoint
     AZURE_OPENAI_API_VERSION:             z.string().optional(),                  // Azure OpenAI API version
+    AZURE_OPENAI_API_KEY:                 z.string().min(1).optional(),           // Azure OpenAI API key
 
     // Monitoring & Analytics
     TELEMETRY_ENDPOINT:                   z.string().url().optional(),            // Custom telemetry/analytics endpoint

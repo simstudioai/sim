@@ -406,16 +406,40 @@ export async function checkChunkAccess(
 }
 
 /**
- * Generate embeddings using OpenAI API with retry logic for rate limiting
+ * Generate embeddings using OpenAI or Azure OpenAI API with retry logic for rate limiting
  */
 export async function generateEmbeddings(
   texts: string[],
   embeddingModel = 'text-embedding-3-small'
 ): Promise<number[][]> {
+  const azureApiKey = env.AZURE_OPENAI_API_KEY
+  const azureEndpoint = env.AZURE_OPENAI_ENDPOINT
+  const azureApiVersion = env.AZURE_OPENAI_API_VERSION || '2024-10-21'
   const openaiApiKey = env.OPENAI_API_KEY
-  if (!openaiApiKey) {
-    throw new Error('OPENAI_API_KEY not configured')
+
+  const useAzure = azureApiKey && azureEndpoint
+
+  if (!useAzure && !openaiApiKey) {
+    throw new Error(
+      'Either OPENAI_API_KEY or both AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT must be configured'
+    )
   }
+
+  const apiUrl = useAzure
+    ? `${azureEndpoint}/openai/deployments/${embeddingModel}/embeddings?api-version=${azureApiVersion}`
+    : 'https://api.openai.com/v1/embeddings'
+
+  const headers: Record<string, string> = useAzure
+    ? {
+        'api-key': azureApiKey!,
+        'Content-Type': 'application/json',
+      }
+    : {
+        Authorization: `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      }
+
+  logger.info(`Using ${useAzure ? 'Azure OpenAI' : 'OpenAI'} for embeddings generation`)
 
   try {
     const batchSize = 100
@@ -434,17 +458,21 @@ export async function generateEmbeddings(
           const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.EMBEDDINGS_API)
 
           try {
-            const response = await fetch('https://api.openai.com/v1/embeddings', {
+            const requestBody = useAzure
+              ? {
+                  input: batch,
+                  encoding_format: 'float',
+                }
+              : {
+                  input: batch,
+                  model: embeddingModel,
+                  encoding_format: 'float',
+                }
+
+            const response = await fetch(apiUrl, {
               method: 'POST',
-              headers: {
-                Authorization: `Bearer ${openaiApiKey}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                input: batch,
-                model: embeddingModel,
-                encoding_format: 'float',
-              }),
+              headers,
+              body: JSON.stringify(requestBody),
               signal: controller.signal,
             })
 
@@ -453,7 +481,7 @@ export async function generateEmbeddings(
             if (!response.ok) {
               const errorText = await response.text()
               const error = new APIError(
-                `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`,
+                `${useAzure ? 'Azure OpenAI' : 'OpenAI'} API error: ${response.status} ${response.statusText} - ${errorText}`,
                 response.status
               )
               throw error
@@ -464,7 +492,7 @@ export async function generateEmbeddings(
           } catch (error) {
             clearTimeout(timeoutId)
             if (error instanceof Error && error.name === 'AbortError') {
-              throw new Error('OpenAI API request timed out')
+              throw new Error(`${useAzure ? 'Azure OpenAI' : 'OpenAI'} API request timed out`)
             }
             throw error
           }
@@ -482,7 +510,10 @@ export async function generateEmbeddings(
 
     return allEmbeddings
   } catch (error) {
-    logger.error('Failed to generate embeddings:', error)
+    logger.error(
+      `Failed to generate embeddings using ${useAzure ? 'Azure OpenAI' : 'OpenAI'}:`,
+      error
+    )
     throw error
   }
 }

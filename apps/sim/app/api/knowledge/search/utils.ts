@@ -42,31 +42,61 @@ export interface SearchParams {
 }
 
 export async function generateSearchEmbedding(query: string): Promise<number[]> {
+  const azureApiKey = env.AZURE_OPENAI_API_KEY
+  const azureEndpoint = env.AZURE_OPENAI_ENDPOINT
+  const azureApiVersion = env.AZURE_OPENAI_API_VERSION || '2024-10-21'
   const openaiApiKey = env.OPENAI_API_KEY
-  if (!openaiApiKey) {
-    throw new Error('OPENAI_API_KEY not configured')
+
+  const useAzure = azureApiKey && azureEndpoint
+
+  if (!useAzure && !openaiApiKey) {
+    throw new Error(
+      'Either OPENAI_API_KEY or both AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT must be configured'
+    )
   }
+
+  const embeddingModel = 'text-embedding-3-small'
+
+  const apiUrl = useAzure
+    ? `${azureEndpoint}/openai/deployments/${embeddingModel}/embeddings?api-version=${azureApiVersion}`
+    : 'https://api.openai.com/v1/embeddings'
+
+  const headers: Record<string, string> = useAzure
+    ? {
+        'api-key': azureApiKey!,
+        'Content-Type': 'application/json',
+      }
+    : {
+        Authorization: `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      }
+
+  logger.info(`Using ${useAzure ? 'Azure OpenAI' : 'OpenAI'} for search embedding generation`)
 
   try {
     const embedding = await retryWithExponentialBackoff(
       async () => {
-        const response = await fetch('https://api.openai.com/v1/embeddings', {
+        const requestBody = useAzure
+          ? {
+              input: query,
+              encoding_format: 'float',
+            }
+          : {
+              input: query,
+              model: embeddingModel,
+              encoding_format: 'float',
+            }
+
+        const response = await fetch(apiUrl, {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${openaiApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            input: query,
-            model: 'text-embedding-3-small',
-            encoding_format: 'float',
-          }),
+          headers,
+          body: JSON.stringify(requestBody),
         })
 
         if (!response.ok) {
           const errorText = await response.text()
           const error = new APIError(
-            `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`,
+            `${useAzure ? 'Azure OpenAI' : 'OpenAI'} API error: ${response.status} ${response.statusText} - ${errorText}`,
             response.status
           )
           throw error
@@ -75,7 +105,9 @@ export async function generateSearchEmbedding(query: string): Promise<number[]> 
         const data = await response.json()
 
         if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
-          throw new Error('Invalid response format from OpenAI embeddings API')
+          throw new Error(
+            `Invalid response format from ${useAzure ? 'Azure OpenAI' : 'OpenAI'} embeddings API`
+          )
         }
 
         return data.data[0].embedding
@@ -90,7 +122,10 @@ export async function generateSearchEmbedding(query: string): Promise<number[]> 
 
     return embedding
   } catch (error) {
-    logger.error('Failed to generate search embedding:', error)
+    logger.error(
+      `Failed to generate search embedding using ${useAzure ? 'Azure OpenAI' : 'OpenAI'}:`,
+      error
+    )
     throw new Error(
       `Embedding generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
