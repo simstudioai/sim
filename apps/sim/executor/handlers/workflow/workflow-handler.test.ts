@@ -209,6 +209,7 @@ describe('WorkflowBlockHandler', () => {
         success: true,
         childWorkflowName: 'Child Workflow',
         result: { data: 'test result' },
+        childTraceSpans: [],
       })
     })
 
@@ -248,6 +249,7 @@ describe('WorkflowBlockHandler', () => {
         success: true,
         childWorkflowName: 'Child Workflow',
         result: { nested: 'data' },
+        childTraceSpans: [],
       })
     })
   })
