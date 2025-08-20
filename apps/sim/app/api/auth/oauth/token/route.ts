@@ -84,12 +84,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
+    if (!credential.accessToken) {
+      logger.warn(`[${requestId}] No access token available for credential`)
+      return NextResponse.json({ error: 'No access token available' }, { status: 400 })
+    }
+
     try {
       const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
-      if (!accessToken) {
-        logger.warn(`[${requestId}] No access token could be obtained for credential`)
-        return NextResponse.json({ error: 'No access token available' }, { status: 400 })
-      }
       return NextResponse.json({ accessToken }, { status: 200 })
     } catch (_error) {
       return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
