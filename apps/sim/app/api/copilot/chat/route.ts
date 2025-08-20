@@ -625,19 +625,13 @@ export async function POST(req: NextRequest) {
                         }
                         break
 
-                      case 'tool_execution':
-                        logger.info(`[${tracker.requestId}] Tool execution started:`, {
+                      case 'tool_generating':
+                        logger.info(`[${tracker.requestId}] Tool generating:`, {
                           toolCallId: event.toolCallId,
                           toolName: event.toolName,
-                          status: event.status,
                         })
                         if (event.toolCallId) {
-                          if (event.status === 'completed') {
-                            startedToolExecutionIds.add(event.toolCallId)
-                            completedToolExecutionIds.add(event.toolCallId)
-                          } else {
-                            startedToolExecutionIds.add(event.toolCallId)
-                          }
+                          startedToolExecutionIds.add(event.toolCallId)
                         }
                         break
 

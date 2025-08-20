@@ -341,7 +341,11 @@ function getToolDisplayNameByState(toolCall: any): string {
   const clientTool = toolRegistry.getTool(toolName)
   if (clientTool) {
     // Use client tool's display name logic
-    return clientTool.getDisplayName(toolCall)
+    const base = clientTool.getDisplayName(toolCall)
+    if (state === 'preparing') {
+      return `Preparing to ${base}`
+    }
+    return base
   }
 
   // For server tools, use server tool metadata
@@ -353,7 +357,10 @@ function getToolDisplayNameByState(toolCall: any): string {
         state,
         toolCall.input || toolCall.parameters || {}
       )
-      if (dynamicName) return dynamicName
+      if (dynamicName) {
+        if (state === 'preparing') return `Preparing to ${dynamicName}`
+        return dynamicName
+      }
     }
 
     // Use state-specific display config
@@ -362,11 +369,14 @@ function getToolDisplayNameByState(toolCall: any): string {
         state as keyof typeof serverToolMetadata.displayConfig.states
       ]
     if (stateConfig) {
-      return stateConfig.displayName
+      const base = stateConfig.displayName
+      if (state === 'preparing') return `Preparing to ${base}`
+      return base
     }
   }
 
   // Fallback to tool name if no specific display logic found
+  if (state === 'preparing') return `Preparing to ${toolName}`
   return toolName
 }
 
@@ -772,7 +782,6 @@ interface StreamingContext {
   contentBlocks: any[]
   currentTextBlock: any | null
   currentBlockType: 'text' | 'tool_use' | 'thinking' | null
-  toolCallBuffer: any | null
   newChatId?: string
   doneEventCount: number
   streamComplete?: boolean
@@ -885,6 +894,122 @@ const sseHandlers: Record<string, SSEHandler> = {
 
     context.isInThinkingBlock = true
     context.currentTextBlock = null
+
+    updateStreamingMessage(set, context)
+  },
+
+  // New: tool is being constructed by the model
+  tool_generating: (data, context, get, set) => {
+    const { toolCallId, toolName } = data
+    if (!toolCallId || !toolName) return
+
+    // Defensive: dedupe if already present
+    let toolCall = context.toolCalls.find((tc) => tc.id === toolCallId)
+    if (toolCall) {
+      // Ensure state is at least 'preparing'
+      if (toolCall.state !== 'preparing' && toolCall.state !== 'executing' && toolCall.state !== 'pending') {
+        toolCall.state = 'preparing'
+        toolCall.displayName = getToolDisplayNameByState(toolCall)
+      }
+      updateContentBlockToolCall(context.contentBlocks, toolCallId, toolCall)
+      updateStreamingMessage(set, context)
+      return
+    }
+
+    // Create a new tool call in 'preparing' state
+    toolCall = {
+      id: toolCallId,
+      name: toolName,
+      input: {},
+      state: 'preparing',
+      startTime: Date.now(),
+      displayName: getToolDisplayNameByState({ id: toolCallId, name: toolName, state: 'preparing' }),
+      hidden: false,
+    }
+
+    context.toolCalls.push(toolCall)
+    context.contentBlocks.push({
+      type: 'tool_call',
+      toolCall,
+      timestamp: Date.now(),
+      startTime: toolCall.startTime,
+    })
+
+    updateStreamingMessage(set, context)
+  },
+
+  // Handle tool call events - simplified
+  tool_call: (data, context, get, set) => {
+    const toolData = data.data
+    if (!toolData) return
+
+    // Check if tool call already exists
+    const existingToolCall = context.toolCalls.find((tc) => tc.id === toolData.id)
+
+    if (existingToolCall) {
+      // Replace arguments and transition state
+      existingToolCall.input = toolData.arguments || {}
+      // If previously preparing and tool requires interrupt, keep pending; else executing
+      const requiresInterrupt = toolRequiresInterrupt(existingToolCall.name)
+      existingToolCall.state = requiresInterrupt ? 'pending' : 'executing'
+      existingToolCall.displayName = getToolDisplayNameByState(existingToolCall)
+
+      // If this is a client tool and not interrupt, auto-execute now
+      if (!requiresInterrupt && toolRegistry.getTool(existingToolCall.name)) {
+        setTimeout(async () => {
+          try {
+            const tool = toolRegistry.getTool(existingToolCall.name)
+            if (tool && existingToolCall.state === 'executing') {
+              await tool.execute(existingToolCall as any, {
+                onStateChange: (state: any) => {
+                  const currentState = useCopilotStore.getState()
+                  const updatedMessages = currentState.messages.map((msg) => ({
+                    ...msg,
+                    toolCalls: msg.toolCalls?.map((tc) =>
+                      tc.id === existingToolCall.id ? { ...tc, state } : tc
+                    ),
+                    contentBlocks: msg.contentBlocks?.map((block) =>
+                      block.type === 'tool_call' && block.toolCall?.id === existingToolCall.id
+                        ? { ...block, toolCall: { ...block.toolCall, state } }
+                        : block
+                    ),
+                  }))
+
+                  useCopilotStore.setState({ messages: updatedMessages })
+                },
+              })
+            }
+          } catch (error) {
+            logger.error('Error auto-executing client tool (existing):', existingToolCall.name, existingToolCall.id, error)
+            setToolCallState(existingToolCall, 'errored', {
+              error: error instanceof Error ? error.message : 'Auto-execution failed',
+            })
+          }
+        }, 0)
+      }
+
+      // Update the content block as well
+      updateContentBlockToolCall(context.contentBlocks, toolData.id, existingToolCall)
+      updateStreamingMessage(set, context)
+      return
+    }
+
+    // Create fresh tool call directly from finalized payload (reuses client auto-exec logic)
+    const toolCall = createToolCall(toolData.id, toolData.name, toolData.arguments)
+
+    // Mark checkoff_todo as hidden from the start
+    if (toolData.name === 'checkoff_todo') {
+      toolCall.hidden = true
+    }
+
+    context.toolCalls.push(toolCall)
+
+    context.contentBlocks.push({
+      type: 'tool_call',
+      toolCall,
+      timestamp: Date.now(),
+      startTime: toolCall.startTime,
+    })
 
     updateStreamingMessage(set, context)
   },
@@ -1089,6 +1214,7 @@ const sseHandlers: Record<string, SSEHandler> = {
               context.currentTextBlock.timestamp = Date.now()
               context.contentBlocks.push(context.currentTextBlock)
             }
+            hasProcessedContent = true
           }
 
           // Enter thinking block mode
@@ -1149,233 +1275,6 @@ const sseHandlers: Record<string, SSEHandler> = {
     }
   },
 
-  // Handle tool call events - simplified
-  tool_call: (data, context, get, set) => {
-    const toolData = data.data
-    if (!toolData) return
-
-    // Check if tool call already exists
-    const existingToolCall = context.toolCalls.find((tc) => tc.id === toolData.id)
-
-    if (existingToolCall) {
-      // Update existing tool call with new arguments (for partial -> complete transition)
-      existingToolCall.input = toolData.arguments || {}
-
-      // Update the content block as well
-      updateContentBlockToolCall(context.contentBlocks, toolData.id, existingToolCall)
-      updateStreamingMessage(set, context)
-      return
-    }
-
-    const toolCall = createToolCall(toolData.id, toolData.name, toolData.arguments)
-
-    // Mark checkoff_todo as hidden from the start
-    if (toolData.name === 'checkoff_todo') {
-      toolCall.hidden = true
-    }
-
-    context.toolCalls.push(toolCall)
-
-    context.contentBlocks.push({
-      type: 'tool_call',
-      toolCall,
-      timestamp: Date.now(),
-      // Ensure per-tool timing context for UI components that might rely on block-level timing
-      startTime: toolCall.startTime,
-    })
-
-    updateStreamingMessage(set, context)
-  },
-
-  // Handle tool execution event
-  tool_execution: (data, context, get, set) => {
-    const toolCall = context.toolCalls.find((tc) => tc.id === data.toolCallId)
-    if (toolCall) {
-      // For interrupt tools, only allow transition from pending to executing
-      // Block if tool is still in pending state (user hasn't accepted yet)
-      if (toolRequiresInterrupt(toolCall.name) && toolCall.state === 'pending') {
-        logger.info(
-          'Tool requires interrupt and is still pending, ignoring execution event:',
-          toolCall.name,
-          toolCall.id
-        )
-        return
-      }
-
-      // If already executing, skip (happens when client sets executing immediately)
-      if (toolCall.state === 'executing') {
-        logger.info('Tool already in executing state, skipping:', toolCall.name, toolCall.id)
-        return
-      }
-
-      // Don't override terminal states
-      if (
-        toolCall.state === 'rejected' ||
-        toolCall.state === 'background' ||
-        toolCall.state === 'completed' ||
-        toolCall.state === 'success' ||
-        toolCall.state === 'errored'
-      ) {
-        logger.info(
-          'Tool is already in terminal state, ignoring execution event:',
-          toolCall.name,
-          toolCall.id,
-          toolCall.state
-        )
-        return
-      }
-
-      toolCall.state = 'executing'
-
-      // Mark checkoff_todo as hidden
-      if (toolCall.name === 'checkoff_todo') {
-        toolCall.hidden = true
-      }
-
-      // Update both contentBlocks and toolCalls atomically before UI update
-      updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
-
-      // toolCall is already updated by reference in context.toolCalls since we found it there
-      updateStreamingMessage(set, context)
-    }
-  },
-
-  // Handle Anthropic content block events - simplified
-  content_block_start: (data, context) => {
-    context.currentBlockType = data.content_block?.type
-
-    if (context.currentBlockType === 'text') {
-      // Start a new text block
-      context.currentTextBlock = {
-        type: 'text',
-        content: '',
-        timestamp: Date.now(),
-      }
-      context.contentBlocks.push(context.currentTextBlock)
-    } else if (context.currentBlockType === 'tool_use') {
-      // Mark that we're no longer in a text block
-      context.currentTextBlock = null
-
-      const toolCall = createToolCall(data.content_block.id, data.content_block.name)
-      toolCall.partialInput = ''
-
-      // Mark checkoff_todo as hidden from the start
-      if (data.content_block.name === 'checkoff_todo') {
-        toolCall.hidden = true
-      }
-
-      context.toolCallBuffer = toolCall
-      context.toolCalls.push(toolCall)
-
-      context.contentBlocks.push({
-        type: 'tool_call',
-        toolCall,
-        timestamp: Date.now(),
-        // Ensure per-tool timing context for UI components that might rely on block-level timing
-        startTime: toolCall.startTime,
-      })
-    }
-  },
-
-  content_block_delta: (data, context, get, set) => {
-    if (context.currentBlockType === TEXT_BLOCK_TYPE && data.delta?.text) {
-      // PERFORMANCE OPTIMIZATION: Use StringBuilder for efficient concatenation
-      context.accumulatedContent.append(data.delta.text)
-      if (context.currentTextBlock) {
-        // Update text content in-place for better performance
-        context.currentTextBlock.content += data.delta.text
-        updateStreamingMessage(set, context)
-      }
-    } else if (
-      context.currentBlockType === 'tool_use' &&
-      data.delta?.partial_json &&
-      context.toolCallBuffer
-    ) {
-      // PERFORMANCE OPTIMIZATION: Use StringBuilder or direct concatenation based on size
-      if (!context.toolCallBuffer.partialInput) {
-        context.toolCallBuffer.partialInput = data.delta.partial_json
-      } else {
-        context.toolCallBuffer.partialInput += data.delta.partial_json
-      }
-    }
-  },
-
-  content_block_stop: (data, context, get, set) => {
-    if (context.currentBlockType === 'text') {
-      // Text block is complete
-      context.currentTextBlock = null
-    } else if (context.currentBlockType === 'tool_use' && context.toolCallBuffer) {
-      try {
-        // Parse complete tool input
-        context.toolCallBuffer.input = JSON.parse(context.toolCallBuffer.partialInput || '{}')
-        finalizeToolCall(context.toolCallBuffer, true, context.toolCallBuffer.input, get)
-
-        // Handle tools with ready_for_review state immediately
-        if (toolSupportsReadyForReview(context.toolCallBuffer.name)) {
-          processWorkflowToolResult(context.toolCallBuffer, context.toolCallBuffer.input, get)
-        }
-
-        // Check if this is the plan tool and extract todos
-        if (context.toolCallBuffer.name === 'plan' && context.toolCallBuffer.input?.todoList) {
-          const todos = context.toolCallBuffer.input.todoList.map((item: any, index: number) => ({
-            id: item.id || `todo-${index}`,
-            content: typeof item === 'string' ? item : item.content,
-            completed: false,
-            executing: false,
-          }))
-
-          // Set the todos in the store
-          const store = get()
-          if (store.setPlanTodos) {
-            store.setPlanTodos(todos)
-          }
-        }
-
-        // Check if this is the checkoff_todo tool and mark the todo as complete
-        if (context.toolCallBuffer.name === 'checkoff_todo') {
-          // Check both input.id and input.todoId for compatibility
-          const todoId = context.toolCallBuffer.input?.id || context.toolCallBuffer.input?.todoId
-          if (todoId) {
-            const store = get()
-            if (store.updatePlanTodoStatus) {
-              store.updatePlanTodoStatus(todoId, 'completed')
-            }
-          }
-
-          // Mark this tool as hidden from UI
-          context.toolCallBuffer.hidden = true
-        }
-
-        // Update both contentBlocks and toolCalls atomically before UI update
-        updateContentBlockToolCall(
-          context.contentBlocks,
-          context.toolCallBuffer.id,
-          context.toolCallBuffer
-        )
-
-        // Ensure the toolCall in context.toolCalls is also updated with the latest state
-        const toolCallIndex = context.toolCalls.findIndex(
-          (tc) => tc.id === context.toolCallBuffer.id
-        )
-        if (toolCallIndex !== -1) {
-          const existingToolCall = context.toolCalls[toolCallIndex]
-          context.toolCalls[toolCallIndex] = preserveToolTerminalState(
-            context.toolCallBuffer,
-            existingToolCall
-          )
-        }
-
-        updateStreamingMessage(set, context)
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        handleToolFailure(context.toolCallBuffer, errorMsg)
-      }
-
-      context.toolCallBuffer = null
-    }
-    context.currentBlockType = null
-  },
-
   // Handle done event
   done: (data, context) => {
     context.doneEventCount++
@@ -1383,7 +1282,7 @@ const sseHandlers: Record<string, SSEHandler> = {
     // Only complete after all tools are done and we've received multiple done events
     // Check for both executing tools AND pending tools (waiting for user interaction)
     const executingTools = context.toolCalls.filter((tc) => tc.state === 'executing')
-    const pendingTools = context.toolCalls.filter((tc) => tc.state === 'pending')
+    const pendingTools = context.toolCalls.filter((tc) => tc.state === 'pending' || tc.state === 'preparing')
 
     if (executingTools.length === 0 && pendingTools.length === 0 && context.doneEventCount >= 2) {
       context.streamComplete = true
@@ -3002,7 +2901,6 @@ export const useCopilotStore = create<CopilotStore>()(
           contentBlocks: [],
           currentTextBlock: null,
           currentBlockType: null,
-          toolCallBuffer: null,
           doneEventCount: 0,
           pendingContent: '',
           isInThinkingBlock: false,

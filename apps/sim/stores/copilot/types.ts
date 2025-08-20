@@ -12,6 +12,7 @@ export interface Citation {
  * Tool states that a tool can be in
  */
 export type ToolState =
+  | 'preparing' // Preparing to execute (server signaled tool_generating)
   | 'pending' // Waiting for user confirmation (shows Run/Skip buttons)
   | 'executing' // Currently executing
   | 'completed' // Successfully completed (legacy)

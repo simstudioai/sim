@@ -155,6 +155,8 @@ export function toolRequiresInterrupt(toolName: string): boolean {
  */
 export function getToolStateClasses(state: ToolState): string {
   switch (state) {
+    case 'preparing':
+      return 'text-muted-foreground'
     case 'pending':
       return 'text-muted-foreground'
     case 'executing':
@@ -185,7 +187,7 @@ export function renderToolStateIcon(
   const stateClasses = getToolStateClasses(toolCall.state)
 
   // Special rendering for certain states
-  if (toolCall.state === 'executing') {
+  if (toolCall.state === 'executing' || toolCall.state === 'preparing') {
     return React.createElement(Icon, { className: `${className} animate-spin ${stateClasses}` })
   }
 
