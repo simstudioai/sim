@@ -572,6 +572,7 @@ export class InputResolver {
                 if (!Array.isArray(arrayValue)) {
                   throw new Error(
                     `Property "${arrayName}" is not an array in path "${path}" for starter block.`
+                    
                   )
                 }
 
