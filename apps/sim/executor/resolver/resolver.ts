@@ -8,6 +8,17 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('InputResolver')
 
+// Minimal fallback: if a property isn't found at the current level,
+// attempt to resolve it from a nested `github` alias commonly present in webhook payloads.
+function resolveWithGithubAlias(container: any, property: string): any {
+  if (!container || typeof container !== 'object') return undefined
+  const nested = container.github
+  if (nested && typeof nested === 'object' && Object.prototype.hasOwnProperty.call(nested, property)) {
+    return nested[property]
+  }
+  return undefined
+}
+
 /**
  * Helper function to resolve property access
  */
@@ -555,8 +566,13 @@ export class InputResolver {
 
                 replacementValue = arrayValue[index]
               } else {
-                // Regular property access with FileReference mapping
-                replacementValue = resolvePropertyAccess(replacementValue, part)
+                // Regular property access with a GitHub alias fallback
+                let nextValue = resolvePropertyAccess(replacementValue, part)
+                if (nextValue === undefined) {
+                  // Fallback to nested github alias if present
+                  nextValue = resolveWithGithubAlias(replacementValue, part)
+                }
+                replacementValue = nextValue
               }
 
               if (replacementValue === undefined) {
@@ -726,19 +742,6 @@ export class InputResolver {
 
       let replacementValue: any = blockState.output
 
-      // Special case: when referencing the whole block like <github1>,
-      // prefer the provider-namespaced object if present to avoid duplicated/nested payloads.
-      if (pathParts.length === 0) {
-        const providerAlias = blockState.output?.webhook?.data?.provider
-        if (
-          providerAlias &&
-          typeof blockState.output?.[providerAlias] === 'object' &&
-          blockState.output[providerAlias] !== null
-        ) {
-          replacementValue = blockState.output[providerAlias]
-        }
-      }
-
       for (const part of pathParts) {
         if (!replacementValue || typeof replacementValue !== 'object') {
           throw new Error(
@@ -769,8 +772,13 @@ export class InputResolver {
 
           replacementValue = arrayValue[index]
         } else {
-          // Regular property access with FileReference mapping
-          replacementValue = resolvePropertyAccess(replacementValue, part)
+          // Regular property access with a GitHub alias fallback
+          let nextValue = resolvePropertyAccess(replacementValue, part)
+          if (nextValue === undefined) {
+            // Fallback to nested github alias if present
+            nextValue = resolveWithGithubAlias(replacementValue, part)
+          }
+          replacementValue = nextValue
         }
 
         if (replacementValue === undefined) {
