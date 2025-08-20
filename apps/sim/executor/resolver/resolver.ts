@@ -547,6 +547,19 @@ export class InputResolver {
             // This enables direct access to <start.input> and <start.conversationId>
             let replacementValue: any = blockState.output
 
+            // If top-level access fails but nested github exists, start traversal from github
+            if (
+              Array.isArray(pathParts) &&
+              pathParts.length > 0 &&
+              replacementValue &&
+              typeof replacementValue === 'object' &&
+              replacementValue[pathParts[0]] === undefined &&
+              replacementValue.github &&
+              typeof replacementValue.github === 'object'
+            ) {
+              replacementValue = replacementValue.github
+            }
+
             for (const part of pathParts) {
               if (!replacementValue || typeof replacementValue !== 'object') {
                 logger.warn(
@@ -758,6 +771,19 @@ export class InputResolver {
       }
 
       let replacementValue: any = blockState.output
+
+      // If top-level access fails but nested github exists, start traversal from github
+      if (
+        Array.isArray(pathParts) &&
+        pathParts.length > 0 &&
+        replacementValue &&
+        typeof replacementValue === 'object' &&
+        replacementValue[pathParts[0]] === undefined &&
+        replacementValue.github &&
+        typeof replacementValue.github === 'object'
+      ) {
+        replacementValue = replacementValue.github
+      }
 
       for (const part of pathParts) {
         if (!replacementValue || typeof replacementValue !== 'object') {
