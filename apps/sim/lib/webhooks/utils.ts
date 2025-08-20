@@ -519,107 +519,106 @@ export function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'github') {
-    // GitHub webhook input formatting logic
-    const eventType = request.headers.get('x-github-event') || 'unknown'
-    const delivery = request.headers.get('x-github-delivery') || ''
+    // // GitHub webhook input formatting logic
+    // const eventType = request.headers.get('x-github-event') || 'unknown'
+    // const delivery = request.headers.get('x-github-delivery') || ''
 
-    // Extract common GitHub properties
-    const repository = body?.repository || {}
-    const sender = body?.sender || {}
-    const action = body?.action || ''
+    // // Extract common GitHub properties
+    // const repository = body?.repository || {}
+    // const sender = body?.sender || {}
+    // const action = body?.action || ''
 
-    // Build GitHub-specific variables based on the trigger config outputs
-    const githubData = {
-      // Event metadata
-      event_type: eventType,
-      action: action,
-      delivery_id: delivery,
+    // // Build GitHub-specific variables based on the trigger config outputs
+    // const githubData = {
+    //   // Event metadata
+    //   event_type: eventType,
+    //   action: action,
+    //   delivery_id: delivery,
 
-      // Repository information (avoid 'repository' to prevent conflict with the object)
-      repository_full_name: repository.full_name || '',
-      repository_name: repository.name || '',
-      repository_owner: repository.owner?.login || '',
-      repository_id: repository.id || '',
-      repository_url: repository.html_url || '',
+    //   // Repository information (avoid 'repository' to prevent conflict with the object)
+    //   repository_full_name: repository.full_name || '',
+    //   repository_name: repository.name || '',
+    //   repository_owner: repository.owner?.login || '',
+    //   repository_id: repository.id || '',
+    //   repository_url: repository.html_url || '',
 
-      // Sender information (avoid 'sender' to prevent conflict with the object)
-      sender_login: sender.login || '',
-      sender_id: sender.id || '',
-      sender_type: sender.type || '',
-      sender_url: sender.html_url || '',
+    //   // Sender information (avoid 'sender' to prevent conflict with the object)
+    //   sender_login: sender.login || '',
+    //   sender_id: sender.id || '',
+    //   sender_type: sender.type || '',
+    //   sender_url: sender.html_url || '',
 
-      // Event-specific data
-      ...(body?.ref && {
-        ref: body.ref,
-        branch: body.ref?.replace('refs/heads/', '') || '',
-      }),
-      ...(body?.before && { before: body.before }),
-      ...(body?.after && { after: body.after }),
-      ...(body?.commits && {
-        commits: JSON.stringify(body.commits),
-        commit_count: body.commits.length || 0,
-      }),
-      ...(body?.head_commit && {
-        commit_message: body.head_commit.message || '',
-        commit_author: body.head_commit.author?.name || '',
-        commit_sha: body.head_commit.id || '',
-        commit_url: body.head_commit.url || '',
-      }),
-      ...(body?.pull_request && {
-        pull_request: JSON.stringify(body.pull_request),
-        pr_number: body.pull_request.number || '',
-        pr_title: body.pull_request.title || '',
-        pr_state: body.pull_request.state || '',
-        pr_url: body.pull_request.html_url || '',
-      }),
-      ...(body?.issue && {
-        issue: JSON.stringify(body.issue),
-        issue_number: body.issue.number || '',
-        issue_title: body.issue.title || '',
-        issue_state: body.issue.state || '',
-        issue_url: body.issue.html_url || '',
-      }),
-      ...(body?.comment && {
-        comment: JSON.stringify(body.comment),
-        comment_body: body.comment.body || '',
-        comment_url: body.comment.html_url || '',
-      }),
-    }
+    //   // Event-specific data
+    //   ...(body?.ref && {
+    //     ref: body.ref,
+    //     branch: body.ref?.replace('refs/heads/', '') || '',
+    //   }),
+    //   ...(body?.before && { before: body.before }),
+    //   ...(body?.after && { after: body.after }),
+    //   ...(body?.commits && {
+    //     commits: JSON.stringify(body.commits),
+    //     commit_count: body.commits.length || 0,
+    //   }),
+    //   ...(body?.head_commit && {
+    //     commit_message: body.head_commit.message || '',
+    //     commit_author: body.head_commit.author?.name || '',
+    //     commit_sha: body.head_commit.id || '',
+    //     commit_url: body.head_commit.url || '',
+    //   }),
+    //   ...(body?.pull_request && {
+    //     pull_request: JSON.stringify(body.pull_request),
+    //     pr_number: body.pull_request.number || '',
+    //     pr_title: body.pull_request.title || '',
+    //     pr_state: body.pull_request.state || '',
+    //     pr_url: body.pull_request.html_url || '',
+    //   }),
+    //   ...(body?.issue && {
+    //     issue: JSON.stringify(body.issue),
+    //     issue_number: body.issue.number || '',
+    //     issue_title: body.issue.title || '',
+    //     issue_state: body.issue.state || '',
+    //     issue_url: body.issue.html_url || '',
+    //   }),
+    //   ...(body?.comment && {
+    //     comment: JSON.stringify(body.comment),
+    //     comment_body: body.comment.body || '',
+    //     comment_url: body.comment.html_url || '',
+    //   }),
+    // }
 
-    // Set input based on event type for workflow processing
-    let input = ''
-    switch (eventType) {
-      case 'push':
-        input = `Push to ${githubData.branch || githubData.ref}: ${githubData.commit_message || 'No commit message'}`
-        break
-      case 'pull_request':
-        input = `${action} pull request: ${githubData.pr_title || 'No title'}`
-        break
-      case 'issues':
-        input = `${action} issue: ${githubData.issue_title || 'No title'}`
-        break
-      case 'issue_comment':
-      case 'pull_request_review_comment':
-        input = `Comment ${action}: ${githubData.comment_body?.slice(0, 100) || 'No comment body'}${(githubData.comment_body?.length || 0) > 100 ? '...' : ''}`
-        break
-      default:
-        input = `GitHub ${eventType} event${action ? ` (${action})` : ''}`
-    }
+    // // Set input based on event type for workflow processing
+    // let input = ''
+    // switch (eventType) {
+    //   case 'push':
+    //     input = `Push to ${githubData.branch || githubData.ref}: ${githubData.commit_message || 'No commit message'}`
+    //     break
+    //   case 'pull_request':
+    //     input = `${action} pull request: ${githubData.pr_title || 'No title'}`
+    //     break
+    //   case 'issues':
+    //     input = `${action} issue: ${githubData.issue_title || 'No title'}`
+    //     break
+    //   case 'issue_comment':
+    //   case 'pull_request_review_comment':
+    //     input = `Comment ${action}: ${githubData.comment_body?.slice(0, 100) || 'No comment body'}${(githubData.comment_body?.length || 0) > 100 ? '...' : ''}`
+    //     break
+    //   default:
+    //     input = `GitHub ${eventType} event${action ? ` (${action})` : ''}`
+    // }
 
     return {
-      input, // Primary workflow input
+    //   input, // Primary workflow input
 
-      // Top-level properties for backward compatibility
-      ...githubData,
+    //   // Top-level properties for backward compatibility
+    //   ...githubData,
 
-      // GitHub data structured for trigger handler to extract
-      github: {
-        // Processed convenience variables
-        ...githubData,
-        // Raw GitHub webhook payload for direct field access
-        ...body,
-      },
-
+    //   // GitHub data structured for trigger handler to extract
+    //   github: {
+    //     // Processed convenience variables
+    //     ...githubData,
+    //     // Raw GitHub webhook payload for direct field access
+    //     ...body,
+    //   },
       webhook: {
         data: {
           provider: 'github',
