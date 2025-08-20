@@ -1,5 +1,6 @@
 import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { TraceSpan } from '@/lib/logs/types'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/consts'
 import {
@@ -225,7 +226,7 @@ export class Executor {
 
       let hasMoreLayers = true
       let iteration = 0
-      const maxIterations = 100 // Safety limit for infinite loops
+      const maxIterations = 500 // Safety limit for infinite loops
 
       while (hasMoreLayers && iteration < maxIterations && !this.isCancelled) {
         const nextLayer = this.getNextExecutionLayer(context)
@@ -1510,6 +1511,9 @@ export class Executor {
         blockLog.durationMs = Math.round(executionTime)
         blockLog.endedAt = new Date().toISOString()
 
+        // Handle child workflow logs integration
+        this.integrateChildWorkflowLogs(block, output)
+
         context.blockLogs.push(blockLog)
 
         // Skip console logging for infrastructure blocks like loops and parallels
@@ -1616,6 +1620,9 @@ export class Executor {
       blockLog.output = output
       blockLog.durationMs = Math.round(executionTime)
       blockLog.endedAt = new Date().toISOString()
+
+      // Handle child workflow logs integration
+      this.integrateChildWorkflowLogs(block, output)
 
       context.blockLogs.push(blockLog)
 
@@ -2001,6 +2008,24 @@ export class Executor {
         durationMs: 0,
       }
       context.blockLogs.push(starterBlockLog)
+    }
+  }
+
+  /**
+   * Preserves child workflow trace spans for proper nesting
+   */
+  private integrateChildWorkflowLogs(block: SerializedBlock, output: NormalizedBlockOutput): void {
+    if (block.metadata?.id !== BlockType.WORKFLOW) {
+      return
+    }
+
+    if (!output || typeof output !== 'object' || !output.childTraceSpans) {
+      return
+    }
+
+    const childTraceSpans = output.childTraceSpans as TraceSpan[]
+    if (!Array.isArray(childTraceSpans) || childTraceSpans.length === 0) {
+      return
     }
   }
 }

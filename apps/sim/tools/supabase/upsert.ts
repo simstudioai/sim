@@ -1,10 +1,10 @@
-import type { SupabaseInsertParams, SupabaseInsertResponse } from '@/tools/supabase/types'
+import type { SupabaseUpsertParams, SupabaseUpsertResponse } from '@/tools/supabase/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse> = {
-  id: 'supabase_insert',
-  name: 'Supabase Insert',
-  description: 'Insert data into a Supabase table',
+export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse> = {
+  id: 'supabase_upsert',
+  name: 'Supabase Upsert',
+  description: 'Insert or update data in a Supabase table (upsert operation)',
   version: '1.0',
 
   params: {
@@ -18,13 +18,13 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'The name of the Supabase table to insert data into',
+      description: 'The name of the Supabase table to upsert data into',
     },
     data: {
       type: 'any',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The data to insert',
+      description: 'The data to upsert (insert or update)',
     },
     apiKey: {
       type: 'string',
@@ -41,7 +41,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       apikey: params.apiKey,
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
-      Prefer: 'return=representation',
+      Prefer: 'return=representation,resolution=merge-duplicates',
     }),
     body: (params) => {
       // Prepare the data - if it's an object but not an array, wrap it in an array
@@ -59,7 +59,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       return {
         success: true,
         output: {
-          message: 'Successfully inserted data into Supabase (no data returned)',
+          message: 'Successfully upserted data into Supabase (no data returned)',
           results: [],
         },
         error: undefined,
@@ -81,19 +81,19 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       return {
         success: false,
         output: {
-          message: 'No data was inserted into Supabase',
+          message: 'No data was upserted into Supabase',
           results: data,
         },
         error:
-          'No data was inserted into Supabase. This usually indicates invalid data format or schema mismatch. Please check that your JSON is valid and matches your table schema.',
+          'No data was upserted into Supabase. This usually indicates invalid data format or schema mismatch. Please check that your JSON is valid and matches your table schema.',
       }
     }
 
-    const insertedCount = resultsArray.length
+    const upsertedCount = resultsArray.length
     return {
       success: true,
       output: {
-        message: `Successfully inserted ${insertedCount} row${insertedCount === 1 ? '' : 's'} into Supabase`,
+        message: `Successfully upserted ${upsertedCount} row${upsertedCount === 1 ? '' : 's'} into Supabase`,
         results: data,
       },
       error: undefined,
@@ -102,6 +102,6 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
 
   outputs: {
     message: { type: 'string', description: 'Operation status message' },
-    results: { type: 'array', description: 'Array of inserted records' },
+    results: { type: 'array', description: 'Array of upserted records' },
   },
 }

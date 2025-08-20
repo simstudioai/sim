@@ -109,6 +109,26 @@ describe('HTTP Request Tool', () => {
       })
     })
 
+    it.concurrent('should respect custom Content-Type headers', () => {
+      // Custom Content-Type should not be overridden
+      const headers = tester.getRequestHeaders({
+        url: 'https://api.example.com',
+        method: 'POST',
+        body: { key: 'value' },
+        headers: [{ Key: 'Content-Type', Value: 'application/x-www-form-urlencoded' }],
+      })
+      expect(headers['Content-Type']).toBe('application/x-www-form-urlencoded')
+
+      // Case-insensitive Content-Type should not be overridden
+      const headers2 = tester.getRequestHeaders({
+        url: 'https://api.example.com',
+        method: 'POST',
+        body: { key: 'value' },
+        headers: [{ Key: 'content-type', Value: 'text/plain' }],
+      })
+      expect(headers2['content-type']).toBe('text/plain')
+    })
+
     it('should set dynamic Referer header correctly', async () => {
       const originalWindow = global.window
       Object.defineProperty(global, 'window', {
@@ -161,6 +181,30 @@ describe('HTTP Request Tool', () => {
       // Verify the user's Host was used
       const userHeaderCall = (global.fetch as any).mock.calls[1]
       expect(userHeaderCall[1].headers.Host).toBe('custom-host.com')
+    })
+  })
+
+  describe('Body Construction', () => {
+    it.concurrent('should handle JSON bodies correctly', () => {
+      const body = { username: 'test', password: 'secret' }
+
+      expect(
+        tester.getRequestBody({
+          url: 'https://api.example.com',
+          body,
+        })
+      ).toEqual(body)
+    })
+
+    it.concurrent('should handle FormData correctly', () => {
+      const formData = { file: 'test.txt', content: 'file content' }
+
+      const result = tester.getRequestBody({
+        url: 'https://api.example.com',
+        formData,
+      })
+
+      expect(result).toBeInstanceOf(FormData)
     })
   })
 
@@ -251,6 +295,59 @@ describe('HTTP Request Tool', () => {
       const fetchCall = (global.fetch as any).mock.calls[0]
       const bodyArg = JSON.parse(fetchCall[1].body)
       expect(bodyArg).toEqual(body)
+    })
+
+    it('should handle POST requests with URL-encoded form data', async () => {
+      // Setup mock response
+      tester.setup({ result: 'success' })
+
+      // Create test body
+      const body = { username: 'testuser123', password: 'testpass456', email: 'test@example.com' }
+
+      // Execute the tool with form-urlencoded content type
+      await tester.execute({
+        url: 'https://api.example.com/oauth/token',
+        method: 'POST',
+        body,
+        headers: [{ cells: { Key: 'Content-Type', Value: 'application/x-www-form-urlencoded' } }],
+      })
+
+      // Verify the request was made with correct headers
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      expect(fetchCall[0]).toBe('https://api.example.com/oauth/token')
+      expect(fetchCall[1].method).toBe('POST')
+      expect(fetchCall[1].headers['Content-Type']).toBe('application/x-www-form-urlencoded')
+
+      // Verify the body is URL-encoded (should not be JSON stringified)
+      expect(fetchCall[1].body).toBe(
+        'username=testuser123&password=testpass456&email=test%40example.com'
+      )
+    })
+
+    it('should handle OAuth client credentials requests', async () => {
+      // Setup mock response for OAuth token endpoint
+      tester.setup({ access_token: 'token123', token_type: 'Bearer' })
+
+      // Execute OAuth client credentials request
+      await tester.execute({
+        url: 'https://oauth.example.com/token',
+        method: 'POST',
+        body: { grant_type: 'client_credentials', scope: 'read write' },
+        headers: [
+          { cells: { Key: 'Content-Type', Value: 'application/x-www-form-urlencoded' } },
+          { cells: { Key: 'Authorization', Value: 'Basic Y2xpZW50OnNlY3JldA==' } },
+        ],
+      })
+
+      // Verify the OAuth request was properly formatted
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      expect(fetchCall[0]).toBe('https://oauth.example.com/token')
+      expect(fetchCall[1].method).toBe('POST')
+      expect(fetchCall[1].headers['Content-Type']).toBe('application/x-www-form-urlencoded')
+      expect(fetchCall[1].headers.Authorization).toBe('Basic Y2xpZW50OnNlY3JldA==')
+
+      // Verify the body is URL-encoded
+      expect(fetchCall[1].body).toBe('grant_type=client_credentials&scope=read+write')
     })
 
     it('should handle errors correctly', async () => {

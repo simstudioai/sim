@@ -720,21 +720,47 @@ export function Sidebar() {
           `[data-workflow-id="${workflowId}"]`
         ) as HTMLElement
         if (activeWorkflow) {
-          activeWorkflow.scrollIntoView({
-            block: 'start',
-          })
+          // Check if this is a newly created workflow (created within the last 5 seconds)
+          const currentWorkflow = workflows[workflowId]
+          const isNewlyCreated =
+            currentWorkflow &&
+            currentWorkflow.lastModified instanceof Date &&
+            Date.now() - currentWorkflow.lastModified.getTime() < 5000 // 5 seconds
 
-          // Adjust scroll position to eliminate the small gap at the top
-          const scrollViewport = scrollContainer.querySelector(
-            '[data-radix-scroll-area-viewport]'
-          ) as HTMLElement
-          if (scrollViewport && scrollViewport.scrollTop > 0) {
-            scrollViewport.scrollTop = Math.max(0, scrollViewport.scrollTop - 8)
+          if (isNewlyCreated) {
+            // For newly created workflows, use the original behavior - scroll to top
+            activeWorkflow.scrollIntoView({
+              block: 'start',
+            })
+
+            // Adjust scroll position to eliminate the small gap at the top
+            const scrollViewport = scrollContainer.querySelector(
+              '[data-radix-scroll-area-viewport]'
+            ) as HTMLElement
+            if (scrollViewport && scrollViewport.scrollTop > 0) {
+              scrollViewport.scrollTop = Math.max(0, scrollViewport.scrollTop - 8)
+            }
+          } else {
+            // For existing workflows, check if already visible and scroll minimally
+            const containerRect = scrollContainer.getBoundingClientRect()
+            const workflowRect = activeWorkflow.getBoundingClientRect()
+
+            // Only scroll if the workflow is not fully visible
+            const isFullyVisible =
+              workflowRect.top >= containerRect.top && workflowRect.bottom <= containerRect.bottom
+
+            if (!isFullyVisible) {
+              // Use 'nearest' to scroll minimally - only bring into view, don't force to top
+              activeWorkflow.scrollIntoView({
+                block: 'nearest',
+                behavior: 'smooth',
+              })
+            }
           }
         }
       }
     }
-  }, [workflowId, isLoading])
+  }, [workflowId, isLoading, workflows])
 
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)

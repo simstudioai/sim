@@ -41,7 +41,7 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
   },
 
   request: {
-    url: 'https://www.googleapis.com/drive/v3/files',
+    url: 'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true',
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

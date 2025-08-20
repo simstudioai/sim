@@ -5,6 +5,7 @@ import {
   type FolderInfo,
   FolderSelector,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/folder-selector/folder-selector'
+import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-depends-on-gate'
 import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -37,8 +38,13 @@ export function FolderSelectorInput({
     (connectedCredential as string) || ''
   )
 
+  // Central dependsOn gating
+  const { finalDisabled } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
+
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
+    // When gated/disabled, do not set defaults or write to store
+    if (finalDisabled) return
     if (isPreview && previewValue !== undefined) {
       setSelectedFolderId(previewValue)
       return
@@ -54,7 +60,15 @@ export function FolderSelectorInput({
     if (!isPreview) {
       collaborativeSetSubblockValue(blockId, subBlock.id, defaultValue)
     }
-  }, [blockId, subBlock.id, storeValue, collaborativeSetSubblockValue, isPreview, previewValue])
+  }, [
+    blockId,
+    subBlock.id,
+    storeValue,
+    collaborativeSetSubblockValue,
+    isPreview,
+    previewValue,
+    finalDisabled,
+  ])
 
   // Handle folder selection
   const handleFolderChange = (folderId: string, info?: FolderInfo) => {
@@ -72,7 +86,7 @@ export function FolderSelectorInput({
       provider={subBlock.provider || 'google-email'}
       requiredScopes={subBlock.requiredScopes || []}
       label={subBlock.placeholder || 'Select folder'}
-      disabled={disabled}
+      disabled={finalDisabled}
       serviceId={subBlock.serviceId}
       onFolderInfoChange={setFolderInfo}
       credentialId={(connectedCredential as string) || ''}

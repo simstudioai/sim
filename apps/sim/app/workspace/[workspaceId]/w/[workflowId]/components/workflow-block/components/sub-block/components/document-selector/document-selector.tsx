@@ -12,6 +12,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 
@@ -65,6 +66,9 @@ export function DocumentSelector({
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
+  const { finalDisabled } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
+  const isDisabled = finalDisabled
+
   // Fetch documents for the selected knowledge base
   const fetchDocuments = useCallback(async () => {
     if (!knowledgeBaseId) {
@@ -103,6 +107,7 @@ export function DocumentSelector({
   // Handle dropdown open/close - fetch documents when opening
   const handleOpenChange = (isOpen: boolean) => {
     if (isPreview) return
+    if (isDisabled) return
 
     setOpen(isOpen)
 
@@ -124,13 +129,14 @@ export function DocumentSelector({
 
   // Sync selected document with value prop
   useEffect(() => {
+    if (isDisabled) return
     if (value && documents.length > 0) {
       const docInfo = documents.find((doc) => doc.id === value)
       setSelectedDocument(docInfo || null)
     } else {
       setSelectedDocument(null)
     }
-  }, [value, documents])
+  }, [value, documents, isDisabled])
 
   // Reset documents when knowledge base changes
   useEffect(() => {
@@ -141,10 +147,10 @@ export function DocumentSelector({
 
   // Fetch documents when knowledge base is available
   useEffect(() => {
-    if (knowledgeBaseId && !isPreview) {
+    if (knowledgeBaseId && !isPreview && !isDisabled) {
       fetchDocuments()
     }
-  }, [knowledgeBaseId, isPreview, fetchDocuments])
+  }, [knowledgeBaseId, isPreview, isDisabled, fetchDocuments])
 
   const formatDocumentName = (document: DocumentData) => {
     return document.filename
@@ -165,9 +171,6 @@ export function DocumentSelector({
   }
 
   const label = subBlock.placeholder || 'Select document'
-
-  // Show disabled state if no knowledge base is selected
-  const isDisabled = disabled || isPreview || !knowledgeBaseId
 
   return (
     <div className='w-full'>

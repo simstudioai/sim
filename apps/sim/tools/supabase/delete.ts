@@ -59,28 +59,36 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
   },
 
   transformResponse: async (response: Response) => {
-    // Handle empty response from delete operations
     const text = await response.text()
     let data
 
     if (text?.trim()) {
       try {
         data = JSON.parse(text)
-      } catch (e) {
-        // If we can't parse it, just use the text
-        data = text
+      } catch (parseError) {
+        throw new Error(`Failed to parse Supabase response: ${parseError}`)
       }
     } else {
-      // Empty response means successful deletion
       data = []
     }
 
-    const deletedCount = Array.isArray(data) ? data.length : text ? 1 : 0
+    const deletedCount = Array.isArray(data) ? data.length : 0
+
+    if (deletedCount === 0) {
+      return {
+        success: true,
+        output: {
+          message: 'No rows were deleted (no matching records found)',
+          results: data,
+        },
+        error: undefined,
+      }
+    }
 
     return {
       success: true,
       output: {
-        message: `Successfully deleted ${deletedCount === 0 ? 'row(s)' : `${deletedCount} row(s)`}`,
+        message: `Successfully deleted ${deletedCount} row${deletedCount === 1 ? '' : 's'}`,
         results: data,
       },
       error: undefined,

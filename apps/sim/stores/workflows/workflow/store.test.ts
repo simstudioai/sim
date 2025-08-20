@@ -109,7 +109,7 @@ describe('workflow store', () => {
       expect(state.loops.loop1.forEachItems).toEqual(['item1', 'item2', 'item3'])
     })
 
-    it('should clamp loop count between 1 and 50', () => {
+    it('should clamp loop count between 1 and 100', () => {
       const { addBlock, updateLoopCount } = useWorkflowStore.getState()
 
       // Add a loop block
@@ -199,7 +199,7 @@ describe('workflow store', () => {
       expect(parsedDistribution).toHaveLength(3)
     })
 
-    it('should clamp parallel count between 1 and 50', () => {
+    it('should clamp parallel count between 1 and 20', () => {
       const { addBlock, updateParallelCount } = useWorkflowStore.getState()
 
       // Add a parallel block

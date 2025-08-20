@@ -3,9 +3,9 @@ import { nanoid } from 'nanoid'
 import { Logger } from '@/lib/logs/console/logger'
 import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { getOAuthToken } from '@/app/api/auth/oauth/utils'
+import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
-import { webhook } from '@/db/schema'
+import { account, webhook } from '@/db/schema'
 
 const logger = new Logger('GmailPollingService')
 
@@ -81,20 +81,37 @@ export async function pollGmailWebhooks() {
       const requestId = nanoid()
 
       try {
-        // Extract user ID from webhook metadata if available
+        // Extract metadata
         const metadata = webhookData.providerConfig as any
-        const userId = metadata?.userId
+        const credentialId: string | undefined = metadata?.credentialId
+        const userId: string | undefined = metadata?.userId
 
-        if (!userId) {
-          logger.error(`[${requestId}] No user ID found for webhook ${webhookId}`)
-          return { success: false, webhookId, error: 'No user ID' }
+        if (!credentialId && !userId) {
+          logger.error(`[${requestId}] Missing credentialId and userId for webhook ${webhookId}`)
+          return { success: false, webhookId, error: 'Missing credentialId and userId' }
         }
 
-        // Get OAuth token for Gmail API
-        const accessToken = await getOAuthToken(userId, 'google-email')
+        // Resolve owner and token
+        let accessToken: string | null = null
+        if (credentialId) {
+          const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+          if (rows.length === 0) {
+            logger.error(
+              `[${requestId}] Credential ${credentialId} not found for webhook ${webhookId}`
+            )
+            return { success: false, webhookId, error: 'Credential not found' }
+          }
+          const ownerUserId = rows[0].userId
+          accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
+        } else if (userId) {
+          // Backward-compat fallback to workflow owner token
+          accessToken = await getOAuthToken(userId, 'google-email')
+        }
 
         if (!accessToken) {
-          logger.error(`[${requestId}] Failed to get Gmail access token for webhook ${webhookId}`)
+          logger.error(
+            `[${requestId}] Failed to get Gmail access token for webhook ${webhookId} (cred or fallback)`
+          )
           return { success: false, webhookId, error: 'No access token' }
         }
 

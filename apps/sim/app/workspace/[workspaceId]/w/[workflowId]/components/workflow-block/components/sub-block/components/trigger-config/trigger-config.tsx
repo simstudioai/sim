@@ -172,6 +172,11 @@ export function TriggerConfig({
       // Map trigger ID to webhook provider name
       const webhookProvider = effectiveTriggerId.replace(/_webhook|_poller$/, '') // e.g., 'slack_webhook' -> 'slack', 'gmail_poller' -> 'gmail'
 
+      // Include selected credential from the modal (if any)
+      const selectedCredentialId =
+        (useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as string | null) ||
+        null
+
       // For credential-based triggers (like Gmail), create webhook entry for polling service but no webhook URL
       if (triggerDef.requiresCredentials && !triggerDef.webhook) {
         // Gmail polling service requires a webhook database entry to find the configuration
@@ -185,7 +190,10 @@ export function TriggerConfig({
             blockId,
             path: '', // Empty path - API will generate dummy path for Gmail
             provider: webhookProvider,
-            providerConfig: config,
+            providerConfig: {
+              ...config,
+              ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
+            },
           }),
         })
 
@@ -225,7 +233,10 @@ export function TriggerConfig({
           blockId,
           path,
           provider: webhookProvider,
-          providerConfig: config,
+          providerConfig: {
+            ...config,
+            ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
+          },
         }),
       })
 

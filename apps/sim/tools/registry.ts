@@ -128,6 +128,7 @@ import {
   supabaseInsertTool,
   supabaseQueryTool,
   supabaseUpdateTool,
+  supabaseUpsertTool,
 } from '@/tools/supabase'
 import { tavilyExtractTool, tavilySearchTool } from '@/tools/tavily'
 import { telegramMessageTool } from '@/tools/telegram'
@@ -190,6 +191,7 @@ export const tools: Record<string, ToolConfig> = {
   supabase_get_row: supabaseGetRowTool,
   supabase_update: supabaseUpdateTool,
   supabase_delete: supabaseDeleteTool,
+  supabase_upsert: supabaseUpsertTool,
   typeform_responses: typeformResponsesTool,
   typeform_files: typeformFilesTool,
   typeform_insights: typeformInsightsTool,

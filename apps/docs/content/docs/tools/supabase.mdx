@@ -142,7 +142,7 @@ Get a single row from a Supabase table based on filter criteria
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
-| `results` | object | The row data if found, null if not found |
+| `results` | array | Array containing the row data if found, empty array if not found |
 
 ### `supabase_update`
 
@@ -184,6 +184,26 @@ Delete rows from a Supabase table based on filter criteria
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 | `results` | array | Array of deleted records |
+
+### `supabase_upsert`
+
+Insert or update data in a Supabase table (upsert operation)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `table` | string | Yes | The name of the Supabase table to upsert data into |
+| `data` | any | Yes | The data to upsert \(insert or update\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of upserted records |
 
 
 
