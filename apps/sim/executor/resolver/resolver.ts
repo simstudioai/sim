@@ -8,16 +8,7 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('InputResolver')
 
-// Minimal fallback: if a property isn't found at the current level,
-// attempt to resolve it from a nested `github` alias commonly present in webhook payloads.
-function resolveWithGithubAlias(container: any, property: string): any {
-  if (!container || typeof container !== 'object') return undefined
-  const nested = container.github
-  if (nested && typeof nested === 'object' && Object.prototype.hasOwnProperty.call(nested, property)) {
-    return nested[property]
-  }
-  return undefined
-}
+// Removed provider alias fallbacks (e.g., nested `github`).
 
 // Fallback into webhook metadata payload if present: { webhook: { data: { payload: {...} } } }
 function resolveFromWebhookPayload(container: any, property: string): any {
@@ -547,10 +538,7 @@ export class InputResolver {
             // This enables direct access to <start.input> and <start.conversationId>
             let replacementValue: any = blockState.output
 
-            // Merge nested github object onto root to make <block.repository> resolve transparently
-            if (replacementValue && typeof replacementValue === 'object' && replacementValue.github && typeof replacementValue.github === 'object') {
-              replacementValue = { ...replacementValue.github, ...replacementValue }
-            }
+            // Do not merge nested provider aliases. Expect payload fields at the root.
 
             for (const part of pathParts) {
               if (!replacementValue || typeof replacementValue !== 'object') {
@@ -585,15 +573,11 @@ export class InputResolver {
 
                 replacementValue = arrayValue[index]
               } else {
-                // Regular property access with a GitHub alias fallback
+                // Regular property access with webhook metadata fallback only
                 let nextValue = resolvePropertyAccess(replacementValue, part)
                 if (nextValue === undefined) {
-                  // Fallback to nested github alias if present
-                  nextValue = resolveWithGithubAlias(replacementValue, part)
-                  if (nextValue === undefined) {
-                    // Fallback to webhook metadata payload if present
-                    nextValue = resolveFromWebhookPayload(replacementValue, part)
-                  }
+                  // Fallback to webhook metadata payload if present
+                  nextValue = resolveFromWebhookPayload(replacementValue, part)
                 }
                 replacementValue = nextValue
               }
@@ -765,10 +749,7 @@ export class InputResolver {
 
       let replacementValue: any = blockState.output
 
-      // Merge nested github object onto root to make <block.repository> resolve transparently
-      if (replacementValue && typeof replacementValue === 'object' && replacementValue.github && typeof replacementValue.github === 'object') {
-        replacementValue = { ...replacementValue.github, ...replacementValue }
-      }
+      // Do not merge nested provider aliases. Expect payload fields at the root.
 
       for (const part of pathParts) {
         if (!replacementValue || typeof replacementValue !== 'object') {
@@ -800,15 +781,11 @@ export class InputResolver {
 
           replacementValue = arrayValue[index]
         } else {
-          // Regular property access with a GitHub alias fallback
+          // Regular property access with webhook metadata fallback only
           let nextValue = resolvePropertyAccess(replacementValue, part)
           if (nextValue === undefined) {
-            // Fallback to nested github alias if present
-            nextValue = resolveWithGithubAlias(replacementValue, part)
-            if (nextValue === undefined) {
-              // Fallback to webhook metadata payload if present
-              nextValue = resolveFromWebhookPayload(replacementValue, part)
-            }
+            // Fallback to webhook metadata payload if present
+            nextValue = resolveFromWebhookPayload(replacementValue, part)
           }
           replacementValue = nextValue
         }

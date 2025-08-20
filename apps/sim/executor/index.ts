@@ -881,25 +881,8 @@ export class Executor {
               // This ensures files are captured in trace spans and execution logs
               this.createStartedBlockWithFilesLog(initBlock, starterOutput, context)
             } else {
-              // API/Trigger workflow: spread the raw data directly (no wrapping)
-              // Special case for GitHub webhooks: if input contains a nested 'github' object,
-              // promote it to root so fields can be accessed at <github1.field>.
-              const provider = this.workflowInput?.webhook?.data?.provider
-              let starterOutput: any
-
-              if (provider === 'github') {
-                const flattened =
-                  this.workflowInput && typeof this.workflowInput.github === 'object'
-                    ? this.workflowInput.github
-                    : this.workflowInput
-
-                starterOutput = {
-                  ...flattened,
-                  webhook: this.workflowInput?.webhook,
-                }
-              } else {
-                starterOutput = { ...this.workflowInput }
-              }
+              // API/Trigger workflow: spread the raw data directly (no wrapping or aliasing)
+              const starterOutput: any = { ...this.workflowInput }
 
               context.blockStates.set(initBlock.id, {
                 output: starterOutput,
@@ -1626,24 +1609,7 @@ export class Executor {
             ? rawOutput
             : { result: rawOutput }
 
-      // Normalize trigger outputs: for GitHub triggers, promote nested github payload to root
-      try {
-        const isTriggerBlock = block.metadata?.category === 'triggers' || block.config?.params?.triggerMode === true
-        const provider = (output as any)?.webhook?.data?.provider
-        if (isTriggerBlock && provider === 'github') {
-          const candidate = (output as any).github || (output as any)?.webhook?.data?.payload || output
-          const normalized: Record<string, any> = {
-            ...(typeof candidate === 'object' && candidate !== null ? candidate : {}),
-            webhook: (output as any)?.webhook,
-          }
-          if (normalized.github) {
-            delete normalized.github
-          }
-          output = normalized as NormalizedBlockOutput
-        }
-      } catch {
-        // Non-fatal: keep original output
-      }
+      // Remove provider-specific normalization. Expect payload fields at root already.
 
       // Update the context with the execution result
       // Use virtual block ID for parallel executions

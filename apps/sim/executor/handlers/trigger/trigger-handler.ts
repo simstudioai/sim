@@ -45,10 +45,10 @@ export class TriggerBlockHandler implements BlockHandler {
         // Generic handling for webhook triggers - extract provider-specific data
 
         
-        // Check if this is a webhook execution with nested structure
-        if (starterOutput.webhook?.data || starterOutput.github) {
+        // Check if this is a webhook execution
+        if (starterOutput.webhook?.data) {
           const webhookData = starterOutput.webhook?.data || {}
-          const provider = webhookData.provider || (starterOutput.github ? 'github' : undefined)
+          const provider = webhookData.provider
 
           logger.debug(`Processing webhook trigger for block ${block.id}`, {
             provider,
@@ -57,26 +57,11 @@ export class TriggerBlockHandler implements BlockHandler {
 
           // Provider-specific early return for GitHub: expose raw payload at root
           if (provider === 'github') {
-            // Prefer raw payload from webhook metadata; otherwise fall back to nested provider object;
-            // finally, as a last resort, use the starter output itself.
-            const payloadSource =
-              (webhookData && webhookData.payload) || starterOutput.github || starterOutput || {}
-
-            const result: any = {
-              // Root is the raw GitHub payload
+            const payloadSource = webhookData.payload || {}
+            return {
               ...payloadSource,
-              // Keep metadata available
               webhook: starterOutput.webhook,
             }
-
-            // Ensure no nested provider alias remains
-            if (result.github) {
-              try {
-                delete result.github
-              } catch {}
-            }
-
-            return result
           }
 
           // Extract the flattened properties that should be at root level (non-GitHub)
