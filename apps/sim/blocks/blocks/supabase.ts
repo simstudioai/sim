@@ -27,6 +27,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
         { label: 'Create a Row', id: 'insert' },
         { label: 'Update a Row', id: 'update' },
         { label: 'Delete a Row', id: 'delete' },
+        { label: 'Upsert a Row', id: 'upsert' },
       ],
       value: () => 'query',
     },
@@ -73,6 +74,15 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       placeholder: '{\n  "column1": "value1",\n  "column2": "value2"\n}',
       condition: { field: 'operation', value: 'update' },
+      required: true,
+    },
+    {
+      id: 'data',
+      title: 'Data',
+      type: 'code',
+      layout: 'full',
+      placeholder: '{\n  "column1": "value1",\n  "column2": "value2"\n}',
+      condition: { field: 'operation', value: 'upsert' },
       required: true,
     },
     // Filter for get_row, update, delete operations (required)
@@ -138,6 +148,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       'supabase_get_row',
       'supabase_update',
       'supabase_delete',
+      'supabase_upsert',
     ],
     config: {
       tool: (params) => {
@@ -152,6 +163,8 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
             return 'supabase_update'
           case 'delete':
             return 'supabase_delete'
+          case 'upsert':
+            return 'supabase_upsert'
           default:
             throw new Error(`Invalid Supabase operation: ${params.operation}`)
         }
