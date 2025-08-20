@@ -547,17 +547,9 @@ export class InputResolver {
             // This enables direct access to <start.input> and <start.conversationId>
             let replacementValue: any = blockState.output
 
-            // If top-level access fails but nested github exists, start traversal from github
-            if (
-              Array.isArray(pathParts) &&
-              pathParts.length > 0 &&
-              replacementValue &&
-              typeof replacementValue === 'object' &&
-              replacementValue[pathParts[0]] === undefined &&
-              replacementValue.github &&
-              typeof replacementValue.github === 'object'
-            ) {
-              replacementValue = replacementValue.github
+            // Merge nested github object onto root to make <block.repository> resolve transparently
+            if (replacementValue && typeof replacementValue === 'object' && replacementValue.github && typeof replacementValue.github === 'object') {
+              replacementValue = { ...replacementValue.github, ...replacementValue }
             }
 
             for (const part of pathParts) {
@@ -772,17 +764,9 @@ export class InputResolver {
 
       let replacementValue: any = blockState.output
 
-      // If top-level access fails but nested github exists, start traversal from github
-      if (
-        Array.isArray(pathParts) &&
-        pathParts.length > 0 &&
-        replacementValue &&
-        typeof replacementValue === 'object' &&
-        replacementValue[pathParts[0]] === undefined &&
-        replacementValue.github &&
-        typeof replacementValue.github === 'object'
-      ) {
-        replacementValue = replacementValue.github
+      // Merge nested github object onto root to make <block.repository> resolve transparently
+      if (replacementValue && typeof replacementValue === 'object' && replacementValue.github && typeof replacementValue.github === 'object') {
+        replacementValue = { ...replacementValue.github, ...replacementValue }
       }
 
       for (const part of pathParts) {
