@@ -29,6 +29,7 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "@aws-sdk/client-s3": "^3.779.0",
     "@aws-sdk/s3-request-presigner": "^3.779.0",
+    "@azure/communication-email": "1.0.0",
     "@azure/storage-blob": "12.27.0",
     "@better-auth/stripe": "^1.2.9",
     "@browserbasehq/stagehand": "^2.0.0",
@@ -125,6 +126,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@react-email/preview-server": "4.2.4",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",

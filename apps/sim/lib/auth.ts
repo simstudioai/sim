@@ -11,7 +11,6 @@ import {
 } from 'better-auth/plugins'
 import { and, eq } from 'drizzle-orm'
 import { headers } from 'next/headers'
-import { Resend } from 'resend'
 import Stripe from 'stripe'
 import {
   getEmailSubject,
@@ -21,6 +20,7 @@ import {
 } from '@/components/emails/render-email'
 import { getBaseURL } from '@/lib/auth-client'
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
+import { sendEmail } from '@/lib/email/mailer'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
 import { isBillingEnabled, isProd } from '@/lib/environment'
@@ -44,22 +44,6 @@ if (validStripeKey) {
     apiVersion: '2025-02-24.acacia',
   })
 }
-
-// If there is no resend key, it might be a local dev environment
-// In that case, we don't want to send emails and just log them
-const validResendAPIKEY =
-  env.RESEND_API_KEY && env.RESEND_API_KEY.trim() !== '' && env.RESEND_API_KEY !== 'placeholder'
-
-const resend = validResendAPIKEY
-  ? new Resend(env.RESEND_API_KEY)
-  : {
-      emails: {
-        send: async (...args: any[]) => {
-          logger.info('Email would have been sent in production. Details:', args)
-          return { id: 'local-dev-mode' }
-        },
-      },
-    }
 
 export const auth = betterAuth({
   baseURL: getBaseURL(),
@@ -165,15 +149,16 @@ export const auth = betterAuth({
 
       const html = await renderPasswordResetEmail(username, url)
 
-      const result = await resend.emails.send({
-        from: `Sim <team@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
+      const result = await sendEmail({
         to: user.email,
         subject: getEmailSubject('reset-password'),
         html,
+        from: `noreply@${env.EMAIL_DOMAIN || getEmailDomain()}`,
+        emailType: 'transactional',
       })
 
-      if (!result) {
-        throw new Error('Failed to send reset password email')
+      if (!result.success) {
+        throw new Error(`Failed to send reset password email: ${result.message}`)
       }
     },
   },
@@ -252,8 +237,19 @@ export const auth = betterAuth({
             )
           }
 
-          // In development with no RESEND_API_KEY, log verification code
-          if (!validResendAPIKEY) {
+          const html = await renderOTPEmail(data.otp, data.email, data.type)
+
+          // Send email via consolidated mailer (supports Resend, Azure, or logging fallback)
+          const result = await sendEmail({
+            to: data.email,
+            subject: getEmailSubject(data.type),
+            html,
+            from: `onboarding@${env.EMAIL_DOMAIN || getEmailDomain()}`,
+            emailType: 'transactional',
+          })
+
+          // If no email service is configured, log verification code for development
+          if (!result.success && result.message.includes('no email service configured')) {
             logger.info('🔑 VERIFICATION CODE FOR LOGIN/SIGNUP', {
               email: data.email,
               otp: data.otp,
@@ -263,18 +259,8 @@ export const auth = betterAuth({
             return
           }
 
-          const html = await renderOTPEmail(data.otp, data.email, data.type)
-
-          // In production, send an actual email
-          const result = await resend.emails.send({
-            from: `Sim <onboarding@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
-            to: data.email,
-            subject: getEmailSubject(data.type),
-            html,
-          })
-
-          if (!result) {
-            throw new Error('Failed to send verification code')
+          if (!result.success) {
+            throw new Error(`Failed to send verification code: ${result.message}`)
           }
         } catch (error) {
           logger.error('Error sending verification code:', {
@@ -1551,12 +1537,17 @@ export const auth = betterAuth({
                   invitation.email
                 )
 
-                await resend.emails.send({
-                  from: `Sim <team@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
+                const result = await sendEmail({
                   to: invitation.email,
                   subject: `${inviterName} has invited you to join ${organization.name} on Sim`,
                   html,
+                  from: `noreply@${env.EMAIL_DOMAIN || getEmailDomain()}`,
+                  emailType: 'transactional',
                 })
+
+                if (!result.success) {
+                  logger.error('Failed to send organization invitation email:', result.message)
+                }
               } catch (error) {
                 logger.error('Error sending invitation email', { error })
               }
