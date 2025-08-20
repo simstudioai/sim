@@ -92,7 +92,7 @@ docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.1:8b
 ```bash
 git clone https://github.com/simstudioai/sim.git
 cd sim
-bun install
+run install
 ```
 
 2. Set up PostgreSQL with pgvector:
