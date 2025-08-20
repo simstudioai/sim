@@ -112,7 +112,9 @@ function getToolDisplayNameByState(toolCall: CopilotToolCall): string {
   const clientTool = toolRegistry.getTool(toolName)
   if (clientTool) {
     // Use client tool's display name logic
-    return clientTool.getDisplayName(toolCall)
+    const base = clientTool.getDisplayName(toolCall)
+    if (state === 'preparing') return `Preparing to ${base}`
+    return base
   }
 
   // For server tools, use server tool metadata
@@ -124,17 +126,23 @@ function getToolDisplayNameByState(toolCall: CopilotToolCall): string {
         state,
         toolCall.input || toolCall.parameters || {}
       )
-      if (dynamicName) return dynamicName
+      if (dynamicName) {
+        if (state === 'preparing') return `Preparing to ${dynamicName}`
+        return dynamicName
+      }
     }
 
     // Use state-specific display config
     const stateConfig = serverToolMetadata.displayConfig.states[state]
     if (stateConfig) {
-      return stateConfig.displayName
+      const base = stateConfig.displayName
+      if (state === 'preparing') return `Preparing to ${base}`
+      return base
     }
   }
 
   // Fallback to tool name if no specific display logic found
+  if (state === 'preparing') return `Preparing to ${toolName}`
   return toolName
 }
 
