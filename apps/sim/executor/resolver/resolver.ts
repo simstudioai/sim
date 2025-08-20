@@ -17,6 +17,7 @@ const KNOWN_PROVIDER_ALIASES = new Set([
   'whatsapp',
   'gmail',
   'outlook',
+  
   'stripe',
   'generic',
 ])
