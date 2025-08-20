@@ -435,6 +435,7 @@ export function SubBlock({
             disabled={isDisabled}
             isConnecting={isConnecting}
             config={config}
+            showValue={true}
           />
         )
       }

@@ -771,7 +771,7 @@ export class Executor {
               // Get the field value from workflow input if available
               // First try to access via input.field, then directly from field
               // This handles both input formats: { input: { field: value } } and { field: value }
-              const inputValue =
+              let inputValue =
                 this.workflowInput?.input?.[field.name] !== undefined
                   ? this.workflowInput.input[field.name] // Try to get from input.field
                   : this.workflowInput?.[field.name] // Fallback to direct field access
@@ -781,13 +781,25 @@ export class Executor {
                 inputValue !== undefined ? JSON.stringify(inputValue) : 'undefined'
               )
 
-              // Convert the value to the appropriate type
+              if (inputValue === undefined || inputValue === null) {
+                if (Object.hasOwn(field, 'value')) {
+                  inputValue = (field as any).value
+                }
+              }
+
               let typedValue = inputValue
-              if (inputValue !== undefined) {
-                if (field.type === 'number' && typeof inputValue !== 'number') {
-                  typedValue = Number(inputValue)
+              if (inputValue !== undefined && inputValue !== null) {
+                if (field.type === 'string' && typeof inputValue !== 'string') {
+                  typedValue = String(inputValue)
+                } else if (field.type === 'number' && typeof inputValue !== 'number') {
+                  const num = Number(inputValue)
+                  typedValue = Number.isNaN(num) ? inputValue : num
                 } else if (field.type === 'boolean' && typeof inputValue !== 'boolean') {
-                  typedValue = inputValue === 'true' || inputValue === true
+                  typedValue =
+                    inputValue === 'true' ||
+                    inputValue === true ||
+                    inputValue === 1 ||
+                    inputValue === '1'
                 } else if (
                   (field.type === 'object' || field.type === 'array') &&
                   typeof inputValue === 'string'
