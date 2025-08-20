@@ -12,7 +12,7 @@ const logger = createLogger('WandGenerateAPI')
 
 const azureApiKey = env.AZURE_OPENAI_API_KEY
 const azureEndpoint = env.AZURE_OPENAI_ENDPOINT
-const azureApiVersion = env.AZURE_OPENAI_API_VERSION || '2024-07-01-preview'
+const azureApiVersion = env.AZURE_OPENAI_API_VERSION
 const wandModelName = env.WAND_OPENAI_MODEL_NAME || 'gpt-4o'
 const openaiApiKey = env.OPENAI_API_KEY
 
