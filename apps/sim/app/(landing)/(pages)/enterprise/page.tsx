@@ -8,6 +8,7 @@ import Footer from '../../components/sections/footer'
 import Hero from '../../components/sections/enterprise/hero'
 import Security from '../../components/sections/enterprise/security'
 import Showcase from '../../components/sections/enterprise/showcase'
+import Video from '../../components/sections/enterprise/video'
 
 
 function Enterprise() {
@@ -19,6 +20,7 @@ function Enterprise() {
           <Clients />
           <Security />
           <Showcase />
+          <Video />
     
           <CTA/>
     
