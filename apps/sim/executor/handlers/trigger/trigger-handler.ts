@@ -27,6 +27,13 @@ export class TriggerBlockHandler implements BlockHandler {
   ): Promise<any> {
     logger.info(`Executing trigger block: ${block.id} (Type: ${block.metadata?.id})`)
 
+    // If this trigger block was initialized with a precomputed output in the execution context
+    // (e.g., webhook payload injected at init), return it as-is to preserve the raw shape.
+    const existingState = context.blockStates.get(block.id)
+    if (existingState?.output && Object.keys(existingState.output).length > 0) {
+      return existingState.output
+    }
+
     // For trigger blocks, return the starter block's output which contains the workflow input
     // This ensures webhook data like message, sender, chat, etc. are accessible
     const starterBlock = context.workflow?.blocks?.find((b) => b.metadata?.id === 'starter')
