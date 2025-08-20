@@ -35,6 +35,7 @@ export const githubWebhookTrigger: TriggerConfig = {
       required: true,
     },
   },
+  
 
   outputs: {
     // GitHub webhook payload structure - now at root for direct access
