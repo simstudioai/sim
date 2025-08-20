@@ -19,6 +19,19 @@ function resolveWithGithubAlias(container: any, property: string): any {
   return undefined
 }
 
+// Fallback into webhook metadata payload if present: { webhook: { data: { payload: {...} } } }
+function resolveFromWebhookPayload(container: any, property: string): any {
+  try {
+    const payload = container?.webhook?.data?.payload
+    if (payload && typeof payload === 'object' && Object.prototype.hasOwnProperty.call(payload, property)) {
+      return payload[property]
+    }
+  } catch (_) {
+    // ignore
+  }
+  return undefined
+}
+
 /**
  * Helper function to resolve property access
  */
@@ -571,6 +584,10 @@ export class InputResolver {
                 if (nextValue === undefined) {
                   // Fallback to nested github alias if present
                   nextValue = resolveWithGithubAlias(replacementValue, part)
+                  if (nextValue === undefined) {
+                    // Fallback to webhook metadata payload if present
+                    nextValue = resolveFromWebhookPayload(replacementValue, part)
+                  }
                 }
                 replacementValue = nextValue
               }
@@ -777,6 +794,10 @@ export class InputResolver {
           if (nextValue === undefined) {
             // Fallback to nested github alias if present
             nextValue = resolveWithGithubAlias(replacementValue, part)
+            if (nextValue === undefined) {
+              // Fallback to webhook metadata payload if present
+              nextValue = resolveFromWebhookPayload(replacementValue, part)
+            }
           }
           replacementValue = nextValue
         }
