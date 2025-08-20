@@ -10,8 +10,8 @@ interface WorkspaceRootLayoutProps {
 
 interface SessionUser {
   id: string
-  name?: string | null
-  email?: string | null
+  name?: string
+  email?: string
 }
 
 interface SessionContextValue {

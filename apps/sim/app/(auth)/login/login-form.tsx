@@ -212,7 +212,7 @@ export default function LoginPage({
           callbackURL: safeCallbackUrl,
         },
         {
-          onError: (ctx: { error: { code?: string; message?: string } }) => {
+          onError: (ctx) => {
             console.error('Login error:', ctx.error)
             const errorMessage: string[] = ['Invalid email or password']
 

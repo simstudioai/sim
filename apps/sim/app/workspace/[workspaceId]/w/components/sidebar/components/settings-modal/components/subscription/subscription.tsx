@@ -220,7 +220,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   }, [upgradeError])
 
   // User role and permissions
-  const userRole = getUserRole(user?.email || null)
+  const userRole = getUserRole(user?.email)
   const isTeamAdmin = ['owner', 'admin'].includes(userRole)
 
   // Get permissions based on subscription state and user role

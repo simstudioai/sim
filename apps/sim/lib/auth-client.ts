@@ -20,39 +20,22 @@ export function getBaseURL() {
   return baseURL
 }
 
-// Dev-only singleton to avoid multiple client instances across HMR/refresh
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getOrCreateClient = (): any => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const g: any = globalThis as any
-  if (isDev && g.__betterAuthClient) {
-    return g.__betterAuthClient
-  }
-
-  const newClient = createAuthClient({
-    baseURL: getBaseURL(),
-    plugins: [
-      emailOTPClient(),
-      genericOAuthClient(),
-      // Only include Stripe client in production
-      ...(isProd
-        ? [
-            stripeClient({
-              subscription: true, // Enable subscription management
-            }),
-          ]
-        : []),
-      organizationClient(),
-    ],
-  })
-
-  if (isDev) {
-    g.__betterAuthClient = newClient
-  }
-  return newClient
-}
-
-export const client = getOrCreateClient()
+export const client = createAuthClient({
+  baseURL: getBaseURL(),
+  plugins: [
+    emailOTPClient(),
+    genericOAuthClient(),
+    // Only include Stripe client in production
+    ...(isProd
+      ? [
+          stripeClient({
+            subscription: true, // Enable subscription management
+          }),
+        ]
+      : []),
+    organizationClient(),
+  ],
+})
 
 export const { useSession, useActiveOrganization } = client
 
