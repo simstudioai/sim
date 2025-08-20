@@ -307,7 +307,7 @@ describe('Knowledge Search Utils', () => {
       Object.keys(env).forEach((key) => delete (env as any)[key])
 
       await expect(generateSearchEmbedding('test query')).rejects.toThrow(
-        'Either OPENAI_API_KEY or Azure OpenAI configuration'
+        'Either OPENAI_API_KEY or Azure OpenAI configuration (AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT) must be configured'
       )
     })
 
@@ -329,9 +329,7 @@ describe('Knowledge Search Utils', () => {
         text: async () => 'Deployment not found',
       } as any)
 
-      await expect(generateSearchEmbedding('test query')).rejects.toThrow(
-        'Embedding generation failed'
-      )
+      await expect(generateSearchEmbedding('test query')).rejects.toThrow('Embedding API failed')
 
       // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
@@ -352,9 +350,7 @@ describe('Knowledge Search Utils', () => {
         text: async () => 'Rate limit exceeded',
       } as any)
 
-      await expect(generateSearchEmbedding('test query')).rejects.toThrow(
-        'Embedding generation failed'
-      )
+      await expect(generateSearchEmbedding('test query')).rejects.toThrow('Embedding API failed')
 
       // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
@@ -384,7 +380,7 @@ describe('Knowledge Search Utils', () => {
         expect.any(String),
         expect.objectContaining({
           body: JSON.stringify({
-            input: 'test query',
+            input: ['test query'],
             encoding_format: 'float',
           }),
         })
@@ -415,7 +411,7 @@ describe('Knowledge Search Utils', () => {
         expect.any(String),
         expect.objectContaining({
           body: JSON.stringify({
-            input: 'test query',
+            input: ['test query'],
             model: 'text-embedding-3-small',
             encoding_format: 'float',
           }),

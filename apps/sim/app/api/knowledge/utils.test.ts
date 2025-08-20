@@ -320,7 +320,7 @@ describe('Knowledge Utils', () => {
       Object.keys(env).forEach((key) => delete (env as any)[key])
 
       await expect(generateEmbeddings(['test text'])).rejects.toThrow(
-        'Either OPENAI_API_KEY or Azure OpenAI configuration'
+        'Either OPENAI_API_KEY or Azure OpenAI configuration (AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT) must be configured'
       )
     })
   })

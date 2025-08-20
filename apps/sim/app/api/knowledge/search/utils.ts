@@ -1,21 +1,9 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { retryWithExponentialBackoff } from '@/lib/documents/utils'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { embedding } from '@/db/schema'
 
 const logger = createLogger('KnowledgeSearchUtils')
-
-export class APIError extends Error {
-  public status: number
-
-  constructor(message: string, status: number) {
-    super(message)
-    this.name = 'APIError'
-    this.status = status
-  }
-}
 
 export interface SearchResult {
   id: string
@@ -41,98 +29,8 @@ export interface SearchParams {
   distanceThreshold?: number
 }
 
-export async function generateSearchEmbedding(
-  query: string,
-  embeddingModel = 'text-embedding-3-small'
-): Promise<number[]> {
-  const azureApiKey = env.AZURE_OPENAI_API_KEY
-  const azureEndpoint = env.AZURE_OPENAI_ENDPOINT
-  const azureApiVersion = env.AZURE_OPENAI_API_VERSION
-  const kbModelName = env.KB_OPENAI_MODEL_NAME
-  const openaiApiKey = env.OPENAI_API_KEY
-
-  const useAzure = azureApiKey && azureEndpoint && kbModelName
-
-  if (!useAzure && !openaiApiKey) {
-    throw new Error(
-      'Either OPENAI_API_KEY or Azure OpenAI configuration (AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT + KB_OPENAI_MODEL_NAME) must be configured'
-    )
-  }
-
-  const apiUrl = useAzure
-    ? `${azureEndpoint}/openai/deployments/${kbModelName}/embeddings?api-version=${azureApiVersion}`
-    : 'https://api.openai.com/v1/embeddings'
-
-  const headers: Record<string, string> = useAzure
-    ? {
-        'api-key': azureApiKey,
-        'Content-Type': 'application/json',
-      }
-    : {
-        Authorization: `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      }
-
-  logger.info(`Using ${useAzure ? 'Azure OpenAI' : 'OpenAI'} for search embedding generation`)
-
-  try {
-    const embedding = await retryWithExponentialBackoff(
-      async () => {
-        const requestBody = useAzure
-          ? {
-              input: query,
-              encoding_format: 'float',
-            }
-          : {
-              input: query,
-              model: embeddingModel,
-              encoding_format: 'float',
-            }
-
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(requestBody),
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          const error = new APIError(
-            `${useAzure ? 'Azure OpenAI' : 'OpenAI'} API error: ${response.status} ${response.statusText} - ${errorText}`,
-            response.status
-          )
-          throw error
-        }
-
-        const data = await response.json()
-
-        if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
-          throw new Error(
-            `Invalid response format from ${useAzure ? 'Azure OpenAI' : 'OpenAI'} embeddings API`
-          )
-        }
-
-        return data.data[0].embedding
-      },
-      {
-        maxRetries: 5,
-        initialDelayMs: 1000,
-        maxDelayMs: 30000,
-        backoffMultiplier: 2,
-      }
-    )
-
-    return embedding
-  } catch (error) {
-    logger.error(
-      `Failed to generate search embedding using ${useAzure ? 'Azure OpenAI' : 'OpenAI'}:`,
-      error
-    )
-    throw new Error(
-      `Embedding generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
-  }
-}
+// Use shared embedding utility
+export { generateSearchEmbedding } from '@/lib/embeddings/utils'
 
 function getTagFilters(filters: Record<string, string>, embedding: any) {
   return Object.entries(filters).map(([key, value]) => {
