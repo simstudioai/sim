@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { renderHelpConfirmationEmail } from '@/components/emails'
 import { getSession } from '@/lib/auth'
 import { sendEmail } from '@/lib/email/mailer'
 import { env } from '@/lib/env'
@@ -113,28 +114,24 @@ ${message}
     logger.info(`[${requestId}] Help request email sent successfully`)
 
     // Send confirmation email to the user
-    await sendEmail({
-      to: [email],
-      subject: `Your ${type} request has been received: ${subject}`,
-      text: `
-Hello,
+    try {
+      const confirmationHtml = await renderHelpConfirmationEmail(
+        email,
+        type as 'bug' | 'feedback' | 'feature_request' | 'other',
+        images.length
+      )
 
-Thank you for your ${type} submission. We've received your request and will get back to you as soon as possible.
-
-Your message:
-${message}
-
-${images.length > 0 ? `You attached ${images.length} image(s).` : ''}
-
-Best regards,
-The Sim Team
-        `,
-      from: `${env.SENDER_NAME || 'Sim'} <noreply@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
-      replyTo: `help@${env.EMAIL_DOMAIN || getEmailDomain()}`,
-      emailType: 'transactional',
-    }).catch((err) => {
+      await sendEmail({
+        to: [email],
+        subject: `Your ${type} request has been received: ${subject}`,
+        html: confirmationHtml,
+        from: `${env.SENDER_NAME || 'Sim'} <noreply@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
+        replyTo: `help@${env.EMAIL_DOMAIN || getEmailDomain()}`,
+        emailType: 'transactional',
+      })
+    } catch (err) {
       logger.warn(`[${requestId}] Failed to send confirmation email`, err)
-    })
+    }
 
     return NextResponse.json(
       { success: true, message: 'Help request submitted successfully' },
