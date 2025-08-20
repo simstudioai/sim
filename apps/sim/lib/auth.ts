@@ -1296,6 +1296,26 @@ export const auth = betterAuth({
                     if (user.length > 0) {
                       const currentUser = user[0]
 
+                      // Store the original user ID before we change the referenceId
+                      const originalUserId = subscription.referenceId
+
+                      // First, sync usage limits for the purchasing user with their new plan
+                      try {
+                        const { syncUsageLimitsFromSubscription } = await import('@/lib/billing')
+                        await syncUsageLimitsFromSubscription(originalUserId)
+                        logger.info(
+                          'Usage limits synced for purchasing user before organization creation',
+                          {
+                            userId: originalUserId,
+                          }
+                        )
+                      } catch (error) {
+                        logger.error('Failed to sync usage limits for purchasing user', {
+                          userId: originalUserId,
+                          error,
+                        })
+                      }
+
                       // Create organization for the team
                       const orgId = `org_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
                       const orgSlug = `${currentUser.name?.toLowerCase().replace(/\s+/g, '-') || 'team'}-${Date.now()}`
@@ -1376,17 +1396,21 @@ export const auth = betterAuth({
                   }
                 }
 
-                // Sync usage limits and initialize billing period for the user/organization
+                // Initialize billing period for the user/organization
                 try {
-                  const { syncUsageLimitsFromSubscription } = await import('@/lib/billing')
                   const { initializeBillingPeriod } = await import(
                     '@/lib/billing/core/billing-periods'
                   )
 
-                  await syncUsageLimitsFromSubscription(subscription.referenceId)
-                  logger.info('Usage limits synced after subscription creation', {
-                    referenceId: subscription.referenceId,
-                  })
+                  // Note: Usage limits are already synced above for team plan users
+                  // For non-team plans, sync usage limits using the referenceId (which is the user ID)
+                  if (subscription.plan !== 'team') {
+                    const { syncUsageLimitsFromSubscription } = await import('@/lib/billing')
+                    await syncUsageLimitsFromSubscription(subscription.referenceId)
+                    logger.info('Usage limits synced after subscription creation', {
+                      referenceId: subscription.referenceId,
+                    })
+                  }
 
                   // Initialize billing period for new subscription using Stripe dates
                   if (subscription.plan !== 'free') {
