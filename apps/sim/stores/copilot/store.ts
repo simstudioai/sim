@@ -14,6 +14,7 @@ import type {
   MessageFileAttachment,
   WorkflowCheckpoint,
 } from './types'
+import { GetUserWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/get-user-workflow'
 
 const logger = createLogger('CopilotStore')
 
@@ -793,6 +794,7 @@ interface StreamingContext {
   _tempBuffer?: string[]
   _lastUpdateTime?: number
   _batchedUpdates?: boolean
+  clientTools?: Record<string, any>
 }
 
 type SSEHandler = (
@@ -906,36 +908,38 @@ const sseHandlers: Record<string, SSEHandler> = {
     // Defensive: dedupe if already present
     let toolCall = context.toolCalls.find((tc) => tc.id === toolCallId)
     if (toolCall) {
-      // Ensure state is at least 'preparing'
       if (toolCall.state !== 'preparing' && toolCall.state !== 'executing' && toolCall.state !== 'pending') {
         toolCall.state = 'preparing'
         toolCall.displayName = getToolDisplayNameByState(toolCall)
       }
       updateContentBlockToolCall(context.contentBlocks, toolCallId, toolCall)
       updateStreamingMessage(set, context)
-      return
+    } else {
+      toolCall = {
+        id: toolCallId,
+        name: toolName,
+        input: {},
+        state: 'preparing',
+        startTime: Date.now(),
+        displayName: getToolDisplayNameByState({ id: toolCallId, name: toolName, state: 'preparing' }),
+        hidden: false,
+      }
+      context.toolCalls.push(toolCall)
+      context.contentBlocks.push({ type: 'tool_call', toolCall, timestamp: Date.now(), startTime: toolCall.startTime })
+      updateStreamingMessage(set, context)
     }
 
-    // Create a new tool call in 'preparing' state
-    toolCall = {
-      id: toolCallId,
-      name: toolName,
-      input: {},
-      state: 'preparing',
-      startTime: Date.now(),
-      displayName: getToolDisplayNameByState({ id: toolCallId, name: toolName, state: 'preparing' }),
-      hidden: false,
+    // Instantiate client tool if applicable
+    try {
+      if (toolName === 'get_user_workflow') {
+        context.clientTools = context.clientTools || {}
+        if (!context.clientTools[toolCallId]) {
+          context.clientTools[toolCallId] = new GetUserWorkflowClientTool(toolCallId)
+        }
+      }
+    } catch (e) {
+      logger.warn('Failed to instantiate client tool for generating event', { toolName, toolCallId, error: e })
     }
-
-    context.toolCalls.push(toolCall)
-    context.contentBlocks.push({
-      type: 'tool_call',
-      toolCall,
-      timestamp: Date.now(),
-      startTime: toolCall.startTime,
-    })
-
-    updateStreamingMessage(set, context)
   },
 
   // Handle tool call events - simplified
@@ -947,15 +951,26 @@ const sseHandlers: Record<string, SSEHandler> = {
     const existingToolCall = context.toolCalls.find((tc) => tc.id === toolData.id)
 
     if (existingToolCall) {
-      // Replace arguments and transition state
       existingToolCall.input = toolData.arguments || {}
-      // If previously preparing and tool requires interrupt, keep pending; else executing
       const requiresInterrupt = toolRequiresInterrupt(existingToolCall.name)
       existingToolCall.state = requiresInterrupt ? 'pending' : 'executing'
       existingToolCall.displayName = getToolDisplayNameByState(existingToolCall)
 
-      // If this is a client tool and not interrupt, auto-execute now
-      if (!requiresInterrupt && toolRegistry.getTool(existingToolCall.name)) {
+      // Special handling: client tool execution for get_user_workflow
+      if (existingToolCall.name === 'get_user_workflow') {
+        const instance = context.clientTools?.[existingToolCall.id]
+        if (instance && typeof instance.execute === 'function') {
+          // Run asynchronously; update UI state as it progresses via setState calls inside tool
+          setTimeout(() => {
+            try {
+              instance.execute(existingToolCall.input)
+            } catch (e) {
+              logger.error('Client tool execution failed for get_user_workflow', e)
+            }
+          }, 0)
+        }
+      } else if (!requiresInterrupt && toolRegistry.getTool(existingToolCall.name)) {
+        // Legacy client tool path for other tools still using old registry
         setTimeout(async () => {
           try {
             const tool = toolRegistry.getTool(existingToolCall.name)
@@ -965,16 +980,13 @@ const sseHandlers: Record<string, SSEHandler> = {
                   const currentState = useCopilotStore.getState()
                   const updatedMessages = currentState.messages.map((msg) => ({
                     ...msg,
-                    toolCalls: msg.toolCalls?.map((tc) =>
-                      tc.id === existingToolCall.id ? { ...tc, state } : tc
-                    ),
+                    toolCalls: msg.toolCalls?.map((tc) => (tc.id === existingToolCall.id ? { ...tc, state } : tc)),
                     contentBlocks: msg.contentBlocks?.map((block) =>
                       block.type === 'tool_call' && block.toolCall?.id === existingToolCall.id
                         ? { ...block, toolCall: { ...block.toolCall, state } }
                         : block
                     ),
                   }))
-
                   useCopilotStore.setState({ messages: updatedMessages })
                 },
               })
@@ -988,7 +1000,6 @@ const sseHandlers: Record<string, SSEHandler> = {
         }, 0)
       }
 
-      // Update the content block as well
       updateContentBlockToolCall(context.contentBlocks, toolData.id, existingToolCall)
       updateStreamingMessage(set, context)
       return
@@ -997,21 +1008,28 @@ const sseHandlers: Record<string, SSEHandler> = {
     // Create fresh tool call directly from finalized payload (reuses client auto-exec logic)
     const toolCall = createToolCall(toolData.id, toolData.name, toolData.arguments)
 
-    // Mark checkoff_todo as hidden from the start
     if (toolData.name === 'checkoff_todo') {
       toolCall.hidden = true
     }
 
     context.toolCalls.push(toolCall)
+    context.contentBlocks.push({ type: 'tool_call', toolCall, timestamp: Date.now(), startTime: toolCall.startTime })
 
-    context.contentBlocks.push({
-      type: 'tool_call',
-      toolCall,
-      timestamp: Date.now(),
-      startTime: toolCall.startTime,
-    })
-
-    updateStreamingMessage(set, context)
+    // Special handling: execute new get_user_workflow client tool if instance exists/created on generating
+    if (toolData.name === 'get_user_workflow') {
+      const instance = context.clientTools?.[toolData.id] || new GetUserWorkflowClientTool(toolData.id)
+      context.clientTools = context.clientTools || {}
+      context.clientTools[toolData.id] = instance
+      setTimeout(() => {
+        try {
+          instance.execute(toolData.arguments || {})
+        } catch (e) {
+          logger.error('Client tool execution failed for get_user_workflow (new)', e)
+        }
+      }, 0)
+    } else {
+      updateStreamingMessage(set, context)
+    }
   },
 
   // Handle tool result events - simplified
@@ -2908,6 +2926,7 @@ export const useCopilotStore = create<CopilotStore>()(
           _tempBuffer: [],
           _lastUpdateTime: 0,
           _batchedUpdates: false,
+          clientTools: {},
         }
 
         // If continuation, preserve existing message state
