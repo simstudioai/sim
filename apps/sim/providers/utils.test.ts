@@ -19,7 +19,9 @@ import {
   getProviderModels,
   MODELS_TEMP_RANGE_0_1,
   MODELS_TEMP_RANGE_0_2,
+  MODELS_WITH_REASONING_EFFORT,
   MODELS_WITH_TEMPERATURE_SUPPORT,
+  MODELS_WITH_VERBOSITY,
   PROVIDERS_WITH_TOOL_USAGE_CONTROL,
   prepareToolsWithUsageControl,
   supportsTemperature,
@@ -144,6 +146,15 @@ describe('Model Capabilities', () => {
         'deepseek-chat',
         'azure/gpt-4.1',
         'azure/model-router',
+        // GPT-5 models don't support temperature (removed in our implementation)
+        'gpt-5',
+        'gpt-5-mini',
+        'gpt-5-nano',
+        'gpt-5-chat-latest',
+        'azure/gpt-5',
+        'azure/gpt-5-mini',
+        'azure/gpt-5-nano',
+        'azure/gpt-5-chat-latest',
       ]
 
       for (const model of unsupportedModels) {
@@ -198,6 +209,15 @@ describe('Model Capabilities', () => {
       expect(getMaxTemperature('azure/o3')).toBeUndefined()
       expect(getMaxTemperature('azure/o4-mini')).toBeUndefined()
       expect(getMaxTemperature('deepseek-r1')).toBeUndefined()
+      // GPT-5 models don't support temperature (removed in our implementation)
+      expect(getMaxTemperature('gpt-5')).toBeUndefined()
+      expect(getMaxTemperature('gpt-5-mini')).toBeUndefined()
+      expect(getMaxTemperature('gpt-5-nano')).toBeUndefined()
+      expect(getMaxTemperature('gpt-5-chat-latest')).toBeUndefined()
+      expect(getMaxTemperature('azure/gpt-5')).toBeUndefined()
+      expect(getMaxTemperature('azure/gpt-5-mini')).toBeUndefined()
+      expect(getMaxTemperature('azure/gpt-5-nano')).toBeUndefined()
+      expect(getMaxTemperature('azure/gpt-5-chat-latest')).toBeUndefined()
     })
 
     it.concurrent('should be case insensitive', () => {
@@ -266,6 +286,49 @@ describe('Model Capabilities', () => {
         expect(MODELS_WITH_TEMPERATURE_SUPPORT).toContain('claude-sonnet-4-0') // From 0-1 range
       }
     )
+
+    it.concurrent('should have correct models in MODELS_WITH_REASONING_EFFORT', () => {
+      // Should contain GPT-5 models that support reasoning effort
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5-mini')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5-nano')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5-mini')
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5-nano')
+
+      // Should NOT contain non-reasoning GPT-5 models
+      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('gpt-5-chat-latest')
+      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('azure/gpt-5-chat-latest')
+
+      // Should NOT contain other models
+      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('gpt-4o')
+      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('claude-sonnet-4-0')
+      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('o1')
+    })
+
+    it.concurrent('should have correct models in MODELS_WITH_VERBOSITY', () => {
+      // Should contain GPT-5 models that support verbosity
+      expect(MODELS_WITH_VERBOSITY).toContain('gpt-5')
+      expect(MODELS_WITH_VERBOSITY).toContain('gpt-5-mini')
+      expect(MODELS_WITH_VERBOSITY).toContain('gpt-5-nano')
+      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5')
+      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5-mini')
+      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5-nano')
+
+      // Should NOT contain non-reasoning GPT-5 models
+      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5-chat-latest')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('azure/gpt-5-chat-latest')
+
+      // Should NOT contain other models
+      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-4o')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('claude-sonnet-4-0')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('o1')
+    })
+
+    it.concurrent('should have same models in both reasoning effort and verbosity arrays', () => {
+      // GPT-5 models that support reasoning effort should also support verbosity and vice versa
+      expect(MODELS_WITH_REASONING_EFFORT.sort()).toEqual(MODELS_WITH_VERBOSITY.sort())
+    })
   })
 })
 

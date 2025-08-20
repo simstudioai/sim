@@ -9,7 +9,9 @@ import {
   getProviderIcon,
   MODELS_TEMP_RANGE_0_1,
   MODELS_TEMP_RANGE_0_2,
+  MODELS_WITH_REASONING_EFFORT,
   MODELS_WITH_TEMPERATURE_SUPPORT,
+  MODELS_WITH_VERBOSITY,
   providers,
 } from '@/providers/utils'
 
@@ -208,6 +210,36 @@ Create a system prompt appropriately detailed for the request, using clear langu
           ),
           not: true,
         },
+      },
+    },
+    {
+      id: 'reasoningEffort',
+      title: 'Reasoning Effort',
+      type: 'combobox',
+      layout: 'half',
+      placeholder: 'Select reasoning effort...',
+      options: () => {
+        return [
+          { label: 'low', id: 'low' },
+          { label: 'medium', id: 'medium' },
+          { label: 'high', id: 'high' },
+        ]
+      },
+      condition: {
+        field: 'model',
+        value: MODELS_WITH_REASONING_EFFORT,
+      },
+    },
+    {
+      id: 'verbosity',
+      title: 'Verbosity',
+      type: 'slider',
+      layout: 'half',
+      min: 0,
+      max: 2,
+      condition: {
+        field: 'model',
+        value: MODELS_WITH_VERBOSITY,
       },
     },
     {
@@ -485,6 +517,8 @@ Example 3 (Array Input):
       },
     },
     temperature: { type: 'number', description: 'Response randomness level' },
+    reasoningEffort: { type: 'string', description: 'Reasoning effort level for GPT-5 models' },
+    verbosity: { type: 'number', description: 'Verbosity level for GPT-5 models' },
     tools: { type: 'json', description: 'Available tools configuration' },
   },
   outputs: {
