@@ -163,7 +163,7 @@ export function Variables() {
             return 'Not a valid object format'
           }
 
-          const parsed = new Function(`return ${valueToEvaluate}`)()
+          const parsed = JSON.parse(valueToEvaluate)
 
           if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
             return 'Not a valid object'
@@ -172,7 +172,7 @@ export function Variables() {
           return undefined
         } catch (e) {
           logger.info('Object parsing error:', e)
-          return 'Invalid object syntax'
+          return 'Invalid JSON object syntax'
         }
       case 'array':
         try {
@@ -182,7 +182,7 @@ export function Variables() {
             return 'Not a valid array format'
           }
 
-          const parsed = new Function(`return ${valueToEvaluate}`)()
+          const parsed = JSON.parse(valueToEvaluate)
 
           if (!Array.isArray(parsed)) {
             return 'Not a valid array'
@@ -191,7 +191,7 @@ export function Variables() {
           return undefined
         } catch (e) {
           logger.info('Array parsing error:', e)
-          return 'Invalid array syntax'
+          return 'Invalid JSON array syntax'
         }
       default:
         return undefined

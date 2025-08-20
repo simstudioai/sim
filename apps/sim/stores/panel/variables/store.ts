@@ -49,17 +49,15 @@ function validateVariable(variable: Variable): string | undefined {
       case 'object':
         // Check if it's a valid JSON object
         try {
-          // Handle both JavaScript and JSON syntax
           const valueToEvaluate = String(variable.value).trim()
 
-          // Basic security check to prevent arbitrary code execution
+          // Validate JSON object format
           if (!valueToEvaluate.startsWith('{') || !valueToEvaluate.endsWith('}')) {
             return 'Not a valid object format'
           }
 
-          // Use Function constructor to safely evaluate the object expression
-          // This handles both JSON and JS object literal syntax
-          const parsed = new Function(`return ${valueToEvaluate}`)()
+          // Use JSON.parse for safe parsing (prevents code execution)
+          const parsed = JSON.parse(valueToEvaluate)
 
           // Verify it's actually an object (not array or null)
           if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -69,7 +67,7 @@ function validateVariable(variable: Variable): string | undefined {
           return undefined // Valid object
         } catch (e) {
           logger.error('Object parsing error:', e)
-          return 'Invalid object syntax'
+          return 'Invalid JSON object syntax'
         }
       case 'array':
         // Check if it's a valid JSON array
