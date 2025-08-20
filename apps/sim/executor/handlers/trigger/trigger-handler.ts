@@ -43,6 +43,7 @@ export class TriggerBlockHandler implements BlockHandler {
         const starterOutput = starterState.output
 
         // Generic handling for webhook triggers - extract provider-specific data
+        
         // Check if this is a webhook execution with nested structure
         if (starterOutput.webhook?.data || starterOutput.github) {
           const webhookData = starterOutput.webhook?.data || {}
