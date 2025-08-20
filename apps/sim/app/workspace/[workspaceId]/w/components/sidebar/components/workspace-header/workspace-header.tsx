@@ -21,7 +21,6 @@ interface Workspace {
  * Main WorkspaceHeader component props
  */
 interface WorkspaceHeaderProps {
-  onCreateWorkflow: () => void
   isWorkspaceSelectorVisible: boolean
   onToggleWorkspaceSelector: () => void
   onToggleSidebar: () => void
@@ -34,7 +33,6 @@ interface WorkspaceHeaderProps {
  */
 export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
   ({
-    onCreateWorkflow,
     isWorkspaceSelectorVisible,
     onToggleWorkspaceSelector,
     onToggleSidebar,

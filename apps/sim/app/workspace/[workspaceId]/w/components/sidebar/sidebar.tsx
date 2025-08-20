@@ -984,7 +984,6 @@ export function Sidebar() {
           {/* 1. Workspace Header */}
           <div className='pointer-events-auto flex-shrink-0'>
             <WorkspaceHeader
-              onCreateWorkflow={handleCreateWorkflow}
               isWorkspaceSelectorVisible={isWorkspaceSelectorVisible}
               onToggleWorkspaceSelector={toggleWorkspaceSelector}
               onToggleSidebar={toggleSidebarCollapsed}
