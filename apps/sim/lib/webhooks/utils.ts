@@ -607,18 +607,9 @@ export function formatWebhookInput(
     // }
 
     return {
-    //   input, // Primary workflow input
-
-    //   // Top-level properties for backward compatibility
-    //   ...githubData,
-
-    //   // GitHub data structured for trigger handler to extract
-    //   github: {
-    //     // Processed convenience variables
-    //     ...githubData,
-    //     // Raw GitHub webhook payload for direct field access
-    //     ...body,
-    //   },
+      // Expose raw GitHub payload at the root
+      ...body,
+      // Include webhook metadata alongside
       webhook: {
         data: {
           provider: 'github',
