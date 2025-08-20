@@ -8,6 +8,33 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('InputResolver')
 
+// Known provider aliases that may contain nested payloads
+const KNOWN_PROVIDER_ALIASES = new Set([
+  'github',
+  'slack',
+  'telegram',
+  'microsoftteams',
+  'whatsapp',
+  'gmail',
+  'outlook',
+  'stripe',
+  'generic',
+])
+
+function tryProviderAliasFallback(container: any, property: string): any {
+  if (!container || typeof container !== 'object') return undefined
+
+  // Direct hit already handled by caller; only check aliases
+  for (const alias of KNOWN_PROVIDER_ALIASES) {
+    const nested = container[alias]
+    if (nested && typeof nested === 'object' && nested[property] !== undefined) {
+      return nested[property]
+    }
+  }
+
+  return undefined
+}
+
 /**
  * Helper function to resolve property access
  */
@@ -556,7 +583,12 @@ export class InputResolver {
                 replacementValue = arrayValue[index]
               } else {
                 // Regular property access with FileReference mapping
-                replacementValue = resolvePropertyAccess(replacementValue, part)
+                let nextValue = resolvePropertyAccess(replacementValue, part)
+                if (nextValue === undefined) {
+                  // Provider alias fallback, e.g., { github: { repository: ... } }
+                  nextValue = tryProviderAliasFallback(replacementValue, part)
+                }
+                replacementValue = nextValue
               }
 
               if (replacementValue === undefined) {
@@ -757,7 +789,12 @@ export class InputResolver {
           replacementValue = arrayValue[index]
         } else {
           // Regular property access with FileReference mapping
-          replacementValue = resolvePropertyAccess(replacementValue, part)
+          let nextValue = resolvePropertyAccess(replacementValue, part)
+          if (nextValue === undefined) {
+            // Provider alias fallback, e.g., { github: { repository: ... } }
+            nextValue = tryProviderAliasFallback(replacementValue, part)
+          }
+          replacementValue = nextValue
         }
 
         if (replacementValue === undefined) {
