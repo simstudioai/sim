@@ -414,24 +414,25 @@ export async function generateEmbeddings(
 ): Promise<number[][]> {
   const azureApiKey = env.AZURE_OPENAI_API_KEY
   const azureEndpoint = env.AZURE_OPENAI_ENDPOINT
-  const azureApiVersion = env.AZURE_OPENAI_API_VERSION || '2024-10-21'
+  const azureApiVersion = env.AZURE_OPENAI_API_VERSION
+  const kbModelName = env.KB_OPENAI_MODEL_NAME
   const openaiApiKey = env.OPENAI_API_KEY
 
-  const useAzure = azureApiKey && azureEndpoint
+  const useAzure = azureApiKey && azureEndpoint && kbModelName
 
   if (!useAzure && !openaiApiKey) {
     throw new Error(
-      'Either OPENAI_API_KEY or both AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT must be configured'
+      'Either OPENAI_API_KEY or Azure OpenAI configuration (AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT + KB_OPENAI_MODEL_NAME) must be configured'
     )
   }
 
   const apiUrl = useAzure
-    ? `${azureEndpoint}/openai/deployments/${embeddingModel}/embeddings?api-version=${azureApiVersion}`
+    ? `${azureEndpoint}/openai/deployments/${kbModelName}/embeddings?api-version=${azureApiVersion}`
     : 'https://api.openai.com/v1/embeddings'
 
   const headers: Record<string, string> = useAzure
     ? {
-        'api-key': azureApiKey!,
+        'api-key': azureApiKey,
         'Content-Type': 'application/json',
       }
     : {
