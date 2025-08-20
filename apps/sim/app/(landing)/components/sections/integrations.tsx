@@ -1,494 +1,63 @@
-'use client'
-
-import { motion } from 'framer-motion'
-import { GitBranch, RefreshCcw } from 'lucide-react'
-import ReactFlow, { ConnectionLineType, Position, ReactFlowProvider } from 'reactflow'
-import { DotPattern } from '@/app/(landing)/components/dot-pattern'
-import { HeroBlock } from '@/app/(landing)/components/hero-block'
+import { cn } from '@/lib/utils'
 import { OrbitingCircles } from '@/app/(landing)/components/magicui/orbiting-circles'
+import { DotPattern } from '../dot-pattern'
 
 function Integrations() {
   return (
-    <section className='flex w-full flex-col gap-10 px-8 py-12 md:px-16 lg:px-28 xl:px-32'>
+    <div className='relative flex w-full flex-col gap-16 overflow-hidden border-border border-b px-8 py-10 will-change-[opacity,transform] sm:px-8 sm:py-12 md:px-12 md:py-16 lg:px-40'>
       <div className='flex flex-col gap-5'>
-        <motion.p
-          className='font-medium text-[42px] text-white leading-none tracking-normal md:text-5xl md:leading-tight'
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.7, delay: 0.05, ease: 'easeOut' }}
-        >
-          Everything you need,
-          <br />
-          connected
-        </motion.p>
-        <motion.p
-          className='max-w-md font-light text-white/60 text-xl tracking-normal'
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.7, delay: 0.15, ease: 'easeOut' }}
-        >
-          Seamlessly connect your agents with the tools you already use—no extra setup required.
-        </motion.p>
+        <p className='font-medium text-[42px] text-foreground tracking-tight md:text-5xl'>
+          Build faster, customize deeper
+        </p>
+        <p className='max-w-xl font-normal text-[#515151] text-lg'>
+          Extend workflows with your own code, APIs, or functions. Use our visual builder when it
+          helps—drop into code when it matters.
+        </p>
       </div>
-
-      {/* Desktop view */}
-      <div className='relative z-10 hidden min-h-[36rem] w-full items-center justify-center overflow-hidden rounded-3xl border border-[#606060]/30 bg-[#0f0f0f] md:flex'>
-        <DotPattern className='rounded-3xl opacity-10' x={-5} y={-5} />
-        <div className='-translate-x-1/2 absolute bottom-0 left-1/2'>
-          <svg
-            width='800'
-            height='450'
-            viewBox='0 0 1076 623'
-            fill='none'
-            xmlns='http://www.w3.org/2000/svg'
-          >
-            <g filter='url(#filter0_f_113_56)'>
-              <path
-                d='M278.98 498.157L657.323 493.454L573.161 1204.36L499.788 1191.21L278.98 498.157Z'
-                fill='url(#paint0_linear_113_56)'
-              />
-            </g>
-            <g filter='url(#filter1_f_113_56)'>
-              <path
-                d='M396.125 258.957L774.468 254.254L690.306 965.155L616.933 952.012L396.125 258.957Z'
-                fill='url(#paint1_linear_113_56)'
-              />
-            </g>
-            <g filter='url(#filter2_f_113_56)'>
-              <path
-                d='M357.731 305.714L604.127 503.599L628.26 978.086L578.913 929.443L357.731 305.714Z'
-                fill='url(#paint2_linear_113_56)'
-              />
-            </g>
-            <g filter='url(#filter3_f_113_56)'>
-              <path
-                d='M534.274 220.998L736.222 455.766L755.909 905.149L715.466 849.688L534.274 220.998Z'
-                fill='url(#paint3_linear_113_56)'
-              />
-            </g>
-            <defs>
-              <filter
-                id='filter0_f_113_56'
-                x='-21.02'
-                y='193.454'
-                width='978.342'
-                height='1310.9'
-                filterUnits='userSpaceOnUse'
-                colorInterpolationFilters='sRGB'
-              >
-                <feFlood floodOpacity={0} result='BackgroundImageFix' />
-                <feBlend mode='normal' in='SourceGraphic' in2='BackgroundImageFix' result='shape' />
-                <feGaussianBlur stdDeviation='150' result='effect1_foregroundBlur_113_56' />
-              </filter>
-              <filter
-                id='filter1_f_113_56'
-                x='96.125'
-                y='-45.7463'
-                width='978.342'
-                height='1310.9'
-                filterUnits='userSpaceOnUse'
-                colorInterpolationFilters='sRGB'
-              >
-                <feFlood floodOpacity='0' result='BackgroundImageFix' />
-                <feBlend mode='normal' in='SourceGraphic' in2='BackgroundImageFix' result='shape' />
-                <feGaussianBlur stdDeviation='150' result='effect1_foregroundBlur_113_56' />
-              </filter>
-              <filter
-                id='filter2_f_113_56'
-                x='257.731'
-                y='205.714'
-                width='470.529'
-                height='872.372'
-                filterUnits='userSpaceOnUse'
-                colorInterpolationFilters='sRGB'
-              >
-                <feFlood floodOpacity='0' result='BackgroundImageFix' />
-                <feBlend mode='normal' in='SourceGraphic' in2='BackgroundImageFix' result='shape' />
-                <feGaussianBlur stdDeviation='50' result='effect1_foregroundBlur_113_56' />
-              </filter>
-              <filter
-                id='filter3_f_113_56'
-                x='434.274'
-                y='120.998'
-                width='421.636'
-                height='884.151'
-                filterUnits='userSpaceOnUse'
-                colorInterpolationFilters='sRGB'
-              >
-                <feFlood floodOpacity='0' result='BackgroundImageFix' />
-                <feBlend mode='normal' in='SourceGraphic' in2='BackgroundImageFix' result='shape' />
-                <feGaussianBlur stdDeviation='50' result='effect1_foregroundBlur_113_56' />
-              </filter>
-              <linearGradient
-                id='paint0_linear_113_56'
-                x1='451.681'
-                y1='1151.32'
-                x2='661.061'
-                y2='557.954'
-                gradientUnits='userSpaceOnUse'
-              >
-                <stop stopColor='#9C75D7' />
-                <stop offset='1' stopColor='#9C75D7' stopOpacity='0' />
-              </linearGradient>
-              <linearGradient
-                id='paint1_linear_113_56'
-                x1='568.826'
-                y1='912.119'
-                x2='778.206'
-                y2='318.753'
-                gradientUnits='userSpaceOnUse'
-              >
-                <stop stopColor='#9C75D7' />
-                <stop offset='1' stopColor='#9C75D7' stopOpacity='0' />
-              </linearGradient>
-              <linearGradient
-                id='paint2_linear_113_56'
-                x1='543.08'
-                y1='874.705'
-                x2='742.662'
-                y2='699.882'
-                gradientUnits='userSpaceOnUse'
-              >
-                <stop stopColor='#9C75D7' />
-                <stop offset='1' stopColor='#9C75D7' stopOpacity='0' />
-              </linearGradient>
-              <linearGradient
-                id='paint3_linear_113_56'
-                x1='686.102'
-                y1='791.225'
-                x2='858.04'
-                y2='680.269'
-                gradientUnits='userSpaceOnUse'
-              >
-                <stop stopColor='#9C75D7' />
-                <stop offset='1' stopColor='#9C75D7' stopOpacity='0' />
-              </linearGradient>
-            </defs>
-          </svg>
-        </div>
-        <OrbitingCircles radius={160}>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]'>
-            <Icons.pinecone />
-          </div>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]'>
-            <Icons.qdrant />
-          </div>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]'>
-            <Icons.slack />
-          </div>
-        </OrbitingCircles>
-        <OrbitingCircles iconSize={40} radius={320} reverse>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-2 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]'>
-            <Icons.gitHub />
-          </div>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]'>
-            <Icons.supabase />
-          </div>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]'>
-            <Icons.perplexity />
-          </div>
-        </OrbitingCircles>
-        <OrbitingCircles iconSize={40} radius={480}>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-2 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]'>
-            <Icons.youtube />
-          </div>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]'>
-            <Icons.reddit />
-          </div>
-          <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]'>
-            <Icons.notion />
-          </div>
-        </OrbitingCircles>
-      </div>
-
-      {/* Mobile view */}
-      <div className='relative z-10 flex min-h-[28rem] w-full items-center justify-center overflow-hidden rounded-3xl border border-[#606060]/30 bg-[#0f0f0f] md:hidden'>
-        <DotPattern className='rounded-3xl opacity-10' x={-5} y={-5} />
-        <div className='absolute inset-0 z-0 flex items-center justify-center'>
-          <div className='-translate-x-1/2 absolute bottom-[-80px] left-[45%] w-[130%]'>
-            <svg
-              width='100%'
-              height='350'
-              viewBox='0 0 600 450'
-              fill='none'
-              xmlns='http://www.w3.org/2000/svg'
-              preserveAspectRatio='xMidYMid meet'
-            >
-              <path
-                d='M180 150L380 150L350 380L220 365L180 150Z'
-                fill='url(#mobile_paint0)'
-                filter='url(#mobile_filter0)'
-              />
-              <path
-                d='M220 70L420 70L390 300L260 285L220 70Z'
-                fill='url(#mobile_paint1)'
-                filter='url(#mobile_filter1)'
-              />
-              <defs>
-                <filter
-                  id='mobile_filter0'
-                  x='100'
-                  y='70'
-                  width='360'
-                  height='390'
-                  filterUnits='userSpaceOnUse'
-                  colorInterpolationFilters='sRGB'
-                >
-                  <feFlood floodOpacity='0' result='BackgroundImageFix' />
-                  <feBlend
-                    mode='normal'
-                    in='SourceGraphic'
-                    in2='BackgroundImageFix'
-                    result='shape'
-                  />
-                  <feGaussianBlur stdDeviation='35' result='effect1_foregroundBlur' />
-                </filter>
-                <filter
-                  id='mobile_filter1'
-                  x='140'
-                  y='-10'
-                  width='360'
-                  height='390'
-                  filterUnits='userSpaceOnUse'
-                  colorInterpolationFilters='sRGB'
-                >
-                  <feFlood floodOpacity='0' result='BackgroundImageFix' />
-                  <feBlend
-                    mode='normal'
-                    in='SourceGraphic'
-                    in2='BackgroundImageFix'
-                    result='shape'
-                  />
-                  <feGaussianBlur stdDeviation='35' result='effect1_foregroundBlur' />
-                </filter>
-                <linearGradient
-                  id='mobile_paint0'
-                  x1='280'
-                  y1='360'
-                  x2='370'
-                  y2='160'
-                  gradientUnits='userSpaceOnUse'
-                >
-                  <stop stopColor='#9C75D7' stopOpacity='0.4' />
-                  <stop offset='1' stopColor='#9C75D7' stopOpacity='0' />
-                </linearGradient>
-                <linearGradient
-                  id='mobile_paint1'
-                  x1='320'
-                  y1='280'
-                  x2='410'
-                  y2='80'
-                  gradientUnits='userSpaceOnUse'
-                >
-                  <stop stopColor='#9C75D7' stopOpacity='0.9' />
-                  <stop offset='1' stopColor='#9C75D7' stopOpacity='0' />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-        </div>
-        <OrbitingCircles radius={100}>
-          <div className='flex aspect-square h-12 w-12 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]'>
-            <Icons.pinecone />
-          </div>
-          <div className='flex aspect-square h-12 w-12 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]'>
-            <Icons.qdrant />
-          </div>
-          <div className='flex aspect-square h-12 w-12 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]'>
-            <Icons.slack />
-          </div>
-        </OrbitingCircles>
-        <OrbitingCircles iconSize={32} radius={180} reverse>
-          <div className='flex aspect-square h-12 w-12 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]'>
-            <Icons.gitHub />
-          </div>
-          <div className='flex aspect-square h-12 w-12 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]'>
-            <Icons.notion />
-          </div>
-        </OrbitingCircles>
-      </div>
-
-      <div className='relative flex w-full flex-col gap-20 text-white lg:flex-row'>
-        <div className='flex w-full flex-col gap-8'>
-          <div className='flex flex-col gap-6'>
-            <motion.div
-              className='flex items-center gap-6'
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.1, ease: 'easeOut' }}
-            >
-              <RefreshCcw size={24} />
-              <span className='text-2xl'>Sync Knowledge in Seconds</span>
-            </motion.div>
-            <motion.p
-              className='max-w-lg font-light text-lg text-white/60'
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.18, ease: 'easeOut' }}
-            >
-              Import data from your favorite tools to power your AI agents&apos; knowledge bases—no
-              manual uploads needed.
-            </motion.p>
-          </div>
-          <div className='relative z-10 flex h-80 w-full items-center justify-center overflow-hidden rounded-3xl border border-[#606060]/30 bg-[#0f0f0f]'>
-            <DotPattern className='z-0 rounded-3xl opacity-10' x={-5} y={-5} />
-            <motion.div
-              className='z-10 flex h-full w-full justify-end'
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
-            >
-              <ReactFlowProvider>
-                <ReactFlow
-                  nodes={[
-                    {
-                      id: 'agent1',
-                      type: 'heroBlock',
-                      position: { x: 50, y: 100 },
-                      data: { type: 'agent' },
-                      sourcePosition: Position.Right,
-                      targetPosition: Position.Left,
-                    },
-                    {
-                      id: 'slack1',
-                      type: 'heroBlock',
-                      position: { x: 450, y: -30 },
-                      data: { type: 'slack' },
-                      sourcePosition: Position.Left,
-                      targetPosition: Position.Right,
-                    },
-                  ]}
-                  edges={[
-                    {
-                      id: 'agent1-slack1',
-                      source: 'agent1',
-                      target: 'slack1',
-                      type: 'smoothstep',
-                      style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' },
-                      animated: true,
-                    },
-                  ]}
-                  nodeTypes={{ heroBlock: HeroBlock }}
-                  connectionLineType={ConnectionLineType.SmoothStep}
-                  connectionLineStyle={{
-                    stroke: '#404040',
-                    strokeWidth: 1.5,
-                    strokeDasharray: '4 4',
-                  }}
-                  defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-                  nodesDraggable={false}
-                  nodesConnectable={false}
-                  elementsSelectable={false}
-                  panOnScroll={false}
-                  zoomOnScroll={false}
-                  zoomOnPinch={false}
-                  zoomOnDoubleClick={false}
-                  panOnDrag={false}
-                  selectionOnDrag={false}
-                  preventScrolling={true}
-                  proOptions={{ hideAttribution: true }}
-                  className='pointer-events-none h-full w-full'
-                  style={{ width: '100%', height: '100%' }}
-                />
-              </ReactFlowProvider>
-            </motion.div>
-          </div>
-        </div>
-        <div className='flex w-full flex-col gap-8'>
-          <div className='flex flex-col gap-6'>
-            <motion.div
-              className='flex items-center gap-6'
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
-            >
-              <GitBranch size={24} />
-              <span className='text-2xl'>Automate Workflows with Ease</span>
-            </motion.div>
-            <motion.p
-              className='max-w-lg font-light text-lg text-white/60'
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.28, ease: 'easeOut' }}
-            >
-              Trigger actions and automate tasks across your apps with pre-built integrations.
-            </motion.p>
-          </div>
-          <div className='relative z-10 flex h-80 w-full items-center justify-center overflow-hidden rounded-3xl border border-[#606060]/30 bg-[#0f0f0f]'>
-            <DotPattern className='z-0 rounded-3xl opacity-10' x={-5} y={-5} />
-
-            <motion.div
-              className='z-10 flex h-full w-full justify-end'
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.4, ease: 'easeOut' }}
-            >
-              <ReactFlowProvider>
-                <ReactFlow
-                  nodes={[
-                    {
-                      id: 'start',
-                      type: 'heroBlock',
-                      position: { x: 50, y: 120 },
-                      data: { type: 'start' },
-                      sourcePosition: Position.Right,
-                      targetPosition: Position.Left,
-                    },
-                    {
-                      id: 'function1',
-                      type: 'heroBlock',
-                      position: { x: 450, y: 80 },
-                      data: { type: 'function', isHeroSection: false },
-                      sourcePosition: Position.Right,
-                      targetPosition: Position.Left,
-                    },
-                  ]}
-                  edges={[
-                    {
-                      id: 'start-func1',
-                      source: 'start',
-                      target: 'function1',
-                      type: 'smoothstep',
-                      style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' },
-                      animated: true,
-                    },
-                  ]}
-                  nodeTypes={{ heroBlock: HeroBlock }}
-                  connectionLineType={ConnectionLineType.SmoothStep}
-                  connectionLineStyle={{
-                    stroke: '#404040',
-                    strokeWidth: 1.5,
-                    strokeDasharray: '4 4',
-                  }}
-                  defaultViewport={{ x: 0, y: 0, zoom: 1 }}
-                  nodesDraggable={false}
-                  nodesConnectable={false}
-                  elementsSelectable={false}
-                  panOnScroll={false}
-                  zoomOnScroll={false}
-                  zoomOnPinch={false}
-                  zoomOnDoubleClick={false}
-                  panOnDrag={false}
-                  selectionOnDrag={false}
-                  preventScrolling={true}
-                  proOptions={{ hideAttribution: true }}
-                  className='pointer-events-none h-full w-full'
-                  style={{ width: '100%', height: '100%' }}
-                />
-              </ReactFlowProvider>
-            </motion.div>
-          </div>
+      <div className='relative flex h-[24rem] w-full overflow-hidden border-border border-t border-b sm:h-[32rem] md:h-[40rem]'>
+        <DotPattern
+          glow={true}
+          className={cn(
+            'absolute z-0 h-full w-full opacity-50 [mask-image:radial-gradient(700px_circle_at_center,white,transparent)]'
+          )}
+        />
+        <div className='relative z-10 flex h-full w-full items-center justify-center'>
+          <OrbitingCircles radius={160}>
+            <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-1 shadow-sm'>
+              <Icons.pinecone />
+            </div>
+            <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-1 shadow-sm'>
+              <Icons.qdrant />
+            </div>
+            <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-1 shadow-sm'>
+              <Icons.slack />
+            </div>
+          </OrbitingCircles>
+          <OrbitingCircles iconSize={40} radius={320} reverse>
+            <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-2 shadow-sm'>
+              <Icons.gitHub />
+            </div>
+            <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-1 shadow-sm'>
+              <Icons.supabase />
+            </div>
+            <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-1 shadow-sm'>
+              <Icons.perplexity />
+            </div>
+          </OrbitingCircles>
+          <OrbitingCircles iconSize={40} radius={480}>
+            <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-2 shadow-sm'>
+              <Icons.youtube />
+            </div>
+            <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-1 shadow-sm'>
+              <Icons.reddit />
+            </div>
+            <div className='flex aspect-square h-16 w-16 items-center justify-center rounded-[10px] border border-border bg-card p-1 shadow-sm'>
+              <Icons.notion />
+            </div>
+          </OrbitingCircles>
         </div>
       </div>
-    </section>
+    </div>
   )
 }
 
@@ -498,7 +67,7 @@ const Icons = {
       <g clipPath='url(#clip0_82_6269)'>
         <path
           d='M24.0492 0C10.7213 0 0 11 0 24.6C0 35.5 6.88525 44.7 16.4262 47.95C17.6066 48.2 18.0492 47.4 18.0492 46.75C18.0492 46.2 18 44.2 18 42.2C11.3115 43.65 9.93443 39.25 9.93443 39.25C8.85246 36.4 7.27869 35.65 7.27869 35.65C5.11475 34.15 7.42623 34.15 7.42623 34.15C9.83607 34.3 11.1148 36.7 11.1148 36.7C13.2787 40.45 16.7213 39.4 18.0984 38.75C18.2951 37.15 18.9344 36.05 19.623 35.45C14.3115 34.9 8.70492 32.75 8.70492 23.3C8.70492 20.6 9.63935 18.4 11.1639 16.7C10.918 16.1 10.082 13.55 11.4098 10.2C11.4098 10.2 13.4262 9.55 18 12.75C19.918 12.2 21.9836 11.95 24 11.95C26.0164 11.95 28.082 12.25 30 12.75C34.5738 9.55 36.5902 10.2 36.5902 10.2C37.918 13.6 37.082 16.1 36.8361 16.7C38.4098 18.4 39.2951 20.6 39.2951 23.3C39.2951 32.75 33.6885 34.85 28.3279 35.45C29.2131 36.2 29.9508 37.7 29.9508 40C29.9508 43.3 29.9016 45.95 29.9016 46.75C29.9016 47.4 30.3443 48.2 31.5246 47.95C41.1148 44.7 48 35.5 48 24.6C48.0492 11 37.2787 0 24.0492 0Z'
-          fill='white'
+          fill='black'
         />
       </g>
       <defs>
@@ -514,7 +83,7 @@ const Icons = {
         fillRule='evenodd'
         clipRule='evenodd'
         d='M30.3124 0.546056C29.7865 -0.0256784 28.9098 -0.162895 28.2085 0.203015L27.5573 0.523187L20.469 4.20515L22.1221 6.858L26.7307 4.45672L25.6036 10.0826L28.8848 10.6314L30.0369 4.98271L33.4433 8.68755L35.9981 6.72079L30.8384 1.09492H30.8134L30.3124 0.546056ZM20.3688 48C22.072 48 23.4496 46.7651 23.4496 45.2557C23.4496 43.7463 22.072 42.5113 20.3688 42.5113C18.6656 42.5113 17.2881 43.7463 17.2881 45.2557C17.263 46.7651 18.6656 48 20.3688 48ZM24.5016 32.9291L23.3995 38.5778L20.0933 38.029L21.1954 32.4031L16.5867 34.8272L14.9086 32.1744L21.9468 28.4924L22.598 28.1494C23.2993 27.7835 24.176 27.9207 24.7019 28.4924L25.2029 29.0413L30.4377 34.6443L27.8829 36.6339L24.5016 32.9291ZM27.1816 19.4362L26.0795 25.0849L22.7733 24.536L23.8754 18.933L19.2918 21.3343L17.6387 18.6815L24.6518 15.0224V14.9766H24.7019L25.3532 14.6336C26.0545 14.2677 26.9311 14.4049 27.4571 14.9766L27.958 15.5026L33.1678 21.1285L30.613 23.1181L27.1816 19.4362ZM5.56612 41.7567H5.54107L4.8648 41.5737C4.13844 41.3908 3.66255 40.7504 3.71265 40.0643L4.31377 32.426L7.49473 32.6318L7.11902 37.2743L12.0533 34.2098L13.8316 36.6111L8.99754 39.6069L13.9318 40.9105L13.0551 43.7006L5.56612 41.7567ZM38.3024 44.9126L38.077 45.5758C37.8516 46.2162 37.2003 46.6507 36.4489 46.605L35.7476 46.5592L35.6975 46.5821L35.6725 46.5592L27.9079 46.079L28.1083 43.1746L33.268 43.4947L29.8866 39.1724L32.4665 37.4801L35.9229 41.9167L37.4258 37.4343L40.4564 38.2805L38.3024 44.9126ZM47.4195 29.1785L47.7952 29.796C48.1709 30.4135 48.0206 31.191 47.4195 31.6484L46.8684 32.0829V32.1058H46.8434L40.8071 36.7711L38.7032 34.5071L42.6606 31.4426L36.7244 30.4821L37.3005 27.5548L43.2867 28.5153L40.782 24.3988L43.6123 22.958L47.4195 29.1785ZM41.283 16.4174L35.9229 19.0474L34.37 16.4403L39.6549 13.856L34.8209 12.0493L36.0482 9.30503L43.412 12.0265L43.437 12.0036L43.4621 12.0493L44.1383 12.3009C44.8647 12.5753 45.2654 13.2614 45.1402 13.9475L45.015 14.6336L43.6374 21.6087L40.4314 21.0828L41.283 16.4174ZM5.31565 22.5464L11.2768 23.4612L10.7258 26.3884L4.71452 25.4508L7.26931 29.5673L4.43901 31.0309L0.581787 24.8333L0.206084 24.2387C-0.16962 23.6213 -0.0193384 22.8437 0.55674 22.3863L1.10777 21.9518V21.9289H1.13282L7.09398 17.2407L9.22296 19.5048L5.31565 22.5464ZM14.3075 9.87676L18.2649 13.9018L15.8353 15.8914L11.7777 11.7749L10.851 16.4631L7.64501 15.9371L9.04764 8.98485L9.19792 8.2759C9.32315 7.58982 9.97437 7.0867 10.7258 7.06383L11.4271 7.04096L11.4521 7.01809L11.4772 7.04096L19.4421 6.74366L19.5673 9.71667L14.3075 9.87676Z'
-        fill='white'
+        fill='black'
       />
     </svg>
   ),

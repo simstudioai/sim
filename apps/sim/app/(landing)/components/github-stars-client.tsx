@@ -11,7 +11,7 @@ export default function GitHubStarsClient({ stars }: GitHubStarsClientProps) {
   return (
     <motion.a
       href='https://github.com/simstudioai/sim'
-      className='flex items-center gap-2 rounded-md p-1.5 text-white/80 transition-colors duration-200 hover:text-white/100'
+      className='flex items-center gap-2 rounded-md p-1.5 text-muted-foreground transition-colors duration-200 hover:text-foreground'
       aria-label='GitHub'
       target='_blank'
       rel='noopener noreferrer'
@@ -19,8 +19,8 @@ export default function GitHubStarsClient({ stars }: GitHubStarsClientProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut', delay: 0.3 }}
     >
-      <GithubIcon className='h-[20px] w-[20px]' />
-      <span className='font-medium text-base'>{stars}</span>
+      <GithubIcon className='h-4 w-4' />
+      <span className='font-medium text-sm'>{stars}</span>
     </motion.a>
   )
 }

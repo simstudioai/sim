@@ -1,367 +1,221 @@
-'use client'
-
-import { motion } from 'framer-motion'
+import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { DiscordIcon, GithubIcon, xIcon as XIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
-import { useSession } from '@/lib/auth-client'
-import useIsMobile from '@/app/(landing)/components/hooks/use-is-mobile'
-import { usePrefetchOnHover } from '@/app/(landing)/utils/prefetch'
 
 function Footer() {
-  const router = useRouter()
-  const { isMobile, mounted } = useIsMobile()
-  const { data: session, isPending } = useSession()
-  const isAuthenticated = !isPending && !!session?.user
-
-  const handleContributorsHover = usePrefetchOnHover()
-
-  const handleNavigate = () => {
-    if (typeof window !== 'undefined') {
-      // Check if user has an active session
-      if (isAuthenticated) {
-        router.push('/workspace')
-      } else {
-        // Check if user has logged in before
-        const hasLoggedInBefore =
-          localStorage.getItem('has_logged_in_before') === 'true' ||
-          document.cookie.includes('has_logged_in_before=true')
-
-        if (hasLoggedInBefore) {
-          // User has logged in before but doesn't have an active session
-          router.push('/login')
-        } else {
-          // User has never logged in before
-          router.push('/signup')
-        }
-      }
-    }
-  }
-
-  if (!mounted) {
-    return <section className='flex w-full p-4 md:p-9' />
-  }
-
-  // If on mobile, render without animations
-  if (isMobile) {
-    return (
-      <section className='flex w-full p-4 md:p-9'>
-        <div className='flex w-full flex-col rounded-3xl bg-[#2B2334] p-6 sm:p-10 md:p-16'>
-          <div className='flex h-full w-full flex-col justify-between md:flex-row'>
-            {/* Left side content */}
-            <div className='flex flex-col justify-between'>
-              <p className='max-w-lg font-light text-5xl text-[#B5A1D4] leading-[1.1] md:text-6xl'>
-                Ready to build AI faster and easier?
-              </p>
-              <div className='mt-4 pt-4 md:mt-auto md:pt-8'>
-                <Button
-                  className='w-fit bg-[#B5A1D4] text-[#1C1C1C] transition-colors duration-500 hover:bg-[#bdaecb]'
-                  size={'lg'}
-                  variant={'secondary'}
-                  onClick={handleNavigate}
-                >
-                  Get Started
-                </Button>
-              </div>
-            </div>
-
-            {/* Right side content */}
-            <div className='relative mt-8 flex w-full flex-col gap-6 md:mt-0 md:w-auto md:flex-row md:items-end md:justify-end md:gap-16'>
-              {/* See repo button positioned absolutely to align with the top text - desktop only */}
-              <div className='absolute top-0 right-0 hidden md:block'>
-                <Link
-                  href='https://github.com/simstudioai/sim'
-                  target='_blank'
-                  rel='noopener noreferrer'
-                >
-                  <Button
-                    className='flex items-center gap-2 bg-[#B5A1D4] text-[#1C1C1C] transition-colors duration-500 hover:bg-[#bdaecb]'
-                    size={'lg'}
-                    variant={'secondary'}
-                  >
-                    <GithubIcon className='h-5 w-5' />
-                    See repo
-                  </Button>
-                </Link>
-              </div>
-
-              {/* Links section - flex row on mobile, part of flex row in md */}
-              <div className='flex w-full flex-row justify-between gap-4 md:w-auto md:justify-start md:gap-16'>
-                <div className='flex flex-col gap-2'>
-                  <Link
-                    href={'https://docs.sim.ai/'}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl'
-                  >
-                    Docs
-                  </Link>
-                  <Link
-                    href={'/contributors'}
-                    className='font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl'
-                    onMouseEnter={handleContributorsHover}
-                  >
-                    Contributors
-                  </Link>
-                </div>
-                <div className='flex flex-col gap-2'>
-                  <Link
-                    href={'/terms'}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl'
-                  >
-                    Terms and Conditions
-                  </Link>
-                  <Link
-                    href={'/privacy'}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl'
-                  >
-                    Privacy Policy
-                  </Link>
-                </div>
-              </div>
-
-              {/* Social icons */}
-              <div className='mt-4 flex items-center md:mt-0 md:justify-end'>
-                <div className='flex gap-4'>
-                  <Link
-                    href={'https://github.com/simstudioai/sim'}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='flex text-2xl transition-all duration-500 md:hidden'
-                  >
-                    <svg
-                      width='36'
-                      height='36'
-                      viewBox='0 0 1024 1024'
-                      fill='none'
-                      xmlns='http://www.w3.org/2000/svg'
-                    >
-                      <path
-                        fillRule='evenodd'
-                        clipRule='evenodd'
-                        d='M8 0C3.58 0 0 3.58 0 8C0 11.54 2.29 14.53 5.47 15.59C5.87 15.66 6.02 15.42 6.02 15.21C6.02 15.02 6.01 14.39 6.01 13.72C4 14.09 3.48 13.23 3.32 12.78C3.23 12.55 2.84 11.84 2.5 11.65C2.22 11.5 1.82 11.13 2.49 11.12C3.12 11.11 3.57 11.7 3.72 11.94C4.44 13.15 5.59 12.81 6.05 12.6C6.12 12.08 6.33 11.73 6.56 11.53C4.78 11.33 2.92 10.64 2.92 7.58C2.92 6.71 3.23 5.99 3.74 5.43C3.66 5.23 3.38 4.41 3.82 3.31C3.82 3.31 4.49 3.1 6.02 4.13C6.66 3.95 7.34 3.86 8.02 3.86C8.7 3.86 9.38 3.95 10.02 4.13C11.55 3.09 12.22 3.31 12.22 3.31C12.66 4.41 12.38 5.23 12.3 5.43C12.81 5.99 13.12 6.7 13.12 7.58C13.12 10.65 11.25 11.33 9.47 11.53C9.76 11.78 10.01 12.26 10.01 13.01C10.01 14.08 10 14.94 10 15.21C10 15.42 10.15 15.67 10.55 15.59C13.71 14.53 16 11.53 16 8C16 3.58 12.42 0 8 0Z'
-                        transform='scale(64)'
-                        fill='#9E91AA'
-                      />
-                    </svg>
-                  </Link>
-                  <Link
-                    href={'https://discord.gg/Hr4UWYEcTT'}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-2xl transition-all duration-500'
-                  >
-                    <DiscordIcon className='h-9 w-9 fill-[#9E91AA] hover:fill-[#bdaecb] md:h-10 md:w-10' />
-                  </Link>
-                  <Link
-                    href={'https://x.com/simdotai'}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-2xl transition-all duration-500'
-                  >
-                    <XIcon className='h-9 w-9 text-[#9E91AA] transition-all duration-500 hover:text-[#bdaecb] md:h-10 md:w-10' />
-                  </Link>
-                </div>
-              </div>
-            </div>
+  return (
+    <div className='flex flex-col gap-12 border-border border-t px-8 pt-12 sm:gap-16 sm:pt-16 md:gap-20 md:px-16 md:pt-20 lg:gap-24 lg:px-24 lg:pt-24 xl:px-40'>
+      <div className='flex flex-col gap-8 lg:flex-row lg:justify-between lg:gap-0'>
+        <div className='flex flex-col items-start gap-6 sm:gap-8'>
+          <Image
+            src='/sim.svg'
+            alt='Sim Logo'
+            width={100}
+            height={100}
+            className='h-8 w-auto sm:h-9'
+          />
+          <div className='flex flex-row gap-4 md:gap-5'>
+            <Link href={'https://trust.delve.co/sim-studio'} target='_blank'>
+              <svg
+                className='h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16'
+                viewBox='0 0 64 64'
+                fill='none'
+                xmlns='http://www.w3.org/2000/svg'
+              >
+                <circle
+                  cx={32}
+                  cy={32}
+                  r='31.25'
+                  stroke='#6F3DFA'
+                  strokeOpacity='0.25'
+                  strokeWidth='1.5'
+                />
+                <path
+                  d='M19.7028 29.549C19.6329 28.9584 19.3493 28.5 18.852 28.1737C18.3547 27.8473 17.7448 27.6841 17.0221 27.6841C16.4938 27.6841 16.0315 27.7696 15.6352 27.9406C15.2428 28.1115 14.9359 28.3465 14.7145 28.6457C14.4969 28.9448 14.3881 29.2848 14.3881 29.6655C14.3881 29.9841 14.4639 30.258 14.6154 30.4872C14.7708 30.7125 14.9689 30.9009 15.2098 31.0524C15.4507 31.2001 15.7032 31.3225 15.9674 31.4196C16.2316 31.5128 16.4744 31.5886 16.6958 31.6469L17.9079 31.9732C18.2187 32.0548 18.5645 32.1674 18.9452 32.3112C19.3298 32.4549 19.697 32.6511 20.0466 32.8998C20.4002 33.1445 20.6915 33.4592 20.9208 33.8438C21.15 34.2284 21.2646 34.7005 21.2646 35.2599C21.2646 35.9048 21.0956 36.4876 20.7576 37.0082C20.4235 37.5287 19.934 37.9425 19.289 38.2494C18.648 38.5563 17.8691 38.7098 16.9522 38.7098C16.0975 38.7098 15.3574 38.5719 14.7319 38.296C14.1103 38.0202 13.6208 37.6356 13.2634 37.1422C12.9099 36.6488 12.7098 36.0758 12.6632 35.4231H14.155C14.1939 35.8737 14.3454 36.2467 14.6096 36.542C14.8776 36.8333 15.2156 37.0509 15.6235 37.1946C16.0354 37.3345 16.4782 37.4044 16.9522 37.4044C17.5039 37.4044 17.9992 37.3151 18.4382 37.1364C18.8772 36.9538 19.2249 36.7012 19.4814 36.3788C19.7378 36.0524 19.866 35.6717 19.866 35.2366C19.866 34.8403 19.7553 34.5179 19.5338 34.2692C19.3124 34.0206 19.021 33.8186 18.6597 33.6632C18.2984 33.5078 17.9079 33.3718 17.4884 33.2552L16.0198 32.8357C15.0874 32.5676 14.3493 32.1849 13.8054 31.6876C13.2615 31.1904 12.9895 30.5396 12.9895 29.7354C12.9895 29.0672 13.1702 28.4845 13.5315 27.9872C13.8967 27.486 14.3862 27.0975 15 26.8217C15.6177 26.542 16.3073 26.4021 17.0688 26.4021C17.838 26.4021 18.5218 26.54 19.1201 26.8158C19.7183 27.0878 20.1923 27.4608 20.542 27.9347C20.8955 28.4087 21.082 28.9468 21.1014 29.549H19.7028ZM32.562 32.5326C32.562 33.7914 32.3347 34.8792 31.8801 35.796C31.4256 36.7129 30.802 37.42 30.0095 37.9172C29.217 38.4145 28.3118 38.6632 27.2939 38.6632C26.276 38.6632 25.3708 38.4145 24.5783 37.9172C23.7857 37.42 23.1622 36.7129 22.7076 35.796C22.2531 34.8792 22.0258 33.7914 22.0258 32.5326C22.0258 31.2739 22.2531 30.1861 22.7076 29.2692C23.1622 28.3524 23.7857 27.6453 24.5783 27.148C25.3708 26.6507 26.276 26.4021 27.2939 26.4021C28.3118 26.4021 29.217 26.6507 30.0095 27.148C30.802 27.6453 31.4256 28.3524 31.8801 29.2692C32.3347 30.1861 32.562 31.2739 32.562 32.5326ZM31.1634 32.5326C31.1634 31.4992 30.9905 30.627 30.6447 29.9161C30.3028 29.2051 29.8386 28.6671 29.2519 28.3019C28.6692 27.9367 28.0165 27.7541 27.2939 27.7541C26.5713 27.7541 25.9167 27.9367 25.33 28.3019C24.7473 28.6671 24.283 29.2051 23.9372 29.9161C23.5954 30.627 23.4244 31.4992 23.4244 32.5326C23.4244 33.566 23.5954 34.4382 23.9372 35.1492C24.283 35.8601 24.7473 36.3982 25.33 36.7634C25.9167 37.1286 26.5713 37.3112 27.2939 37.3112C28.0165 37.3112 28.6692 37.1286 29.2519 36.7634C29.8386 36.3982 30.3028 35.8601 30.6447 35.1492C30.9905 34.4382 31.1634 33.566 31.1634 32.5326ZM43.447 30.2949H42.0018C41.9163 29.8792 41.7668 29.514 41.5531 29.1993C41.3433 28.8846 41.0869 28.6204 40.7839 28.4068C40.4847 28.1892 40.1526 28.026 39.7874 27.9172C39.4222 27.8085 39.0414 27.7541 38.6452 27.7541C37.9226 27.7541 37.2679 27.9367 36.6813 28.3019C36.0985 28.6671 35.6343 29.2051 35.2885 29.9161C34.9466 30.627 34.7757 31.4992 34.7757 32.5326C34.7757 33.566 34.9466 34.4382 35.2885 35.1492C35.6343 35.8601 36.0985 36.3982 36.6813 36.7634C37.2679 37.1286 37.9226 37.3112 38.6452 37.3112C39.0414 37.3112 39.4222 37.2568 39.7874 37.148C40.1526 37.0392 40.4847 36.878 40.7839 36.6643C41.0869 36.4468 41.3433 36.1807 41.5531 35.866C41.7668 35.5474 41.9163 35.1822 42.0018 34.7704H43.447C43.3383 35.3803 43.1401 35.9262 42.8526 36.4079C42.5651 36.8897 42.2077 37.2995 41.7804 37.6375C41.353 37.9716 40.8732 38.2261 40.341 38.4009C39.8126 38.5758 39.2473 38.6632 38.6452 38.6632C37.6273 38.6632 36.7221 38.4145 35.9296 37.9172C35.137 37.42 34.5135 36.7129 34.0589 35.796C33.6044 34.8792 33.3771 33.7914 33.3771 32.5326C33.3771 31.2739 33.6044 30.1861 34.0589 29.2692C34.5135 28.3524 35.137 27.6453 35.9296 27.148C36.7221 26.6507 37.6273 26.4021 38.6452 26.4021C39.2473 26.4021 39.8126 26.4895 40.341 26.6643C40.8732 26.8392 41.353 27.0956 41.7804 27.4336C42.2077 27.7677 42.5651 28.1756 42.8526 28.6573C43.1401 29.1352 43.3383 29.681 43.447 30.2949ZM44.4239 38.5V37.451L48.3633 33.1387C48.8256 32.6336 49.2063 32.1946 49.5055 31.8217C49.8046 31.4448 50.0261 31.0913 50.1698 30.7611C50.3175 30.427 50.3913 30.0773 50.3913 29.7121C50.3913 29.2925 50.2903 28.9293 50.0882 28.6224C49.8901 28.3155 49.6182 28.0785 49.2724 27.9114C48.9266 27.7444 48.5381 27.6608 48.1069 27.6608C47.6485 27.6608 47.2483 27.756 46.9064 27.9464C46.5684 28.1329 46.3062 28.3951 46.1197 28.7331C45.9371 29.0711 45.8458 29.4674 45.8458 29.9219H44.4705C44.4705 29.2226 44.6317 28.6088 44.9542 28.0804C45.2767 27.5521 45.7157 27.1402 46.2712 26.845C46.8307 26.5497 47.4581 26.4021 48.1535 26.4021C48.8528 26.4021 49.4725 26.5497 50.0125 26.845C50.5525 27.1402 50.976 27.5385 51.2829 28.0396C51.5898 28.5408 51.7432 29.0983 51.7432 29.7121C51.7432 30.1511 51.6636 30.5804 51.5043 31C51.3489 31.4157 51.077 31.88 50.6885 32.3928C50.3039 32.9017 49.7697 33.5233 49.0859 34.2576L46.4053 37.1247V37.2179H51.953V38.5H44.4239Z'
+                  fill='#6F3DFA'
+                />
+              </svg>
+            </Link>
+            <Link href={'https://trust.delve.co/sim-studio'} target='_blank'>
+              <svg
+                className='h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16'
+                viewBox='0 0 64 64'
+                fill='none'
+                xmlns='http://www.w3.org/2000/svg'
+              >
+                <circle
+                  cx={32}
+                  cy={32}
+                  r='31.25'
+                  stroke='#6F3DFA'
+                  strokeOpacity='0.25'
+                  strokeWidth='1.5'
+                />
+                <g clipPath='url(#clip0_1611_49144)'>
+                  <path
+                    fillRule='evenodd'
+                    clipRule='evenodd'
+                    d='M31.0157 13.1839C29.0298 14.2144 30.0338 17.3198 32.2303 16.9406C33.1981 16.7735 33.9008 15.831 33.811 14.82C33.7538 14.1744 33.4476 13.6421 32.9339 13.2947C32.4246 12.9502 31.5619 12.9005 31.0157 13.1839ZM25.8071 14.3226C24.8718 14.5107 24.5459 14.6092 23.6888 14.9626C23.1464 15.1862 22.1791 15.6278 21.539 15.9439C19.8823 16.7622 19.6888 17.0895 20.5949 17.5396C20.972 17.7269 21.1853 17.7549 22.5699 17.7989L24.122 17.8482L24.9645 18.2623C25.4279 18.49 26.2261 18.9142 26.7383 19.2048C28.4256 20.1624 29.0798 20.499 29.8131 20.7864C30.2113 20.9426 30.6393 21.1523 30.7639 21.2525C31.0396 21.474 31.2103 21.4035 31.5723 20.9188C31.7487 20.6824 31.7978 20.5459 31.7401 20.4524C31.6952 20.3796 31.2671 20.0895 30.7889 19.8076C29.762 19.2022 29.3174 18.8376 28.9716 18.318C28.6064 17.769 28.5075 17.4193 28.4214 16.373C28.374 15.7956 28.2894 15.348 28.1977 15.1894C27.8515 14.5907 26.6464 14.1536 25.8071 14.3226ZM36.8542 14.4104C36.3422 14.551 35.8694 14.8655 35.6458 15.2144C35.5639 15.342 35.4794 15.7977 35.4326 16.3639C35.3347 17.5464 35.1636 18.0431 34.6545 18.6216C34.2415 19.091 33.8123 19.4026 32.7416 20.0104C32.4092 20.199 32.1163 20.409 32.0907 20.4772C32.0369 20.6206 32.4505 21.209 32.7019 21.3465C32.8312 21.4172 32.9118 21.404 33.0327 21.2922C33.1205 21.2109 33.6484 20.9499 34.2057 20.7121C34.7629 20.4743 35.4359 20.1576 35.7014 20.0081C35.9669 19.8588 36.6031 19.4975 37.1153 19.2052C37.6275 18.9129 38.4259 18.4879 38.8892 18.2608L39.7317 17.8477L41.3295 17.7998C42.8649 17.7539 42.9432 17.7424 43.337 17.5068C43.8413 17.2045 43.8996 17.0659 43.6551 16.7484C43.2991 16.2859 39.7422 14.6671 38.516 14.4095C37.6962 14.2372 37.4842 14.2374 36.8542 14.4104ZM19.0665 17.1194C16.8347 17.8672 13.061 18.6475 10.0199 18.9896C9.48328 19.05 9.02688 19.1138 9.0057 19.1313C8.92741 19.1959 9.67598 19.9059 10.0054 20.0797C11.1158 20.6651 13.9095 20.6577 16.7104 20.0618C17.4218 19.9105 21.8466 18.4624 22.1796 18.2719C22.241 18.2368 21.9603 18.2019 21.5561 18.1942C20.656 18.1772 19.9839 17.8947 19.6537 17.3948C19.4619 17.1042 19.3159 17.0358 19.0665 17.1194ZM44.2223 17.3733C44.1232 17.5373 43.8891 17.7592 43.702 17.8667C43.2979 18.0988 42.3657 18.2687 41.864 18.2017L41.5057 18.1538L41.816 18.2994C41.9867 18.3796 42.7651 18.6694 43.5457 18.9435C46.7579 20.0717 48.3088 20.4095 50.6591 20.4932C52.7594 20.568 53.748 20.3467 54.4436 19.6458C54.6693 19.4184 54.8537 19.2014 54.8537 19.1633C54.8537 19.1253 54.5445 19.066 54.1662 19.0314C52.0587 18.8392 47.8729 18.037 45.8208 17.4321C45.1552 17.2358 44.5641 17.0753 44.5066 17.0753C44.4497 17.0753 44.3216 17.2094 44.2223 17.3733ZM31.0134 17.3653C30.7618 17.6225 30.943 17.891 31.3681 17.891C31.5426 17.891 31.5467 17.9243 31.4855 18.8426L31.422 19.7942H31.8825H32.3429L32.2796 18.8426L32.216 17.891L32.4263 17.8896C32.7615 17.8873 32.8896 17.7596 32.8241 17.4929C32.7668 17.2595 32.756 17.2566 31.9429 17.2566C31.4209 17.2566 31.0808 17.2964 31.0134 17.3653ZM22.4368 18.4787C21.6088 18.8944 20.7056 19.2525 18.8674 19.8936C16.9184 20.5734 15.511 20.8768 13.9889 20.9452C13.3426 20.9743 12.8137 21.0284 12.8137 21.0654C12.8137 21.1024 13.0233 21.2191 13.2793 21.325C14.825 21.9638 17.6657 21.9849 19.8204 21.3736C21.4474 20.912 24.1695 19.6995 24.815 19.1488C25.0622 18.9379 25.0796 18.8936 24.9685 18.757C24.738 18.473 24.1397 18.2301 23.5924 18.1983C23.1276 18.1711 22.9763 18.2077 22.4368 18.4787ZM39.4657 18.3759C39.2218 18.4921 38.9668 18.6557 38.8991 18.7393C38.7004 18.9847 38.9628 19.1878 40.4356 19.9286C42.2771 20.8549 43.751 21.3737 45.3635 21.6633C46.4636 21.8609 48.5287 21.8586 49.4437 21.6588C50.1566 21.5033 51.04 21.1751 51.04 21.0661C51.04 21.0295 50.5111 20.9745 49.865 20.944C49.1517 20.9103 48.2597 20.7972 47.5955 20.6564C46.111 20.3413 43.1439 19.3033 41.5261 18.5331C40.5993 18.0919 40.1361 18.0566 39.4657 18.3759ZM25.3193 19.3508C24.954 19.6733 22.4543 20.9447 21.5238 21.2812C20.7365 21.5659 19.3346 21.9406 18.4666 22.0985L17.8248 22.2153L18.2239 22.402C18.8912 22.7142 19.6279 22.8128 20.9069 22.7613C22.1604 22.7106 22.5501 22.6108 23.99 21.9719C24.6683 21.671 27.4574 20.2677 27.5353 20.1882C27.6159 20.106 27.1388 19.7809 26.4149 19.4247C26.0175 19.2291 25.6781 19.0708 25.661 19.0728C25.6438 19.0749 25.49 19.2 25.3193 19.3508ZM37.6486 19.3053C37.3809 19.4296 36.9671 19.6587 36.7292 19.8148C36.3237 20.0806 36.3069 20.1065 36.462 20.2259C36.6924 20.4032 38.962 21.5659 39.8205 21.9464C41.3152 22.6087 41.6883 22.706 42.9425 22.76C44.2138 22.8147 44.9515 22.7173 45.6297 22.4049L46.0291 22.2212L45.009 22.0115C43.9007 21.7837 42.7376 21.4532 42.0033 21.1576C41.13 20.8058 38.959 19.6783 38.568 19.3733C38.3536 19.206 38.1685 19.0715 38.1567 19.0745C38.145 19.0773 37.9162 19.1812 37.6486 19.3053ZM28.1575 21.2943C26.5634 21.6432 25.5822 22.1961 25.0014 23.0728C24.4878 23.8477 24.369 25.268 24.7346 26.2607C25.1706 27.4445 25.567 27.8608 26.8714 28.5051C28.0203 29.0725 28.8542 29.21 32.825 29.4866C33.8508 29.5581 34.1871 29.6186 34.6805 29.8204C35.7225 30.2467 36.2876 31.07 36.0477 31.8126C35.9329 32.1683 35.6221 32.3964 34.6985 32.8029C34.3693 32.9478 34.0998 33.0885 34.0998 33.1156C34.0998 33.1425 34.3041 33.2389 34.5538 33.3295C34.8034 33.4201 35.2595 33.6516 35.5671 33.8441L36.1265 34.194L36.6874 33.7577C37.047 33.4778 37.356 33.1375 37.5485 32.8096C37.8459 32.302 37.8481 32.2903 37.8066 31.4095C37.7707 30.65 37.7278 30.4518 37.5096 30.0422C36.7248 28.5688 35.4939 27.9084 33.0355 27.6417C32.3282 27.565 31.1403 27.4391 30.3958 27.362C28.9218 27.2095 28.251 27.0147 27.3921 26.4896C26.8024 26.1293 26.566 25.7038 26.5629 24.9988C26.56 24.3139 26.793 23.7266 27.2672 23.224C27.7584 22.7033 27.9264 22.6802 28.8889 23.0012C29.4131 23.176 29.6216 23.2037 29.9781 23.1458C30.5755 23.0489 31.1508 22.8026 31.3048 22.578C31.4157 22.4161 31.4142 22.3622 31.2928 22.1521C31.1139 21.8427 30.4306 21.3754 29.9756 21.2513C29.508 21.1239 28.8666 21.1389 28.1575 21.2943ZM33.8232 21.2788C33.4035 21.4321 32.95 21.7218 32.6941 22.0001C32.2546 22.4782 32.6215 22.8688 33.7319 23.1054C34.3167 23.23 34.386 23.2274 34.7883 23.0654C35.4862 22.7842 36.009 22.7359 36.2935 22.9264C36.6434 23.1608 36.8307 23.402 37.0859 23.9469C37.2789 24.3595 37.3067 24.5256 37.2784 25.0978C37.254 25.591 37.1976 25.8332 37.0633 26.0203C36.8043 26.3814 35.3274 27.1291 34.738 27.1976C34.1939 27.2608 34.2231 27.3241 34.898 27.5429C35.1663 27.63 35.7632 27.8844 36.2246 28.1084C37.0525 28.5104 37.0668 28.5137 37.3373 28.3649C38.2832 27.8443 38.882 27.1117 39.1964 26.0907C39.4161 25.377 39.3553 24.1035 39.0696 23.4377C38.8211 22.8581 38.0807 22.1392 37.3956 21.8121C36.8808 21.5664 35.07 21.1591 34.4989 21.1606C34.3038 21.1611 33.9998 21.2144 33.8232 21.2788ZM30.2389 21.6929C30.303 21.7987 30.0172 21.9601 29.8648 21.9043C29.8038 21.8818 29.7539 21.8058 29.7539 21.7352C29.7539 21.5908 30.1559 21.5557 30.2389 21.6929ZM34.0527 21.6929C34.1369 21.832 33.807 21.9667 33.63 21.8654C33.5449 21.8168 33.4983 21.7386 33.5267 21.6919C33.5938 21.5809 33.9855 21.5817 34.0527 21.6929ZM31.3331 23.3514C31.2393 23.7675 31.2149 24.3328 31.241 25.4812L31.2766 27.0445H31.8899H32.5033L32.5107 25.6624C32.5147 24.9022 32.5286 24.1817 32.5414 24.061C32.5541 23.9403 32.506 23.6039 32.4343 23.3133L32.3042 22.785H31.8824H31.4606L31.3331 23.3514ZM26.8082 29.3464C26.326 29.9639 26.1075 30.5549 26.055 31.3837C26.0095 32.1013 26.0246 32.2074 26.231 32.62C26.6419 33.4407 27.4336 34.0723 28.5006 34.4302C29.465 34.754 30.623 34.9274 31.8381 34.9301C33.0769 34.933 33.9438 35.1143 34.3619 35.4579C34.8788 35.8829 35.0754 36.2507 35.0754 36.7936C35.0754 37.2058 35.038 37.3098 34.8047 37.5483C34.6558 37.7005 34.3765 37.8731 34.1838 37.9321C33.8412 38.037 33.7084 38.1919 33.9612 38.1919C34.0313 38.1919 34.3464 38.3723 34.6616 38.5927L35.2343 38.9934L35.7521 38.5673C36.1222 38.2625 36.313 38.0258 36.4216 37.736C36.8696 36.5416 36.3036 34.8737 35.1959 34.1238C34.5042 33.6558 33.7286 33.4746 31.8425 33.3408C30.1642 33.2217 29.497 33.0817 28.734 32.6888C27.4141 32.009 27.5191 30.6776 28.9502 29.944L29.344 29.7421L28.5511 29.5339C28.1151 29.4193 27.5954 29.2652 27.3963 29.1913L27.0341 29.0571L26.8082 29.3464ZM31.3703 31.3267L31.3947 32.89H31.8825H32.3703L32.3945 31.3267L32.4188 29.7634H31.8825H31.3461L31.3703 31.3267ZM27.809 34.9405C27.7163 35.0962 27.5524 35.5034 27.4447 35.8457C27.0562 37.0804 27.3553 38.0607 28.3338 38.7592C29.1144 39.3165 29.7447 39.4728 31.4834 39.5402C33.2797 39.6098 33.6771 39.7444 34.0612 40.414C34.6023 41.3577 34.3662 41.9916 33.2573 42.5731C33.0134 42.7009 32.8796 42.8074 32.96 42.8097C33.0404 42.812 33.336 42.9375 33.6168 43.0884L34.1274 43.3628L34.4524 43.1327C35.4693 42.4126 35.8016 41.1175 35.2467 40.0364C34.8969 39.3541 34.64 39.0848 34.0236 38.7529C33.4071 38.4209 32.7908 38.2835 31.9003 38.2793C31.0324 38.2753 29.9765 38.0841 29.5265 37.8495C28.9792 37.5641 28.8322 37.3461 28.8398 36.8321C28.8482 36.2594 29.1001 35.7605 29.5246 35.4752L29.8584 35.2508L29.4736 35.1469C29.2619 35.0898 28.8777 34.9562 28.6198 34.85C28.0191 34.6031 28.0091 34.6044 27.809 34.9405ZM31.4391 36.5882V37.93L31.8604 37.9023L32.2816 37.8746L32.306 36.5606L32.3304 35.2464H31.8848H31.4391V36.5882ZM28.7483 39.7099C28.1656 40.8876 28.2622 41.9443 29.0265 42.7538C29.618 43.3803 30.5642 43.7527 31.8381 43.8605C32.6455 43.929 33.2265 44.1493 33.4172 44.4593C33.6397 44.8214 33.6607 45.2592 33.521 46.6204C33.2358 49.3969 33.1153 49.8027 32.4538 50.2177C32.2936 50.318 32.2983 50.3258 32.5224 50.3308C32.8537 50.3383 33.3269 49.8915 33.5484 49.3623C33.8573 48.6251 34.3905 45.9421 34.4009 45.0738C34.4091 44.3933 34.3838 44.2581 34.1965 43.9781C33.7842 43.3618 33.3795 43.174 31.9712 42.9453C30.0682 42.6362 29.2201 41.7556 29.7411 40.6296C29.8424 40.4104 29.9885 40.1438 30.0657 40.0372C30.2031 39.8471 30.194 39.8398 29.5892 39.652C29.25 39.5468 28.9498 39.4607 28.922 39.4607C28.8942 39.4607 28.816 39.5729 28.7483 39.7099ZM31.5277 41.1826V42.542H31.8825H32.2373V41.1826V39.8231H31.8825H31.5277V41.1826ZM29.5854 43.9559C29.3474 44.265 29.2746 44.697 29.3447 45.3825C29.4346 46.263 30.0758 49.0993 30.275 49.4982C30.4992 49.9474 30.9396 50.3363 31.2242 50.3363C31.5076 50.3363 31.4953 50.28 31.1744 50.1105C31.0289 50.0336 30.852 49.8563 30.7814 49.7163C30.5934 49.3451 30.3946 48.2125 30.2462 46.6657C30.1029 45.1733 30.1487 44.6517 30.4516 44.3222L30.6392 44.118L30.2385 43.9191C30.0182 43.8098 29.8219 43.7202 29.8023 43.7202C29.7827 43.7202 29.6851 43.8263 29.5854 43.9559ZM31.6167 47.8213C31.6251 49.7776 31.6217 51.5823 31.6093 51.8315C31.5952 52.1139 31.6457 52.4193 31.7431 52.6423L31.8994 53L32.0728 52.5064C32.2017 52.1389 32.2299 51.9088 32.1828 51.6051C32.148 51.3807 32.1305 49.6373 32.1438 47.7304L32.168 44.264H31.8848H31.6015L31.6167 47.8213Z'
+                    fill='#6F3DFA'
+                  />
+                  <path d='M50.9512 31.5391H13.8781V43.2464H50.9512V31.5391Z' fill='#6C3CEE' />
+                  <path
+                    d='M19.7495 40.3194V33.9336H20.9062V36.637H23.8653V33.9336H25.0252V40.3194H23.8653V37.6068H20.9062V40.3194H19.7495ZM27.4401 33.9336V40.3194H26.2833V33.9336H27.4401ZM28.6928 40.3194V33.9336H31.0875C31.578 33.9336 31.9896 34.0251 32.3222 34.208C32.657 34.391 32.9095 34.6425 33.08 34.9626C33.2525 35.2806 33.3387 35.6424 33.3387 36.0476C33.3387 36.4572 33.2525 36.821 33.08 37.1391C32.9074 37.4571 32.6528 37.7075 32.316 37.8905C31.9793 38.0713 31.5646 38.1618 31.0719 38.1618H29.4848V37.2108H30.916C31.2028 37.2108 31.4377 37.1608 31.6207 37.0611C31.8036 36.9613 31.9387 36.8241 32.026 36.6495C32.1154 36.4749 32.1601 36.2743 32.1601 36.0476C32.1601 35.8211 32.1154 35.6216 32.026 35.449C31.9387 35.2765 31.8025 35.1424 31.6175 35.0468C31.4346 34.9491 31.1987 34.9002 30.9097 34.9002H29.8496V40.3194H28.6928ZM34.4519 40.3194H33.2172L35.4653 33.9336H36.8934L39.1446 40.3194H37.9098L36.2043 35.2433H36.1543L34.4519 40.3194ZM34.4924 37.8156H37.86V38.7448H34.4924V37.8156ZM40.8057 40.3194H39.571L41.8191 33.9336H43.2472L45.4984 40.3194H44.2637L42.5581 35.2433H42.5082L40.8057 40.3194ZM40.8462 37.8156H44.2137V38.7448H40.8462V37.8156Z'
+                    fill='#EDEDED'
+                  />
+                </g>
+                <defs>
+                  <clipPath id='clip0_1611_49144'>
+                    <rect width='45.8537' height={40} fill='white' transform='translate(9 13)' />
+                  </clipPath>
+                </defs>
+              </svg>
+            </Link>
           </div>
         </div>
-      </section>
-    )
-  }
-
-  return (
-    <motion.section
-      className='flex w-full p-4 md:p-9'
-      initial={{ opacity: 0, y: 40 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.2 }}
-      transition={{ duration: 0.7, delay: 0.05, ease: 'easeOut' }}
-    >
-      <motion.div
-        className='flex w-full flex-col rounded-3xl bg-[#2B2334] p-6 sm:p-10 md:p-16'
-        initial={{ opacity: 0, y: 40 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.2 }}
-        transition={{ duration: 0.7, delay: 0.1, ease: 'easeOut' }}
-      >
-        <motion.div
-          className='flex h-full w-full flex-col justify-between md:flex-row'
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.7, delay: 0.15, ease: 'easeOut' }}
-        >
-          {/* Left side content */}
-          <div className='flex flex-col justify-between'>
-            <motion.p
-              className='max-w-lg font-light text-5xl text-[#B5A1D4] leading-[1.1] md:text-6xl'
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.18, ease: 'easeOut' }}
+        <div className='flex flex-col items-start gap-8 sm:flex-row sm:gap-12 md:gap-16 lg:gap-16'>
+          <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-5'>
+            <Link
+              href={'docs.sim.ai'}
+              target='_blank'
+              className='font-medium text-base text-foreground transition-colors hover:text-muted-foreground sm:text-lg'
             >
-              Ready to build AI faster and easier?
-            </motion.p>
-            <motion.div
-              className='mt-4 pt-4 md:mt-auto md:pt-8'
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.22, ease: 'easeOut' }}
+              Docs
+            </Link>
+            <Link
+              href={'/contributors'}
+              target='_blank'
+              className='font-medium text-base text-foreground transition-colors hover:text-muted-foreground sm:text-lg'
             >
-              <Button
-                className='w-fit bg-[#B5A1D4] text-[#1C1C1C] transition-colors duration-500 hover:bg-[#bdaecb]'
-                size={'lg'}
-                variant={'secondary'}
-                onClick={handleNavigate}
-              >
-                Get Started
-              </Button>
-            </motion.div>
+              Contributors
+            </Link>
           </div>
-
-          {/* Right side content */}
-          <motion.div
-            className='relative mt-8 flex w-full flex-col gap-6 md:mt-0 md:w-auto md:flex-row md:items-end md:justify-end md:gap-16'
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.7, delay: 0.28, ease: 'easeOut' }}
+          <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-5'>
+            <Link
+              href={'/privacy-policy'}
+              target='_blank'
+              className='font-medium text-base text-foreground transition-colors hover:text-muted-foreground sm:text-lg'
+            >
+              Privacy Policy
+            </Link>
+            <Link
+              href={'/tos'}
+              target='_blank'
+              className='font-medium text-base text-foreground transition-colors hover:text-muted-foreground sm:text-lg'
+            >
+              Terms of Service
+            </Link>
+          </div>
+        </div>
+      </div>
+      <div className='flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-0'>
+        <p className='text-left text-muted-foreground text-sm sm:text-base'>
+          &copy; {new Date().getFullYear()} Sim. All rights reserved.
+        </p>
+        <div className='flex gap-4 sm:gap-5'>
+          <Link
+            href={'https://x.com/simdotai'}
+            target='_blank'
+            className='transition-opacity hover:opacity-70'
           >
-            {/* See repo button positioned absolutely to align with the top text - desktop only */}
-            <motion.div
-              className='absolute top-0 right-0 hidden md:block'
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.4, ease: 'easeOut' }}
-            >
-              <Link
-                href='https://github.com/simstudioai/sim'
-                target='_blank'
-                rel='noopener noreferrer'
-              >
-                <Button
-                  className='flex items-center gap-2 bg-[#B5A1D4] text-[#1C1C1C] transition-colors duration-500 hover:bg-[#bdaecb]'
-                  size={'lg'}
-                  variant={'secondary'}
-                >
-                  <GithubIcon className='h-5 w-5' />
-                  See repo
-                </Button>
-              </Link>
-            </motion.div>
-
-            {/* Links section - flex row on mobile, part of flex row in md */}
-            <div className='flex w-full flex-row justify-between gap-4 md:w-auto md:justify-start md:gap-16'>
-              <motion.div
-                className='flex flex-col gap-2'
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
-                transition={{ duration: 0.7, delay: 0.32, ease: 'easeOut' }}
-              >
-                <Link
-                  href={'https://docs.sim.ai/'}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl'
-                >
-                  Docs
-                </Link>
-                <Link
-                  href={'/contributors'}
-                  className='font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl'
-                  onMouseEnter={handleContributorsHover}
-                >
-                  Contributors
-                </Link>
-              </motion.div>
-              <motion.div
-                className='flex flex-col gap-2'
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
-                transition={{ duration: 0.7, delay: 0.36, ease: 'easeOut' }}
-              >
-                <Link
-                  href={'/terms'}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl'
-                >
-                  Terms and Conditions
-                </Link>
-                <Link
-                  href={'/privacy'}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl'
-                >
-                  Privacy Policy
-                </Link>
-              </motion.div>
-            </div>
-
-            {/* Social icons */}
-            <motion.div
-              className='mt-4 flex items-center md:mt-0 md:justify-end'
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.4, ease: 'easeOut' }}
-            >
-              <div className='flex gap-4'>
-                <Link
-                  href={'https://github.com/simstudioai/sim'}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='flex text-2xl transition-all duration-500 md:hidden'
-                >
-                  <svg
-                    width='36'
-                    height='36'
-                    viewBox='0 0 1024 1024'
-                    fill='none'
-                    xmlns='http://www.w3.org/2000/svg'
-                  >
-                    <path
-                      fillRule='evenodd'
-                      clipRule='evenodd'
-                      d='M8 0C3.58 0 0 3.58 0 8C0 11.54 2.29 14.53 5.47 15.59C5.87 15.66 6.02 15.42 6.02 15.21C6.02 15.02 6.01 14.39 6.01 13.72C4 14.09 3.48 13.23 3.32 12.78C3.23 12.55 2.84 11.84 2.5 11.65C2.22 11.5 1.82 11.13 2.49 11.12C3.12 11.11 3.57 11.7 3.72 11.94C4.44 13.15 5.59 12.81 6.05 12.6C6.12 12.08 6.33 11.73 6.56 11.53C4.78 11.33 2.92 10.64 2.92 7.58C2.92 6.71 3.23 5.99 3.74 5.43C3.66 5.23 3.38 4.41 3.82 3.31C3.82 3.31 4.49 3.1 6.02 4.13C6.66 3.95 7.34 3.86 8.02 3.86C8.7 3.86 9.38 3.95 10.02 4.13C11.55 3.09 12.22 3.31 12.22 3.31C12.66 4.41 12.38 5.23 12.3 5.43C12.81 5.99 13.12 6.7 13.12 7.58C13.12 10.65 11.25 11.33 9.47 11.53C9.76 11.78 10.01 12.26 10.01 13.01C10.01 14.08 10 14.94 10 15.21C10 15.42 10.15 15.67 10.55 15.59C13.71 14.53 16 11.53 16 8C16 3.58 12.42 0 8 0Z'
-                      transform='scale(64)'
-                      fill='#9E91AA'
-                    />
-                  </svg>
-                </Link>
-                <Link
-                  href={'https://discord.gg/Hr4UWYEcTT'}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='text-2xl transition-all duration-500'
-                >
-                  <DiscordIcon className='h-9 w-9 fill-[#9E91AA] hover:fill-[#bdaecb] md:h-10 md:w-10' />
-                </Link>
-                <Link
-                  href={'https://x.com/simdotai'}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='text-2xl transition-all duration-500'
-                >
-                  <XIcon className='h-9 w-9 text-[#9E91AA] transition-all duration-500 hover:text-[#bdaecb] md:h-10 md:w-10' />
-                </Link>
-              </div>
-            </motion.div>
-          </motion.div>
-        </motion.div>
-      </motion.div>
-    </motion.section>
+            <XIcon className='h-5 w-5 sm:h-6 sm:w-6' />
+          </Link>
+          <Link
+            href={'https://github.com/simstudioai/sim'}
+            target='_blank'
+            className='transition-opacity hover:opacity-70'
+          >
+            <GithubIcon className='h-5 w-5 sm:h-6 sm:w-6' />
+          </Link>
+          <Link
+            href={'https://discord.gg/4VebwBUwWd'}
+            target='_blank'
+            className='transition-opacity hover:opacity-70'
+          >
+            <DiscordIcon className='h-5 w-5 sm:h-6 sm:w-6' />
+          </Link>
+        </div>
+      </div>
+      <svg
+        className='mt-4 h-auto w-full max-w-full sm:mt-6 md:mt-8'
+        viewBox='0 0 1128 359'
+        fill='none'
+        xmlns='http://www.w3.org/2000/svg'
+      >
+        <g filter='url(#filter0_dd_1150_10046)'>
+          <path
+            d='M3 420.942H77.9115C77.9115 441.473 85.4027 457.843 100.385 470.051C115.367 481.704 135.621 487.53 161.147 487.53C188.892 487.53 210.255 482.258 225.238 471.715C240.22 460.617 247.711 445.913 247.711 427.601C247.711 414.283 243.549 403.185 235.226 394.307C227.457 385.428 213.03 378.215 191.943 372.666L120.361 356.019C84.2929 347.14 57.3802 333.545 39.6234 315.234C22.4215 296.922 13.8206 272.784 13.8206 242.819C13.8206 217.849 20.2019 196.208 32.9646 177.896C46.2822 159.584 64.3165 145.434 87.0674 135.446C110.373 125.458 137.008 120.464 166.973 120.464C196.938 120.464 222.74 125.735 244.382 136.278C266.578 146.821 283.779 161.526 295.987 180.393C308.75 199.259 315.409 221.733 315.964 247.813H241.052C240.497 226.727 233.561 210.357 220.243 198.705C206.926 187.052 188.337 181.225 164.476 181.225C140.06 181.225 121.194 186.497 107.876 197.04C94.5585 207.583 87.8997 222.01 87.8997 240.322C87.8997 267.512 107.876 286.101 147.829 296.09L219.411 313.569C253.815 321.337 279.618 334.1 296.82 351.857C314.022 369.059 322.622 392.642 322.622 422.607C322.622 448.132 315.686 470.606 301.814 490.027C287.941 508.894 268.797 523.599 244.382 534.142C220.521 544.13 192.221 549.124 159.482 549.124C111.76 549.124 73.7498 537.471 45.4499 514.165C17.15 490.86 3 459.785 3 420.942Z'
+            fill='#DCDCDC'
+          />
+          <path
+            d='M377.713 539.136V132.117C408.911 143.439 422.667 143.439 455.954 132.117V539.136H377.713ZM416.001 105.211C402.129 105.211 389.921 100.217 379.378 90.2291C369.39 79.686 364.395 67.4782 364.395 53.6057C364.395 39.1783 369.39 26.9705 379.378 16.9823C389.921 6.9941 402.129 2 416.001 2C430.428 2 442.636 6.9941 452.625 16.9823C462.613 26.9705 467.607 39.1783 467.607 53.6057C467.607 67.4782 462.613 79.686 452.625 90.2291C442.636 100.217 430.428 105.211 416.001 105.211Z'
+            fill='#DCDCDC'
+          />
+          <path
+            d='M593.961 539.136H515.72V132.117H585.637V200.792C593.961 178.041 610.053 158.752 632.249 143.769C655 128.232 682.467 120.464 714.651 120.464C750.72 120.464 780.685 130.174 804.545 149.596C822.01 163.812 835.016 181.446 843.562 202.5C851.434 181.446 864.509 163.812 882.786 149.596C907.757 130.174 938.554 120.464 975.177 120.464C1021.79 120.464 1058.41 134.059 1085.05 161.249C1111.68 188.439 1125 225.617 1125 272.784V539.136H1048.42V291.928C1048.42 259.744 1040.1 235.051 1023.45 217.849C1007.36 200.092 985.443 191.213 957.698 191.213C938.276 191.213 921.074 195.653 906.092 204.531C891.665 212.855 880.289 225.062 871.966 241.154C863.642 257.247 859.48 276.113 859.48 297.754V539.136H782.072V291.095C782.072 258.911 774.026 234.496 757.934 217.849C741.841 200.647 719.923 192.046 692.178 192.046C672.756 192.046 655.555 196.485 640.572 205.363C626.145 213.687 614.769 225.895 606.446 241.987C598.122 257.524 593.961 276.113 593.961 297.754V539.136Z'
+            fill='#DCDCDC'
+          />
+          <path
+            d='M166.973 121.105C196.396 121.105 221.761 126.201 243.088 136.367L244.101 136.855L244.106 136.858C265.86 147.191 282.776 161.528 294.876 179.865L295.448 180.741L295.455 180.753C308.032 199.345 314.656 221.475 315.306 247.171H241.675C240.996 226.243 234.012 209.899 220.666 198.222C207.196 186.435 188.437 180.583 164.476 180.583C139.977 180.583 120.949 185.871 107.478 196.536C93.9928 207.212 87.2578 221.832 87.2578 240.322C87.2579 254.096 92.3262 265.711 102.444 275.127C112.542 284.524 127.641 291.704 147.673 296.712L147.677 296.713L219.259 314.192L219.27 314.195C253.065 321.827 278.469 334.271 295.552 351.48L296.358 352.304L296.365 352.311C313.42 369.365 321.98 392.77 321.98 422.606C321.98 448.005 315.082 470.343 301.297 489.646C287.502 508.408 268.456 523.046 244.134 533.55C220.369 543.498 192.157 548.482 159.481 548.482C111.864 548.482 74.0124 536.855 45.8584 513.67C17.8723 490.623 3.80059 459.948 3.64551 421.584H77.2734C77.4285 441.995 84.9939 458.338 99.9795 470.549L99.9854 470.553L99.9912 470.558C115.12 482.324 135.527 488.172 161.146 488.172C188.96 488.172 210.474 482.889 225.607 472.24L225.613 472.236L225.619 472.231C240.761 461.015 248.353 446.12 248.353 427.601C248.352 414.145 244.145 402.89 235.709 393.884C227.81 384.857 213.226 377.603 192.106 372.045L192.098 372.043L192.089 372.04L120.507 355.394C84.5136 346.533 57.7326 332.983 40.0908 314.794H40.0918C23.0227 296.624 14.4629 272.654 14.4629 242.819C14.4629 217.969 20.8095 196.463 33.4834 178.273C46.7277 160.063 64.6681 145.981 87.3252 136.034L87.3242 136.033C110.536 126.086 137.081 121.106 166.973 121.105ZM975.177 121.105C1021.66 121.105 1058.1 134.658 1084.59 161.698C1111.08 188.741 1124.36 225.743 1124.36 272.784V538.494H1049.07V291.928C1049.07 259.636 1040.71 234.76 1023.92 217.402H1023.91C1007.68 199.5 985.584 190.571 957.697 190.571C938.177 190.571 920.862 195.034 905.771 203.975C891.228 212.365 879.77 224.668 871.396 240.859C863.017 257.059 858.838 276.03 858.838 297.754V538.494H782.714V291.096C782.714 258.811 774.641 234.209 758.395 217.402C742.16 200.053 720.062 191.404 692.178 191.404C673.265 191.404 656.422 195.592 641.666 203.985L640.251 204.808C625.711 213.196 614.254 225.497 605.88 241.684C597.496 257.333 593.318 276.031 593.318 297.754V538.494H516.361V132.759H584.995V200.792L586.24 201.013C594.51 178.408 610.505 159.221 632.607 144.302L632.61 144.3C655.238 128.847 682.574 121.105 714.651 121.105C750.599 121.105 780.413 130.781 804.14 150.094C821.52 164.241 834.461 181.787 842.967 202.741L843.587 204.268L844.163 202.725C851.992 181.786 864.994 164.248 883.181 150.103C908.021 130.782 938.673 121.106 975.177 121.105ZM455.312 538.494H378.354V133.027C393.534 138.491 404.652 141.251 416.05 141.251C427.46 141.251 439.095 138.485 455.312 133.009V538.494ZM416.001 2.6416C430.262 2.6416 442.306 7.57157 452.171 17.4365C462.036 27.3014 466.965 39.3445 466.965 53.6055C466.965 67.3043 462.04 79.3548 452.16 89.7842C442.297 99.6427 430.258 104.569 416.001 104.569C402.303 104.569 390.254 99.6452 379.825 89.7676C369.957 79.3421 365.037 67.2967 365.037 53.6055C365.037 39.3444 369.966 27.3005 379.831 17.4355C390.258 7.56247 402.307 2.64163 416.001 2.6416Z'
+            stroke='#C1C1C1'
+            strokeWidth='1.28396'
+          />
+        </g>
+        <defs>
+          <filter
+            id='filter0_dd_1150_10046'
+            x={0}
+            y={0}
+            width={1128}
+            height='553.125'
+            filterUnits='userSpaceOnUse'
+            colorInterpolationFilters='sRGB'
+          >
+            <feFlood floodOpacity={0} result='BackgroundImageFix' />
+            <feColorMatrix
+              in='SourceAlpha'
+              type='matrix'
+              values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0'
+              result='hardAlpha'
+            />
+            <feMorphology
+              radius={1}
+              operator='erode'
+              in='SourceAlpha'
+              result='effect1_dropShadow_1150_10046'
+            />
+            <feOffset dy={1} />
+            <feGaussianBlur stdDeviation={1} />
+            <feColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0' />
+            <feBlend
+              mode='normal'
+              in2='BackgroundImageFix'
+              result='effect1_dropShadow_1150_10046'
+            />
+            <feColorMatrix
+              in='SourceAlpha'
+              type='matrix'
+              values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0'
+              result='hardAlpha'
+            />
+            <feOffset dy={1} />
+            <feGaussianBlur stdDeviation='1.5' />
+            <feColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0' />
+            <feBlend
+              mode='normal'
+              in2='effect1_dropShadow_1150_10046'
+              result='effect2_dropShadow_1150_10046'
+            />
+            <feBlend
+              mode='normal'
+              in='SourceGraphic'
+              in2='effect2_dropShadow_1150_10046'
+              result='shape'
+            />
+          </filter>
+        </defs>
+      </svg>
+    </div>
   )
 }
 
