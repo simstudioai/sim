@@ -16,7 +16,10 @@ Copilot is your in-editor assistant that helps you build, understand, and improv
 - **Edit**: Make changes to blocks, connections, and settings when you approve
 
 <Callout type="info">
-  Copilot is a Sim-managed service. For self-hosted deployments, generate a Copilot API key in the hosted app (sim.ai → Settings → Copilot) and set `COPILOT_API_KEY` in your environment.
+  Copilot is a Sim-managed service. For self-hosted deployments, generate a Copilot API key in the hosted app (sim.ai → Settings → Copilot)
+  1. Go to [sim.ai](https://sim.ai) → Settings → Copilot and generate a Copilot API key
+2. Set `COPILOT_API_KEY` in your self-hosted environment to that value
+3. Host Sim on a publicly available DNS and set `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL` to that value (e.g., using ngrok)
 </Callout>
 
 ## Modes
