@@ -30,7 +30,6 @@ export default function WorkspaceRootLayout({ children }: WorkspaceRootLayoutPro
         id: session.data.user.id,
         name: session.data.user.name,
         email: session.data.user.email,
-        image: (session.data.user as any).image ?? null,
       }
     : undefined
 
