@@ -37,7 +37,7 @@ export const githubWebhookTrigger: TriggerConfig = {
   },
 
   outputs: {
-    // GitHub webhook payload structure - maps 1:1 to actual GitHub webhook body
+    // GitHub webhook payload structure - now at root for direct access
     ref: {
       type: 'string',
       description: 'Git reference (e.g., refs/heads/fix/telegram-wh)',
@@ -70,8 +70,7 @@ export const githubWebhookTrigger: TriggerConfig = {
       type: 'string',
       description: 'URL to compare the changes',
     },
-    github: {
-      repository: {
+    repository: {
         id: {
           type: 'number',
           description: 'Repository ID',
@@ -267,7 +266,7 @@ export const githubWebhookTrigger: TriggerConfig = {
           },
         },
       },
-      pusher: {
+    pusher: {
         type: 'object',
         description: 'Information about who pushed the changes',
         name: {
@@ -279,7 +278,7 @@ export const githubWebhookTrigger: TriggerConfig = {
           description: 'Pusher email',
         },
       },
-      sender: {
+    sender: {
         login: {
           type: 'string',
           description: 'Sender username',
@@ -317,7 +316,7 @@ export const githubWebhookTrigger: TriggerConfig = {
           description: 'Whether the sender is a site admin',
         },
       },
-      commits: {
+    commits: {
         type: 'array',
         description: 'Array of commit objects',
         id: {
@@ -381,7 +380,7 @@ export const githubWebhookTrigger: TriggerConfig = {
           description: 'Array of modified files',
         },
       },
-      head_commit: {
+    head_commit: {
         type: 'object',
         description: 'Head commit object',
         id: {
@@ -446,20 +445,19 @@ export const githubWebhookTrigger: TriggerConfig = {
         },
       },
 
-      // Convenient flat fields for easy access
-      event_type: {
+    // Convenient flat fields for easy access
+    event_type: {
         type: 'string',
         description: 'Type of GitHub event (e.g., push, pull_request, issues)',
       },
-      action: {
+    action: {
         type: 'string',
         description: 'The action that was performed (e.g., opened, closed, synchronize)',
       },
-      branch: {
+    branch: {
         type: 'string',
         description: 'Branch name extracted from ref',
       },
-    },
   },
 
   instructions: [

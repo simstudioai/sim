@@ -46,7 +46,23 @@ export class TriggerBlockHandler implements BlockHandler {
             blockType: block.metadata?.id,
           })
 
-          // Extract the flattened properties that should be at root level
+          // Provider-specific early return for GitHub: expose raw payload at root
+          if (provider === 'github') {
+            const payload = webhookData.payload || {}
+
+            const result: any = {
+              // Root is the raw GitHub payload
+              ...payload,
+              // Keep metadata available
+              webhook: starterOutput.webhook,
+              // Back-compat alias to allow <github1.github.*>
+              github: payload,
+            }
+
+            return result
+          }
+
+          // Extract the flattened properties that should be at root level (non-GitHub)
           const result: any = {
             // Always keep the input at root level
             input: starterOutput.input,
@@ -67,70 +83,17 @@ export class TriggerBlockHandler implements BlockHandler {
             const providerData = starterOutput[provider]
 
             for (const [key, value] of Object.entries(providerData)) {
-              // Special handling for GitHub provider - copy all properties
-              if (provider === 'github') {
-                // For GitHub, copy all properties (objects and primitives) to root level
+              // For other providers, keep existing logic (only copy objects)
+              if (typeof value === 'object' && value !== null) {
+                // Don't overwrite existing top-level properties
                 if (!result[key]) {
-                  // Special handling for complex objects that might have enumeration issues
-                  if (typeof value === 'object' && value !== null) {
-                    try {
-                      // Deep clone complex objects to avoid reference issues
-                      result[key] = JSON.parse(JSON.stringify(value))
-                    } catch (error) {
-                      // If JSON serialization fails, try direct assignment
-                      result[key] = value
-                    }
-                  } else {
-                    result[key] = value
-                  }
-                }
-              } else {
-                // For other providers, keep existing logic (only copy objects)
-                if (typeof value === 'object' && value !== null) {
-                  // Don't overwrite existing top-level properties
-                  if (!result[key]) {
-                    result[key] = value
-                  }
+                  result[key] = value
                 }
               }
             }
 
             // Keep nested structure for backwards compatibility
             result[provider] = providerData
-
-            // Special handling for GitHub complex objects that might not be copied by the main loop
-            if (provider === 'github') {
-              // Comprehensive GitHub object extraction from multiple possible sources
-              const githubObjects = ['repository', 'sender', 'pusher', 'commits', 'head_commit']
-
-              for (const objName of githubObjects) {
-                // ALWAYS try to get the object, even if something exists (fix for conflicts)
-                let objectValue = null
-
-                // Source 1: Direct from provider data
-                if (providerData[objName]) {
-                  objectValue = providerData[objName]
-                }
-                // Source 2: From webhook payload (raw GitHub webhook)
-                else if (starterOutput.webhook?.data?.payload?.[objName]) {
-                  objectValue = starterOutput.webhook.data.payload[objName]
-                }
-                // Source 3: For commits, try parsing JSON string version if no object found
-                else if (objName === 'commits' && typeof result.commits === 'string') {
-                  try {
-                    objectValue = JSON.parse(result.commits)
-                  } catch (e) {
-                    // Keep as string if parsing fails
-                    objectValue = result.commits
-                  }
-                }
-
-                // FORCE the object to root level (removed the !result[objName] condition)
-                if (objectValue !== null && objectValue !== undefined) {
-                  result[objName] = objectValue
-                }
-              }
-            }
           }
 
           // Pattern 2: Provider data directly in webhook.data (based on actual structure)
