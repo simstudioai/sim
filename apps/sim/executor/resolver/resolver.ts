@@ -726,6 +726,19 @@ export class InputResolver {
 
       let replacementValue: any = blockState.output
 
+      // Special case: when referencing the whole block like <github1>,
+      // prefer the provider-namespaced object if present to avoid duplicated/nested payloads.
+      if (pathParts.length === 0) {
+        const providerAlias = blockState.output?.webhook?.data?.provider
+        if (
+          providerAlias &&
+          typeof blockState.output?.[providerAlias] === 'object' &&
+          blockState.output[providerAlias] !== null
+        ) {
+          replacementValue = blockState.output[providerAlias]
+        }
+      }
+
       for (const part of pathParts) {
         if (!replacementValue || typeof replacementValue !== 'object') {
           throw new Error(
