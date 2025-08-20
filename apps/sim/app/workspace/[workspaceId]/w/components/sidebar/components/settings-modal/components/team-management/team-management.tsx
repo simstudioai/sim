@@ -9,10 +9,10 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui'
-import { useSession } from '@/lib/auth-client'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useWorkspaceSession } from '@/app/workspace/layout'
 import { generateSlug, useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 import {
@@ -30,7 +30,7 @@ import {
 const logger = createLogger('TeamManagement')
 
 export function TeamManagement() {
-  const { data: session } = useSession()
+  const { user } = useWorkspaceSession()
 
   const {
     organizations,
@@ -86,8 +86,8 @@ export function TeamManagement() {
   const [newSeatCount, setNewSeatCount] = useState(1)
   const [isUpdatingSeats, setIsUpdatingSeats] = useState(false)
 
-  const userRole = getUserRole(session?.user?.email)
-  const adminOrOwner = isAdminOrOwner(session?.user?.email)
+  const userRole = getUserRole(user?.email)
+  const adminOrOwner = isAdminOrOwner(user?.email)
   const usedSeats = getUsedSeats()
   const subscription = getSubscriptionStatus()
 
@@ -101,20 +101,20 @@ export function TeamManagement() {
 
   // Set default organization name for team/enterprise users
   useEffect(() => {
-    if ((hasTeamPlan || hasEnterprisePlan) && session?.user?.name && !orgName) {
-      const defaultName = `${session.user.name}'s Team`
+    if ((hasTeamPlan || hasEnterprisePlan) && user?.name && !orgName) {
+      const defaultName = `${user.name}'s Team`
       setOrgName(defaultName)
       setOrgSlug(generateSlug(defaultName))
     }
-  }, [hasTeamPlan, hasEnterprisePlan, session?.user?.name, orgName])
+  }, [hasTeamPlan, hasEnterprisePlan, user?.name, orgName])
 
   // Load workspaces for admin users
   const activeOrgId = activeOrganization?.id
   useEffect(() => {
-    if (session?.user?.id && activeOrgId && adminOrOwner) {
-      loadUserWorkspaces(session.user.id)
+    if (user?.id && activeOrgId && adminOrOwner) {
+      loadUserWorkspaces(user.id)
     }
-  }, [session?.user?.id, activeOrgId, adminOrOwner])
+  }, [user?.id, activeOrgId, adminOrOwner])
 
   const handleOrgNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value
@@ -123,15 +123,15 @@ export function TeamManagement() {
   }, [])
 
   const handleCreateOrganization = useCallback(async () => {
-    if (!session?.user || !orgName.trim()) return
+    if (!user || !orgName.trim()) return
     await createOrganization(orgName.trim(), orgSlug.trim())
     setCreateOrgDialogOpen(false)
     setOrgName('')
     setOrgSlug('')
-  }, [session?.user?.id, orgName, orgSlug])
+  }, [user?.id, orgName, orgSlug])
 
   const handleInviteMember = useCallback(async () => {
-    if (!session?.user || !activeOrgId || !inviteEmail.trim()) return
+    if (!user || !activeOrgId || !inviteEmail.trim()) return
 
     await inviteMember(
       inviteEmail.trim(),
@@ -141,7 +141,7 @@ export function TeamManagement() {
     setInviteEmail('')
     setSelectedWorkspaces([])
     setShowWorkspaceInvite(false)
-  }, [session?.user?.id, activeOrgId, inviteEmail, selectedWorkspaces])
+  }, [user?.id, activeOrgId, inviteEmail, selectedWorkspaces])
 
   const handleWorkspaceToggle = useCallback((workspaceId: string, permission: string) => {
     setSelectedWorkspaces((prev) => {
@@ -161,7 +161,7 @@ export function TeamManagement() {
 
   const handleRemoveMember = useCallback(
     async (member: any) => {
-      if (!session?.user || !activeOrgId) return
+      if (!user || !activeOrgId) return
 
       setRemoveMemberDialog({
         open: true,
@@ -170,22 +170,22 @@ export function TeamManagement() {
         shouldReduceSeats: false,
       })
     },
-    [session?.user?.id, activeOrgId]
+    [user?.id, activeOrgId]
   )
 
   const confirmRemoveMember = useCallback(
     async (shouldReduceSeats = false) => {
       const { memberId } = removeMemberDialog
-      if (!session?.user || !activeOrgId || !memberId) return
+      if (!user || !activeOrgId || !memberId) return
 
       await removeMember(memberId, shouldReduceSeats)
       setRemoveMemberDialog({ open: false, memberId: '', memberName: '', shouldReduceSeats: false })
     },
-    [removeMemberDialog.memberId, session?.user?.id, activeOrgId]
+    [removeMemberDialog.memberId, user?.id, activeOrgId]
   )
 
   const handleReduceSeats = useCallback(async () => {
-    if (!session?.user || !activeOrgId || !subscriptionData) return
+    if (!user || !activeOrgId || !subscriptionData) return
     if (checkEnterprisePlan(subscriptionData)) return
 
     const currentSeats = subscriptionData.seats || 0
@@ -195,7 +195,7 @@ export function TeamManagement() {
     if (totalCount >= currentSeats) return
 
     await reduceSeats(currentSeats - 1)
-  }, [session?.user?.id, activeOrgId, subscriptionData?.seats, usedSeats.used])
+  }, [user?.id, activeOrgId, subscriptionData?.seats, usedSeats.used])
 
   const handleAddSeatDialog = useCallback(() => {
     if (subscriptionData) {
@@ -232,11 +232,11 @@ export function TeamManagement() {
 
   const confirmTeamUpgrade = useCallback(
     async (seats: number) => {
-      if (!session?.user || !activeOrgId) return
+      if (!user || !activeOrgId) return
       logger.info('Team upgrade requested', { seats, organizationId: activeOrgId })
       alert(`Team upgrade to ${seats} seats - integration needed`)
     },
-    [session?.user?.id, activeOrgId]
+    [user?.id, activeOrgId]
   )
 
   if (isLoading && !activeOrganization && !(hasTeamPlan || hasEnterprisePlan)) {
@@ -315,7 +315,7 @@ export function TeamManagement() {
               selectedWorkspaces={selectedWorkspaces}
               userWorkspaces={userWorkspaces}
               onInviteMember={handleInviteMember}
-              onLoadUserWorkspaces={() => loadUserWorkspaces(session?.user?.id)}
+              onLoadUserWorkspaces={() => loadUserWorkspaces(user?.id)}
               onWorkspaceToggle={handleWorkspaceToggle}
               inviteSuccess={inviteSuccess}
             />
@@ -335,7 +335,7 @@ export function TeamManagement() {
 
           <TeamMembersList
             organization={activeOrganization}
-            currentUserEmail={session?.user?.email ?? ''}
+            currentUserEmail={user?.email ?? ''}
             isAdminOrOwner={adminOrOwner}
             onRemoveMember={handleRemoveMember}
           />

@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { client, useSession } from '@/lib/auth-client'
+import { client } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth/oauth'
 import { cn } from '@/lib/utils'
+import { useWorkspaceSession } from '@/app/workspace/layout'
 
 const logger = createLogger('Credentials')
 
@@ -27,8 +28,8 @@ interface ServiceInfo extends OAuthServiceConfig {
 export function Credentials({ onOpenChange }: CredentialsProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { data: session } = useSession()
-  const userId = session?.user?.id
+  const { user } = useWorkspaceSession()
+  const userId = user?.id
   const pendingServiceRef = useRef<HTMLDivElement>(null)
 
   const [services, setServices] = useState<ServiceInfo[]>([])

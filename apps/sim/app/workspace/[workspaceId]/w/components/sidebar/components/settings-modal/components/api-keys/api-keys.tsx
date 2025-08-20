@@ -16,8 +16,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useWorkspaceSession } from '@/app/workspace/layout'
 
 const logger = createLogger('ApiKeys')
 
@@ -35,8 +35,8 @@ interface ApiKey {
 }
 
 export function ApiKeys({ onOpenChange }: ApiKeysProps) {
-  const { data: session } = useSession()
-  const userId = session?.user?.id
+  const { user } = useWorkspaceSession()
+  const userId = user?.id
 
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [isLoading, setIsLoading] = useState(true)

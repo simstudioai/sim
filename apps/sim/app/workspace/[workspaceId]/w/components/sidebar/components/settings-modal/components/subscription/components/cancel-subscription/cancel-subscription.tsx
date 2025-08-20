@@ -12,9 +12,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { useSession, useSubscription } from '@/lib/auth-client'
+import { useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { useWorkspaceSession } from '@/app/workspace/layout'
 import { useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
@@ -36,7 +37,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const { data: session } = useSession()
+  const { user } = useWorkspaceSession()
   const betterAuthSubscription = useSubscription()
   const { activeOrganization } = useOrganizationStore()
   const { getSubscriptionStatus } = useSubscriptionStore()
@@ -57,7 +58,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
   }
 
   const handleCancel = async () => {
-    if (!session?.user?.id) return
+    if (!user?.id) return
 
     setIsLoading(true)
     setError(null)
@@ -66,7 +67,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
       const subscriptionStatus = getSubscriptionStatus()
       const activeOrgId = activeOrganization?.id
 
-      let referenceId = session.user.id
+      let referenceId = user.id
       if (subscriptionStatus.isTeam && activeOrgId) {
         referenceId = activeOrgId
       }

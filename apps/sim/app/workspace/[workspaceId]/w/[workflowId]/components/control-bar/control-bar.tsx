@@ -31,7 +31,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui'
-import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -45,6 +44,7 @@ import {
   getKeyboardShortcutText,
   useKeyboardShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
+import { useWorkspaceSession } from '@/app/workspace/layout'
 import { useFolderStore } from '@/stores/folders/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
@@ -78,7 +78,7 @@ interface ControlBarProps {
  */
 export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const router = useRouter()
-  const { data: session } = useSession()
+  const { user } = useWorkspaceSession()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -286,15 +286,15 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   }, [activeWorkflowId, deployedState, currentBlocks, subBlockValues, isLoadingDeployedState])
 
   useEffect(() => {
-    if (session?.user?.id && !isRegistryLoading) {
-      checkUserUsage(session.user.id).then((usage) => {
+    if (user?.id && !isRegistryLoading) {
+      checkUserUsage(user.id).then((usage) => {
         if (usage) {
           setUsageExceeded(usage.isExceeded)
           setUsageData(usage)
         }
       })
     }
-  }, [session?.user?.id, isRegistryLoading])
+  }, [user?.id, isRegistryLoading])
 
   /**
    * Check user usage limits and cache results

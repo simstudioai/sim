@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { HelpCircle, LibraryBig, ScrollText, Search, Settings, Shapes } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Button, ScrollArea, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
-import { useSession } from '@/lib/auth-client'
 import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
@@ -30,6 +29,7 @@ import {
   getKeyboardShortcutText,
   useGlobalShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
+import { useWorkspaceSession } from '@/app/workspace/layout'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -194,9 +194,9 @@ export function Sidebar() {
     loadWorkflows,
     switchToWorkspace,
   } = useWorkflowRegistry()
-  const { data: sessionData, isPending: sessionLoading } = useSession()
+  const { user } = useWorkspaceSession()
   const userPermissions = useUserPermissionsContext()
-  const isLoading = workflowsLoading || sessionLoading
+  const isLoading = workflowsLoading
 
   // Add state to prevent multiple simultaneous workflow creations
   const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false)
@@ -571,7 +571,7 @@ export function Sidebar() {
         logger.info('Leaving workspace:', workspaceToLeave.id)
 
         // Use the existing member removal API with current user's ID
-        const response = await fetch(`/api/workspaces/members/${sessionData?.user?.id}`, {
+        const response = await fetch(`/api/workspaces/members/${user?.id}`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
@@ -618,7 +618,7 @@ export function Sidebar() {
         setIsLeaving(false)
       }
     },
-    [fetchWorkspaces, refreshWorkspaceList, workspaces, switchWorkspace, sessionData?.user?.id]
+    [fetchWorkspaces, refreshWorkspaceList, workspaces, switchWorkspace, user?.id]
   )
 
   /**
@@ -704,12 +704,12 @@ export function Sidebar() {
 
   // Initialize workspace data on mount (uses full validation with URL handling)
   useEffect(() => {
-    if (sessionData?.user?.id && !isInitializedRef.current) {
+    if (user?.id && !isInitializedRef.current) {
       isInitializedRef.current = true
       fetchWorkspaces()
       fetchTemplates()
     }
-  }, [sessionData?.user?.id]) // Removed fetchWorkspaces dependency
+  }, [user?.id]) // Removed fetchWorkspaces dependency
 
   // Scroll to active workflow when it changes
   useEffect(() => {

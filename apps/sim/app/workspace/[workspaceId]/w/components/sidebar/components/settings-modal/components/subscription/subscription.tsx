@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Badge, Progress, Skeleton } from '@/components/ui'
-import { useSession, useSubscription } from '@/lib/auth-client'
+import { useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import {
@@ -20,6 +20,7 @@ import {
   getSubscriptionPermissions,
   getVisiblePlans,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/subscription-permissions'
+import { useWorkspaceSession } from '@/app/workspace/layout'
 import { useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
@@ -178,7 +179,7 @@ const formatPlanName = (plan: string): string => plan.charAt(0).toUpperCase() + 
  * Handles plan display, upgrades, and billing management
  */
 export function Subscription({ onOpenChange }: SubscriptionProps) {
-  const { data: session } = useSession()
+  const { user } = useWorkspaceSession()
   const betterAuthSubscription = useSubscription()
 
   const {
@@ -219,7 +220,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   }, [upgradeError])
 
   // User role and permissions
-  const userRole = getUserRole(session?.user?.email)
+  const userRole = getUserRole(user?.email || null)
   const isTeamAdmin = ['owner', 'admin'].includes(userRole)
 
   // Get permissions based on subscription state and user role
@@ -270,12 +271,12 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
 
   const handleUpgrade = useCallback(
     async (targetPlan: TargetPlan) => {
-      if (!session?.user?.id) return
+      if (!user?.id) return
 
       const { subscriptionData } = useSubscriptionStore.getState()
       const currentSubscriptionId = subscriptionData?.stripeSubscriptionId
 
-      let referenceId = session.user.id
+      let referenceId = user.id
       if (subscription.isTeam && activeOrgId) {
         referenceId = activeOrgId
       }
@@ -311,7 +312,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
         alert('Failed to initiate upgrade. Please try again or contact support.')
       }
     },
-    [session?.user?.id, subscription.isTeam, activeOrgId, betterAuthSubscription]
+    [user?.id, subscription.isTeam, activeOrgId, betterAuthSubscription]
   )
 
   const renderPlanCard = useCallback(

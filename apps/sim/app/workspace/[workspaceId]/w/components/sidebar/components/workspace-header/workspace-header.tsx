@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp, PanelLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useSession } from '@/lib/auth-client'
+import { useWorkspaceSession } from '@/app/workspace/layout'
 
 /**
  * Workspace entity interface
@@ -42,14 +42,11 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
     isWorkspacesLoading,
   }) => {
     // External hooks
-    const { data: sessionData } = useSession()
+    const { user } = useWorkspaceSession()
     const [isClientLoading, setIsClientLoading] = useState(true)
 
     // Computed values
-    const userName = useMemo(
-      () => sessionData?.user?.name || sessionData?.user?.email || 'User',
-      [sessionData?.user?.name, sessionData?.user?.email]
-    )
+    const userName = useMemo(() => user?.name || user?.email || 'User', [user?.name, user?.email])
 
     const displayName = useMemo(
       () => activeWorkspace?.name || `${userName}'s Workspace`,
