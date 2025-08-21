@@ -34,8 +34,8 @@ export function useUserPermissions(
   const { data: session } = useSession()
 
   const userPermissions = useMemo((): WorkspaceUserPermissions => {
-    // If still loading or no session, return safe defaults
-    if (permissionsLoading || !session?.user?.email) {
+    const sessionEmail = session?.user?.email
+    if (permissionsLoading || !sessionEmail) {
       return {
         canRead: false,
         canEdit: false,
@@ -48,13 +48,13 @@ export function useUserPermissions(
 
     // Find current user in workspace permissions (case-insensitive)
     const currentUser = workspacePermissions?.users?.find(
-      (user) => user.email.toLowerCase() === session.user.email.toLowerCase()
+      (user) => user.email.toLowerCase() === sessionEmail.toLowerCase()
     )
 
     // If user not found in workspace, they have no permissions
     if (!currentUser) {
       logger.warn('User not found in workspace permissions', {
-        userEmail: session.user.email,
+        userEmail: sessionEmail,
         hasPermissions: !!workspacePermissions,
         userCount: workspacePermissions?.users?.length || 0,
       })

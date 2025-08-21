@@ -4,8 +4,22 @@ import type React from 'react'
 import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
 import { client } from '@/lib/auth-client'
 
-type ClientGetSessionResult = Awaited<ReturnType<typeof client.getSession>>
-export type AppSession = ClientGetSessionResult extends { data: infer D } ? D : null
+export type AppSession = {
+  user: {
+    id: string
+    email: string
+    emailVerified?: boolean
+    name?: string | null
+    image?: string | null
+    createdAt?: Date
+    updatedAt?: Date
+  } | null
+  session?: {
+    id?: string
+    userId?: string
+    activeOrganizationId?: string
+  }
+} | null
 
 export type SessionHookResult = {
   data: AppSession
