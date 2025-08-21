@@ -66,7 +66,8 @@ app:
     
     # Email & Communication
     RESEND_API_KEY: ""                                    # Resend API key for transactional emails
-    EMAIL_DOMAIN: ""                                      # Domain for sending emails
+    FROM_EMAIL_ADDRESS: ""                                # Complete from address (e.g., "Sim <noreply@domain.com>" or "DoNotReply@domain.com")
+    EMAIL_DOMAIN: ""                                      # Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
     
     # OAuth Integration Credentials (leave empty if not using)
     GOOGLE_CLIENT_ID: ""                                  # Google OAuth client ID

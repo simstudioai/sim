@@ -127,9 +127,13 @@
               "type": "string",
               "description": "Resend API key for transactional emails"
             },
+            "FROM_EMAIL_ADDRESS": {
+              "type": "string",
+              "description": "Complete from address (e.g., \"Sim <noreply@domain.com>\" or \"DoNotReply@domain.com\")"
+            },
             "EMAIL_DOMAIN": {
               "type": "string",
-              "description": "Domain for sending emails"
+              "description": "Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)"
             },
             "GOOGLE_CLIENT_ID": {
               "type": "string",
