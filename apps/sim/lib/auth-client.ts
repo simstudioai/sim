@@ -1,8 +1,10 @@
+import { useContext } from 'react'
 import { stripeClient } from '@better-auth/stripe/client'
 import { emailOTPClient, genericOAuthClient, organizationClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 import { env, getEnv } from '@/lib/env'
 import { isDev, isProd } from '@/lib/environment'
+import { SessionContext } from '@/lib/session-context'
 
 export function getBaseURL() {
   let baseURL
@@ -37,7 +39,15 @@ export const client = createAuthClient({
   ],
 })
 
-export const { useSession, useActiveOrganization } = client
+// Prefer reading session from a context that fetches once per tree.
+// Falls back to the raw client hook if provider is not mounted.
+export function useSession() {
+  const ctx = useContext(SessionContext)
+  if (ctx) return ctx
+  return client.useSession()
+}
+
+export const { useActiveOrganization } = client
 
 export const useSubscription = () => {
   // In development, provide mock implementations

@@ -10,6 +10,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getAssetUrl } from '@/lib/utils'
 import '@/app/globals.css'
 
+import { SessionProvider } from '@/lib/session-context'
 import { ThemeProvider } from '@/app/theme-provider'
 import { ZoomPrevention } from '@/app/zoom-prevention'
 
@@ -111,16 +112,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body suppressHydrationWarning>
         <ThemeProvider>
-          <BrandedLayout>
-            <ZoomPrevention />
-            {children}
-            {isHosted && (
-              <>
-                <SpeedInsights />
-                <Analytics />
-              </>
-            )}
-          </BrandedLayout>
+          <SessionProvider>
+            <BrandedLayout>
+              <ZoomPrevention />
+              {children}
+              {isHosted && (
+                <>
+                  <SpeedInsights />
+                  <Analytics />
+                </>
+              )}
+            </BrandedLayout>
+          </SessionProvider>
         </ThemeProvider>
       </body>
     </html>
