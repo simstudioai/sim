@@ -1,0 +1,44 @@
+name: Trigger.dev Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+
+jobs:
+  deploy:
+    name: Trigger.dev Deploy
+    runs-on: ubuntu-latest
+    concurrency:
+      group: trigger-deploy-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      TRIGGER_API_KEY: ${{ github.ref == 'refs/heads/main' && secrets.TRIGGER_API_KEY || secrets.STAGING_TRIGGER_API_KEY }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Deploy to Staging
+        if: github.ref == 'refs/heads/staging'
+        working-directory: ./apps/sim
+        run: npx --yes trigger.dev@latest deploy -e staging
+
+      - name: Deploy to Production
+        if: github.ref == 'refs/heads/main'
+        working-directory: ./apps/sim
+        run: npx --yes trigger.dev@latest deploy
+
