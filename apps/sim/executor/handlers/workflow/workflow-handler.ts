@@ -312,13 +312,16 @@ export class WorkflowBlockHandler implements BlockHandler {
     const success = childResult.success !== false
     if (!success) {
       logger.warn(`Child workflow ${childWorkflowName} failed`)
-      return {
+      const failure: Record<string, any> = {
         success: false,
         childWorkflowName,
         error: childResult.error || 'Child workflow execution failed',
-        // Include captured spans for error path consumers
-        childTraceSpans: childTraceSpans || [],
-      } as Record<string, any>
+      }
+      // Only include spans when present to keep output stable for callers/tests
+      if (Array.isArray(childTraceSpans) && childTraceSpans.length > 0) {
+        failure.childTraceSpans = childTraceSpans
+      }
+      return failure as Record<string, any>
     }
     let result = childResult
     if (childResult?.output) {

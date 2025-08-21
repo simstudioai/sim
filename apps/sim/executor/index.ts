@@ -1744,15 +1744,7 @@ export class Executor {
 
       // If this error came from a child workflow execution, persist its trace spans on the log
       if (block.metadata?.id === BlockType.WORKFLOW) {
-        const childTraceSpans = (error as any)?.childTraceSpans
-        if (Array.isArray(childTraceSpans) && childTraceSpans.length > 0) {
-          // Ensure blockLog.output exists to carry structured error context
-          blockLog.output = {
-            ...(blockLog.output || {}),
-            childTraceSpans,
-            childWorkflowName: (error as any)?.childWorkflowName,
-          }
-        }
+        this.attachChildWorkflowSpansToLog(blockLog, error)
       }
 
       // Log the error even if we'll continue execution through error path
@@ -1835,11 +1827,7 @@ export class Executor {
 
       // Preserve child workflow spans on the block state so downstream logging can render them
       if (block.metadata?.id === BlockType.WORKFLOW) {
-        const childTraceSpans = (error as any)?.childTraceSpans
-        if (Array.isArray(childTraceSpans) && childTraceSpans.length > 0) {
-          ;(errorOutput as any).childTraceSpans = childTraceSpans
-          ;(errorOutput as any).childWorkflowName = (error as any)?.childWorkflowName
-        }
+        this.attachChildWorkflowSpansToOutput(errorOutput, error)
       }
 
       // Set block state with error output
@@ -1883,6 +1871,39 @@ export class Executor {
       })
 
       throw new Error(errorMessage)
+    }
+  }
+
+  /**
+   * Copies child workflow trace spans from an error object into a block log.
+   * Ensures consistent structure and avoids duplication of inline guards.
+   */
+  private attachChildWorkflowSpansToLog(blockLog: BlockLog, error: unknown): void {
+    const spans = (
+      error as { childTraceSpans?: TraceSpan[]; childWorkflowName?: string } | null | undefined
+    )?.childTraceSpans
+    if (Array.isArray(spans) && spans.length > 0) {
+      blockLog.output = {
+        ...(blockLog.output || {}),
+        childTraceSpans: spans,
+        childWorkflowName: (error as { childWorkflowName?: string } | null | undefined)
+          ?.childWorkflowName,
+      }
+    }
+  }
+
+  /**
+   * Copies child workflow trace spans from an error object into a normalized output.
+   */
+  private attachChildWorkflowSpansToOutput(output: NormalizedBlockOutput, error: unknown): void {
+    const spans = (
+      error as { childTraceSpans?: TraceSpan[]; childWorkflowName?: string } | null | undefined
+    )?.childTraceSpans
+    if (Array.isArray(spans) && spans.length > 0) {
+      output.childTraceSpans = spans
+      output.childWorkflowName = (
+        error as { childWorkflowName?: string } | null | undefined
+      )?.childWorkflowName
     }
   }
 
