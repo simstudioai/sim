@@ -90,29 +90,44 @@ export function buildTraceSpans(result: ExecutionResult): {
     // Always add cost, token, and model information if available (regardless of provider timing)
     if (log.output?.cost) {
       ;(span as any).cost = log.output.cost
-      logger.debug(`Added cost to span ${span.id}`, {
-        blockId: log.blockId,
-        blockType: log.blockType,
-        cost: log.output.cost,
-      })
     }
 
     if (log.output?.tokens) {
       ;(span as any).tokens = log.output.tokens
-      logger.debug(`Added tokens to span ${span.id}`, {
-        blockId: log.blockId,
-        blockType: log.blockType,
-        tokens: log.output.tokens,
-      })
     }
 
     if (log.output?.model) {
       ;(span as any).model = log.output.model
-      logger.debug(`Added model to span ${span.id}`, {
-        blockId: log.blockId,
-        blockType: log.blockType,
-        model: log.output.model,
+    }
+
+    // Handle child workflow spans for workflow blocks
+    if (
+      log.blockType === 'workflow' &&
+      log.output?.childTraceSpans &&
+      Array.isArray(log.output.childTraceSpans)
+    ) {
+      // Convert child trace spans to be direct children of this workflow block span
+      const childTraceSpans = log.output.childTraceSpans as TraceSpan[]
+
+      // Process child workflow spans and add them as children
+      const flatChildSpans: TraceSpan[] = []
+      childTraceSpans.forEach((childSpan) => {
+        // Skip the synthetic workflow span wrapper - we only want the actual block executions
+        if (childSpan.type === 'workflow' && childSpan.name === 'Workflow Execution') {
+          // Add its children directly, skipping the synthetic wrapper
+          if (childSpan.children && Array.isArray(childSpan.children)) {
+            flatChildSpans.push(...childSpan.children)
+          }
+        } else {
+          // This is a regular span, add it directly
+          // But first, ensure nested workflow blocks in this span are also processed
+          const processedSpan = ensureNestedWorkflowsProcessed(childSpan)
+          flatChildSpans.push(processedSpan)
+        }
       })
+
+      // Add the child spans as children of this workflow block
+      span.children = flatChildSpans
     }
 
     // Enhanced approach: Use timeSegments for sequential flow if available
@@ -163,20 +178,6 @@ export function buildTraceSpans(result: ExecutionResult): {
           status: 'success',
         }
       })
-
-      logger.debug(
-        `Created ${span.children?.length || 0} sequential segments for span ${span.id}`,
-        {
-          blockId: log.blockId,
-          blockType: log.blockType,
-          segments:
-            span.children?.map((child) => ({
-              name: child.name,
-              type: child.type,
-              duration: child.duration,
-            })) || [],
-        }
-      )
     } else {
       // Fallback: Extract tool calls using the original approach for backwards compatibility
       // Tool calls handling for different formats:
@@ -237,12 +238,6 @@ export function buildTraceSpans(result: ExecutionResult): {
             }
           })
           .filter(Boolean) // Remove any null entries from failed processing
-
-        logger.debug(`Added ${span.toolCalls?.length || 0} tool calls to span ${span.id}`, {
-          blockId: log.blockId,
-          blockType: log.blockType,
-          toolCallNames: span.toolCalls?.map((tc) => tc.name) || [],
-        })
       }
     }
 
@@ -382,6 +377,45 @@ export function buildTraceSpans(result: ExecutionResult): {
   }
 
   return { traceSpans: rootSpans, totalDuration }
+}
+
+// Helper function to recursively process nested workflow blocks in trace spans
+function ensureNestedWorkflowsProcessed(span: TraceSpan): TraceSpan {
+  // Create a copy to avoid mutating the original
+  const processedSpan = { ...span }
+
+  // If this is a workflow block and it has childTraceSpans in its output, process them
+  if (
+    span.type === 'workflow' &&
+    span.output?.childTraceSpans &&
+    Array.isArray(span.output.childTraceSpans)
+  ) {
+    const childTraceSpans = span.output.childTraceSpans as TraceSpan[]
+    const nestedChildren: TraceSpan[] = []
+
+    childTraceSpans.forEach((childSpan) => {
+      // Skip synthetic workflow wrappers and get the actual blocks
+      if (childSpan.type === 'workflow' && childSpan.name === 'Workflow Execution') {
+        if (childSpan.children && Array.isArray(childSpan.children)) {
+          // Recursively process each child to handle deeper nesting
+          childSpan.children.forEach((grandchildSpan) => {
+            nestedChildren.push(ensureNestedWorkflowsProcessed(grandchildSpan))
+          })
+        }
+      } else {
+        // Regular span, recursively process it for potential deeper nesting
+        nestedChildren.push(ensureNestedWorkflowsProcessed(childSpan))
+      }
+    })
+
+    // Set the processed children on this workflow block
+    processedSpan.children = nestedChildren
+  } else if (span.children && Array.isArray(span.children)) {
+    // Recursively process regular children too
+    processedSpan.children = span.children.map((child) => ensureNestedWorkflowsProcessed(child))
+  }
+
+  return processedSpan
 }
 
 export function stripCustomToolPrefix(name: string) {

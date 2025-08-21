@@ -13,6 +13,24 @@ import { member, organization, subscription, user, userStats } from '@/db/schema
 
 const logger = createLogger('Billing')
 
+/**
+ * Get organization subscription directly by organization ID
+ */
+export async function getOrganizationSubscription(organizationId: string) {
+  try {
+    const orgSubs = await db
+      .select()
+      .from(subscription)
+      .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+      .limit(1)
+
+    return orgSubs.length > 0 ? orgSubs[0] : null
+  } catch (error) {
+    logger.error('Error getting organization subscription', { error, organizationId })
+    return null
+  }
+}
+
 interface BillingResult {
   success: boolean
   chargedAmount?: number
@@ -89,15 +107,43 @@ async function getStripeCustomerId(referenceId: string): Promise<string | null> 
       .where(eq(organization.id, referenceId))
       .limit(1)
 
-    if (orgRecord.length > 0 && orgRecord[0].metadata) {
-      const metadata =
-        typeof orgRecord[0].metadata === 'string'
-          ? JSON.parse(orgRecord[0].metadata)
-          : orgRecord[0].metadata
+    if (orgRecord.length > 0) {
+      // First, check if organization has its own Stripe customer (legacy support)
+      if (orgRecord[0].metadata) {
+        const metadata =
+          typeof orgRecord[0].metadata === 'string'
+            ? JSON.parse(orgRecord[0].metadata)
+            : orgRecord[0].metadata
 
-      if (metadata?.stripeCustomerId) {
-        return metadata.stripeCustomerId
+        if (metadata?.stripeCustomerId) {
+          return metadata.stripeCustomerId
+        }
       }
+
+      // If organization has no Stripe customer, use the owner's customer
+      // This is our new pattern: subscriptions stay with user, referenceId = orgId
+      const ownerRecord = await db
+        .select({
+          stripeCustomerId: user.stripeCustomerId,
+          userId: user.id,
+        })
+        .from(user)
+        .innerJoin(member, eq(member.userId, user.id))
+        .where(and(eq(member.organizationId, referenceId), eq(member.role, 'owner')))
+        .limit(1)
+
+      if (ownerRecord.length > 0 && ownerRecord[0].stripeCustomerId) {
+        logger.debug('Using organization owner Stripe customer for billing', {
+          organizationId: referenceId,
+          ownerId: ownerRecord[0].userId,
+          stripeCustomerId: ownerRecord[0].stripeCustomerId,
+        })
+        return ownerRecord[0].stripeCustomerId
+      }
+
+      logger.warn('No Stripe customer found for organization or its owner', {
+        organizationId: referenceId,
+      })
     }
 
     return null
@@ -431,8 +477,8 @@ export async function processOrganizationOverageBilling(
   organizationId: string
 ): Promise<BillingResult> {
   try {
-    // Get organization subscription
-    const subscription = await getHighestPrioritySubscription(organizationId)
+    // Get organization subscription directly (referenceId = organizationId)
+    const subscription = await getOrganizationSubscription(organizationId)
 
     if (!subscription || !['team', 'enterprise'].includes(subscription.plan)) {
       logger.warn('No team/enterprise subscription found for organization', { organizationId })
@@ -759,7 +805,9 @@ export async function getSimplifiedBillingSummary(
   try {
     // Get subscription and usage data upfront
     const [subscription, usageData] = await Promise.all([
-      getHighestPrioritySubscription(organizationId || userId),
+      organizationId
+        ? getOrganizationSubscription(organizationId)
+        : getHighestPrioritySubscription(userId),
       getUserUsageData(userId),
     ])
 

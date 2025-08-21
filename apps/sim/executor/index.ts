@@ -1,5 +1,6 @@
 import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { TraceSpan } from '@/lib/logs/types'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/consts'
 import {
@@ -770,7 +771,7 @@ export class Executor {
               // Get the field value from workflow input if available
               // First try to access via input.field, then directly from field
               // This handles both input formats: { input: { field: value } } and { field: value }
-              const inputValue =
+              let inputValue =
                 this.workflowInput?.input?.[field.name] !== undefined
                   ? this.workflowInput.input[field.name] // Try to get from input.field
                   : this.workflowInput?.[field.name] // Fallback to direct field access
@@ -780,13 +781,25 @@ export class Executor {
                 inputValue !== undefined ? JSON.stringify(inputValue) : 'undefined'
               )
 
-              // Convert the value to the appropriate type
+              if (inputValue === undefined || inputValue === null) {
+                if (Object.hasOwn(field, 'value')) {
+                  inputValue = (field as any).value
+                }
+              }
+
               let typedValue = inputValue
-              if (inputValue !== undefined) {
-                if (field.type === 'number' && typeof inputValue !== 'number') {
-                  typedValue = Number(inputValue)
+              if (inputValue !== undefined && inputValue !== null) {
+                if (field.type === 'string' && typeof inputValue !== 'string') {
+                  typedValue = String(inputValue)
+                } else if (field.type === 'number' && typeof inputValue !== 'number') {
+                  const num = Number(inputValue)
+                  typedValue = Number.isNaN(num) ? inputValue : num
                 } else if (field.type === 'boolean' && typeof inputValue !== 'boolean') {
-                  typedValue = inputValue === 'true' || inputValue === true
+                  typedValue =
+                    inputValue === 'true' ||
+                    inputValue === true ||
+                    inputValue === 1 ||
+                    inputValue === '1'
                 } else if (
                   (field.type === 'object' || field.type === 'array') &&
                   typeof inputValue === 'string'
@@ -1510,6 +1523,9 @@ export class Executor {
         blockLog.durationMs = Math.round(executionTime)
         blockLog.endedAt = new Date().toISOString()
 
+        // Handle child workflow logs integration
+        this.integrateChildWorkflowLogs(block, output)
+
         context.blockLogs.push(blockLog)
 
         // Skip console logging for infrastructure blocks like loops and parallels
@@ -1616,6 +1632,9 @@ export class Executor {
       blockLog.output = output
       blockLog.durationMs = Math.round(executionTime)
       blockLog.endedAt = new Date().toISOString()
+
+      // Handle child workflow logs integration
+      this.integrateChildWorkflowLogs(block, output)
 
       context.blockLogs.push(blockLog)
 
@@ -2001,6 +2020,24 @@ export class Executor {
         durationMs: 0,
       }
       context.blockLogs.push(starterBlockLog)
+    }
+  }
+
+  /**
+   * Preserves child workflow trace spans for proper nesting
+   */
+  private integrateChildWorkflowLogs(block: SerializedBlock, output: NormalizedBlockOutput): void {
+    if (block.metadata?.id !== BlockType.WORKFLOW) {
+      return
+    }
+
+    if (!output || typeof output !== 'object' || !output.childTraceSpans) {
+      return
+    }
+
+    const childTraceSpans = output.childTraceSpans as TraceSpan[]
+    if (!Array.isArray(childTraceSpans) || childTraceSpans.length === 0) {
+      return
     }
   }
 }

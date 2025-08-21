@@ -1,5 +1,6 @@
 import { generateInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console/logger'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { getBaseUrl } from '@/lib/urls/utils'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
@@ -104,18 +105,17 @@ export class WorkflowBlockHandler implements BlockHandler {
       // Remove current execution from stack after completion
       WorkflowBlockHandler.executionStack.delete(executionId)
 
-      // Log execution completion
       logger.info(`Child workflow ${childWorkflowName} completed in ${Math.round(duration)}ms`)
 
-      // Map child workflow output to parent block output
+      const childTraceSpans = this.captureChildWorkflowLogs(result, childWorkflowName, context)
       const mappedResult = this.mapChildOutputToParent(
         result,
         workflowId,
         childWorkflowName,
-        duration
+        duration,
+        childTraceSpans
       )
 
-      // If the child workflow failed, throw an error to trigger proper error handling in the parent
       if ((mappedResult as any).success === false) {
         const childError = (mappedResult as any).error || 'Unknown error'
         throw new Error(`Error in child workflow "${childWorkflowName}": ${childError}`)
@@ -125,19 +125,13 @@ export class WorkflowBlockHandler implements BlockHandler {
     } catch (error: any) {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
 
-      // Clean up execution stack in case of error
       const executionId = `${context.workflowId}_sub_${workflowId}_${block.id}`
       WorkflowBlockHandler.executionStack.delete(executionId)
-
-      // Get workflow name for error reporting
       const { workflows } = useWorkflowRegistry.getState()
       const workflowMetadata = workflows[workflowId]
       const childWorkflowName = workflowMetadata?.name || workflowId
 
-      // Enhance error message with child workflow context
       const originalError = error.message || 'Unknown error'
-
-      // Check if error message already has child workflow context to avoid duplication
       if (originalError.startsWith('Error in child workflow')) {
         throw error // Re-throw as-is to avoid duplication
       }
@@ -151,12 +145,9 @@ export class WorkflowBlockHandler implements BlockHandler {
    */
   private async loadChildWorkflow(workflowId: string) {
     try {
-      // Fetch workflow from API with internal authentication header
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       }
-
-      // Add internal auth header for server-side calls
       if (typeof window === 'undefined') {
         const token = await generateInternalToken()
         headers.Authorization = `Bearer ${token}`
@@ -182,16 +173,12 @@ export class WorkflowBlockHandler implements BlockHandler {
       }
 
       logger.info(`Loaded child workflow: ${workflowData.name} (${workflowId})`)
-
-      // Extract the workflow state (API returns normalized data in state field)
       const workflowState = workflowData.state
 
       if (!workflowState || !workflowState.blocks) {
         logger.error(`Child workflow ${workflowId} has invalid state`)
         return null
       }
-
-      // Use blocks directly since API returns data from normalized tables
       const serializedWorkflow = this.serializer.serializeWorkflow(
         workflowState.blocks,
         workflowState.edges || [],
@@ -222,17 +209,101 @@ export class WorkflowBlockHandler implements BlockHandler {
   }
 
   /**
-   * Maps child workflow output to parent block output format
+   * Captures and transforms child workflow logs into trace spans
+   */
+  private captureChildWorkflowLogs(
+    childResult: any,
+    childWorkflowName: string,
+    parentContext: ExecutionContext
+  ): any[] {
+    try {
+      if (!childResult.logs || !Array.isArray(childResult.logs)) {
+        return []
+      }
+
+      const { traceSpans } = buildTraceSpans(childResult)
+
+      if (!traceSpans || traceSpans.length === 0) {
+        return []
+      }
+
+      const transformedSpans = traceSpans.map((span: any) => {
+        return this.transformSpanForChildWorkflow(span, childWorkflowName)
+      })
+
+      return transformedSpans
+    } catch (error) {
+      logger.error(`Error capturing child workflow logs for ${childWorkflowName}:`, error)
+      return []
+    }
+  }
+
+  /**
+   * Transforms trace span for child workflow context
+   */
+  private transformSpanForChildWorkflow(span: any, childWorkflowName: string): any {
+    const transformedSpan = {
+      ...span,
+      name: this.cleanChildSpanName(span.name, childWorkflowName),
+      metadata: {
+        ...span.metadata,
+        isFromChildWorkflow: true,
+        childWorkflowName,
+      },
+    }
+
+    if (span.children && Array.isArray(span.children)) {
+      transformedSpan.children = span.children.map((childSpan: any) =>
+        this.transformSpanForChildWorkflow(childSpan, childWorkflowName)
+      )
+    }
+
+    if (span.output?.childTraceSpans) {
+      transformedSpan.output = {
+        ...transformedSpan.output,
+        childTraceSpans: span.output.childTraceSpans,
+      }
+    }
+
+    return transformedSpan
+  }
+
+  /**
+   * Cleans up child span names for readability
+   */
+  private cleanChildSpanName(spanName: string, childWorkflowName: string): string {
+    if (spanName.includes(`${childWorkflowName}:`)) {
+      const cleanName = spanName.replace(`${childWorkflowName}:`, '').trim()
+
+      if (cleanName === 'Workflow Execution') {
+        return `${childWorkflowName} workflow`
+      }
+
+      if (cleanName.startsWith('Agent ')) {
+        return `${cleanName}`
+      }
+
+      return `${cleanName}`
+    }
+
+    if (spanName === 'Workflow Execution') {
+      return `${childWorkflowName} workflow`
+    }
+
+    return `${spanName}`
+  }
+
+  /**
+   * Maps child workflow output to parent block output
    */
   private mapChildOutputToParent(
     childResult: any,
     childWorkflowId: string,
     childWorkflowName: string,
-    duration: number
+    duration: number,
+    childTraceSpans?: any[]
   ): BlockOutput {
     const success = childResult.success !== false
-
-    // If child workflow failed, return minimal output
     if (!success) {
       logger.warn(`Child workflow ${childWorkflowName} failed`)
       return {
@@ -241,18 +312,15 @@ export class WorkflowBlockHandler implements BlockHandler {
         error: childResult.error || 'Child workflow execution failed',
       } as Record<string, any>
     }
-
-    // Extract the actual result content from the flattened structure
     let result = childResult
     if (childResult?.output) {
       result = childResult.output
     }
-
-    // Return a properly structured response with all required fields
     return {
       success: true,
       childWorkflowName,
       result,
+      childTraceSpans: childTraceSpans || [],
     } as Record<string, any>
   }
 }

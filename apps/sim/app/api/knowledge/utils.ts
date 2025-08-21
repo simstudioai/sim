@@ -1,8 +1,7 @@
 import crypto from 'crypto'
 import { and, eq, isNull } from 'drizzle-orm'
 import { processDocument } from '@/lib/documents/document-processor'
-import { retryWithExponentialBackoff } from '@/lib/documents/utils'
-import { env } from '@/lib/env'
+import { generateEmbeddings } from '@/lib/embeddings/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
@@ -10,21 +9,10 @@ import { document, embedding, knowledgeBase } from '@/db/schema'
 
 const logger = createLogger('KnowledgeUtils')
 
-// Timeout constants (in milliseconds)
 const TIMEOUTS = {
   OVERALL_PROCESSING: 150000, // 150 seconds (2.5 minutes)
   EMBEDDINGS_API: 60000, // 60 seconds per batch
 } as const
-
-class APIError extends Error {
-  public status: number
-
-  constructor(message: string, status: number) {
-    super(message)
-    this.name = 'APIError'
-    this.status = status
-  }
-}
 
 /**
  * Create a timeout wrapper for async operations
@@ -108,18 +96,6 @@ export interface EmbeddingData {
   enabled: boolean
   createdAt: Date
   updatedAt: Date
-}
-
-interface OpenAIEmbeddingResponse {
-  data: Array<{
-    embedding: number[]
-    index: number
-  }>
-  model: string
-  usage: {
-    prompt_tokens: number
-    total_tokens: number
-  }
 }
 
 export interface KnowledgeBaseAccessResult {
@@ -405,87 +381,8 @@ export async function checkChunkAccess(
   }
 }
 
-/**
- * Generate embeddings using OpenAI API with retry logic for rate limiting
- */
-export async function generateEmbeddings(
-  texts: string[],
-  embeddingModel = 'text-embedding-3-small'
-): Promise<number[][]> {
-  const openaiApiKey = env.OPENAI_API_KEY
-  if (!openaiApiKey) {
-    throw new Error('OPENAI_API_KEY not configured')
-  }
-
-  try {
-    const batchSize = 100
-    const allEmbeddings: number[][] = []
-
-    for (let i = 0; i < texts.length; i += batchSize) {
-      const batch = texts.slice(i, i + batchSize)
-
-      logger.info(
-        `Generating embeddings for batch ${Math.floor(i / batchSize) + 1} (${batch.length} texts)`
-      )
-
-      const batchEmbeddings = await retryWithExponentialBackoff(
-        async () => {
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.EMBEDDINGS_API)
-
-          try {
-            const response = await fetch('https://api.openai.com/v1/embeddings', {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${openaiApiKey}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                input: batch,
-                model: embeddingModel,
-                encoding_format: 'float',
-              }),
-              signal: controller.signal,
-            })
-
-            clearTimeout(timeoutId)
-
-            if (!response.ok) {
-              const errorText = await response.text()
-              const error = new APIError(
-                `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`,
-                response.status
-              )
-              throw error
-            }
-
-            const data: OpenAIEmbeddingResponse = await response.json()
-            return data.data.map((item) => item.embedding)
-          } catch (error) {
-            clearTimeout(timeoutId)
-            if (error instanceof Error && error.name === 'AbortError') {
-              throw new Error('OpenAI API request timed out')
-            }
-            throw error
-          }
-        },
-        {
-          maxRetries: 5,
-          initialDelayMs: 1000,
-          maxDelayMs: 60000, // Max 1 minute delay for embeddings
-          backoffMultiplier: 2,
-        }
-      )
-
-      allEmbeddings.push(...batchEmbeddings)
-    }
-
-    return allEmbeddings
-  } catch (error) {
-    logger.error('Failed to generate embeddings:', error)
-    throw error
-  }
-}
+// Export for external use
+export { generateEmbeddings }
 
 /**
  * Process a document asynchronously with full error handling
