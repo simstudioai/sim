@@ -18,6 +18,7 @@ import {
   Database,
   DollarSign,
   Edit,
+  Eye,
   FileText,
   Folder,
   Globe,
@@ -316,13 +317,35 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
       >
         <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
           <div className='flex items-center justify-between'>
-            <DialogTitle className='font-medium text-lg'>
-              {isLoadingTemplate
-                ? 'Loading...'
-                : existingTemplate
-                  ? 'Update Template'
-                  : 'Publish Template'}
-            </DialogTitle>
+            <div className='flex items-center gap-3'>
+              <DialogTitle className='font-medium text-lg'>
+                {isLoadingTemplate
+                  ? 'Loading...'
+                  : existingTemplate
+                    ? 'Update Template'
+                    : 'Publish Template'}
+              </DialogTitle>
+              {existingTemplate && (
+                <div className='flex items-center gap-2'>
+                  {existingTemplate.stars > 0 && (
+                    <div className='flex items-center gap-1 rounded-full bg-yellow-50 px-2 py-1 dark:bg-yellow-900/20'>
+                      <Star className='h-3 w-3 fill-yellow-400 text-yellow-400' />
+                      <span className='font-medium text-xs text-yellow-700 dark:text-yellow-300'>
+                        {existingTemplate.stars}
+                      </span>
+                    </div>
+                  )}
+                  {existingTemplate.views > 0 && (
+                    <div className='flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 dark:bg-blue-900/20'>
+                      <Eye className='h-3 w-3 text-blue-500' />
+                      <span className='font-medium text-blue-700 text-xs dark:text-blue-300'>
+                        {existingTemplate.views}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <Button
               variant='ghost'
               size='icon'
