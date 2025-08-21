@@ -218,23 +218,6 @@ describe('mailer', () => {
       )
     })
 
-    it('should use custom from format when useCustomFromFormat is true', async () => {
-      const result = await sendEmail({
-        ...testEmailOptions,
-        from: 'Sim <noreply@sim.ai>',
-        useCustomFromFormat: true,
-      })
-
-      expect(result.success).toBe(true)
-
-      // Should call Resend with the exact from address provided (no modification)
-      expect(mockSend).toHaveBeenCalledWith(
-        expect.objectContaining({
-          from: 'Sim <noreply@sim.ai>', // Uses custom format as-is
-        })
-      )
-    })
-
     it.concurrent('should replace unsubscribe token placeholders in HTML', async () => {
       const htmlWithPlaceholder = '<p>Content</p><a href="{{UNSUBSCRIBE_TOKEN}}">Unsubscribe</a>'
 

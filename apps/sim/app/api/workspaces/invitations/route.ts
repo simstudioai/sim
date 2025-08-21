@@ -250,7 +250,6 @@ async function sendInvitationEmail({
       html: emailHtml,
       from: fromAddress,
       emailType: 'transactional',
-      useCustomFromFormat: true,
     })
 
     if (result.success) {
