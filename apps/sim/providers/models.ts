@@ -40,8 +40,8 @@ export interface ModelCapabilities {
     values: string[]
   }
   verbosity?: {
-    min: number
-    max: number
+    values: string[]
+    default: string
   }
 }
 
@@ -97,11 +97,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           toolUsageControl: true,
           reasoningEffort: {
-            min: 'low',
+            min: 'minimal',
             max: 'high',
-            values: ['low', 'medium', 'high'],
+            values: ['minimal', 'low', 'medium', 'high'],
           },
-          verbosity: { min: 0, max: 2 },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
         },
       },
       {
@@ -115,11 +118,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           toolUsageControl: true,
           reasoningEffort: {
-            min: 'low',
+            min: 'minimal',
             max: 'high',
-            values: ['low', 'medium', 'high'],
+            values: ['minimal', 'low', 'medium', 'high'],
           },
-          verbosity: { min: 0, max: 2 },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
         },
       },
       {
@@ -133,11 +139,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           toolUsageControl: true,
           reasoningEffort: {
-            min: 'low',
+            min: 'minimal',
             max: 'high',
-            values: ['low', 'medium', 'high'],
+            values: ['minimal', 'low', 'medium', 'high'],
           },
-          verbosity: { min: 0, max: 2 },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
         },
       },
       {
@@ -261,11 +270,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           toolUsageControl: true,
           reasoningEffort: {
-            min: 'low',
+            min: 'minimal',
             max: 'high',
-            values: ['low', 'medium', 'high'],
+            values: ['minimal', 'low', 'medium', 'high'],
           },
-          verbosity: { min: 0, max: 2 },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
         },
       },
       {
@@ -279,11 +291,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           toolUsageControl: true,
           reasoningEffort: {
-            min: 'low',
+            min: 'minimal',
             max: 'high',
-            values: ['low', 'medium', 'high'],
+            values: ['minimal', 'low', 'medium', 'high'],
           },
-          verbosity: { min: 0, max: 2 },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
         },
       },
       {
@@ -297,11 +312,14 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           toolUsageControl: true,
           reasoningEffort: {
-            min: 'low',
+            min: 'minimal',
             max: 'high',
-            values: ['low', 'medium', 'high'],
+            values: ['minimal', 'low', 'medium', 'high'],
           },
-          verbosity: { min: 0, max: 2 },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+            default: 'medium',
+          },
         },
       },
       {

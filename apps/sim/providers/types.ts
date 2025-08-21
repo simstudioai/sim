@@ -158,7 +158,7 @@ export interface ProviderRequest {
   azureApiVersion?: string
   // GPT-5 specific parameters
   reasoningEffort?: string
-  verbosity?: number
+  verbosity?: string
 }
 
 // Map of provider IDs to their configurations
