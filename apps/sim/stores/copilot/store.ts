@@ -12,6 +12,7 @@ import { GetUserWorkflowClientTool } from '@/lib/copilot-new/tools/client/workfl
 import { RunWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/run-workflow'
 import { registerClientTool } from '@/lib/copilot-new/tools/client/manager'
 import { GDriveRequestAccessClientTool } from '@/lib/copilot-new/tools/client/google/gdrive-request-access'
+import { GetBlocksAndToolsClientTool } from '@/lib/copilot-new/tools/client/blocks/get-blocks-and-tools'
 import type {
   CopilotMessage,
   CopilotStore,
@@ -955,6 +956,13 @@ const sseHandlers: Record<string, SSEHandler> = {
           context.clientTools[toolCallId] = inst
           try { registerClientTool(toolCallId, inst) } catch {}
         }
+      } else if (toolName === 'get_blocks_and_tools') {
+        context.clientTools = context.clientTools || {}
+        if (!context.clientTools[toolCallId]) {
+          const inst = new GetBlocksAndToolsClientTool(toolCallId)
+          context.clientTools[toolCallId] = inst
+          try { registerClientTool(toolCallId, inst) } catch {}
+        }
       }
     } catch (e) {
       logger.warn('Failed to instantiate client tool for generating event', { toolName, toolCallId, error: e })
@@ -990,6 +998,18 @@ const sseHandlers: Record<string, SSEHandler> = {
               instance.execute(existingToolCall.input)
             } catch (e) {
               logger.error('Client tool execution failed for get_user_workflow', e)
+            }
+          }, 0)
+        }
+      } else if (existingToolCall.name === 'get_blocks_and_tools') {
+        // Auto-execute non-interrupt tool as soon as it's in executing state
+        const instance = context.clientTools?.[existingToolCall.id]
+        if (instance && typeof instance.execute === 'function' && existingToolCall.state === 'executing') {
+          setTimeout(() => {
+            try {
+              instance.execute(existingToolCall.input)
+            } catch (e) {
+              logger.error('Client tool execution failed for get_blocks_and_tools', e)
             }
           }, 0)
         }
@@ -1037,6 +1057,13 @@ const sseHandlers: Record<string, SSEHandler> = {
       context.clientTools = context.clientTools || {}
       if (!context.clientTools[toolData.id]) {
         const inst = new RunWorkflowClientTool(toolData.id)
+        context.clientTools[toolData.id] = inst
+        try { registerClientTool(toolData.id, inst) } catch {}
+      }
+    } else if (toolData.name === 'get_blocks_and_tools') {
+      context.clientTools = context.clientTools || {}
+      if (!context.clientTools[toolData.id]) {
+        const inst = new GetBlocksAndToolsClientTool(toolData.id)
         context.clientTools[toolData.id] = inst
         try { registerClientTool(toolData.id, inst) } catch {}
       }
