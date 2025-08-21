@@ -56,9 +56,15 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
     }
 
+    // Prefer human-friendly workflow block naming if provided by child execution mapping
+    const displayName =
+      log.blockType === 'workflow' && log.output?.childWorkflowName
+        ? `${log.output.childWorkflowName} workflow`
+        : log.blockName || log.blockId
+
     const span: TraceSpan = {
       id: spanId,
-      name: log.blockName || log.blockId,
+      name: displayName,
       type: log.blockType,
       duration: duration,
       startTime: log.startedAt,

@@ -1742,6 +1742,11 @@ export class Executor {
       blockLog.durationMs =
         new Date(blockLog.endedAt).getTime() - new Date(blockLog.startedAt).getTime()
 
+      // If this error came from a child workflow execution, persist its trace spans on the log
+      if (block.metadata?.id === BlockType.WORKFLOW) {
+        this.attachChildWorkflowSpansToLog(blockLog, error)
+      }
+
       // Log the error even if we'll continue execution through error path
       context.blockLogs.push(blockLog)
 
@@ -1820,6 +1825,11 @@ export class Executor {
         status: error.status || 500,
       }
 
+      // Preserve child workflow spans on the block state so downstream logging can render them
+      if (block.metadata?.id === BlockType.WORKFLOW) {
+        this.attachChildWorkflowSpansToOutput(errorOutput, error)
+      }
+
       // Set block state with error output
       context.blockStates.set(blockId, {
         output: errorOutput,
@@ -1861,6 +1871,39 @@ export class Executor {
       })
 
       throw new Error(errorMessage)
+    }
+  }
+
+  /**
+   * Copies child workflow trace spans from an error object into a block log.
+   * Ensures consistent structure and avoids duplication of inline guards.
+   */
+  private attachChildWorkflowSpansToLog(blockLog: BlockLog, error: unknown): void {
+    const spans = (
+      error as { childTraceSpans?: TraceSpan[]; childWorkflowName?: string } | null | undefined
+    )?.childTraceSpans
+    if (Array.isArray(spans) && spans.length > 0) {
+      blockLog.output = {
+        ...(blockLog.output || {}),
+        childTraceSpans: spans,
+        childWorkflowName: (error as { childWorkflowName?: string } | null | undefined)
+          ?.childWorkflowName,
+      }
+    }
+  }
+
+  /**
+   * Copies child workflow trace spans from an error object into a normalized output.
+   */
+  private attachChildWorkflowSpansToOutput(output: NormalizedBlockOutput, error: unknown): void {
+    const spans = (
+      error as { childTraceSpans?: TraceSpan[]; childWorkflowName?: string } | null | undefined
+    )?.childTraceSpans
+    if (Array.isArray(spans) && spans.length > 0) {
+      output.childTraceSpans = spans
+      output.childWorkflowName = (
+        error as { childWorkflowName?: string } | null | undefined
+      )?.childWorkflowName
     }
   }
 
