@@ -1742,6 +1742,19 @@ export class Executor {
       blockLog.durationMs =
         new Date(blockLog.endedAt).getTime() - new Date(blockLog.startedAt).getTime()
 
+      // If this error came from a child workflow execution, persist its trace spans on the log
+      if (block.metadata?.id === BlockType.WORKFLOW) {
+        const childTraceSpans = (error as any)?.childTraceSpans
+        if (Array.isArray(childTraceSpans) && childTraceSpans.length > 0) {
+          // Ensure blockLog.output exists to carry structured error context
+          blockLog.output = {
+            ...(blockLog.output || {}),
+            childTraceSpans,
+            childWorkflowName: (error as any)?.childWorkflowName,
+          }
+        }
+      }
+
       // Log the error even if we'll continue execution through error path
       context.blockLogs.push(blockLog)
 
@@ -1818,6 +1831,15 @@ export class Executor {
       const errorOutput: NormalizedBlockOutput = {
         error: this.extractErrorMessage(error),
         status: error.status || 500,
+      }
+
+      // Preserve child workflow spans on the block state so downstream logging can render them
+      if (block.metadata?.id === BlockType.WORKFLOW) {
+        const childTraceSpans = (error as any)?.childTraceSpans
+        if (Array.isArray(childTraceSpans) && childTraceSpans.length > 0) {
+          ;(errorOutput as any).childTraceSpans = childTraceSpans
+          ;(errorOutput as any).childWorkflowName = (error as any)?.childWorkflowName
+        }
       }
 
       // Set block state with error output
