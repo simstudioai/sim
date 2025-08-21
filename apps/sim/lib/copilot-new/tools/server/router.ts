@@ -7,6 +7,8 @@ import { buildWorkflowServerTool } from '@/lib/copilot-new/tools/server/workflow
 import { getWorkflowConsoleServerTool } from '@/lib/copilot-new/tools/server/workflow/get-workflow-console'
 import { searchDocumentationServerTool } from '@/lib/copilot-new/tools/server/docs/search-documentation'
 import { searchOnlineServerTool } from '@/lib/copilot-new/tools/server/other/search-online'
+import { getEnvironmentVariablesServerTool } from '@/lib/copilot-new/tools/server/user/get-environment-variables'
+import { setEnvironmentVariablesServerTool } from '@/lib/copilot-new/tools/server/user/set-environment-variables'
 import { ExecuteResponseSuccessSchema, GetBlocksAndToolsInput, GetBlocksAndToolsResult, GetBlocksMetadataInput, GetBlocksMetadataResult, BuildWorkflowInput, BuildWorkflowResult } from '@/lib/copilot-new/tools/shared/schemas'
 
 // Generic execute response schemas (success path only for this route; errors handled via HTTP status)
@@ -24,6 +26,8 @@ serverToolRegistry[buildWorkflowServerTool.name] = buildWorkflowServerTool
 serverToolRegistry[getWorkflowConsoleServerTool.name] = getWorkflowConsoleServerTool
 serverToolRegistry[searchDocumentationServerTool.name] = searchDocumentationServerTool
 serverToolRegistry[searchOnlineServerTool.name] = searchOnlineServerTool
+serverToolRegistry[getEnvironmentVariablesServerTool.name] = getEnvironmentVariablesServerTool
+serverToolRegistry[setEnvironmentVariablesServerTool.name] = setEnvironmentVariablesServerTool
 
 // Main router function
 export async function routeExecution(toolName: string, payload: unknown): Promise<any> {

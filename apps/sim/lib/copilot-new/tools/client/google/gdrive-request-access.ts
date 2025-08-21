@@ -18,7 +18,7 @@ export class GDriveRequestAccessClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Preparing Google Drive access', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Grant Google Drive access?', icon: FolderOpen },
       [ClientToolCallState.executing]: { text: 'Requesting Google Drive access', icon: Loader2 },
-      [ClientToolCallState.workflow_rejected]: { text: 'Skipped Google Drive access', icon: MinusCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped Google Drive access', icon: MinusCircle },
       [ClientToolCallState.success]: { text: 'Google Drive access granted', icon: CheckCircle },
       [ClientToolCallState.error]: { text: 'Failed to request Google Drive access', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Aborted', icon: XCircle },
@@ -75,7 +75,7 @@ export class GDriveRequestAccessClientTool extends BaseClientTool {
       if (!picked) {
         // User canceled
         await this.markToolComplete(200, 'Tool execution was skipped by the user')
-        this.setState(ClientToolCallState.workflow_rejected)
+        this.setState(ClientToolCallState.rejected)
         return
       }
 
@@ -91,6 +91,6 @@ export class GDriveRequestAccessClientTool extends BaseClientTool {
 
   async handleReject(): Promise<void> {
     await super.handleReject()
-    this.setState(ClientToolCallState.workflow_rejected)
+    this.setState(ClientToolCallState.rejected)
   }
 } 

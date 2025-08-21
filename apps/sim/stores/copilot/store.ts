@@ -14,6 +14,8 @@ import { GetBlocksAndToolsClientTool } from '@/lib/copilot-new/tools/client/bloc
 import { BuildWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/build-workflow'
 import { GetWorkflowConsoleClientTool } from '@/lib/copilot-new/tools/client/workflow/get-workflow-console'
 import { SearchOnlineClientTool } from '@/lib/copilot-new/tools/client/other/search-online'
+import { GetEnvironmentVariablesClientTool } from '@/lib/copilot-new/tools/client/user/get-environment-variables'
+import { SetEnvironmentVariablesClientTool } from '@/lib/copilot-new/tools/client/user/set-environment-variables'
 import type {
   CopilotMessage,
   CopilotStore,
@@ -1523,6 +1525,8 @@ const CLIENT_TOOL_CONSTRUCTORS: Record<string, (id: string) => any> = {
   build_workflow: (id) => new BuildWorkflowClientTool(id),
   get_workflow_console: (id) => new GetWorkflowConsoleClientTool(id),
   search_online: (id) => new SearchOnlineClientTool(id),
+  get_environment_variables: (id) => new GetEnvironmentVariablesClientTool(id),
+  set_environment_variables: (id) => new SetEnvironmentVariablesClientTool(id),
 }
 
 /**
