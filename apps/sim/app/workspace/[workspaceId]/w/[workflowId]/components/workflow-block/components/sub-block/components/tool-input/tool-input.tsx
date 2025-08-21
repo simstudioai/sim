@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { logger } from '@trigger.dev/sdk'
 import { PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -13,6 +12,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Toggle } from '@/components/ui/toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { OAuthProvider, OAuthService } from '@/lib/oauth/oauth'
 import { cn } from '@/lib/utils'
 import {
@@ -48,6 +48,8 @@ import {
   isPasswordParameter,
   type ToolParameterConfig,
 } from '@/tools/params'
+
+const logger = createLogger('ToolInput')
 
 interface ToolInputProps {
   blockId: string
