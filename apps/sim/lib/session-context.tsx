@@ -7,7 +7,7 @@ import { client } from '@/lib/auth-client'
 type ClientGetSessionResult = Awaited<ReturnType<typeof client.getSession>>
 export type AppSession = ClientGetSessionResult extends { data: infer D } ? D : null
 
-type SessionHookResult = {
+export type SessionHookResult = {
   data: AppSession
   isPending: boolean
   error: Error | null

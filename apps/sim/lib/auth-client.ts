@@ -10,7 +10,7 @@ import { createAuthClient } from 'better-auth/react'
 import type { auth } from '@/lib/auth'
 import { env, getEnv } from '@/lib/env'
 import { isDev, isProd } from '@/lib/environment'
-import { SessionContext } from '@/lib/session-context'
+import { SessionContext, type SessionHookResult } from '@/lib/session-context'
 
 export function getBaseURL() {
   let baseURL
@@ -46,7 +46,7 @@ export const client = createAuthClient({
   ],
 })
 
-export function useSession(): ReturnType<typeof client.useSession> {
+export function useSession(): SessionHookResult {
   const ctx = useContext(SessionContext)
   if (!ctx) {
     throw new Error(
