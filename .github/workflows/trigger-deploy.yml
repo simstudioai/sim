@@ -1,28 +1,23 @@
 name: Trigger.dev Deploy
 
 on:
-  pull_request_target:
+  push:
     branches:
       - main
       - staging
-    types:
-      - closed
 
 jobs:
   deploy:
     name: Trigger.dev Deploy
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
     concurrency:
-      group: trigger-deploy-${{ github.event.pull_request.base.ref }}
+      group: trigger-deploy-${{ github.ref }}
       cancel-in-progress: false
     env:
-      TRIGGER_API_KEY: ${{ github.event.pull_request.base.ref == 'main' && secrets.TRIGGER_API_KEY || secrets.STAGING_TRIGGER_API_KEY }}
+      TRIGGER_API_KEY: ${{ github.ref == 'refs/heads/main' && secrets.TRIGGER_API_KEY || secrets.STAGING_TRIGGER_API_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -38,12 +33,12 @@ jobs:
         run: bun install
 
       - name: Deploy to Staging
-        if: github.event.pull_request.base.ref == 'staging'
+        if: github.ref == 'refs/heads/staging'
         working-directory: ./apps/sim
         run: npx --yes trigger.dev@latest deploy -e staging
 
       - name: Deploy to Production
-        if: github.event.pull_request.base.ref == 'main'
+        if: github.ref == 'refs/heads/main'
         working-directory: ./apps/sim
         run: npx --yes trigger.dev@latest deploy
 
