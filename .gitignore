@@ -69,3 +69,5 @@ start-collector.sh
 
 ## Helm Chart Tests
 helm/sim/test
+
+testt
