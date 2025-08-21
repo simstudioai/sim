@@ -214,14 +214,81 @@ export function WorkspaceSelector({
   )
 
   /**
-   * Confirm delete workspace
+   * Reset delete dialog state
    */
-  const confirmDeleteWorkspace = useCallback(
-    async (workspaceToDelete: Workspace, templateAction?: 'keep' | 'delete') => {
-      await onDeleteWorkspace(workspaceToDelete, templateAction)
+  const resetDeleteState = useCallback(() => {
+    setDeleteConfirmationName('')
+    setShowTemplateChoice(false)
+    setTemplatesInfo(null)
+    setIsCheckingTemplates(false)
+    setWorkspaceToDelete(null)
+  }, [])
+
+  /**
+   * Handle dialog close
+   */
+  const handleDialogClose = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        resetDeleteState()
+      }
+      setIsDeleteDialogOpen(open)
     },
-    [onDeleteWorkspace]
+    [resetDeleteState]
   )
+
+  /**
+   * Handle template choice action
+   */
+  const handleTemplateAction = useCallback(
+    async (action: 'keep' | 'delete') => {
+      if (!workspaceToDelete) return
+
+      setShowTemplateChoice(false)
+      setTemplatesInfo(null)
+      setDeleteConfirmationName('')
+      await onDeleteWorkspace(workspaceToDelete, action)
+      setWorkspaceToDelete(null)
+      setIsDeleteDialogOpen(false)
+    },
+    [workspaceToDelete, onDeleteWorkspace]
+  )
+
+  /**
+   * Check for templates and handle deletion
+   */
+  const handleDeleteClick = useCallback(async () => {
+    if (!workspaceToDelete) return
+
+    setIsCheckingTemplates(true)
+    try {
+      const checkResponse = await fetch(
+        `/api/workspaces/${workspaceToDelete.id}?check-templates=true`
+      )
+      if (checkResponse.ok) {
+        const templateCheck = await checkResponse.json()
+        if (templateCheck.hasPublishedTemplates && templateCheck.count > 0) {
+          // Templates exist - show template choice
+          setTemplatesInfo({
+            count: templateCheck.count,
+            templates: templateCheck.publishedTemplates,
+          })
+          setShowTemplateChoice(true)
+          setIsCheckingTemplates(false)
+          return
+        }
+      }
+    } catch (error) {
+      logger.error('Error checking templates:', error)
+    }
+
+    // No templates or error - proceed with deletion
+    setIsCheckingTemplates(false)
+    setDeleteConfirmationName('')
+    await onDeleteWorkspace(workspaceToDelete)
+    setWorkspaceToDelete(null)
+    setIsDeleteDialogOpen(false)
+  }, [workspaceToDelete, onDeleteWorkspace])
 
   /**
    * Confirm leave workspace
@@ -389,20 +456,7 @@ export function WorkspaceSelector({
 
                 {/* Delete Workspace - for admin users */}
                 {workspace.permissions === 'admin' && (
-                  <AlertDialog
-                    open={isDeleteDialogOpen}
-                    onOpenChange={(open) => {
-                      if (!open) {
-                        // Dialog is being closed - reset all state
-                        setDeleteConfirmationName('')
-                        setShowTemplateChoice(false)
-                        setTemplatesInfo(null)
-                        setIsCheckingTemplates(false)
-                        setWorkspaceToDelete(null)
-                      }
-                      setIsDeleteDialogOpen(open)
-                    }}
-                  >
+                  <AlertDialog open={isDeleteDialogOpen} onOpenChange={handleDialogClose}>
                     <AlertDialogTrigger asChild>
                       <Button
                         variant='ghost'
@@ -458,16 +512,7 @@ export function WorkspaceSelector({
                       {showTemplateChoice ? (
                         <div className='flex gap-2 py-2'>
                           <Button
-                            onClick={async () => {
-                              if (workspaceToDelete) {
-                                setShowTemplateChoice(false)
-                                setTemplatesInfo(null)
-                                setDeleteConfirmationName('')
-                                await confirmDeleteWorkspace(workspaceToDelete, 'keep')
-                                setWorkspaceToDelete(null)
-                                setIsDeleteDialogOpen(false)
-                              }
-                            }}
+                            onClick={() => handleTemplateAction('keep')}
                             className='h-9 flex-1 rounded-[8px]'
                             variant='outline'
                             disabled={isDeleting}
@@ -475,16 +520,7 @@ export function WorkspaceSelector({
                             {isDeleting ? 'Deleting...' : 'Keep Templates'}
                           </Button>
                           <Button
-                            onClick={async () => {
-                              if (workspaceToDelete) {
-                                setShowTemplateChoice(false)
-                                setTemplatesInfo(null)
-                                setDeleteConfirmationName('')
-                                await confirmDeleteWorkspace(workspaceToDelete, 'delete')
-                                setWorkspaceToDelete(null)
-                                setIsDeleteDialogOpen(false)
-                              }
-                            }}
+                            onClick={() => handleTemplateAction('delete')}
                             className='h-9 flex-1 rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
                             disabled={isDeleting}
                           >
@@ -513,53 +549,16 @@ export function WorkspaceSelector({
                             variant='outline'
                             className='h-9 w-full rounded-[8px]'
                             onClick={() => {
-                              setDeleteConfirmationName('')
-                              setShowTemplateChoice(false)
-                              setTemplatesInfo(null)
-                              setIsCheckingTemplates(false)
-                              setWorkspaceToDelete(null)
+                              resetDeleteState()
                               setIsDeleteDialogOpen(false)
                             }}
                           >
                             Cancel
                           </Button>
                           <Button
-                            onClick={async (e) => {
-                              e.preventDefault() // Prevent dialog from auto-closing
-
-                              // First time clicking Delete - check for templates
-                              if (!workspaceToDelete) return
-                              setIsCheckingTemplates(true)
-                              try {
-                                const checkResponse = await fetch(
-                                  `/api/workspaces/${workspaceToDelete.id}?check-templates=true`
-                                )
-                                if (checkResponse.ok) {
-                                  const templateCheck = await checkResponse.json()
-                                  if (
-                                    templateCheck.hasPublishedTemplates &&
-                                    templateCheck.count > 0
-                                  ) {
-                                    // Templates exist - transition to template choice
-                                    setTemplatesInfo({
-                                      count: templateCheck.count,
-                                      templates: templateCheck.publishedTemplates,
-                                    })
-                                    setShowTemplateChoice(true)
-                                    setIsCheckingTemplates(false)
-                                    return
-                                  }
-                                }
-                              } catch (error) {
-                                console.error('Error checking templates:', error)
-                              }
-
-                              // No templates or error - proceed with deletion
-                              setIsCheckingTemplates(false)
-                              setDeleteConfirmationName('')
-                              await confirmDeleteWorkspace(workspaceToDelete)
-                              setWorkspaceToDelete(null)
-                              setIsDeleteDialogOpen(false) // Close dialog after deletion
+                            onClick={(e) => {
+                              e.preventDefault()
+                              handleDeleteClick()
                             }}
                             className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
                             disabled={
