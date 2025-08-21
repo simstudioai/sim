@@ -1,4 +1,8 @@
 import type { LucideIcon } from 'lucide-react'
+// Lazy require in setState to avoid circular init issues
+import { createLogger } from '@/lib/logs/console/logger'
+
+const baseToolLogger = createLogger('BaseClientTool')
 
 // Client tool call states used by the new runtime
 export enum ClientToolCallState {
@@ -6,8 +10,7 @@ export enum ClientToolCallState {
   pending = 'pending',
   executing = 'executing',
   aborted = 'aborted',
-  workflow_accepted = 'workflow_accepted',
-  workflow_rejected = 'workflow_rejected',
+  rejected = 'rejected',
   success = 'success',
   error = 'error',
   review = 'review'
@@ -49,6 +52,16 @@ export class BaseClientTool {
   // Mark a tool as complete on the server (proxies to server-side route)
   async markToolComplete(status: number, message?: any, data?: any): Promise<boolean> {
     try {
+      baseToolLogger.info('markToolComplete called', {
+        toolCallId: this.toolCallId,
+        toolName: this.name,
+        state: this.state,
+        status,
+        hasMessage: message !== undefined,
+        hasData: data !== undefined,
+      })
+    } catch {}
+    try {
       const res = await fetch('/api/copilot/tools/mark-complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,7 +100,7 @@ export class BaseClientTool {
   // Reject (skip) for interrupt flows: mark complete with a standard skip message
   async handleReject(): Promise<void> {
     await this.markToolComplete(200, 'Tool execution was skipped by the user')
-    this.setState(ClientToolCallState.workflow_rejected)
+    this.setState(ClientToolCallState.rejected)
   }
 
   // Return the display configuration for the current state
@@ -102,6 +115,7 @@ export class BaseClientTool {
 
   // Transition to a new state (also sync to Copilot store)
   setState(next: ClientToolCallState, options?: { result?: any }): void {
+    const prev = this.state
     this.state = next
 
     // Notify store via manager to avoid import cycles
@@ -109,10 +123,25 @@ export class BaseClientTool {
       const { syncToolState } = require('@/lib/copilot-new/tools/client/manager')
       syncToolState(this.toolCallId, next, options)
     } catch {}
+
+    // Log transition after syncing
+    try {
+      baseToolLogger.info('setState transition', {
+        toolCallId: this.toolCallId,
+        toolName: this.name,
+        prev,
+        next,
+        hasResult: options?.result !== undefined,
+      })
+    } catch {}
   }
 
   // Expose current state
   getState(): ClientToolCallState {
     return this.state
+  }
+
+  hasInterrupt(): boolean {
+    return !!this.metadata.interrupt
   }
 }

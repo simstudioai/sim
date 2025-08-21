@@ -229,10 +229,10 @@ export interface CopilotActions {
   abortMessage: () => void
   sendImplicitFeedback: (
     implicitFeedback: string,
-    toolCallState?: 'workflow_accepted' | 'workflow_rejected' | 'error'
+    toolCallState?: 'accepted' | 'rejected' | 'error'
   ) => Promise<void>
   updatePreviewToolCallState: (
-    toolCallState: 'workflow_accepted' | 'workflow_rejected' | 'error',
+    toolCallState: 'accepted' | 'rejected' | 'error',
     toolCallId?: string
   ) => void
   setToolCallState: (toolCall: any, newState: ClientToolCallState, options?: any) => void

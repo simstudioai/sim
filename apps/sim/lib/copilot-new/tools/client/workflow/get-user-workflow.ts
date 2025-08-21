@@ -25,8 +25,6 @@ export class GetUserWorkflowClientTool extends BaseClientTool {
       [ClientToolCallState.pending]: { text: 'Analyze current workflow?', icon: WorkflowIcon },
       [ClientToolCallState.executing]: { text: 'Analyzing your workflow', icon: Loader2 },
       [ClientToolCallState.aborted]: { text: 'Aborted workflow analysis', icon: XCircle },
-      [ClientToolCallState.workflow_accepted]: { text: 'Analyzing your workflow', icon: Loader2 },
-      [ClientToolCallState.workflow_rejected]: { text: 'Skipped workflow analysis', icon: MinusCircle },
       [ClientToolCallState.success]: { text: 'Workflow analyzed', icon: WorkflowIcon },
       [ClientToolCallState.error]: { text: 'Failed to analyze workflow', icon: XCircle },
     },

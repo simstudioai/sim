@@ -23,28 +23,44 @@ export class BuildWorkflowClientTool extends BaseClientTool {
       [ClientToolCallState.executing]: { text: 'Building your workflow', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Built your workflow', icon: Grid2x2 },
       [ClientToolCallState.error]: { text: 'Failed to build your workflow', icon: XCircle },
+      [ClientToolCallState.review]: { text: 'Review your workflow', icon: Grid2x2 },
+      [ClientToolCallState.rejected]: { text: 'Rejected workflow', icon: XCircle },
     },
   }
 
   async handleAccept(): Promise<void> {
-    // Accept → mark complete and set final state
-    this.setState(ClientToolCallState.workflow_accepted)
+    const logger = createLogger('BuildWorkflowClientTool')
+    logger.info('handleAccept called', {
+      toolCallId: this.toolCallId,
+      state: this.getState(),
+      hasResult: this.lastResult !== undefined,
+    })
+    this.setState(ClientToolCallState.success)
     await this.markToolComplete(200, 'Workflow accepted', this.lastResult)
     this.setState(ClientToolCallState.success)
   }
 
   async handleReject(): Promise<void> {
-    // Reject → mark complete and set final state
-    this.setState(ClientToolCallState.workflow_rejected)
+    const logger = createLogger('BuildWorkflowClientTool')
+    logger.info('handleReject called', {
+      toolCallId: this.toolCallId,
+      state: this.getState(),
+    })
+    this.setState(ClientToolCallState.rejected)
     await this.markToolComplete(200, 'Workflow rejected')
   }
 
   async execute(args?: BuildWorkflowArgs): Promise<void> {
     const logger = createLogger('BuildWorkflowClientTool')
     try {
+      logger.info('execute called', { toolCallId: this.toolCallId, argsProvided: !!args })
       this.setState(ClientToolCallState.executing)
 
       const { yamlContent, description } = BuildWorkflowInput.parse(args || {})
+      logger.info('parsed input', {
+        yamlLength: yamlContent?.length || 0,
+        hasDescription: !!description,
+      })
 
       const res = await fetch('/api/copilot/execute-copilot-server-tool', {
         method: 'POST',
@@ -60,20 +76,28 @@ export class BuildWorkflowClientTool extends BaseClientTool {
       const parsed = ExecuteResponseSuccessSchema.parse(json)
       const result = BuildWorkflowResult.parse(parsed.result)
       this.lastResult = result
+      logger.info('server result parsed', {
+        success: result.success,
+        hasWorkflowState: !!(result as any).workflowState,
+        yamlLength: result.yamlContent?.length || 0,
+      })
 
       // Populate diff preview immediately (without marking complete yet)
       try {
         const diffStore = useWorkflowDiffStore.getState()
         await diffStore.setProposedChanges(result.yamlContent)
+        logger.info('diff proposed changes set')
       } catch (e) {
         const logArg: any = e
         logger.warn('Failed to set proposed changes in diff store', logArg)
       }
 
       // Move tool into review and stash the result on the tool instance
+      logger.info('setting review state')
       this.setState(ClientToolCallState.review, { result })
     } catch (error: any) {
       const message = error instanceof Error ? error.message : String(error)
+      logger.error('execute error', { message })
       this.setState(ClientToolCallState.error)
     }
   }

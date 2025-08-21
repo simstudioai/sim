@@ -3,9 +3,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
-import { toolRegistry } from '@/lib/copilot/tools'
 import { createLogger } from '@/lib/logs/console/logger'
-import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
 import { useWorkflowDiffStore } from '../workflow-diff/store'
 import { COPILOT_TOOL_IDS } from './constants'
 import { GetUserWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/get-user-workflow'
@@ -20,30 +18,12 @@ import type {
   MessageFileAttachment,
   WorkflowCheckpoint,
 } from './types'
+import { ClientToolCallState } from '@/lib/copilot-new/tools/client/base-tool'
+import { getClientTool } from '@/lib/copilot-new/tools/client/manager'
 
 const logger = createLogger('CopilotStore')
 
-// Helper function to check if a tool requires interrupt by name
-function toolRequiresInterrupt(toolName: string): boolean {
-  return toolRegistry.requiresInterrupt(toolName)
-}
-
-// Helper function to check if a tool supports review state
-function toolSupportsReadyForReview(toolName: string): boolean {
-  // Check client tools first
-  const clientTool = toolRegistry.getTool(toolName)
-  if (clientTool) {
-    return clientTool.metadata.displayConfig.states.review !== undefined
-  }
-
-  // Check server tools
-  const serverToolMetadata = toolRegistry.getServerToolMetadata(toolName)
-  if (serverToolMetadata) {
-    return serverToolMetadata.displayConfig.states.review !== undefined
-  }
-
-  return false
-}
+// Legacy toolRegistry-based helpers removed; client tools declare interrupt/review via BaseClientTool metadata
 
 // PERFORMANCE OPTIMIZATION: Cached constants for faster lookups
 const TEXT_BLOCK_TYPE = 'text'
@@ -306,13 +286,12 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
       // Remove assistant messages with no meaningful content (aborted/incomplete messages)
       if (msg.role === 'assistant') {
         const hasContent = msg.content && msg.content.trim().length > 0
-        const hasCompletedTools = msg.toolCalls?.some(
-          (tc) =>
-            tc.state === 'completed' ||
-            tc.state === 'accepted' ||
-            tc.state === 'rejected' ||
-            tc.state === 'ready_for_review' ||
-            tc.state === 'background'
+        const hasCompletedTools = msg.toolCalls?.some((tc) =>
+          tc.state === ClientToolCallState.success ||
+          tc.state === ClientToolCallState.rejected ||
+          tc.state === ClientToolCallState.review ||
+          tc.state === ClientToolCallState.aborted ||
+          tc.state === ClientToolCallState.error
         )
         return hasContent || hasCompletedTools
       }
@@ -327,63 +306,26 @@ function cleanThinkingTags(content: string): string {
   return content.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim()
 }
 
-/**
- * Helper function to get a display name for a tool
- */
-function getToolDisplayName(toolName: string): string {
-  // Use dynamically generated display names from the tool registry
-  return COPILOT_TOOL_DISPLAY_NAMES[toolName] || toolName
-}
+// Legacy getToolDisplayName removed; display names come from client tool metadata when available
 
 /**
  * Helper function to get appropriate tool display name based on state
  * Uses the tool registry as the single source of truth
  */
 function getToolDisplayNameByState(toolCall: any): string {
-  const toolName = toolCall.name
-  const state = toolCall.state
+  return getDisplayNameForToolCall(toolCall)
+}
 
-  // Check if it's a client tool
-  const clientTool = toolRegistry.getTool(toolName)
-  if (clientTool) {
-    // Use client tool's display name logic
-    const base = clientTool.getDisplayName(toolCall)
-    if (state === 'preparing') {
-      return `Preparing to ${base}`
-    }
-    return base
-  }
-
-  // For server tools, use server tool metadata
-  const serverToolMetadata = toolRegistry.getServerToolMetadata(toolName)
-  if (serverToolMetadata) {
-    // Check if there's a dynamic display name function
-    if (serverToolMetadata.displayConfig.getDynamicDisplayName) {
-      const dynamicName = serverToolMetadata.displayConfig.getDynamicDisplayName(
-        state,
-        toolCall.input || toolCall.parameters || {}
-      )
-      if (dynamicName) {
-        if (state === 'preparing') return `Preparing to ${dynamicName}`
-        return dynamicName
-      }
-    }
-
-    // Use state-specific display config
-    const stateConfig =
-      serverToolMetadata.displayConfig.states[
-        state as keyof typeof serverToolMetadata.displayConfig.states
-      ]
-    if (stateConfig) {
-      const base = stateConfig.displayName
-      if (state === 'preparing') return `Preparing to ${base}`
-      return base
-    }
-  }
-
-  // Fallback to tool name if no specific display logic found
-  if (state === 'preparing') return `Preparing to ${toolName}`
-  return toolName
+/**
+ * Helper: compute display name for a tool call via client tool instance if available
+ */
+function getDisplayNameForToolCall(toolCall: any): string {
+  try {
+    const instance = getClientTool(toolCall.id)
+    const display = instance?.getDisplayState?.()
+    if (display?.text) return display.text
+  } catch {}
+  return toolCall.name
 }
 
 /**
@@ -494,25 +436,12 @@ function processWorkflowToolResult(toolCall: any, result: any, get: () => Copilo
  * Helper function to handle tool execution failure
  */
 function handleToolFailure(toolCall: any, error: string, failedDependency?: boolean): void {
-  // Don't override terminal states for tools with ready_for_review and interrupt tools
-  if (
-    (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
-    (toolCall.state === 'accepted' ||
-      toolCall.state === 'rejected' ||
-      toolCall.state === 'background')
-  ) {
-    // Tool is already in a terminal state, don't override it
-    logger.info(
-      'Tool call already in terminal state, preserving:',
-      toolCall.id,
-      toolCall.name,
-      toolCall.state
-    )
-    return
-  }
+  // For client tools, do not force state changes here; the tool instance should manage state
+  const instance = getClientTool(toolCall.id)
+  if (instance) return
 
-  // Check if failedDependency is true to set 'rejected' state instead of 'errored'
-  toolCall.state = failedDependency === true ? 'rejected' : 'errored'
+  // Server tools: set error/rejected state
+  toolCall.state = failedDependency === true ? ClientToolCallState.rejected : ClientToolCallState.error
   toolCall.error = error
 
   // Update displayName to match the error state
@@ -526,7 +455,7 @@ function handleToolFailure(toolCall: any, error: string, failedDependency?: bool
  */
 function setToolCallState(
   toolCall: any,
-  newState: string,
+  newState: ClientToolCallState,
   options: {
     result?: any
     error?: string
@@ -535,43 +464,24 @@ function setToolCallState(
 ): void {
   const { result, error, preserveTerminalStates = true } = options
 
-  // Don't override terminal states for tools with ready_for_review and interrupt tools if preserveTerminalStates is true
-  if (
-    preserveTerminalStates &&
-    (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
-    (toolCall.state === 'accepted' ||
-      toolCall.state === 'rejected' ||
-      toolCall.state === 'background')
-  ) {
-    logger.info(
-      'Tool call already in terminal state, preserving:',
-      toolCall.id,
-      toolCall.name,
-      toolCall.state
-    )
-    return
-  }
+  // For client tools, skip direct state changes; the tool instance should call setState
+  const instance = getClientTool(toolCall.id)
+  if (instance) return
 
   const oldState = toolCall.state
   toolCall.state = newState
 
   // Handle state-specific logic
   switch (newState) {
-    case 'completed':
-    case 'success':
+    case ClientToolCallState.success:
       toolCall.endTime = Date.now()
       toolCall.duration = toolCall.endTime - toolCall.startTime
       if (result !== undefined) {
         toolCall.result = result
       }
-
-      // Check if tool supports ready_for_review state instead of hard-coding tool names
-      if (toolSupportsReadyForReview(toolCall.name)) {
-        toolCall.state = 'ready_for_review'
-      }
       break
 
-    case 'errored':
+    case ClientToolCallState.error:
       toolCall.endTime = Date.now()
       toolCall.duration = toolCall.endTime - toolCall.startTime
       if (error) {
@@ -579,19 +489,15 @@ function setToolCallState(
       }
       break
 
-    case 'executing':
+    case ClientToolCallState.executing:
       // Tool is now executing
       break
 
-    case 'pending':
+    case ClientToolCallState.pending:
       // Tool is waiting for user confirmation
       break
 
-    case 'accepted':
-      // User accepted the tool
-      break
-
-    case 'rejected':
+    case ClientToolCallState.rejected:
       // User rejected the tool or tool was skipped
       toolCall.endTime = Date.now()
       toolCall.duration = toolCall.endTime - toolCall.startTime
@@ -600,13 +506,7 @@ function setToolCallState(
       }
       break
 
-    case 'background':
-      // Tool execution moved to background - this is a terminal state
-      toolCall.endTime = Date.now()
-      toolCall.duration = toolCall.endTime - toolCall.startTime
-      break
-
-    case 'aborted':
+    case ClientToolCallState.aborted:
       // Tool was aborted
       toolCall.endTime = Date.now()
       toolCall.duration = toolCall.endTime - toolCall.startTime
@@ -636,54 +536,22 @@ function createToolCall(id: string, name: string, input: any = {}): any {
     id,
     name,
     input,
-    displayName: getToolDisplayName(name), // Will be updated by setToolCallState
-    state: 'pending', // Temporary state, will be set properly below
+    displayName: name, // Will be updated by state sync if client tool
+    state: ClientToolCallState.generating as ClientToolCallState, // initial generating
     startTime: Date.now(),
     timestamp: Date.now(),
   }
 
-  // Use centralized state management to set initial state
-  const requiresInterrupt = toolRequiresInterrupt(name)
-  const initialState = requiresInterrupt ? 'pending' : 'executing'
-
-  setToolCallState(toolCall, initialState, { preserveTerminalStates: false })
-
-  // Auto-execute client tools that don't require interrupt
-  if (!requiresInterrupt && toolRegistry.getTool(name)) {
-    logger.info('Auto-executing client tool:', name, toolCall.id)
-    // Execute client tool asynchronously
-    setTimeout(async () => {
-      try {
-        const tool = toolRegistry.getTool(name)
-        if (tool && toolCall.state === 'executing') {
-          await tool.execute(toolCall as any, {
-            onStateChange: (state: any) => {
-              // Update the tool call state in the store
-              const currentState = useCopilotStore.getState()
-              const updatedMessages = currentState.messages.map((msg) => ({
-                ...msg,
-                toolCalls: msg.toolCalls?.map((tc) =>
-                  tc.id === toolCall.id ? { ...tc, state } : tc
-                ),
-                contentBlocks: msg.contentBlocks?.map((block) =>
-                  block.type === 'tool_call' && block.toolCall?.id === toolCall.id
-                    ? { ...block, toolCall: { ...block.toolCall, state } }
-                    : block
-                ),
-              }))
-
-              useCopilotStore.setState({ messages: updatedMessages })
-            },
-          })
-        }
-      } catch (error) {
-        logger.error('Error auto-executing client tool:', name, toolCall.id, error)
-        setToolCallState(toolCall, 'errored', {
-          error: error instanceof Error ? error.message : 'Auto-execution failed',
-        })
-      }
-    }, 0)
-  }
+  // If this is a known client tool, instantiate and register it
+  try {
+    const ctor = CLIENT_TOOL_CONSTRUCTORS[name]
+    if (ctor) {
+      const inst = ctor(id)
+      try { registerClientTool(id, inst) } catch {}
+      // Initial display name from generating state
+      try { toolCall.displayName = inst.getDisplayState()?.text || name } catch {}
+    }
+  } catch {}
 
   return toolCall
 }
@@ -823,10 +691,8 @@ const sseHandlers: Record<string, SSEHandler> = {
     // Defensive: dedupe if already present
     let toolCall = context.toolCalls.find((tc) => tc.id === toolCallId)
     if (toolCall) {
-      if (toolCall.state !== 'preparing' && toolCall.state !== 'executing' && toolCall.state !== 'pending') {
-        toolCall.state = 'preparing'
-        toolCall.displayName = getToolDisplayNameByState(toolCall)
-      }
+      // Do not downgrade state if toolCall already exists; only update display
+      toolCall.displayName = getToolDisplayNameByState(toolCall)
       updateContentBlockToolCall(context.contentBlocks, toolCallId, toolCall)
       updateStreamingMessage(set, context)
     } else {
@@ -834,9 +700,9 @@ const sseHandlers: Record<string, SSEHandler> = {
         id: toolCallId,
         name: toolName,
         input: {},
-        state: 'preparing',
+        state: ClientToolCallState.generating,
         startTime: Date.now(),
-        displayName: getToolDisplayNameByState({ id: toolCallId, name: toolName, state: 'preparing' }),
+        displayName: toolName,
         hidden: false,
       }
       context.toolCalls.push(toolCall)
@@ -853,6 +719,7 @@ const sseHandlers: Record<string, SSEHandler> = {
           const inst = ctor(toolCallId)
           context.clientTools[toolCallId] = inst
           try { registerClientTool(toolCallId, inst) } catch {}
+          try { toolCall.displayName = inst.getDisplayState()?.text || toolCall.name } catch {}
         }
       }
     } catch (e) {
@@ -871,8 +738,18 @@ const sseHandlers: Record<string, SSEHandler> = {
     if (existingToolCall) {
       existingToolCall.input = toolData.arguments || {}
       const instance = context.clientTools?.[existingToolCall.id]
-      const hasInterrupt = !!instance?.getInterruptDisplays?.()
-      existingToolCall.state = hasInterrupt ? 'pending' : 'executing'
+      const hasInterrupt = !!instance?.hasInterrupt?.()
+      // Only transition to executing/pending from transient states; don't override terminal states
+      const transientStates = new Set< ClientToolCallState >([
+        ClientToolCallState.generating,
+        ClientToolCallState.pending,
+        ClientToolCallState.executing,
+      ])
+      if (transientStates.has(existingToolCall.state)) {
+        existingToolCall.state = hasInterrupt
+          ? ClientToolCallState.pending
+          : ClientToolCallState.executing
+      }
       existingToolCall.displayName = getToolDisplayNameByState(existingToolCall)
 
       // Auto-execute if non-interrupt
@@ -894,6 +771,12 @@ const sseHandlers: Record<string, SSEHandler> = {
     // Create fresh tool call directly from finalized payload (reuses client auto-exec logic)
     const toolCall = createToolCall(toolData.id, toolData.name, toolData.arguments)
 
+    // Ensure run_workflow starts in pending (interrupt) even if registry metadata is missing
+    if (toolData.name === 'run_workflow') {
+      toolCall.state = ClientToolCallState.pending
+      try { toolCall.displayName = getToolDisplayNameByState({ ...toolCall }) } catch {}
+    }
+
     if (toolData.name === 'checkoff_todo') {
       toolCall.hidden = true
     }
@@ -907,6 +790,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       context.clientTools = context.clientTools || {}
       context.clientTools[toolData.id] = instance
       try { registerClientTool(toolData.id, instance) } catch {}
+      try { toolCall.displayName = instance.getDisplayState()?.text || toolCall.name } catch {}
       setTimeout(() => {
         try {
           instance.execute(toolData.arguments || {})
@@ -920,6 +804,7 @@ const sseHandlers: Record<string, SSEHandler> = {
         const inst = new GDriveRequestAccessClientTool(toolData.id)
         context.clientTools[toolData.id] = inst
         try { registerClientTool(toolData.id, inst) } catch {}
+        try { toolCall.displayName = inst.getDisplayState()?.text || toolCall.name } catch {}
       }
     } else if (toolData.name === 'run_workflow') {
       // Do not auto-execute; wait for user to click Run in pending state
@@ -928,6 +813,12 @@ const sseHandlers: Record<string, SSEHandler> = {
         const inst = new RunWorkflowClientTool(toolData.id)
         context.clientTools[toolData.id] = inst
         try { registerClientTool(toolData.id, inst) } catch {}
+        try {
+          if (typeof inst.hasInterrupt === 'function' && inst.hasInterrupt()) {
+            toolCall.state = ClientToolCallState.pending
+            toolCall.displayName = getToolDisplayNameByState({ ...toolCall })
+          }
+        } catch {}
       }
     } else if (toolData.name === 'get_blocks_and_tools') {
       context.clientTools = context.clientTools || {}
@@ -935,6 +826,7 @@ const sseHandlers: Record<string, SSEHandler> = {
         const inst = new GetBlocksAndToolsClientTool(toolData.id)
         context.clientTools[toolData.id] = inst
         try { registerClientTool(toolData.id, inst) } catch {}
+        try { toolCall.displayName = inst.getDisplayState()?.text || toolCall.name } catch {}
       }
     } else if (toolData.name === 'build_workflow') {
       context.clientTools = context.clientTools || {}
@@ -942,6 +834,7 @@ const sseHandlers: Record<string, SSEHandler> = {
         const inst = new BuildWorkflowClientTool(toolData.id)
         context.clientTools[toolData.id] = inst
         try { registerClientTool(toolData.id, inst) } catch {}
+        try { toolCall.displayName = inst.getDisplayState()?.text || toolCall.name } catch {}
       }
     } else {
       updateStreamingMessage(set, context)
@@ -988,50 +881,72 @@ const sseHandlers: Record<string, SSEHandler> = {
       // NEW LOGIC: Client tools manage their own state; just stash the result
       try { toolCall.result = parsedResult } catch {}
 
-      // For non-review tools, transition to success state now so UI updates immediately
+      // For client tools, do not mutate state here; they set state themselves via BaseClientTool
+      const instance = getClientTool(toolCall.id)
+      if (!instance) {
+        // Server tools: mark as success
+        try { setToolCallState(toolCall, ClientToolCallState.success, { result: parsedResult, preserveTerminalStates: false }) } catch {}
+      } else {
+        // Sync context with instance state to avoid regressions
+        try {
+          const instState = instance.getState?.()
+          if (instState) {
+            toolCall.state = instState
+            const disp = instance.getDisplayState?.()?.text
+            if (disp) toolCall.displayName = disp
+          }
+        } catch {}
+      }
+
+      // Plan tool: extract todo list and update store to show todos
       try {
-        const isWorkflowReviewTool =
-          toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-          toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-        if (!isWorkflowReviewTool) {
-          setToolCallState(toolCall, 'success', { result: parsedResult, preserveTerminalStates: false })
+        if (toolCall.name === 'plan') {
+          const todoList = (parsedResult as any)?.todoList || (parsedResult as any)?.data?.todoList
+          if (Array.isArray(todoList)) {
+            const todos = todoList.map((item: any, index: number) => ({
+              id: (item && (item.id || item.todoId)) || `todo-${index}`,
+              content: typeof item === 'string' ? item : item.content,
+              completed: false,
+              executing: false,
+            }))
+            const store = get()
+            if (store.setPlanTodos) {
+              store.setPlanTodos(todos)
+            }
+          }
         }
       } catch {}
 
-      // Check if this is the plan tool and extract todos
-      if (toolCall.name === 'plan' && parsedResult?.todoList) {
-        const todos = parsedResult.todoList.map((item: any, index: number) => ({
-          id: item.id || `todo-${index}`,
-          content: typeof item === 'string' ? item : item.content,
-          completed: false,
-          executing: false,
-        }))
-
-        // Set the todos in the store
-        const store = get()
-        if (store.setPlanTodos) {
-          store.setPlanTodos(todos)
-        }
-      }
-
-      // Check if this is the checkoff_todo tool and mark the todo as complete
-      if (toolCall.name === 'checkoff_todo') {
-        // Check various possible locations for the todo ID
-        const todoId =
-          toolCall.input?.id || toolCall.input?.todoId || parsedResult?.todoId || parsedResult?.id
-        if (todoId) {
-          const store = get()
-          if (store.updatePlanTodoStatus) {
-            store.updatePlanTodoStatus(todoId, 'completed')
+      // Checkoff todo tool: mark a todo as completed and hide the tool
+      try {
+        if (toolCall.name === 'checkoff_todo') {
+          const todoId =
+            toolCall.input?.id || toolCall.input?.todoId || (parsedResult as any)?.todoId || (parsedResult as any)?.id
+          if (todoId) {
+            const store = get()
+            if (store.updatePlanTodoStatus) {
+              store.updatePlanTodoStatus(todoId, 'completed')
+            }
           }
+          toolCall.hidden = true
         }
+      } catch {}
 
-        // Mark this tool as hidden from UI
-        toolCall.hidden = true
+      // Skip re-applying diff/preview if workflow tool has been resolved (accepted/rejected)
+      try {
+        const isWorkflowTool =
+          toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+        const resolved =
+          toolCall.state === ClientToolCallState.success || toolCall.state === ClientToolCallState.rejected
+        if (isWorkflowTool && resolved) {
+          // Do not call processWorkflowToolResult again
+        } else {
+          // Let client tool manage any follow-up (e.g., diff handling) via its own logic
+          try { processWorkflowToolResult(toolCall, parsedResult, get) } catch {}
+        }
+      } catch {
+        try { processWorkflowToolResult(toolCall, parsedResult, get) } catch {}
       }
-
-      // Let client tool manage any follow-up (e.g., diff handling) via its own logic
-      try { processWorkflowToolResult(toolCall, parsedResult, get) } catch {}
 
       // COMMENTED OUT OLD LOGIC:
       // finalizeToolCall(toolCall, true, parsedResult, get)
@@ -1040,9 +955,26 @@ const sseHandlers: Record<string, SSEHandler> = {
       // Check if failedDependency is true to set 'rejected' state instead of 'errored'
       // Use the error field first, then fall back to result field, then default message
       const errorMessage = error || result || 'Tool execution failed'
-      const targetState = failedDependency === true ? 'rejected' : 'errored'
+      const targetState = failedDependency === true ? ClientToolCallState.rejected : ClientToolCallState.error
 
-      setToolCallState(toolCall, targetState, { error: errorMessage })
+      const instance = getClientTool(toolCall.id)
+      if (!instance) {
+        setToolCallState(toolCall, targetState, { error: errorMessage })
+      } else {
+        // Sync context with instance state (likely error)
+        try {
+          const instState = instance.getState?.()
+          if (instState) {
+            toolCall.state = instState
+            const disp = instance.getDisplayState?.()?.text
+            if (disp) toolCall.displayName = disp
+          } else {
+            toolCall.state = targetState
+          }
+        } catch {
+          toolCall.state = targetState
+        }
+      }
 
       // COMMENTED OUT OLD LOGIC:
       // handleToolFailure(toolCall, result || 'Tool execution failed')
@@ -1054,8 +986,7 @@ const sseHandlers: Record<string, SSEHandler> = {
     // Ensure the toolCall in context.toolCalls is also updated with the latest state
     const toolCallIndex = context.toolCalls.findIndex((tc) => tc.id === toolCallId)
     if (toolCallIndex !== -1) {
-      const existingToolCall = context.toolCalls[toolCallIndex]
-      context.toolCalls[toolCallIndex] = preserveToolTerminalState(toolCall, existingToolCall)
+      context.toolCalls[toolCallIndex] = toolCall
     }
 
     updateStreamingMessage(set, context)
@@ -1222,9 +1153,11 @@ const sseHandlers: Record<string, SSEHandler> = {
     context.doneEventCount++
 
     // Only complete after all tools are done and we've received multiple done events
-    // Check for both executing tools AND pending tools (waiting for user interaction)
-    const executingTools = context.toolCalls.filter((tc) => tc.state === 'executing')
-    const pendingTools = context.toolCalls.filter((tc) => tc.state === 'pending' || tc.state === 'preparing')
+    // Check for both executing tools AND pending/generating tools (waiting for user interaction or init)
+    const executingTools = context.toolCalls.filter((tc) => tc.state === ClientToolCallState.executing)
+    const pendingTools = context.toolCalls.filter(
+      (tc) => tc.state === ClientToolCallState.pending || tc.state === ClientToolCallState.generating
+    )
 
     if (executingTools.length === 0 && pendingTools.length === 0 && context.doneEventCount >= 2) {
       context.streamComplete = true
@@ -1315,130 +1248,51 @@ const sseHandlers: Record<string, SSEHandler> = {
   },
 }
 
-// Cache tools that support ready_for_review state for faster lookup
-function getToolsWithReadyForReview(): Set<string> {
-  const toolsWithReadyForReview = new Set<string>()
-
-  return new Set([COPILOT_TOOL_IDS.BUILD_WORKFLOW, COPILOT_TOOL_IDS.EDIT_WORKFLOW])
-}
-
-// Cache for ready_for_review tools
-let READY_FOR_REVIEW_TOOL_IDS: Set<string> | null = null
-
-// Helper function to get cached ready_for_review tool IDs
-function getReadyForReviewToolIds(): Set<string> {
-  if (!READY_FOR_REVIEW_TOOL_IDS) {
-    READY_FOR_REVIEW_TOOL_IDS = getToolsWithReadyForReview()
-  }
-  return READY_FOR_REVIEW_TOOL_IDS
-}
-
-/**
- * Helper function to preserve terminal states for workflow tools and interrupt tools
- */
-function preserveToolTerminalState(newToolCall: any, existingToolCall: any): any {
-  // Early return if not a tool with ready_for_review or interrupt tool
-  if (!toolSupportsReadyForReview(newToolCall.name) && !toolRequiresInterrupt(newToolCall.name)) {
-    return newToolCall
-  }
-
-  // Early return if no existing tool call or no terminal state
-  if (
-    !existingToolCall ||
-    (existingToolCall.state !== 'accepted' &&
-      existingToolCall.state !== 'rejected' &&
-      existingToolCall.state !== 'background')
-  ) {
-    return newToolCall
-  }
-
-  // Only create new object if state would actually change
-  if (
-    newToolCall.state === existingToolCall.state &&
-    newToolCall.displayName === existingToolCall.displayName
-  ) {
-    return newToolCall
-  }
-
-  return {
-    ...newToolCall,
-    state: existingToolCall.state,
-    displayName: existingToolCall.displayName,
-  }
-}
-
 /**
  * Helper function to merge tool calls while preserving terminal states
  */
-function mergeToolCallsPreservingTerminalStates(
-  newToolCalls: any[],
-  existingToolCalls: any[] = []
-): any[] {
-  if (
-    !existingToolCalls.length ||
-    !newToolCalls.some(
-      (tc) => toolSupportsReadyForReview(tc.name) || toolRequiresInterrupt(tc.name)
-    )
-  ) {
-    return newToolCalls
-  }
-
-  // Create a lookup map for faster access
+function mergeToolCallsPreservingTerminalStates(newToolCalls: any[], existingToolCalls: any[] = []): any[] {
+  if (!existingToolCalls || existingToolCalls.length === 0) return newToolCalls
   const existingMap = new Map(existingToolCalls.map((tc) => [tc.id, tc]))
-
-  return newToolCalls.map((newToolCall) => {
-    const existingToolCall = existingMap.get(newToolCall.id)
-    return preserveToolTerminalState(newToolCall, existingToolCall)
+  const isTransient = (s: ClientToolCallState) =>
+    s === ClientToolCallState.generating || s === ClientToolCallState.pending || s === ClientToolCallState.executing
+  return newToolCalls.map((n) => {
+    const e = existingMap.get(n.id)
+    if (!e) return n
+    if (isTransient(n.state) && !isTransient(e.state)) return e
+    if (!isTransient(n.state) && isTransient(e.state)) return n
+    // Prefer one with endTime if available
+    if (n.endTime && !e.endTime) return n
+    if (!n.endTime && e.endTime) return e
+    return n
   })
 }
 
 /**
  * Helper function to merge content blocks while preserving terminal states
  */
-function mergeContentBlocksPreservingTerminalStates(
-  newContentBlocks: any[],
-  existingContentBlocks: any[] = []
-): any[] {
-  // Early return if no existing blocks or no tool call blocks to check
-  if (!existingContentBlocks.length || !newContentBlocks.some((b) => b.type === 'tool_call')) {
-    return newContentBlocks
+function mergeContentBlocksPreservingTerminalStates(newContentBlocks: any[], existingContentBlocks: any[] = []): any[] {
+  if (!existingContentBlocks || existingContentBlocks.length === 0) return newContentBlocks
+  const existingToolCallMap = new Map<string, any>()
+  for (const b of existingContentBlocks) {
+    if (b.type === 'tool_call') existingToolCallMap.set((b as any).toolCall.id, (b as any).toolCall)
   }
-
-  // Create a lookup map for tool call blocks for faster access
-  const existingToolCallMap = new Map()
-  existingContentBlocks.forEach((block) => {
-    if (block.type === 'tool_call') {
-      existingToolCallMap.set((block as any).toolCall.id, block)
+  const isTransient = (s: ClientToolCallState) =>
+    s === ClientToolCallState.generating || s === ClientToolCallState.pending || s === ClientToolCallState.executing
+  return newContentBlocks.map((b) => {
+    if (b.type !== 'tool_call') return b
+    const ntc = (b as any).toolCall
+    const etc = existingToolCallMap.get(ntc.id)
+    if (!etc) return b
+    if (isTransient(ntc.state) && !isTransient(etc.state)) {
+      return { ...b, toolCall: etc }
     }
-  })
-
-  return newContentBlocks.map((newBlock) => {
-    if (newBlock.type === 'tool_call') {
-      const toolCallBlock = newBlock as any
-
-      // Skip if not a tool with ready_for_review or interrupt tool
-      if (
-        !toolSupportsReadyForReview(toolCallBlock.toolCall.name) &&
-        !toolRequiresInterrupt(toolCallBlock.toolCall.name)
-      ) {
-        return newBlock
-      }
-
-      const existingBlock = existingToolCallMap.get(toolCallBlock.toolCall.id)
-      const preservedToolCall = preserveToolTerminalState(
-        toolCallBlock.toolCall,
-        existingBlock?.toolCall
-      )
-
-      // Only create new object if something actually changed
-      if (preservedToolCall !== toolCallBlock.toolCall) {
-        return {
-          ...newBlock,
-          toolCall: preservedToolCall,
-        }
-      }
+    if (!isTransient(ntc.state) && isTransient(etc.state)) {
+      return b
     }
-    return newBlock
+    if (ntc.endTime && !etc.endTime) return b
+    if (!ntc.endTime && etc.endTime) return { ...b, toolCall: etc }
+    return b
   })
 }
 
@@ -1449,10 +1303,9 @@ function updateContentBlockToolCall(contentBlocks: any[], toolCallId: string, to
   for (let i = 0; i < contentBlocks.length; i++) {
     const block = contentBlocks[i]
     if (block.type === 'tool_call' && block.toolCall.id === toolCallId) {
-      const preservedToolCall = preserveToolTerminalState(toolCall, block.toolCall)
       contentBlocks[i] = {
         type: 'tool_call',
-        toolCall: preservedToolCall,
+        toolCall: toolCall,
         timestamp: block.timestamp,
       }
       break
@@ -2189,22 +2042,26 @@ export const useCopilotStore = create<CopilotStore>()(
               lastMessage.toolCalls?.map((toolCall) => {
                 if (toolCall.state === 'executing') {
                   // Executing tools become aborted
+                  const instance = getClientTool(toolCall.id)
+                  if (instance?.setState) instance.setState(ClientToolCallState.aborted)
                   return {
                     ...toolCall,
-                    state: 'aborted' as const,
+                    state: ClientToolCallState.aborted as const,
                     endTime: Date.now(),
                     error: 'Operation was interrupted by user action',
-                    displayName: getToolDisplayNameByState({ ...toolCall, state: 'aborted' }),
+                    displayName: getToolDisplayNameByState({ ...toolCall }),
                   }
                 }
                 if (toolCall.state === 'pending') {
                   // Pending tools become rejected/skipped
+                  const instance = getClientTool(toolCall.id)
+                  if (instance?.setState) instance.setState(ClientToolCallState.rejected)
                   return {
                     ...toolCall,
-                    state: 'rejected' as const,
+                    state: ClientToolCallState.rejected as const,
                     endTime: Date.now(),
                     error: 'Operation was cancelled due to page refresh or user action',
-                    displayName: getToolDisplayNameByState({ ...toolCall, state: 'rejected' }),
+                    displayName: getToolDisplayNameByState({ ...toolCall }),
                   }
                 }
                 // Leave other states unchanged
@@ -2216,34 +2073,26 @@ export const useCopilotStore = create<CopilotStore>()(
               lastMessage.contentBlocks?.map((block) => {
                 if (block.type === 'tool_call') {
                   if (block.toolCall.state === 'executing') {
-                    // Executing tools become aborted
                     return {
                       ...block,
                       toolCall: {
                         ...block.toolCall,
-                        state: 'aborted' as const,
+                        state: ClientToolCallState.aborted as const,
                         endTime: Date.now(),
                         error: 'Operation was interrupted by user action',
-                        displayName: getToolDisplayNameByState({
-                          ...block.toolCall,
-                          state: 'aborted',
-                        }),
+                        displayName: getToolDisplayNameByState({ ...block.toolCall }),
                       },
                     }
                   }
                   if (block.toolCall.state === 'pending') {
-                    // Pending tools become rejected/skipped
                     return {
                       ...block,
                       toolCall: {
                         ...block.toolCall,
-                        state: 'rejected' as const,
+                        state: ClientToolCallState.rejected as const,
                         endTime: Date.now(),
                         error: 'Operation was cancelled due to page refresh or user action',
-                        displayName: getToolDisplayNameByState({
-                          ...block.toolCall,
-                          state: 'rejected',
-                        }),
+                        displayName: getToolDisplayNameByState({ ...block.toolCall }),
                       },
                     }
                   }
@@ -2254,7 +2103,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
             const terminatedToolsCount = updatedToolCalls.filter(
               (tc) =>
-                (tc.state === 'aborted' || tc.state === 'rejected') &&
+                (tc.state === ClientToolCallState.aborted || tc.state === ClientToolCallState.rejected) &&
                 typeof tc.error === 'string' &&
                 (tc.error.includes('interrupted') || tc.error.includes('cancelled'))
             ).length
@@ -2346,7 +2195,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // Send implicit feedback
       sendImplicitFeedback: async (
         implicitFeedback: string,
-        toolCallState?: 'accepted' | 'rejected' | 'errored'
+        toolCallState?: 'accepted' | 'rejected' | 'error'
       ) => {
         const { workflowId, currentChat, mode, agentDepth } = get()
 
@@ -2435,7 +2284,7 @@ export const useCopilotStore = create<CopilotStore>()(
       },
 
       // NEW: Set tool call state using centralized function
-      setToolCallState: (toolCall: any, newState: string, options?: any) => {
+      setToolCallState: (toolCall: any, newState: ClientToolCallState, options?: any) => {
         setToolCallState(toolCall, newState, options)
 
         // Trigger UI update by updating messages
@@ -2447,10 +2296,16 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Update preview tool call state
       updatePreviewToolCallState: (
-        toolCallState: 'accepted' | 'rejected' | 'errored',
+        toolCallState: 'accepted' | 'rejected' | 'error',
         toolCallId?: string
       ) => {
         const { messages } = get()
+        const mapState = (s: 'accepted' | 'rejected' | 'error'): ClientToolCallState =>
+          s === 'accepted'
+            ? ClientToolCallState.success
+            : s === 'rejected'
+            ? ClientToolCallState.rejected
+            : ClientToolCallState.error
 
         // If toolCallId is provided, update specific tool call (for interrupt tools)
         if (toolCallId) {
@@ -2466,8 +2321,8 @@ export const useCopilotStore = create<CopilotStore>()(
                       tc.id === toolCallId
                         ? {
                             ...tc,
-                            state: toolCallState,
-                            displayName: getToolDisplayNameByState({ ...tc, state: toolCallState }),
+                            state: mapState(toolCallState),
+                            displayName: getToolDisplayNameByState(tc),
                           }
                         : tc
                     ),
@@ -2477,11 +2332,8 @@ export const useCopilotStore = create<CopilotStore>()(
                             ...block,
                             toolCall: {
                               ...(block as any).toolCall,
-                              state: toolCallState,
-                              displayName: getToolDisplayNameByState({
-                                ...(block as any).toolCall,
-                                state: toolCallState,
-                              }),
+                              state: mapState(toolCallState),
+                              displayName: getToolDisplayNameByState((block as any).toolCall),
                             },
                           }
                         : block
@@ -2504,7 +2356,7 @@ export const useCopilotStore = create<CopilotStore>()(
               (tc) =>
                 (tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
                   tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
-                (tc.state === 'ready_for_review' || tc.state === 'completed')
+                (tc.state === ClientToolCallState.review || tc.state === ClientToolCallState.success)
             )
           )
 
@@ -2517,7 +2369,7 @@ export const useCopilotStore = create<CopilotStore>()(
           (tc) =>
             (tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
               tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
-            (tc.state === 'ready_for_review' || tc.state === 'completed')
+            (tc.state === ClientToolCallState.review || tc.state === ClientToolCallState.success)
         )
 
         if (!lastWorkflowToolCall) {
@@ -2534,8 +2386,8 @@ export const useCopilotStore = create<CopilotStore>()(
                     tc.id === lastWorkflowToolCall.id
                       ? {
                           ...tc,
-                          state: toolCallState,
-                          displayName: getToolDisplayNameByState({ ...tc, state: toolCallState }),
+                          state: mapState(toolCallState),
+                          displayName: getToolDisplayNameByState(tc),
                         }
                       : tc
                   ),
@@ -2546,11 +2398,8 @@ export const useCopilotStore = create<CopilotStore>()(
                           ...block,
                           toolCall: {
                             ...(block as any).toolCall,
-                            state: toolCallState,
-                            displayName: getToolDisplayNameByState({
-                              ...(block as any).toolCall,
-                              state: toolCallState,
-                            }),
+                            state: mapState(toolCallState),
+                            displayName: getToolDisplayNameByState((block as any).toolCall),
                           },
                         }
                       : block
@@ -3292,18 +3141,62 @@ try {
   registerToolStateSync((toolCallId: string, nextState: any, options?: { result?: any }) => {
     const { messages } = useCopilotStore.getState()
     const updated = messages.map((msg: any) => {
+      const instance = getClientTool(toolCallId)
+      const displayText = instance?.getDisplayState?.()?.text
       const updatedToolCalls = msg.toolCalls?.map((tc: any) =>
         tc.id === toolCallId
-          ? { ...tc, state: nextState, ...(options?.result !== undefined ? { result: options.result } : {}) }
+          ? {
+              ...tc,
+              state: nextState,
+              ...(displayText ? { displayName: displayText } : {}),
+              ...(options?.result !== undefined ? { result: options.result } : {}),
+            }
           : tc
       )
       const updatedBlocks = msg.contentBlocks?.map((b: any) =>
         b.type === 'tool_call' && b.toolCall?.id === toolCallId
-          ? { ...b, toolCall: { ...b.toolCall, state: nextState, ...(options?.result !== undefined ? { result: options.result } : {}) } }
+          ? {
+              ...b,
+              toolCall: {
+                ...b.toolCall,
+                state: nextState,
+                ...(displayText ? { displayName: displayText } : {}),
+                ...(options?.result !== undefined ? { result: options.result } : {}),
+              },
+            }
           : b
       )
       return { ...msg, toolCalls: updatedToolCalls, contentBlocks: updatedBlocks }
     })
     useCopilotStore.setState({ messages: updated })
+
+    // After state sync, if a workflow tool moved to success/rejected, clear diff/preview
+    try {
+      // Find the updated tool to get its name
+      let updatedTool: any | undefined
+      for (const m of updated) {
+        const found = (m.toolCalls || []).find((tc: any) => tc?.id === toolCallId)
+        if (found) {
+          updatedTool = found
+          break
+        }
+      }
+      if (
+        updatedTool &&
+        (updatedTool.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || updatedTool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
+        (nextState === ClientToolCallState.success || nextState === ClientToolCallState.rejected)
+      ) {
+        try {
+          useWorkflowDiffStore.getState().clearDiff()
+        } catch {}
+        try {
+          useCopilotStore.setState((state: any) => ({
+            currentChat: state.currentChat
+              ? { ...state.currentChat, previewYaml: null }
+              : state.currentChat,
+          }))
+        } catch {}
+      }
+    } catch {}
   })
 } catch {}

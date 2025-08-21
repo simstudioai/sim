@@ -21,23 +21,28 @@ export class RunWorkflowClientTool extends BaseClientTool {
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
       [ClientToolCallState.generating]: { text: 'Ready to run workflow', icon: Play },
+      [ClientToolCallState.pending]: { text: 'Run this workflow?', icon: Play },
       [ClientToolCallState.executing]: { text: 'Running your workflow', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Workflow ran', icon: Play },
       [ClientToolCallState.error]: { text: 'Failed to run workflow', icon: XCircle },
-      [ClientToolCallState.workflow_rejected]: { text: 'Run cancelled', icon: MinusCircle },
+      [ClientToolCallState.rejected]: { text: 'Run cancelled', icon: MinusCircle },
+    },
+    interrupt: {
+      accept: { text: 'Run', icon: Play },
+      reject: { text: 'Skip', icon: MinusCircle },
     },
   }
 
   async handleReject(): Promise<void> {
     await super.handleReject()
-    this.setState(ClientToolCallState.workflow_rejected)
+    this.setState(ClientToolCallState.rejected)
   }
 
-  async execute(args?: RunWorkflowArgs): Promise<void> {
+  async handleAccept(args?: RunWorkflowArgs): Promise<void> {
     const logger = createLogger('RunWorkflowClientTool')
     try {
       const params = args || {}
-      logger.debug('execute() called', {
+      logger.debug('handleAccept() called', {
         toolCallId: this.toolCallId,
         state: this.getState(),
         hasArgs: !!args,
@@ -105,5 +110,10 @@ export class RunWorkflowClientTool extends BaseClientTool {
       this.setState(ClientToolCallState.error)
       await this.markToolComplete(status, failedDependency ? undefined : message)
     }
+  }
+
+  async execute(args?: RunWorkflowArgs): Promise<void> {
+    // For compatibility if execute() is explicitly invoked, route to handleAccept
+    await this.handleAccept(args)
   }
 } 
