@@ -8,13 +8,15 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
 import { useWorkflowDiffStore } from '../workflow-diff/store'
 import { COPILOT_TOOL_IDS } from './constants'
+import { GetUserWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/get-user-workflow'
+import { RunWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/run-workflow'
+import { registerClientTool } from '@/lib/copilot-new/tools/client/manager'
 import type {
   CopilotMessage,
   CopilotStore,
   MessageFileAttachment,
   WorkflowCheckpoint,
 } from './types'
-import { GetUserWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/get-user-workflow'
 
 const logger = createLogger('CopilotStore')
 
@@ -934,7 +936,16 @@ const sseHandlers: Record<string, SSEHandler> = {
       if (toolName === 'get_user_workflow') {
         context.clientTools = context.clientTools || {}
         if (!context.clientTools[toolCallId]) {
-          context.clientTools[toolCallId] = new GetUserWorkflowClientTool(toolCallId)
+          const inst = new GetUserWorkflowClientTool(toolCallId)
+          context.clientTools[toolCallId] = inst
+          try { registerClientTool(toolCallId, inst) } catch {}
+        }
+      } else if (toolName === 'run_workflow') {
+        context.clientTools = context.clientTools || {}
+        if (!context.clientTools[toolCallId]) {
+          const inst = new RunWorkflowClientTool(toolCallId)
+          context.clientTools[toolCallId] = inst
+          try { registerClientTool(toolCallId, inst) } catch {}
         }
       }
     } catch (e) {
@@ -953,7 +964,12 @@ const sseHandlers: Record<string, SSEHandler> = {
     if (existingToolCall) {
       existingToolCall.input = toolData.arguments || {}
       const requiresInterrupt = toolRequiresInterrupt(existingToolCall.name)
-      existingToolCall.state = requiresInterrupt ? 'pending' : 'executing'
+      // Override for new client tools with explicit interrupt flow
+      if (existingToolCall.name === 'run_workflow') {
+        existingToolCall.state = 'pending'
+      } else {
+        existingToolCall.state = requiresInterrupt ? 'pending' : 'executing'
+      }
       existingToolCall.displayName = getToolDisplayNameByState(existingToolCall)
 
       // Special handling: client tool execution for get_user_workflow
@@ -1020,6 +1036,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       const instance = context.clientTools?.[toolData.id] || new GetUserWorkflowClientTool(toolData.id)
       context.clientTools = context.clientTools || {}
       context.clientTools[toolData.id] = instance
+      try { registerClientTool(toolData.id, instance) } catch {}
       setTimeout(() => {
         try {
           instance.execute(toolData.arguments || {})
@@ -1027,6 +1044,14 @@ const sseHandlers: Record<string, SSEHandler> = {
           logger.error('Client tool execution failed for get_user_workflow (new)', e)
         }
       }, 0)
+    } else if (toolData.name === 'run_workflow') {
+      // Do not auto-execute; wait for user to click Run in pending state
+      context.clientTools = context.clientTools || {}
+      if (!context.clientTools[toolData.id]) {
+        const inst = new RunWorkflowClientTool(toolData.id)
+        context.clientTools[toolData.id] = inst
+        try { registerClientTool(toolData.id, inst) } catch {}
+      }
     } else {
       updateStreamingMessage(set, context)
     }

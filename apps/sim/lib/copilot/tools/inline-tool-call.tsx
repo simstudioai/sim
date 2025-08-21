@@ -11,12 +11,12 @@ import useDrivePicker from 'react-google-drive-picker'
 import { GoogleDriveIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { notifyServerTool } from '@/lib/copilot/tools/notification-utils'
 import { toolRegistry } from '@/lib/copilot/tools/registry'
 import { renderToolStateIcon, toolRequiresInterrupt } from '@/lib/copilot/tools/utils'
 import { getEnv } from '@/lib/env'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotToolCall } from '@/stores/copilot/types'
+import { getClientTool } from '@/lib/copilot-new/tools/client/manager'
 
 interface InlineToolCallProps {
   toolCall: CopilotToolCall
@@ -26,81 +26,38 @@ interface InlineToolCallProps {
 
 // Simple function to check if tool call should show run/skip buttons
 function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
-  // Check if tool requires interrupt and is in pending state
-  return toolRequiresInterrupt(toolCall.name) && toolCall.state === 'pending'
+  // New logic: must have a client tool instance with interrupt metadata and be pending
+  const instance = getClientTool(toolCall.id)
+  const hasInterrupt = !!instance?.constructor?.metadata?.interrupt
+  return hasInterrupt && toolCall.state === 'pending'
 }
 
-// Function to accept a server tool (interrupt required)
-async function serverAcceptTool(
-  toolCall: CopilotToolCall,
-  setToolCallState: (toolCall: any, state: string, options?: any) => void
-): Promise<void> {
-  // Set state directly to executing (skip accepted state)
+// New run/skip handlers using the client tool manager
+async function handleRunNew(toolCall: CopilotToolCall, setToolCallState: any, onStateChange?: any) {
+  const instance = getClientTool(toolCall.id)
+  if (!instance) return
+  // Transition to executing in UI
   setToolCallState(toolCall, 'executing')
-
-  try {
-    // Notify server of acceptance - execution happens elsewhere via SSE
-    await notifyServerTool(toolCall.id, toolCall.name, 'accepted')
-  } catch (error) {
-    console.error('Failed to notify server of tool acceptance:', error)
-    setToolCallState(toolCall, 'error', { error: 'Failed to notify server' })
-  }
-}
-
-// Function to accept a client tool
-async function clientAcceptTool(
-  toolCall: CopilotToolCall,
-  setToolCallState: (toolCall: any, state: string, options?: any) => void,
-  onStateChange?: (state: any) => void,
-  context?: Record<string, any>
-): Promise<void> {
-  setToolCallState(toolCall, 'executing')
-
-  // Trigger UI update immediately with explicit state
   onStateChange?.('executing')
-
   try {
-    // Get the tool and execute it directly
-    const tool = toolRegistry.getTool(toolCall.name)
-    if (tool) {
-      await tool.execute(toolCall, {
-        onStateChange: (state: any) => {
-          setToolCallState(toolCall, state)
-        },
-        context,
-      })
-    } else {
-      throw new Error(`Tool not found: ${toolCall.name}`)
-    }
-  } catch (error) {
-    console.error('Error executing client tool:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Tool execution failed'
-    const failedDependency =
-      error && typeof error === 'object' && 'failedDependency' in error
-        ? (error as any).failedDependency
-        : false
-    // Check if failedDependency is true to set 'rejected' state instead of 'errored'
-    const targetState = failedDependency === true ? 'rejected' : 'errored'
-    setToolCallState(toolCall, targetState, {
-      error: errorMessage,
-    })
+    await instance.handleAccept?.()
+    await instance.execute(toolCall.parameters || toolCall.input || {})
+  } catch (e) {
+    console.error('Client tool execution error:', e)
+    setToolCallState(toolCall, 'errored', { error: e instanceof Error ? e.message : String(e) })
   }
 }
 
-// Function to reject any tool
-async function rejectTool(
-  toolCall: CopilotToolCall,
-  setToolCallState: (toolCall: any, state: string, options?: any) => void
-): Promise<void> {
-  // NEW LOGIC: Use centralized state management
-  setToolCallState(toolCall, 'rejected')
-
+async function handleSkipNew(toolCall: CopilotToolCall, setToolCallState: any, onStateChange?: any) {
+  const instance = getClientTool(toolCall.id)
+  if (!instance) return
   try {
-    // Notify server for both client and server tools
-    await notifyServerTool(toolCall.id, toolCall.name, 'rejected')
-  } catch (error) {
-    console.error('Failed to notify server of tool rejection:', error)
+    await instance.handleReject?.()
+  } catch (e) {
+    console.error('Client tool skip handler error:', e)
   }
+  setToolCallState(toolCall, 'rejected')
+  onStateChange?.('rejected')
 }
 
 // Function to get tool display name based on state
@@ -161,25 +118,15 @@ function RunSkipButtons({
   const { setToolCallState } = useCopilotStore()
   const [openPicker] = useDrivePicker()
 
+  const instance = getClientTool(toolCall.id)
+  const acceptLabel = instance?.constructor?.metadata?.interrupt?.accept?.text || 'Run'
+  const rejectLabel = instance?.constructor?.metadata?.interrupt?.reject?.text || 'Skip'
+
   const handleRun = async () => {
     setIsProcessing(true)
-    setButtonsHidden(true) // Hide run/skip buttons immediately
-
+    setButtonsHidden(true)
     try {
-      // Check if it's a client tool or server tool
-      const clientTool = toolRegistry.getTool(toolCall.name)
-
-      if (clientTool) {
-        // Client tool - execute immediately
-        await clientAcceptTool(toolCall, setToolCallState, onStateChange, context)
-        // Trigger re-render after tool execution completes
-        onStateChange?.(toolCall.state)
-      } else {
-        // Server tool
-        await serverAcceptTool(toolCall, setToolCallState)
-        // Trigger re-render by calling onStateChange if provided
-        onStateChange?.(toolCall.state)
-      }
+      await handleRunNew(toolCall, setToolCallState, onStateChange)
     } catch (error) {
       console.error('Error handling run action:', error)
     } finally {
@@ -237,7 +184,7 @@ function RunSkipButtons({
     return null
   }
 
-  // Special inline UI for Google Drive access request
+  // Special inline UI for Google Drive access request (legacy)
   if (toolCall.name === 'gdrive_request_access' && toolCall.state === 'pending') {
     return (
       <div className='flex items-center gap-2'>
@@ -253,8 +200,7 @@ function RunSkipButtons({
         <Button
           onClick={async () => {
             setButtonsHidden(true)
-            await rejectTool(toolCall, setToolCallState)
-            onStateChange?.(toolCall.state)
+            await handleSkipNew(toolCall, setToolCallState, onStateChange)
           }}
           size='sm'
           className='h-6 bg-gray-200 px-2 font-medium text-gray-700 text-xs hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
@@ -265,7 +211,7 @@ function RunSkipButtons({
     )
   }
 
-  // Default run/skip buttons
+  // Default run/skip buttons (new interrupt flow)
   return (
     <div className='flex items-center gap-1.5'>
       <Button
@@ -275,19 +221,18 @@ function RunSkipButtons({
         className='h-6 bg-gray-900 px-2 font-medium text-white text-xs hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200'
       >
         {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
-        Run
+        {acceptLabel}
       </Button>
       <Button
         onClick={async () => {
           setButtonsHidden(true)
-          await rejectTool(toolCall, setToolCallState)
-          onStateChange?.(toolCall.state)
+          await handleSkipNew(toolCall, setToolCallState, onStateChange)
         }}
         disabled={isProcessing}
         size='sm'
         className='h-6 bg-gray-200 px-2 font-medium text-gray-700 text-xs hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
       >
-        Skip
+        {rejectLabel}
       </Button>
     </div>
   )
@@ -441,14 +386,9 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
                   // Set tool state to background
                   setToolCallState(toolCall, 'background')
 
-                  // Notify the backend about background state with execution start time if available
-                  const executionStartTime = context?.executionStartTime
-                  await notifyServerTool(
-                    toolCall.id,
-                    toolCall.name,
-                    'background',
-                    executionStartTime
-                  )
+                  // Legacy background notify removed in new client tool flow
+                  // const executionStartTime = context?.executionStartTime
+                  // await notifyServerTool(toolCall.id, toolCall.name, 'background', executionStartTime)
 
                   // Track that this tool was moved to background
                   if (context) {

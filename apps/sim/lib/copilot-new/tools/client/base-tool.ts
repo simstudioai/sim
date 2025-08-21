@@ -78,8 +78,15 @@ export class BaseClientTool {
     }
   }
 
-  // Optional accept handler for interrupt flows
+  // Accept (continue) for interrupt flows: move pending -> executing
   async handleAccept(): Promise<void> {
+    this.setState(ClientToolCallState.executing)
+  }
+
+  // Reject (skip) for interrupt flows: mark complete with a standard skip message
+  async handleReject(): Promise<void> {
+    await this.markToolComplete(200, 'Tool execution was skipped by the user')
+    this.setState(ClientToolCallState.workflow_rejected)
   }
 
   // Return the display configuration for the current state
