@@ -1270,133 +1270,30 @@ export const auth = betterAuth({
                 })
 
                 // Auto-create organization for team plan purchases
-                if (subscription.plan === 'team') {
-                  try {
-                    // Get the user who purchased the subscription
-                    const user = await db
-                      .select()
-                      .from(schema.user)
-                      .where(eq(schema.user.id, subscription.referenceId))
-                      .limit(1)
-
-                    if (user.length > 0) {
-                      const currentUser = user[0]
-
-                      // Store the original user ID before we change the referenceId
-                      const originalUserId = subscription.referenceId
-
-                      // First, sync usage limits for the purchasing user with their new plan
-                      try {
-                        const { syncUsageLimitsFromSubscription } = await import('@/lib/billing')
-                        await syncUsageLimitsFromSubscription(originalUserId)
-                        logger.info(
-                          'Usage limits synced for purchasing user before organization creation',
-                          {
-                            userId: originalUserId,
-                          }
-                        )
-                      } catch (error) {
-                        logger.error('Failed to sync usage limits for purchasing user', {
-                          userId: originalUserId,
-                          error,
-                        })
-                      }
-
-                      // Create organization for the team
-                      const orgId = `org_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
-                      const orgSlug = `${currentUser.name?.toLowerCase().replace(/\s+/g, '-') || 'team'}-${Date.now()}`
-
-                      // Create a separate Stripe customer for the organization
-                      let orgStripeCustomerId: string | null = null
-                      if (stripeClient) {
-                        try {
-                          const orgStripeCustomer = await stripeClient.customers.create({
-                            name: `${currentUser.name || 'User'}'s Team`,
-                            email: currentUser.email,
-                            metadata: {
-                              organizationId: orgId,
-                              type: 'organization',
-                            },
-                          })
-                          orgStripeCustomerId = orgStripeCustomer.id
-                        } catch (error) {
-                          logger.error('Failed to create Stripe customer for organization', {
-                            organizationId: orgId,
-                            error,
-                          })
-                          // Continue without Stripe customer - can be created later
-                        }
-                      }
-
-                      const newOrg = await db
-                        .insert(schema.organization)
-                        .values({
-                          id: orgId,
-                          name: `${currentUser.name || 'User'}'s Team`,
-                          slug: orgSlug,
-                          metadata: orgStripeCustomerId
-                            ? { stripeCustomerId: orgStripeCustomerId }
-                            : null,
-                          createdAt: new Date(),
-                          updatedAt: new Date(),
-                        })
-                        .returning()
-
-                      // Add the user as owner of the organization
-                      await db.insert(schema.member).values({
-                        id: `member_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`,
-                        userId: currentUser.id,
-                        organizationId: orgId,
-                        role: 'owner',
-                        createdAt: new Date(),
-                      })
-
-                      // Update the subscription to reference the organization instead of the user
-                      await db
-                        .update(schema.subscription)
-                        .set({ referenceId: orgId })
-                        .where(eq(schema.subscription.id, subscription.id))
-
-                      // Update the session to set the new organization as active
-                      await db
-                        .update(schema.session)
-                        .set({ activeOrganizationId: orgId })
-                        .where(eq(schema.session.userId, currentUser.id))
-
-                      logger.info('Auto-created organization for team subscription', {
-                        organizationId: orgId,
-                        userId: currentUser.id,
-                        subscriptionId: subscription.id,
-                        orgName: `${currentUser.name || 'User'}'s Team`,
-                      })
-
-                      // Update referenceId for usage limit sync
-                      subscription.referenceId = orgId
-                    }
-                  } catch (error) {
-                    logger.error('Failed to auto-create organization for team subscription', {
-                      subscriptionId: subscription.id,
-                      referenceId: subscription.referenceId,
-                      error,
-                    })
-                  }
+                try {
+                  const { handleTeamPlanOrganization } = await import(
+                    '@/lib/billing/team-management'
+                  )
+                  await handleTeamPlanOrganization(subscription)
+                } catch (error) {
+                  logger.error('Failed to handle team plan organization creation', {
+                    subscriptionId: subscription.id,
+                    referenceId: subscription.referenceId,
+                    error,
+                  })
                 }
 
-                // Initialize billing period for the user/organization
+                // Initialize billing period and sync usage limits
                 try {
                   const { initializeBillingPeriod } = await import(
                     '@/lib/billing/core/billing-periods'
                   )
+                  const { syncSubscriptionUsageLimits } = await import(
+                    '@/lib/billing/team-management'
+                  )
 
-                  // Note: Usage limits are already synced above for team plan users
-                  // For non-team plans, sync usage limits using the referenceId (which is the user ID)
-                  if (subscription.plan !== 'team') {
-                    const { syncUsageLimitsFromSubscription } = await import('@/lib/billing')
-                    await syncUsageLimitsFromSubscription(subscription.referenceId)
-                    logger.info('Usage limits synced after subscription creation', {
-                      referenceId: subscription.referenceId,
-                    })
-                  }
+                  // Sync usage limits for user or organization members
+                  await syncSubscriptionUsageLimits(subscription)
 
                   // Initialize billing period for new subscription using Stripe dates
                   if (subscription.plan !== 'free') {
@@ -1433,15 +1330,29 @@ export const auth = betterAuth({
                 logger.info('Subscription updated', {
                   subscriptionId: subscription.id,
                   status: subscription.status,
+                  plan: subscription.plan,
                 })
+
+                // Auto-create organization for team plan upgrades (free -> team)
+                try {
+                  const { handleTeamPlanOrganization } = await import(
+                    '@/lib/billing/team-management'
+                  )
+                  await handleTeamPlanOrganization(subscription)
+                } catch (error) {
+                  logger.error('Failed to handle team plan organization creation on update', {
+                    subscriptionId: subscription.id,
+                    referenceId: subscription.referenceId,
+                    error,
+                  })
+                }
 
                 // Sync usage limits for the user/organization
                 try {
-                  const { syncUsageLimitsFromSubscription } = await import('@/lib/billing')
-                  await syncUsageLimitsFromSubscription(subscription.referenceId)
-                  logger.info('Usage limits synced after subscription update', {
-                    referenceId: subscription.referenceId,
-                  })
+                  const { syncSubscriptionUsageLimits } = await import(
+                    '@/lib/billing/team-management'
+                  )
+                  await syncSubscriptionUsageLimits(subscription)
                 } catch (error) {
                   logger.error('Failed to sync usage limits after subscription update', {
                     referenceId: subscription.referenceId,
