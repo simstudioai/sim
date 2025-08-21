@@ -1,25 +1,27 @@
-import { Loader2, Blocks } from 'lucide-react'
+import { Loader2, Info } from 'lucide-react'
 import { BaseClientTool, ClientToolCallState, type BaseClientToolMetadata } from '@/lib/copilot-new/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useCopilotStore } from '@/stores/copilot/store'
-import { ExecuteResponseSuccessSchema, GetBlocksAndToolsResult } from '@/lib/copilot-new/tools/shared/schemas'
+import { ExecuteResponseSuccessSchema, GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot-new/tools/shared/schemas'
 
-export class GetBlocksAndToolsClientTool extends BaseClientTool {
-  static readonly id = 'get_blocks_and_tools'
+interface GetBlocksMetadataArgs {
+  blockIds: string[]
+}
+
+export class GetBlocksMetadataClientTool extends BaseClientTool {
+  static readonly id = 'get_blocks_metadata'
 
   constructor(toolCallId: string) {
-    super(toolCallId, GetBlocksAndToolsClientTool.id, GetBlocksAndToolsClientTool.metadata)
+    super(toolCallId, GetBlocksMetadataClientTool.id, GetBlocksMetadataClientTool.metadata)
   }
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing to explore options', icon: Loader2 },
-      [ClientToolCallState.pending]: { text: 'Explore available options?', icon: Blocks },
-      [ClientToolCallState.executing]: { text: 'Exploring available options', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Explored available options', icon: Blocks },
-      [ClientToolCallState.error]: { text: 'Failed to explore options', icon: Blocks },
+      [ClientToolCallState.generating]: { text: 'Preparing to get block metadata', icon: Loader2 },
+      [ClientToolCallState.executing]: { text: 'Retrieving block metadata', icon: Loader2 },
+      [ClientToolCallState.success]: { text: 'Retrieved block metadata', icon: Info },
+      [ClientToolCallState.error]: { text: 'Failed to retrieve block metadata', icon: Info },
     },
-    interrupt: undefined,
   }
 
   private updateStoreToolCallState(next: 'executing' | 'success' | 'errored') {
@@ -38,15 +40,17 @@ export class GetBlocksAndToolsClientTool extends BaseClientTool {
     useCopilotStore.setState({ messages: updated })
   }
 
-  async execute(): Promise<void> {
-    const logger = createLogger('GetBlocksAndToolsClientTool')
+  async execute(args?: GetBlocksMetadataArgs): Promise<void> {
+    const logger = createLogger('GetBlocksMetadataClientTool')
     try {
       this.updateStoreToolCallState('executing')
+
+      const { blockIds } = GetBlocksMetadataInput.parse(args || {})
 
       const res = await fetch('/api/copilot/execute-copilot-server-tool', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'get_blocks_and_tools', payload: {} }),
+        body: JSON.stringify({ toolName: 'get_blocks_metadata', payload: { blockIds } }),
       })
       if (!res.ok) {
         const errorText = await res.text().catch(() => '')
@@ -54,13 +58,9 @@ export class GetBlocksAndToolsClientTool extends BaseClientTool {
       }
       const json = await res.json()
       const parsed = ExecuteResponseSuccessSchema.parse(json)
-      const result = GetBlocksAndToolsResult.parse(parsed.result)
+      const result = GetBlocksMetadataResult.parse(parsed.result)
 
-      await this.markToolComplete(
-        200,
-        'Successfully retrieved blocks and tools',
-        result
-      )
+      await this.markToolComplete(200, { retrieved: Object.keys(result.metadata).length }, result)
       this.updateStoreToolCallState('success')
     } catch (error: any) {
       const message = error instanceof Error ? error.message : String(error)

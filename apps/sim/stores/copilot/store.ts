@@ -933,33 +933,13 @@ const sseHandlers: Record<string, SSEHandler> = {
       updateStreamingMessage(set, context)
     }
 
-    // Instantiate client tool if applicable
+    // Instantiate client tool generically if known
     try {
-      if (toolName === 'get_user_workflow') {
+      const ctor = CLIENT_TOOL_CONSTRUCTORS[toolName]
+      if (ctor) {
         context.clientTools = context.clientTools || {}
         if (!context.clientTools[toolCallId]) {
-          const inst = new GetUserWorkflowClientTool(toolCallId)
-          context.clientTools[toolCallId] = inst
-          try { registerClientTool(toolCallId, inst) } catch {}
-        }
-      } else if (toolName === 'gdrive_request_access') {
-        context.clientTools = context.clientTools || {}
-        if (!context.clientTools[toolCallId]) {
-          const inst = new GDriveRequestAccessClientTool(toolCallId)
-          context.clientTools[toolCallId] = inst
-          try { registerClientTool(toolCallId, inst) } catch {}
-        }
-      } else if (toolName === 'run_workflow') {
-        context.clientTools = context.clientTools || {}
-        if (!context.clientTools[toolCallId]) {
-          const inst = new RunWorkflowClientTool(toolCallId)
-          context.clientTools[toolCallId] = inst
-          try { registerClientTool(toolCallId, inst) } catch {}
-        }
-      } else if (toolName === 'get_blocks_and_tools') {
-        context.clientTools = context.clientTools || {}
-        if (!context.clientTools[toolCallId]) {
-          const inst = new GetBlocksAndToolsClientTool(toolCallId)
+          const inst = ctor(toolCallId)
           context.clientTools[toolCallId] = inst
           try { registerClientTool(toolCallId, inst) } catch {}
         }
@@ -979,42 +959,20 @@ const sseHandlers: Record<string, SSEHandler> = {
 
     if (existingToolCall) {
       existingToolCall.input = toolData.arguments || {}
-      const requiresInterrupt = toolRequiresInterrupt(existingToolCall.name)
-      // Override for new client tools with explicit interrupt flow
-      if (existingToolCall.name === 'run_workflow' || existingToolCall.name === 'gdrive_request_access') {
-        existingToolCall.state = 'pending'
-      } else {
-        existingToolCall.state = requiresInterrupt ? 'pending' : 'executing'
-      }
+      const instance = context.clientTools?.[existingToolCall.id]
+      const hasInterrupt = !!instance?.getInterruptDisplays?.()
+      existingToolCall.state = hasInterrupt ? 'pending' : 'executing'
       existingToolCall.displayName = getToolDisplayNameByState(existingToolCall)
 
-      // Special handling: client tool execution for get_user_workflow
-      if (existingToolCall.name === 'get_user_workflow') {
-        const instance = context.clientTools?.[existingToolCall.id]
-        if (instance && typeof instance.execute === 'function') {
-          // Run asynchronously; update UI state as it progresses via setState calls inside tool
-          setTimeout(() => {
-            try {
-              instance.execute(existingToolCall.input)
-            } catch (e) {
-              logger.error('Client tool execution failed for get_user_workflow', e)
-            }
-          }, 0)
-        }
-      } else if (existingToolCall.name === 'get_blocks_and_tools') {
-        // Auto-execute non-interrupt tool as soon as it's in executing state
-        const instance = context.clientTools?.[existingToolCall.id]
-        if (instance && typeof instance.execute === 'function' && existingToolCall.state === 'executing') {
-          setTimeout(() => {
-            try {
-              instance.execute(existingToolCall.input)
-            } catch (e) {
-              logger.error('Client tool execution failed for get_blocks_and_tools', e)
-            }
-          }, 0)
-        }
-      } else if (!requiresInterrupt && toolRegistry.getTool(existingToolCall.name)) {
-        // Temporarily disabled legacy client tool auto-exec in new refactor
+      // Auto-execute if non-interrupt
+      if (!hasInterrupt && instance && typeof instance.execute === 'function') {
+        setTimeout(() => {
+          try {
+            instance.execute(existingToolCall.input)
+          } catch (e) {
+            logger.error('Client tool execution failed', { name: existingToolCall.name, error: e })
+          }
+        }, 0)
       }
 
       updateContentBlockToolCall(context.contentBlocks, toolData.id, existingToolCall)
@@ -1773,6 +1731,15 @@ const COPILOT_AUTH_REQUIRED_MESSAGE =
   '*Authorization failed. An API key must be configured in order to use the copilot. You can configure an API key at [sim.ai](https://sim.ai).*'
 const COPILOT_USAGE_EXCEEDED_MESSAGE =
   '*Usage limit exceeded, please upgrade your plan or top up credits at [sim.ai](https://sim.ai) to continue using the copilot*'
+
+// Generic client tool constructors for the new runtime
+const CLIENT_TOOL_CONSTRUCTORS: Record<string, (id: string) => any> = {
+  get_user_workflow: (id) => new GetUserWorkflowClientTool(id),
+  run_workflow: (id) => new RunWorkflowClientTool(id),
+  gdrive_request_access: (id) => new GDriveRequestAccessClientTool(id),
+  get_blocks_and_tools: (id) => new GetBlocksAndToolsClientTool(id),
+  get_blocks_metadata: (id) => new (require('@/lib/copilot-new/tools/client/blocks/get-blocks-metadata').GetBlocksMetadataClientTool)(id),
+}
 
 /**
  * Copilot store using the new unified API
