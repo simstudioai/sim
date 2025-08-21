@@ -35,10 +35,10 @@ jobs:
       - name: Deploy to Staging
         if: github.ref == 'refs/heads/staging'
         working-directory: ./apps/sim
-        run: npx --yes trigger.dev@latest deploy -e staging
+        run: npx --yes trigger.dev@3.3.17 deploy -e staging
 
       - name: Deploy to Production
         if: github.ref == 'refs/heads/main'
         working-directory: ./apps/sim
-        run: npx --yes trigger.dev@latest deploy
+        run: npx --yes trigger.dev@3.3.17 deploy
 
