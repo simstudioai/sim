@@ -252,5 +252,76 @@ describe('Knowledge Utils', () => {
 
       expect(result.length).toBe(2)
     })
+
+    it('should use Azure OpenAI when Azure config is provided', async () => {
+      const { env } = await import('@/lib/env')
+      Object.keys(env).forEach((key) => delete (env as any)[key])
+      Object.assign(env, {
+        AZURE_OPENAI_API_KEY: 'test-azure-key',
+        AZURE_OPENAI_ENDPOINT: 'https://test.openai.azure.com',
+        AZURE_OPENAI_API_VERSION: '2024-12-01-preview',
+        KB_OPENAI_MODEL_NAME: 'text-embedding-ada-002',
+        OPENAI_API_KEY: 'test-openai-key',
+      })
+
+      const fetchSpy = vi.mocked(fetch)
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [{ embedding: [0.1, 0.2], index: 0 }],
+        }),
+      } as any)
+
+      await generateEmbeddings(['test text'])
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://test.openai.azure.com/openai/deployments/text-embedding-ada-002/embeddings?api-version=2024-12-01-preview',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'api-key': 'test-azure-key',
+          }),
+        })
+      )
+
+      Object.keys(env).forEach((key) => delete (env as any)[key])
+    })
+
+    it('should fallback to OpenAI when no Azure config provided', async () => {
+      const { env } = await import('@/lib/env')
+      Object.keys(env).forEach((key) => delete (env as any)[key])
+      Object.assign(env, {
+        OPENAI_API_KEY: 'test-openai-key',
+      })
+
+      const fetchSpy = vi.mocked(fetch)
+      fetchSpy.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [{ embedding: [0.1, 0.2], index: 0 }],
+        }),
+      } as any)
+
+      await generateEmbeddings(['test text'])
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://api.openai.com/v1/embeddings',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer test-openai-key',
+          }),
+        })
+      )
+
+      Object.keys(env).forEach((key) => delete (env as any)[key])
+    })
+
+    it('should throw error when no API configuration provided', async () => {
+      const { env } = await import('@/lib/env')
+      Object.keys(env).forEach((key) => delete (env as any)[key])
+
+      await expect(generateEmbeddings(['test text'])).rejects.toThrow(
+        'Either OPENAI_API_KEY or Azure OpenAI configuration (AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT) must be configured'
+      )
+    })
   })
 })

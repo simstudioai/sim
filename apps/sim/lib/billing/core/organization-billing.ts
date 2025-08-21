@@ -1,12 +1,30 @@
 import { and, eq } from 'drizzle-orm'
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { getPlanPricing } from '@/lib/billing/core/billing'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { member, organization, user, userStats } from '@/db/schema'
+import { member, organization, subscription, user, userStats } from '@/db/schema'
 
 const logger = createLogger('OrganizationBilling')
+
+/**
+ * Get organization subscription directly by organization ID
+ * This is for our new pattern where referenceId = organizationId
+ */
+async function getOrganizationSubscription(organizationId: string) {
+  try {
+    const orgSubs = await db
+      .select()
+      .from(subscription)
+      .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+      .limit(1)
+
+    return orgSubs.length > 0 ? orgSubs[0] : null
+  } catch (error) {
+    logger.error('Error getting organization subscription', { error, organizationId })
+    return null
+  }
+}
 
 interface OrganizationUsageData {
   organizationId: string
@@ -57,8 +75,8 @@ export async function getOrganizationBillingData(
 
     const organizationData = orgRecord[0]
 
-    // Get organization subscription
-    const subscription = await getHighestPrioritySubscription(organizationId)
+    // Get organization subscription directly (referenceId = organizationId)
+    const subscription = await getOrganizationSubscription(organizationId)
 
     if (!subscription) {
       logger.warn('No subscription found for organization', { organizationId })
@@ -191,7 +209,7 @@ export async function updateMemberUsageLimit(
     }
 
     // Get organization subscription to validate limit
-    const subscription = await getHighestPrioritySubscription(organizationId)
+    const subscription = await getOrganizationSubscription(organizationId)
     if (!subscription) {
       throw new Error('No active subscription found')
     }

@@ -11,7 +11,6 @@ import {
 } from 'better-auth/plugins'
 import { and, eq } from 'drizzle-orm'
 import { headers } from 'next/headers'
-import { Resend } from 'resend'
 import Stripe from 'stripe'
 import {
   getEmailSubject,
@@ -21,6 +20,7 @@ import {
 } from '@/components/emails/render-email'
 import { getBaseURL } from '@/lib/auth-client'
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
+import { sendEmail } from '@/lib/email/mailer'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
 import { isBillingEnabled, isProd } from '@/lib/environment'
@@ -44,22 +44,6 @@ if (validStripeKey) {
     apiVersion: '2025-02-24.acacia',
   })
 }
-
-// If there is no resend key, it might be a local dev environment
-// In that case, we don't want to send emails and just log them
-const validResendAPIKEY =
-  env.RESEND_API_KEY && env.RESEND_API_KEY.trim() !== '' && env.RESEND_API_KEY !== 'placeholder'
-
-const resend = validResendAPIKEY
-  ? new Resend(env.RESEND_API_KEY)
-  : {
-      emails: {
-        send: async (...args: any[]) => {
-          logger.info('Email would have been sent in production. Details:', args)
-          return { id: 'local-dev-mode' }
-        },
-      },
-    }
 
 export const auth = betterAuth({
   baseURL: getBaseURL(),
@@ -165,15 +149,16 @@ export const auth = betterAuth({
 
       const html = await renderPasswordResetEmail(username, url)
 
-      const result = await resend.emails.send({
-        from: `Sim <team@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
+      const result = await sendEmail({
         to: user.email,
         subject: getEmailSubject('reset-password'),
         html,
+        from: `noreply@${env.EMAIL_DOMAIN || getEmailDomain()}`,
+        emailType: 'transactional',
       })
 
-      if (!result) {
-        throw new Error('Failed to send reset password email')
+      if (!result.success) {
+        throw new Error(`Failed to send reset password email: ${result.message}`)
       }
     },
   },
@@ -252,8 +237,19 @@ export const auth = betterAuth({
             )
           }
 
-          // In development with no RESEND_API_KEY, log verification code
-          if (!validResendAPIKEY) {
+          const html = await renderOTPEmail(data.otp, data.email, data.type)
+
+          // Send email via consolidated mailer (supports Resend, Azure, or logging fallback)
+          const result = await sendEmail({
+            to: data.email,
+            subject: getEmailSubject(data.type),
+            html,
+            from: `onboarding@${env.EMAIL_DOMAIN || getEmailDomain()}`,
+            emailType: 'transactional',
+          })
+
+          // If no email service is configured, log verification code for development
+          if (!result.success && result.message.includes('no email service configured')) {
             logger.info('🔑 VERIFICATION CODE FOR LOGIN/SIGNUP', {
               email: data.email,
               otp: data.otp,
@@ -263,18 +259,8 @@ export const auth = betterAuth({
             return
           }
 
-          const html = await renderOTPEmail(data.otp, data.email, data.type)
-
-          // In production, send an actual email
-          const result = await resend.emails.send({
-            from: `Sim <onboarding@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
-            to: data.email,
-            subject: getEmailSubject(data.type),
-            html,
-          })
-
-          if (!result) {
-            throw new Error('Failed to send verification code')
+          if (!result.success) {
+            throw new Error(`Failed to send verification code: ${result.message}`)
           }
         } catch (error) {
           logger.error('Error sending verification code:', {
@@ -470,7 +456,6 @@ export const auth = betterAuth({
           responseType: 'code',
           accessType: 'offline',
           authentication: 'basic',
-          prompt: 'consent',
           pkce: true,
           redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/microsoft-teams`,
         },
@@ -486,7 +471,6 @@ export const auth = betterAuth({
           responseType: 'code',
           accessType: 'offline',
           authentication: 'basic',
-          prompt: 'consent',
           pkce: true,
           redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/microsoft-excel`,
         },
@@ -509,7 +493,6 @@ export const auth = betterAuth({
           responseType: 'code',
           accessType: 'offline',
           authentication: 'basic',
-          prompt: 'consent',
           pkce: true,
           redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/microsoft-planner`,
         },
@@ -534,7 +517,6 @@ export const auth = betterAuth({
           responseType: 'code',
           accessType: 'offline',
           authentication: 'basic',
-          prompt: 'consent',
           pkce: true,
           redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/outlook`,
         },
@@ -550,7 +532,6 @@ export const auth = betterAuth({
           responseType: 'code',
           accessType: 'offline',
           authentication: 'basic',
-          prompt: 'consent',
           pkce: true,
           redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/onedrive`,
         },
@@ -573,7 +554,6 @@ export const auth = betterAuth({
           responseType: 'code',
           accessType: 'offline',
           authentication: 'basic',
-          prompt: 'consent',
           pkce: true,
           redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/sharepoint`,
         },
@@ -1284,133 +1264,30 @@ export const auth = betterAuth({
                 })
 
                 // Auto-create organization for team plan purchases
-                if (subscription.plan === 'team') {
-                  try {
-                    // Get the user who purchased the subscription
-                    const user = await db
-                      .select()
-                      .from(schema.user)
-                      .where(eq(schema.user.id, subscription.referenceId))
-                      .limit(1)
-
-                    if (user.length > 0) {
-                      const currentUser = user[0]
-
-                      // Store the original user ID before we change the referenceId
-                      const originalUserId = subscription.referenceId
-
-                      // First, sync usage limits for the purchasing user with their new plan
-                      try {
-                        const { syncUsageLimitsFromSubscription } = await import('@/lib/billing')
-                        await syncUsageLimitsFromSubscription(originalUserId)
-                        logger.info(
-                          'Usage limits synced for purchasing user before organization creation',
-                          {
-                            userId: originalUserId,
-                          }
-                        )
-                      } catch (error) {
-                        logger.error('Failed to sync usage limits for purchasing user', {
-                          userId: originalUserId,
-                          error,
-                        })
-                      }
-
-                      // Create organization for the team
-                      const orgId = `org_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
-                      const orgSlug = `${currentUser.name?.toLowerCase().replace(/\s+/g, '-') || 'team'}-${Date.now()}`
-
-                      // Create a separate Stripe customer for the organization
-                      let orgStripeCustomerId: string | null = null
-                      if (stripeClient) {
-                        try {
-                          const orgStripeCustomer = await stripeClient.customers.create({
-                            name: `${currentUser.name || 'User'}'s Team`,
-                            email: currentUser.email,
-                            metadata: {
-                              organizationId: orgId,
-                              type: 'organization',
-                            },
-                          })
-                          orgStripeCustomerId = orgStripeCustomer.id
-                        } catch (error) {
-                          logger.error('Failed to create Stripe customer for organization', {
-                            organizationId: orgId,
-                            error,
-                          })
-                          // Continue without Stripe customer - can be created later
-                        }
-                      }
-
-                      const newOrg = await db
-                        .insert(schema.organization)
-                        .values({
-                          id: orgId,
-                          name: `${currentUser.name || 'User'}'s Team`,
-                          slug: orgSlug,
-                          metadata: orgStripeCustomerId
-                            ? { stripeCustomerId: orgStripeCustomerId }
-                            : null,
-                          createdAt: new Date(),
-                          updatedAt: new Date(),
-                        })
-                        .returning()
-
-                      // Add the user as owner of the organization
-                      await db.insert(schema.member).values({
-                        id: `member_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`,
-                        userId: currentUser.id,
-                        organizationId: orgId,
-                        role: 'owner',
-                        createdAt: new Date(),
-                      })
-
-                      // Update the subscription to reference the organization instead of the user
-                      await db
-                        .update(schema.subscription)
-                        .set({ referenceId: orgId })
-                        .where(eq(schema.subscription.id, subscription.id))
-
-                      // Update the session to set the new organization as active
-                      await db
-                        .update(schema.session)
-                        .set({ activeOrganizationId: orgId })
-                        .where(eq(schema.session.userId, currentUser.id))
-
-                      logger.info('Auto-created organization for team subscription', {
-                        organizationId: orgId,
-                        userId: currentUser.id,
-                        subscriptionId: subscription.id,
-                        orgName: `${currentUser.name || 'User'}'s Team`,
-                      })
-
-                      // Update referenceId for usage limit sync
-                      subscription.referenceId = orgId
-                    }
-                  } catch (error) {
-                    logger.error('Failed to auto-create organization for team subscription', {
-                      subscriptionId: subscription.id,
-                      referenceId: subscription.referenceId,
-                      error,
-                    })
-                  }
+                try {
+                  const { handleTeamPlanOrganization } = await import(
+                    '@/lib/billing/team-management'
+                  )
+                  await handleTeamPlanOrganization(subscription)
+                } catch (error) {
+                  logger.error('Failed to handle team plan organization creation', {
+                    subscriptionId: subscription.id,
+                    referenceId: subscription.referenceId,
+                    error,
+                  })
                 }
 
-                // Initialize billing period for the user/organization
+                // Initialize billing period and sync usage limits
                 try {
                   const { initializeBillingPeriod } = await import(
                     '@/lib/billing/core/billing-periods'
                   )
+                  const { syncSubscriptionUsageLimits } = await import(
+                    '@/lib/billing/team-management'
+                  )
 
-                  // Note: Usage limits are already synced above for team plan users
-                  // For non-team plans, sync usage limits using the referenceId (which is the user ID)
-                  if (subscription.plan !== 'team') {
-                    const { syncUsageLimitsFromSubscription } = await import('@/lib/billing')
-                    await syncUsageLimitsFromSubscription(subscription.referenceId)
-                    logger.info('Usage limits synced after subscription creation', {
-                      referenceId: subscription.referenceId,
-                    })
-                  }
+                  // Sync usage limits for user or organization members
+                  await syncSubscriptionUsageLimits(subscription)
 
                   // Initialize billing period for new subscription using Stripe dates
                   if (subscription.plan !== 'free') {
@@ -1447,15 +1324,29 @@ export const auth = betterAuth({
                 logger.info('Subscription updated', {
                   subscriptionId: subscription.id,
                   status: subscription.status,
+                  plan: subscription.plan,
                 })
+
+                // Auto-create organization for team plan upgrades (free -> team)
+                try {
+                  const { handleTeamPlanOrganization } = await import(
+                    '@/lib/billing/team-management'
+                  )
+                  await handleTeamPlanOrganization(subscription)
+                } catch (error) {
+                  logger.error('Failed to handle team plan organization creation on update', {
+                    subscriptionId: subscription.id,
+                    referenceId: subscription.referenceId,
+                    error,
+                  })
+                }
 
                 // Sync usage limits for the user/organization
                 try {
-                  const { syncUsageLimitsFromSubscription } = await import('@/lib/billing')
-                  await syncUsageLimitsFromSubscription(subscription.referenceId)
-                  logger.info('Usage limits synced after subscription update', {
-                    referenceId: subscription.referenceId,
-                  })
+                  const { syncSubscriptionUsageLimits } = await import(
+                    '@/lib/billing/team-management'
+                  )
+                  await syncSubscriptionUsageLimits(subscription)
                 } catch (error) {
                   logger.error('Failed to sync usage limits after subscription update', {
                     referenceId: subscription.referenceId,
@@ -1551,12 +1442,17 @@ export const auth = betterAuth({
                   invitation.email
                 )
 
-                await resend.emails.send({
-                  from: `Sim <team@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
+                const result = await sendEmail({
                   to: invitation.email,
                   subject: `${inviterName} has invited you to join ${organization.name} on Sim`,
                   html,
+                  from: `noreply@${env.EMAIL_DOMAIN || getEmailDomain()}`,
+                  emailType: 'transactional',
                 })
+
+                if (!result.success) {
+                  logger.error('Failed to send organization invitation email:', result.message)
+                }
               } catch (error) {
                 logger.error('Error sending invitation email', { error })
               }

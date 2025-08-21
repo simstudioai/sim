@@ -1,6 +1,7 @@
 import { render } from '@react-email/components'
 import {
   BatchInvitationEmail,
+  HelpConfirmationEmail,
   InvitationEmail,
   OTPVerificationEmail,
   ResetPasswordEmail,
@@ -65,6 +66,21 @@ export async function renderBatchInvitationEmail(
   )
 }
 
+export async function renderHelpConfirmationEmail(
+  userEmail: string,
+  type: 'bug' | 'feedback' | 'feature_request' | 'other',
+  attachmentCount = 0
+): Promise<string> {
+  return await render(
+    HelpConfirmationEmail({
+      userEmail,
+      type,
+      attachmentCount,
+      submittedDate: new Date(),
+    })
+  )
+}
+
 export function getEmailSubject(
   type:
     | 'sign-in'
@@ -73,6 +89,7 @@ export function getEmailSubject(
     | 'reset-password'
     | 'invitation'
     | 'batch-invitation'
+    | 'help-confirmation'
 ): string {
   switch (type) {
     case 'sign-in':
@@ -87,6 +104,8 @@ export function getEmailSubject(
       return "You've been invited to join a team on Sim"
     case 'batch-invitation':
       return "You've been invited to join a team and workspaces on Sim"
+    case 'help-confirmation':
+      return 'Your request has been received'
     default:
       return 'Sim'
   }

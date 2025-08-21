@@ -156,6 +156,9 @@ export interface ProviderRequest {
   // Azure OpenAI specific parameters
   azureEndpoint?: string
   azureApiVersion?: string
+  // GPT-5 specific parameters
+  reasoningEffort?: string
+  verbosity?: string
 }
 
 // Map of provider IDs to their configurations

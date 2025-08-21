@@ -1,21 +1,9 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { retryWithExponentialBackoff } from '@/lib/documents/utils'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { embedding } from '@/db/schema'
 
 const logger = createLogger('KnowledgeSearchUtils')
-
-export class APIError extends Error {
-  public status: number
-
-  constructor(message: string, status: number) {
-    super(message)
-    this.name = 'APIError'
-    this.status = status
-  }
-}
 
 export interface SearchResult {
   id: string
@@ -41,61 +29,8 @@ export interface SearchParams {
   distanceThreshold?: number
 }
 
-export async function generateSearchEmbedding(query: string): Promise<number[]> {
-  const openaiApiKey = env.OPENAI_API_KEY
-  if (!openaiApiKey) {
-    throw new Error('OPENAI_API_KEY not configured')
-  }
-
-  try {
-    const embedding = await retryWithExponentialBackoff(
-      async () => {
-        const response = await fetch('https://api.openai.com/v1/embeddings', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${openaiApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            input: query,
-            model: 'text-embedding-3-small',
-            encoding_format: 'float',
-          }),
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          const error = new APIError(
-            `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`,
-            response.status
-          )
-          throw error
-        }
-
-        const data = await response.json()
-
-        if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
-          throw new Error('Invalid response format from OpenAI embeddings API')
-        }
-
-        return data.data[0].embedding
-      },
-      {
-        maxRetries: 5,
-        initialDelayMs: 1000,
-        maxDelayMs: 30000,
-        backoffMultiplier: 2,
-      }
-    )
-
-    return embedding
-  } catch (error) {
-    logger.error('Failed to generate search embedding:', error)
-    throw new Error(
-      `Embedding generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
-  }
-}
+// Use shared embedding utility
+export { generateSearchEmbedding } from '@/lib/embeddings/utils'
 
 function getTagFilters(filters: Record<string, string>, embedding: any) {
   return Object.entries(filters).map(([key, value]) => {

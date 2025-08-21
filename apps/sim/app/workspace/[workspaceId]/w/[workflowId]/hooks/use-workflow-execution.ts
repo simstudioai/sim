@@ -548,8 +548,8 @@ export function useWorkflowExecution() {
       }
     })
 
-    // Merge subblock states from the appropriate store
-    const mergedStates = mergeSubblockState(validBlocks)
+    // Merge subblock states from the appropriate store (scoped to active workflow)
+    const mergedStates = mergeSubblockState(validBlocks, activeWorkflowId ?? undefined)
 
     // Debug: Check for blocks with undefined types after merging
     Object.entries(mergedStates).forEach(([blockId, block]) => {

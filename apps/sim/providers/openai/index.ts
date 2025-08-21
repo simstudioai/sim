@@ -130,6 +130,10 @@ export const openaiProvider: ProviderConfig = {
     if (request.temperature !== undefined) payload.temperature = request.temperature
     if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
 
+    // Add GPT-5 specific parameters
+    if (request.reasoningEffort !== undefined) payload.reasoning_effort = request.reasoningEffort
+    if (request.verbosity !== undefined) payload.verbosity = request.verbosity
+
     // Add response format for structured output if specified
     if (request.responseFormat) {
       // Use OpenAI's JSON schema format

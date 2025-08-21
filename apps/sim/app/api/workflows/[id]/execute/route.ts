@@ -1,4 +1,4 @@
-import { tasks } from '@trigger.dev/sdk/v3'
+import { tasks } from '@trigger.dev/sdk'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'

@@ -13,7 +13,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Logger } from '@/lib/logs/console/logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import {
   type Credential,
   getProviderIdFromServiceId,
@@ -22,7 +22,7 @@ import {
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 
-const logger = new Logger('JiraIssueSelector')
+const logger = createLogger('JiraIssueSelector')
 
 export interface JiraIssueInfo {
   id: string

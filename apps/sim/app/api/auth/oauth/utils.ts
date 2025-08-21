@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshOAuthToken } from '@/lib/oauth/oauth'
@@ -70,7 +70,8 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
     })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
-    .orderBy(account.createdAt)
+    // Always use the most recently updated credential for this provider
+    .orderBy(desc(account.updatedAt))
     .limit(1)
 
   if (connections.length === 0) {
@@ -80,19 +81,13 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
 
   const credential = connections[0]
 
-  // Check if we have a valid access token
-  if (!credential.accessToken) {
-    logger.warn(`Access token is null for user ${userId}, provider ${providerId}`)
-    return null
-  }
-
-  // Check if the token is expired and needs refreshing
+  // Determine whether we should refresh: missing token OR expired token
   const now = new Date()
   const tokenExpiry = credential.accessTokenExpiresAt
-  // Only refresh if we have an expiration time AND it's expired AND we have a refresh token
-  const needsRefresh = tokenExpiry && tokenExpiry < now && !!credential.refreshToken
+  const shouldAttemptRefresh =
+    !!credential.refreshToken && (!credential.accessToken || (tokenExpiry && tokenExpiry < now))
 
-  if (needsRefresh) {
+  if (shouldAttemptRefresh) {
     logger.info(
       `Access token expired for user ${userId}, provider ${providerId}. Attempting to refresh.`
     )
@@ -141,6 +136,13 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
     }
   }
 
+  if (!credential.accessToken) {
+    logger.warn(
+      `Access token is null and no refresh attempted or available for user ${userId}, provider ${providerId}`
+    )
+    return null
+  }
+
   logger.info(`Found valid OAuth token for user ${userId}, provider ${providerId}`)
   return credential.accessToken
 }
@@ -164,19 +166,21 @@ export async function refreshAccessTokenIfNeeded(
     return null
   }
 
-  // Check if we need to refresh the token
+  // Decide if we should refresh: token missing OR expired
   const expiresAt = credential.accessTokenExpiresAt
   const now = new Date()
-  // Only refresh if we have an expiration time AND it's expired
-  // If no expiration time is set (newly created credentials), assume token is valid
-  const needsRefresh = expiresAt && expiresAt <= now
+  const shouldRefresh =
+    !!credential.refreshToken && (!credential.accessToken || (expiresAt && expiresAt <= now))
 
   const accessToken = credential.accessToken
 
-  if (needsRefresh && credential.refreshToken) {
+  if (shouldRefresh) {
     logger.info(`[${requestId}] Token expired, attempting to refresh for credential`)
     try {
-      const refreshedToken = await refreshOAuthToken(credential.providerId, credential.refreshToken)
+      const refreshedToken = await refreshOAuthToken(
+        credential.providerId,
+        credential.refreshToken!
+      )
 
       if (!refreshedToken) {
         logger.error(`[${requestId}] Failed to refresh token for credential: ${credentialId}`, {
@@ -217,6 +221,7 @@ export async function refreshAccessTokenIfNeeded(
       return null
     }
   } else if (!accessToken) {
+    // We have no access token and either no refresh token or not eligible to refresh
     logger.error(`[${requestId}] Missing access token for credential`)
     return null
   }
@@ -233,21 +238,20 @@ export async function refreshTokenIfNeeded(
   credential: any,
   credentialId: string
 ): Promise<{ accessToken: string; refreshed: boolean }> {
-  // Check if we need to refresh the token
+  // Decide if we should refresh: token missing OR expired
   const expiresAt = credential.accessTokenExpiresAt
   const now = new Date()
-  // Only refresh if we have an expiration time AND it's expired
-  // If no expiration time is set (newly created credentials), assume token is valid
-  const needsRefresh = expiresAt && expiresAt <= now
+  const shouldRefresh =
+    !!credential.refreshToken && (!credential.accessToken || (expiresAt && expiresAt <= now))
 
-  // If token is still valid, return it directly
-  if (!needsRefresh || !credential.refreshToken) {
+  // If token appears valid and present, return it directly
+  if (!shouldRefresh) {
     logger.info(`[${requestId}] Access token is valid`)
     return { accessToken: credential.accessToken, refreshed: false }
   }
 
   try {
-    const refreshResult = await refreshOAuthToken(credential.providerId, credential.refreshToken)
+    const refreshResult = await refreshOAuthToken(credential.providerId, credential.refreshToken!)
 
     if (!refreshResult) {
       logger.error(`[${requestId}] Failed to refresh token for credential`)
