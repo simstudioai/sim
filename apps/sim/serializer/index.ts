@@ -213,13 +213,24 @@ export class Serializer {
 
     const params: Record<string, any> = {}
     const isAdvancedMode = block.advancedMode ?? false
+    const isStarterBlock = block.type === 'starter'
 
     // First collect all current values from subBlocks, filtering by mode
     Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
       // Find the corresponding subblock config to check its mode
       const subBlockConfig = blockConfig.subBlocks.find((config) => config.id === id)
 
-      if (subBlockConfig && shouldIncludeField(subBlockConfig, isAdvancedMode)) {
+      // Include field if it matches current mode OR if it's the starter inputFormat with values
+      const hasStarterInputFormatValues =
+        isStarterBlock &&
+        id === 'inputFormat' &&
+        Array.isArray(subBlock.value) &&
+        subBlock.value.length > 0
+
+      if (
+        subBlockConfig &&
+        (shouldIncludeField(subBlockConfig, isAdvancedMode) || hasStarterInputFormatValues)
+      ) {
         params[id] = subBlock.value
       }
     })
