@@ -368,6 +368,8 @@ export class AgentBlockHandler implements BlockHandler {
       stream: streaming,
       messages,
       environmentVariables: context.environmentVariables || {},
+      reasoningEffort: inputs.reasoningEffort,
+      verbosity: inputs.verbosity,
     }
   }
 

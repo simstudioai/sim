@@ -215,16 +215,16 @@ Create a system prompt appropriately detailed for the request, using clear langu
     {
       id: 'reasoningEffort',
       title: 'Reasoning Effort',
-      type: 'combobox',
+      type: 'dropdown',
       layout: 'half',
       placeholder: 'Select reasoning effort...',
-      options: () => {
-        return [
-          { label: 'low', id: 'low' },
-          { label: 'medium', id: 'medium' },
-          { label: 'high', id: 'high' },
-        ]
-      },
+      options: [
+        { label: 'minimal', id: 'minimal' },
+        { label: 'low', id: 'low' },
+        { label: 'medium', id: 'medium' },
+        { label: 'high', id: 'high' },
+      ],
+      value: () => 'medium',
       condition: {
         field: 'model',
         value: MODELS_WITH_REASONING_EFFORT,
@@ -233,10 +233,15 @@ Create a system prompt appropriately detailed for the request, using clear langu
     {
       id: 'verbosity',
       title: 'Verbosity',
-      type: 'slider',
+      type: 'dropdown',
       layout: 'half',
-      min: 0,
-      max: 2,
+      placeholder: 'Select verbosity...',
+      options: [
+        { label: 'low', id: 'low' },
+        { label: 'medium', id: 'medium' },
+        { label: 'high', id: 'high' },
+      ],
+      value: () => 'medium',
       condition: {
         field: 'model',
         value: MODELS_WITH_VERBOSITY,
@@ -518,7 +523,7 @@ Example 3 (Array Input):
     },
     temperature: { type: 'number', description: 'Response randomness level' },
     reasoningEffort: { type: 'string', description: 'Reasoning effort level for GPT-5 models' },
-    verbosity: { type: 'number', description: 'Verbosity level for GPT-5 models' },
+    verbosity: { type: 'string', description: 'Verbosity level for GPT-5 models' },
     tools: { type: 'json', description: 'Available tools configuration' },
   },
   outputs: {

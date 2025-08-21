@@ -10,6 +10,8 @@ export interface AgentInputs {
   apiKey?: string
   azureEndpoint?: string
   azureApiVersion?: string
+  reasoningEffort?: string
+  verbosity?: string
 }
 
 export interface ToolInput {
