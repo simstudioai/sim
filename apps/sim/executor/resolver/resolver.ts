@@ -8,21 +8,6 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('InputResolver')
 
-// Removed provider alias fallbacks (e.g., nested `github`).
-
-// Fallback into webhook metadata payload if present: { webhook: { data: { payload: {...} } } }
-function resolveFromWebhookPayload(container: any, property: string): any {
-  try {
-    const payload = container?.webhook?.data?.payload
-    if (payload && typeof payload === 'object' && Object.hasOwn(payload, property)) {
-      return payload[property]
-    }
-  } catch (_) {
-    // ignore
-  }
-  return undefined
-}
-
 /**
  * Helper function to resolve property access
  */
