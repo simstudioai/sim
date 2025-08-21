@@ -65,7 +65,7 @@ export function FieldFormat({
   emptyMessage = 'No fields defined',
   showType = true,
   showValue = false,
-  valuePlaceholder = 'Enter value or <variable.name>',
+  valuePlaceholder = 'Enter test value',
   isConnecting = false,
   config,
 }: FieldFormatProps) {
@@ -429,7 +429,7 @@ export function ResponseFormat(
       emptyMessage='No response fields defined'
       showType={false}
       showValue={true}
-      valuePlaceholder='Enter value or <variable.name>'
+      valuePlaceholder='Enter test value'
     />
   )
 }
