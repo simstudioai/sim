@@ -1,16 +1,10 @@
 /**
- * Tool Registry - Central management for client-side copilot tools
+ * Tool Registry - Central management for client-side copilot tools (legacy)
  *
- * This registry manages tools that:
- * - Require user interrupts/confirmation (requiresInterrupt: true)
- * - Execute client-side logic
- *
- * It also provides metadata for server-side tools for display purposes
+ * In the new copilot-new flow, client tools are managed separately.
+ * This registry remains to provide server tool metadata and a minimal API.
  */
 
-import { GDriveRequestAccessTool } from '@/lib/copilot/tools/client-tools/gdrive-request-access'
-import { GetUserWorkflowTool } from '@/lib/copilot/tools/client-tools/get-user-workflow'
-import { RunWorkflowTool } from '@/lib/copilot/tools/client-tools/run-workflow'
 import { SERVER_TOOL_METADATA } from '@/lib/copilot/tools/server-tools/definitions'
 import type { Tool, ToolMetadata } from '@/lib/copilot/tools/types'
 
@@ -109,13 +103,10 @@ export class ToolRegistry {
   }
 
   /**
-   * Register default client tools
+   * Register default client tools (legacy) - no-op in new flow
    */
   private registerDefaultTools(): void {
-    // Register actual client tool implementations
-    this.register(new RunWorkflowTool())
-    this.register(new GetUserWorkflowTool())
-    this.register(new GDriveRequestAccessTool())
+    // Intentionally left blank in the new copilot-new flow
   }
 }
 

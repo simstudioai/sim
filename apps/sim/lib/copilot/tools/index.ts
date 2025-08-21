@@ -1,20 +1,13 @@
 /**
- * Copilot Tools Library
- * Export the public API for the tools system
+ * Copilot Tools Library (legacy)
+ * Minimal exports retained for server tool metadata and types.
  */
 
-// Base classes
-export { BaseTool } from './base-tool'
-// Client tool implementations
-export { RunWorkflowTool } from './client-tools/run-workflow'
-export { InlineToolCall } from './inline-tool-call'
-// Registry
+// Registry (legacy) - retained only if other parts still read server metadata
 export { ToolRegistry, toolRegistry } from './registry'
 export type { ServerToolId } from './server-tools/definitions'
-// Server tool definitions
+// Server tool definitions (display metadata used by store fallback)
 export { SERVER_TOOL_IDS, SERVER_TOOL_METADATA } from './server-tools/definitions'
-// React components
-export { ToolConfirmation } from './tool-confirmation'
 // Core types and interfaces
 export type {
   CopilotToolCall,
@@ -28,15 +21,3 @@ export type {
   ToolSchema,
   ToolState,
 } from './types'
-// Utilities
-export {
-  createToolActionButton,
-  executeToolWithStateManagement,
-  getToolDisplayName,
-  getToolIcon,
-  getToolStateClasses,
-  renderToolStateIcon,
-  type ToolConfirmationProps,
-  toolRequiresConfirmation,
-  toolRequiresInterrupt,
-} from './utils'

@@ -12,7 +12,7 @@ import { GoogleDriveIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { toolRegistry } from '@/lib/copilot/tools/registry'
-import { renderToolStateIcon, toolRequiresInterrupt } from '@/lib/copilot/tools/utils'
+import { renderToolStateIcon } from '@/lib/copilot/tools/utils'
 import { getEnv } from '@/lib/env'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotToolCall } from '@/stores/copilot/types'
@@ -62,22 +62,25 @@ async function handleSkipNew(toolCall: CopilotToolCall, setToolCallState: any, o
 
 // Function to get tool display name based on state
 function getToolDisplayNameByState(toolCall: CopilotToolCall): string {
+  const instance = getClientTool(toolCall.id) as any
+  const displayFromInstance = instance?.constructor?.metadata?.displayNames?.[toolCall.state]
+  if (displayFromInstance?.text) {
+    return displayFromInstance.text
+  }
+
   const toolName = toolCall.name
   const state = toolCall.state
 
-  // Check if it's a client tool
+  // Fallback: legacy registry-based display
   const clientTool = toolRegistry.getTool(toolName)
   if (clientTool) {
-    // Use client tool's display name logic
     const base = clientTool.getDisplayName(toolCall)
     if (state === 'preparing') return `Preparing to ${base}`
     return base
   }
 
-  // For server tools, use server tool metadata
   const serverToolMetadata = toolRegistry.getServerToolMetadata(toolName)
   if (serverToolMetadata) {
-    // Check if there's a dynamic display name function
     if (serverToolMetadata.displayConfig.getDynamicDisplayName) {
       const dynamicName = serverToolMetadata.displayConfig.getDynamicDisplayName(
         state,
@@ -89,7 +92,6 @@ function getToolDisplayNameByState(toolCall: CopilotToolCall): string {
       }
     }
 
-    // Use state-specific display config
     const stateConfig = serverToolMetadata.displayConfig.states[state]
     if (stateConfig) {
       const base = stateConfig.displayName
@@ -98,7 +100,6 @@ function getToolDisplayNameByState(toolCall: CopilotToolCall): string {
     }
   }
 
-  // Fallback to tool name if no specific display logic found
   if (state === 'preparing') return `Preparing to ${toolName}`
   return toolName
 }
@@ -119,8 +120,9 @@ function RunSkipButtons({
   const [openPicker] = useDrivePicker()
 
   const instance = getClientTool(toolCall.id)
-  const acceptLabel = instance?.constructor?.metadata?.interrupt?.accept?.text || 'Run'
-  const rejectLabel = instance?.constructor?.metadata?.interrupt?.reject?.text || 'Skip'
+  const interruptDisplays = instance?.getInterruptDisplays?.()
+  const acceptLabel = interruptDisplays?.accept?.text || 'Run'
+  const rejectLabel = interruptDisplays?.reject?.text || 'Skip'
 
   const handleRun = async () => {
     setIsProcessing(true)

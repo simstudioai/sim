@@ -986,34 +986,7 @@ const sseHandlers: Record<string, SSEHandler> = {
           }, 0)
         }
       } else if (!requiresInterrupt && toolRegistry.getTool(existingToolCall.name)) {
-        // Legacy client tool path for other tools still using old registry
-        setTimeout(async () => {
-          try {
-            const tool = toolRegistry.getTool(existingToolCall.name)
-            if (tool && existingToolCall.state === 'executing') {
-              await tool.execute(existingToolCall as any, {
-                onStateChange: (state: any) => {
-                  const currentState = useCopilotStore.getState()
-                  const updatedMessages = currentState.messages.map((msg) => ({
-                    ...msg,
-                    toolCalls: msg.toolCalls?.map((tc) => (tc.id === existingToolCall.id ? { ...tc, state } : tc)),
-                    contentBlocks: msg.contentBlocks?.map((block) =>
-                      block.type === 'tool_call' && block.toolCall?.id === existingToolCall.id
-                        ? { ...block, toolCall: { ...block.toolCall, state } }
-                        : block
-                    ),
-                  }))
-                  useCopilotStore.setState({ messages: updatedMessages })
-                },
-              })
-            }
-          } catch (error) {
-            logger.error('Error auto-executing client tool (existing):', existingToolCall.name, existingToolCall.id, error)
-            setToolCallState(existingToolCall, 'errored', {
-              error: error instanceof Error ? error.message : 'Auto-execution failed',
-            })
-          }
-        }, 0)
+        // Temporarily disabled legacy client tool auto-exec in new refactor
       }
 
       updateContentBlockToolCall(context.contentBlocks, toolData.id, existingToolCall)

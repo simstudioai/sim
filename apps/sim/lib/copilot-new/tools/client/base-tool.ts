@@ -94,6 +94,11 @@ export class BaseClientTool {
     return this.metadata.displayNames[this.state]
   }
 
+  // Return interrupt display config (labels/icons) if defined
+  getInterruptDisplays(): BaseClientToolMetadata['interrupt'] | undefined {
+    return this.metadata.interrupt
+  }
+
   // Transition to a new state
   setState(next: ClientToolCallState): void {
     this.state = next
