@@ -65,7 +65,7 @@ export function FieldFormat({
 }: FieldFormatProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<Field[]>(blockId, subBlockId)
   const [dragHighlight, setDragHighlight] = useState<Record<string, boolean>>({})
-  const valueInputRefs = useRef<Record<string, HTMLInputElement>>({})
+  const valueInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement>>({})
   const [localValues, setLocalValues] = useState<Record<string, string>>({})
 
   // Use preview value when in preview mode, otherwise use store value
@@ -339,8 +339,7 @@ export function FieldFormat({
                         ) : field.type === 'object' || field.type === 'array' ? (
                           <Textarea
                             ref={(el) => {
-                              if (el)
-                                valueInputRefs.current[field.id] = el as unknown as HTMLInputElement
+                              if (el) valueInputRefs.current[field.id] = el
                             }}
                             name='value'
                             value={localValues[field.id] ?? (field.value as string) ?? ''}
