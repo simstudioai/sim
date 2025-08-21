@@ -1002,10 +1002,10 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       {renderToggleButton()}
       {isExpanded && <ExportControls />}
       {isExpanded && renderAutoLayoutButton()}
-      {renderDuplicateButton()}
-      {renderDeleteButton()}
-      {!isDebugging && renderDebugModeToggle()}
       {isExpanded && renderPublishButton()}
+      {renderDeleteButton()}
+      {renderDuplicateButton()}
+      {!isDebugging && renderDebugModeToggle()}
       {renderDeployButton()}
       {isDebugging ? renderDebugControlsBar() : renderRunButton()}
 

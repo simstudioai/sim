@@ -204,6 +204,7 @@ export function Sidebar() {
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false)
   // Add sidebar collapsed state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string
@@ -509,16 +510,22 @@ export function Sidebar() {
   }, [refreshWorkspaceList, switchWorkspace, isCreatingWorkspace])
 
   /**
-   * Confirm delete workspace
+   * Confirm delete workspace (called from regular deletion dialog)
    */
   const confirmDeleteWorkspace = useCallback(
-    async (workspaceToDelete: Workspace) => {
+    async (workspaceToDelete: Workspace, templateAction?: 'keep' | 'delete') => {
       setIsDeleting(true)
       try {
         logger.info('Deleting workspace:', workspaceToDelete.id)
 
+        const deleteTemplates = templateAction === 'delete'
+
         const response = await fetch(`/api/workspaces/${workspaceToDelete.id}`, {
           method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ deleteTemplates }),
         })
 
         if (!response.ok) {

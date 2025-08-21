@@ -44,7 +44,7 @@ interface WorkspaceSelectorProps {
   onWorkspaceUpdate: () => Promise<void>
   onSwitchWorkspace: (workspace: Workspace) => Promise<void>
   onCreateWorkspace: () => Promise<void>
-  onDeleteWorkspace: (workspace: Workspace) => Promise<void>
+  onDeleteWorkspace: (workspace: Workspace, templateAction?: 'keep' | 'delete') => Promise<void>
   onLeaveWorkspace: (workspace: Workspace) => Promise<void>
   updateWorkspaceName: (workspaceId: string, newName: string) => Promise<boolean>
   isDeleting: boolean
@@ -76,6 +76,14 @@ export function WorkspaceSelector({
   const [isRenaming, setIsRenaming] = useState(false)
   const [deleteConfirmationName, setDeleteConfirmationName] = useState('')
   const [leaveConfirmationName, setLeaveConfirmationName] = useState('')
+  const [isCheckingTemplates, setIsCheckingTemplates] = useState(false)
+  const [showTemplateChoice, setShowTemplateChoice] = useState(false)
+  const [templatesInfo, setTemplatesInfo] = useState<{
+    count: number
+    templates: Array<{ id: string; name: string }>
+  } | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(null)
 
   // Refs
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -209,8 +217,8 @@ export function WorkspaceSelector({
    * Confirm delete workspace
    */
   const confirmDeleteWorkspace = useCallback(
-    async (workspaceToDelete: Workspace) => {
-      await onDeleteWorkspace(workspaceToDelete)
+    async (workspaceToDelete: Workspace, templateAction?: 'keep' | 'delete') => {
+      await onDeleteWorkspace(workspaceToDelete, templateAction)
     },
     [onDeleteWorkspace]
   )
@@ -352,7 +360,7 @@ export function WorkspaceSelector({
                         <Input
                           value={leaveConfirmationName}
                           onChange={(e) => setLeaveConfirmationName(e.target.value)}
-                          placeholder='Placeholder'
+                          placeholder={workspace.name}
                           className='h-9'
                         />
                       </div>
@@ -381,12 +389,29 @@ export function WorkspaceSelector({
 
                 {/* Delete Workspace - for admin users */}
                 {workspace.permissions === 'admin' && (
-                  <AlertDialog>
+                  <AlertDialog
+                    open={isDeleteDialogOpen}
+                    onOpenChange={(open) => {
+                      if (!open) {
+                        // Dialog is being closed - reset all state
+                        setDeleteConfirmationName('')
+                        setShowTemplateChoice(false)
+                        setTemplatesInfo(null)
+                        setIsCheckingTemplates(false)
+                        setWorkspaceToDelete(null)
+                      }
+                      setIsDeleteDialogOpen(open)
+                    }}
+                  >
                     <AlertDialogTrigger asChild>
                       <Button
                         variant='ghost'
                         size='icon'
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setWorkspaceToDelete(workspace)
+                          setIsDeleteDialogOpen(true)
+                        }}
                         className={cn(
                           'h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground',
                           !isEditing && isHovered ? 'opacity-100' : 'pointer-events-none opacity-0'
@@ -398,47 +423,159 @@ export function WorkspaceSelector({
 
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                          {showTemplateChoice
+                            ? 'Delete workspace with published templates?'
+                            : 'Delete workspace?'}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                          Deleting this workspace will permanently remove all associated workflows,
-                          logs, and knowledge bases.{' '}
-                          <span className='text-red-500 dark:text-red-500'>
-                            This action cannot be undone.
-                          </span>
+                          {showTemplateChoice ? (
+                            <>
+                              This workspace contains {templatesInfo?.count} published template
+                              {templatesInfo?.count === 1 ? '' : 's'}:
+                              <br />
+                              <br />
+                              {templatesInfo?.templates.map((template) => (
+                                <span key={template.id} className='block'>
+                                  • {template.name}
+                                </span>
+                              ))}
+                              <br />
+                              What would you like to do with the published templates?
+                            </>
+                          ) : (
+                            <>
+                              Deleting this workspace will permanently remove all associated
+                              workflows, logs, and knowledge bases.{' '}
+                              <span className='text-red-500 dark:text-red-500'>
+                                This action cannot be undone.
+                              </span>
+                            </>
+                          )}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
 
-                      <div className='py-2'>
-                        <p className='mb-2 font-[360] text-sm'>
-                          Enter the workspace name{' '}
-                          <span className='font-semibold'>{workspace.name}</span> to confirm.
-                        </p>
-                        <Input
-                          value={deleteConfirmationName}
-                          onChange={(e) => setDeleteConfirmationName(e.target.value)}
-                          placeholder='Placeholder'
-                          className='h-9 rounded-[8px]'
-                        />
-                      </div>
+                      {showTemplateChoice ? (
+                        <div className='flex gap-2 py-2'>
+                          <Button
+                            onClick={async () => {
+                              if (workspaceToDelete) {
+                                setShowTemplateChoice(false)
+                                setTemplatesInfo(null)
+                                setDeleteConfirmationName('')
+                                await confirmDeleteWorkspace(workspaceToDelete, 'keep')
+                                setWorkspaceToDelete(null)
+                                setIsDeleteDialogOpen(false)
+                              }
+                            }}
+                            className='h-9 flex-1 rounded-[8px]'
+                            variant='outline'
+                            disabled={isDeleting}
+                          >
+                            {isDeleting ? 'Deleting...' : 'Keep Templates'}
+                          </Button>
+                          <Button
+                            onClick={async () => {
+                              if (workspaceToDelete) {
+                                setShowTemplateChoice(false)
+                                setTemplatesInfo(null)
+                                setDeleteConfirmationName('')
+                                await confirmDeleteWorkspace(workspaceToDelete, 'delete')
+                                setWorkspaceToDelete(null)
+                                setIsDeleteDialogOpen(false)
+                              }
+                            }}
+                            className='h-9 flex-1 rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+                            disabled={isDeleting}
+                          >
+                            {isDeleting ? 'Deleting...' : 'Delete Templates'}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className='py-2'>
+                          <p className='mb-2 font-[360] text-sm'>
+                            Enter the workspace name{' '}
+                            <span className='font-semibold'>{workspaceToDelete?.name}</span> to
+                            confirm.
+                          </p>
+                          <Input
+                            value={deleteConfirmationName}
+                            onChange={(e) => setDeleteConfirmationName(e.target.value)}
+                            placeholder={workspaceToDelete?.name}
+                            className='h-9 rounded-[8px]'
+                          />
+                        </div>
+                      )}
 
-                      <AlertDialogFooter className='flex'>
-                        <AlertDialogCancel
-                          className='h-9 w-full rounded-[8px]'
-                          onClick={() => setDeleteConfirmationName('')}
-                        >
-                          Cancel
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => {
-                            confirmDeleteWorkspace(workspace)
-                            setDeleteConfirmationName('')
-                          }}
-                          className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
-                          disabled={isDeleting || deleteConfirmationName !== workspace.name}
-                        >
-                          {isDeleting ? 'Deleting...' : 'Delete'}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
+                      {!showTemplateChoice && (
+                        <AlertDialogFooter className='flex'>
+                          <Button
+                            variant='outline'
+                            className='h-9 w-full rounded-[8px]'
+                            onClick={() => {
+                              setDeleteConfirmationName('')
+                              setShowTemplateChoice(false)
+                              setTemplatesInfo(null)
+                              setIsCheckingTemplates(false)
+                              setWorkspaceToDelete(null)
+                              setIsDeleteDialogOpen(false)
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={async (e) => {
+                              e.preventDefault() // Prevent dialog from auto-closing
+
+                              // First time clicking Delete - check for templates
+                              if (!workspaceToDelete) return
+                              setIsCheckingTemplates(true)
+                              try {
+                                const checkResponse = await fetch(
+                                  `/api/workspaces/${workspaceToDelete.id}?check-templates=true`
+                                )
+                                if (checkResponse.ok) {
+                                  const templateCheck = await checkResponse.json()
+                                  if (
+                                    templateCheck.hasPublishedTemplates &&
+                                    templateCheck.count > 0
+                                  ) {
+                                    // Templates exist - transition to template choice
+                                    setTemplatesInfo({
+                                      count: templateCheck.count,
+                                      templates: templateCheck.publishedTemplates,
+                                    })
+                                    setShowTemplateChoice(true)
+                                    setIsCheckingTemplates(false)
+                                    return
+                                  }
+                                }
+                              } catch (error) {
+                                console.error('Error checking templates:', error)
+                              }
+
+                              // No templates or error - proceed with deletion
+                              setIsCheckingTemplates(false)
+                              setDeleteConfirmationName('')
+                              await confirmDeleteWorkspace(workspaceToDelete)
+                              setWorkspaceToDelete(null)
+                              setIsDeleteDialogOpen(false) // Close dialog after deletion
+                            }}
+                            className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+                            disabled={
+                              isDeleting ||
+                              deleteConfirmationName !== workspaceToDelete?.name ||
+                              isCheckingTemplates
+                            }
+                          >
+                            {isDeleting
+                              ? 'Deleting...'
+                              : isCheckingTemplates
+                                ? 'Deleting...'
+                                : 'Delete'}
+                          </Button>
+                        </AlertDialogFooter>
+                      )}
                     </AlertDialogContent>
                   </AlertDialog>
                 )}

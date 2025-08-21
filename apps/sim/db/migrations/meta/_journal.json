@@ -533,6 +533,13 @@
       "when": 1755375658161,
       "tag": "0076_damp_vector",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1755809024626,
+      "tag": "0077_rapid_chimera",
+      "breakpoints": true
     }
   ]
 }
