@@ -881,7 +881,7 @@ export class Executor {
               // This ensures files are captured in trace spans and execution logs
               this.createStartedBlockWithFilesLog(initBlock, starterOutput, context)
             } else {
-              // API/Trigger workflow: spread the raw data directly (no wrapping or aliasing)
+              // API workflow: spread the raw data directly (no wrapping)
               const starterOutput = { ...this.workflowInput }
 
               context.blockStates.set(initBlock.id, {
@@ -1607,8 +1607,6 @@ export class Executor {
           : typeof rawOutput === 'object' && rawOutput !== null
             ? rawOutput
             : { result: rawOutput }
-
-      // Remove provider-specific normalization. Expect payload fields at root already.
 
       // Update the context with the execution result
       // Use virtual block ID for parallel executions
