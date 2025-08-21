@@ -22,7 +22,7 @@ export class GetBlocksAndToolsClientTool extends BaseClientTool {
     interrupt: undefined,
   }
 
-  private updateStoreToolCallState(next: 'executing' | 'success' | 'errored') {
+  private updateStoreToolCallState(next: ClientToolCallState) {
     const { messages } = useCopilotStore.getState()
     const updated = messages.map((msg) => {
       const updatedToolCalls = msg.toolCalls?.map((tc) =>
@@ -41,7 +41,7 @@ export class GetBlocksAndToolsClientTool extends BaseClientTool {
   async execute(): Promise<void> {
     const logger = createLogger('GetBlocksAndToolsClientTool')
     try {
-      this.updateStoreToolCallState('executing')
+      this.updateStoreToolCallState(ClientToolCallState.executing)
 
       const res = await fetch('/api/copilot/execute-copilot-server-tool', {
         method: 'POST',
@@ -61,11 +61,11 @@ export class GetBlocksAndToolsClientTool extends BaseClientTool {
         'Successfully retrieved blocks and tools',
         result
       )
-      this.updateStoreToolCallState('success')
+      this.updateStoreToolCallState(ClientToolCallState.success)
     } catch (error: any) {
       const message = error instanceof Error ? error.message : String(error)
       await this.markToolComplete(500, message)
-      this.updateStoreToolCallState('errored')
+      this.updateStoreToolCallState(ClientToolCallState.error)
     }
   }
 } 

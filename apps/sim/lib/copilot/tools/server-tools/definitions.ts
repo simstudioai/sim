@@ -9,7 +9,6 @@ import type { ToolMetadata } from '@/lib/copilot/tools/types'
 export const SERVER_TOOL_IDS = {
   SEARCH_DOCUMENTATION: 'search_documentation',
   GET_USER_WORKFLOW: 'get_user_workflow',
-  BUILD_WORKFLOW: 'build_workflow',
   EDIT_WORKFLOW: 'edit_workflow',
   GET_BLOCKS_AND_TOOLS: 'get_blocks_and_tools',
   GET_BLOCKS_METADATA: 'get_blocks_metadata',
@@ -68,26 +67,6 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     schema: {
       name: SERVER_TOOL_IDS.GET_USER_WORKFLOW,
       description: 'Get current workflow details',
-    },
-    requiresInterrupt: false,
-  },
-
-  [SERVER_TOOL_IDS.BUILD_WORKFLOW]: {
-    id: SERVER_TOOL_IDS.BUILD_WORKFLOW,
-    displayConfig: {
-      states: {
-        ready_for_review: { displayName: 'Workflow ready for review', icon: 'grid2x2' },
-        executing: { displayName: 'Building your workflow', icon: 'spinner' },
-        success: { displayName: 'Built your workflow', icon: 'grid2x2' },
-        rejected: { displayName: 'Workflow changes not applied', icon: 'grid2x2X' },
-        errored: { displayName: 'Failed to build your workflow', icon: 'error' },
-        aborted: { displayName: 'Workflow build aborted', icon: 'x' },
-        accepted: { displayName: 'Built your workflow', icon: 'grid2x2Check' },
-      },
-    },
-    schema: {
-      name: SERVER_TOOL_IDS.BUILD_WORKFLOW,
-      description: 'Build a new workflow',
     },
     requiresInterrupt: false,
   },

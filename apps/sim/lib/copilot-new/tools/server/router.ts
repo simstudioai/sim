@@ -3,7 +3,8 @@ import type { BaseServerTool } from '@/lib/copilot-new/tools/server/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBlocksAndToolsServerTool } from '@/lib/copilot-new/tools/server/blocks/get-blocks-and-tools'
 import { getBlocksMetadataServerTool } from '@/lib/copilot-new/tools/server/blocks/get-blocks-metadata-tool'
-import { ExecuteResponseSuccessSchema, GetBlocksAndToolsInput, GetBlocksAndToolsResult, GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot-new/tools/shared/schemas'
+import { buildWorkflowServerTool } from '@/lib/copilot-new/tools/server/workflow/build-workflow'
+import { ExecuteResponseSuccessSchema, GetBlocksAndToolsInput, GetBlocksAndToolsResult, GetBlocksMetadataInput, GetBlocksMetadataResult, BuildWorkflowInput, BuildWorkflowResult } from '@/lib/copilot-new/tools/shared/schemas'
 
 // Generic execute response schemas (success path only for this route; errors handled via HTTP status)
 export { ExecuteResponseSuccessSchema }
@@ -16,6 +17,7 @@ const logger = createLogger('ServerToolRouter')
 // Register tools
 serverToolRegistry[getBlocksAndToolsServerTool.name] = getBlocksAndToolsServerTool
 serverToolRegistry[getBlocksMetadataServerTool.name] = getBlocksMetadataServerTool
+serverToolRegistry[buildWorkflowServerTool.name] = buildWorkflowServerTool
 
 // Main router function
 export async function routeExecution(toolName: string, payload: unknown): Promise<any> {
@@ -35,6 +37,9 @@ export async function routeExecution(toolName: string, payload: unknown): Promis
 	if (toolName === 'get_blocks_metadata') {
 		args = GetBlocksMetadataInput.parse(args)
 	}
+	if (toolName === 'build_workflow') {
+		args = BuildWorkflowInput.parse(args)
+	}
 
 	const result = await tool.execute(args)
 
@@ -43,6 +48,9 @@ export async function routeExecution(toolName: string, payload: unknown): Promis
 	}
 	if (toolName === 'get_blocks_metadata') {
 		return GetBlocksMetadataResult.parse(result)
+	}
+	if (toolName === 'build_workflow') {
+		return BuildWorkflowResult.parse(result)
 	}
 
 	return result

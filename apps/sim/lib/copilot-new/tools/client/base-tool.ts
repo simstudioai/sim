@@ -10,6 +10,7 @@ export enum ClientToolCallState {
   workflow_rejected = 'workflow_rejected',
   success = 'success',
   error = 'error',
+  review = 'review'
 }
 
 // Display configuration for a given state

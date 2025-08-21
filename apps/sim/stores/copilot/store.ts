@@ -13,6 +13,7 @@ import { RunWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/r
 import { registerClientTool } from '@/lib/copilot-new/tools/client/manager'
 import { GDriveRequestAccessClientTool } from '@/lib/copilot-new/tools/client/google/gdrive-request-access'
 import { GetBlocksAndToolsClientTool } from '@/lib/copilot-new/tools/client/blocks/get-blocks-and-tools'
+import { BuildWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/build-workflow'
 import type {
   CopilotMessage,
   CopilotStore,
@@ -688,96 +689,6 @@ function createToolCall(id: string, name: string, input: any = {}): any {
 }
 
 /**
- * Helper function to finalize a tool call
- */
-function finalizeToolCall(
-  toolCall: any,
-  success: boolean,
-  result?: any,
-  get?: () => CopilotStore
-): void {
-  toolCall.endTime = Date.now()
-  toolCall.duration = toolCall.endTime - toolCall.startTime
-
-  if (success) {
-    toolCall.result = result
-
-    // For tools with ready_for_review and interrupt tools, check if they're already in a terminal state in the store
-    if (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) {
-      // Get current state from store if get function is available
-      if (get) {
-        const state = get()
-        const currentMessage = state.messages.find(
-          (msg: any) =>
-            msg.toolCalls?.some((tc: any) => tc.id === toolCall.id) ||
-            msg.contentBlocks?.some(
-              (block: any) =>
-                block.type === 'tool_call' && (block as any).toolCall.id === toolCall.id
-            )
-        )
-
-        if (currentMessage) {
-          // Check both toolCalls array and contentBlocks
-          const currentToolCall = currentMessage.toolCalls?.find((tc: any) => tc.id === toolCall.id)
-          if (!currentToolCall) {
-            const toolBlock = currentMessage.contentBlocks?.find(
-              (block: any) =>
-                block.type === 'tool_call' && (block as any).toolCall.id === toolCall.id
-            ) as any
-            const blockToolCall = toolBlock?.toolCall
-            if (
-              blockToolCall &&
-              (blockToolCall.state === 'accepted' ||
-                blockToolCall.state === 'rejected' ||
-                blockToolCall.state === 'background')
-            ) {
-              // Don't override terminal states, just update result and timing
-              toolCall.state = blockToolCall.state
-              toolCall.displayName = blockToolCall.displayName
-              return
-            }
-          } else if (
-            currentToolCall &&
-            (currentToolCall.state === 'accepted' ||
-              currentToolCall.state === 'rejected' ||
-              currentToolCall.state === 'background')
-          ) {
-            // Don't override terminal states, just update result and timing
-            toolCall.state = currentToolCall.state
-            toolCall.displayName = currentToolCall.displayName
-            return
-          }
-        }
-      }
-
-      // Not in terminal state, set appropriate state
-      if (toolSupportsReadyForReview(toolCall.name)) {
-        toolCall.state = 'ready_for_review'
-      } else if (toolCall.name === COPILOT_TOOL_IDS.RUN_WORKFLOW) {
-        // For run_workflow, check if it's still executing (e.g., moved to background)
-        // If the current state is 'executing', preserve it
-        if (toolCall.state === 'executing') {
-          // Keep executing state - workflow was moved to background
-          return
-        }
-        toolCall.state = 'completed'
-      } else {
-        toolCall.state = 'completed'
-      }
-    } else {
-      toolCall.state = 'completed'
-    }
-  } else {
-    handleToolFailure(toolCall, result || 'Tool execution failed')
-  }
-
-  // Set display name if not already set
-  if (!toolCall.displayName) {
-    toolCall.displayName = getToolDisplayNameByState(toolCall)
-  }
-}
-
-/**
  * SSE event handlers for different event types - OPTIMIZED
  */
 interface StreamingContext {
@@ -1025,6 +936,13 @@ const sseHandlers: Record<string, SSEHandler> = {
         context.clientTools[toolData.id] = inst
         try { registerClientTool(toolData.id, inst) } catch {}
       }
+    } else if (toolData.name === 'build_workflow') {
+      context.clientTools = context.clientTools || {}
+      if (!context.clientTools[toolData.id]) {
+        const inst = new BuildWorkflowClientTool(toolData.id)
+        context.clientTools[toolData.id] = inst
+        try { registerClientTool(toolData.id, inst) } catch {}
+      }
     } else {
       updateStreamingMessage(set, context)
     }
@@ -1067,8 +985,18 @@ const sseHandlers: Record<string, SSEHandler> = {
             })()
           : result
 
-      // NEW LOGIC: Use centralized state management
-      setToolCallState(toolCall, 'success', { result: parsedResult })
+      // NEW LOGIC: Client tools manage their own state; just stash the result
+      try { toolCall.result = parsedResult } catch {}
+
+      // For non-review tools, transition to success state now so UI updates immediately
+      try {
+        const isWorkflowReviewTool =
+          toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+          toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+        if (!isWorkflowReviewTool) {
+          setToolCallState(toolCall, 'success', { result: parsedResult, preserveTerminalStates: false })
+        }
+      } catch {}
 
       // Check if this is the plan tool and extract todos
       if (toolCall.name === 'plan' && parsedResult?.todoList) {
@@ -1102,10 +1030,8 @@ const sseHandlers: Record<string, SSEHandler> = {
         toolCall.hidden = true
       }
 
-      // Handle tools with ready_for_review state
-      if (toolSupportsReadyForReview(toolCall.name)) {
-        processWorkflowToolResult(toolCall, parsedResult, get)
-      }
+      // Let client tool manage any follow-up (e.g., diff handling) via its own logic
+      try { processWorkflowToolResult(toolCall, parsedResult, get) } catch {}
 
       // COMMENTED OUT OLD LOGIC:
       // finalizeToolCall(toolCall, true, parsedResult, get)
@@ -1739,6 +1665,7 @@ const CLIENT_TOOL_CONSTRUCTORS: Record<string, (id: string) => any> = {
   gdrive_request_access: (id) => new GDriveRequestAccessClientTool(id),
   get_blocks_and_tools: (id) => new GetBlocksAndToolsClientTool(id),
   get_blocks_metadata: (id) => new (require('@/lib/copilot-new/tools/client/blocks/get-blocks-metadata').GetBlocksMetadataClientTool)(id),
+  build_workflow: (id) => new BuildWorkflowClientTool(id),
 }
 
 /**

@@ -8,22 +8,12 @@ export interface Citation {
   similarity?: number
 }
 
+import { ClientToolCallState } from '@/lib/copilot-new/tools/client/base-tool'
+
 /**
  * Tool states that a tool can be in
  */
-export type ToolState =
-  | 'preparing' // Preparing to execute (server signaled tool_generating)
-  | 'pending' // Waiting for user confirmation (shows Run/Skip buttons)
-  | 'executing' // Currently executing
-  | 'completed' // Successfully completed (legacy)
-  | 'success' // Successfully completed
-  | 'accepted' // User accepted but not yet executed
-  | 'applied' // Applied/executed successfully
-  | 'rejected' // User rejected/skipped
-  | 'errored' // Failed with error
-  | 'background' // Moved to background execution
-  | 'ready_for_review' // Ready for review (workflow tools)
-  | 'aborted' // Operation aborted (e.g., due to page refresh during diff view)
+export type ToolState = ClientToolCallState
 
 /**
  * Tool call interface for copilot
@@ -239,13 +229,13 @@ export interface CopilotActions {
   abortMessage: () => void
   sendImplicitFeedback: (
     implicitFeedback: string,
-    toolCallState?: 'accepted' | 'rejected' | 'errored'
+    toolCallState?: 'workflow_accepted' | 'workflow_rejected' | 'error'
   ) => Promise<void>
   updatePreviewToolCallState: (
-    toolCallState: 'accepted' | 'rejected' | 'errored',
+    toolCallState: 'workflow_accepted' | 'workflow_rejected' | 'error',
     toolCallId?: string
   ) => void
-  setToolCallState: (toolCall: any, newState: string, options?: any) => void
+  setToolCallState: (toolCall: any, newState: ClientToolCallState, options?: any) => void
   sendDocsMessage: (query: string, options?: SendDocsMessageOptions) => Promise<void>
   saveChatMessages: (chatId: string) => Promise<void>
 
