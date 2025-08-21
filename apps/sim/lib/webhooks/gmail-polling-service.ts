@@ -1,13 +1,13 @@
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { Logger } from '@/lib/logs/console/logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { account, webhook } from '@/db/schema'
 
-const logger = new Logger('GmailPollingService')
+const logger = createLogger('GmailPollingService')
 
 interface GmailWebhookConfig {
   labelIds: string[]
