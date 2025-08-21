@@ -1,0 +1,41 @@
+name: Trigger.dev Deploy
+
+on:
+  pull_request_target:
+    branches:
+      - main
+      - staging
+    types:
+      - closed
+
+jobs:
+  deploy:
+    name: Trigger.dev Deploy
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    concurrency:
+      group: trigger-deploy-${{ github.event.pull_request.base.ref }}
+      cancel-in-progress: false
+    env:
+      TRIGGER_API_KEY: ${{ github.event.pull_request.base.ref == 'main' && secrets.TRIGGER_API_KEY || secrets.STAGING_TRIGGER_API_KEY }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Deploy to Staging
+        if: github.event.pull_request.base.ref == 'staging'
+        working-directory: ./apps/sim
+        run: npx --yes trigger.dev@latest deploy -e staging
+
+      - name: Deploy to Production
+        if: github.event.pull_request.base.ref == 'main'
+        working-directory: ./apps/sim
+        run: npx --yes trigger.dev@latest deploy
+
