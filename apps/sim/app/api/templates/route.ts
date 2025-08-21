@@ -77,6 +77,7 @@ const QueryParamsSchema = z.object({
   limit: z.coerce.number().optional().default(50),
   offset: z.coerce.number().optional().default(0),
   search: z.string().optional(),
+  workflowId: z.string().optional(),
 })
 
 // GET /api/templates - Retrieve templates
@@ -109,6 +110,11 @@ export async function GET(request: NextRequest) {
       conditions.push(
         or(ilike(templates.name, searchTerm), ilike(templates.description, searchTerm))
       )
+    }
+
+    // Apply workflow filter if provided (for getting template by workflow)
+    if (params.workflowId) {
+      conditions.push(eq(templates.workflowId, params.workflowId))
     }
 
     // Combine conditions

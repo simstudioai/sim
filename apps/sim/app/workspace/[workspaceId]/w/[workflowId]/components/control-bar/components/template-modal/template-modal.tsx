@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Award,
@@ -68,6 +68,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -165,6 +166,8 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
   const { data: session } = useSession()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [iconPopoverOpen, setIconPopoverOpen] = useState(false)
+  const [existingTemplate, setExistingTemplate] = useState<any>(null)
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState(false)
 
   const form = useForm<TemplateFormData>({
     resolver: zodResolver(templateSchema),
@@ -177,6 +180,63 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
       color: '#3972F6',
     },
   })
+
+  // Watch form state to determine if all required fields are valid
+  const formValues = form.watch()
+  const isFormValid =
+    form.formState.isValid &&
+    formValues.name?.trim() &&
+    formValues.description?.trim() &&
+    formValues.author?.trim() &&
+    formValues.category
+
+  // Check for existing template when modal opens
+  useEffect(() => {
+    if (open && workflowId) {
+      checkExistingTemplate()
+    }
+  }, [open, workflowId])
+
+  const checkExistingTemplate = async () => {
+    setIsLoadingTemplate(true)
+    try {
+      const response = await fetch(`/api/templates?workflowId=${workflowId}&limit=1`)
+      if (response.ok) {
+        const result = await response.json()
+        const template = result.data?.[0] || null
+        setExistingTemplate(template)
+
+        // Pre-fill form with existing template data
+        if (template) {
+          form.reset({
+            name: template.name,
+            description: template.description,
+            author: template.author,
+            category: template.category,
+            icon: template.icon,
+            color: template.color,
+          })
+        } else {
+          // No existing template found
+          setExistingTemplate(null)
+          // Reset form to defaults
+          form.reset({
+            name: '',
+            description: '',
+            author: session?.user?.name || session?.user?.email || '',
+            category: '',
+            icon: 'FileText',
+            color: '#3972F6',
+          })
+        }
+      }
+    } catch (error) {
+      logger.error('Error checking existing template:', error)
+      setExistingTemplate(null)
+    } finally {
+      setIsLoadingTemplate(false)
+    }
+  }
 
   const onSubmit = async (data: TemplateFormData) => {
     if (!session?.user) {
@@ -201,21 +261,36 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
         state: templateState,
       }
 
-      const response = await fetch('/api/templates', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(templateData),
-      })
+      let response
+      if (existingTemplate) {
+        // Update existing template
+        response = await fetch(`/api/templates/${existingTemplate.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(templateData),
+        })
+      } else {
+        // Create new template
+        response = await fetch('/api/templates', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(templateData),
+        })
+      }
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to create template')
+        throw new Error(
+          errorData.error || `Failed to ${existingTemplate ? 'update' : 'create'} template`
+        )
       }
 
       const result = await response.json()
-      logger.info('Template created successfully:', result)
+      logger.info(`Template ${existingTemplate ? 'updated' : 'created'} successfully:`, result)
 
       // Reset form and close modal
       form.reset()
@@ -241,7 +316,13 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
       >
         <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
           <div className='flex items-center justify-between'>
-            <DialogTitle className='font-medium text-lg'>Publish Template</DialogTitle>
+            <DialogTitle className='font-medium text-lg'>
+              {isLoadingTemplate
+                ? 'Loading...'
+                : existingTemplate
+                  ? 'Update Template'
+                  : 'Publish Template'}
+            </DialogTitle>
             <Button
               variant='ghost'
               size='icon'
@@ -259,65 +340,189 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
             onSubmit={form.handleSubmit(onSubmit)}
             className='flex flex-1 flex-col overflow-hidden'
           >
-            <div className='flex-1 overflow-y-auto px-6 py-4'>
-              <div className='space-y-6'>
-                <div className='flex gap-3'>
+            <div className='flex-1 overflow-y-auto px-6 py-6'>
+              {isLoadingTemplate ? (
+                <div className='space-y-6'>
+                  {/* Icon and Color row */}
+                  <div className='flex gap-3'>
+                    <div className='w-20'>
+                      <Skeleton className='mb-2 h-4 w-8' /> {/* Label */}
+                      <Skeleton className='h-10 w-20' /> {/* Icon picker */}
+                    </div>
+                    <div className='w-20'>
+                      <Skeleton className='mb-2 h-4 w-10' /> {/* Label */}
+                      <Skeleton className='h-10 w-20' /> {/* Color picker */}
+                    </div>
+                  </div>
+
+                  {/* Name field */}
+                  <div>
+                    <Skeleton className='mb-2 h-4 w-12' /> {/* Label */}
+                    <Skeleton className='h-10 w-full' /> {/* Input */}
+                  </div>
+
+                  {/* Author and Category row */}
+                  <div className='grid grid-cols-2 gap-4'>
+                    <div>
+                      <Skeleton className='mb-2 h-4 w-14' /> {/* Label */}
+                      <Skeleton className='h-10 w-full' /> {/* Input */}
+                    </div>
+                    <div>
+                      <Skeleton className='mb-2 h-4 w-16' /> {/* Label */}
+                      <Skeleton className='h-10 w-full' /> {/* Select */}
+                    </div>
+                  </div>
+
+                  {/* Description field */}
+                  <div>
+                    <Skeleton className='mb-2 h-4 w-20' /> {/* Label */}
+                    <Skeleton className='h-20 w-full' /> {/* Textarea */}
+                  </div>
+                </div>
+              ) : (
+                <div className='space-y-6'>
+                  <div className='flex gap-3'>
+                    <FormField
+                      control={form.control}
+                      name='icon'
+                      render={({ field }) => (
+                        <FormItem className='w-20'>
+                          <FormLabel className='!text-foreground font-medium text-sm'>
+                            Icon
+                          </FormLabel>
+                          <Popover open={iconPopoverOpen} onOpenChange={setIconPopoverOpen}>
+                            <PopoverTrigger asChild>
+                              <Button variant='outline' role='combobox' className='h-10 w-20 p-0'>
+                                <SelectedIconComponent className='h-4 w-4' />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className='z-50 w-84 p-0' align='start'>
+                              <div className='p-3'>
+                                <div className='grid max-h-80 grid-cols-8 gap-2 overflow-y-auto'>
+                                  {icons.map((icon) => {
+                                    const IconComponent = icon.component
+                                    return (
+                                      <button
+                                        key={icon.value}
+                                        type='button'
+                                        onClick={() => {
+                                          field.onChange(icon.value)
+                                          setIconPopoverOpen(false)
+                                        }}
+                                        className={cn(
+                                          'flex h-8 w-8 items-center justify-center rounded-md border transition-colors hover:bg-muted',
+                                          field.value === icon.value &&
+                                            'bg-primary text-primary-foreground'
+                                        )}
+                                      >
+                                        <IconComponent className='h-4 w-4' />
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name='color'
+                      render={({ field }) => (
+                        <FormItem className='w-20'>
+                          <FormLabel className='!text-foreground font-medium text-sm'>
+                            Color
+                          </FormLabel>
+                          <FormControl>
+                            <ColorPicker
+                              value={field.value}
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              className='h-10 w-20'
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
                   <FormField
                     control={form.control}
-                    name='icon'
+                    name='name'
                     render={({ field }) => (
-                      <FormItem className='w-20'>
-                        <FormLabel>Icon</FormLabel>
-                        <Popover open={iconPopoverOpen} onOpenChange={setIconPopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <Button variant='outline' role='combobox' className='h-10 w-20 p-0'>
-                              <SelectedIconComponent className='h-4 w-4' />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className='z-50 w-84 p-0' align='start'>
-                            <div className='p-3'>
-                              <div className='grid max-h-80 grid-cols-8 gap-2 overflow-y-auto'>
-                                {icons.map((icon) => {
-                                  const IconComponent = icon.component
-                                  return (
-                                    <button
-                                      key={icon.value}
-                                      type='button'
-                                      onClick={() => {
-                                        field.onChange(icon.value)
-                                        setIconPopoverOpen(false)
-                                      }}
-                                      className={cn(
-                                        'flex h-8 w-8 items-center justify-center rounded-md border transition-colors hover:bg-muted',
-                                        field.value === icon.value &&
-                                          'bg-primary text-primary-foreground'
-                                      )}
-                                    >
-                                      <IconComponent className='h-4 w-4' />
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
+                      <FormItem>
+                        <FormLabel className='!text-foreground font-medium text-sm'>Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder='Enter template name' {...field} />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
 
+                  <div className='grid grid-cols-2 gap-4'>
+                    <FormField
+                      control={form.control}
+                      name='author'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className='!text-foreground font-medium text-sm'>
+                            Author
+                          </FormLabel>
+                          <FormControl>
+                            <Input placeholder='Enter author name' {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name='category'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className='!text-foreground font-medium text-sm'>
+                            Category
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder='Select a category' />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {categories.map((category) => (
+                                <SelectItem key={category.value} value={category.value}>
+                                  {category.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
                   <FormField
                     control={form.control}
-                    name='color'
+                    name='description'
                     render={({ field }) => (
-                      <FormItem className='w-20'>
-                        <FormLabel>Color</FormLabel>
+                      <FormItem>
+                        <FormLabel className='!text-foreground font-medium text-sm'>
+                          Description
+                        </FormLabel>
                         <FormControl>
-                          <ColorPicker
-                            value={field.value}
-                            onChange={field.onChange}
-                            onBlur={field.onBlur}
-                            className='h-10 w-20'
+                          <Textarea
+                            placeholder='Describe what this template does...'
+                            className='resize-none'
+                            rows={3}
+                            {...field}
                           />
                         </FormControl>
                         <FormMessage />
@@ -325,81 +530,7 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                     )}
                   />
                 </div>
-
-                <FormField
-                  control={form.control}
-                  name='name'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder='Enter template name' {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className='grid grid-cols-2 gap-4'>
-                  <FormField
-                    control={form.control}
-                    name='author'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Author</FormLabel>
-                        <FormControl>
-                          <Input placeholder='Enter author name' {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name='category'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Category</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder='Select a category' />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {categories.map((category) => (
-                              <SelectItem key={category.value} value={category.value}>
-                                {category.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name='description'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder='Describe what this template does...'
-                          className='resize-none'
-                          rows={3}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              )}
             </div>
 
             {/* Fixed Footer */}
@@ -407,7 +538,7 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
               <div className='flex justify-end'>
                 <Button
                   type='submit'
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !isFormValid || isLoadingTemplate}
                   className={cn(
                     'font-medium',
                     'bg-[var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
@@ -420,10 +551,12 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                   {isSubmitting ? (
                     <>
                       <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                      Publishing...
+                      {existingTemplate ? 'Updating...' : 'Publishing...'}
                     </>
+                  ) : existingTemplate ? (
+                    'Update Template'
                   ) : (
-                    'Publish'
+                    'Publish Template'
                   )}
                 </Button>
               </div>
