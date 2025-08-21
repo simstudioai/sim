@@ -3,7 +3,7 @@ export interface General {
   isAutoPanEnabled: boolean
   isConsoleExpandedByDefault: boolean
   isDebugModeEnabled: boolean
-  theme: 'system' | 'light' | 'dark'
+  theme: 'system' | 'light' | 'dark' // Deprecated - use next-themes instead
   telemetryEnabled: boolean
   isLoading: boolean
   error: string | null
@@ -11,7 +11,7 @@ export interface General {
   isAutoConnectLoading: boolean
   isAutoPanLoading: boolean
   isConsoleExpandedByDefaultLoading: boolean
-  isThemeLoading: boolean
+  isThemeLoading: boolean // Deprecated - theme is handled by next-themes
   isTelemetryLoading: boolean
 }
 
@@ -21,7 +21,8 @@ export interface GeneralActions {
   toggleAutoPan: () => Promise<void>
   toggleConsoleExpandedByDefault: () => Promise<void>
   toggleDebugMode: () => void
-  setTheme: (theme: 'system' | 'light' | 'dark') => Promise<void>
+  setTheme: (theme: 'system' | 'light' | 'dark') => Promise<void> // Deprecated
+  syncThemeToDb: (theme: 'system' | 'light' | 'dark') => Promise<void>
   setTelemetryEnabled: (enabled: boolean) => Promise<void>
   loadSettings: (force?: boolean) => Promise<void>
   updateSetting: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => Promise<void>

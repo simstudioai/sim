@@ -20,7 +20,7 @@ export const useGeneralStore = create<GeneralStore>()(
           isAutoPanEnabled: true,
           isConsoleExpandedByDefault: true,
           isDebugModeEnabled: false,
-          theme: 'system' as const,
+          theme: 'system' as const, // Keep for compatibility but not used
           telemetryEnabled: true,
           isLoading: false,
           error: null,
@@ -28,7 +28,7 @@ export const useGeneralStore = create<GeneralStore>()(
           isAutoConnectLoading: false,
           isAutoPanLoading: false,
           isConsoleExpandedByDefaultLoading: false,
-          isThemeLoading: false,
+          isThemeLoading: false, // Keep for compatibility but not used
           isTelemetryLoading: false,
         }
 
@@ -98,8 +98,17 @@ export const useGeneralStore = create<GeneralStore>()(
           },
 
           setTheme: async (theme) => {
-            if (get().isThemeLoading) return
-            await updateSettingOptimistic('theme', theme, 'isThemeLoading', 'theme')
+            // Deprecated - use syncThemeToDb instead
+            logger.warn('setTheme is deprecated, use syncThemeToDb instead')
+          },
+
+          syncThemeToDb: async (theme: 'system' | 'light' | 'dark') => {
+            // Only sync to DB, don't update local state
+            try {
+              await get().updateSetting('theme', theme)
+            } catch (error) {
+              logger.error('Failed to sync theme to database:', error)
+            }
           },
 
           setTelemetryEnabled: async (enabled) => {
@@ -149,7 +158,7 @@ export const useGeneralStore = create<GeneralStore>()(
                 isAutoConnectEnabled: data.autoConnect,
                 isAutoPanEnabled: data.autoPan ?? true, // Default to true if undefined
                 isConsoleExpandedByDefault: data.consoleExpandedByDefault ?? true, // Default to true if undefined
-                theme: data.theme,
+                // Don't set theme from DB - next-themes is the source of truth
                 telemetryEnabled: data.telemetryEnabled,
                 isLoading: false,
               })

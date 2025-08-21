@@ -3,7 +3,6 @@
 import React from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { ThemeSync } from './theme-sync'
 
 interface ProvidersProps {
   children: React.ReactNode
@@ -11,12 +10,9 @@ interface ProvidersProps {
 
 const Providers = React.memo<ProvidersProps>(({ children }) => {
   return (
-    <>
-      <ThemeSync />
-      <TooltipProvider delayDuration={100} skipDelayDuration={0}>
-        <WorkspacePermissionsProvider>{children}</WorkspacePermissionsProvider>
-      </TooltipProvider>
-    </>
+    <TooltipProvider delayDuration={100} skipDelayDuration={0}>
+      <WorkspacePermissionsProvider>{children}</WorkspacePermissionsProvider>
+    </TooltipProvider>
   )
 })
 

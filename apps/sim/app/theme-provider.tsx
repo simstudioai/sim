@@ -10,8 +10,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
       defaultTheme='system'
       enableSystem
       disableTransitionOnChange
-      storageKey='theme-preference'
-      enableColorScheme={false}
+      storageKey='sim-theme'
       {...props}
     >
       {children}
