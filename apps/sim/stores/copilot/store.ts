@@ -24,6 +24,10 @@ import type {
 } from './types'
 import { ClientToolCallState } from '@/lib/copilot-new/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot-new/tools/client/manager'
+import { ListGDriveFilesClientTool } from '@/lib/copilot-new/tools/client/gdrive/list-files'
+import { ReadGDriveFileClientTool } from '@/lib/copilot-new/tools/client/gdrive/read-file'
+import { GetOAuthCredentialsClientTool } from '@/lib/copilot-new/tools/client/user/get-oauth-credentials'
+import { MakeApiRequestClientTool } from '@/lib/copilot-new/tools/client/other/make-api-request'
 
 const logger = createLogger('CopilotStore')
 
@@ -32,14 +36,8 @@ const logger = createLogger('CopilotStore')
 // PERFORMANCE OPTIMIZATION: Cached constants for faster lookups
 const TEXT_BLOCK_TYPE = 'text'
 const THINKING_BLOCK_TYPE = 'thinking'
-const TOOL_CALL_BLOCK_TYPE = 'tool_call'
-const ASSISTANT_ROLE = 'assistant'
 const DATA_PREFIX = 'data: '
 const DATA_PREFIX_LENGTH = 6
-
-// PERFORMANCE OPTIMIZATION: Pre-compiled regex for better SSE parsing
-const LINE_SPLIT_REGEX = /\n/
-const TRIM_REGEX = /^\s+|\s+$/g
 
 // PERFORMANCE OPTIMIZATION: Object pools for frequently created objects
 class ObjectPool<T> {
@@ -841,7 +839,37 @@ const sseHandlers: Record<string, SSEHandler> = {
         try { toolCall.displayName = inst.getDisplayState()?.text || toolCall.name } catch {}
       }
     } else {
-      updateStreamingMessage(set, context)
+      // Generic path: if we have a registered client tool constructor, instantiate and auto-execute if non-interrupt
+      try {
+        const ctor = CLIENT_TOOL_CONSTRUCTORS[toolData.name]
+        if (ctor) {
+          context.clientTools = context.clientTools || {}
+          if (!context.clientTools[toolData.id]) {
+            const inst = ctor(toolData.id)
+            context.clientTools[toolData.id] = inst
+            try { registerClientTool(toolData.id, inst) } catch {}
+            try { toolCall.displayName = inst.getDisplayState()?.text || toolCall.name } catch {}
+            // Determine interrupt behavior
+            let hasInterrupt = false
+            try { hasInterrupt = !!inst.hasInterrupt?.() } catch {}
+            if (hasInterrupt) {
+              toolCall.state = ClientToolCallState.pending
+              updateContentBlockToolCall(context.contentBlocks, toolData.id, toolCall)
+              updateStreamingMessage(set, context)
+            } else {
+              setTimeout(() => {
+                try { inst.execute(toolData.arguments || {}) } catch (e) {
+                  logger.error('Client tool execution failed (generic)', { name: toolData.name, error: e })
+                }
+              }, 0)
+            }
+          }
+        } else {
+          updateStreamingMessage(set, context)
+        }
+      } catch {
+        updateStreamingMessage(set, context)
+      }
     }
   },
 
@@ -1527,6 +1555,10 @@ const CLIENT_TOOL_CONSTRUCTORS: Record<string, (id: string) => any> = {
   search_online: (id) => new SearchOnlineClientTool(id),
   get_environment_variables: (id) => new GetEnvironmentVariablesClientTool(id),
   set_environment_variables: (id) => new SetEnvironmentVariablesClientTool(id),
+  list_gdrive_files: (id) => new ListGDriveFilesClientTool(id),
+  read_gdrive_file: (id) => new ReadGDriveFileClientTool(id),
+  get_oauth_credentials: (id) => new GetOAuthCredentialsClientTool(id),
+  make_api_request: (id) => new MakeApiRequestClientTool(id),
 }
 
 /**

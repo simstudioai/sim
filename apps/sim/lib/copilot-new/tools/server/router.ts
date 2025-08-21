@@ -9,6 +9,10 @@ import { searchDocumentationServerTool } from '@/lib/copilot-new/tools/server/do
 import { searchOnlineServerTool } from '@/lib/copilot-new/tools/server/other/search-online'
 import { getEnvironmentVariablesServerTool } from '@/lib/copilot-new/tools/server/user/get-environment-variables'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot-new/tools/server/user/set-environment-variables'
+import { listGDriveFilesServerTool } from '@/lib/copilot-new/tools/server/gdrive/list-files'
+import { readGDriveFileServerTool } from '@/lib/copilot-new/tools/server/gdrive/read-file'
+import { getOAuthCredentialsServerTool } from '@/lib/copilot-new/tools/server/user/get-oauth-credentials'
+import { makeApiRequestServerTool } from '@/lib/copilot-new/tools/server/other/make-api-request'
 import { ExecuteResponseSuccessSchema, GetBlocksAndToolsInput, GetBlocksAndToolsResult, GetBlocksMetadataInput, GetBlocksMetadataResult, BuildWorkflowInput, BuildWorkflowResult } from '@/lib/copilot-new/tools/shared/schemas'
 
 // Generic execute response schemas (success path only for this route; errors handled via HTTP status)
@@ -28,6 +32,10 @@ serverToolRegistry[searchDocumentationServerTool.name] = searchDocumentationServ
 serverToolRegistry[searchOnlineServerTool.name] = searchOnlineServerTool
 serverToolRegistry[getEnvironmentVariablesServerTool.name] = getEnvironmentVariablesServerTool
 serverToolRegistry[setEnvironmentVariablesServerTool.name] = setEnvironmentVariablesServerTool
+serverToolRegistry[listGDriveFilesServerTool.name] = listGDriveFilesServerTool
+serverToolRegistry[readGDriveFileServerTool.name] = readGDriveFileServerTool
+serverToolRegistry[getOAuthCredentialsServerTool.name] = getOAuthCredentialsServerTool
+serverToolRegistry[makeApiRequestServerTool.name] = makeApiRequestServerTool
 
 // Main router function
 export async function routeExecution(toolName: string, payload: unknown): Promise<any> {
