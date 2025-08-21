@@ -12,9 +12,11 @@ import {
   getHostedModels as getHostedModelsFromDefinitions,
   getMaxTemperature as getMaxTempFromDefinitions,
   getModelPricing as getModelPricingFromDefinitions,
+  getModelsWithReasoningEffort,
   getModelsWithTemperatureSupport,
   getModelsWithTempRange01,
   getModelsWithTempRange02,
+  getModelsWithVerbosity,
   getProviderModels as getProviderModelsFromDefinitions,
   getProvidersWithToolUsageControl,
   PROVIDER_DEFINITIONS,
@@ -878,6 +880,8 @@ export function trackForcedToolUsage(
 export const MODELS_TEMP_RANGE_0_2 = getModelsWithTempRange02()
 export const MODELS_TEMP_RANGE_0_1 = getModelsWithTempRange01()
 export const MODELS_WITH_TEMPERATURE_SUPPORT = getModelsWithTemperatureSupport()
+export const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
+export const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = getProvidersWithToolUsageControl()
 
 /**
