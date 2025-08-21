@@ -1,11 +1,11 @@
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { Logger } from '@/lib/logs/console/logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { acquireLock, releaseLock } from '@/lib/redis'
 import { pollGmailWebhooks } from '@/lib/webhooks/gmail-polling-service'
 
-const logger = new Logger('GmailPollingAPI')
+const logger = createLogger('GmailPollingAPI')
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 180 // Allow up to 3 minutes for polling to complete
