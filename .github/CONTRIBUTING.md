@@ -128,6 +128,65 @@ Using clear and consistent commit messages makes it easier for everyone to under
 
 To set up your local development environment:
 
+### Environment Variables Configuration
+
+Before running Sim locally, you'll need to configure your environment variables:
+
+1. **Create your environment file:**
+   ```bash
+   # Navigate to the root directory and copy the example
+   cp apps/sim/.env.example .env
+   ```
+
+2. **Generate required security keys:**
+   ```bash
+   # Generate secure keys for authentication and encryption
+   echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)" >> .env
+   echo "ENCRYPTION_KEY=$(openssl rand -hex 32)" >> .env
+   echo "INTERNAL_API_SECRET=$(openssl rand -hex 32)" >> .env
+   ```
+
+3. **Configure required variables in your `.env` file:**
+   ```bash
+   # Core settings (required)
+   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/simstudio"
+   BETTER_AUTH_URL="http://localhost:3000"
+   NEXT_PUBLIC_APP_URL="http://localhost:3000"
+   NEXT_PUBLIC_SOCKET_URL="http://localhost:3002"
+   ```
+
+4. **Add AI model API keys (choose at least one):**
+   ```bash
+   # OpenAI (most popular option)
+   OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   
+   # Or Anthropic Claude
+   ANTHROPIC_API_KEY_1="sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   
+   # Or use local models with Ollama (free)
+   OLLAMA_URL="http://localhost:11434"
+   ```
+
+5. **Optional: GitHub OAuth for GitHub integrations:**
+   - Go to GitHub → Settings → Developer settings → OAuth Apps
+   - Create new OAuth App with callback URL: `http://localhost:3000/api/auth/callback/github`
+   - Add to your `.env`:
+   ```bash
+   GITHUB_CLIENT_ID="your_github_client_id"
+   GITHUB_CLIENT_SECRET="your_github_client_secret"
+   ```
+
+6. **Optional: Google OAuth for Google services:**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials
+   - Create OAuth 2.0 Client ID with redirect URIs:
+     - `http://localhost:3000/api/auth/callback/google`
+     - `http://localhost:3000/api/auth/oauth2/callback/google-email`
+   - Add to your `.env`:
+   ```bash
+   GOOGLE_CLIENT_ID="your_google_client_id.apps.googleusercontent.com"
+   GOOGLE_CLIENT_SECRET="your_google_client_secret"
+   ```
+
 ### Option 1: Using NPM Package (Simplest)
 
 The easiest way to run Sim locally is using our NPM package:
