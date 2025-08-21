@@ -309,7 +309,7 @@ describe('Webhook Trigger API Route', () => {
       const req = createMockRequest('POST', { event: 'test', id: 'test-123' })
       const params = Promise.resolve({ path: 'test-path' })
 
-      vi.doMock('@trigger.dev/sdk/v3', () => ({
+      vi.doMock('@trigger.dev/sdk', () => ({
         tasks: {
           trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
         },
@@ -339,7 +339,7 @@ describe('Webhook Trigger API Route', () => {
       const req = createMockRequest('POST', { event: 'bearer.test' }, headers)
       const params = Promise.resolve({ path: 'test-path' })
 
-      vi.doMock('@trigger.dev/sdk/v3', () => ({
+      vi.doMock('@trigger.dev/sdk', () => ({
         tasks: {
           trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
         },
@@ -369,7 +369,7 @@ describe('Webhook Trigger API Route', () => {
       const req = createMockRequest('POST', { event: 'custom.header.test' }, headers)
       const params = Promise.resolve({ path: 'test-path' })
 
-      vi.doMock('@trigger.dev/sdk/v3', () => ({
+      vi.doMock('@trigger.dev/sdk', () => ({
         tasks: {
           trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
         },
@@ -391,7 +391,7 @@ describe('Webhook Trigger API Route', () => {
         token: 'case-test-token',
       })
 
-      vi.doMock('@trigger.dev/sdk/v3', () => ({
+      vi.doMock('@trigger.dev/sdk', () => ({
         tasks: {
           trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
         },
@@ -430,7 +430,7 @@ describe('Webhook Trigger API Route', () => {
         secretHeaderName: 'X-Secret-Key',
       })
 
-      vi.doMock('@trigger.dev/sdk/v3', () => ({
+      vi.doMock('@trigger.dev/sdk', () => ({
         tasks: {
           trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
         },

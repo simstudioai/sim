@@ -1,4 +1,4 @@
-import { runs } from '@trigger.dev/sdk/v3'
+import { runs } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
