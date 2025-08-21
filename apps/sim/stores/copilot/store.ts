@@ -28,18 +28,18 @@ function toolRequiresInterrupt(toolName: string): boolean {
   return toolRegistry.requiresInterrupt(toolName)
 }
 
-// Helper function to check if a tool supports ready_for_review state
+// Helper function to check if a tool supports review state
 function toolSupportsReadyForReview(toolName: string): boolean {
   // Check client tools first
   const clientTool = toolRegistry.getTool(toolName)
   if (clientTool) {
-    return clientTool.metadata.displayConfig.states.ready_for_review !== undefined
+    return clientTool.metadata.displayConfig.states.review !== undefined
   }
 
   // Check server tools
   const serverToolMetadata = toolRegistry.getServerToolMetadata(toolName)
   if (serverToolMetadata) {
-    return serverToolMetadata.displayConfig.states.ready_for_review !== undefined
+    return serverToolMetadata.displayConfig.states.review !== undefined
   }
 
   return false
@@ -3285,3 +3285,25 @@ export const useCopilotStore = create<CopilotStore>()(
     { name: 'copilot-store' }
   )
 )
+
+// Register tool state synchronization to avoid direct imports in BaseClientTool
+try {
+  const { registerToolStateSync } = require('@/lib/copilot-new/tools/client/manager')
+  registerToolStateSync((toolCallId: string, nextState: any, options?: { result?: any }) => {
+    const { messages } = useCopilotStore.getState()
+    const updated = messages.map((msg: any) => {
+      const updatedToolCalls = msg.toolCalls?.map((tc: any) =>
+        tc.id === toolCallId
+          ? { ...tc, state: nextState, ...(options?.result !== undefined ? { result: options.result } : {}) }
+          : tc
+      )
+      const updatedBlocks = msg.contentBlocks?.map((b: any) =>
+        b.type === 'tool_call' && b.toolCall?.id === toolCallId
+          ? { ...b, toolCall: { ...b.toolCall, state: nextState, ...(options?.result !== undefined ? { result: options.result } : {}) } }
+          : b
+      )
+      return { ...msg, toolCalls: updatedToolCalls, contentBlocks: updatedBlocks }
+    })
+    useCopilotStore.setState({ messages: updated })
+  })
+} catch {}

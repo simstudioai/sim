@@ -100,9 +100,15 @@ export class BaseClientTool {
     return this.metadata.interrupt
   }
 
-  // Transition to a new state
-  setState(next: ClientToolCallState): void {
+  // Transition to a new state (also sync to Copilot store)
+  setState(next: ClientToolCallState, options?: { result?: any }): void {
     this.state = next
+
+    // Notify store via manager to avoid import cycles
+    try {
+      const { syncToolState } = require('@/lib/copilot-new/tools/client/manager')
+      syncToolState(this.toolCallId, next, options)
+    } catch {}
   }
 
   // Expose current state

@@ -17,6 +17,7 @@ import { getEnv } from '@/lib/env'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotToolCall } from '@/stores/copilot/types'
 import { getClientTool } from '@/lib/copilot-new/tools/client/manager'
+import { ClientToolCallState } from '@/lib/copilot-new/tools/client/base-tool'
 
 interface InlineToolCallProps {
   toolCall: CopilotToolCall
@@ -75,7 +76,7 @@ function getToolDisplayNameByState(toolCall: CopilotToolCall): string {
   const clientTool = toolRegistry.getTool(toolName)
   if (clientTool) {
     const base = clientTool.getDisplayName(toolCall)
-    if (state === 'preparing') return `Preparing to ${base}`
+    if (state === ClientToolCallState.generating) return `Preparing to ${base}`
     return base
   }
 
@@ -87,7 +88,7 @@ function getToolDisplayNameByState(toolCall: CopilotToolCall): string {
         toolCall.input || toolCall.parameters || {}
       )
       if (dynamicName) {
-        if (state === 'preparing') return `Preparing to ${dynamicName}`
+        if (state === ClientToolCallState.generating) return `Preparing to ${dynamicName}`
         return dynamicName
       }
     }
@@ -95,12 +96,12 @@ function getToolDisplayNameByState(toolCall: CopilotToolCall): string {
     const stateConfig = serverToolMetadata.displayConfig.states[state]
     if (stateConfig) {
       const base = stateConfig.displayName
-      if (state === 'preparing') return `Preparing to ${base}`
+      if (state === ClientToolCallState.generating) return `Preparing to ${base}`
       return base
     }
   }
 
-  if (state === 'preparing') return `Preparing to ${toolName}`
+  if (state === ClientToolCallState.generating) return `Preparing to ${toolName}`
   return toolName
 }
 
@@ -424,7 +425,7 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
               onClick={async () => {
                 try {
                   // Set tool state to background
-                  setToolCallState(toolCall, 'background')
+                  // setToolCallState(toolCall, 'background')
 
                   // Legacy background notify removed in new client tool flow
                   // const executionStartTime = context?.executionStartTime

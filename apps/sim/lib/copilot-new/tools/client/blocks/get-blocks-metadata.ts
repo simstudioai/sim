@@ -1,7 +1,6 @@
 import { Loader2, Info } from 'lucide-react'
 import { BaseClientTool, ClientToolCallState, type BaseClientToolMetadata } from '@/lib/copilot-new/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useCopilotStore } from '@/stores/copilot/store'
 import { ExecuteResponseSuccessSchema, GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot-new/tools/shared/schemas'
 
 interface GetBlocksMetadataArgs {
@@ -24,26 +23,10 @@ export class GetBlocksMetadataClientTool extends BaseClientTool {
     },
   }
 
-  private updateStoreToolCallState(next: 'executing' | 'success' | 'errored') {
-    const { messages } = useCopilotStore.getState()
-    const updated = messages.map((msg) => {
-      const updatedToolCalls = msg.toolCalls?.map((tc) =>
-        tc.id === this.toolCallId ? { ...tc, state: next } : tc
-      )
-      const updatedBlocks = msg.contentBlocks?.map((b: any) =>
-        b.type === 'tool_call' && b.toolCall?.id === this.toolCallId
-          ? { ...b, toolCall: { ...b.toolCall, state: next } }
-          : b
-      )
-      return { ...msg, toolCalls: updatedToolCalls, contentBlocks: updatedBlocks }
-    })
-    useCopilotStore.setState({ messages: updated })
-  }
-
   async execute(args?: GetBlocksMetadataArgs): Promise<void> {
     const logger = createLogger('GetBlocksMetadataClientTool')
     try {
-      this.updateStoreToolCallState('executing')
+      this.setState(ClientToolCallState.executing)
 
       const { blockIds } = GetBlocksMetadataInput.parse(args || {})
 
@@ -61,11 +44,11 @@ export class GetBlocksMetadataClientTool extends BaseClientTool {
       const result = GetBlocksMetadataResult.parse(parsed.result)
 
       await this.markToolComplete(200, { retrieved: Object.keys(result.metadata).length }, result)
-      this.updateStoreToolCallState('success')
+      this.setState(ClientToolCallState.success)
     } catch (error: any) {
       const message = error instanceof Error ? error.message : String(error)
       await this.markToolComplete(500, message)
-      this.updateStoreToolCallState('errored')
+      this.setState(ClientToolCallState.error)
     }
   }
 } 

@@ -351,29 +351,18 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
                     msg.toolCalls?.some(
                       (tc: any) =>
                         (tc.name === 'build_workflow' || tc.name === 'edit_workflow') &&
-                        (tc.state === 'ready_for_review' || tc.state === 'completed')
+                        (tc.state === ClientToolCallState.review)
                     )
                   )
                 const toolCallId = lastMessageWithPreview?.toolCalls?.find(
                   (tc: any) =>
                     (tc.name === 'build_workflow' || tc.name === 'edit_workflow') &&
-                    (tc.state === 'ready_for_review' || tc.state === 'completed')
+                    (tc.state === ClientToolCallState.review)
                 )?.id
                 if (toolCallId) {
                   const instance: any = getClientTool(toolCallId)
-                  const result = ((): any => {
-                    try {
-                      // Try to read the result stashed on the tool call content block
-                      const msg = messages.find((m: any) => m.toolCalls?.some((tc: any) => tc.id === toolCallId))
-                      const tc = msg?.toolCalls?.find((t: any) => t.id === toolCallId)
-                      return tc?.result
-                    } catch {
-                      return undefined
-                    }
-                  })()
                   try {
-                    instance?.setState?.(ClientToolCallState.workflow_accepted)
-                    await instance?.markToolComplete?.(200, 'Workflow accepted', result)
+                    await instance?.handleAccept?.()
                   } catch (e) {
                     logger.warn('Failed to mark tool complete on accept', e)
                   }
@@ -396,26 +385,25 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           try {
             const { useCopilotStore } = await import('@/stores/copilot/store')
             const { messages } = useCopilotStore.getState()
-            const lastMessageWithPreview = messages
-              .slice()
-              .reverse()
-              .find((msg: any) =>
-                msg.toolCalls?.some(
+                            const lastMessageWithPreview = messages
+                  .slice()
+                  .reverse()
+                  .find((msg: any) =>
+                    msg.toolCalls?.some(
+                      (tc: any) =>
+                        (tc.name === 'build_workflow' || tc.name === 'edit_workflow') &&
+                        (tc.state === ClientToolCallState.review)
+                    )
+                  )
+                const toolCallId = lastMessageWithPreview?.toolCalls?.find(
                   (tc: any) =>
                     (tc.name === 'build_workflow' || tc.name === 'edit_workflow') &&
-                    (tc.state === 'ready_for_review' || tc.state === 'completed')
-                )
-              )
-            const toolCallId = lastMessageWithPreview?.toolCalls?.find(
-              (tc: any) =>
-                (tc.name === 'build_workflow' || tc.name === 'edit_workflow') &&
-                (tc.state === 'ready_for_review' || tc.state === 'completed')
-            )?.id
+                    (tc.state === ClientToolCallState.review)
+                )?.id
             if (toolCallId) {
               const instance: any = getClientTool(toolCallId)
               try {
-                instance?.setState?.(ClientToolCallState.workflow_rejected)
-                await instance?.markToolComplete?.(200, 'Workflow rejected')
+                await instance?.handleReject?.()
               } catch (e) {
                 logger.warn('Failed to mark tool complete on reject', e)
               }

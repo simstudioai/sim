@@ -1,7 +1,6 @@
 import { Loader2, Blocks } from 'lucide-react'
 import { BaseClientTool, ClientToolCallState, type BaseClientToolMetadata } from '@/lib/copilot-new/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useCopilotStore } from '@/stores/copilot/store'
 import { ExecuteResponseSuccessSchema, GetBlocksAndToolsResult } from '@/lib/copilot-new/tools/shared/schemas'
 
 export class GetBlocksAndToolsClientTool extends BaseClientTool {
@@ -22,26 +21,10 @@ export class GetBlocksAndToolsClientTool extends BaseClientTool {
     interrupt: undefined,
   }
 
-  private updateStoreToolCallState(next: ClientToolCallState) {
-    const { messages } = useCopilotStore.getState()
-    const updated = messages.map((msg) => {
-      const updatedToolCalls = msg.toolCalls?.map((tc) =>
-        tc.id === this.toolCallId ? { ...tc, state: next } : tc
-      )
-      const updatedBlocks = msg.contentBlocks?.map((b: any) =>
-        b.type === 'tool_call' && b.toolCall?.id === this.toolCallId
-          ? { ...b, toolCall: { ...b.toolCall, state: next } }
-          : b
-      )
-      return { ...msg, toolCalls: updatedToolCalls, contentBlocks: updatedBlocks }
-    })
-    useCopilotStore.setState({ messages: updated })
-  }
-
   async execute(): Promise<void> {
     const logger = createLogger('GetBlocksAndToolsClientTool')
     try {
-      this.updateStoreToolCallState(ClientToolCallState.executing)
+      this.setState(ClientToolCallState.executing)
 
       const res = await fetch('/api/copilot/execute-copilot-server-tool', {
         method: 'POST',
@@ -61,11 +44,11 @@ export class GetBlocksAndToolsClientTool extends BaseClientTool {
         'Successfully retrieved blocks and tools',
         result
       )
-      this.updateStoreToolCallState(ClientToolCallState.success)
+      this.setState(ClientToolCallState.success)
     } catch (error: any) {
       const message = error instanceof Error ? error.message : String(error)
       await this.markToolComplete(500, message)
-      this.updateStoreToolCallState(ClientToolCallState.error)
+      this.setState(ClientToolCallState.error)
     }
   }
 } 

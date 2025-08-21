@@ -1,7 +1,6 @@
 import { Loader2, FolderOpen, MinusCircle, CheckCircle, XCircle } from 'lucide-react'
 import { BaseClientTool, ClientToolCallState, type BaseClientToolMetadata } from '@/lib/copilot-new/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useCopilotStore } from '@/stores/copilot/store'
 
 interface GDriveAcceptContext {
   openDrivePicker: (accessToken: string) => Promise<boolean>
@@ -30,22 +29,6 @@ export class GDriveRequestAccessClientTool extends BaseClientTool {
     },
   }
 
-  private updateStoreToolCallState(next: 'executing' | 'rejected' | 'success' | 'errored') {
-    const { messages } = useCopilotStore.getState()
-    const updated = messages.map((msg) => {
-      const updatedToolCalls = msg.toolCalls?.map((tc) =>
-        tc.id === this.toolCallId ? { ...tc, state: next } : tc
-      )
-      const updatedBlocks = msg.contentBlocks?.map((b: any) =>
-        b.type === 'tool_call' && b.toolCall?.id === this.toolCallId
-          ? { ...b, toolCall: { ...b.toolCall, state: next } }
-          : b
-      )
-      return { ...msg, toolCalls: updatedToolCalls, contentBlocks: updatedBlocks }
-    })
-    useCopilotStore.setState({ messages: updated })
-  }
-
   // Accept flow: fetch creds/token, then call provided openDrivePicker to get grant
   async handleAccept(ctx?: GDriveAcceptContext): Promise<void> {
     const logger = createLogger('GDriveRequestAccessClientTool')
@@ -53,13 +36,13 @@ export class GDriveRequestAccessClientTool extends BaseClientTool {
 
     if (!ctx?.openDrivePicker) {
       logger.error('openDrivePicker callback not provided')
-      this.updateStoreToolCallState('errored')
+      this.setState(ClientToolCallState.error)
       await this.markToolComplete(400, 'Missing drive picker context')
       return
     }
 
     try {
-      this.updateStoreToolCallState('executing')
+      this.setState(ClientToolCallState.executing)
 
       // Fetch credentials list
       const credsRes = await fetch(`/api/auth/oauth/credentials?provider=google-drive`)
@@ -92,22 +75,22 @@ export class GDriveRequestAccessClientTool extends BaseClientTool {
       if (!picked) {
         // User canceled
         await this.markToolComplete(200, 'Tool execution was skipped by the user')
-        this.updateStoreToolCallState('rejected')
+        this.setState(ClientToolCallState.workflow_rejected)
         return
       }
 
       // Mark success
       await this.markToolComplete(200, { granted: true })
-      this.updateStoreToolCallState('success')
+      this.setState(ClientToolCallState.success)
     } catch (error: any) {
       const message = error instanceof Error ? error.message : String(error)
       await this.markToolComplete(500, message)
-      this.updateStoreToolCallState('errored')
+      this.setState(ClientToolCallState.error)
     }
   }
 
   async handleReject(): Promise<void> {
     await super.handleReject()
-    this.updateStoreToolCallState('rejected')
+    this.setState(ClientToolCallState.workflow_rejected)
   }
 } 
