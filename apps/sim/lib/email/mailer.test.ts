@@ -37,7 +37,7 @@ vi.mock('@/lib/env', () => ({
     AZURE_ACS_CONNECTION_STRING: 'test-azure-connection-string',
     AZURE_COMMUNICATION_EMAIL_DOMAIN: 'test.azurecomm.net',
     NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
-    SENDER_NAME: 'Sim',
+    FROM_EMAIL_ADDRESS: 'Sim <noreply@sim.ai>',
   },
 }))
 
@@ -198,7 +198,7 @@ describe('mailer', () => {
 
       expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
-          from: 'Sim <custom@example.com>',
+          from: 'custom@example.com',
         })
       )
     })

@@ -49,8 +49,8 @@ export const env = createEnv({
 
     // Email & Communication
     RESEND_API_KEY:                       z.string().min(1).optional(),           // Resend API key for transactional emails
-    EMAIL_DOMAIN:                         z.string().min(1).optional(),           // Domain for sending emails
-    SENDER_NAME:                          z.string().optional(),                  // Name to use as email sender (e.g., "Sim" in "Sim <noreply@domain.com>")
+    FROM_EMAIL_ADDRESS:                   z.string().min(1).optional(),           // Complete from address (e.g., "Sim <noreply@domain.com>" or "noreply@domain.com")
+    EMAIL_DOMAIN:                         z.string().min(1).optional(),           // Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
     AZURE_ACS_CONNECTION_STRING:          z.string().optional(),                  // Azure Communication Services connection string
 
     // AI/LLM Provider API Keys
