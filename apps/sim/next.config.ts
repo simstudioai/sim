@@ -7,7 +7,6 @@ import { getMainCSPPolicy, getWorkflowExecutionCSPPolicy } from './lib/security/
 
 const nextConfig: NextConfig = {
   devIndicators: false,
-  productionBrowserSourceMaps: false,
   images: {
     remotePatterns: [
       {
@@ -59,6 +58,7 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizeCss: true,
+    turbopackSourceMaps: false,
   },
   ...(isDev && {
     allowedDevOrigins: [
