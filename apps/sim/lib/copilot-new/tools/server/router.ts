@@ -5,6 +5,8 @@ import { getBlocksAndToolsServerTool } from '@/lib/copilot-new/tools/server/bloc
 import { getBlocksMetadataServerTool } from '@/lib/copilot-new/tools/server/blocks/get-blocks-metadata-tool'
 import { buildWorkflowServerTool } from '@/lib/copilot-new/tools/server/workflow/build-workflow'
 import { getWorkflowConsoleServerTool } from '@/lib/copilot-new/tools/server/workflow/get-workflow-console'
+import { searchDocumentationServerTool } from '@/lib/copilot-new/tools/server/docs/search-documentation'
+import { searchOnlineServerTool } from '@/lib/copilot-new/tools/server/other/search-online'
 import { ExecuteResponseSuccessSchema, GetBlocksAndToolsInput, GetBlocksAndToolsResult, GetBlocksMetadataInput, GetBlocksMetadataResult, BuildWorkflowInput, BuildWorkflowResult } from '@/lib/copilot-new/tools/shared/schemas'
 
 // Generic execute response schemas (success path only for this route; errors handled via HTTP status)
@@ -20,6 +22,8 @@ serverToolRegistry[getBlocksAndToolsServerTool.name] = getBlocksAndToolsServerTo
 serverToolRegistry[getBlocksMetadataServerTool.name] = getBlocksMetadataServerTool
 serverToolRegistry[buildWorkflowServerTool.name] = buildWorkflowServerTool
 serverToolRegistry[getWorkflowConsoleServerTool.name] = getWorkflowConsoleServerTool
+serverToolRegistry[searchDocumentationServerTool.name] = searchDocumentationServerTool
+serverToolRegistry[searchOnlineServerTool.name] = searchOnlineServerTool
 
 // Main router function
 export async function routeExecution(toolName: string, payload: unknown): Promise<any> {
