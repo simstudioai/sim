@@ -10,7 +10,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
@@ -323,19 +329,21 @@ export function FieldFormat({
                       <Label className='text-xs'>Value</Label>
                       <div className='relative'>
                         {field.type === 'boolean' ? (
-                          <div className='flex h-9 items-center'>
-                            <Switch
-                              checked={
-                                (localValues[field.id] ?? String(field.value ?? '')) === 'true'
-                              }
-                              onCheckedChange={(checked) => {
-                                const v = checked ? 'true' : 'false'
-                                setLocalValues((prev) => ({ ...prev, [field.id]: v }))
-                                if (!isPreview && !disabled) updateField(field.id, 'value', v)
-                              }}
-                              disabled={isPreview || disabled}
-                            />
-                          </div>
+                          <Select
+                            value={localValues[field.id] ?? (field.value as string) ?? ''}
+                            onValueChange={(v) => {
+                              setLocalValues((prev) => ({ ...prev, [field.id]: v }))
+                              if (!isPreview && !disabled) updateField(field.id, 'value', v)
+                            }}
+                          >
+                            <SelectTrigger className='h-9 w-full justify-between font-normal'>
+                              <SelectValue placeholder='Select value' className='truncate' />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value='true'>true</SelectItem>
+                              <SelectItem value='false'>false</SelectItem>
+                            </SelectContent>
+                          </Select>
                         ) : field.type === 'object' || field.type === 'array' ? (
                           <Textarea
                             ref={(el) => {
