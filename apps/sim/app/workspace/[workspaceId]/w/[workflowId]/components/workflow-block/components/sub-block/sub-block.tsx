@@ -126,6 +126,8 @@ export function SubBlock({
               blockId={blockId}
               subBlockId={config.id}
               options={config.options as { label: string; id: string }[]}
+              defaultValue={typeof config.value === 'function' ? config.value() : config.value}
+              placeholder={config.placeholder}
               isPreview={isPreview}
               previewValue={previewValue}
               disabled={isDisabled}

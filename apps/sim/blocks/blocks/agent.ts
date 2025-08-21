@@ -218,14 +218,13 @@ Create a system prompt appropriately detailed for the request, using clear langu
       type: 'dropdown',
       layout: 'half',
       placeholder: 'Select reasoning effort...',
-      options: () => {
-        return [
-          { label: 'minimal', id: 'minimal' },
-          { label: 'low', id: 'low' },
-          { label: 'medium', id: 'medium' },
-          { label: 'high', id: 'high' },
-        ]
-      },
+      options: [
+        { label: 'minimal', id: 'minimal' },
+        { label: 'low', id: 'low' },
+        { label: 'medium', id: 'medium' },
+        { label: 'high', id: 'high' },
+      ],
+      value: () => 'medium',
       condition: {
         field: 'model',
         value: MODELS_WITH_REASONING_EFFORT,
@@ -237,13 +236,12 @@ Create a system prompt appropriately detailed for the request, using clear langu
       type: 'dropdown',
       layout: 'half',
       placeholder: 'Select verbosity...',
-      options: () => {
-        return [
-          { label: 'low', id: 'low' },
-          { label: 'medium', id: 'medium' },
-          { label: 'high', id: 'high' },
-        ]
-      },
+      options: [
+        { label: 'low', id: 'low' },
+        { label: 'medium', id: 'medium' },
+        { label: 'high', id: 'high' },
+      ],
+      value: () => 'medium',
       condition: {
         field: 'model',
         value: MODELS_WITH_VERBOSITY,
