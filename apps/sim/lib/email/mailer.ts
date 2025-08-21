@@ -26,7 +26,6 @@ export interface EmailOptions {
   includeUnsubscribe?: boolean
   attachments?: EmailAttachment[]
   replyTo?: string
-  useCustomFromFormat?: boolean // If true, uses "from" as-is; if false, uses default FROM_EMAIL_ADDRESS format
 }
 
 export interface BatchEmailOptions {
@@ -55,7 +54,6 @@ interface ProcessedEmailData {
   headers: Record<string, string>
   attachments?: EmailAttachment[]
   replyTo?: string
-  useCustomFromFormat: boolean
 }
 
 const resendApiKey = env.RESEND_API_KEY
@@ -149,7 +147,6 @@ async function processEmailData(options: EmailOptions): Promise<ProcessedEmailDa
     includeUnsubscribe = true,
     attachments,
     replyTo,
-    useCustomFromFormat = false,
   } = options
 
   const senderEmail = from || getFromEmailAddress()
@@ -186,14 +183,13 @@ async function processEmailData(options: EmailOptions): Promise<ProcessedEmailDa
     headers,
     attachments,
     replyTo,
-    useCustomFromFormat,
   }
 }
 
 async function sendWithResend(data: ProcessedEmailData): Promise<SendEmailResult> {
   if (!resend) throw new Error('Resend not configured')
 
-  const fromAddress = data.useCustomFromFormat ? data.senderEmail : data.senderEmail
+  const fromAddress = data.senderEmail
 
   const emailData: any = {
     from: fromAddress,
