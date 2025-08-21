@@ -4,21 +4,11 @@ import type React from 'react'
 import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
 import { client } from '@/lib/auth-client'
 
-type SessionUser = {
-  id: string
-  name?: string | null
-  email?: string | null
-  image?: string | null
-  [key: string]: unknown
-}
-
-type SessionData = {
-  user?: SessionUser
-  [key: string]: unknown
-} | null
+type ClientGetSessionResult = Awaited<ReturnType<typeof client.getSession>>
+export type AppSession = ClientGetSessionResult extends { data: infer D } ? D : null
 
 type SessionHookResult = {
-  data: SessionData
+  data: AppSession
   isPending: boolean
   error: Error | null
   refetch: () => Promise<void>
@@ -27,36 +17,30 @@ type SessionHookResult = {
 export const SessionContext = createContext<SessionHookResult | null>(null)
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [data, setData] = useState<SessionData>(null)
-  const [isPending, setIsPending] = useState<boolean>(true)
+  const [data, setData] = useState<AppSession>(null)
+  const [isPending, setIsPending] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  const fetchSession = useCallback(async () => {
+  const loadSession = useCallback(async () => {
     try {
       setIsPending(true)
       setError(null)
       const res = await client.getSession()
-      setData((res as any)?.data ?? null)
+      setData(res?.data ?? null)
     } catch (e) {
-      const err = e instanceof Error ? e : new Error('Failed to fetch session')
-      setError(err)
+      setError(e instanceof Error ? e : new Error('Failed to fetch session'))
     } finally {
       setIsPending(false)
     }
   }, [])
 
   useEffect(() => {
-    fetchSession()
-  }, [fetchSession])
+    loadSession()
+  }, [loadSession])
 
   const value = useMemo<SessionHookResult>(
-    () => ({
-      data,
-      isPending,
-      error,
-      refetch: fetchSession,
-    }),
-    [data, isPending, error, fetchSession]
+    () => ({ data, isPending, error, refetch: loadSession }),
+    [data, isPending, error, loadSession]
   )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

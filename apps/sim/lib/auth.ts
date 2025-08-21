@@ -4,6 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
 import {
   createAuthMiddleware,
+  customSession,
   emailOTP,
   genericOAuth,
   oneTimeToken,
@@ -208,6 +209,10 @@ export const auth = betterAuth({
     oneTimeToken({
       expiresIn: 24 * 60 * 60, // 24 hours - Socket.IO handles connection persistence with heartbeats
     }),
+    customSession(async ({ user, session }) => ({
+      user,
+      session,
+    })),
     emailOTP({
       sendVerificationOTP: async (data: {
         email: string
@@ -1480,8 +1485,9 @@ export const auth = betterAuth({
 
 // Server-side auth helpers
 export async function getSession() {
+  const hdrs = await headers()
   return await auth.api.getSession({
-    headers: await headers(),
+    headers: hdrs,
   })
 }
 

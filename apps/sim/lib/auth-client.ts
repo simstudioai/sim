@@ -1,7 +1,13 @@
 import { useContext } from 'react'
 import { stripeClient } from '@better-auth/stripe/client'
-import { emailOTPClient, genericOAuthClient, organizationClient } from 'better-auth/client/plugins'
+import {
+  customSessionClient,
+  emailOTPClient,
+  genericOAuthClient,
+  organizationClient,
+} from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
+import type { auth } from '@/lib/auth'
 import { env, getEnv } from '@/lib/env'
 import { isDev, isProd } from '@/lib/environment'
 import { SessionContext } from '@/lib/session-context'
@@ -27,6 +33,7 @@ export const client = createAuthClient({
   plugins: [
     emailOTPClient(),
     genericOAuthClient(),
+    customSessionClient<typeof auth>(),
     // Only include Stripe client in production
     ...(isProd
       ? [
@@ -39,12 +46,14 @@ export const client = createAuthClient({
   ],
 })
 
-// Prefer reading session from a context that fetches once per tree.
-// Falls back to the raw client hook if provider is not mounted.
-export function useSession() {
+export function useSession(): ReturnType<typeof client.useSession> {
   const ctx = useContext(SessionContext)
-  if (ctx) return ctx
-  return client.useSession()
+  if (!ctx) {
+    throw new Error(
+      'SessionProvider is not mounted. Wrap your app with <SessionProvider> in app/layout.tsx.'
+    )
+  }
+  return ctx
 }
 
 export const { useActiveOrganization } = client
