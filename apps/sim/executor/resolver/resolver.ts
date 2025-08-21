@@ -538,8 +538,6 @@ export class InputResolver {
             // This enables direct access to <start.input> and <start.conversationId>
             let replacementValue: any = blockState.output
 
-            // Do not merge nested provider aliases. Expect payload fields at the root.
-
             for (const part of pathParts) {
               if (!replacementValue || typeof replacementValue !== 'object') {
                 logger.warn(
@@ -572,13 +570,8 @@ export class InputResolver {
 
                 replacementValue = arrayValue[index]
               } else {
-                // Regular property access with webhook metadata fallback only
-                let nextValue = resolvePropertyAccess(replacementValue, part)
-                if (nextValue === undefined) {
-                  // Fallback to webhook metadata payload if present
-                  nextValue = resolveFromWebhookPayload(replacementValue, part)
-                }
-                replacementValue = nextValue
+                // Regular property access with FileReference mapping
+                replacementValue = resolvePropertyAccess(replacementValue, part)
               }
 
               if (replacementValue === undefined) {
@@ -748,8 +741,6 @@ export class InputResolver {
 
       let replacementValue: any = blockState.output
 
-      // Do not merge nested provider aliases. Expect payload fields at the root.
-
       for (const part of pathParts) {
         if (!replacementValue || typeof replacementValue !== 'object') {
           throw new Error(
@@ -780,13 +771,8 @@ export class InputResolver {
 
           replacementValue = arrayValue[index]
         } else {
-          // Regular property access with webhook metadata fallback only
-          let nextValue = resolvePropertyAccess(replacementValue, part)
-          if (nextValue === undefined) {
-            // Fallback to webhook metadata payload if present
-            nextValue = resolveFromWebhookPayload(replacementValue, part)
-          }
-          replacementValue = nextValue
+          // Regular property access with FileReference mapping
+          replacementValue = resolvePropertyAccess(replacementValue, part)
         }
 
         if (replacementValue === undefined) {

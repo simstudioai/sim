@@ -882,7 +882,7 @@ export class Executor {
               this.createStartedBlockWithFilesLog(initBlock, starterOutput, context)
             } else {
               // API/Trigger workflow: spread the raw data directly (no wrapping or aliasing)
-              const starterOutput: any = { ...this.workflowInput }
+              const starterOutput = { ...this.workflowInput }
 
               context.blockStates.set(initBlock.id, {
                 output: starterOutput,
