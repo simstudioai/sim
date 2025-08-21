@@ -10,6 +10,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getAssetUrl } from '@/lib/utils'
 import '@/app/globals.css'
 
+import { ThemeProvider } from '@/app/theme-provider'
 import { ZoomPrevention } from '@/app/zoom-prevention'
 
 const logger = createLogger('RootLayout')
@@ -45,11 +46,14 @@ if (typeof window !== 'undefined') {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#ffffff',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0c0c0c' },
+  ],
 }
 
 // Generate dynamic metadata based on brand configuration
@@ -70,8 +74,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
 
         {/* Meta tags for better SEO */}
-        <meta name='theme-color' content='#ffffff' />
-        <meta name='color-scheme' content='light' />
+        <meta name='color-scheme' content='light dark' />
         <meta name='format-detection' content='telephone=no' />
         <meta httpEquiv='x-ua-compatible' content='ie=edge' />
 
@@ -107,16 +110,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         )}
       </head>
       <body suppressHydrationWarning>
-        <BrandedLayout>
-          <ZoomPrevention />
-          {children}
-          {isHosted && (
-            <>
-              <SpeedInsights />
-              <Analytics />
-            </>
-          )}
-        </BrandedLayout>
+        <ThemeProvider>
+          <BrandedLayout>
+            <ZoomPrevention />
+            {children}
+            {isHosted && (
+              <>
+                <SpeedInsights />
+                <Analytics />
+              </>
+            )}
+          </BrandedLayout>
+        </ThemeProvider>
       </body>
     </html>
   )

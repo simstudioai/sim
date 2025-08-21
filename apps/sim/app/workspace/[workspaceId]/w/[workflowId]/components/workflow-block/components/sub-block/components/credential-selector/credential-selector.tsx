@@ -26,7 +26,6 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('CredentialSelector')
 
@@ -217,17 +216,6 @@ export function CredentialSelector({
     setSelectedId(credentialId)
     if (!isPreview) {
       setStoreValue(credentialId)
-      // If credential changed, clear other sub-block fields for a clean state
-      if (previousId && previousId !== credentialId) {
-        const wfId = (activeWorkflowId as string) || ''
-        const workflowValues = useSubBlockStore.getState().workflowValues[wfId] || {}
-        const blockValues = workflowValues[blockId] || {}
-        Object.keys(blockValues).forEach((key) => {
-          if (key !== subBlock.id) {
-            collaborativeSetSubblockValue(blockId, key, '')
-          }
-        })
-      }
     }
     setOpen(false)
   }

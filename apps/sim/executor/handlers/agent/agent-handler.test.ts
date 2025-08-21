@@ -1326,5 +1326,59 @@ describe('AgentBlockHandler', () => {
       expect(requestBody.model).toBe('azure/gpt-4o')
       expect(requestBody.apiKey).toBe('test-azure-api-key')
     })
+
+    it('should pass GPT-5 specific parameters (reasoningEffort and verbosity) through the request pipeline', async () => {
+      const inputs = {
+        model: 'gpt-5',
+        systemPrompt: 'You are a helpful assistant.',
+        userPrompt: 'Hello!',
+        apiKey: 'test-api-key',
+        reasoningEffort: 'minimal',
+        verbosity: 'high',
+        temperature: 0.7,
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      expect(mockFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
+
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Check that GPT-5 parameters are included in the request
+      expect(requestBody.reasoningEffort).toBe('minimal')
+      expect(requestBody.verbosity).toBe('high')
+      expect(requestBody.provider).toBe('openai')
+      expect(requestBody.model).toBe('gpt-5')
+      expect(requestBody.apiKey).toBe('test-api-key')
+    })
+
+    it('should handle missing GPT-5 parameters gracefully', async () => {
+      const inputs = {
+        model: 'gpt-5',
+        systemPrompt: 'You are a helpful assistant.',
+        userPrompt: 'Hello!',
+        apiKey: 'test-api-key',
+        temperature: 0.7,
+        // No reasoningEffort or verbosity provided
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      expect(mockFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
+
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Check that GPT-5 parameters are undefined when not provided
+      expect(requestBody.reasoningEffort).toBeUndefined()
+      expect(requestBody.verbosity).toBeUndefined()
+      expect(requestBody.provider).toBe('openai')
+      expect(requestBody.model).toBe('gpt-5')
+    })
   })
 })

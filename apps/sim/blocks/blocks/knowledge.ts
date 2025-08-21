@@ -66,6 +66,7 @@ export const KnowledgeBlock: BlockConfig = {
       type: 'document-selector',
       layout: 'full',
       placeholder: 'Select document',
+      dependsOn: ['knowledgeBaseId'],
       required: true,
       condition: { field: 'operation', value: 'upload_chunk' },
     },

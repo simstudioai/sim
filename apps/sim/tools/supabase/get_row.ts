@@ -57,14 +57,21 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-    const row = data.length > 0 ? data[0] : null
+    let data
+    try {
+      data = await response.json()
+    } catch (parseError) {
+      throw new Error(`Failed to parse Supabase response: ${parseError}`)
+    }
+
+    const rowFound = data.length > 0
+    const results = rowFound ? [data[0]] : []
 
     return {
       success: true,
       output: {
-        message: row ? 'Successfully found row' : 'No row found matching the criteria',
-        results: row,
+        message: rowFound ? 'Successfully found 1 row' : 'No row found matching the criteria',
+        results: results,
       },
       error: undefined,
     }
@@ -72,6 +79,9 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
 
   outputs: {
     message: { type: 'string', description: 'Operation status message' },
-    results: { type: 'object', description: 'The row data if found, null if not found' },
+    results: {
+      type: 'array',
+      description: 'Array containing the row data if found, empty array if not found',
+    },
   },
 }

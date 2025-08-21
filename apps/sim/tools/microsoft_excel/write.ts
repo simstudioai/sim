@@ -161,23 +161,16 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    updatedRange: { type: 'string', description: 'The range that was updated' },
+    updatedRows: { type: 'number', description: 'Number of rows that were updated' },
+    updatedColumns: { type: 'number', description: 'Number of columns that were updated' },
+    updatedCells: { type: 'number', description: 'Number of cells that were updated' },
+    metadata: {
       type: 'object',
-      description: 'Write operation results and metadata',
+      description: 'Spreadsheet metadata',
       properties: {
-        updatedRange: { type: 'string', description: 'The range that was updated' },
-        updatedRows: { type: 'number', description: 'Number of rows that were updated' },
-        updatedColumns: { type: 'number', description: 'Number of columns that were updated' },
-        updatedCells: { type: 'number', description: 'Number of cells that were updated' },
-        metadata: {
-          type: 'object',
-          description: 'Spreadsheet metadata',
-          properties: {
-            spreadsheetId: { type: 'string', description: 'The ID of the spreadsheet' },
-            spreadsheetUrl: { type: 'string', description: 'URL to access the spreadsheet' },
-          },
-        },
+        spreadsheetId: { type: 'string', description: 'The ID of the spreadsheet' },
+        spreadsheetUrl: { type: 'string', description: 'URL to access the spreadsheet' },
       },
     },
   },

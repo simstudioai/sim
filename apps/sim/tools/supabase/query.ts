@@ -79,12 +79,30 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    let data
+    try {
+      data = await response.json()
+    } catch (parseError) {
+      throw new Error(`Failed to parse Supabase response: ${parseError}`)
+    }
+
+    const rowCount = Array.isArray(data) ? data.length : 0
+
+    if (rowCount === 0) {
+      return {
+        success: true,
+        output: {
+          message: 'No rows found matching the query criteria',
+          results: data,
+        },
+        error: undefined,
+      }
+    }
 
     return {
       success: true,
       output: {
-        message: 'Successfully queried data from Supabase',
+        message: `Successfully queried ${rowCount} row${rowCount === 1 ? '' : 's'} from Supabase`,
         results: data,
       },
       error: undefined,

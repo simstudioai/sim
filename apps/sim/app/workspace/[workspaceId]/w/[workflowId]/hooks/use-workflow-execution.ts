@@ -548,8 +548,8 @@ export function useWorkflowExecution() {
       }
     })
 
-    // Merge subblock states from the appropriate store
-    const mergedStates = mergeSubblockState(validBlocks)
+    // Merge subblock states from the appropriate store (scoped to active workflow)
+    const mergedStates = mergeSubblockState(validBlocks, activeWorkflowId ?? undefined)
 
     // Debug: Check for blocks with undefined types after merging
     Object.entries(mergedStates).forEach(([blockId, block]) => {
@@ -807,7 +807,7 @@ export function useWorkflowExecution() {
 
       // Continue execution until there are no more pending blocks
       let iterationCount = 0
-      const maxIterations = 100 // Safety to prevent infinite loops
+      const maxIterations = 500 // Safety to prevent infinite loops
 
       while (currentPendingBlocks.length > 0 && iterationCount < maxIterations) {
         logger.info(

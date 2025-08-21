@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { Logger } from '@/lib/logs/console/logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getJiraCloudId } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
 
-const logger = new Logger('JiraWriteAPI')
+const logger = createLogger('JiraWriteAPI')
 
 export async function POST(request: Request) {
   try {

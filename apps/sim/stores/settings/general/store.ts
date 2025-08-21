@@ -1,11 +1,12 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
+import { syncThemeToNextThemes } from '@/lib/theme-sync'
 import type { General, GeneralStore, UserSettings } from '@/stores/settings/general/types'
 
 const logger = createLogger('GeneralStore')
 
-const CACHE_TIMEOUT = 5000
+const CACHE_TIMEOUT = 3600000 // 1 hour - settings rarely change
 const MAX_ERROR_RETRIES = 2
 
 export const useGeneralStore = create<GeneralStore>()(
@@ -14,13 +15,14 @@ export const useGeneralStore = create<GeneralStore>()(
       (set, get) => {
         let lastLoadTime = 0
         let errorRetryCount = 0
+        let hasLoadedFromDb = false // Track if we've loaded from DB in this session
 
         const store: General = {
           isAutoConnectEnabled: true,
           isAutoPanEnabled: true,
           isConsoleExpandedByDefault: true,
           isDebugModeEnabled: false,
-          theme: 'system' as const,
+          theme: 'system' as const, // Keep for compatibility but not used
           telemetryEnabled: true,
           isLoading: false,
           error: null,
@@ -28,7 +30,7 @@ export const useGeneralStore = create<GeneralStore>()(
           isAutoConnectLoading: false,
           isAutoPanLoading: false,
           isConsoleExpandedByDefaultLoading: false,
-          isThemeLoading: false,
+          isThemeLoading: false, // Keep for compatibility but not used
           isTelemetryLoading: false,
         }
 
@@ -99,7 +101,26 @@ export const useGeneralStore = create<GeneralStore>()(
 
           setTheme: async (theme) => {
             if (get().isThemeLoading) return
-            await updateSettingOptimistic('theme', theme, 'isThemeLoading', 'theme')
+
+            const originalTheme = get().theme
+
+            // Optimistic update
+            set({ theme, isThemeLoading: true })
+
+            // Update next-themes immediately for instant feedback
+            syncThemeToNextThemes(theme)
+
+            try {
+              // Sync to DB for authenticated users
+              await get().updateSetting('theme', theme)
+              set({ isThemeLoading: false })
+            } catch (error) {
+              // Rollback on error
+              set({ theme: originalTheme, isThemeLoading: false })
+              syncThemeToNextThemes(originalTheme)
+              logger.error('Failed to sync theme to database:', error)
+              throw error
+            }
           },
 
           setTelemetryEnabled: async (enabled) => {
@@ -114,6 +135,27 @@ export const useGeneralStore = create<GeneralStore>()(
 
           // API Actions
           loadSettings: async (force = false) => {
+            // Skip if we've already loaded from DB and not forcing
+            if (hasLoadedFromDb && !force) {
+              logger.debug('Already loaded settings from DB, using cached data')
+              return
+            }
+
+            // If we have persisted state and not forcing, check if we need to load
+            const persistedState = localStorage.getItem('general-settings')
+            if (persistedState && !force) {
+              try {
+                const parsed = JSON.parse(persistedState)
+                // If we have valid theme data, skip DB load unless forced
+                if (parsed.state?.theme) {
+                  logger.debug('Using cached settings from localStorage')
+                  hasLoadedFromDb = true // Mark as loaded to prevent future API calls
+                  return
+                }
+              } catch (e) {
+                // If parsing fails, continue to load from DB
+              }
+            }
             // Skip loading if on a subdomain or chat path
             if (
               typeof window !== 'undefined' &&
@@ -147,15 +189,24 @@ export const useGeneralStore = create<GeneralStore>()(
 
               set({
                 isAutoConnectEnabled: data.autoConnect,
-                isAutoPanEnabled: data.autoPan ?? true, // Default to true if undefined
-                isConsoleExpandedByDefault: data.consoleExpandedByDefault ?? true, // Default to true if undefined
-                theme: data.theme,
+                isAutoPanEnabled: data.autoPan ?? true,
+                isConsoleExpandedByDefault: data.consoleExpandedByDefault ?? true,
+                theme: data.theme || 'system',
                 telemetryEnabled: data.telemetryEnabled,
                 isLoading: false,
               })
 
+              // Sync theme to next-themes if it's different
+              if (data.theme && typeof window !== 'undefined') {
+                const currentTheme = localStorage.getItem('sim-theme')
+                if (currentTheme !== data.theme) {
+                  syncThemeToNextThemes(data.theme)
+                }
+              }
+
               lastLoadTime = now
               errorRetryCount = 0
+              hasLoadedFromDb = true
             } catch (error) {
               logger.error('Error loading settings:', error)
               set({

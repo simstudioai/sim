@@ -61,6 +61,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       layout: 'full',
       placeholder: 'Enter the plan ID',
       condition: { field: 'operation', value: ['create_task', 'read_task'] },
+      dependsOn: ['credential'],
     },
     {
       id: 'taskId',
@@ -70,6 +71,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       placeholder: 'Select a task',
       provider: 'microsoft-planner',
       condition: { field: 'operation', value: ['read_task'] },
+      dependsOn: ['credential', 'planId'],
       mode: 'basic',
     },
 
@@ -81,6 +83,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       layout: 'full',
       placeholder: 'Enter the task ID',
       condition: { field: 'operation', value: ['read_task'] },
+      dependsOn: ['credential', 'planId'],
       mode: 'advanced',
     },
 

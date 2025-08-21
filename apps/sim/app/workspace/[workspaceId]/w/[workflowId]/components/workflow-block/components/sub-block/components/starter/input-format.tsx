@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Plus, Trash } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -8,10 +8,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 
@@ -59,26 +65,30 @@ export function FieldFormat({
   emptyMessage = 'No fields defined',
   showType = true,
   showValue = false,
-  valuePlaceholder = 'Enter value or <variable.name>',
+  valuePlaceholder = 'Enter test value',
   isConnecting = false,
   config,
 }: FieldFormatProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<Field[]>(blockId, subBlockId)
-  const [tagDropdownStates, setTagDropdownStates] = useState<
-    Record<
-      string,
-      {
-        visible: boolean
-        cursorPosition: number
-      }
-    >
-  >({})
   const [dragHighlight, setDragHighlight] = useState<Record<string, boolean>>({})
-  const valueInputRefs = useRef<Record<string, HTMLInputElement>>({})
+  const valueInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement>>({})
+  const [localValues, setLocalValues] = useState<Record<string, string>>({})
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
   const fields: Field[] = value || []
+
+  useEffect(() => {
+    const initial: Record<string, string> = {}
+    ;(fields || []).forEach((f) => {
+      if (localValues[f.id] === undefined) {
+        initial[f.id] = (f.value as string) || ''
+      }
+    })
+    if (Object.keys(initial).length > 0) {
+      setLocalValues((prev) => ({ ...prev, ...initial }))
+    }
+  }, [fields])
 
   // Field operations
   const addField = () => {
@@ -88,12 +98,12 @@ export function FieldFormat({
       ...DEFAULT_FIELD,
       id: crypto.randomUUID(),
     }
-    setStoreValue([...fields, newField])
+    setStoreValue([...(fields || []), newField])
   }
 
   const removeField = (id: string) => {
     if (isPreview || disabled) return
-    setStoreValue(fields.filter((field: Field) => field.id !== id))
+    setStoreValue((fields || []).filter((field: Field) => field.id !== id))
   }
 
   // Validate field name for API safety
@@ -103,38 +113,22 @@ export function FieldFormat({
     return name.replace(/[\x00-\x1F"\\]/g, '').trim()
   }
 
-  // Tag dropdown handlers
   const handleValueInputChange = (fieldId: string, newValue: string) => {
-    const input = valueInputRefs.current[fieldId]
-    if (!input) return
-
-    const cursorPosition = input.selectionStart || 0
-    const shouldShow = checkTagTrigger(newValue, cursorPosition)
-
-    setTagDropdownStates((prev) => ({
-      ...prev,
-      [fieldId]: {
-        visible: shouldShow.show,
-        cursorPosition,
-      },
-    }))
-
-    updateField(fieldId, 'value', newValue)
+    setLocalValues((prev) => ({ ...prev, [fieldId]: newValue }))
   }
 
-  const handleTagSelect = (fieldId: string, newValue: string) => {
-    updateField(fieldId, 'value', newValue)
-    setTagDropdownStates((prev) => ({
-      ...prev,
-      [fieldId]: { ...prev[fieldId], visible: false },
-    }))
-  }
+  // Value normalization: keep it simple for string types
 
-  const handleTagDropdownClose = (fieldId: string) => {
-    setTagDropdownStates((prev) => ({
-      ...prev,
-      [fieldId]: { ...prev[fieldId], visible: false },
-    }))
+  const handleValueInputBlur = (field: Field) => {
+    if (isPreview || disabled) return
+
+    const inputEl = valueInputRefs.current[field.id]
+    if (!inputEl) return
+
+    const current = localValues[field.id] ?? inputEl.value ?? ''
+    const trimmed = current.trim()
+    if (!trimmed) return
+    updateField(field.id, 'value', current)
   }
 
   // Drag and drop handlers for connection blocks
@@ -152,47 +146,8 @@ export function FieldFormat({
   const handleDrop = (e: React.DragEvent, fieldId: string) => {
     e.preventDefault()
     setDragHighlight((prev) => ({ ...prev, [fieldId]: false }))
-
-    try {
-      const data = JSON.parse(e.dataTransfer.getData('application/json'))
-      if (data.type === 'connectionBlock' && data.connectionData) {
-        const input = valueInputRefs.current[fieldId]
-        if (!input) return
-
-        // Focus the input first
-        input.focus()
-
-        // Get current cursor position or use end of field
-        const dropPosition = input.selectionStart ?? (input.value?.length || 0)
-
-        // Insert '<' at drop position to trigger the dropdown
-        const currentValue = input.value || ''
-        const newValue = `${currentValue.slice(0, dropPosition)}<${currentValue.slice(dropPosition)}`
-
-        // Update the field value
-        updateField(fieldId, 'value', newValue)
-
-        // Set cursor position and show dropdown
-        setTimeout(() => {
-          input.selectionStart = dropPosition + 1
-          input.selectionEnd = dropPosition + 1
-
-          // Trigger dropdown by simulating the tag check
-          const cursorPosition = dropPosition + 1
-          const shouldShow = checkTagTrigger(newValue, cursorPosition)
-
-          setTagDropdownStates((prev) => ({
-            ...prev,
-            [fieldId]: {
-              visible: shouldShow.show,
-              cursorPosition,
-            },
-          }))
-        }, 0)
-      }
-    } catch (error) {
-      console.error('Error handling drop:', error)
-    }
+    const input = valueInputRefs.current[fieldId]
+    input?.focus()
   }
 
   // Update handlers
@@ -204,12 +159,14 @@ export function FieldFormat({
       value = validateFieldName(value)
     }
 
-    setStoreValue(fields.map((f: Field) => (f.id === id ? { ...f, [field]: value } : f)))
+    setStoreValue((fields || []).map((f: Field) => (f.id === id ? { ...f, [field]: value } : f)))
   }
 
   const toggleCollapse = (id: string) => {
     if (isPreview || disabled) return
-    setStoreValue(fields.map((f: Field) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f)))
+    setStoreValue(
+      (fields || []).map((f: Field) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f))
+    )
   }
 
   // Field header
@@ -371,54 +328,66 @@ export function FieldFormat({
                     <div className='space-y-1.5'>
                       <Label className='text-xs'>Value</Label>
                       <div className='relative'>
-                        <Input
-                          ref={(el) => {
-                            if (el) valueInputRefs.current[field.id] = el
-                          }}
-                          name='value'
-                          value={field.value || ''}
-                          onChange={(e) => handleValueInputChange(field.id, e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Escape') {
-                              handleTagDropdownClose(field.id)
+                        {field.type === 'boolean' ? (
+                          <Select
+                            value={localValues[field.id] ?? (field.value as string) ?? ''}
+                            onValueChange={(v) => {
+                              setLocalValues((prev) => ({ ...prev, [field.id]: v }))
+                              if (!isPreview && !disabled) updateField(field.id, 'value', v)
+                            }}
+                          >
+                            <SelectTrigger className='h-9 w-full justify-between font-normal'>
+                              <SelectValue placeholder='Select value' className='truncate' />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value='true'>true</SelectItem>
+                              <SelectItem value='false'>false</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : field.type === 'object' || field.type === 'array' ? (
+                          <Textarea
+                            ref={(el) => {
+                              if (el) valueInputRefs.current[field.id] = el
+                            }}
+                            name='value'
+                            value={localValues[field.id] ?? (field.value as string) ?? ''}
+                            onChange={(e) => handleValueInputChange(field.id, e.target.value)}
+                            onBlur={() => handleValueInputBlur(field)}
+                            placeholder={
+                              field.type === 'object' ? '{\n  "key": "value"\n}' : '[\n  1, 2, 3\n]'
                             }
-                          }}
-                          onDragOver={(e) => handleDragOver(e, field.id)}
-                          onDragLeave={(e) => handleDragLeave(e, field.id)}
-                          onDrop={(e) => handleDrop(e, field.id)}
-                          placeholder={valuePlaceholder}
-                          disabled={isPreview || disabled}
-                          className={cn(
-                            'h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50',
-                            dragHighlight[field.id] && 'ring-2 ring-blue-500 ring-offset-2',
-                            isConnecting &&
-                              config?.connectionDroppable !== false &&
-                              'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
-                          )}
-                        />
-                        {field.value && (
-                          <div className='pointer-events-none absolute inset-0 flex items-center px-3 py-2'>
-                            <div className='w-full overflow-hidden text-ellipsis whitespace-nowrap text-sm'>
-                              {formatDisplayText(field.value, true)}
-                            </div>
-                          </div>
+                            disabled={isPreview || disabled}
+                            className={cn(
+                              'min-h-[120px] font-mono text-sm placeholder:text-muted-foreground/50',
+                              dragHighlight[field.id] && 'ring-2 ring-blue-500 ring-offset-2',
+                              isConnecting &&
+                                config?.connectionDroppable !== false &&
+                                'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
+                            )}
+                          />
+                        ) : (
+                          <Input
+                            ref={(el) => {
+                              if (el) valueInputRefs.current[field.id] = el
+                            }}
+                            name='value'
+                            value={localValues[field.id] ?? field.value ?? ''}
+                            onChange={(e) => handleValueInputChange(field.id, e.target.value)}
+                            onBlur={() => handleValueInputBlur(field)}
+                            onDragOver={(e) => handleDragOver(e, field.id)}
+                            onDragLeave={(e) => handleDragLeave(e, field.id)}
+                            onDrop={(e) => handleDrop(e, field.id)}
+                            placeholder={valuePlaceholder}
+                            disabled={isPreview || disabled}
+                            className={cn(
+                              'h-9 placeholder:text-muted-foreground/50',
+                              dragHighlight[field.id] && 'ring-2 ring-blue-500 ring-offset-2',
+                              isConnecting &&
+                                config?.connectionDroppable !== false &&
+                                'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
+                            )}
+                          />
                         )}
-                        <TagDropdown
-                          visible={tagDropdownStates[field.id]?.visible || false}
-                          onSelect={(newValue) => handleTagSelect(field.id, newValue)}
-                          blockId={blockId}
-                          activeSourceBlockId={null}
-                          inputValue={field.value || ''}
-                          cursorPosition={tagDropdownStates[field.id]?.cursorPosition || 0}
-                          onClose={() => handleTagDropdownClose(field.id)}
-                          style={{
-                            position: 'absolute',
-                            top: '100%',
-                            left: 0,
-                            right: 0,
-                            zIndex: 9999,
-                          }}
-                        />
                       </div>
                     </div>
                   )}
@@ -460,7 +429,7 @@ export function ResponseFormat(
       emptyMessage='No response fields defined'
       showType={false}
       showValue={true}
-      valuePlaceholder='Enter value or <variable.name>'
+      valuePlaceholder='Enter test value'
     />
   )
 }

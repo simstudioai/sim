@@ -106,6 +106,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
         'https://www.googleapis.com/auth/gmail.labels',
       ],
       placeholder: 'Select Gmail label/folder',
+      dependsOn: ['credential'],
       mode: 'basic',
       condition: { field: 'operation', value: 'read_gmail' },
     },

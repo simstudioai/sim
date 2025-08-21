@@ -58,6 +58,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       provider: 'confluence',
       serviceId: 'confluence',
       placeholder: 'Select Confluence page',
+      dependsOn: ['credential', 'domain'],
       mode: 'basic',
     },
     // Manual page ID input (advanced mode)

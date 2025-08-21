@@ -237,10 +237,11 @@ export function GoogleDrivePicker({
 
     setIsLoading(true)
     try {
-      const url = new URL('/api/auth/oauth/token', window.location.origin)
-      url.searchParams.set('credentialId', effectiveCredentialId)
-      // include workflowId if available via global registry (server adds session owner otherwise)
-      const response = await fetch(url.toString())
+      const response = await fetch('/api/auth/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentialId: effectiveCredentialId, workflowId }),
+      })
 
       if (!response.ok) {
         throw new Error(`Failed to fetch access token: ${response.status}`)
@@ -414,6 +415,13 @@ export function GoogleDrivePicker({
     return <FileIcon className={`${iconSize} text-muted-foreground`} />
   }
 
+  const canShowPreview = !!(
+    showPreview &&
+    selectedFile &&
+    selectedFileId &&
+    selectedFile.id === selectedFileId
+  )
+
   return (
     <>
       <div className='space-y-2'>
@@ -440,7 +448,7 @@ export function GoogleDrivePicker({
           }}
         >
           <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
-            {selectedFile ? (
+            {canShowPreview ? (
               <>
                 {getFileIcon(selectedFile, 'sm')}
                 <span className='truncate font-normal'>{selectedFile.name}</span>
@@ -460,7 +468,7 @@ export function GoogleDrivePicker({
         </Button>
 
         {/* File preview */}
-        {showPreview && selectedFile && (
+        {canShowPreview && (
           <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
             <div className='absolute top-2 right-2'>
               <Button

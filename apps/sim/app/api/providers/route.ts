@@ -39,6 +39,8 @@ export async function POST(request: NextRequest) {
       stream,
       messages,
       environmentVariables,
+      reasoningEffort,
+      verbosity,
     } = body
 
     logger.info(`[${requestId}] Provider request details`, {
@@ -58,6 +60,8 @@ export async function POST(request: NextRequest) {
       messageCount: messages?.length || 0,
       hasEnvironmentVariables:
         !!environmentVariables && Object.keys(environmentVariables).length > 0,
+      reasoningEffort,
+      verbosity,
     })
 
     let finalApiKey: string
@@ -99,6 +103,8 @@ export async function POST(request: NextRequest) {
       stream,
       messages,
       environmentVariables,
+      reasoningEffort,
+      verbosity,
     })
 
     const executionTime = Date.now() - startTime

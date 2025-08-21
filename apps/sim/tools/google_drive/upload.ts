@@ -57,7 +57,7 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
   },
 
   request: {
-    url: 'https://www.googleapis.com/drive/v3/files',
+    url: 'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true',
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -115,7 +115,7 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
       })
 
       const uploadResponse = await fetch(
-        `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+        `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&supportsAllDrives=true`,
         {
           method: 'PATCH',
           headers: {
@@ -144,7 +144,7 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
         })
 
         const updateNameResponse = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${fileId}`,
+          `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`,
           {
             method: 'PATCH',
             headers: {
@@ -167,7 +167,7 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
 
       // Get the final file data
       const finalFileResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,webViewLink,webContentLink,size,createdTime,modifiedTime,parents`,
+        `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true&fields=id,name,mimeType,webViewLink,webContentLink,size,createdTime,modifiedTime,parents`,
         {
           headers: {
             Authorization: authHeader,

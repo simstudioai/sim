@@ -329,7 +329,7 @@ export async function POST(request: NextRequest) {
       logger.info(`[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`)
       try {
         const { configureGmailPolling } = await import('@/lib/webhooks/utils')
-        // Use workflow owner for OAuth lookups to support collaborator-saved credentials
+        // Pass workflow owner for backward-compat fallback (utils prefers credentialId if present)
         const success = await configureGmailPolling(workflowRecord.userId, savedWebhook, requestId)
 
         if (!success) {
@@ -364,7 +364,7 @@ export async function POST(request: NextRequest) {
       )
       try {
         const { configureOutlookPolling } = await import('@/lib/webhooks/utils')
-        // Use workflow owner for OAuth lookups to support collaborator-saved credentials
+        // Pass workflow owner for backward-compat fallback (utils prefers credentialId if present)
         const success = await configureOutlookPolling(
           workflowRecord.userId,
           savedWebhook,

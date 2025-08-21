@@ -45,6 +45,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter your base ID (e.g., appXXXXXXXXXXXXXX)',
+      dependsOn: ['credential'],
       required: true,
     },
     {
@@ -53,6 +54,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter table ID (e.g., tblXXXXXXXXXXXXXX)',
+      dependsOn: ['credential', 'baseId'],
       required: true,
     },
     {

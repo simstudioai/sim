@@ -38,6 +38,13 @@ export interface SupabaseDeleteParams {
   filter: string
 }
 
+export interface SupabaseUpsertParams {
+  apiKey: string
+  projectId: string
+  table: string
+  data: any
+}
+
 export interface SupabaseBaseResponse extends ToolResponse {
   output: {
     message: string
@@ -55,5 +62,7 @@ export interface SupabaseGetRowResponse extends SupabaseBaseResponse {}
 export interface SupabaseUpdateResponse extends SupabaseBaseResponse {}
 
 export interface SupabaseDeleteResponse extends SupabaseBaseResponse {}
+
+export interface SupabaseUpsertResponse extends SupabaseBaseResponse {}
 
 export interface SupabaseResponse extends SupabaseBaseResponse {}

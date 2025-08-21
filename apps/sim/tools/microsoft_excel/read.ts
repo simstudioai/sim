@@ -45,7 +45,9 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       }
 
       if (!params.range) {
-        return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets('Sheet1')/range(address='A1:Z1000')`
+        // When no range is provided, first fetch the first worksheet name (to avoid hardcoding "Sheet1")
+        // We'll read its default range after in transformResponse
+        return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets?$select=name&$orderby=position&$top=1`
       }
 
       const rangeInput = params.range.trim()
@@ -72,7 +74,65 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: MicrosoftExcelToolParams) => {
+    const defaultAddress = 'A1:Z1000' // Match Google Sheets default logic
+
+    // If we came from the worksheets listing (no range provided), resolve first sheet name then fetch range
+    if (response.url.includes('/workbook/worksheets?')) {
+      const listData = await response.json()
+      const firstSheetName: string | undefined = listData?.value?.[0]?.name
+
+      if (!firstSheetName) {
+        throw new Error('No worksheets found in the Excel workbook')
+      }
+
+      const spreadsheetIdFromUrl = response.url.split('/drive/items/')[1]?.split('/')[0] || ''
+      const accessToken = params?.accessToken
+      if (!accessToken) {
+        throw new Error('Access token is required to read Excel range')
+      }
+
+      const rangeUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(
+        spreadsheetIdFromUrl
+      )}/workbook/worksheets('${encodeURIComponent(firstSheetName)}')/range(address='${defaultAddress}')`
+
+      const rangeResp = await fetch(rangeUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+
+      if (!rangeResp.ok) {
+        // Normalize Microsoft Graph sheet/range errors to a friendly message
+        throw new Error(
+          'Invalid range provided or worksheet not found. Provide a range like "Sheet1!A1:B2"'
+        )
+      }
+
+      const data = await rangeResp.json()
+
+      const metadata = {
+        spreadsheetId: spreadsheetIdFromUrl,
+        properties: {},
+        spreadsheetUrl: `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetIdFromUrl}`,
+      }
+
+      const result: MicrosoftExcelReadResponse = {
+        success: true,
+        output: {
+          data: {
+            range: data.range || `${firstSheetName}!${defaultAddress}`,
+            values: data.values || [],
+          },
+          metadata: {
+            spreadsheetId: metadata.spreadsheetId,
+            spreadsheetUrl: metadata.spreadsheetUrl,
+          },
+        },
+      }
+
+      return result
+    }
+
+    // Normal path: caller supplied a range; just return the parsed result
     const data = await response.json()
 
     const urlParts = response.url.split('/drive/items/')
@@ -102,27 +162,20 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    data: {
       type: 'object',
-      description: 'Excel spreadsheet data and metadata',
+      description: 'Range data from the spreadsheet',
       properties: {
-        data: {
-          type: 'object',
-          description: 'Range data from the spreadsheet',
-          properties: {
-            range: { type: 'string', description: 'The range that was read' },
-            values: { type: 'array', description: 'Array of rows containing cell values' },
-          },
-        },
-        metadata: {
-          type: 'object',
-          description: 'Spreadsheet metadata',
-          properties: {
-            spreadsheetId: { type: 'string', description: 'The ID of the spreadsheet' },
-            spreadsheetUrl: { type: 'string', description: 'URL to access the spreadsheet' },
-          },
-        },
+        range: { type: 'string', description: 'The range that was read' },
+        values: { type: 'array', description: 'Array of rows containing cell values' },
+      },
+    },
+    metadata: {
+      type: 'object',
+      description: 'Spreadsheet metadata',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'The ID of the spreadsheet' },
+        spreadsheetUrl: { type: 'string', description: 'URL to access the spreadsheet' },
       },
     },
   },
