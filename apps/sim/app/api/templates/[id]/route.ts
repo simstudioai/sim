@@ -64,7 +64,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-// PUT /api/templates/[id] - Update a template
 const updateTemplateSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().min(1).max(500),
@@ -75,6 +74,7 @@ const updateTemplateSchema = z.object({
   state: z.any().optional(), // Workflow state
 })
 
+// PUT /api/templates/[id] - Update a template
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const { id } = await params

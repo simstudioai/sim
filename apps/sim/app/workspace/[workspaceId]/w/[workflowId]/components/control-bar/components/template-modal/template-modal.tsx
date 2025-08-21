@@ -102,7 +102,6 @@ interface TemplateModalProps {
   workflowId: string
 }
 
-// Enhanced icon selection with category-relevant icons
 const icons = [
   // Content & Documentation
   { value: 'FileText', label: 'File Text', component: FileText },
