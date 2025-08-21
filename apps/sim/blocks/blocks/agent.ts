@@ -215,7 +215,7 @@ Create a system prompt appropriately detailed for the request, using clear langu
     {
       id: 'reasoningEffort',
       title: 'Reasoning Effort',
-      type: 'combobox',
+      type: 'dropdown',
       layout: 'half',
       placeholder: 'Select reasoning effort...',
       options: () => {
@@ -234,7 +234,7 @@ Create a system prompt appropriately detailed for the request, using clear langu
     {
       id: 'verbosity',
       title: 'Verbosity',
-      type: 'combobox',
+      type: 'dropdown',
       layout: 'half',
       placeholder: 'Select verbosity...',
       options: () => {

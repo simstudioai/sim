@@ -129,6 +129,7 @@ export function SubBlock({
               isPreview={isPreview}
               previewValue={previewValue}
               disabled={isDisabled}
+              config={config}
             />
           </div>
         )
