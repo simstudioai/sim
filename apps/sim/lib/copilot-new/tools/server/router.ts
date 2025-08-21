@@ -4,6 +4,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getBlocksAndToolsServerTool } from '@/lib/copilot-new/tools/server/blocks/get-blocks-and-tools'
 import { getBlocksMetadataServerTool } from '@/lib/copilot-new/tools/server/blocks/get-blocks-metadata-tool'
 import { buildWorkflowServerTool } from '@/lib/copilot-new/tools/server/workflow/build-workflow'
+import { getWorkflowConsoleServerTool } from '@/lib/copilot-new/tools/server/workflow/get-workflow-console'
 import { ExecuteResponseSuccessSchema, GetBlocksAndToolsInput, GetBlocksAndToolsResult, GetBlocksMetadataInput, GetBlocksMetadataResult, BuildWorkflowInput, BuildWorkflowResult } from '@/lib/copilot-new/tools/shared/schemas'
 
 // Generic execute response schemas (success path only for this route; errors handled via HTTP status)
@@ -18,6 +19,7 @@ const logger = createLogger('ServerToolRouter')
 serverToolRegistry[getBlocksAndToolsServerTool.name] = getBlocksAndToolsServerTool
 serverToolRegistry[getBlocksMetadataServerTool.name] = getBlocksMetadataServerTool
 serverToolRegistry[buildWorkflowServerTool.name] = buildWorkflowServerTool
+serverToolRegistry[getWorkflowConsoleServerTool.name] = getWorkflowConsoleServerTool
 
 // Main router function
 export async function routeExecution(toolName: string, payload: unknown): Promise<any> {

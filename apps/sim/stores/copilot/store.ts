@@ -12,6 +12,7 @@ import { registerClientTool } from '@/lib/copilot-new/tools/client/manager'
 import { GDriveRequestAccessClientTool } from '@/lib/copilot-new/tools/client/google/gdrive-request-access'
 import { GetBlocksAndToolsClientTool } from '@/lib/copilot-new/tools/client/blocks/get-blocks-and-tools'
 import { BuildWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/build-workflow'
+import { GetWorkflowConsoleClientTool } from '@/lib/copilot-new/tools/client/workflow/get-workflow-console'
 import type {
   CopilotMessage,
   CopilotStore,
@@ -1519,6 +1520,7 @@ const CLIENT_TOOL_CONSTRUCTORS: Record<string, (id: string) => any> = {
   get_blocks_and_tools: (id) => new GetBlocksAndToolsClientTool(id),
   get_blocks_metadata: (id) => new (require('@/lib/copilot-new/tools/client/blocks/get-blocks-metadata').GetBlocksMetadataClientTool)(id),
   build_workflow: (id) => new BuildWorkflowClientTool(id),
+  get_workflow_console: (id) => new GetWorkflowConsoleClientTool(id),
 }
 
 /**
