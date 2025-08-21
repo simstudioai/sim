@@ -191,7 +191,45 @@ function RunSkipButtons({
     return (
       <div className='flex items-center gap-2'>
         <Button
-          onClick={handleOpenDriveAccess}
+          onClick={async () => {
+            const instance = getClientTool(toolCall.id)
+            if (!instance) return
+            await instance.handleAccept?.({
+              openDrivePicker: async (accessToken: string) => {
+                try {
+                  const clientId = getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID') || ''
+                  const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_API_KEY') || ''
+                  const projectNumber = getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER') || ''
+                  return await new Promise<boolean>((resolve) => {
+                    openPicker({
+                      clientId,
+                      developerKey: apiKey,
+                      viewId: 'DOCS',
+                      token: accessToken,
+                      showUploadView: true,
+                      showUploadFolders: true,
+                      supportDrives: true,
+                      multiselect: false,
+                      appId: projectNumber,
+                      setSelectFolderEnabled: false,
+                      callbackFunction: async (data) => {
+                        if (data.action === 'picked') {
+                          resolve(true)
+                        } else if (data.action === 'cancel') {
+                          resolve(false)
+                        } else {
+                          // Ignore intermediate events like 'loaded'
+                        }
+                      },
+                    })
+                  })
+                } catch (e) {
+                  console.error('Failed to open Google Drive picker', e)
+                  return false
+                }
+              },
+            })
+          }}
           size='sm'
           className='h-6 bg-gray-900 px-2 font-medium text-white text-xs hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200'
           title='Grant Google Drive access'

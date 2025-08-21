@@ -4,6 +4,7 @@ import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useCopilotStore } from '@/stores/copilot/store'
 
 interface RunWorkflowArgs {
   workflowId?: string
@@ -35,6 +36,36 @@ export class RunWorkflowClientTool extends BaseClientTool {
     },
   }
 
+  private updateStoreToolCallState(next: 'executing' | 'rejected' | 'success' | 'errored') {
+    const { messages } = useCopilotStore.getState()
+    const updated = messages.map((msg) => {
+      const updatedToolCalls = msg.toolCalls?.map((tc) =>
+        tc.id === this.toolCallId ? { ...tc, state: next } : tc
+      )
+      const updatedBlocks = msg.contentBlocks?.map((b: any) =>
+        b.type === 'tool_call' && b.toolCall?.id === this.toolCallId
+          ? { ...b, toolCall: { ...b.toolCall, state: next } }
+          : b
+      )
+      return { ...msg, toolCalls: updatedToolCalls, contentBlocks: updatedBlocks }
+    })
+    useCopilotStore.setState({ messages: updated })
+  }
+
+  async handleAccept(args?: RunWorkflowArgs): Promise<void> {
+    const logger = createLogger('RunWorkflowClientTool')
+    logger.debug('handleAccept() called', { toolCallId: this.toolCallId })
+    this.updateStoreToolCallState('executing')
+    await this.execute(args)
+  }
+
+  async handleReject(): Promise<void> {
+    const logger = createLogger('RunWorkflowClientTool')
+    logger.debug('handleReject() called', { toolCallId: this.toolCallId })
+    await super.handleReject()
+    this.updateStoreToolCallState('rejected')
+  }
+
   async execute(args?: RunWorkflowArgs): Promise<void> {
     const logger = createLogger('RunWorkflowClientTool')
     try {
@@ -50,7 +81,7 @@ export class RunWorkflowClientTool extends BaseClientTool {
       const { isExecuting, setIsExecuting } = useExecutionStore.getState()
       if (isExecuting) {
         logger.debug('Execution prevented: already executing')
-        this.setState(ClientToolCallState.error)
+        this.updateStoreToolCallState('errored')
         await this.markToolComplete(
           409,
           'The workflow is already in the middle of an execution. Try again later'
@@ -61,7 +92,7 @@ export class RunWorkflowClientTool extends BaseClientTool {
       const { activeWorkflowId } = useWorkflowRegistry.getState()
       if (!activeWorkflowId) {
         logger.debug('Execution prevented: no active workflow')
-        this.setState(ClientToolCallState.error)
+        this.updateStoreToolCallState('errored')
         await this.markToolComplete(400, 'No active workflow found')
         return
       }
@@ -76,7 +107,7 @@ export class RunWorkflowClientTool extends BaseClientTool {
 
       setIsExecuting(true)
       logger.debug('Set isExecuting(true) and switching state to executing')
-      this.setState(ClientToolCallState.executing)
+      this.updateStoreToolCallState('executing')
 
       const executionStartTime = new Date().toISOString()
       logger.debug('Starting workflow execution', {
@@ -99,7 +130,7 @@ export class RunWorkflowClientTool extends BaseClientTool {
       if (result && (!('success' in result) || result.success !== false)) {
         logger.debug('Execution succeeded; marking complete (200)')
         await this.markToolComplete(200, `Workflow execution completed. Started at: ${executionStartTime}`)
-        this.setState(ClientToolCallState.success)
+        this.updateStoreToolCallState('success')
         return
       }
 
@@ -112,7 +143,7 @@ export class RunWorkflowClientTool extends BaseClientTool {
         errorMessage,
       })
       await this.markToolComplete(status, failedDependency ? undefined : errorMessage)
-      this.setState(ClientToolCallState.error)
+      this.updateStoreToolCallState('errored')
     } catch (error: any) {
       const { setIsExecuting } = useExecutionStore.getState()
       setIsExecuting(false)
@@ -125,7 +156,7 @@ export class RunWorkflowClientTool extends BaseClientTool {
         errorMessage,
       })
       await this.markToolComplete(status, `Workflow execution failed: ${errorMessage}`)
-      this.setState(ClientToolCallState.error)
+      this.updateStoreToolCallState('errored')
     }
   }
 } 

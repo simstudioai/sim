@@ -11,6 +11,7 @@ import { COPILOT_TOOL_IDS } from './constants'
 import { GetUserWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/get-user-workflow'
 import { RunWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/run-workflow'
 import { registerClientTool } from '@/lib/copilot-new/tools/client/manager'
+import { GDriveRequestAccessClientTool } from '@/lib/copilot-new/tools/client/google/gdrive-request-access'
 import type {
   CopilotMessage,
   CopilotStore,
@@ -940,6 +941,13 @@ const sseHandlers: Record<string, SSEHandler> = {
           context.clientTools[toolCallId] = inst
           try { registerClientTool(toolCallId, inst) } catch {}
         }
+      } else if (toolName === 'gdrive_request_access') {
+        context.clientTools = context.clientTools || {}
+        if (!context.clientTools[toolCallId]) {
+          const inst = new GDriveRequestAccessClientTool(toolCallId)
+          context.clientTools[toolCallId] = inst
+          try { registerClientTool(toolCallId, inst) } catch {}
+        }
       } else if (toolName === 'run_workflow') {
         context.clientTools = context.clientTools || {}
         if (!context.clientTools[toolCallId]) {
@@ -965,7 +973,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       existingToolCall.input = toolData.arguments || {}
       const requiresInterrupt = toolRequiresInterrupt(existingToolCall.name)
       // Override for new client tools with explicit interrupt flow
-      if (existingToolCall.name === 'run_workflow') {
+      if (existingToolCall.name === 'run_workflow' || existingToolCall.name === 'gdrive_request_access') {
         existingToolCall.state = 'pending'
       } else {
         existingToolCall.state = requiresInterrupt ? 'pending' : 'executing'
@@ -1017,6 +1025,13 @@ const sseHandlers: Record<string, SSEHandler> = {
           logger.error('Client tool execution failed for get_user_workflow (new)', e)
         }
       }, 0)
+    } else if (toolData.name === 'gdrive_request_access') {
+      context.clientTools = context.clientTools || {}
+      if (!context.clientTools[toolData.id]) {
+        const inst = new GDriveRequestAccessClientTool(toolData.id)
+        context.clientTools[toolData.id] = inst
+        try { registerClientTool(toolData.id, inst) } catch {}
+      }
     } else if (toolData.name === 'run_workflow') {
       // Do not auto-execute; wait for user to click Run in pending state
       context.clientTools = context.clientTools || {}
