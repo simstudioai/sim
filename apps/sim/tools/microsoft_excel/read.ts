@@ -162,27 +162,20 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    data: {
       type: 'object',
-      description: 'Excel spreadsheet data and metadata',
+      description: 'Range data from the spreadsheet',
       properties: {
-        data: {
-          type: 'object',
-          description: 'Range data from the spreadsheet',
-          properties: {
-            range: { type: 'string', description: 'The range that was read' },
-            values: { type: 'array', description: 'Array of rows containing cell values' },
-          },
-        },
-        metadata: {
-          type: 'object',
-          description: 'Spreadsheet metadata',
-          properties: {
-            spreadsheetId: { type: 'string', description: 'The ID of the spreadsheet' },
-            spreadsheetUrl: { type: 'string', description: 'URL to access the spreadsheet' },
-          },
-        },
+        range: { type: 'string', description: 'The range that was read' },
+        values: { type: 'array', description: 'Array of rows containing cell values' },
+      },
+    },
+    metadata: {
+      type: 'object',
+      description: 'Spreadsheet metadata',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'The ID of the spreadsheet' },
+        spreadsheetUrl: { type: 'string', description: 'URL to access the spreadsheet' },
       },
     },
   },
