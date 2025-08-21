@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { Info } from 'lucide-react'
-import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -23,8 +22,8 @@ const TOOLTIPS = {
 }
 
 export function General() {
-  const { theme, setTheme } = useTheme()
   const isLoading = useGeneralStore((state) => state.isLoading)
+  const theme = useGeneralStore((state) => state.theme)
   const isAutoConnectEnabled = useGeneralStore((state) => state.isAutoConnectEnabled)
 
   const isAutoPanEnabled = useGeneralStore((state) => state.isAutoPanEnabled)
@@ -37,26 +36,27 @@ export function General() {
   const isConsoleExpandedByDefaultLoading = useGeneralStore(
     (state) => state.isConsoleExpandedByDefaultLoading
   )
+  const isThemeLoading = useGeneralStore((state) => state.isThemeLoading)
 
+  const setTheme = useGeneralStore((state) => state.setTheme)
   const toggleAutoConnect = useGeneralStore((state) => state.toggleAutoConnect)
 
   const toggleAutoPan = useGeneralStore((state) => state.toggleAutoPan)
   const toggleConsoleExpandedByDefault = useGeneralStore(
     (state) => state.toggleConsoleExpandedByDefault
   )
-  const loadSettings = useGeneralStore((state) => state.loadSettings)
 
+  // Sync theme from store to next-themes when theme changes
   useEffect(() => {
-    const loadData = async () => {
-      await loadSettings()
+    if (!isLoading && theme) {
+      // Ensure next-themes is in sync with our store
+      const { syncThemeToNextThemes } = require('@/lib/theme-sync')
+      syncThemeToNextThemes(theme)
     }
-    loadData()
-  }, [loadSettings])
+  }, [theme, isLoading])
 
   const handleThemeChange = async (value: 'system' | 'light' | 'dark') => {
-    setTheme(value)
-    // Sync to DB for authenticated users
-    await useGeneralStore.getState().syncThemeToDb(value)
+    await setTheme(value)
   }
 
   const handleAutoConnectChange = async (checked: boolean) => {
@@ -153,9 +153,9 @@ export function General() {
                 </Label>
               </div>
               <Select
-                value={theme || 'system'}
+                value={theme}
                 onValueChange={handleThemeChange}
-                disabled={isLoading}
+                disabled={isLoading || isThemeLoading}
               >
                 <SelectTrigger id='theme-select' className='h-9 w-[180px]'>
                   <SelectValue placeholder='Select theme' />
