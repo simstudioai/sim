@@ -130,7 +130,7 @@ function Hero() {
       </div>
 
       <div className='animation-container relative z-20 space-y-4 px-4 text-center'>
-        <h1 className='animation-container animate-fade-up font-semibold text-[42px] leading-[1.10] opacity-0 will-change-[opacity,transform] [animation-delay:200ms] md:text-[68px]'>
+        <h1 className='animation-container animate-fade-up font-semibold text-[42px] leading-[1.10] pb-2 opacity-0 will-change-[opacity,transform] [animation-delay:200ms] md:text-[68px]'>
           Build / Deploy
           <br />
           Agent Workflows
