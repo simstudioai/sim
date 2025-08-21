@@ -21,11 +21,11 @@ import {
 import { getBaseURL } from '@/lib/auth-client'
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { sendEmail } from '@/lib/email/mailer'
+import { getFromEmailAddress } from '@/lib/email/utils'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
 import { isBillingEnabled, isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
 
@@ -153,7 +153,7 @@ export const auth = betterAuth({
         to: user.email,
         subject: getEmailSubject('reset-password'),
         html,
-        from: `noreply@${env.EMAIL_DOMAIN || getEmailDomain()}`,
+        from: getFromEmailAddress(),
         emailType: 'transactional',
       })
 
@@ -244,7 +244,7 @@ export const auth = betterAuth({
             to: data.email,
             subject: getEmailSubject(data.type),
             html,
-            from: `onboarding@${env.EMAIL_DOMAIN || getEmailDomain()}`,
+            from: getFromEmailAddress(),
             emailType: 'transactional',
           })
 
@@ -1446,7 +1446,7 @@ export const auth = betterAuth({
                   to: invitation.email,
                   subject: `${inviterName} has invited you to join ${organization.name} on Sim`,
                   html,
-                  from: `noreply@${env.EMAIL_DOMAIN || getEmailDomain()}`,
+                  from: getFromEmailAddress(),
                   emailType: 'transactional',
                 })
 

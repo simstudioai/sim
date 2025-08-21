@@ -37,7 +37,7 @@ vi.mock('@/lib/env', () => ({
     AZURE_ACS_CONNECTION_STRING: 'test-azure-connection-string',
     AZURE_COMMUNICATION_EMAIL_DOMAIN: 'test.azurecomm.net',
     NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
-    SENDER_NAME: 'Sim',
+    FROM_EMAIL_ADDRESS: 'Sim <noreply@sim.ai>',
   },
 }))
 
@@ -198,7 +198,7 @@ describe('mailer', () => {
 
       expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
-          from: 'Sim <custom@example.com>',
+          from: 'custom@example.com',
         })
       )
     })
@@ -214,23 +214,6 @@ describe('mailer', () => {
       expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
           headers: undefined,
-        })
-      )
-    })
-
-    it('should use custom from format when useCustomFromFormat is true', async () => {
-      const result = await sendEmail({
-        ...testEmailOptions,
-        from: 'Sim <noreply@sim.ai>',
-        useCustomFromFormat: true,
-      })
-
-      expect(result.success).toBe(true)
-
-      // Should call Resend with the exact from address provided (no modification)
-      expect(mockSend).toHaveBeenCalledWith(
-        expect.objectContaining({
-          from: 'Sim <noreply@sim.ai>', // Uses custom format as-is
         })
       )
     })

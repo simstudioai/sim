@@ -5,9 +5,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { WorkspaceInvitationEmail } from '@/components/emails/workspace-invitation'
 import { getSession } from '@/lib/auth'
 import { sendEmail } from '@/lib/email/mailer'
+import { getFromEmailAddress } from '@/lib/email/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'
 import {
   permissions,
@@ -240,8 +240,7 @@ async function sendInvitationEmail({
       })
     )
 
-    const emailDomain = env.EMAIL_DOMAIN || getEmailDomain()
-    const fromAddress = `${env.SENDER_NAME || 'Sim'} <noreply@${emailDomain}>`
+    const fromAddress = getFromEmailAddress()
 
     logger.info(`Attempting to send email from ${fromAddress} to ${to}`)
 
@@ -251,7 +250,6 @@ async function sendInvitationEmail({
       html: emailHtml,
       from: fromAddress,
       emailType: 'transactional',
-      useCustomFromFormat: true,
     })
 
     if (result.success) {

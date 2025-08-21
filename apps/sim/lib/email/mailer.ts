@@ -1,9 +1,9 @@
 import { EmailClient, type EmailMessage } from '@azure/communication-email'
 import { Resend } from 'resend'
 import { generateUnsubscribeToken, isUnsubscribed } from '@/lib/email/unsubscribe'
+import { getFromEmailAddress } from '@/lib/email/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getEmailDomain } from '@/lib/urls/utils'
 
 const logger = createLogger('Mailer')
 
@@ -26,7 +26,6 @@ export interface EmailOptions {
   includeUnsubscribe?: boolean
   attachments?: EmailAttachment[]
   replyTo?: string
-  useCustomFromFormat?: boolean // If true, uses "from" as-is; if false, uses "SENDER_NAME <from>" format
 }
 
 export interface BatchEmailOptions {
@@ -55,7 +54,6 @@ interface ProcessedEmailData {
   headers: Record<string, string>
   attachments?: EmailAttachment[]
   replyTo?: string
-  useCustomFromFormat: boolean
 }
 
 const resendApiKey = env.RESEND_API_KEY
@@ -149,10 +147,9 @@ async function processEmailData(options: EmailOptions): Promise<ProcessedEmailDa
     includeUnsubscribe = true,
     attachments,
     replyTo,
-    useCustomFromFormat = false,
   } = options
 
-  const senderEmail = from || `noreply@${env.EMAIL_DOMAIN || getEmailDomain()}`
+  const senderEmail = from || getFromEmailAddress()
 
   // Generate unsubscribe token and add to content
   let finalHtml = html
@@ -186,16 +183,13 @@ async function processEmailData(options: EmailOptions): Promise<ProcessedEmailDa
     headers,
     attachments,
     replyTo,
-    useCustomFromFormat,
   }
 }
 
 async function sendWithResend(data: ProcessedEmailData): Promise<SendEmailResult> {
   if (!resend) throw new Error('Resend not configured')
 
-  const fromAddress = data.useCustomFromFormat
-    ? data.senderEmail
-    : `${env.SENDER_NAME || 'Sim'} <${data.senderEmail}>`
+  const fromAddress = data.senderEmail
 
   const emailData: any = {
     from: fromAddress,
@@ -327,9 +321,9 @@ async function sendBatchWithResend(emails: EmailOptions[]): Promise<BatchSendEma
 
   const results: SendEmailResult[] = []
   const batchEmails = emails.map((email) => {
-    const senderEmail = email.from || `noreply@${env.EMAIL_DOMAIN || getEmailDomain()}`
+    const senderEmail = email.from || getFromEmailAddress()
     const emailData: any = {
-      from: `${env.SENDER_NAME || 'Sim'} <${senderEmail}>`,
+      from: senderEmail,
       to: email.to,
       subject: email.subject,
     }
