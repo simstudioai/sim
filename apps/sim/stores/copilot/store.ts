@@ -735,7 +735,24 @@ const sseHandlers: Record<string, SSEHandler> = {
 
     if (existingToolCall) {
       existingToolCall.input = toolData.arguments || {}
-      const instance = context.clientTools?.[existingToolCall.id]
+      // Ensure we have a client tool instance for interrupt detection
+      let instance = context.clientTools?.[existingToolCall.id] || getClientTool(existingToolCall.id)
+      if (instance && !context.clientTools?.[existingToolCall.id]) {
+        context.clientTools = context.clientTools || {}
+        context.clientTools[existingToolCall.id] = instance
+      }
+      if (!instance) {
+        try {
+          const ctor = CLIENT_TOOL_CONSTRUCTORS[existingToolCall.name]
+          if (ctor) {
+            instance = ctor(existingToolCall.id)
+            context.clientTools = context.clientTools || {}
+            context.clientTools[existingToolCall.id] = instance
+            try { registerClientTool(existingToolCall.id, instance) } catch {}
+            try { existingToolCall.displayName = instance.getDisplayState()?.text || existingToolCall.name } catch {}
+          }
+        } catch {}
+      }
       const hasInterrupt = !!instance?.hasInterrupt?.()
       // Only transition to executing/pending from transient states; don't override terminal states
       const transientStates = new Set< ClientToolCallState >([
