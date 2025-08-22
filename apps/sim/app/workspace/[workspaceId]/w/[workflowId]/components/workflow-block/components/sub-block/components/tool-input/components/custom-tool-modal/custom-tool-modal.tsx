@@ -944,6 +944,7 @@ try {
                     highlightVariables={true}
                     disabled={codeGeneration.isLoading || codeGeneration.isStreaming} // Use disabled prop instead of readOnly
                     onKeyDown={handleKeyDown} // Pass keydown handler
+                    schemaParameters={schemaParameters} // Pass schema parameters for highlighting
                   />
 
                   {/* Environment variables dropdown */}
@@ -992,7 +993,7 @@ try {
                   {/* Schema parameters dropdown */}
                   {showSchemaParams && schemaParameters.length > 0 && (
                     <div
-                      className='absolute z-[9999] mt-1 w-80 overflow-visible rounded-md border bg-popover shadow-md'
+                      className='absolute z-[9999] mt-1 w-64 overflow-visible rounded-md border bg-popover shadow-md'
                       style={{
                         top: `${dropdownPosition.top}px`,
                         left: `${dropdownPosition.left}px`,
@@ -1002,7 +1003,7 @@ try {
                         <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
                           Available Parameters
                         </div>
-                        <div className='-mx-1 -px-1'>
+                        <div>
                           {schemaParameters.map((param, index) => (
                             <button
                               key={param.name}
@@ -1023,14 +1024,7 @@ try {
                                 <span className='h-3 w-3 font-bold text-white text-xs'>P</span>
                               </div>
                               <span className='flex-1 truncate'>{param.name}</span>
-                              <div className='flex items-center gap-1'>
-                                {param.required && (
-                                  <span className='rounded bg-red-100 px-1.5 py-0.5 text-red-700 text-xs'>
-                                    required
-                                  </span>
-                                )}
-                                <span className='text-muted-foreground text-xs'>{param.type}</span>
-                              </div>
+                              <span className='text-muted-foreground text-xs'>{param.type}</span>
                             </button>
                           ))}
                         </div>

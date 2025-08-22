@@ -18,6 +18,7 @@ interface CodeEditorProps {
   highlightVariables?: boolean
   onKeyDown?: (e: React.KeyboardEvent) => void
   disabled?: boolean
+  schemaParameters?: Array<{ name: string; type: string; description: string; required: boolean }>
 }
 
 export function CodeEditor({
@@ -30,6 +31,7 @@ export function CodeEditor({
   highlightVariables = true,
   onKeyDown,
   disabled = false,
+  schemaParameters = [],
 }: CodeEditorProps) {
   const [code, setCode] = useState(value)
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
@@ -136,6 +138,22 @@ export function CodeEditor({
           return match
         }
         return `<span class="text-blue-500">&lt;${group}&gt;</span>`
+      })
+    }
+
+    // Highlight schema parameters when they appear as standalone identifiers
+    if (schemaParameters.length > 0) {
+      schemaParameters.forEach((param) => {
+        // Create a regex that matches the parameter name as a whole word
+        // This prevents partial matches and avoids matching within other identifiers
+        const paramRegex = new RegExp(`\\b(${param.name})\\b`, 'g')
+        highlighted = highlighted.replace(paramRegex, (match) => {
+          // Only highlight if it's not already within a span (to avoid double-highlighting)
+          if (match.includes('<span')) {
+            return match
+          }
+          return `<span class="text-green-600 font-medium">${match}</span>`
+        })
       })
     }
 
