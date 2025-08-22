@@ -116,7 +116,7 @@ async function parseDocument(
 }> {
   const isPDF = mimeType === 'application/pdf'
   const hasAzureMistralOCR =
-    env.AZURE_OPENAI_API_KEY && env.OCR_AZURE_ENDPOINT && env.OCR_AZURE_MODEL_NAME
+    env.OCR_AZURE_API_KEY && env.OCR_AZURE_ENDPOINT && env.OCR_AZURE_MODEL_NAME
   const hasMistralOCR = env.MISTRAL_API_KEY
 
   // Check Azure Mistral OCR configuration
@@ -288,7 +288,7 @@ async function makeOCRRequest(endpoint: string, headers: Record<string, string>,
 
 async function parseWithAzureMistralOCR(fileUrl: string, filename: string, mimeType: string) {
   validateOCRConfig(
-    env.AZURE_OPENAI_API_KEY,
+    env.OCR_AZURE_API_KEY,
     env.OCR_AZURE_ENDPOINT,
     env.OCR_AZURE_MODEL_NAME,
     'Azure Mistral OCR'
@@ -306,7 +306,7 @@ async function parseWithAzureMistralOCR(fileUrl: string, filename: string, mimeT
           env.OCR_AZURE_ENDPOINT!,
           {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${env.AZURE_OPENAI_API_KEY}`,
+            Authorization: `Bearer ${env.OCR_AZURE_API_KEY}`,
           },
           {
             model: env.OCR_AZURE_MODEL_NAME,
