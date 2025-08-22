@@ -3,6 +3,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import type { Metadata, Viewport } from 'next'
 import { PublicEnvScript } from 'next-runtime-env'
 import { BrandedLayout } from '@/components/branded-layout'
+import { generateThemeCSS } from '@/lib/branding/inject-theme'
 import { generateBrandedMetadata, generateStructuredData } from '@/lib/branding/metadata'
 import { env } from '@/lib/env'
 import { isHosted } from '@/lib/environment'
@@ -62,6 +63,7 @@ export const metadata: Metadata = generateBrandedMetadata()
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const structuredData = generateStructuredData()
+  const themeCSS = generateThemeCSS()
 
   return (
     <html lang='en' suppressHydrationWarning>
@@ -73,6 +75,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: JSON.stringify(structuredData),
           }}
         />
+
+        {/* Theme CSS Override */}
+        {themeCSS && (
+          <style
+            id='theme-override'
+            dangerouslySetInnerHTML={{
+              __html: themeCSS,
+            }}
+          />
+        )}
 
         {/* Meta tags for better SEO */}
         <meta name='color-scheme' content='light dark' />
