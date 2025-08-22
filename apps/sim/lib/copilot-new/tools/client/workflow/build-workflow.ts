@@ -1,4 +1,4 @@
-import { Loader2, Grid2x2, XCircle } from 'lucide-react'
+import { Loader2, Grid2x2, XCircle, Grid2x2Check } from 'lucide-react'
 import { BaseClientTool, ClientToolCallState, type BaseClientToolMetadata } from '@/lib/copilot-new/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
 import { ExecuteResponseSuccessSchema, BuildWorkflowInput, BuildWorkflowResult } from '@/lib/copilot-new/tools/shared/schemas'
@@ -21,7 +21,7 @@ export class BuildWorkflowClientTool extends BaseClientTool {
     displayNames: {
       [ClientToolCallState.generating]: { text: 'Preparing to build workflow', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Building your workflow', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Built your workflow', icon: Grid2x2 },
+      [ClientToolCallState.success]: { text: 'Built your workflow', icon: Grid2x2Check },
       [ClientToolCallState.error]: { text: 'Failed to build your workflow', icon: XCircle },
       [ClientToolCallState.review]: { text: 'Review your workflow', icon: Grid2x2 },
       [ClientToolCallState.rejected]: { text: 'Rejected workflow', icon: XCircle },

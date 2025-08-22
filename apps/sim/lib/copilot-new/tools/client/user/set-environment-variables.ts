@@ -30,33 +30,42 @@ export class SetEnvironmentVariablesClientTool extends BaseClientTool {
 		},
 	}
 
-	async execute(args?: SetEnvArgs): Promise<void> {
-		const logger = createLogger('SetEnvironmentVariablesClientTool')
-		try {
-			this.setState(ClientToolCallState.executing)
-			let payload: SetEnvArgs = { ...(args || { variables: {} }) }
-			if (!payload.workflowId) {
-				const { activeWorkflowId } = useWorkflowRegistry.getState()
-				if (activeWorkflowId) payload.workflowId = activeWorkflowId
-			}
-			const res = await fetch('/api/copilot/execute-copilot-server-tool', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ toolName: 'set_environment_variables', payload }),
-			})
-			if (!res.ok) {
-				const txt = await res.text().catch(() => '')
-				throw new Error(txt || `Server error (${res.status})`)
-			}
-			const json = await res.json()
-			const parsed = ExecuteResponseSuccessSchema.parse(json)
-			this.setState(ClientToolCallState.success)
-			await this.markToolComplete(200, 'Environment variables updated', parsed.result)
-			this.setState(ClientToolCallState.success)
-		} catch (e: any) {
-			logger.error('execute failed', { message: e?.message })
-			this.setState(ClientToolCallState.error)
-			await this.markToolComplete(500, e?.message || 'Failed to set environment variables')
-		}
-	}
-} 
+    async handleReject(): Promise<void> {
+        await super.handleReject()
+        this.setState(ClientToolCallState.rejected)
+    }
+
+    async handleAccept(args?: SetEnvArgs): Promise<void> {
+        const logger = createLogger('SetEnvironmentVariablesClientTool')
+        try {
+            this.setState(ClientToolCallState.executing)
+            let payload: SetEnvArgs = { ...(args || { variables: {} }) }
+            if (!payload.workflowId) {
+                const { activeWorkflowId } = useWorkflowRegistry.getState()
+                if (activeWorkflowId) payload.workflowId = activeWorkflowId
+            }
+            const res = await fetch('/api/copilot/execute-copilot-server-tool', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ toolName: 'set_environment_variables', payload }),
+            })
+            if (!res.ok) {
+                const txt = await res.text().catch(() => '')
+                throw new Error(txt || `Server error (${res.status})`)
+            }
+            const json = await res.json()
+            const parsed = ExecuteResponseSuccessSchema.parse(json)
+            this.setState(ClientToolCallState.success)
+            await this.markToolComplete(200, 'Environment variables updated', parsed.result)
+            this.setState(ClientToolCallState.success)
+        } catch (e: any) {
+            logger.error('execute failed', { message: e?.message })
+            this.setState(ClientToolCallState.error)
+            await this.markToolComplete(500, e?.message || 'Failed to set environment variables')
+        }
+    }
+
+    async execute(args?: SetEnvArgs): Promise<void> {
+        await this.handleAccept(args)
+    }
+}

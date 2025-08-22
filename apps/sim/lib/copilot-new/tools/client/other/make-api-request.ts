@@ -32,8 +32,13 @@ export class MakeApiRequestClientTool extends BaseClientTool {
 		},
 	}
 
-	async execute(args?: MakeApiRequestArgs): Promise<void> {
-		const logger = createLogger('MakeApiRequestClientTool')
+    async handleReject(): Promise<void> {
+        await super.handleReject()
+        this.setState(ClientToolCallState.rejected)
+    }
+
+    async handleAccept(args?: MakeApiRequestArgs): Promise<void> {
+        const logger = createLogger('MakeApiRequestClientTool')
 		try {
 			this.setState(ClientToolCallState.executing)
 			const res = await fetch('/api/copilot/execute-copilot-server-tool', {
@@ -55,5 +60,9 @@ export class MakeApiRequestClientTool extends BaseClientTool {
 			this.setState(ClientToolCallState.error)
 			await this.markToolComplete(500, e?.message || 'API request failed')
 		}
+    }
+
+	async execute(args?: MakeApiRequestArgs): Promise<void> {
+        await this.handleAccept(args)
 	}
 } 

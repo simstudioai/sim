@@ -1103,7 +1103,93 @@ export const useCopilotStore = create<CopilotStore>()(
         set({ toolCallsById: map })
       } catch {}
     },
-    updatePreviewToolCallState: () => {},
+    updatePreviewToolCallState: (toolCallState: 'accepted' | 'rejected' | 'error', toolCallId?: string) => {
+      const stateMap: Record<string, ClientToolCallState> = {
+        accepted: ClientToolCallState.success,
+        rejected: ClientToolCallState.rejected,
+        error: ClientToolCallState.error,
+      }
+      const targetState = stateMap[toolCallState] || ClientToolCallState.success
+      const { toolCallsById } = get()
+      // Determine target tool
+      let id = toolCallId
+      if (!id) {
+        // Prefer the latest assistant message's build/edit tool_call
+        const messages = get().messages
+        outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
+          const m = messages[mi]
+          if (m.role !== 'assistant' || !m.contentBlocks) continue
+          for (const b of m.contentBlocks as any[]) {
+            if (b?.type === 'tool_call') {
+              const tn = b.toolCall?.name
+              if (tn === 'build_workflow' || tn === 'edit_workflow') {
+                id = b.toolCall?.id
+                break outer
+              }
+            }
+          }
+        }
+        // Fallback to map if not found in messages
+        if (!id) {
+          const candidates = Object.values(toolCallsById).filter(
+            (t) => t.name === 'build_workflow' || t.name === 'edit_workflow'
+          )
+          id = candidates.length ? candidates[candidates.length - 1].id : undefined
+        }
+      }
+      if (!id) return
+      const current = toolCallsById[id]
+      if (!current) return
+
+      // Update store map
+      const updatedMap = { ...toolCallsById }
+      updatedMap[id] = {
+        ...current,
+        state: targetState,
+        display: resolveToolDisplay(current.name, targetState, id, current.params),
+      }
+      set({ toolCallsById: updatedMap })
+
+      // Update inline content block in the latest assistant message
+      set((s) => {
+        const messages = [...s.messages]
+        for (let mi = messages.length - 1; mi >= 0; mi--) {
+          const m = messages[mi]
+          if (m.role !== 'assistant' || !m.contentBlocks) continue
+          let changed = false
+          const blocks = m.contentBlocks.map((b: any) => {
+            if (b.type === 'tool_call' && b.toolCall?.id === id) {
+              changed = true
+              return { ...b, toolCall: { ...b.toolCall, state: targetState } }
+            }
+            return b
+          })
+          if (changed) {
+            messages[mi] = { ...m, contentBlocks: blocks }
+            break
+          }
+        }
+        return { messages }
+      })
+
+      // Notify backend mark-complete to finalize tool server-side
+      try {
+        fetch('/api/copilot/tools/mark-complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id,
+            name: current.name,
+            status: targetState === ClientToolCallState.success
+              ? 200
+              : targetState === ClientToolCallState.rejected
+              ? 409
+              : 500,
+            message: toolCallState,
+          }),
+        }).catch(() => {})
+      } catch {}
+    },
 
     sendDocsMessage: async (query: string) => {
       await get().sendMessage(query)
