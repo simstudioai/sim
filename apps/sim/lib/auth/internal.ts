@@ -57,8 +57,10 @@ export async function verifyInternalToken(token: string): Promise<boolean> {
 export function verifyCronAuth(request: NextRequest, context?: string): NextResponse | null {
   const authHeader = request.headers.get('authorization')
   const expectedAuth = `Bearer ${env.CRON_SECRET}`
+  const isVercelCron = request.headers.get('x-vercel-cron') === '1'
 
-  if (authHeader !== expectedAuth) {
+  // Allow Vercel Cron requests (they include x-vercel-cron header instead of Authorization)
+  if (!isVercelCron && authHeader !== expectedAuth) {
     const contextInfo = context ? ` for ${context}` : ''
     logger.warn(`Unauthorized CRON access attempt${contextInfo}`, {
       providedAuth: authHeader,
