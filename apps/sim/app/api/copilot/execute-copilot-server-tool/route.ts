@@ -1,8 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createRequestTracker, authenticateCopilotRequestSessionOnly, createBadRequestResponse, createInternalServerErrorResponse, createUnauthorizedResponse } from '@/lib/copilot/auth'
-import { createLogger } from '@/lib/logs/console/logger'
+import {
+  authenticateCopilotRequestSessionOnly,
+  createBadRequestResponse,
+  createInternalServerErrorResponse,
+  createRequestTracker,
+  createUnauthorizedResponse,
+} from '@/lib/copilot/auth'
 import { routeExecution } from '@/lib/copilot-new/tools/server/router'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('ExecuteCopilotServerToolAPI')
 
@@ -44,4 +50,4 @@ export async function POST(req: NextRequest) {
     logger.error(`[${tracker.requestId}] Failed to execute server tool:`, error)
     return createInternalServerErrorResponse('Failed to execute server tool')
   }
-} 
+}

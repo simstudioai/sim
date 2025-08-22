@@ -7,8 +7,8 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/auth'
-import { createLogger } from '@/lib/logs/console/logger'
 import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 
 const logger = createLogger('CopilotMarkToolCompleteAPI')
@@ -52,7 +52,8 @@ export async function POST(req: NextRequest) {
 
     const messagePreview = (() => {
       try {
-        const s = typeof parsed.message === 'string' ? parsed.message : JSON.stringify(parsed.message)
+        const s =
+          typeof parsed.message === 'string' ? parsed.message : JSON.stringify(parsed.message)
         return s ? `${s.slice(0, 200)}${s.length > 200 ? '...' : ''}` : undefined
       } catch {
         return undefined
@@ -101,7 +102,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
-    const errorMessage = agentJson?.error || agentText || `Agent responded with status ${agentRes.status}`
+    const errorMessage =
+      agentJson?.error || agentText || `Agent responded with status ${agentRes.status}`
     const status = agentRes.status >= 500 ? 500 : 400
 
     logger.warn(`[${tracker.requestId}] Mark-complete failed`, {
@@ -120,4 +122,4 @@ export async function POST(req: NextRequest) {
     logger.error(`[${tracker.requestId}] Failed to proxy mark-complete:`, error)
     return createInternalServerErrorResponse('Failed to mark tool as complete')
   }
-} 
+}

@@ -1553,6 +1553,7 @@ const CLIENT_TOOL_CONSTRUCTORS: Record<string, (id: string) => any> = {
   build_workflow: (id) => new BuildWorkflowClientTool(id),
   get_workflow_console: (id) => new GetWorkflowConsoleClientTool(id),
   search_online: (id) => new SearchOnlineClientTool(id),
+  search_documentation: (id) => new (require('@/lib/copilot-new/tools/client/other/search-documentation').SearchDocumentationClientTool)(id),
   get_environment_variables: (id) => new GetEnvironmentVariablesClientTool(id),
   set_environment_variables: (id) => new SetEnvironmentVariablesClientTool(id),
   list_gdrive_files: (id) => new ListGDriveFilesClientTool(id),
