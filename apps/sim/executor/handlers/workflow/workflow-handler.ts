@@ -118,7 +118,13 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       if ((mappedResult as any).success === false) {
         const childError = (mappedResult as any).error || 'Unknown error'
-        throw new Error(`Error in child workflow "${childWorkflowName}": ${childError}`)
+        const errorWithSpans = new Error(
+          `Error in child workflow "${childWorkflowName}": ${childError}`
+        ) as any
+        // Attach trace spans and name for higher-level logging to consume
+        errorWithSpans.childTraceSpans = childTraceSpans
+        errorWithSpans.childWorkflowName = childWorkflowName
+        throw errorWithSpans
       }
 
       return mappedResult
@@ -306,11 +312,16 @@ export class WorkflowBlockHandler implements BlockHandler {
     const success = childResult.success !== false
     if (!success) {
       logger.warn(`Child workflow ${childWorkflowName} failed`)
-      return {
+      const failure: Record<string, any> = {
         success: false,
         childWorkflowName,
         error: childResult.error || 'Child workflow execution failed',
-      } as Record<string, any>
+      }
+      // Only include spans when present to keep output stable for callers/tests
+      if (Array.isArray(childTraceSpans) && childTraceSpans.length > 0) {
+        failure.childTraceSpans = childTraceSpans
+      }
+      return failure as Record<string, any>
     }
     let result = childResult
     if (childResult?.output) {

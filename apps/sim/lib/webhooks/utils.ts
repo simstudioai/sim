@@ -607,19 +607,9 @@ export function formatWebhookInput(
     }
 
     return {
-      input, // Primary workflow input
-
-      // Top-level properties for backward compatibility
-      ...githubData,
-
-      // GitHub data structured for trigger handler to extract
-      github: {
-        // Processed convenience variables
-        ...githubData,
-        // Raw GitHub webhook payload for direct field access
-        ...body,
-      },
-
+      // Expose raw GitHub payload at the root
+      ...body,
+      // Include webhook metadata alongside
       webhook: {
         data: {
           provider: 'github',
@@ -835,6 +825,8 @@ export async function fetchAndProcessAirtablePayloads(
   let apiCallCount = 0
   // Use a Map to consolidate changes per record ID
   const consolidatedChangesMap = new Map<string, AirtableChange>()
+  // Capture raw payloads from Airtable for exposure to workflows
+  const allPayloads = []
   const localProviderConfig = {
     ...((webhookData.providerConfig as Record<string, any>) || {}),
   } // Local copy
@@ -1031,6 +1023,10 @@ export async function fetchAndProcessAirtablePayloads(
         // --- Process and Consolidate Changes ---
         if (receivedPayloads.length > 0) {
           payloadsFetched += receivedPayloads.length
+          // Keep the raw payloads for later exposure to the workflow
+          for (const p of receivedPayloads) {
+            allPayloads.push(p)
+          }
           let changeCount = 0
           for (const payload of receivedPayloads) {
             if (payload.changedTablesById) {
@@ -1196,10 +1192,25 @@ export async function fetchAndProcessAirtablePayloads(
     )
 
     // --- Execute Workflow if we have changes (simplified - no lock check) ---
-    if (finalConsolidatedChanges.length > 0) {
+    if (finalConsolidatedChanges.length > 0 || allPayloads.length > 0) {
       try {
-        // Format the input for the executor using the consolidated changes
-        const input = { airtableChanges: finalConsolidatedChanges } // Use the consolidated array
+        // Build input exposing raw payloads and consolidated changes
+        const latestPayload = allPayloads.length > 0 ? allPayloads[allPayloads.length - 1] : null
+        const input: any = {
+          // Raw Airtable payloads as received from the API
+          payloads: allPayloads,
+          latestPayload,
+          // Consolidated, simplified changes for convenience
+          airtableChanges: finalConsolidatedChanges,
+          // Include webhook metadata for resolver fallbacks
+          webhook: {
+            data: {
+              provider: 'airtable',
+              providerConfig: webhookData.providerConfig,
+              payload: latestPayload,
+            },
+          },
+        }
 
         // CRITICAL EXECUTION TRACE POINT
         logger.info(
@@ -1216,6 +1227,7 @@ export async function fetchAndProcessAirtablePayloads(
         logger.info(`[${requestId}] CRITICAL_TRACE: Airtable changes processed, returning input`, {
           workflowId: workflowData.id,
           recordCount: finalConsolidatedChanges.length,
+          rawPayloadCount: allPayloads.length,
           timestamp: new Date().toISOString(),
         })
 

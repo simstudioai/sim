@@ -30,6 +30,30 @@ export enum LogLevel {
 }
 
 /**
+ * Get the minimum log level from environment variable or use defaults
+ * - Development: DEBUG (show all logs)
+ * - Production: ERROR (only show errors, but can be overridden by LOG_LEVEL env var)
+ * - Test: ERROR (only show errors in tests)
+ */
+const getMinLogLevel = (): LogLevel => {
+  if (env.LOG_LEVEL) {
+    return env.LOG_LEVEL as LogLevel
+  }
+
+  const ENV = (env.NODE_ENV || 'development') as string
+  switch (ENV) {
+    case 'development':
+      return LogLevel.DEBUG
+    case 'production':
+      return LogLevel.ERROR
+    case 'test':
+      return LogLevel.ERROR
+    default:
+      return LogLevel.DEBUG
+  }
+}
+
+/**
  * Configuration for different environments
  *
  * enabled: Whether logging is enabled at all
@@ -40,17 +64,17 @@ export enum LogLevel {
 const LOG_CONFIG = {
   development: {
     enabled: true,
-    minLevel: LogLevel.DEBUG, // Show all logs in development
+    minLevel: getMinLogLevel(),
     colorize: true,
   },
   production: {
     enabled: true, // Will be checked at runtime
-    minLevel: LogLevel.ERROR,
+    minLevel: getMinLogLevel(),
     colorize: false,
   },
   test: {
     enabled: false, // Disable logs in test environment
-    minLevel: LogLevel.ERROR,
+    minLevel: getMinLogLevel(),
     colorize: false,
   },
 }

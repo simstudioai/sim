@@ -37,7 +37,7 @@ export const githubWebhookTrigger: TriggerConfig = {
   },
 
   outputs: {
-    // GitHub webhook payload structure - maps 1:1 to actual GitHub webhook body
+    // GitHub webhook payload structure - now at root for direct access
     ref: {
       type: 'string',
       description: 'Git reference (e.g., refs/heads/fix/telegram-wh)',

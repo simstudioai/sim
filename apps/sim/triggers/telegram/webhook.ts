@@ -21,55 +21,73 @@ export const telegramWebhookTrigger: TriggerConfig = {
   },
 
   outputs: {
+    // Matches the formatted payload built in `formatWebhookInput` for provider "telegram"
+    // Supports tags like <telegram.message.text> and deep paths like <telegram.message.raw.chat.id>
     message: {
-      update_id: {
+      id: {
         type: 'number',
-        description: 'Unique identifier for the update',
-      },
-      message_id: {
-        type: 'number',
-        description: 'Unique message identifier',
-      },
-      from_id: {
-        type: 'number',
-        description: 'User ID who sent the message',
-      },
-      from_username: {
-        type: 'string',
-        description: 'Username of the sender',
-      },
-      from_first_name: {
-        type: 'string',
-        description: 'First name of the sender',
-      },
-      from_last_name: {
-        type: 'string',
-        description: 'Last name of the sender',
-      },
-      chat_id: {
-        type: 'number',
-        description: 'Unique identifier for the chat',
-      },
-      chat_type: {
-        type: 'string',
-        description: 'Type of chat (private, group, supergroup, channel)',
-      },
-      chat_title: {
-        type: 'string',
-        description: 'Title of the chat (for groups and channels)',
+        description: 'Telegram message ID',
       },
       text: {
         type: 'string',
-        description: 'Message text content',
+        description: 'Message text content (if present)',
       },
       date: {
         type: 'number',
         description: 'Date the message was sent (Unix timestamp)',
       },
-      entities: {
+      messageType: {
         type: 'string',
-        description: 'Special entities in the message (mentions, hashtags, etc.) as JSON string',
+        description:
+          'Detected content type: text, photo, document, audio, video, voice, sticker, location, contact, poll',
       },
+      raw: {
+        message_id: {
+          type: 'number',
+          description: 'Original Telegram message_id',
+        },
+        date: {
+          type: 'number',
+          description: 'Original Telegram message date (Unix timestamp)',
+        },
+        text: {
+          type: 'string',
+          description: 'Original Telegram text (if present)',
+        },
+        caption: {
+          type: 'string',
+          description: 'Original Telegram caption (if present)',
+        },
+        chat: {
+          id: { type: 'number', description: 'Chat identifier' },
+          username: { type: 'string', description: 'Chat username (if available)' },
+          first_name: { type: 'string', description: 'First name (for private chats)' },
+          last_name: { type: 'string', description: 'Last name (for private chats)' },
+        },
+        from: {
+          id: { type: 'number', description: 'Sender user ID' },
+          is_bot: { type: 'boolean', description: 'Whether the sender is a bot' },
+          first_name: { type: 'string', description: 'Sender first name' },
+          last_name: { type: 'string', description: 'Sender last name' },
+          language_code: { type: 'string', description: 'Sender language code (if available)' },
+        },
+      },
+    },
+    sender: {
+      id: { type: 'number', description: 'Sender user ID' },
+      firstName: { type: 'string', description: 'Sender first name' },
+      lastName: { type: 'string', description: 'Sender last name' },
+      languageCode: { type: 'string', description: 'Sender language code (if available)' },
+      isBot: { type: 'boolean', description: 'Whether the sender is a bot' },
+    },
+    updateId: {
+      type: 'number',
+      description: 'Update ID for this webhook delivery',
+    },
+    updateType: {
+      type: 'string',
+      description:
+        'Type of update: message, edited_message, channel_post, edited_channel_post, unknown',
     },
   },
 

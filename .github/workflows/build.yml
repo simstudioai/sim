@@ -85,8 +85,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=build-v2
-          cache-to: type=gha,mode=max,scope=build-v2
+          cache-from: type=gha,scope=build-v3
+          cache-to: type=gha,mode=max,scope=build-v3
           provenance: false
           sbom: false
 

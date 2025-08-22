@@ -106,6 +106,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       layout: 'full',
       required: true,
       placeholder: 'Enter new summary for the issue',
+      dependsOn: ['issueKey'],
       condition: { field: 'operation', value: ['update', 'write'] },
     },
     {
@@ -114,6 +115,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter new description for the issue',
+      dependsOn: ['issueKey'],
       condition: { field: 'operation', value: ['update', 'write'] },
     },
   ],

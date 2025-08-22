@@ -18,7 +18,6 @@ import {
 import { useParams, useRouter } from 'next/navigation'
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -112,6 +111,15 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
   const [isAutoLayouting, setIsAutoLayouting] = useState(false)
+
+  // Delete workflow state - grouped for better organization
+  const [deleteState, setDeleteState] = useState({
+    showDialog: false,
+    isDeleting: false,
+    hasPublishedTemplates: false,
+    publishedTemplates: [] as any[],
+    showTemplateChoice: false,
+  })
 
   // Deployed state management
   const [deployedState, setDeployedState] = useState<WorkflowState | null>(null)
@@ -337,35 +345,170 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   }
 
   /**
-   * Handle deleting the current workflow
+   * Reset delete state
    */
-  const handleDeleteWorkflow = () => {
+  const resetDeleteState = useCallback(() => {
+    setDeleteState({
+      showDialog: false,
+      isDeleting: false,
+      hasPublishedTemplates: false,
+      publishedTemplates: [],
+      showTemplateChoice: false,
+    })
+  }, [])
+
+  /**
+   * Navigate to next workflow after deletion
+   */
+  const navigateAfterDeletion = useCallback(
+    (currentWorkflowId: string) => {
+      const sidebarWorkflows = getSidebarOrderedWorkflows()
+      const currentIndex = sidebarWorkflows.findIndex((w) => w.id === currentWorkflowId)
+
+      // Find next workflow: try next, then previous
+      let nextWorkflowId: string | null = null
+      if (sidebarWorkflows.length > 1) {
+        if (currentIndex < sidebarWorkflows.length - 1) {
+          nextWorkflowId = sidebarWorkflows[currentIndex + 1].id
+        } else if (currentIndex > 0) {
+          nextWorkflowId = sidebarWorkflows[currentIndex - 1].id
+        }
+      }
+
+      // Navigate to next workflow or workspace home
+      if (nextWorkflowId) {
+        router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
+      } else {
+        router.push(`/workspace/${workspaceId}`)
+      }
+    },
+    [workspaceId, router]
+  )
+
+  /**
+   * Check if workflow has published templates
+   */
+  const checkPublishedTemplates = useCallback(async (workflowId: string) => {
+    const checkResponse = await fetch(`/api/workflows/${workflowId}?check-templates=true`, {
+      method: 'DELETE',
+    })
+
+    if (!checkResponse.ok) {
+      throw new Error(`Failed to check templates: ${checkResponse.statusText}`)
+    }
+
+    return await checkResponse.json()
+  }, [])
+
+  /**
+   * Delete workflow with optional template handling
+   */
+  const deleteWorkflowWithTemplates = useCallback(
+    async (workflowId: string, templateAction?: 'keep' | 'delete') => {
+      const endpoint = templateAction
+        ? `/api/workflows/${workflowId}?deleteTemplates=${templateAction}`
+        : null
+
+      if (endpoint) {
+        // Use custom endpoint for template handling
+        const response = await fetch(endpoint, { method: 'DELETE' })
+        if (!response.ok) {
+          throw new Error(`Failed to delete workflow: ${response.statusText}`)
+        }
+
+        // Manual registry cleanup since we used custom API
+        useWorkflowRegistry.setState((state) => {
+          const newWorkflows = { ...state.workflows }
+          delete newWorkflows[workflowId]
+
+          return {
+            ...state,
+            workflows: newWorkflows,
+            activeWorkflowId: state.activeWorkflowId === workflowId ? null : state.activeWorkflowId,
+          }
+        })
+      } else {
+        // Use registry's built-in deletion (handles database + state)
+        await useWorkflowRegistry.getState().removeWorkflow(workflowId)
+      }
+    },
+    []
+  )
+
+  /**
+   * Handle deleting the current workflow - called after user confirms
+   */
+  const handleDeleteWorkflow = useCallback(async () => {
     const currentWorkflowId = params.workflowId as string
     if (!currentWorkflowId || !userPermissions.canEdit) return
 
-    const sidebarWorkflows = getSidebarOrderedWorkflows()
-    const currentIndex = sidebarWorkflows.findIndex((w) => w.id === currentWorkflowId)
+    setDeleteState((prev) => ({ ...prev, isDeleting: true }))
 
-    // Find next workflow: try next, then previous
-    let nextWorkflowId: string | null = null
-    if (sidebarWorkflows.length > 1) {
-      if (currentIndex < sidebarWorkflows.length - 1) {
-        nextWorkflowId = sidebarWorkflows[currentIndex + 1].id
-      } else if (currentIndex > 0) {
-        nextWorkflowId = sidebarWorkflows[currentIndex - 1].id
+    try {
+      // Check if workflow has published templates
+      const checkData = await checkPublishedTemplates(currentWorkflowId)
+
+      if (checkData.hasPublishedTemplates) {
+        setDeleteState((prev) => ({
+          ...prev,
+          hasPublishedTemplates: true,
+          publishedTemplates: checkData.publishedTemplates || [],
+          showTemplateChoice: true,
+          isDeleting: false, // Stop showing "Deleting..." and show template choice
+        }))
+        return
       }
-    }
 
-    // Navigate to next workflow or workspace home
-    if (nextWorkflowId) {
-      router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
-    } else {
-      router.push(`/workspace/${workspaceId}`)
+      // No templates, proceed with standard deletion
+      navigateAfterDeletion(currentWorkflowId)
+      await deleteWorkflowWithTemplates(currentWorkflowId)
+      resetDeleteState()
+    } catch (error) {
+      logger.error('Error deleting workflow:', error)
+      setDeleteState((prev) => ({ ...prev, isDeleting: false }))
     }
+  }, [
+    params.workflowId,
+    userPermissions.canEdit,
+    checkPublishedTemplates,
+    navigateAfterDeletion,
+    deleteWorkflowWithTemplates,
+    resetDeleteState,
+  ])
 
-    // Remove the workflow from the registry using the URL parameter
-    useWorkflowRegistry.getState().removeWorkflow(currentWorkflowId)
-  }
+  /**
+   * Handle template action selection
+   */
+  const handleTemplateAction = useCallback(
+    async (action: 'keep' | 'delete') => {
+      const currentWorkflowId = params.workflowId as string
+      if (!currentWorkflowId || !userPermissions.canEdit) return
+
+      setDeleteState((prev) => ({ ...prev, isDeleting: true }))
+
+      try {
+        logger.info(`Deleting workflow ${currentWorkflowId} with template action: ${action}`)
+
+        navigateAfterDeletion(currentWorkflowId)
+        await deleteWorkflowWithTemplates(currentWorkflowId, action)
+
+        logger.info(
+          `Successfully deleted workflow ${currentWorkflowId} with template action: ${action}`
+        )
+        resetDeleteState()
+      } catch (error) {
+        logger.error('Error deleting workflow:', error)
+        setDeleteState((prev) => ({ ...prev, isDeleting: false }))
+      }
+    },
+    [
+      params.workflowId,
+      userPermissions.canEdit,
+      navigateAfterDeletion,
+      deleteWorkflowWithTemplates,
+      resetDeleteState,
+    ]
+  )
 
   // Helper function to open subscription settings
   const openSubscriptionSettings = () => {
@@ -422,7 +565,23 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     return (
-      <AlertDialog>
+      <AlertDialog
+        open={deleteState.showDialog}
+        onOpenChange={(open) => {
+          if (open) {
+            // Reset all state when opening dialog to ensure clean start
+            setDeleteState({
+              showDialog: true,
+              isDeleting: false,
+              hasPublishedTemplates: false,
+              publishedTemplates: [],
+              showTemplateChoice: false,
+            })
+          } else {
+            resetDeleteState()
+          }
+        }}
+      >
         <Tooltip>
           <TooltipTrigger asChild>
             <AlertDialogTrigger asChild>
@@ -444,21 +603,71 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete workflow?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Deleting this workflow will permanently remove all associated blocks, executions, and
-              configuration.{' '}
-              <span className='text-red-500 dark:text-red-500'>This action cannot be undone.</span>
-            </AlertDialogDescription>
+            <AlertDialogTitle>
+              {deleteState.showTemplateChoice ? 'Published Templates Found' : 'Delete workflow?'}
+            </AlertDialogTitle>
+            {deleteState.showTemplateChoice ? (
+              <div className='space-y-3'>
+                <AlertDialogDescription>
+                  This workflow has {deleteState.publishedTemplates.length} published template
+                  {deleteState.publishedTemplates.length > 1 ? 's' : ''}:
+                </AlertDialogDescription>
+                {deleteState.publishedTemplates.length > 0 && (
+                  <ul className='list-disc space-y-1 pl-6'>
+                    {deleteState.publishedTemplates.map((template) => (
+                      <li key={template.id}>{template.name}</li>
+                    ))}
+                  </ul>
+                )}
+                <AlertDialogDescription>
+                  What would you like to do with the published template
+                  {deleteState.publishedTemplates.length > 1 ? 's' : ''}?
+                </AlertDialogDescription>
+              </div>
+            ) : (
+              <AlertDialogDescription>
+                Deleting this workflow will permanently remove all associated blocks, executions,
+                and configuration.{' '}
+                <span className='text-red-500 dark:text-red-500'>
+                  This action cannot be undone.
+                </span>
+              </AlertDialogDescription>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter className='flex'>
-            <AlertDialogCancel className='h-9 w-full rounded-[8px]'>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteWorkflow}
-              className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
-            >
-              Delete
-            </AlertDialogAction>
+            {deleteState.showTemplateChoice ? (
+              <div className='flex w-full gap-2'>
+                <Button
+                  variant='outline'
+                  onClick={() => handleTemplateAction('keep')}
+                  disabled={deleteState.isDeleting}
+                  className='h-9 flex-1 rounded-[8px]'
+                >
+                  Keep templates
+                </Button>
+                <Button
+                  onClick={() => handleTemplateAction('delete')}
+                  disabled={deleteState.isDeleting}
+                  className='h-9 flex-1 rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+                >
+                  {deleteState.isDeleting ? 'Deleting...' : 'Delete templates'}
+                </Button>
+              </div>
+            ) : (
+              <>
+                <AlertDialogCancel className='h-9 w-full rounded-[8px]'>Cancel</AlertDialogCancel>
+                <Button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleDeleteWorkflow()
+                  }}
+                  disabled={deleteState.isDeleting}
+                  className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+                >
+                  {deleteState.isDeleting ? 'Deleting...' : 'Delete'}
+                </Button>
+              </>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1002,10 +1211,10 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       {renderToggleButton()}
       {isExpanded && <ExportControls />}
       {isExpanded && renderAutoLayoutButton()}
-      {renderDuplicateButton()}
-      {renderDeleteButton()}
-      {!isDebugging && renderDebugModeToggle()}
       {isExpanded && renderPublishButton()}
+      {renderDeleteButton()}
+      {renderDuplicateButton()}
+      {!isDebugging && renderDebugModeToggle()}
       {renderDeployButton()}
       {isDebugging ? renderDebugControlsBar() : renderRunButton()}
 

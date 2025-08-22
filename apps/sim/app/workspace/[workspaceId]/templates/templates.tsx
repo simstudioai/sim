@@ -29,7 +29,7 @@ export type CategoryValue = (typeof categories)[number]['value']
 // Template data structure
 export interface Template {
   id: string
-  workflowId: string
+  workflowId: string | null
   userId: string
   name: string
   description: string | null

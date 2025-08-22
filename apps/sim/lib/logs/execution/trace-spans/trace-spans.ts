@@ -56,9 +56,15 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
     }
 
+    // Prefer human-friendly workflow block naming if provided by child execution mapping
+    const displayName =
+      log.blockType === 'workflow' && log.output?.childWorkflowName
+        ? `${log.output.childWorkflowName} workflow`
+        : log.blockName || log.blockId
+
     const span: TraceSpan = {
       id: spanId,
-      name: log.blockName || log.blockId,
+      name: displayName,
       type: log.blockType,
       duration: duration,
       startTime: log.startedAt,
@@ -113,7 +119,10 @@ export function buildTraceSpans(result: ExecutionResult): {
       const flatChildSpans: TraceSpan[] = []
       childTraceSpans.forEach((childSpan) => {
         // Skip the synthetic workflow span wrapper - we only want the actual block executions
-        if (childSpan.type === 'workflow' && childSpan.name === 'Workflow Execution') {
+        if (
+          childSpan.type === 'workflow' &&
+          (childSpan.name === 'Workflow Execution' || childSpan.name.endsWith(' workflow'))
+        ) {
           // Add its children directly, skipping the synthetic wrapper
           if (childSpan.children && Array.isArray(childSpan.children)) {
             flatChildSpans.push(...childSpan.children)
@@ -395,7 +404,10 @@ function ensureNestedWorkflowsProcessed(span: TraceSpan): TraceSpan {
 
     childTraceSpans.forEach((childSpan) => {
       // Skip synthetic workflow wrappers and get the actual blocks
-      if (childSpan.type === 'workflow' && childSpan.name === 'Workflow Execution') {
+      if (
+        childSpan.type === 'workflow' &&
+        (childSpan.name === 'Workflow Execution' || childSpan.name.endsWith(' workflow'))
+      ) {
         if (childSpan.children && Array.isArray(childSpan.children)) {
           // Recursively process each child to handle deeper nesting
           childSpan.children.forEach((grandchildSpan) => {

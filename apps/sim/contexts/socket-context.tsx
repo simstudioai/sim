@@ -108,6 +108,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [isConnecting, setIsConnecting] = useState(false)
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null)
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
+  const initializedRef = useRef(false)
 
   // Get current workflow ID from URL params
   const params = useParams()
@@ -131,16 +132,16 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
   // Helper function to generate a fresh socket token
   const generateSocketToken = async (): Promise<string> => {
-    const tokenResponse = await fetch('/api/auth/socket-token', {
+    // Avoid overlapping token requests
+    const res = await fetch('/api/auth/socket-token', {
       method: 'POST',
       credentials: 'include',
+      headers: { 'cache-control': 'no-store' },
     })
-
-    if (!tokenResponse.ok) {
-      throw new Error('Failed to generate socket token')
-    }
-
-    const { token } = await tokenResponse.json()
+    if (!res.ok) throw new Error('Failed to generate socket token')
+    const body = await res.json().catch(() => ({}))
+    const token = body?.token
+    if (!token || typeof token !== 'string') throw new Error('Invalid socket token')
     return token
   }
 
@@ -149,12 +150,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     if (!user?.id) return
 
     // Only initialize if we don't have a socket and aren't already connecting
-    if (socket || isConnecting) {
+    if (initializedRef.current || socket || isConnecting) {
       logger.info('Socket already exists or is connecting, skipping initialization')
       return
     }
 
     logger.info('Initializing socket connection for user:', user.id)
+    initializedRef.current = true
     setIsConnecting(true)
 
     const initializeSocket = async () => {
@@ -178,17 +180,14 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           reconnectionDelay: 1000, // Start with 1 second delay
           reconnectionDelayMax: 30000, // Max 30 second delay
           timeout: 10000, // Back to original timeout
-          auth: (cb) => {
-            // Generate a fresh token for each connection attempt (including reconnections)
-            generateSocketToken()
-              .then((freshToken) => {
-                logger.info('Generated fresh token for connection attempt')
-                cb({ token: freshToken })
-              })
-              .catch((error) => {
-                logger.error('Failed to generate fresh token for connection:', error)
-                cb({ token: null }) // This will cause authentication to fail gracefully
-              })
+          auth: async (cb) => {
+            try {
+              const freshToken = await generateSocketToken()
+              cb({ token: freshToken })
+            } catch (error) {
+              logger.error('Failed to generate fresh token for connection:', error)
+              cb({ token: null })
+            }
           },
         })
 
