@@ -30,6 +30,10 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
       type: 'string',
       description: 'Unique message identifier',
     },
+    input: {
+      type: 'string',
+      description: 'Input message',
+    },
     timestamp: {
       type: 'string',
       description: 'Message timestamp',
