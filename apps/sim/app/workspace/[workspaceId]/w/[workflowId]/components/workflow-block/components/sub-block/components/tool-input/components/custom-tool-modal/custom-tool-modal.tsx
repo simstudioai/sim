@@ -237,12 +237,15 @@ try {
   // Environment variables and tags dropdown state
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
+  const [showSchemaParams, setShowSchemaParams] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [cursorPosition, setCursorPosition] = useState(0)
   const codeEditorRef = useRef<HTMLDivElement>(null)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   // Add state for dropdown positioning
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
+  // Schema params keyboard navigation
+  const [schemaParamSelectedIndex, setSchemaParamSelectedIndex] = useState(0)
 
   const addTool = useCustomToolsStore((state) => state.addTool)
   const updateTool = useCustomToolsStore((state) => state.updateTool)
@@ -319,6 +322,25 @@ try {
   const validateFunctionCode = (code: string): boolean => {
     return true // Allow empty code
   }
+
+  // Extract parameters from JSON schema for autocomplete
+  const schemaParameters = useMemo(() => {
+    try {
+      if (!jsonSchema) return []
+      const parsed = JSON.parse(jsonSchema)
+      const properties = parsed?.function?.parameters?.properties
+      if (!properties) return []
+
+      return Object.keys(properties).map((key) => ({
+        name: key,
+        type: properties[key].type || 'any',
+        description: properties[key].description || '',
+        required: parsed?.function?.parameters?.required?.includes(key) || false,
+      }))
+    } catch {
+      return []
+    }
+  }, [jsonSchema])
 
   // Memoize validation results to prevent unnecessary recalculations
   const isSchemaValid = useMemo(() => validateJsonSchema(jsonSchema), [jsonSchema])
@@ -499,7 +521,37 @@ try {
       if (!tagTrigger.show) {
         setActiveSourceBlockId(null)
       }
+
+      // Check if we should show the schema parameters dropdown
+      const schemaParamTrigger = checkSchemaParamTrigger(value, pos, schemaParameters)
+      const shouldShowSchemaParams = schemaParamTrigger.show && !codeGeneration.isStreaming
+      setShowSchemaParams(shouldShowSchemaParams)
+
+      // Reset selected index when showing dropdown
+      if (shouldShowSchemaParams && !showSchemaParams) {
+        setSchemaParamSelectedIndex(0)
+      }
     }
+  }
+
+  // Function to check if we should show schema parameters dropdown
+  const checkSchemaParamTrigger = (text: string, cursorPos: number, parameters: any[]) => {
+    if (parameters.length === 0) return { show: false, searchTerm: '' }
+
+    // Look for partial parameter names after common patterns like 'const ', '= ', etc.
+    const beforeCursor = text.substring(0, cursorPos)
+    const words = beforeCursor.split(/[\s=();,{}[\]]+/)
+    const currentWord = words[words.length - 1] || ''
+
+    // Show dropdown if typing and current word could be a parameter
+    if (currentWord.length > 0 && /^[a-zA-Z_][\w]*$/.test(currentWord)) {
+      const matchingParams = parameters.filter((param) =>
+        param.name.toLowerCase().startsWith(currentWord.toLowerCase())
+      )
+      return { show: matchingParams.length > 0, searchTerm: currentWord, matches: matchingParams }
+    }
+
+    return { show: false, searchTerm: '' }
   }
 
   // Handle environment variable selection
@@ -513,6 +565,32 @@ try {
     setFunctionCode(newValue)
     setShowTags(false)
     setActiveSourceBlockId(null)
+  }
+
+  // Handle schema parameter selection
+  const handleSchemaParamSelect = (paramName: string) => {
+    const textarea = codeEditorRef.current?.querySelector('textarea')
+    if (textarea) {
+      const pos = textarea.selectionStart
+      const beforeCursor = functionCode.substring(0, pos)
+      const afterCursor = functionCode.substring(pos)
+
+      // Find the start of the current word
+      const words = beforeCursor.split(/[\s=();,{}[\]]+/)
+      const currentWord = words[words.length - 1] || ''
+      const wordStart = beforeCursor.lastIndexOf(currentWord)
+
+      // Replace the current partial word with the selected parameter
+      const newValue = beforeCursor.substring(0, wordStart) + paramName + afterCursor
+      setFunctionCode(newValue)
+      setShowSchemaParams(false)
+
+      // Set cursor position after the inserted parameter
+      setTimeout(() => {
+        textarea.focus()
+        textarea.setSelectionRange(wordStart + paramName.length, wordStart + paramName.length)
+      }, 0)
+    }
   }
 
   // Handle key press events
@@ -536,9 +614,10 @@ try {
         return
       }
       // Close dropdowns only if AI prompt isn't active
-      if (!showEnvVars && !showTags) {
+      if (!showEnvVars && !showTags && !showSchemaParams) {
         setShowEnvVars(false)
         setShowTags(false)
+        setShowSchemaParams(false)
       }
     }
 
@@ -552,7 +631,37 @@ try {
       return
     }
 
-    // Let dropdowns handle their own keyboard events if visible
+    // Handle schema parameters dropdown keyboard navigation
+    if (showSchemaParams && schemaParameters.length > 0) {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault()
+          e.stopPropagation()
+          setSchemaParamSelectedIndex((prev) => Math.min(prev + 1, schemaParameters.length - 1))
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          e.stopPropagation()
+          setSchemaParamSelectedIndex((prev) => Math.max(prev - 1, 0))
+          break
+        case 'Enter':
+          e.preventDefault()
+          e.stopPropagation()
+          if (schemaParamSelectedIndex >= 0 && schemaParamSelectedIndex < schemaParameters.length) {
+            const selectedParam = schemaParameters[schemaParamSelectedIndex]
+            handleSchemaParamSelect(selectedParam.name)
+          }
+          break
+        case 'Escape':
+          e.preventDefault()
+          e.stopPropagation()
+          setShowSchemaParams(false)
+          break
+      }
+      return // Don't handle other dropdown events when schema params is active
+    }
+
+    // Let other dropdowns handle their own keyboard events if visible
     if (showEnvVars || showTags) {
       if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
         e.preventDefault()
@@ -802,6 +911,22 @@ try {
                       <span className='ml-4 flex-shrink-0 text-red-600 text-sm'>{codeError}</span>
                     )}
                 </div>
+                {schemaParameters.length > 0 && (
+                  <div className='mb-2 rounded-md bg-muted/50 p-2'>
+                    <p className='text-muted-foreground text-xs'>
+                      <span className='font-medium'>Available parameters:</span>{' '}
+                      {schemaParameters.map((param, index) => (
+                        <span key={param.name}>
+                          <code className='rounded bg-background px-1 py-0.5 text-foreground'>
+                            {param.name}
+                          </code>
+                          {index < schemaParameters.length - 1 && ', '}
+                        </span>
+                      ))}
+                      {'. '}Start typing a parameter name for autocomplete.
+                    </p>
+                  </div>
+                )}
                 <div ref={codeEditorRef} className='relative'>
                   <CodeEditor
                     value={functionCode}
@@ -862,6 +987,55 @@ try {
                         left: `${dropdownPosition.left}px`,
                       }}
                     />
+                  )}
+
+                  {/* Schema parameters dropdown */}
+                  {showSchemaParams && schemaParameters.length > 0 && (
+                    <div
+                      className='absolute z-[9999] mt-1 w-80 overflow-visible rounded-md border bg-popover shadow-md'
+                      style={{
+                        top: `${dropdownPosition.top}px`,
+                        left: `${dropdownPosition.left}px`,
+                      }}
+                    >
+                      <div className='py-1'>
+                        <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
+                          Available Parameters
+                        </div>
+                        <div className='-mx-1 -px-1'>
+                          {schemaParameters.map((param, index) => (
+                            <button
+                              key={param.name}
+                              onClick={() => handleSchemaParamSelect(param.name)}
+                              onMouseEnter={() => setSchemaParamSelectedIndex(index)}
+                              className={cn(
+                                'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
+                                'hover:bg-accent hover:text-accent-foreground',
+                                'focus:bg-accent focus:text-accent-foreground focus:outline-none',
+                                index === schemaParamSelectedIndex &&
+                                  'bg-accent text-accent-foreground'
+                              )}
+                            >
+                              <div
+                                className='flex h-5 w-5 items-center justify-center rounded'
+                                style={{ backgroundColor: '#2F8BFF' }}
+                              >
+                                <span className='h-3 w-3 font-bold text-white text-xs'>P</span>
+                              </div>
+                              <span className='flex-1 truncate'>{param.name}</span>
+                              <div className='flex items-center gap-1'>
+                                {param.required && (
+                                  <span className='rounded bg-red-100 px-1.5 py-0.5 text-red-700 text-xs'>
+                                    required
+                                  </span>
+                                )}
+                                <span className='text-muted-foreground text-xs'>{param.type}</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
                 <div className='h-6' />
