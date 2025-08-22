@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { checkServerSideUsageLimits } from '@/lib/billing'
+import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -17,6 +18,7 @@ import {
 } from '@/lib/workflows/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { executeWorkflowJob } from '@/background/workflow-execution'
 import { db } from '@/db'
 import { environment as environmentTable, subscription, userStats } from '@/db/schema'
 import { Executor } from '@/executor'
@@ -540,28 +542,59 @@ export async function POST(
           )
         }
 
-        // Rate limit passed - trigger the task
-        const handle = await tasks.trigger('workflow-execution', {
+        // Rate limit passed - queue the task based on env toggle
+        const useTrigger = isTruthy(env.TRIGGER_DEV_ENABLED ?? true)
+
+        if (useTrigger) {
+          const handle = await tasks.trigger('workflow-execution', {
+            workflowId,
+            userId: authenticatedUserId,
+            input,
+            triggerType: 'api',
+            metadata: { triggerType: 'api' },
+          })
+
+          logger.info(
+            `[${requestId}] Created Trigger.dev task ${handle.id} for workflow ${workflowId}`
+          )
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              taskId: handle.id,
+              status: 'queued',
+              createdAt: new Date().toISOString(),
+              links: {
+                status: `/api/jobs/${handle.id}`,
+              },
+            }),
+            {
+              status: 202,
+              headers: { 'Content-Type': 'application/json' },
+            }
+          )
+        }
+
+        // Trigger.dev disabled: run direct in background and acknowledge
+        void executeWorkflowJob({
           workflowId,
           userId: authenticatedUserId,
           input,
           triggerType: 'api',
           metadata: { triggerType: 'api' },
+        }).catch((error) => {
+          logger.error(`[${requestId}] Direct async workflow execution failed`, error)
         })
 
         logger.info(
-          `[${requestId}] Created Trigger.dev task ${handle.id} for workflow ${workflowId}`
+          `[${requestId}] Queued direct async workflow execution for ${workflowId} (Trigger.dev disabled)`
         )
 
         return new Response(
           JSON.stringify({
             success: true,
-            taskId: handle.id,
             status: 'queued',
             createdAt: new Date().toISOString(),
-            links: {
-              status: `/api/jobs/${handle.id}`,
-            },
           }),
           {
             status: 202,
