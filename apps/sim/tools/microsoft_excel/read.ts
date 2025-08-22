@@ -1,8 +1,11 @@
+import { createLogger } from '@/lib/logs/console/logger'
 import type {
   MicrosoftExcelReadResponse,
   MicrosoftExcelToolParams,
 } from '@/tools/microsoft_excel/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('MicrosoftExcelReadTool')
 
 export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadResponse> = {
   id: 'microsoft_excel_read',
@@ -75,8 +78,6 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
   },
 
   transformResponse: async (response: Response, params?: MicrosoftExcelToolParams) => {
-    const defaultAddress = 'A1:Z1000' // Match Google Sheets default logic
-
     // If we came from the worksheets listing (no range provided), resolve first sheet name then fetch range
     if (response.url.includes('/workbook/worksheets?')) {
       const listData = await response.json()
@@ -92,9 +93,10 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
         throw new Error('Access token is required to read Excel range')
       }
 
+      // Use usedRange(valuesOnly=true) to fetch only populated cells, avoiding thousands of empty rows
       const rangeUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(
         spreadsheetIdFromUrl
-      )}/workbook/worksheets('${encodeURIComponent(firstSheetName)}')/range(address='${defaultAddress}')`
+      )}/workbook/worksheets('${encodeURIComponent(firstSheetName)}')/usedRange(valuesOnly=true)`
 
       const rangeResp = await fetch(rangeUrl, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -109,6 +111,17 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
 
       const data = await rangeResp.json()
 
+      logger.debug('Fetched usedRange for first worksheet', {
+        spreadsheetId: spreadsheetIdFromUrl,
+        sheet: firstSheetName,
+      })
+
+      // usedRange returns an address (A1 notation) and values matrix
+      const address: string = data.address || data.addressLocal || `${firstSheetName}!A1`
+      const rawValues: any[][] = data.values || []
+
+      const values = trimTrailingEmptyRowsAndColumns(rawValues)
+
       const metadata = {
         spreadsheetId: spreadsheetIdFromUrl,
         properties: {},
@@ -119,8 +132,8 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
         success: true,
         output: {
           data: {
-            range: data.range || `${firstSheetName}!${defaultAddress}`,
-            values: data.values || [],
+            range: address,
+            values,
           },
           metadata: {
             spreadsheetId: metadata.spreadsheetId,
@@ -144,12 +157,22 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       spreadsheetUrl: `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`,
     }
 
+    const address: string = data.address || data.addressLocal || data.range || ''
+    const rawValues: any[][] = data.values || []
+    const values = trimTrailingEmptyRowsAndColumns(rawValues)
+
+    logger.debug('Fetched explicit range for worksheet', {
+      spreadsheetId,
+      address,
+      rowCount: values.length,
+    })
+
     const result: MicrosoftExcelReadResponse = {
       success: true,
       output: {
         data: {
-          range: data.range || '',
-          values: data.values || [],
+          range: address,
+          values,
         },
         metadata: {
           spreadsheetId: metadata.spreadsheetId,
@@ -179,4 +202,37 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       },
     },
   },
+}
+
+function trimTrailingEmptyRowsAndColumns(matrix: any[][]): any[][] {
+  if (!Array.isArray(matrix) || matrix.length === 0) return []
+
+  const isEmptyValue = (v: any) => v === null || v === ''
+
+  // Determine last non-empty row
+  let lastNonEmptyRowIndex = -1
+  for (let r = 0; r < matrix.length; r++) {
+    const row = matrix[r] || []
+    const hasData = row.some((cell: any) => !isEmptyValue(cell))
+    if (hasData) lastNonEmptyRowIndex = r
+  }
+
+  if (lastNonEmptyRowIndex === -1) return []
+
+  const trimmedRows = matrix.slice(0, lastNonEmptyRowIndex + 1)
+
+  // Determine last non-empty column across trimmed rows
+  let lastNonEmptyColIndex = -1
+  for (let r = 0; r < trimmedRows.length; r++) {
+    const row = trimmedRows[r] || []
+    for (let c = 0; c < row.length; c++) {
+      if (!isEmptyValue(row[c])) {
+        if (c > lastNonEmptyColIndex) lastNonEmptyColIndex = c
+      }
+    }
+  }
+
+  if (lastNonEmptyColIndex === -1) return []
+
+  return trimmedRows.map((row) => (row || []).slice(0, lastNonEmptyColIndex + 1))
 }
