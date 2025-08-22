@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
+import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot-new/api'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowDiffStore } from '../workflow-diff/store'
 import { COPILOT_TOOL_IDS } from './constants'

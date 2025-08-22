@@ -3,15 +3,9 @@ import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import {
-  authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
-  createInternalServerErrorResponse,
-  createRequestTracker,
-  createUnauthorizedResponse,
-} from '@/lib/copilot/auth'
-import { getCopilotModel } from '@/lib/copilot/config'
-import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
+import { authenticateCopilotRequestSessionOnly, createBadRequestResponse, createInternalServerErrorResponse, createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot-new/auth'
+import { getCopilotModel } from '@/lib/copilot-new/config'
+import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot-new/prompts'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
@@ -663,9 +657,7 @@ export async function POST(req: NextRequest) {
                       case 'start':
                         if (event.data?.responseId) {
                           responseIdFromStart = event.data.responseId
-                          logger.info(
-                            `[${tracker.requestId}] Received start event with responseId: ${responseIdFromStart}`
-                          )
+
                         }
                         break
 
@@ -673,9 +665,7 @@ export async function POST(req: NextRequest) {
                         if (event.data?.responseId) {
                           responseIdFromDone = event.data.responseId
                           lastDoneResponseId = responseIdFromDone
-                          logger.info(
-                            `[${tracker.requestId}] Received done event with responseId: ${responseIdFromDone}`
-                          )
+
                           // Mark this done as safe only if no tool call is currently in progress or pending
                           const announced = announcedToolCallIds.size
                           const completed = completedToolExecutionIds.size
@@ -683,34 +673,16 @@ export async function POST(req: NextRequest) {
                           const hasToolInProgress = announced > completed || started > completed
                           if (!hasToolInProgress) {
                             lastSafeDoneResponseId = responseIdFromDone
-                            logger.info(
-                              `[${tracker.requestId}] Marked done as SAFE (no tools in progress)`
-                            )
-                          } else {
-                            logger.info(
-                              `[${tracker.requestId}] Done received but tools are in progress (announced=${announced}, started=${started}, completed=${completed})`
-                            )
+
                           }
-                        }
-                        if (isFirstDone) {
-                          logger.info(
-                            `[${tracker.requestId}] Initial AI response complete, tool count: ${toolCalls.length}`
-                          )
-                          isFirstDone = false
-                        } else {
-                          logger.info(`[${tracker.requestId}] Conversation round complete`)
                         }
                         break
 
                       case 'error':
-                        logger.error(`[${tracker.requestId}] Stream error event:`, event.error)
                         break
 
                       default:
-                        logger.debug(
-                          `[${tracker.requestId}] Unknown event type: ${event.type}`,
-                          event
-                        )
+                        
                     }
                   } catch (e) {
                     // Enhanced error handling for large payloads and parsing issues

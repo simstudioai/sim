@@ -7,7 +7,7 @@ import {
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/auth'
+} from '@/lib/copilot-new/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { copilotChats } from '@/db/schema'

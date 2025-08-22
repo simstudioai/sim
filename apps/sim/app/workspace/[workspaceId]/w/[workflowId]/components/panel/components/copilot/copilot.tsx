@@ -302,7 +302,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     const previewToolCall = lastMessage.toolCalls.find(
       (tc) =>
         tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW &&
-        tc.state === 'completed' &&
+        tc.state === 'success' &&
         !isToolCallSeen(tc.id)
     )
 

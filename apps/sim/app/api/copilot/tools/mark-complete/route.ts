@@ -6,7 +6,7 @@ import {
   createInternalServerErrorResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/auth'
+} from '@/lib/copilot-new/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'

@@ -6,7 +6,7 @@ import {
   createInternalServerErrorResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/auth'
+} from '@/lib/copilot-new/auth'
 import { routeExecution } from '@/lib/copilot-new/tools/server/router'
 import { createLogger } from '@/lib/logs/console/logger'
 

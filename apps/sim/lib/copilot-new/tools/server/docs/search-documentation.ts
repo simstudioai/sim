@@ -19,7 +19,7 @@ export const searchDocumentationServerTool: BaseServerTool<DocsSearchParams, any
 
 		logger.info('Executing docs search (new runtime)', { query, topK })
 
-		const { getCopilotConfig } = await import('@/lib/copilot/config')
+		const { getCopilotConfig } = await import('@/lib/copilot-new/config')
 		const config = getCopilotConfig()
 		const similarityThreshold = threshold ?? config.rag.similarityThreshold
 

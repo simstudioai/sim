@@ -37,4 +37,4 @@ export function checkCopilotApiKey(req: NextRequest) {
   }
 
   return { success: true }
-}
+} 

@@ -12,7 +12,7 @@ import {
   ThumbsUp,
   X,
 } from 'lucide-react'
-import { InlineToolCall } from '@/lib/copilot/tools/inline-tool-call'
+import { InlineToolCall } from '@/lib/copilot-new/inline-tool-call'
 import { createLogger } from '@/lib/logs/console/logger'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
