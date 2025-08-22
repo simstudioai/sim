@@ -12,8 +12,17 @@ import type {
 } from '@/stores/copilot/types'
 import { ClientToolCallState } from '@/lib/copilot-new/tools/client/base-tool'
 import type { CopilotToolCall } from '@/stores/copilot/types'
+import { getClientTool } from '@/lib/copilot-new/tools/client/manager'
+import { getTool, createExecutionContext, registerTool } from '@/lib/copilot-new/tools/client/registry'
+import { GetUserWorkflowTool } from '@/lib/copilot-new/tools/client/workflow/get-user-workflow'
 
 const logger = createLogger('CopilotStore')
+
+// Register interface-based client tools needed for auto-execution
+try {
+  registerTool(GetUserWorkflowTool)
+  logger.info('[registry] Registered get_user_workflow tool')
+} catch {}
 
 // Constants
 const TEXT_BLOCK_TYPE = 'text'
@@ -164,8 +173,103 @@ const sseHandlers: Record<string, SSEHandler> = {
         name: toolName,
         state: ClientToolCallState.generating,
       }
-      set({ toolCallsById: { ...toolCallsById, [toolCallId]: tc } })
-      logger.info(`[toolCallsById] - ${toolCallId}`)
+      const updated = { ...toolCallsById, [toolCallId]: tc }
+      set({ toolCallsById: updated })
+      logger.info('[toolCallsById] map updated', updated)
+    }
+  },
+  tool_call: (data, _context, get, set) => {
+    const toolData = data?.data || {}
+    const id: string | undefined = toolData.id || data?.toolCallId
+    const name: string | undefined = toolData.name || data?.toolName
+    if (!id) return
+    const args = toolData.arguments
+    const { toolCallsById } = get()
+    const existing = toolCallsById[id]
+    const next: CopilotToolCall = existing
+      ? { ...existing, state: ClientToolCallState.pending, ...(args ? { params: args } : {}) }
+      : { id, name: name || 'unknown_tool', state: ClientToolCallState.pending, ...(args ? { params: args } : {}) }
+    const updated = { ...toolCallsById, [id]: next }
+    set({ toolCallsById: updated })
+    logger.info('[toolCallsById] → pending', { id, name, params: args })
+
+    // Prefer interface-based registry to determine interrupt and execute
+    try {
+      const def = name ? getTool(name) : undefined
+      if (def) {
+        const hasInterrupt = typeof def.hasInterrupt === 'function' ? !!def.hasInterrupt(args || {}) : !!def.hasInterrupt
+        if (!hasInterrupt && typeof def.execute === 'function') {
+          const executingMap = { ...get().toolCallsById }
+          executingMap[id] = { ...executingMap[id], state: ClientToolCallState.executing }
+          set({ toolCallsById: executingMap })
+          logger.info('[toolCallsById] pending → executing (registry)', { id, name })
+          const ctx = createExecutionContext({ toolCallId: id, toolName: name || 'unknown_tool' })
+          Promise.resolve()
+            .then(async () => {
+              const result = await def.execute(ctx, args || {})
+              const success = result && typeof result.status === 'number' ? result.status >= 200 && result.status < 300 : true
+              const completeMap = { ...get().toolCallsById }
+              completeMap[id] = {
+                ...completeMap[id],
+                state: success ? ClientToolCallState.success : ClientToolCallState.error,
+              }
+              set({ toolCallsById: completeMap })
+              logger.info('[toolCallsById] executing → ' + (success ? 'success' : 'error') + ' (registry)', { id, name })
+
+              // Notify backend tool mark-complete endpoint
+              try {
+                await fetch('/api/copilot/tools/mark-complete', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    id,
+                    name: name || 'unknown_tool',
+                    status: typeof result?.status === 'number' ? result.status : success ? 200 : 500,
+                    message: result?.message,
+                    data: result?.data,
+                  }),
+                })
+              } catch {}
+            })
+            .catch((e) => {
+              const errorMap = { ...get().toolCallsById }
+              errorMap[id] = { ...errorMap[id], state: ClientToolCallState.error }
+              set({ toolCallsById: errorMap })
+              logger.error('Registry auto-execute tool failed', { id, name, error: e })
+            })
+          return
+        }
+      }
+    } catch (e) {
+      logger.warn('tool_call registry auto-exec check failed', { id, name, error: e })
+    }
+
+    // Fallback to legacy instance-based flow if available
+    try {
+      const instance = getClientTool(id) as any
+      const hasInterrupt = !!instance?.getInterruptDisplays?.()
+      if (!hasInterrupt && instance?.execute) {
+        const executingMap = { ...get().toolCallsById }
+        executingMap[id] = { ...executingMap[id], state: ClientToolCallState.executing }
+        set({ toolCallsById: executingMap })
+        logger.info('[toolCallsById] pending → executing (instance)', { id, name })
+        Promise.resolve()
+          .then(async () => {
+            await instance.execute(args || {})
+            const successMap = { ...get().toolCallsById }
+            successMap[id] = { ...successMap[id], state: ClientToolCallState.success }
+            set({ toolCallsById: successMap })
+            logger.info('[toolCallsById] executing → success (instance)', { id, name })
+          })
+          .catch((e) => {
+            const errorMap = { ...get().toolCallsById }
+            errorMap[id] = { ...errorMap[id], state: ClientToolCallState.error }
+            set({ toolCallsById: errorMap })
+            logger.error('Instance auto-execute tool failed', { id, name, error: e })
+          })
+      }
+    } catch (e) {
+      logger.warn('tool_call instance auto-exec check failed', { id, name, error: e })
     }
   },
   reasoning: (data, context, _get, set) => {
@@ -808,7 +912,25 @@ export const useCopilotStore = create<CopilotStore>()(
     },
 
     // Tool-call related APIs are stubbed for now
-    setToolCallState: () => {},
+    setToolCallState: (toolCall: any, newState: any) => {
+      try {
+        const id: string | undefined = toolCall?.id
+        if (!id) return
+        const map = { ...get().toolCallsById }
+        const current = map[id]
+        if (!current) return
+        let norm: ClientToolCallState = current.state
+        if (newState === 'executing') norm = ClientToolCallState.executing
+        else if (newState === 'errored' || newState === 'error') norm = ClientToolCallState.error
+        else if (newState === 'rejected') norm = ClientToolCallState.rejected
+        else if (newState === 'pending') norm = ClientToolCallState.pending
+        else if (newState === 'success' || newState === 'accepted') norm = ClientToolCallState.success
+        else if (newState === 'aborted') norm = ClientToolCallState.aborted
+        else if (typeof newState === 'number') norm = (newState as unknown) as ClientToolCallState
+        map[id] = { ...current, state: norm }
+        set({ toolCallsById: map })
+      } catch {}
+    },
     updatePreviewToolCallState: () => {},
 
     sendDocsMessage: async (query: string) => {
