@@ -81,6 +81,7 @@ export const env = createEnv({
     SENTRY_ORG:                            z.string().optional(),                  // Sentry organization for error tracking
     SENTRY_PROJECT:                        z.string().optional(),                  // Sentry project for error tracking
     SENTRY_AUTH_TOKEN:                     z.string().optional(),                  // Sentry authentication token
+    LOG_LEVEL:                             z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).optional(), // Minimum log level to display (defaults to ERROR in production, DEBUG in development)
 
     // External Services
     JWT_SECRET:                            z.string().min(1).optional(),           // JWT signing secret for custom tokens
