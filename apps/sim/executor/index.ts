@@ -455,6 +455,14 @@ export class Executor {
           success: false,
           output: finalOutput,
           error: 'Workflow execution was cancelled',
+          metadata: {
+            duration: Date.now() - startTime.getTime(),
+            startTime: context.metadata.startTime!,
+            workflowConnections: this.actualWorkflow.connections.map((conn: any) => ({
+              source: conn.source,
+              target: conn.target,
+            })),
+          },
           logs: context.blockLogs,
         }
       }
@@ -503,6 +511,14 @@ export class Executor {
         success: false,
         output: finalOutput,
         error: this.extractErrorMessage(error),
+        metadata: {
+          duration: Date.now() - startTime.getTime(),
+          startTime: context.metadata.startTime!,
+          workflowConnections: this.actualWorkflow.connections.map((conn: any) => ({
+            source: conn.source,
+            target: conn.target,
+          })),
+        },
         logs: context.blockLogs,
       }
     } finally {
@@ -530,6 +546,14 @@ export class Executor {
         success: false,
         output: finalOutput,
         error: 'Workflow execution was cancelled',
+        metadata: {
+          duration: Date.now() - new Date(context.metadata.startTime!).getTime(),
+          startTime: context.metadata.startTime!,
+          workflowConnections: this.actualWorkflow.connections.map((conn: any) => ({
+            source: conn.source,
+            target: conn.target,
+          })),
+        },
         logs: context.blockLogs,
       }
     }
@@ -596,6 +620,14 @@ export class Executor {
         success: false,
         output: finalOutput,
         error: this.extractErrorMessage(error),
+        metadata: {
+          duration: Date.now() - new Date(context.metadata.startTime!).getTime(),
+          startTime: context.metadata.startTime!,
+          workflowConnections: this.actualWorkflow.connections.map((conn: any) => ({
+            source: conn.source,
+            target: conn.target,
+          })),
+        },
         logs: context.blockLogs,
       }
     }
