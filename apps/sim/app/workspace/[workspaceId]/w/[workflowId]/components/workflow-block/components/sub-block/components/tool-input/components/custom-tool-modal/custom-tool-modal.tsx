@@ -241,6 +241,7 @@ try {
   const [searchTerm, setSearchTerm] = useState('')
   const [cursorPosition, setCursorPosition] = useState(0)
   const codeEditorRef = useRef<HTMLDivElement>(null)
+  const schemaParamsDropdownRef = useRef<HTMLDivElement>(null)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   // Add state for dropdown positioning
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
@@ -272,6 +273,21 @@ try {
       resetForm()
     }
   }, [open, initialValues])
+
+  // Close schema params dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        schemaParamsDropdownRef.current &&
+        !schemaParamsDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowSchemaParams(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const resetForm = () => {
     setJsonSchema('')
@@ -522,14 +538,15 @@ try {
         setActiveSourceBlockId(null)
       }
 
-      // Check if we should show the schema parameters dropdown
-      const schemaParamTrigger = checkSchemaParamTrigger(value, pos, schemaParameters)
-      const shouldShowSchemaParams = schemaParamTrigger.show && !codeGeneration.isStreaming
-      setShowSchemaParams(shouldShowSchemaParams)
-
-      // Reset selected index when showing dropdown
-      if (shouldShowSchemaParams && !showSchemaParams) {
-        setSchemaParamSelectedIndex(0)
+      // Show/hide schema parameters dropdown based on typing context
+      if (!codeGeneration.isStreaming && schemaParameters.length > 0) {
+        const schemaParamTrigger = checkSchemaParamTrigger(value, pos, schemaParameters)
+        if (schemaParamTrigger.show && !showSchemaParams) {
+          setShowSchemaParams(true)
+          setSchemaParamSelectedIndex(0)
+        } else if (!schemaParamTrigger.show && showSchemaParams) {
+          setShowSchemaParams(false)
+        }
       }
     }
   }
@@ -613,11 +630,14 @@ try {
         e.stopPropagation()
         return
       }
-      // Close dropdowns only if AI prompt isn't active
-      if (!showEnvVars && !showTags && !showSchemaParams) {
+      // Close dropdowns first, only close modal if no dropdowns are open
+      if (showEnvVars || showTags || showSchemaParams) {
         setShowEnvVars(false)
         setShowTags(false)
         setShowSchemaParams(false)
+        e.preventDefault()
+        e.stopPropagation()
+        return
       }
     }
 
@@ -728,6 +748,16 @@ try {
         <DialogContent
           className='flex h-[80vh] flex-col gap-0 p-0 sm:max-w-[700px]'
           hideCloseButton
+          onKeyDown={(e) => {
+            // Intercept Escape key when dropdowns are open
+            if (e.key === 'Escape' && (showEnvVars || showTags || showSchemaParams)) {
+              e.preventDefault()
+              e.stopPropagation()
+              setShowEnvVars(false)
+              setShowTags(false)
+              setShowSchemaParams(false)
+            }
+          }}
         >
           <DialogHeader className='border-b px-6 py-4'>
             <div className='flex items-center justify-between'>
@@ -993,6 +1023,7 @@ try {
                   {/* Schema parameters dropdown */}
                   {showSchemaParams && schemaParameters.length > 0 && (
                     <div
+                      ref={schemaParamsDropdownRef}
                       className='absolute z-[9999] mt-1 w-64 overflow-visible rounded-md border bg-popover shadow-md'
                       style={{
                         top: `${dropdownPosition.top}px`,
