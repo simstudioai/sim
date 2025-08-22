@@ -1,4 +1,5 @@
 import type {
+  ExcelCellValue,
   MicrosoftExcelReadResponse,
   MicrosoftExcelToolParams,
 } from '@/tools/microsoft_excel/types'
@@ -110,7 +111,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
 
       // usedRange returns an address (A1 notation) and values matrix
       const address: string = data.address || data.addressLocal || `${firstSheetName}!A1`
-      const rawValues: any[][] = data.values || []
+      const rawValues: ExcelCellValue[][] = data.values || []
 
       const values = trimTrailingEmptyRowsAndColumns(rawValues)
 
@@ -150,7 +151,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
     }
 
     const address: string = data.address || data.addressLocal || data.range || ''
-    const rawValues: any[][] = data.values || []
+    const rawValues: ExcelCellValue[][] = data.values || []
     const values = trimTrailingEmptyRowsAndColumns(rawValues)
 
     const result: MicrosoftExcelReadResponse = {
@@ -190,16 +191,16 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
   },
 }
 
-function trimTrailingEmptyRowsAndColumns(matrix: any[][]): any[][] {
+function trimTrailingEmptyRowsAndColumns(matrix: ExcelCellValue[][]): ExcelCellValue[][] {
   if (!Array.isArray(matrix) || matrix.length === 0) return []
 
-  const isEmptyValue = (v: any) => v === null || v === ''
+  const isEmptyValue = (v: ExcelCellValue) => v === null || v === ''
 
   // Determine last non-empty row
   let lastNonEmptyRowIndex = -1
   for (let r = 0; r < matrix.length; r++) {
     const row = matrix[r] || []
-    const hasData = row.some((cell: any) => !isEmptyValue(cell))
+    const hasData = row.some((cell: ExcelCellValue) => !isEmptyValue(cell))
     if (hasData) lastNonEmptyRowIndex = r
   }
 
