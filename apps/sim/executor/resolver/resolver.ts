@@ -15,6 +15,7 @@ function resolvePropertyAccess(obj: any, property: string): any {
   return obj[property]
 }
 
+
 /**
  * Resolves input values for blocks by handling references and variable substitution.
  */
