@@ -207,6 +207,14 @@ export const env = createEnv({
     NEXT_PUBLIC_DOCUMENTATION_URL:        z.string().url().optional(),            // Custom documentation URL
     NEXT_PUBLIC_TERMS_URL:                z.string().url().optional(),            // Custom terms of service URL
     NEXT_PUBLIC_PRIVACY_URL:              z.string().url().optional(),            // Custom privacy policy URL
+
+    // Theme Customization
+    NEXT_PUBLIC_BRAND_PRIMARY_COLOR:      z.string().optional(),                  // Primary brand color (hex format, e.g., "#701ffc")
+    NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR: z.string().optional(),                 // Primary brand hover state (hex format)
+    NEXT_PUBLIC_BRAND_SECONDARY_COLOR:    z.string().optional(),                  // Secondary brand color (hex format)
+    NEXT_PUBLIC_BRAND_ACCENT_COLOR:       z.string().optional(),                  // Accent brand color (hex format)
+    NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR: z.string().optional(),                  // Accent brand hover state (hex format)
+    NEXT_PUBLIC_BRAND_BACKGROUND_COLOR:   z.string().optional(),                  // Brand background color (hex format)
   },
 
   // Variables available on both server and client
@@ -234,6 +242,12 @@ export const env = createEnv({
     NEXT_PUBLIC_DOCUMENTATION_URL: process.env.NEXT_PUBLIC_DOCUMENTATION_URL,
     NEXT_PUBLIC_TERMS_URL: process.env.NEXT_PUBLIC_TERMS_URL,
     NEXT_PUBLIC_PRIVACY_URL: process.env.NEXT_PUBLIC_PRIVACY_URL,
+    NEXT_PUBLIC_BRAND_PRIMARY_COLOR: process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR,
+    NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR: process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR,
+    NEXT_PUBLIC_BRAND_SECONDARY_COLOR: process.env.NEXT_PUBLIC_BRAND_SECONDARY_COLOR,
+    NEXT_PUBLIC_BRAND_ACCENT_COLOR: process.env.NEXT_PUBLIC_BRAND_ACCENT_COLOR,
+    NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR: process.env.NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR,
+    NEXT_PUBLIC_BRAND_BACKGROUND_COLOR: process.env.NEXT_PUBLIC_BRAND_BACKGROUND_COLOR,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_TELEMETRY_DISABLED: process.env.NEXT_TELEMETRY_DISABLED,
   },
