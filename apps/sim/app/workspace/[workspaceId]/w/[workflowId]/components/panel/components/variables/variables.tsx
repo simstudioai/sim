@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
-import { validateName } from '@/lib/utils'
+import { cn, validateName } from '@/lib/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable, VariableType } from '@/stores/panel/variables/types'
@@ -51,6 +51,16 @@ export function Variables() {
 
   // Track which variables are currently being edited
   const [_activeEditors, setActiveEditors] = useState<Record<string, boolean>>({})
+
+  // Collapsed state per variable
+  const [collapsedById, setCollapsedById] = useState<Record<string, boolean>>({})
+
+  const toggleCollapsed = (variableId: string) => {
+    setCollapsedById((prev) => ({
+      ...prev,
+      [variableId]: !prev[variableId],
+    }))
+  }
 
   // Handle variable name change with validation
   const handleVariableNameChange = (variableId: string, newName: string) => {
@@ -220,12 +230,27 @@ export function Variables() {
           </Button>
         </div>
       ) : (
-        <ScrollArea className='h-full' hideScrollbar={true}>
+        <ScrollArea className='h-full' hideScrollbar={false}>
           <div className='space-y-4'>
             {workflowVariables.map((variable) => (
               <div key={variable.id} className='space-y-2'>
                 {/* Header: Variable name | Variable type | Options dropdown */}
                 <div className='flex items-center gap-2'>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    className='h-9 w-9 shrink-0 rounded-lg bg-secondary/50 p-0 text-muted-foreground hover:bg-secondary/70 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
+                    onClick={() => toggleCollapsed(variable.id)}
+                    aria-label='Toggle variable visibility'
+                    aria-expanded={!(collapsedById[variable.id] ?? false)}
+                  >
+                    <ChevronDown
+                      className={cn(
+                        'h-4 w-4 transition-transform',
+                        (collapsedById[variable.id] ?? false) && '-rotate-90'
+                      )}
+                    />
+                  </Button>
                   <Input
                     className='h-9 flex-1 rounded-lg border-none bg-secondary/50 px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
                     placeholder='Variable name'
@@ -317,71 +342,75 @@ export function Variables() {
                 </div>
 
                 {/* Value area */}
-                <div className='relative rounded-lg bg-secondary/50'>
-                  {/* Validation indicator */}
-                  {variable.value !== '' && getValidationStatus(variable) && (
-                    <div className='absolute top-2 right-2 z-10'>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className='cursor-help'>
-                            <AlertTriangle className='h-3 w-3 text-muted-foreground' />
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side='bottom' className='max-w-xs'>
-                          <p>{getValidationStatus(variable)}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                  )}
+                {!(collapsedById[variable.id] ?? false) && (
+                  <div className='relative rounded-lg bg-secondary/50'>
+                    {/* Validation indicator */}
+                    {variable.value !== '' && getValidationStatus(variable) && (
+                      <div className='absolute top-2 right-2 z-10'>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className='cursor-help'>
+                              <AlertTriangle className='h-3 w-3 text-muted-foreground' />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side='bottom' className='max-w-xs'>
+                            <p>{getValidationStatus(variable)}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    )}
 
-                  {/* Editor */}
-                  <div className='relative overflow-hidden'>
-                    <div
-                      className='relative min-h-[36px] w-full max-w-full px-3 py-2 font-normal text-sm'
-                      ref={(el) => {
-                        editorRefs.current[variable.id] = el
-                      }}
-                      style={{ maxWidth: '100%' }}
-                    >
-                      {variable.value === '' && (
-                        <div className='pointer-events-none absolute inset-0 flex select-none items-start justify-start px-3 py-2 font-[380] text-muted-foreground text-sm leading-normal'>
-                          <div style={{ lineHeight: '20px' }}>{getPlaceholder(variable.type)}</div>
-                        </div>
-                      )}
-                      <Editor
-                        key={`editor-${variable.id}-${variable.type}`}
-                        value={formatValue(variable)}
-                        onValueChange={handleEditorChange.bind(null, variable)}
-                        onBlur={() => handleEditorBlur(variable.id)}
-                        onFocus={() => handleEditorFocus(variable.id)}
-                        highlight={(code) =>
-                          // Only apply syntax highlighting for non-basic text types
-                          variable.type === 'plain' || variable.type === 'string'
-                            ? code
-                            : highlight(
-                                code,
-                                languages[getEditorLanguage(variable.type)],
-                                getEditorLanguage(variable.type)
-                              )
-                        }
-                        padding={0}
-                        style={{
-                          fontFamily: 'inherit',
-                          lineHeight: '20px',
-                          width: '100%',
-                          maxWidth: '100%',
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-all',
-                          overflowWrap: 'break-word',
-                          minHeight: '20px',
-                          overflow: 'hidden',
+                    {/* Editor */}
+                    <div className='relative overflow-hidden'>
+                      <div
+                        className='relative min-h-[36px] w-full max-w-full px-3 py-2 font-normal text-sm'
+                        ref={(el) => {
+                          editorRefs.current[variable.id] = el
                         }}
-                        className='[&>pre]:!max-w-full [&>pre]:!overflow-hidden [&>pre]:!whitespace-pre-wrap [&>pre]:!break-all [&>pre]:!overflow-wrap-break-word [&>textarea]:!max-w-full [&>textarea]:!overflow-hidden [&>textarea]:!whitespace-pre-wrap [&>textarea]:!break-all [&>textarea]:!overflow-wrap-break-word font-[380] text-foreground text-sm leading-normal focus:outline-none'
-                        textareaClassName='focus:outline-none focus:ring-0 bg-transparent resize-none w-full max-w-full whitespace-pre-wrap break-all overflow-wrap-break-word overflow-hidden font-[380] text-foreground'
-                      />
+                        style={{ maxWidth: '100%' }}
+                      >
+                        {variable.value === '' && (
+                          <div className='pointer-events-none absolute inset-0 flex select-none items-start justify-start px-3 py-2 font-[380] text-muted-foreground text-sm leading-normal'>
+                            <div style={{ lineHeight: '20px' }}>
+                              {getPlaceholder(variable.type)}
+                            </div>
+                          </div>
+                        )}
+                        <Editor
+                          key={`editor-${variable.id}-${variable.type}`}
+                          value={formatValue(variable)}
+                          onValueChange={handleEditorChange.bind(null, variable)}
+                          onBlur={() => handleEditorBlur(variable.id)}
+                          onFocus={() => handleEditorFocus(variable.id)}
+                          highlight={(code) =>
+                            // Only apply syntax highlighting for non-basic text types
+                            variable.type === 'plain' || variable.type === 'string'
+                              ? code
+                              : highlight(
+                                  code,
+                                  languages[getEditorLanguage(variable.type)],
+                                  getEditorLanguage(variable.type)
+                                )
+                          }
+                          padding={0}
+                          style={{
+                            fontFamily: 'inherit',
+                            lineHeight: '20px',
+                            width: '100%',
+                            maxWidth: '100%',
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-all',
+                            overflowWrap: 'break-word',
+                            minHeight: '20px',
+                            overflow: 'hidden',
+                          }}
+                          className='[&>pre]:!max-w-full [&>pre]:!overflow-hidden [&>pre]:!whitespace-pre-wrap [&>pre]:!break-all [&>pre]:!overflow-wrap-break-word [&>textarea]:!max-w-full [&>textarea]:!overflow-hidden [&>textarea]:!whitespace-pre-wrap [&>textarea]:!break-all [&>textarea]:!overflow-wrap-break-word font-[380] text-foreground text-sm leading-normal focus:outline-none'
+                          textareaClassName='focus:outline-none focus:ring-0 bg-transparent resize-none w-full max-w-full whitespace-pre-wrap break-all overflow-wrap-break-word overflow-hidden font-[380] text-foreground'
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             ))}
 

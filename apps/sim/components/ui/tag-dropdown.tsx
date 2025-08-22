@@ -1,5 +1,5 @@
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
@@ -283,6 +283,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   onClose,
   style,
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [hoveredNested, setHoveredNested] = useState<{ tag: string; index: number } | null>(null)
   const [inSubmenu, setInSubmenu] = useState(false)
@@ -949,6 +950,28 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     }
   }, [orderedTags.length, selectedIndex])
 
+  // Close on outside click/touch when dropdown is visible
+  useEffect(() => {
+    if (!visible) return
+
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      const el = containerRef.current
+      if (!el) return
+      const target = e.target as Node
+      if (!el.contains(target)) {
+        onClose?.()
+      }
+    }
+
+    // Use capture phase to detect before child handlers potentially stop propagation
+    document.addEventListener('mousedown', handlePointerDown, true)
+    document.addEventListener('touchstart', handlePointerDown, true)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown, true)
+      document.removeEventListener('touchstart', handlePointerDown, true)
+    }
+  }, [visible, onClose])
+
   useEffect(() => {
     if (visible) {
       const handleKeyboardEvent = (e: KeyboardEvent) => {
@@ -1173,6 +1196,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   return (
     <div
+      ref={containerRef}
       className={cn(
         'absolute z-[9999] mt-1 w-full overflow-visible rounded-md border bg-popover shadow-md',
         className
