@@ -12,10 +12,11 @@ import type {
 } from '@/stores/copilot/types'
 import { ClientToolCallState } from '@/lib/copilot-new/tools/client/base-tool'
 import type { CopilotToolCall } from '@/stores/copilot/types'
-import { getClientTool } from '@/lib/copilot-new/tools/client/manager'
+import { getClientTool, registerClientTool } from '@/lib/copilot-new/tools/client/manager'
 import { getTool, createExecutionContext, registerTool } from '@/lib/copilot-new/tools/client/registry'
 import { GetUserWorkflowTool } from '@/lib/copilot-new/tools/client/workflow/get-user-workflow'
 import type { ClientToolDisplay } from '@/lib/copilot-new/tools/client/base-tool'
+import { RunWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/run-workflow'
 
 const logger = createLogger('CopilotStore')
 
@@ -194,6 +195,15 @@ const sseHandlers: Record<string, SSEHandler> = {
     const { toolCallId, toolName } = data
     if (!toolCallId || !toolName) return
     const { toolCallsById } = get()
+
+    // Ensure class-based client tool instances are registered (for interrupts/display)
+    try {
+      if (toolName === 'run_workflow' && !getClientTool(toolCallId)) {
+        const inst = new RunWorkflowClientTool(toolCallId)
+        registerClientTool(toolCallId, inst)
+      }
+    } catch {}
+
     if (!toolCallsById[toolCallId]) {
       const tc: CopilotToolCall = {
         id: toolCallId,
@@ -217,6 +227,15 @@ const sseHandlers: Record<string, SSEHandler> = {
     if (!id) return
     const args = toolData.arguments
     const { toolCallsById } = get()
+
+    // Ensure class-based client tool instances are registered (for interrupts/display)
+    try {
+      if (name === 'run_workflow' && !getClientTool(id)) {
+        const inst = new RunWorkflowClientTool(id)
+        registerClientTool(id, inst)
+      }
+    } catch {}
+
     const existing = toolCallsById[id]
     const next: CopilotToolCall = existing
       ? {
