@@ -381,11 +381,13 @@ function SignupFormContent({
             isProduction={isProduction}
           />
 
-          <div className='relative mt-2 py-4'>
-            <div className='absolute inset-0 flex items-center'>
-              <div className='w-full border-neutral-700/50 border-t' />
+          {(githubAvailable || googleAvailable) && (
+            <div className='relative mt-2 py-4'>
+              <div className='absolute inset-0 flex items-center'>
+                <div className='w-full border-neutral-700/50 border-t' />
+              </div>
             </div>
-          </div>
+          )}
 
           <form onSubmit={onSubmit} className='space-y-5'>
             <div className='space-y-4'>
