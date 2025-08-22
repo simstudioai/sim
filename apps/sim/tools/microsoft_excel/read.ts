@@ -1,11 +1,8 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type {
   MicrosoftExcelReadResponse,
   MicrosoftExcelToolParams,
 } from '@/tools/microsoft_excel/types'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('MicrosoftExcelReadTool')
 
 export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadResponse> = {
   id: 'microsoft_excel_read',
@@ -111,11 +108,6 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
 
       const data = await rangeResp.json()
 
-      logger.debug('Fetched usedRange for first worksheet', {
-        spreadsheetId: spreadsheetIdFromUrl,
-        sheet: firstSheetName,
-      })
-
       // usedRange returns an address (A1 notation) and values matrix
       const address: string = data.address || data.addressLocal || `${firstSheetName}!A1`
       const rawValues: any[][] = data.values || []
@@ -160,12 +152,6 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
     const address: string = data.address || data.addressLocal || data.range || ''
     const rawValues: any[][] = data.values || []
     const values = trimTrailingEmptyRowsAndColumns(rawValues)
-
-    logger.debug('Fetched explicit range for worksheet', {
-      spreadsheetId,
-      address,
-      rowCount: values.length,
-    })
 
     const result: MicrosoftExcelReadResponse = {
       success: true,
