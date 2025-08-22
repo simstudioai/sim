@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, ChevronDown, Copy, MoreVertical, Plus, Trash } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Copy, MoreVertical, Plus, Trash, Maximize2, Minimize2 } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
-import { cn, validateName } from '@/lib/utils'
+import { validateName } from '@/lib/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable, VariableType } from '@/stores/panel/variables/types'
@@ -236,21 +236,6 @@ export function Variables() {
               <div key={variable.id} className='space-y-2'>
                 {/* Header: Variable name | Variable type | Options dropdown */}
                 <div className='flex items-center gap-2'>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    className='h-9 w-9 shrink-0 rounded-lg bg-secondary/50 p-0 text-muted-foreground hover:bg-secondary/70 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
-                    onClick={() => toggleCollapsed(variable.id)}
-                    aria-label='Toggle variable visibility'
-                    aria-expanded={!(collapsedById[variable.id] ?? false)}
-                  >
-                    <ChevronDown
-                      className={cn(
-                        'h-4 w-4 transition-transform',
-                        (collapsedById[variable.id] ?? false) && '-rotate-90'
-                      )}
-                    />
-                  </Button>
                   <Input
                     className='h-9 flex-1 rounded-lg border-none bg-secondary/50 px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
                     placeholder='Variable name'
@@ -323,6 +308,17 @@ export function Variables() {
                       align='end'
                       className='min-w-32 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
                     >
+                      <DropdownMenuItem
+                        onClick={() => toggleCollapsed(variable.id)}
+                        className='cursor-pointer rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+                      >
+                        {(collapsedById[variable.id] ?? false) ? (
+                          <Maximize2 className='mr-2 h-4 w-4 text-muted-foreground' />
+                        ) : (
+                          <Minimize2 className='mr-2 h-4 w-4 text-muted-foreground' />
+                        )}
+                        {(collapsedById[variable.id] ?? false) ? 'Expand' : 'Collapse'}
+                      </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => collaborativeDuplicateVariable(variable.id)}
                         className='cursor-pointer rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
