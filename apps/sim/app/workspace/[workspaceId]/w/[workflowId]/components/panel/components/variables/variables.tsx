@@ -1,7 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, ChevronDown, Copy, MoreVertical, Plus, Trash, Maximize2, Minimize2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  ChevronDown,
+  Copy,
+  Maximize2,
+  Minimize2,
+  MoreVertical,
+  Plus,
+  Trash,
+} from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
