@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { getEnv } from '@/lib/env'
+import { getProviderIdFromServiceId } from '@/lib/oauth'
 import {
   ConfluenceFileSelector,
   DiscordChannelSelector,
@@ -73,8 +74,12 @@ export function FileSelectorInput({
   const [botTokenValue] = useSubBlockValue(blockId, 'botToken')
 
   // Determine if the persisted credential belongs to the current viewer
+  // Use service providerId where available (e.g., onedrive/sharepoint) instead of base provider ("microsoft")
+  const foreignCheckProvider = subBlock.serviceId
+    ? getProviderIdFromServiceId(subBlock.serviceId)
+    : (subBlock.provider as string) || ''
   const { isForeignCredential } = useForeignCredential(
-    subBlock.provider || subBlock.serviceId || '',
+    foreignCheckProvider,
     (connectedCredential as string) || ''
   )
 
@@ -224,12 +229,6 @@ export function FileSelectorInput({
                 }
                 onChange={(issueKey) => {
                   collaborativeSetSubblockValue(blockId, subBlock.id, issueKey)
-                  // Clear related fields when a new issue is selected
-                  collaborativeSetSubblockValue(blockId, 'summary', '')
-                  collaborativeSetSubblockValue(blockId, 'description', '')
-                  if (!issueKey) {
-                    collaborativeSetSubblockValue(blockId, 'manualIssueKey', '')
-                  }
                 }}
                 domain={domain}
                 provider='jira'
@@ -353,7 +352,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select SharePoint site'}
-                disabled={disabled || !credential}
+                disabled={finalDisabled}
                 showPreview={true}
                 workflowId={activeWorkflowId || ''}
                 credentialId={credential}
@@ -389,7 +388,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId='microsoft-planner'
                 label={subBlock.placeholder || 'Select task'}
-                disabled={disabled || !credential || !planId}
+                disabled={finalDisabled}
                 showPreview={true}
                 planId={planId}
                 workflowId={activeWorkflowId || ''}
@@ -447,7 +446,7 @@ export function FileSelectorInput({
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Teams message location'}
-                disabled={disabled || !credential}
+                disabled={finalDisabled}
                 showPreview={true}
                 credential={credential}
                 selectionType={selectionType}
@@ -490,7 +489,7 @@ export function FileSelectorInput({
                   requiredScopes={subBlock.requiredScopes || []}
                   serviceId={subBlock.serviceId}
                   label={subBlock.placeholder || `Select ${itemType}`}
-                  disabled={disabled || !credential}
+                  disabled={finalDisabled}
                   showPreview={true}
                   credentialId={credential}
                   itemType={itemType}
@@ -531,7 +530,7 @@ export function FileSelectorInput({
                 provider={provider}
                 requiredScopes={subBlock.requiredScopes || []}
                 label={subBlock.placeholder || 'Select file'}
-                disabled={disabled || !credential}
+                disabled={finalDisabled}
                 serviceId={subBlock.serviceId}
                 mimeTypeFilter={subBlock.mimeType}
                 showPreview={true}
