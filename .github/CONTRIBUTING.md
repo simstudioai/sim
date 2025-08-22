@@ -134,8 +134,8 @@ Before running Sim locally, you'll need to configure your environment variables:
 
 1. **Create your environment file:**
    ```bash
-   # Navigate to the root directory and copy the example
-   cp apps/sim/.env.example .env
+    # Navigate to the sim directory
+   cp apps/sim/.env.example apps/sim/.env
    ```
 
 2. **Generate required security keys:**
