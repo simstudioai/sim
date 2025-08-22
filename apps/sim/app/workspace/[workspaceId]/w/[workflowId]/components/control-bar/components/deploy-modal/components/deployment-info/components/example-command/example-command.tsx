@@ -148,69 +148,67 @@ export function ExampleCommand({
     <div className='space-y-1.5'>
       <div className='flex items-center justify-between'>
         {showLabel && <Label className='font-medium text-sm'>Example</Label>}
-        <div className='flex items-center gap-1'>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => setMode('sync')}
-            className={`h-6 min-w-[50px] px-2 py-1 text-xs transition-none ${
-              mode === 'sync'
-                ? 'border-primary bg-primary text-primary-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground'
-                : ''
-            }`}
-          >
-            Sync
-          </Button>
-          {isAsyncEnabled && (
-            <>
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={() => setMode('async')}
-                className={`h-6 min-w-[50px] px-2 py-1 text-xs transition-none ${
-                  mode === 'async'
-                    ? 'border-primary bg-primary text-primary-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground'
-                    : ''
-                }`}
-              >
-                Async
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    className='h-6 min-w-[140px] justify-between px-2 py-1 text-xs'
-                    disabled={mode === 'sync'}
-                  >
-                    <span className='truncate'>{getExampleTitle()}</span>
-                    <ChevronDown className='ml-1 h-3 w-3 flex-shrink-0' />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align='end'>
-                  <DropdownMenuItem
-                    className='cursor-pointer'
-                    onClick={() => setExampleType('execute')}
-                  >
-                    Async Execution
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className='cursor-pointer'
-                    onClick={() => setExampleType('status')}
-                  >
-                    Check Job Status
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className='cursor-pointer'
-                    onClick={() => setExampleType('rate-limits')}
-                  >
-                    Rate Limits & Usage
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
-          )}
-        </div>
+        {isAsyncEnabled && (
+          <div className='flex items-center gap-1'>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => setMode('sync')}
+              className={`h-6 min-w-[50px] px-2 py-1 text-xs transition-none ${
+                mode === 'sync'
+                  ? 'border-primary bg-primary text-primary-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground'
+                  : ''
+              }`}
+            >
+              Sync
+            </Button>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => setMode('async')}
+              className={`h-6 min-w-[50px] px-2 py-1 text-xs transition-none ${
+                mode === 'async'
+                  ? 'border-primary bg-primary text-primary-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground'
+                  : ''
+              }`}
+            >
+              Async
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='h-6 min-w-[140px] justify-between px-2 py-1 text-xs'
+                  disabled={mode === 'sync'}
+                >
+                  <span className='truncate'>{getExampleTitle()}</span>
+                  <ChevronDown className='ml-1 h-3 w-3 flex-shrink-0' />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end'>
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  onClick={() => setExampleType('execute')}
+                >
+                  Async Execution
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  onClick={() => setExampleType('status')}
+                >
+                  Check Job Status
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className='cursor-pointer'
+                  onClick={() => setExampleType('rate-limits')}
+                >
+                  Rate Limits & Usage
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
       </div>
 
       <div className='group relative h-[120px] rounded-md border bg-background transition-colors hover:bg-muted/50'>
