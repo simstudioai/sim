@@ -31,6 +31,8 @@ import { MakeApiRequestClientTool } from '@/lib/copilot-new/tools/client/other/m
 import { PlanClientTool } from '@/lib/copilot-new/tools/client/other/plan'
 import { CheckoffTodoClientTool } from '@/lib/copilot-new/tools/client/other/checkoff-todo'
 import { GDriveRequestAccessClientTool } from '@/lib/copilot-new/tools/client/google/gdrive-request-access'
+import { EditWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/edit-workflow'
+import { BuildWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/build-workflow'
 
 const logger = createLogger('CopilotStore')
 
@@ -61,6 +63,8 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   plan: (id) => new PlanClientTool(id),
   checkoff_todo: (id) => new CheckoffTodoClientTool(id),
   gdrive_request_access: (id) => new GDriveRequestAccessClientTool(id),
+  edit_workflow: (id) => new EditWorkflowClientTool(id),
+  build_workflow: (id) => new BuildWorkflowClientTool(id),
 }
 
 function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {
@@ -249,21 +253,8 @@ const sseHandlers: Record<string, SSEHandler> = {
     ensureClientToolInstance(toolName, toolCallId)
 
     if (!toolCallsById[toolCallId]) {
-      // Determine interrupt and initial active state
-      let hasInterrupt = false
-      try {
-        const def = getTool(toolName) as any
-        if (def) {
-          hasInterrupt = typeof def.hasInterrupt === 'function' ? !!def.hasInterrupt({}) : !!def.hasInterrupt
-        }
-      } catch {}
-      if (!hasInterrupt) {
-        try {
-          const inst = getClientTool(toolCallId) as any
-          hasInterrupt = !!inst?.getInterruptDisplays?.()
-        } catch {}
-      }
-      const initialState = hasInterrupt ? ClientToolCallState.pending : ClientToolCallState.executing
+      // Show as pending until we receive full tool_call (with arguments) to decide execution
+      const initialState = ClientToolCallState.pending
       const tc: CopilotToolCall = {
         id: toolCallId,
         name: toolName,
@@ -382,19 +373,6 @@ const sseHandlers: Record<string, SSEHandler> = {
                 set({ toolCallsById: completeMap })
                 logger.info('[toolCallsById] executing → ' + (success ? 'success' : 'error') + ' (registry)', { id, name })
 
-                // Update inline content block to terminal state
-                for (let i = 0; i < context.contentBlocks.length; i++) {
-                  const b = context.contentBlocks[i] as any
-                  if (b.type === 'tool_call' && b.toolCall?.id === id) {
-                    context.contentBlocks[i] = {
-                      ...b,
-                      toolCall: { ...b.toolCall, state: success ? ClientToolCallState.success : ClientToolCallState.error },
-                    }
-                    break
-                  }
-                }
-                updateStreamingMessage(set, context)
-
                 // Notify backend tool mark-complete endpoint
                 try {
                   await fetch('/api/copilot/tools/mark-complete', {
@@ -419,19 +397,6 @@ const sseHandlers: Record<string, SSEHandler> = {
                 }
                 set({ toolCallsById: errorMap })
                 logger.error('Registry auto-execute tool failed', { id, name, error: e })
-
-                // Update inline content block to error
-                for (let i = 0; i < context.contentBlocks.length; i++) {
-                  const b = context.contentBlocks[i] as any
-                  if (b.type === 'tool_call' && b.toolCall?.id === id) {
-                    context.contentBlocks[i] = {
-                      ...b,
-                      toolCall: { ...b.toolCall, state: ClientToolCallState.error },
-                    }
-                    break
-                  }
-                }
-                updateStreamingMessage(set, context)
               })
           }, 0)
           return
@@ -441,7 +406,39 @@ const sseHandlers: Record<string, SSEHandler> = {
       logger.warn('tool_call registry auto-exec check failed', { id, name, error: e })
     }
 
-    // Removed legacy instance auto-exec path; registry + mark-complete handles modern flow
+    // Class-based auto-exec for non-interrupt tools
+    try {
+      const inst = getClientTool(id) as any
+      const hasInterrupt = !!inst?.getInterruptDisplays?.()
+      if (!hasInterrupt && typeof inst?.execute === 'function') {
+        setTimeout(() => {
+          const executingMap = { ...get().toolCallsById }
+          executingMap[id] = {
+            ...executingMap[id],
+            state: ClientToolCallState.executing,
+            display: resolveToolDisplay(name, ClientToolCallState.executing, id, args),
+          }
+          set({ toolCallsById: executingMap })
+          logger.info('[toolCallsById] pending → executing (class)', { id, name })
+
+          Promise.resolve()
+            .then(async () => {
+              await inst.execute(args || {})
+              // Success/error will be synced via registerToolStateSync
+            })
+            .catch(() => {
+              const errorMap = { ...get().toolCallsById }
+              errorMap[id] = {
+                ...errorMap[id],
+                state: ClientToolCallState.error,
+                display: resolveToolDisplay(name, ClientToolCallState.error, id, args),
+              }
+              set({ toolCallsById: errorMap })
+            })
+        }, 0)
+      }
+    } catch {}
+
   },
   reasoning: (data, context, _get, set) => {
     const phase = (data && (data.phase || data?.data?.phase)) as string | undefined
