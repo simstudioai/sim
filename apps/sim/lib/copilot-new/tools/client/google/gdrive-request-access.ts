@@ -93,4 +93,8 @@ export class GDriveRequestAccessClientTool extends BaseClientTool {
     await super.handleReject()
     this.setState(ClientToolCallState.rejected)
   }
+
+  async execute(args?: any): Promise<void> {
+    await this.handleAccept(args)
+  }
 } 
