@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   } catch (error) {
-    logger.error('Fatal error in monthly billing cron job', { error })
+    logger.error('Fatal error in daily billing cron job', { error })
 
     return NextResponse.json(
       {
@@ -90,18 +90,59 @@ export async function GET(request: NextRequest) {
       return authError
     }
 
-    return NextResponse.json({
-      status: 'ready',
-      message:
-        'Daily billing check cron job is ready to process users and organizations with periods ending today',
-      currentDate: new Date().toISOString().split('T')[0],
+    const startTime = Date.now()
+    const result = await processDailyBillingCheck()
+    const duration = Date.now() - startTime
+
+    if (result.success) {
+      logger.info('Daily billing check (GET) completed successfully', {
+        processedUsers: result.processedUsers,
+        processedOrganizations: result.processedOrganizations,
+        totalChargedAmount: result.totalChargedAmount,
+        duration: `${duration}ms`,
+      })
+
+      return NextResponse.json({
+        success: true,
+        summary: {
+          processedUsers: result.processedUsers,
+          processedOrganizations: result.processedOrganizations,
+          totalChargedAmount: result.totalChargedAmount,
+          duration: `${duration}ms`,
+        },
+      })
+    }
+
+    logger.error('Daily billing check (GET) completed with errors', {
+      processedUsers: result.processedUsers,
+      processedOrganizations: result.processedOrganizations,
+      totalChargedAmount: result.totalChargedAmount,
+      errorCount: result.errors.length,
+      errors: result.errors,
+      duration: `${duration}ms`,
     })
-  } catch (error) {
-    logger.error('Error in billing health check', { error })
+
     return NextResponse.json(
       {
-        status: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        success: false,
+        summary: {
+          processedUsers: result.processedUsers,
+          processedOrganizations: result.processedOrganizations,
+          totalChargedAmount: result.totalChargedAmount,
+          errorCount: result.errors.length,
+          duration: `${duration}ms`,
+        },
+        errors: result.errors,
+      },
+      { status: 500 }
+    )
+  } catch (error) {
+    logger.error('Fatal error in daily billing (GET) cron job', { error })
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Internal server error during daily billing check',
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     )
