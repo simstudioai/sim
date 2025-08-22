@@ -601,7 +601,33 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
       updateBlockName: (id: string, name: string) => {
         const oldBlock = get().blocks[id]
-        if (!oldBlock) return
+        if (!oldBlock) return false
+
+        // Helper function to normalize block names (same as resolver)
+        const normalizeBlockName = (blockName: string): string => {
+          return blockName.toLowerCase().replace(/\s+/g, '')
+        }
+
+        // Check for normalized name collisions
+        const normalizedNewName = normalizeBlockName(name)
+        const currentBlocks = get().blocks
+
+        // Find any other block with the same normalized name
+        const conflictingBlock = Object.entries(currentBlocks).find(([blockId, block]) => {
+          return (
+            blockId !== id && // Different block
+            block.name && // Has a name
+            normalizeBlockName(block.name) === normalizedNewName // Same normalized name
+          )
+        })
+
+        if (conflictingBlock) {
+          // Don't allow the rename - another block already uses this normalized name
+          logger.error(
+            `Cannot rename block to "${name}" - another block "${conflictingBlock[1].name}" already uses the normalized name "${normalizedNewName}"`
+          )
+          return false
+        }
 
         // Create a new state with the updated block name
         const newState = {
@@ -696,6 +722,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         pushHistory(set, get, newState, `${name} block name updated`)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
+
+        return true
       },
 
       toggleBlockWide: (id: string) => {
