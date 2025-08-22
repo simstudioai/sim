@@ -826,7 +826,7 @@ export async function fetchAndProcessAirtablePayloads(
   // Use a Map to consolidate changes per record ID
   const consolidatedChangesMap = new Map<string, AirtableChange>()
   // Capture raw payloads from Airtable for exposure to workflows
-  const allPayloads: any[] = []
+  const allPayloads = []
   const localProviderConfig = {
     ...((webhookData.providerConfig as Record<string, any>) || {}),
   } // Local copy
