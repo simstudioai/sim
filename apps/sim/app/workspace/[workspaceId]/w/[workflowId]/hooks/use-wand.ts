@@ -192,28 +192,20 @@ export function useWand({
         const reader = response.body.getReader()
         const decoder = new TextDecoder()
         let accumulatedContent = ''
-        let buffer = ''
 
         try {
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
 
-            // Process incoming chunks using SSE format
-            const text = decoder.decode(value)
-            buffer += text
-
-            // Split by double newlines (SSE event separators)
-            const lines = buffer.split('\n')
-            buffer = lines.pop() || '' // Keep incomplete line in buffer
+            // Process incoming chunks using SSE format (identical to Chat panel)
+            const chunk = decoder.decode(value)
+            const lines = chunk.split('\n\n')
 
             for (const line of lines) {
-              if (line.trim() === '') continue // Skip empty lines
-
               if (line.startsWith('data: ')) {
                 try {
-                  const jsonStr = line.slice(6) // Remove 'data: ' prefix
-                  const data = JSON.parse(jsonStr)
+                  const data = JSON.parse(line.substring(6))
 
                   // Check if there's an error
                   if (data.error) {
@@ -238,21 +230,6 @@ export function useWand({
                   logger.debug('Failed to parse SSE line', { line, parseError })
                 }
               }
-            }
-          }
-
-          // Process any remaining buffer
-          if (buffer.trim() && buffer.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(buffer.slice(6))
-              if (data.chunk) {
-                accumulatedContent += data.chunk
-                if (onStreamChunk) {
-                  onStreamChunk(data.chunk)
-                }
-              }
-            } catch (parseError) {
-              logger.debug('Failed to parse final buffer', { buffer, parseError })
             }
           }
         } finally {
