@@ -990,24 +990,45 @@ const sseHandlers: Record<string, SSEHandler> = {
       // finalizeToolCall(toolCall, true, parsedResult, get)
     } else {
       // NEW LOGIC: Use centralized state management
-      // Check if failedDependency is true to set 'rejected' state instead of 'errored'
+      // Parse result if string and detect "skipped"
+      const parsedResult =
+        typeof result === 'string' && result.startsWith('{')
+          ? (() => {
+              try {
+                return JSON.parse(result)
+              } catch {
+                return result
+              }
+            })()
+          : result
+
+      const isSkipped =
+        (parsedResult && typeof parsedResult === 'object' && (parsedResult as any).skipped === true) ||
+        failedDependency === true
+
       // Use the error field first, then fall back to result field, then default message
       const errorMessage = error || result || 'Tool execution failed'
-      const targetState = failedDependency === true ? ClientToolCallState.rejected : ClientToolCallState.error
+      const targetState = isSkipped ? ClientToolCallState.rejected : ClientToolCallState.error
 
       const instance = getClientTool(toolCall.id)
       if (!instance) {
-        setToolCallState(toolCall, targetState, { error: errorMessage })
+        setToolCallState(toolCall, targetState, { error: errorMessage, result: parsedResult })
       } else {
-        // Sync context with instance state (likely error)
+        // For client tools, drive state via the instance to respect display/interrupt rules
         try {
+          // Stash result for UI
+          try { toolCall.result = parsedResult } catch {}
+          if (typeof instance.setState === 'function') {
+            instance.setState(targetState, { result: parsedResult })
+          } else {
+            toolCall.state = targetState
+          }
+          // After setState, sync local view from instance
           const instState = instance.getState?.()
           if (instState) {
             toolCall.state = instState
             const disp = instance.getDisplayState?.()?.text
             if (disp) toolCall.displayName = disp
-          } else {
-            toolCall.state = targetState
           }
         } catch {
           toolCall.state = targetState
