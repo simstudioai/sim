@@ -176,9 +176,13 @@ const sseHandlers: Record<string, SSEHandler> = {
       const updated = { ...toolCallsById, [toolCallId]: tc }
       set({ toolCallsById: updated })
       logger.info('[toolCallsById] map updated', updated)
+
+      // Add inline content block for this tool call so it renders in the message
+      context.contentBlocks.push({ type: 'tool_call', toolCall: tc, timestamp: Date.now() })
+      updateStreamingMessage(set, context)
     }
   },
-  tool_call: (data, _context, get, set) => {
+  tool_call: (data, context, get, set) => {
     const toolData = data?.data || {}
     const id: string | undefined = toolData.id || data?.toolCallId
     const name: string | undefined = toolData.name || data?.toolName
@@ -193,6 +197,21 @@ const sseHandlers: Record<string, SSEHandler> = {
     set({ toolCallsById: updated })
     logger.info('[toolCallsById] → pending', { id, name, params: args })
 
+    // Ensure an inline content block exists/updated for this tool call
+    let found = false
+    for (let i = 0; i < context.contentBlocks.length; i++) {
+      const b = context.contentBlocks[i] as any
+      if (b.type === 'tool_call' && b.toolCall?.id === id) {
+        context.contentBlocks[i] = { ...b, toolCall: next }
+        found = true
+        break
+      }
+    }
+    if (!found) {
+      context.contentBlocks.push({ type: 'tool_call', toolCall: next, timestamp: Date.now() })
+    }
+    updateStreamingMessage(set, context)
+
     // Prefer interface-based registry to determine interrupt and execute
     try {
       const def = name ? getTool(name) : undefined
@@ -203,6 +222,20 @@ const sseHandlers: Record<string, SSEHandler> = {
           executingMap[id] = { ...executingMap[id], state: ClientToolCallState.executing }
           set({ toolCallsById: executingMap })
           logger.info('[toolCallsById] pending → executing (registry)', { id, name })
+
+          // Update inline content block to executing
+          for (let i = 0; i < context.contentBlocks.length; i++) {
+            const b = context.contentBlocks[i] as any
+            if (b.type === 'tool_call' && b.toolCall?.id === id) {
+              context.contentBlocks[i] = {
+                ...b,
+                toolCall: { ...b.toolCall, state: ClientToolCallState.executing },
+              }
+              break
+            }
+          }
+          updateStreamingMessage(set, context)
+
           const ctx = createExecutionContext({ toolCallId: id, toolName: name || 'unknown_tool' })
           Promise.resolve()
             .then(async () => {
@@ -215,6 +248,19 @@ const sseHandlers: Record<string, SSEHandler> = {
               }
               set({ toolCallsById: completeMap })
               logger.info('[toolCallsById] executing → ' + (success ? 'success' : 'error') + ' (registry)', { id, name })
+
+              // Update inline content block to terminal state
+              for (let i = 0; i < context.contentBlocks.length; i++) {
+                const b = context.contentBlocks[i] as any
+                if (b.type === 'tool_call' && b.toolCall?.id === id) {
+                  context.contentBlocks[i] = {
+                    ...b,
+                    toolCall: { ...b.toolCall, state: success ? ClientToolCallState.success : ClientToolCallState.error },
+                  }
+                  break
+                }
+              }
+              updateStreamingMessage(set, context)
 
               // Notify backend tool mark-complete endpoint
               try {
@@ -236,6 +282,19 @@ const sseHandlers: Record<string, SSEHandler> = {
               errorMap[id] = { ...errorMap[id], state: ClientToolCallState.error }
               set({ toolCallsById: errorMap })
               logger.error('Registry auto-execute tool failed', { id, name, error: e })
+
+              // Update inline content block to error
+              for (let i = 0; i < context.contentBlocks.length; i++) {
+                const b = context.contentBlocks[i] as any
+                if (b.type === 'tool_call' && b.toolCall?.id === id) {
+                  context.contentBlocks[i] = {
+                    ...b,
+                    toolCall: { ...b.toolCall, state: ClientToolCallState.error },
+                  }
+                  break
+                }
+              }
+              updateStreamingMessage(set, context)
             })
           return
         }
@@ -253,6 +312,20 @@ const sseHandlers: Record<string, SSEHandler> = {
         executingMap[id] = { ...executingMap[id], state: ClientToolCallState.executing }
         set({ toolCallsById: executingMap })
         logger.info('[toolCallsById] pending → executing (instance)', { id, name })
+
+        // Update inline block
+        for (let i = 0; i < context.contentBlocks.length; i++) {
+          const b = context.contentBlocks[i] as any
+          if (b.type === 'tool_call' && b.toolCall?.id === id) {
+            context.contentBlocks[i] = {
+              ...b,
+              toolCall: { ...b.toolCall, state: ClientToolCallState.executing },
+            }
+            break
+          }
+        }
+        updateStreamingMessage(set, context)
+
         Promise.resolve()
           .then(async () => {
             await instance.execute(args || {})
@@ -260,12 +333,36 @@ const sseHandlers: Record<string, SSEHandler> = {
             successMap[id] = { ...successMap[id], state: ClientToolCallState.success }
             set({ toolCallsById: successMap })
             logger.info('[toolCallsById] executing → success (instance)', { id, name })
+
+            for (let i = 0; i < context.contentBlocks.length; i++) {
+              const b = context.contentBlocks[i] as any
+              if (b.type === 'tool_call' && b.toolCall?.id === id) {
+                context.contentBlocks[i] = {
+                  ...b,
+                  toolCall: { ...b.toolCall, state: ClientToolCallState.success },
+                }
+                break
+              }
+            }
+            updateStreamingMessage(set, context)
           })
           .catch((e) => {
             const errorMap = { ...get().toolCallsById }
             errorMap[id] = { ...errorMap[id], state: ClientToolCallState.error }
             set({ toolCallsById: errorMap })
             logger.error('Instance auto-execute tool failed', { id, name, error: e })
+
+            for (let i = 0; i < context.contentBlocks.length; i++) {
+              const b = context.contentBlocks[i] as any
+              if (b.type === 'tool_call' && b.toolCall?.id === id) {
+                context.contentBlocks[i] = {
+                  ...b,
+                  toolCall: { ...b.toolCall, state: ClientToolCallState.error },
+                }
+                break
+              }
+            }
+            updateStreamingMessage(set, context)
           })
       }
     } catch (e) {
