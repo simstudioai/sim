@@ -354,6 +354,18 @@ export function mockExecutionDependencies() {
   }))
 }
 
+/**
+ * Mock Trigger.dev SDK (tasks.trigger and task factory) for tests that import background modules
+ */
+export function mockTriggerDevSdk() {
+  vi.mock('@trigger.dev/sdk', () => ({
+    tasks: {
+      trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
+    },
+    task: vi.fn().mockReturnValue({}),
+  }))
+}
+
 export function mockWorkflowAccessValidation(shouldSucceed = true) {
   if (shouldSucceed) {
     vi.mock('@/app/api/workflows/middleware', () => ({
