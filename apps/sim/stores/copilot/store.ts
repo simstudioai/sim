@@ -8,7 +8,10 @@ import type {
   CopilotMessage,
   CopilotStore,
   MessageFileAttachment,
+  CopilotMode,
 } from '@/stores/copilot/types'
+import { ClientToolCallState } from '@/lib/copilot-new/tools/client/base-tool'
+import type { CopilotToolCall } from '@/stores/copilot/types'
 
 const logger = createLogger('CopilotStore')
 
@@ -149,6 +152,20 @@ const sseHandlers: Record<string, SSEHandler> = {
     const { currentChat } = get()
     if (!currentChat && context.newChatId) {
       await get().handleNewChatCreation(context.newChatId)
+    }
+  },
+  tool_generating: (data, context, get, set) => {
+    const { toolCallId, toolName } = data
+    if (!toolCallId || !toolName) return
+    const { toolCallsById } = get()
+    if (!toolCallsById[toolCallId]) {
+      const tc: CopilotToolCall = {
+        id: toolCallId,
+        name: toolName,
+        state: ClientToolCallState.generating,
+      }
+      set({ toolCallsById: { ...toolCallsById, [toolCallId]: tc } })
+      logger.info(`[toolCallsById] - ${toolCallId}`)
     }
   },
   reasoning: (data, context, _get, set) => {
@@ -500,6 +517,7 @@ const initialState = {
   inputValue: '',
   planTodos: [] as Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>,
   showPlanTodos: false,
+  toolCallsById: {} as Record<string, CopilotToolCall>,
 }
 
 export const useCopilotStore = create<CopilotStore>()(
