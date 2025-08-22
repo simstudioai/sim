@@ -49,6 +49,16 @@ import {
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { ColorPicker } from '@/components/ui/color-picker'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -168,6 +178,8 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
   const [iconPopoverOpen, setIconPopoverOpen] = useState(false)
   const [existingTemplate, setExistingTemplate] = useState<any>(null)
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const form = useForm<TemplateFormData>({
     resolver: zodResolver(templateSchema),
@@ -557,12 +569,23 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
 
             {/* Fixed Footer */}
             <div className='mt-auto border-t px-6 pt-4 pb-6'>
-              <div className='flex justify-end'>
+              <div className='flex items-center'>
+                {existingTemplate && (
+                  <Button
+                    type='button'
+                    variant='destructive'
+                    onClick={() => setShowDeleteDialog(true)}
+                    disabled={isSubmitting || isLoadingTemplate}
+                    className='h-10 rounded-md px-4 py-2'
+                  >
+                    Delete
+                  </Button>
+                )}
                 <Button
                   type='submit'
                   disabled={isSubmitting || !isFormValid || isLoadingTemplate}
                   className={cn(
-                    'font-medium',
+                    'ml-auto font-medium',
                     'bg-[var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
                     'shadow-[0_0_0_0_var(--brand-primary-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
                     'text-white transition-all duration-200',
@@ -585,6 +608,47 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
             </div>
           </form>
         </Form>
+        {existingTemplate && (
+          <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Template?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Deleting this template will remove it from the gallery. This action cannot be
+                  undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                  disabled={isDeleting}
+                  onClick={async () => {
+                    if (!existingTemplate) return
+                    setIsDeleting(true)
+                    try {
+                      const resp = await fetch(`/api/templates/${existingTemplate.id}`, {
+                        method: 'DELETE',
+                      })
+                      if (!resp.ok) {
+                        const err = await resp.json().catch(() => ({}))
+                        throw new Error(err.error || 'Failed to delete template')
+                      }
+                      setShowDeleteDialog(false)
+                      onOpenChange(false)
+                    } catch (err) {
+                      logger.error('Failed to delete template', err)
+                    } finally {
+                      setIsDeleting(false)
+                    }
+                  }}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </DialogContent>
     </Dialog>
   )

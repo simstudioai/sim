@@ -3,8 +3,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { hasAdminPermission } from '@/lib/permissions/utils'
 import { db } from '@/db'
-import { templates } from '@/db/schema'
+import { templates, workflow } from '@/db/schema'
 
 const logger = createLogger('TemplateByIdAPI')
 
@@ -107,9 +108,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
     }
 
-    // For now, we assume if the user can access the template, they can update it
-    // In a production setup, you'd check if the user owns the template or has permission
-
     // Update the template
     const updatedTemplate = await db
       .update(templates)
@@ -134,6 +132,63 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Error updating template: ${id}`, error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// DELETE /api/templates/[id] - Delete a template
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+  const { id } = await params
+
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized template delete attempt for ID: ${id}`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Fetch template
+    const existing = await db.select().from(templates).where(eq(templates.id, id)).limit(1)
+    if (existing.length === 0) {
+      logger.warn(`[${requestId}] Template not found for delete: ${id}`)
+      return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+    }
+
+    const template = existing[0]
+
+    // Permission: owner or admin of the workflow's workspace (if any)
+    let canDelete = template.userId === session.user.id
+
+    if (!canDelete && template.workflowId) {
+      // Look up workflow to get workspaceId
+      const wfRows = await db
+        .select({ workspaceId: workflow.workspaceId })
+        .from(workflow)
+        .where(eq(workflow.id, template.workflowId))
+        .limit(1)
+
+      const workspaceId = wfRows[0]?.workspaceId as string | null | undefined
+      if (workspaceId) {
+        const hasAdmin = await hasAdminPermission(session.user.id, workspaceId)
+        if (hasAdmin) canDelete = true
+      }
+    }
+
+    if (!canDelete) {
+      logger.warn(`[${requestId}] User denied permission to delete template ${id}`)
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    await db.delete(templates).where(eq(templates.id, id))
+
+    logger.info(`[${requestId}] Deleted template: ${id}`)
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    logger.error(`[${requestId}] Error deleting template: ${id}`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
