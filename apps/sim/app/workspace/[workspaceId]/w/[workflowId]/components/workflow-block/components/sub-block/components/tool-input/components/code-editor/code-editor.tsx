@@ -204,12 +204,17 @@ export function CodeEditor({
           disabled={disabled}
           style={{
             fontFamily: 'inherit',
-            minHeight: '46px',
+            minHeight: minHeight,
             lineHeight: '21px',
+            height: '100%',
           }}
-          className={cn('focus:outline-none', isCollapsed && 'pointer-events-none select-none')}
+          className={cn(
+            'h-full focus:outline-none',
+            isCollapsed && 'pointer-events-none select-none'
+          )}
           textareaClassName={cn(
             'focus:outline-none focus:ring-0 bg-transparent',
+            '!min-h-full !h-full resize-none !block',
             (isCollapsed || disabled) && 'pointer-events-none'
           )}
         />
