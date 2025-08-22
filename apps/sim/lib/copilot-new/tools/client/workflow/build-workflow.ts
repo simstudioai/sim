@@ -92,6 +92,9 @@ export class BuildWorkflowClientTool extends BaseClientTool {
         logger.warn('Failed to set proposed changes in diff store', logArg)
       }
 
+      // Mark complete as soon as the diff view is available so LLM stream continues
+      await this.markToolComplete(200, 'Workflow diff ready for review', result)
+
       // Move tool into review and stash the result on the tool instance
       logger.info('setting review state')
       this.setState(ClientToolCallState.review, { result })

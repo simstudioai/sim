@@ -419,13 +419,9 @@ function processWorkflowToolResult(toolCall: any, result: any, get: () => Copilo
     })
     get().setPreviewYaml(yamlContent)
 
-    // For build_workflow, use the workflowState directly if available
-    if (toolCall.name === 'build_workflow' && workflowState) {
-      logger.info('Using workflowState directly for build_workflow tool')
-      get().updateDiffStoreWithWorkflowState(workflowState, toolCall.name)
-    } else {
-      get().updateDiffStore(yamlContent, toolCall.name)
-    }
+    // For build_workflow, previously we used workflowState directly which reset the diff view/highlights
+    // Always update via YAML so diff analysis and colors are preserved and the view doesn't flicker
+    get().updateDiffStore(yamlContent, toolCall.name)
   } else {
     logger.warn(`No yamlContent found in ${toolCall.name} result`, {
       resultKeys: Object.keys(result || {}),
@@ -972,8 +968,10 @@ const sseHandlers: Record<string, SSEHandler> = {
           toolCall.state === ClientToolCallState.success || toolCall.state === ClientToolCallState.rejected
         if (isWorkflowTool && resolved) {
           // Do not call processWorkflowToolResult again
+        } else if (isWorkflowTool && instance) {
+          // Client tool will manage diff updates; skip store-triggered update to avoid flicker
         } else {
-          // Let client tool manage any follow-up (e.g., diff handling) via its own logic
+          // Let store handle non-workflow or legacy cases
           try { processWorkflowToolResult(toolCall, parsedResult, get) } catch {}
         }
       } catch {
@@ -3138,7 +3136,7 @@ export const useCopilotStore = create<CopilotStore>()(
           useWorkflowDiffStore.setState({
             diffWorkflow: workflowState,
             isDiffReady: true,
-            isShowingDiff: false, // Let user decide when to show diff
+            // Do not change isShowingDiff here; preserve current visibility until user decides
           })
 
           // Check diff store state after update
