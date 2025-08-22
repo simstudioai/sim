@@ -65,7 +65,8 @@ export function useSubBlockValue<T = any>(
   const storeValue = useSubBlockStore(
     useCallback(
       (state) => {
-        if (!activeWorkflowId) return null
+        // If the active workflow ID isn't available yet, return undefined so we can fall back to initialValue
+        if (!activeWorkflowId) return undefined
         return state.workflowValues[activeWorkflowId]?.[blockId]?.[subBlockId] ?? null
       },
       [activeWorkflowId, blockId, subBlockId]
