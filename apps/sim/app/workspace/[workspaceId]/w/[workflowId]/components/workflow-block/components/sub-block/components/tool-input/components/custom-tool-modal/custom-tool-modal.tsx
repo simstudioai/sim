@@ -22,6 +22,7 @@ import {
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { Label } from '@/components/ui/label'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
@@ -1098,11 +1099,35 @@ try {
                   Cancel
                 </Button>
                 {activeSection === 'schema' ? (
-                  <Button onClick={() => setActiveSection('code')} disabled={!isSchemaValid}>
-                    Next
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button onClick={() => setActiveSection('code')} disabled={!isSchemaValid}>
+                          Next
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {!isSchemaValid && (
+                      <TooltipContent side='top'>
+                        <p>Invalid JSON schema</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
                 ) : (
-                  <Button onClick={handleSave}>{isEditing ? 'Update Tool' : 'Save Tool'}</Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button onClick={handleSave} disabled={!isSchemaValid}>
+                          {isEditing ? 'Update Tool' : 'Save Tool'}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {!isSchemaValid && (
+                      <TooltipContent side='top'>
+                        <p>Invalid JSON schema</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
                 )}
               </div>
             </div>
