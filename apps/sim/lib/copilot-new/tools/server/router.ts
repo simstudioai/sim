@@ -13,6 +13,7 @@ import { listGDriveFilesServerTool } from '@/lib/copilot-new/tools/server/gdrive
 import { readGDriveFileServerTool } from '@/lib/copilot-new/tools/server/gdrive/read-file'
 import { getOAuthCredentialsServerTool } from '@/lib/copilot-new/tools/server/user/get-oauth-credentials'
 import { makeApiRequestServerTool } from '@/lib/copilot-new/tools/server/other/make-api-request'
+import { editWorkflowServerTool } from '@/lib/copilot-new/tools/server/workflow/edit-workflow'
 import { ExecuteResponseSuccessSchema, GetBlocksAndToolsInput, GetBlocksAndToolsResult, GetBlocksMetadataInput, GetBlocksMetadataResult, BuildWorkflowInput, BuildWorkflowResult } from '@/lib/copilot-new/tools/shared/schemas'
 
 // Generic execute response schemas (success path only for this route; errors handled via HTTP status)
@@ -27,6 +28,7 @@ const logger = createLogger('ServerToolRouter')
 serverToolRegistry[getBlocksAndToolsServerTool.name] = getBlocksAndToolsServerTool
 serverToolRegistry[getBlocksMetadataServerTool.name] = getBlocksMetadataServerTool
 serverToolRegistry[buildWorkflowServerTool.name] = buildWorkflowServerTool
+serverToolRegistry[editWorkflowServerTool.name] = editWorkflowServerTool
 serverToolRegistry[getWorkflowConsoleServerTool.name] = getWorkflowConsoleServerTool
 serverToolRegistry[searchDocumentationServerTool.name] = searchDocumentationServerTool
 serverToolRegistry[searchOnlineServerTool.name] = searchOnlineServerTool

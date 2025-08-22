@@ -834,6 +834,14 @@ const sseHandlers: Record<string, SSEHandler> = {
         try { registerClientTool(toolData.id, inst) } catch {}
         try { toolCall.displayName = inst.getDisplayState()?.text || toolCall.name } catch {}
       }
+    } else if (toolData.name === 'edit_workflow') {
+      context.clientTools = context.clientTools || {}
+      if (!context.clientTools[toolData.id]) {
+        const inst = new (require('@/lib/copilot-new/tools/client/workflow/edit-workflow').EditWorkflowClientTool)(toolData.id)
+        context.clientTools[toolData.id] = inst
+        try { registerClientTool(toolData.id, inst) } catch {}
+        try { toolCall.displayName = inst.getDisplayState()?.text || toolCall.name } catch {}
+      }
     } else {
       // Generic path: if we have a registered client tool constructor, instantiate and auto-execute if non-interrupt
       try {
@@ -1549,6 +1557,7 @@ const CLIENT_TOOL_CONSTRUCTORS: Record<string, (id: string) => any> = {
   get_blocks_and_tools: (id) => new GetBlocksAndToolsClientTool(id),
   get_blocks_metadata: (id) => new (require('@/lib/copilot-new/tools/client/blocks/get-blocks-metadata').GetBlocksMetadataClientTool)(id),
   build_workflow: (id) => new BuildWorkflowClientTool(id),
+  edit_workflow: (id) => new (require('@/lib/copilot-new/tools/client/workflow/edit-workflow').EditWorkflowClientTool)(id),
   get_workflow_console: (id) => new GetWorkflowConsoleClientTool(id),
   search_online: (id) => new SearchOnlineClientTool(id),
   search_documentation: (id) => new (require('@/lib/copilot-new/tools/client/other/search-documentation').SearchDocumentationClientTool)(id),
