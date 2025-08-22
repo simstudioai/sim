@@ -192,42 +192,67 @@ export function useWand({
         const reader = response.body.getReader()
         const decoder = new TextDecoder()
         let accumulatedContent = ''
+        let buffer = ''
 
         try {
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
 
-            // Process incoming chunks
+            // Process incoming chunks using SSE format
             const text = decoder.decode(value)
-            const lines = text.split('\n').filter((line) => line.trim() !== '')
+            buffer += text
+
+            // Split by double newlines (SSE event separators)
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || '' // Keep incomplete line in buffer
 
             for (const line of lines) {
-              try {
-                const data = JSON.parse(line)
+              if (line.trim() === '') continue // Skip empty lines
 
-                // Check if there's an error
-                if (data.error) {
-                  throw new Error(data.error)
-                }
+              if (line.startsWith('data: ')) {
+                try {
+                  const jsonStr = line.slice(6) // Remove 'data: ' prefix
+                  const data = JSON.parse(jsonStr)
 
-                // Process chunk
-                if (data.chunk && !data.done) {
-                  accumulatedContent += data.chunk
-                  // Stream each chunk to the UI immediately
-                  if (onStreamChunk) {
-                    onStreamChunk(data.chunk)
+                  // Check if there's an error
+                  if (data.error) {
+                    throw new Error(data.error)
                   }
-                }
 
-                // Check if streaming is complete
-                if (data.done) {
-                  break
+                  // Process chunk
+                  if (data.chunk) {
+                    accumulatedContent += data.chunk
+                    // Stream each chunk to the UI immediately
+                    if (onStreamChunk) {
+                      onStreamChunk(data.chunk)
+                    }
+                  }
+
+                  // Check if streaming is complete
+                  if (data.done) {
+                    break
+                  }
+                } catch (parseError) {
+                  // Continue processing other lines
+                  logger.debug('Failed to parse SSE line', { line, parseError })
                 }
-              } catch (parseError) {
-                // Continue processing other lines
-                logger.debug('Failed to parse streaming line', { line, parseError })
               }
+            }
+          }
+
+          // Process any remaining buffer
+          if (buffer.trim() && buffer.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(buffer.slice(6))
+              if (data.chunk) {
+                accumulatedContent += data.chunk
+                if (onStreamChunk) {
+                  onStreamChunk(data.chunk)
+                }
+              }
+            } catch (parseError) {
+              logger.debug('Failed to parse final buffer', { buffer, parseError })
             }
           }
         } finally {
