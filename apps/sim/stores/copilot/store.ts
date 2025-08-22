@@ -12,11 +12,25 @@ import type {
 } from '@/stores/copilot/types'
 import { ClientToolCallState } from '@/lib/copilot-new/tools/client/base-tool'
 import type { CopilotToolCall } from '@/stores/copilot/types'
-import { getClientTool, registerClientTool } from '@/lib/copilot-new/tools/client/manager'
+import { getClientTool, registerClientTool, registerToolStateSync } from '@/lib/copilot-new/tools/client/manager'
 import { getTool, createExecutionContext, registerTool } from '@/lib/copilot-new/tools/client/registry'
 import { GetUserWorkflowTool } from '@/lib/copilot-new/tools/client/workflow/get-user-workflow'
 import type { ClientToolDisplay } from '@/lib/copilot-new/tools/client/base-tool'
 import { RunWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/run-workflow'
+import { GetWorkflowConsoleClientTool } from '@/lib/copilot-new/tools/client/workflow/get-workflow-console'
+import { GetBlocksAndToolsClientTool } from '@/lib/copilot-new/tools/client/blocks/get-blocks-and-tools'
+import { GetBlocksMetadataClientTool } from '@/lib/copilot-new/tools/client/blocks/get-blocks-metadata'
+import { SearchOnlineClientTool } from '@/lib/copilot-new/tools/client/other/search-online'
+import { SearchDocumentationClientTool } from '@/lib/copilot-new/tools/client/other/search-documentation'
+import { GetEnvironmentVariablesClientTool } from '@/lib/copilot-new/tools/client/user/get-environment-variables'
+import { SetEnvironmentVariablesClientTool } from '@/lib/copilot-new/tools/client/user/set-environment-variables'
+import { ListGDriveFilesClientTool } from '@/lib/copilot-new/tools/client/gdrive/list-files'
+import { ReadGDriveFileClientTool } from '@/lib/copilot-new/tools/client/gdrive/read-file'
+import { GetOAuthCredentialsClientTool } from '@/lib/copilot-new/tools/client/user/get-oauth-credentials'
+import { MakeApiRequestClientTool } from '@/lib/copilot-new/tools/client/other/make-api-request'
+import { PlanClientTool } from '@/lib/copilot-new/tools/client/other/plan'
+import { CheckoffTodoClientTool } from '@/lib/copilot-new/tools/client/other/checkoff-todo'
+import { GDriveRequestAccessClientTool } from '@/lib/copilot-new/tools/client/google/gdrive-request-access'
 
 const logger = createLogger('CopilotStore')
 
@@ -24,7 +38,42 @@ const logger = createLogger('CopilotStore')
 try {
   registerTool(GetUserWorkflowTool)
   logger.info('[registry] Registered get_user_workflow tool')
+  // Register remaining tools (excluding build/edit workflow)
+  registerClientTool as any
+  // Class-based tools are instantiated per toolCallId on demand, but we can pre-import and rely on metadata via instances
+  // No registry def needed for class-based tools; display/interrupt comes from instance
 } catch {}
+
+// Known class-based client tools: map tool name -> instantiator
+const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
+  run_workflow: (id) => new RunWorkflowClientTool(id),
+  get_workflow_console: (id) => new GetWorkflowConsoleClientTool(id),
+  get_blocks_and_tools: (id) => new GetBlocksAndToolsClientTool(id),
+  get_blocks_metadata: (id) => new GetBlocksMetadataClientTool(id),
+  search_online: (id) => new SearchOnlineClientTool(id),
+  search_documentation: (id) => new SearchDocumentationClientTool(id),
+  get_environment_variables: (id) => new GetEnvironmentVariablesClientTool(id),
+  set_environment_variables: (id) => new SetEnvironmentVariablesClientTool(id),
+  list_gdrive_files: (id) => new ListGDriveFilesClientTool(id),
+  read_gdrive_file: (id) => new ReadGDriveFileClientTool(id),
+  get_oauth_credentials: (id) => new GetOAuthCredentialsClientTool(id),
+  make_api_request: (id) => new MakeApiRequestClientTool(id),
+  plan: (id) => new PlanClientTool(id),
+  checkoff_todo: (id) => new CheckoffTodoClientTool(id),
+  gdrive_request_access: (id) => new GDriveRequestAccessClientTool(id),
+}
+
+function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {
+  try {
+    if (!toolName || !toolCallId) return
+    if (getClientTool(toolCallId)) return
+    const make = CLIENT_TOOL_INSTANTIATORS[toolName]
+    if (make) {
+      const inst = make(toolCallId)
+      registerClientTool(toolCallId, inst)
+    }
+  } catch {}
+}
 
 // Constants
 const TEXT_BLOCK_TYPE = 'text'
@@ -197,26 +246,45 @@ const sseHandlers: Record<string, SSEHandler> = {
     const { toolCallsById } = get()
 
     // Ensure class-based client tool instances are registered (for interrupts/display)
-    try {
-      if (toolName === 'run_workflow' && !getClientTool(toolCallId)) {
-        const inst = new RunWorkflowClientTool(toolCallId)
-        registerClientTool(toolCallId, inst)
-      }
-    } catch {}
+    ensureClientToolInstance(toolName, toolCallId)
 
     if (!toolCallsById[toolCallId]) {
+      // Determine interrupt and initial active state
+      let hasInterrupt = false
+      try {
+        const def = getTool(toolName) as any
+        if (def) {
+          hasInterrupt = typeof def.hasInterrupt === 'function' ? !!def.hasInterrupt({}) : !!def.hasInterrupt
+        }
+      } catch {}
+      if (!hasInterrupt) {
+        try {
+          const inst = getClientTool(toolCallId) as any
+          hasInterrupt = !!inst?.getInterruptDisplays?.()
+        } catch {}
+      }
+      const initialState = hasInterrupt ? ClientToolCallState.pending : ClientToolCallState.executing
       const tc: CopilotToolCall = {
         id: toolCallId,
         name: toolName,
-        state: ClientToolCallState.generating,
-        display: resolveToolDisplay(toolName, ClientToolCallState.generating, toolCallId),
+        state: initialState,
+        display: resolveToolDisplay(toolName, initialState, toolCallId),
       }
       const updated = { ...toolCallsById, [toolCallId]: tc }
       set({ toolCallsById: updated })
       logger.info('[toolCallsById] map updated', updated)
 
-      // Add inline content block for this tool call so it renders in the message
-      context.contentBlocks.push({ type: 'tool_call', toolCall: tc, timestamp: Date.now() })
+      // Add/refresh inline content block
+      let found = false
+      for (let i = 0; i < context.contentBlocks.length; i++) {
+        const b = context.contentBlocks[i] as any
+        if (b.type === 'tool_call' && b.toolCall?.id === toolCallId) {
+          context.contentBlocks[i] = { ...b, toolCall: tc }
+          found = true
+          break
+        }
+      }
+      if (!found) context.contentBlocks.push({ type: 'tool_call', toolCall: tc, timestamp: Date.now() })
       updateStreamingMessage(set, context)
     }
   },
@@ -229,12 +297,7 @@ const sseHandlers: Record<string, SSEHandler> = {
     const { toolCallsById } = get()
 
     // Ensure class-based client tool instances are registered (for interrupts/display)
-    try {
-      if (name === 'run_workflow' && !getClientTool(id)) {
-        const inst = new RunWorkflowClientTool(id)
-        registerClientTool(id, inst)
-      }
-    } catch {}
+    ensureClientToolInstance(name, id)
 
     const existing = toolCallsById[id]
     const next: CopilotToolCall = existing
@@ -378,85 +441,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       logger.warn('tool_call registry auto-exec check failed', { id, name, error: e })
     }
 
-    // Fallback to legacy instance-based flow if available
-    try {
-      const instance = getClientTool(id) as any
-      const hasInterrupt = !!instance?.getInterruptDisplays?.()
-      if (!hasInterrupt && instance?.execute) {
-        setTimeout(() => {
-          const executingMap = { ...get().toolCallsById }
-          executingMap[id] = {
-            ...executingMap[id],
-            state: ClientToolCallState.executing,
-            display: resolveToolDisplay(name, ClientToolCallState.executing, id, args),
-          }
-          set({ toolCallsById: executingMap })
-          logger.info('[toolCallsById] pending → executing (instance)', { id, name })
-
-          // Update inline block
-          for (let i = 0; i < context.contentBlocks.length; i++) {
-            const b = context.contentBlocks[i] as any
-            if (b.type === 'tool_call' && b.toolCall?.id === id) {
-              context.contentBlocks[i] = {
-                ...b,
-                toolCall: { ...b.toolCall, state: ClientToolCallState.executing },
-              }
-              break
-            }
-          }
-          updateStreamingMessage(set, context)
-
-          Promise.resolve()
-            .then(async () => {
-              await instance.execute(args || {})
-              const successMap = { ...get().toolCallsById }
-              successMap[id] = {
-                ...successMap[id],
-                state: ClientToolCallState.success,
-                display: resolveToolDisplay(name, ClientToolCallState.success, id, args),
-              }
-              set({ toolCallsById: successMap })
-              logger.info('[toolCallsById] executing → success (instance)', { id, name })
-
-              for (let i = 0; i < context.contentBlocks.length; i++) {
-                const b = context.contentBlocks[i] as any
-                if (b.type === 'tool_call' && b.toolCall?.id === id) {
-                  context.contentBlocks[i] = {
-                    ...b,
-                    toolCall: { ...b.toolCall, state: ClientToolCallState.success },
-                  }
-                  break
-                }
-              }
-              updateStreamingMessage(set, context)
-            })
-            .catch((e) => {
-              const errorMap = { ...get().toolCallsById }
-              errorMap[id] = {
-                ...errorMap[id],
-                state: ClientToolCallState.error,
-                display: resolveToolDisplay(name, ClientToolCallState.error, id, args),
-              }
-              set({ toolCallsById: errorMap })
-              logger.error('Instance auto-execute tool failed', { id, name, error: e })
-
-              for (let i = 0; i < context.contentBlocks.length; i++) {
-                const b = context.contentBlocks[i] as any
-                if (b.type === 'tool_call' && b.toolCall?.id === id) {
-                  context.contentBlocks[i] = {
-                    ...b,
-                    toolCall: { ...b.toolCall, state: ClientToolCallState.error },
-                  }
-                  break
-                }
-              }
-              updateStreamingMessage(set, context)
-            })
-        }, 0)
-      }
-    } catch (e) {
-      logger.warn('tool_call instance auto-exec check failed', { id, name, error: e })
-    }
+    // Removed legacy instance auto-exec path; registry + mark-complete handles modern flow
   },
   reasoning: (data, context, _get, set) => {
     const phase = (data && (data.phase || data?.data?.phase)) as string | undefined
@@ -1321,3 +1306,50 @@ export const useCopilotStore = create<CopilotStore>()(
     setAgentPrefetch: (prefetch) => set({ agentPrefetch: prefetch }),
   }))
 )
+
+// Sync class-based tool instance state changes back into the store map
+try {
+  registerToolStateSync((toolCallId: string, nextState: any) => {
+    const state = useCopilotStore.getState()
+    const current = state.toolCallsById[toolCallId]
+    if (!current) return
+    let mapped: ClientToolCallState = current.state
+    if (nextState === 'executing') mapped = ClientToolCallState.executing
+    else if (nextState === 'pending') mapped = ClientToolCallState.pending
+    else if (nextState === 'success' || nextState === 'accepted') mapped = ClientToolCallState.success
+    else if (nextState === 'error' || nextState === 'errored') mapped = ClientToolCallState.error
+    else if (nextState === 'rejected') mapped = ClientToolCallState.rejected
+    else if (nextState === 'aborted') mapped = ClientToolCallState.aborted
+    else if (typeof nextState === 'number') mapped = (nextState as unknown) as ClientToolCallState
+
+    // Store-authoritative gating: ignore invalid/downgrade transitions
+    const isTerminal = (s: ClientToolCallState) =>
+      s === ClientToolCallState.success ||
+      s === ClientToolCallState.error ||
+      s === ClientToolCallState.rejected ||
+      s === ClientToolCallState.aborted
+
+    // If we've already reached a terminal state, ignore any further non-terminal updates
+    if (isTerminal(current.state) && !isTerminal(mapped)) {
+      return
+    }
+    // Prevent downgrades (executing -> pending, pending -> generating)
+    if (
+      (current.state === ClientToolCallState.executing && mapped === ClientToolCallState.pending) ||
+      (current.state === ClientToolCallState.pending && mapped === (ClientToolCallState as any).generating)
+    ) {
+      return
+    }
+    // No-op if unchanged
+    if (mapped === current.state) return
+    const updated = {
+      ...state.toolCallsById,
+      [toolCallId]: {
+        ...current,
+        state: mapped,
+        display: resolveToolDisplay(current.name, mapped, toolCallId, current.params),
+      },
+    }
+    useCopilotStore.setState({ toolCallsById: updated })
+  })
+} catch {}

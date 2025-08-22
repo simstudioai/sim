@@ -37,11 +37,10 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
 async function handleRun(toolCall: CopilotToolCall, setToolCallState: any, onStateChange?: any) {
   const instance = getClientTool(toolCall.id)
   if (!instance) return
-  setToolCallState(toolCall, 'executing')
-  onStateChange?.('executing')
   try {
-    await instance.handleAccept?.()
-    await instance.execute(toolCall.parameters || toolCall.input || {})
+    const mergedParams = (toolCall as any).params || (toolCall as any).parameters || (toolCall as any).input || {}
+    await instance.handleAccept?.(mergedParams)
+    onStateChange?.('executing')
   } catch (e) {
     setToolCallState(toolCall, 'errored', { error: e instanceof Error ? e.message : String(e) })
   }
