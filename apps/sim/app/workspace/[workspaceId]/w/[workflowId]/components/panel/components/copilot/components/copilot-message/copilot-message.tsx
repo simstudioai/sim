@@ -605,7 +605,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               className='transition-opacity duration-300 ease-in-out'
               style={{ opacity: 1 }}
             >
-              <InlineToolCall toolCall={block.toolCall} />
+              <InlineToolCall toolCallId={block.toolCall.id} toolCall={block.toolCall} />
             </div>
           )
         }

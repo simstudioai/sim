@@ -15,6 +15,7 @@ import type { CopilotToolCall } from '@/stores/copilot/types'
 import { getClientTool } from '@/lib/copilot-new/tools/client/manager'
 import { getTool, createExecutionContext, registerTool } from '@/lib/copilot-new/tools/client/registry'
 import { GetUserWorkflowTool } from '@/lib/copilot-new/tools/client/workflow/get-user-workflow'
+import type { ClientToolDisplay } from '@/lib/copilot-new/tools/client/base-tool'
 
 const logger = createLogger('CopilotStore')
 
@@ -29,6 +30,32 @@ const TEXT_BLOCK_TYPE = 'text'
 const THINKING_BLOCK_TYPE = 'thinking'
 const DATA_PREFIX = 'data: '
 const DATA_PREFIX_LENGTH = 6
+
+// Resolve display text/icon for a tool based on its state
+function resolveToolDisplay(
+  toolName: string | undefined,
+  state: ClientToolCallState,
+  toolCallId?: string,
+  params?: Record<string, any>
+): ClientToolDisplay | undefined {
+  try {
+    if (toolName) {
+      const def = getTool(toolName) as any
+      const byState = def?.metadata?.displayNames?.[state]
+      if (byState?.text || byState?.icon) {
+        return { text: byState.text, icon: byState.icon }
+      }
+    }
+  } catch {}
+  try {
+    if (toolCallId) {
+      const instance = getClientTool(toolCallId) as any
+      const display = instance?.getDisplayState?.()
+      if (display?.text || display?.icon) return display
+    }
+  } catch {}
+  return undefined
+}
 
 // Simple object pool for content blocks
 class ObjectPool<T> {
@@ -172,6 +199,7 @@ const sseHandlers: Record<string, SSEHandler> = {
         id: toolCallId,
         name: toolName,
         state: ClientToolCallState.generating,
+        display: resolveToolDisplay(toolName, ClientToolCallState.generating, toolCallId),
       }
       const updated = { ...toolCallsById, [toolCallId]: tc }
       set({ toolCallsById: updated })
@@ -191,8 +219,19 @@ const sseHandlers: Record<string, SSEHandler> = {
     const { toolCallsById } = get()
     const existing = toolCallsById[id]
     const next: CopilotToolCall = existing
-      ? { ...existing, state: ClientToolCallState.pending, ...(args ? { params: args } : {}) }
-      : { id, name: name || 'unknown_tool', state: ClientToolCallState.pending, ...(args ? { params: args } : {}) }
+      ? {
+          ...existing,
+          state: ClientToolCallState.pending,
+          ...(args ? { params: args } : {}),
+          display: resolveToolDisplay(name, ClientToolCallState.pending, id, args),
+        }
+      : {
+          id,
+          name: name || 'unknown_tool',
+          state: ClientToolCallState.pending,
+          ...(args ? { params: args } : {}),
+          display: resolveToolDisplay(name, ClientToolCallState.pending, id, args),
+        }
     const updated = { ...toolCallsById, [id]: next }
     set({ toolCallsById: updated })
     logger.info('[toolCallsById] → pending', { id, name, params: args })
@@ -218,84 +257,101 @@ const sseHandlers: Record<string, SSEHandler> = {
       if (def) {
         const hasInterrupt = typeof def.hasInterrupt === 'function' ? !!def.hasInterrupt(args || {}) : !!def.hasInterrupt
         if (!hasInterrupt && typeof def.execute === 'function') {
-          const executingMap = { ...get().toolCallsById }
-          executingMap[id] = { ...executingMap[id], state: ClientToolCallState.executing }
-          set({ toolCallsById: executingMap })
-          logger.info('[toolCallsById] pending → executing (registry)', { id, name })
-
-          // Update inline content block to executing
-          for (let i = 0; i < context.contentBlocks.length; i++) {
-            const b = context.contentBlocks[i] as any
-            if (b.type === 'tool_call' && b.toolCall?.id === id) {
-              context.contentBlocks[i] = {
-                ...b,
-                toolCall: { ...b.toolCall, state: ClientToolCallState.executing },
-              }
-              break
-            }
-          }
-          updateStreamingMessage(set, context)
-
           const ctx = createExecutionContext({ toolCallId: id, toolName: name || 'unknown_tool' })
-          Promise.resolve()
-            .then(async () => {
-              const result = await def.execute(ctx, args || {})
-              const success = result && typeof result.status === 'number' ? result.status >= 200 && result.status < 300 : true
-              const completeMap = { ...get().toolCallsById }
-              completeMap[id] = {
-                ...completeMap[id],
-                state: success ? ClientToolCallState.success : ClientToolCallState.error,
-              }
-              set({ toolCallsById: completeMap })
-              logger.info('[toolCallsById] executing → ' + (success ? 'success' : 'error') + ' (registry)', { id, name })
+          // Defer executing transition by a tick to let pending render
+          setTimeout(() => {
+            const executingMap = { ...get().toolCallsById }
+            executingMap[id] = {
+              ...executingMap[id],
+              state: ClientToolCallState.executing,
+              display: resolveToolDisplay(name, ClientToolCallState.executing, id, args),
+            }
+            set({ toolCallsById: executingMap })
+            logger.info('[toolCallsById] pending → executing (registry)', { id, name })
 
-              // Update inline content block to terminal state
-              for (let i = 0; i < context.contentBlocks.length; i++) {
-                const b = context.contentBlocks[i] as any
-                if (b.type === 'tool_call' && b.toolCall?.id === id) {
-                  context.contentBlocks[i] = {
-                    ...b,
-                    toolCall: { ...b.toolCall, state: success ? ClientToolCallState.success : ClientToolCallState.error },
-                  }
-                  break
+            // Update inline content block to executing
+            for (let i = 0; i < context.contentBlocks.length; i++) {
+              const b = context.contentBlocks[i] as any
+              if (b.type === 'tool_call' && b.toolCall?.id === id) {
+                context.contentBlocks[i] = {
+                  ...b,
+                  toolCall: { ...b.toolCall, state: ClientToolCallState.executing },
                 }
+                break
               }
-              updateStreamingMessage(set, context)
+            }
+            updateStreamingMessage(set, context)
 
-              // Notify backend tool mark-complete endpoint
-              try {
-                await fetch('/api/copilot/tools/mark-complete', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
+            Promise.resolve()
+              .then(async () => {
+                const result = await def.execute(ctx, args || {})
+                const success = result && typeof result.status === 'number' ? result.status >= 200 && result.status < 300 : true
+                const completeMap = { ...get().toolCallsById }
+                completeMap[id] = {
+                  ...completeMap[id],
+                  state: success ? ClientToolCallState.success : ClientToolCallState.error,
+                  display: resolveToolDisplay(
+                    name,
+                    success ? ClientToolCallState.success : ClientToolCallState.error,
                     id,
-                    name: name || 'unknown_tool',
-                    status: typeof result?.status === 'number' ? result.status : success ? 200 : 500,
-                    message: result?.message,
-                    data: result?.data,
-                  }),
-                })
-              } catch {}
-            })
-            .catch((e) => {
-              const errorMap = { ...get().toolCallsById }
-              errorMap[id] = { ...errorMap[id], state: ClientToolCallState.error }
-              set({ toolCallsById: errorMap })
-              logger.error('Registry auto-execute tool failed', { id, name, error: e })
-
-              // Update inline content block to error
-              for (let i = 0; i < context.contentBlocks.length; i++) {
-                const b = context.contentBlocks[i] as any
-                if (b.type === 'tool_call' && b.toolCall?.id === id) {
-                  context.contentBlocks[i] = {
-                    ...b,
-                    toolCall: { ...b.toolCall, state: ClientToolCallState.error },
-                  }
-                  break
+                    args
+                  ),
                 }
-              }
-              updateStreamingMessage(set, context)
-            })
+                set({ toolCallsById: completeMap })
+                logger.info('[toolCallsById] executing → ' + (success ? 'success' : 'error') + ' (registry)', { id, name })
+
+                // Update inline content block to terminal state
+                for (let i = 0; i < context.contentBlocks.length; i++) {
+                  const b = context.contentBlocks[i] as any
+                  if (b.type === 'tool_call' && b.toolCall?.id === id) {
+                    context.contentBlocks[i] = {
+                      ...b,
+                      toolCall: { ...b.toolCall, state: success ? ClientToolCallState.success : ClientToolCallState.error },
+                    }
+                    break
+                  }
+                }
+                updateStreamingMessage(set, context)
+
+                // Notify backend tool mark-complete endpoint
+                try {
+                  await fetch('/api/copilot/tools/mark-complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      id,
+                      name: name || 'unknown_tool',
+                      status: typeof result?.status === 'number' ? result.status : success ? 200 : 500,
+                      message: result?.message,
+                      data: result?.data,
+                    }),
+                  })
+                } catch {}
+              })
+              .catch((e) => {
+                const errorMap = { ...get().toolCallsById }
+                errorMap[id] = {
+                  ...errorMap[id],
+                  state: ClientToolCallState.error,
+                  display: resolveToolDisplay(name, ClientToolCallState.error, id, args),
+                }
+                set({ toolCallsById: errorMap })
+                logger.error('Registry auto-execute tool failed', { id, name, error: e })
+
+                // Update inline content block to error
+                for (let i = 0; i < context.contentBlocks.length; i++) {
+                  const b = context.contentBlocks[i] as any
+                  if (b.type === 'tool_call' && b.toolCall?.id === id) {
+                    context.contentBlocks[i] = {
+                      ...b,
+                      toolCall: { ...b.toolCall, state: ClientToolCallState.error },
+                    }
+                    break
+                  }
+                }
+                updateStreamingMessage(set, context)
+              })
+          }, 0)
           return
         }
       }
@@ -308,62 +364,76 @@ const sseHandlers: Record<string, SSEHandler> = {
       const instance = getClientTool(id) as any
       const hasInterrupt = !!instance?.getInterruptDisplays?.()
       if (!hasInterrupt && instance?.execute) {
-        const executingMap = { ...get().toolCallsById }
-        executingMap[id] = { ...executingMap[id], state: ClientToolCallState.executing }
-        set({ toolCallsById: executingMap })
-        logger.info('[toolCallsById] pending → executing (instance)', { id, name })
-
-        // Update inline block
-        for (let i = 0; i < context.contentBlocks.length; i++) {
-          const b = context.contentBlocks[i] as any
-          if (b.type === 'tool_call' && b.toolCall?.id === id) {
-            context.contentBlocks[i] = {
-              ...b,
-              toolCall: { ...b.toolCall, state: ClientToolCallState.executing },
-            }
-            break
+        setTimeout(() => {
+          const executingMap = { ...get().toolCallsById }
+          executingMap[id] = {
+            ...executingMap[id],
+            state: ClientToolCallState.executing,
+            display: resolveToolDisplay(name, ClientToolCallState.executing, id, args),
           }
-        }
-        updateStreamingMessage(set, context)
+          set({ toolCallsById: executingMap })
+          logger.info('[toolCallsById] pending → executing (instance)', { id, name })
 
-        Promise.resolve()
-          .then(async () => {
-            await instance.execute(args || {})
-            const successMap = { ...get().toolCallsById }
-            successMap[id] = { ...successMap[id], state: ClientToolCallState.success }
-            set({ toolCallsById: successMap })
-            logger.info('[toolCallsById] executing → success (instance)', { id, name })
-
-            for (let i = 0; i < context.contentBlocks.length; i++) {
-              const b = context.contentBlocks[i] as any
-              if (b.type === 'tool_call' && b.toolCall?.id === id) {
-                context.contentBlocks[i] = {
-                  ...b,
-                  toolCall: { ...b.toolCall, state: ClientToolCallState.success },
-                }
-                break
+          // Update inline block
+          for (let i = 0; i < context.contentBlocks.length; i++) {
+            const b = context.contentBlocks[i] as any
+            if (b.type === 'tool_call' && b.toolCall?.id === id) {
+              context.contentBlocks[i] = {
+                ...b,
+                toolCall: { ...b.toolCall, state: ClientToolCallState.executing },
               }
+              break
             }
-            updateStreamingMessage(set, context)
-          })
-          .catch((e) => {
-            const errorMap = { ...get().toolCallsById }
-            errorMap[id] = { ...errorMap[id], state: ClientToolCallState.error }
-            set({ toolCallsById: errorMap })
-            logger.error('Instance auto-execute tool failed', { id, name, error: e })
+          }
+          updateStreamingMessage(set, context)
 
-            for (let i = 0; i < context.contentBlocks.length; i++) {
-              const b = context.contentBlocks[i] as any
-              if (b.type === 'tool_call' && b.toolCall?.id === id) {
-                context.contentBlocks[i] = {
-                  ...b,
-                  toolCall: { ...b.toolCall, state: ClientToolCallState.error },
-                }
-                break
+          Promise.resolve()
+            .then(async () => {
+              await instance.execute(args || {})
+              const successMap = { ...get().toolCallsById }
+              successMap[id] = {
+                ...successMap[id],
+                state: ClientToolCallState.success,
+                display: resolveToolDisplay(name, ClientToolCallState.success, id, args),
               }
-            }
-            updateStreamingMessage(set, context)
-          })
+              set({ toolCallsById: successMap })
+              logger.info('[toolCallsById] executing → success (instance)', { id, name })
+
+              for (let i = 0; i < context.contentBlocks.length; i++) {
+                const b = context.contentBlocks[i] as any
+                if (b.type === 'tool_call' && b.toolCall?.id === id) {
+                  context.contentBlocks[i] = {
+                    ...b,
+                    toolCall: { ...b.toolCall, state: ClientToolCallState.success },
+                  }
+                  break
+                }
+              }
+              updateStreamingMessage(set, context)
+            })
+            .catch((e) => {
+              const errorMap = { ...get().toolCallsById }
+              errorMap[id] = {
+                ...errorMap[id],
+                state: ClientToolCallState.error,
+                display: resolveToolDisplay(name, ClientToolCallState.error, id, args),
+              }
+              set({ toolCallsById: errorMap })
+              logger.error('Instance auto-execute tool failed', { id, name, error: e })
+
+              for (let i = 0; i < context.contentBlocks.length; i++) {
+                const b = context.contentBlocks[i] as any
+                if (b.type === 'tool_call' && b.toolCall?.id === id) {
+                  context.contentBlocks[i] = {
+                    ...b,
+                    toolCall: { ...b.toolCall, state: ClientToolCallState.error },
+                  }
+                  break
+                }
+              }
+              updateStreamingMessage(set, context)
+            })
+        }, 0)
       }
     } catch (e) {
       logger.warn('tool_call instance auto-exec check failed', { id, name, error: e })
@@ -1024,7 +1094,11 @@ export const useCopilotStore = create<CopilotStore>()(
         else if (newState === 'success' || newState === 'accepted') norm = ClientToolCallState.success
         else if (newState === 'aborted') norm = ClientToolCallState.aborted
         else if (typeof newState === 'number') norm = (newState as unknown) as ClientToolCallState
-        map[id] = { ...current, state: norm }
+        map[id] = {
+          ...current,
+          state: norm,
+          display: resolveToolDisplay(current.name, norm, id, current.params),
+        }
         set({ toolCallsById: map })
       } catch {}
     },

@@ -1,4 +1,4 @@
-import { ClientToolCallState } from '@/lib/copilot-new/tools/client/base-tool'
+import { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot-new/tools/client/base-tool'
 
 export type ToolState = ClientToolCallState
 
@@ -7,6 +7,7 @@ export interface CopilotToolCall {
   name: string
   state: ClientToolCallState
   params?: Record<string, any>
+  display?: ClientToolDisplay
 }
 
 export interface MessageFileAttachment {

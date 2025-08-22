@@ -10,16 +10,27 @@ import { getEnv } from '@/lib/env'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotToolCall } from '@/stores/copilot/types'
 import { getClientTool } from '@/lib/copilot-new/tools/client/manager'
+import { getTool } from '@/lib/copilot-new/tools/client/registry'
+import { ClientToolCallState } from '@/lib/copilot-new/tools/client/base-tool'
 
 interface InlineToolCallProps {
-  toolCall: CopilotToolCall
+  toolCall?: CopilotToolCall
+  toolCallId?: string
   onStateChange?: (state: any) => void
   context?: Record<string, any>
 }
 
 function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
   const instance = getClientTool(toolCall.id)
-  const hasInterrupt = !!instance?.getInterruptDisplays?.()
+  let hasInterrupt = !!instance?.getInterruptDisplays?.()
+  if (!hasInterrupt) {
+    try {
+      const def = getTool(toolCall.name)
+      if (def) {
+        hasInterrupt = typeof def.hasInterrupt === 'function' ? !!def.hasInterrupt(toolCall.params || {}) : !!def.hasInterrupt
+      }
+    } catch {}
+  }
   return hasInterrupt && toolCall.state === 'pending'
 }
 
@@ -51,6 +62,11 @@ function getDisplayName(toolCall: CopilotToolCall): string {
   const instance = getClientTool(toolCall.id) as any
   const display = instance?.getDisplayState?.()
   if (display?.text) return display.text
+  try {
+    const def = getTool(toolCall.name) as any
+    const byState = def?.metadata?.displayNames?.[toolCall.state]
+    if (byState?.text) return byState.text
+  } catch {}
   return toolCall.name
 }
 
@@ -199,8 +215,10 @@ function RunSkipButtons({ toolCall, onStateChange }: { toolCall: CopilotToolCall
   )
 }
 
-export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolCallProps) {
+export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChange, context }: InlineToolCallProps) {
   const [, forceUpdate] = useState({})
+  const liveToolCall = useCopilotStore((s) => (toolCallId ? s.toolCallsById[toolCallId] : undefined))
+  const toolCall = liveToolCall || toolCallProp
 
   const isExpandablePending =
     toolCall.state === 'pending' &&
@@ -220,7 +238,7 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
   }
 
   const displayName = getDisplayName(toolCall)
-  const params = (toolCall.parameters || toolCall.input || {}) as Record<string, any>
+  const params = (toolCall as any).parameters || (toolCall as any).input || toolCall.params || {}
 
   const Section = ({ title, children }: { title: string; children: any }) => (
     <Card className='mt-1.5'>
@@ -278,11 +296,24 @@ export function InlineToolCall({ toolCall, onStateChange, context }: InlineToolC
       const instance = getClientTool(toolCall.id) as any
       const display = instance?.getDisplayState?.()
       const Icon = display?.icon
-      const spin = toolCall.state === 'generating' || toolCall.state === 'executing' ? 'animate-spin' : ''
+      const spin =
+        toolCall.state === (ClientToolCallState.generating as any) ||
+        toolCall.state === (ClientToolCallState.executing as any) ||
+        toolCall.state === ('generating' as any) ||
+        toolCall.state === ('executing' as any)
+          ? 'animate-spin'
+          : ''
       if (Icon) {
         return <Icon className={`h-3 w-3 ${spin}`} />
       }
       // Fallback
+      // Try registry icon
+      try {
+        const def = getTool(toolCall.name) as any
+        const byState = def?.metadata?.displayNames?.[toolCall.state]
+        const MetaIcon = byState?.icon
+        if (MetaIcon) return <MetaIcon className={`h-3 w-3 ${spin}`} />
+      } catch {}
       return <Loader2 className={`h-3 w-3 ${spin}`} />
     } catch {
       return <Loader2 className='h-3 w-3' />
