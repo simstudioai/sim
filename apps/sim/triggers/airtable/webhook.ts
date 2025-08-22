@@ -38,37 +38,43 @@ export const airtableWebhookTrigger: TriggerConfig = {
   },
 
   outputs: {
-    event_type: {
-      type: 'string',
-      description: 'Type of Airtable event (e.g., record.created, record.updated, record.deleted)',
+    payloads: {
+      type: 'array',
+      description: 'The payloads of the Airtable changes',
     },
-    base_id: {
-      type: 'string',
-      description: 'Airtable base identifier',
+    latestPayload: {
+      timestamp: {
+        type: 'string',
+        description: 'The timestamp of the Airtable change',
+      },
+      payloadFormat: {
+        type: 'object',
+        description: 'The format of the Airtable change',
+      },
+      actionMetadata: {
+        source: {
+          type: 'string',
+          description: 'The source of the Airtable change',
+        },
+        sourceMetadata: {
+          pageId: {
+            type: 'string',
+            description: 'The ID of the page that triggered the Airtable change',
+          },
+        },
+        changedTablesById: {
+          type: 'object',
+          description: 'The tables that were changed',
+        },
+        baseTransactionNumber: {
+          type: 'number',
+          description: 'The transaction number of the Airtable change',
+        },
+      },
     },
-    table_id: {
-      type: 'string',
-      description: 'Airtable table identifier',
-    },
-    record_id: {
-      type: 'string',
-      description: 'Record identifier that was modified',
-    },
-    record_data: {
-      type: 'string',
-      description: 'Complete record data (when Include Full Record Data is enabled)',
-    },
-    changed_fields: {
-      type: 'string',
-      description: 'Fields that were changed in the record',
-    },
-    webhook_id: {
-      type: 'string',
-      description: 'Unique webhook identifier',
-    },
-    timestamp: {
-      type: 'string',
-      description: 'Event timestamp',
+    airtableChanges: {
+      type: 'array',
+      description: 'Changes made to the Airtable table',
     },
   },
 

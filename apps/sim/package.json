@@ -105,7 +105,6 @@
     "prismjs": "^1.30.0",
     "react": "19.1.0",
     "react-colorful": "5.6.1",
-    "react-day-picker": "8.10.1",
     "react-dom": "19.1.0",
     "react-google-drive-picker": "^1.2.2",
     "react-hook-form": "^7.54.2",

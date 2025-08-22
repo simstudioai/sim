@@ -1,0 +1,1 @@
+ALTER TABLE "templates" ALTER COLUMN "workflow_id" DROP NOT NULL;

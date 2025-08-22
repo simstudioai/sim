@@ -6,6 +6,7 @@ import {
   OTPVerificationEmail,
   ResetPasswordEmail,
 } from '@/components/emails'
+import { getBrandConfig } from '@/lib/branding/branding'
 
 export async function renderOTPEmail(
   otp: string,
@@ -91,22 +92,24 @@ export function getEmailSubject(
     | 'batch-invitation'
     | 'help-confirmation'
 ): string {
+  const brandName = getBrandConfig().name
+
   switch (type) {
     case 'sign-in':
-      return 'Sign in to Sim'
+      return `Sign in to ${brandName}`
     case 'email-verification':
-      return 'Verify your email for Sim'
+      return `Verify your email for ${brandName}`
     case 'forget-password':
-      return 'Reset your Sim password'
+      return `Reset your ${brandName} password`
     case 'reset-password':
-      return 'Reset your Sim password'
+      return `Reset your ${brandName} password`
     case 'invitation':
-      return "You've been invited to join a team on Sim"
+      return `You've been invited to join a team on ${brandName}`
     case 'batch-invitation':
-      return "You've been invited to join a team and workspaces on Sim"
+      return `You've been invited to join a team and workspaces on ${brandName}`
     case 'help-confirmation':
       return 'Your request has been received'
     default:
-      return 'Sim'
+      return brandName
   }
 }

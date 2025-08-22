@@ -11,7 +11,6 @@ import {
   ComboBox,
   ConditionInput,
   CredentialSelector,
-  DateInput,
   DocumentSelector,
   Dropdown,
   EvalInput,
@@ -251,17 +250,6 @@ export function SubBlock({
           <EvalInput
             blockId={blockId}
             subBlockId={config.id}
-            isPreview={isPreview}
-            previewValue={previewValue}
-            disabled={isDisabled}
-          />
-        )
-      case 'date-input':
-        return (
-          <DateInput
-            blockId={blockId}
-            subBlockId={config.id}
-            placeholder={config.placeholder}
             isPreview={isPreview}
             previewValue={previewValue}
             disabled={isDisabled}

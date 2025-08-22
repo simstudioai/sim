@@ -1,20 +1,21 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { HelpCircle, LibraryBig, ScrollText, Search, Settings, Shapes } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { Button, ScrollArea, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
+import { ScrollArea } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
-import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SearchModal } from '@/app/workspace/[workspaceId]/w/components/search-modal/search-modal'
 import {
   CreateMenu,
+  FloatingNavigation,
   FolderTree,
   HelpModal,
+  KeyboardShortcut,
   KnowledgeBaseTags,
   KnowledgeTags,
   LogsFilters,
@@ -26,6 +27,7 @@ import {
   WorkspaceSelector,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-selector/components/invite-modal/invite-modal'
+import { useAutoScroll } from '@/app/workspace/[workspaceId]/w/hooks/use-auto-scroll'
 import {
   getKeyboardShortcutText,
   useGlobalShortcuts,
@@ -39,109 +41,6 @@ const logger = createLogger('Sidebar')
 const SIDEBAR_GAP = 12 // 12px gap between components - easily editable
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
-
-/**
- * Optimized auto-scroll hook for smooth drag operations
- * Extracted outside component for better performance
- */
-const useAutoScroll = (containerRef: React.RefObject<HTMLDivElement | null>) => {
-  const animationRef = useRef<number | null>(null)
-  const speedRef = useRef<number>(0)
-  const lastUpdateRef = useRef<number>(0)
-
-  const animateScroll = useCallback(() => {
-    const scrollContainer = containerRef.current?.querySelector(
-      '[data-radix-scroll-area-viewport]'
-    ) as HTMLElement
-    if (!scrollContainer || speedRef.current === 0) {
-      animationRef.current = null
-      return
-    }
-
-    const currentScrollTop = scrollContainer.scrollTop
-    const maxScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight
-
-    // Check bounds and stop if needed
-    if (
-      (speedRef.current < 0 && currentScrollTop <= 0) ||
-      (speedRef.current > 0 && currentScrollTop >= maxScrollTop)
-    ) {
-      speedRef.current = 0
-      animationRef.current = null
-      return
-    }
-
-    // Apply smooth scroll
-    scrollContainer.scrollTop = Math.max(
-      0,
-      Math.min(maxScrollTop, currentScrollTop + speedRef.current)
-    )
-    animationRef.current = requestAnimationFrame(animateScroll)
-  }, [containerRef])
-
-  const startScroll = useCallback(
-    (speed: number) => {
-      speedRef.current = speed
-      if (!animationRef.current) {
-        animationRef.current = requestAnimationFrame(animateScroll)
-      }
-    },
-    [animateScroll]
-  )
-
-  const stopScroll = useCallback(() => {
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current)
-      animationRef.current = null
-    }
-    speedRef.current = 0
-  }, [])
-
-  const handleDragOver = useCallback(
-    (e: DragEvent) => {
-      const now = performance.now()
-      // Throttle to ~16ms for 60fps
-      if (now - lastUpdateRef.current < 16) return
-      lastUpdateRef.current = now
-
-      const scrollContainer = containerRef.current
-      if (!scrollContainer) return
-
-      const rect = scrollContainer.getBoundingClientRect()
-      const mouseY = e.clientY
-
-      // Early exit if mouse is outside container
-      if (mouseY < rect.top || mouseY > rect.bottom) {
-        stopScroll()
-        return
-      }
-
-      const scrollZone = 50
-      const maxSpeed = 4
-      const distanceFromTop = mouseY - rect.top
-      const distanceFromBottom = rect.bottom - mouseY
-
-      let scrollSpeed = 0
-
-      if (distanceFromTop < scrollZone) {
-        const intensity = (scrollZone - distanceFromTop) / scrollZone
-        scrollSpeed = -maxSpeed * intensity ** 2
-      } else if (distanceFromBottom < scrollZone) {
-        const intensity = (scrollZone - distanceFromBottom) / scrollZone
-        scrollSpeed = maxSpeed * intensity ** 2
-      }
-
-      if (Math.abs(scrollSpeed) > 0.1) {
-        startScroll(scrollSpeed)
-      } else {
-        stopScroll()
-      }
-    },
-    [containerRef, startScroll, stopScroll]
-  )
-
-  return { handleDragOver, stopScroll }
-}
 
 // Heights for dynamic calculation (in px)
 const SIDEBAR_HEIGHTS = {
@@ -204,6 +103,7 @@ export function Sidebar() {
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false)
   // Add sidebar collapsed state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string
@@ -509,16 +409,22 @@ export function Sidebar() {
   }, [refreshWorkspaceList, switchWorkspace, isCreatingWorkspace])
 
   /**
-   * Confirm delete workspace
+   * Confirm delete workspace (called from regular deletion dialog)
    */
   const confirmDeleteWorkspace = useCallback(
-    async (workspaceToDelete: Workspace) => {
+    async (workspaceToDelete: Workspace, templateAction?: 'keep' | 'delete') => {
       setIsDeleting(true)
       try {
         logger.info('Deleting workspace:', workspaceToDelete.id)
 
+        const deleteTemplates = templateAction === 'delete'
+
         const response = await fetch(`/api/workspaces/${workspaceToDelete.id}`, {
           method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ deleteTemplates }),
         })
 
         if (!response.ok) {
@@ -961,44 +867,6 @@ export function Sidebar() {
     }
   }, [stopScroll])
 
-  // Navigation items with their respective actions
-  const navigationItems = [
-    {
-      id: 'settings',
-      icon: Settings,
-      onClick: () => setShowSettings(true),
-      tooltip: 'Settings',
-    },
-    {
-      id: 'help',
-      icon: HelpCircle,
-      onClick: () => setShowHelp(true),
-      tooltip: 'Help',
-    },
-    {
-      id: 'logs',
-      icon: ScrollText,
-      href: `/workspace/${workspaceId}/logs`,
-      tooltip: 'Logs',
-      shortcut: getKeyboardShortcutText('L', true, true),
-      active: pathname === `/workspace/${workspaceId}/logs`,
-    },
-    {
-      id: 'knowledge',
-      icon: LibraryBig,
-      href: `/workspace/${workspaceId}/knowledge`,
-      tooltip: 'Knowledge',
-      active: pathname === `/workspace/${workspaceId}/knowledge`,
-    },
-    {
-      id: 'templates',
-      icon: Shapes,
-      href: `/workspace/${workspaceId}/templates`,
-      tooltip: 'Templates',
-      active: pathname === `/workspace/${workspaceId}/templates`,
-    },
-  ]
-
   return (
     <>
       {/* Main Sidebar - Overlay */}
@@ -1155,16 +1023,13 @@ export function Sidebar() {
       )}
 
       {/* Floating Navigation - Always visible */}
-      <div
-        className='pointer-events-auto fixed left-4 z-50 w-56'
-        style={{ bottom: `${navigationBottom}px` }}
-      >
-        <div className='flex items-center gap-1'>
-          {navigationItems.map((item) => (
-            <NavigationItem key={item.id} item={item} />
-          ))}
-        </div>
-      </div>
+      <FloatingNavigation
+        workspaceId={workspaceId}
+        pathname={pathname}
+        onShowSettings={() => setShowSettings(true)}
+        onShowHelp={() => setShowHelp(true)}
+        bottom={navigationBottom}
+      />
 
       {/* Modals */}
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
@@ -1181,100 +1046,5 @@ export function Sidebar() {
         isOnWorkflowPage={isOnWorkflowPage}
       />
     </>
-  )
-}
-
-// Keyboard Shortcut Component
-interface KeyboardShortcutProps {
-  shortcut: string
-  className?: string
-}
-
-const KeyboardShortcut = ({ shortcut, className }: KeyboardShortcutProps) => {
-  const parts = shortcut.split('+')
-
-  // Helper function to determine if a part is a symbol that should be larger
-  const isSymbol = (part: string) => {
-    return ['⌘', '⇧', '⌥', '⌃'].includes(part)
-  }
-
-  return (
-    <kbd
-      className={cn(
-        'flex h-6 w-8 items-center justify-center rounded-[5px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[#454545]',
-        className
-      )}
-    >
-      <span className='flex items-center justify-center gap-[1px] pt-[1px]'>
-        {parts.map((part, index) => (
-          <span key={index} className={cn(isSymbol(part) ? 'text-[17px]' : 'text-xs')}>
-            {part}
-          </span>
-        ))}
-      </span>
-    </kbd>
-  )
-}
-
-// Navigation Item Component
-interface NavigationItemProps {
-  item: {
-    id: string
-    icon: React.ElementType
-    onClick?: () => void
-    href?: string
-    tooltip: string
-    shortcut?: string
-    active?: boolean
-    disabled?: boolean
-  }
-}
-
-const NavigationItem = ({ item }: NavigationItemProps) => {
-  // Settings and help buttons get gray hover, others get purple hover
-  const isGrayHover = item.id === 'settings' || item.id === 'help'
-
-  const content = item.disabled ? (
-    <div className='inline-flex h-[42px] w-[42px] cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-[11px] border bg-card font-medium text-card-foreground text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
-      <item.icon className='h-4 w-4' />
-    </div>
-  ) : (
-    <Button
-      variant='outline'
-      onClick={item.onClick}
-      className={cn(
-        'h-[42px] w-[42px] rounded-[10px] border bg-background text-foreground shadow-xs transition-all duration-200',
-        isGrayHover && 'hover:bg-secondary',
-        !isGrayHover &&
-          'hover:border-[var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hex)] hover:text-white',
-        item.active && 'border-[var(--brand-primary-hex)] bg-[var(--brand-primary-hex)] text-white'
-      )}
-    >
-      <item.icon className='h-4 w-4' />
-    </Button>
-  )
-
-  if (item.href && !item.disabled) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <a href={item.href} className='inline-block'>
-            {content}
-          </a>
-        </TooltipTrigger>
-        <TooltipContent side='top' command={item.shortcut}>
-          {item.tooltip}
-        </TooltipContent>
-      </Tooltip>
-    )
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{content}</TooltipTrigger>
-      <TooltipContent side='top' command={item.shortcut}>
-        {item.tooltip}
-      </TooltipContent>
-    </Tooltip>
   )
 }

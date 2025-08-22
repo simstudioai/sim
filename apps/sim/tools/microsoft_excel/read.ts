@@ -1,7 +1,9 @@
 import type {
+  ExcelCellValue,
   MicrosoftExcelReadResponse,
   MicrosoftExcelToolParams,
 } from '@/tools/microsoft_excel/types'
+import { trimTrailingEmptyRowsAndColumns } from '@/tools/microsoft_excel/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadResponse> = {
@@ -75,8 +77,6 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
   },
 
   transformResponse: async (response: Response, params?: MicrosoftExcelToolParams) => {
-    const defaultAddress = 'A1:Z1000' // Match Google Sheets default logic
-
     // If we came from the worksheets listing (no range provided), resolve first sheet name then fetch range
     if (response.url.includes('/workbook/worksheets?')) {
       const listData = await response.json()
@@ -92,9 +92,10 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
         throw new Error('Access token is required to read Excel range')
       }
 
+      // Use usedRange(valuesOnly=true) to fetch only populated cells, avoiding thousands of empty rows
       const rangeUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(
         spreadsheetIdFromUrl
-      )}/workbook/worksheets('${encodeURIComponent(firstSheetName)}')/range(address='${defaultAddress}')`
+      )}/workbook/worksheets('${encodeURIComponent(firstSheetName)}')/usedRange(valuesOnly=true)`
 
       const rangeResp = await fetch(rangeUrl, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -109,6 +110,12 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
 
       const data = await rangeResp.json()
 
+      // usedRange returns an address (A1 notation) and values matrix
+      const address: string = data.address || data.addressLocal || `${firstSheetName}!A1`
+      const rawValues: ExcelCellValue[][] = data.values || []
+
+      const values = trimTrailingEmptyRowsAndColumns(rawValues)
+
       const metadata = {
         spreadsheetId: spreadsheetIdFromUrl,
         properties: {},
@@ -119,8 +126,8 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
         success: true,
         output: {
           data: {
-            range: data.range || `${firstSheetName}!${defaultAddress}`,
-            values: data.values || [],
+            range: address,
+            values,
           },
           metadata: {
             spreadsheetId: metadata.spreadsheetId,
@@ -144,12 +151,16 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       spreadsheetUrl: `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`,
     }
 
+    const address: string = data.address || data.addressLocal || data.range || ''
+    const rawValues: ExcelCellValue[][] = data.values || []
+    const values = trimTrailingEmptyRowsAndColumns(rawValues)
+
     const result: MicrosoftExcelReadResponse = {
       success: true,
       output: {
         data: {
-          range: data.range || '',
-          values: data.values || [],
+          range: address,
+          values,
         },
         metadata: {
           spreadsheetId: metadata.spreadsheetId,

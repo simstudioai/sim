@@ -1,8 +1,16 @@
+import { useContext } from 'react'
 import { stripeClient } from '@better-auth/stripe/client'
-import { emailOTPClient, genericOAuthClient, organizationClient } from 'better-auth/client/plugins'
+import {
+  customSessionClient,
+  emailOTPClient,
+  genericOAuthClient,
+  organizationClient,
+} from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
+import type { auth } from '@/lib/auth'
 import { env, getEnv } from '@/lib/env'
 import { isDev, isProd } from '@/lib/environment'
+import { SessionContext, type SessionHookResult } from '@/lib/session-context'
 
 export function getBaseURL() {
   let baseURL
@@ -25,6 +33,7 @@ export const client = createAuthClient({
   plugins: [
     emailOTPClient(),
     genericOAuthClient(),
+    customSessionClient<typeof auth>(),
     // Only include Stripe client in production
     ...(isProd
       ? [
@@ -37,7 +46,17 @@ export const client = createAuthClient({
   ],
 })
 
-export const { useSession, useActiveOrganization } = client
+export function useSession(): SessionHookResult {
+  const ctx = useContext(SessionContext)
+  if (!ctx) {
+    throw new Error(
+      'SessionProvider is not mounted. Wrap your app with <SessionProvider> in app/layout.tsx.'
+    )
+  }
+  return ctx
+}
+
+export const { useActiveOrganization } = client
 
 export const useSubscription = () => {
   // In development, provide mock implementations

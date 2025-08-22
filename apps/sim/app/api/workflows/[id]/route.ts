@@ -8,7 +8,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions, hasAdminPermission } from '@/lib/permissions/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
-import { apiKey as apiKeyTable, workflow } from '@/db/schema'
+import { apiKey as apiKeyTable, templates, workflow } from '@/db/schema'
 
 const logger = createLogger('WorkflowByIdAPI')
 
@@ -216,6 +216,48 @@ export async function DELETE(
         `[${requestId}] User ${userId} denied permission to delete workflow ${workflowId}`
       )
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Check if workflow has published templates before deletion
+    const { searchParams } = new URL(request.url)
+    const checkTemplates = searchParams.get('check-templates') === 'true'
+    const deleteTemplatesParam = searchParams.get('deleteTemplates')
+
+    if (checkTemplates) {
+      // Return template information for frontend to handle
+      const publishedTemplates = await db
+        .select()
+        .from(templates)
+        .where(eq(templates.workflowId, workflowId))
+
+      return NextResponse.json({
+        hasPublishedTemplates: publishedTemplates.length > 0,
+        count: publishedTemplates.length,
+        publishedTemplates: publishedTemplates.map((t) => ({
+          id: t.id,
+          name: t.name,
+          views: t.views,
+          stars: t.stars,
+        })),
+      })
+    }
+
+    // Handle template deletion based on user choice
+    if (deleteTemplatesParam !== null) {
+      const deleteTemplates = deleteTemplatesParam === 'delete'
+
+      if (deleteTemplates) {
+        // Delete all templates associated with this workflow
+        await db.delete(templates).where(eq(templates.workflowId, workflowId))
+        logger.info(`[${requestId}] Deleted templates for workflow ${workflowId}`)
+      } else {
+        // Orphan the templates (set workflowId to null)
+        await db
+          .update(templates)
+          .set({ workflowId: null })
+          .where(eq(templates.workflowId, workflowId))
+        logger.info(`[${requestId}] Orphaned templates for workflow ${workflowId}`)
+      }
     }
 
     await db.delete(workflow).where(eq(workflow.id, workflowId))

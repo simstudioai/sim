@@ -13,7 +13,7 @@ export default function WorkspaceRootLayout({ children }: WorkspaceRootLayoutPro
   const user = session.data?.user
     ? {
         id: session.data.user.id,
-        name: session.data.user.name,
+        name: session.data.user.name ?? undefined,
         email: session.data.user.email,
       }
     : undefined

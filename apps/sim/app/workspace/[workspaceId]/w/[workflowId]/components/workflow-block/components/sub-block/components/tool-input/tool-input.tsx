@@ -20,7 +20,6 @@ import {
   CheckboxList,
   Code,
   ComboBox,
-  DateInput,
   FileSelectorInput,
   FileUpload,
   LongInput,
@@ -166,33 +165,6 @@ function TableSyncWrapper({
         blockId={blockId}
         subBlockId={paramId}
         columns={uiComponent.columns || ['Key', 'Value']}
-        disabled={disabled}
-      />
-    </GenericSyncWrapper>
-  )
-}
-
-function DateInputSyncWrapper({
-  blockId,
-  paramId,
-  value,
-  onChange,
-  uiComponent,
-  disabled,
-}: {
-  blockId: string
-  paramId: string
-  value: string
-  onChange: (value: string) => void
-  uiComponent: any
-  disabled: boolean
-}) {
-  return (
-    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
-      <DateInput
-        blockId={blockId}
-        subBlockId={paramId}
-        placeholder={uiComponent.placeholder}
         disabled={disabled}
       />
     </GenericSyncWrapper>
@@ -1150,18 +1122,6 @@ export function ToolInput({
       case 'checkbox-list':
         return (
           <CheckboxListSyncWrapper
-            blockId={blockId}
-            paramId={param.id}
-            value={value}
-            onChange={onChange}
-            uiComponent={uiComponent}
-            disabled={disabled}
-          />
-        )
-
-      case 'date-input':
-        return (
-          <DateInputSyncWrapper
             blockId={blockId}
             paramId={param.id}
             value={value}
