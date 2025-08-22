@@ -1567,6 +1567,7 @@ const CLIENT_TOOL_CONSTRUCTORS: Record<string, (id: string) => any> = {
   read_gdrive_file: (id) => new ReadGDriveFileClientTool(id),
   get_oauth_credentials: (id) => new GetOAuthCredentialsClientTool(id),
   make_api_request: (id) => new MakeApiRequestClientTool(id),
+  plan: (id) => new (require('@/lib/copilot-new/tools/client/other/plan').PlanClientTool)(id),
 }
 
 /**
