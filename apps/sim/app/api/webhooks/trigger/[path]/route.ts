@@ -346,7 +346,7 @@ export async function POST(
       blockId: foundWebhook.blockId,
     }
 
-    const useTrigger = isTruthy(env.TRIGGER_DEV_ENABLED ?? true)
+    const useTrigger = isTruthy(env.TRIGGER_DEV_ENABLED)
 
     if (useTrigger) {
       const handle = await tasks.trigger('webhook-execution', payload)
