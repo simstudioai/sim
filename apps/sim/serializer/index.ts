@@ -74,6 +74,15 @@ export class Serializer {
     // Extract parameters from UI state
     const params = this.extractParams(block)
 
+    try {
+      const isTriggerCategory = blockConfig.category === 'triggers'
+      if (block.triggerMode === true || isTriggerCategory) {
+        params.triggerMode = true
+      }
+    } catch (_) {
+      // no-op: conservative, avoid blocking serialization if blockConfig is unexpected
+    }
+
     // Validate required fields that only users can provide (before execution starts)
     if (validateRequired) {
       this.validateRequiredFieldsBeforeExecution(block, blockConfig, params)
@@ -385,6 +394,10 @@ export class Serializer {
       subBlocks,
       outputs: serializedBlock.outputs,
       enabled: true,
+      // Restore trigger mode from serialized params; treat trigger category as triggers as well
+      triggerMode:
+        serializedBlock.config?.params?.triggerMode === true ||
+        serializedBlock.metadata?.category === 'triggers',
     }
   }
 }
