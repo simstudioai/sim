@@ -28,12 +28,12 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               <img
                 src={brand.logoUrl}
                 alt={`${brand.name} Logo`}
-                width={42}
-                height={42}
-                className='h-[42px] w-[42px] object-contain'
+                width={56}
+                height={56}
+                className='h-[56px] w-[56px] object-contain'
               />
             ) : (
-              <Image src='/sim.svg' alt={`${brand.name} Logo`} width={42} height={42} />
+              <Image src='/sim.svg' alt={`${brand.name} Logo`} width={56} height={56} />
             )}
           </Link>
         </div>

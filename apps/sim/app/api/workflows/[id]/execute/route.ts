@@ -540,7 +540,7 @@ export async function POST(
           )
         }
 
-        // Rate limit passed - trigger the task
+        // Rate limit passed - always use Trigger.dev for async executions
         const handle = await tasks.trigger('workflow-execution', {
           workflowId,
           userId: authenticatedUserId,

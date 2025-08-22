@@ -582,6 +582,68 @@ affinity: {}
 # Tolerations for scheduling on tainted nodes
 tolerations: []
 
+# CronJob configuration for scheduled tasks
+cronjobs:
+  # Enable/disable all cron jobs
+  enabled: true
+  
+  # Individual job configurations
+  jobs:
+    scheduleExecution:
+      enabled: true
+      name: schedule-execution
+      schedule: "*/1 * * * *"
+      path: "/api/schedules/execute"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+      
+    gmailWebhookPoll:
+      enabled: true
+      name: gmail-webhook-poll
+      schedule: "*/1 * * * *"
+      path: "/api/webhooks/poll/gmail"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+      
+    outlookWebhookPoll:
+      enabled: true
+      name: outlook-webhook-poll
+      schedule: "*/1 * * * *"
+      path: "/api/webhooks/poll/outlook"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+      
+
+  # Global CronJob settings
+  image:
+    repository: curlimages/curl
+    tag: 8.5.0
+    pullPolicy: IfNotPresent
+    
+  resources:
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+      
+  restartPolicy: OnFailure
+  activeDeadlineSeconds: 300
+  startingDeadlineSeconds: 60
+  
+  # Pod security context
+  podSecurityContext:
+    fsGroup: 1001
+  
+  # Container security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+
 # Observability and telemetry configuration
 telemetry:
   # Enable/disable telemetry collection

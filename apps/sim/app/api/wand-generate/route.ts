@@ -95,12 +95,19 @@ export async function POST(req: NextRequest) {
       {
         stream,
         historyLength: history.length,
+        endpoint: useWandAzure ? azureEndpoint : 'api.openai.com',
+        model: useWandAzure ? wandModelName : 'gpt-4o',
+        apiVersion: useWandAzure ? azureApiVersion : 'N/A',
       }
     )
 
     // For streaming responses
     if (stream) {
       try {
+        logger.debug(
+          `[${requestId}] Starting streaming request to ${useWandAzure ? 'Azure OpenAI' : 'OpenAI'}`
+        )
+
         const streamCompletion = await client.chat.completions.create({
           model: useWandAzure ? wandModelName : 'gpt-4o',
           messages: messages,
@@ -108,6 +115,8 @@ export async function POST(req: NextRequest) {
           max_tokens: 10000,
           stream: true,
         })
+
+        logger.debug(`[${requestId}] Stream connection established successfully`)
 
         return new Response(
           new ReadableStream({
@@ -118,21 +127,23 @@ export async function POST(req: NextRequest) {
                 for await (const chunk of streamCompletion) {
                   const content = chunk.choices[0]?.delta?.content || ''
                   if (content) {
-                    // Use the same format as codegen API for consistency
+                    // Use SSE format identical to chat streaming
                     controller.enqueue(
-                      encoder.encode(`${JSON.stringify({ chunk: content, done: false })}\n`)
+                      encoder.encode(`data: ${JSON.stringify({ chunk: content })}\n\n`)
                     )
                   }
                 }
 
-                // Send completion signal
-                controller.enqueue(encoder.encode(`${JSON.stringify({ chunk: '', done: true })}\n`))
+                // Send completion signal in SSE format
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`))
                 controller.close()
                 logger.info(`[${requestId}] Wand generation streaming completed`)
               } catch (streamError: any) {
                 logger.error(`[${requestId}] Streaming error`, { error: streamError.message })
                 controller.enqueue(
-                  encoder.encode(`${JSON.stringify({ error: 'Streaming failed', done: true })}\n`)
+                  encoder.encode(
+                    `data: ${JSON.stringify({ error: 'Streaming failed', done: true })}\n\n`
+                  )
                 )
                 controller.close()
               }
@@ -140,9 +151,10 @@ export async function POST(req: NextRequest) {
           }),
           {
             headers: {
-              'Content-Type': 'text/plain',
-              'Cache-Control': 'no-cache, no-transform',
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
               Connection: 'keep-alive',
+              'X-Accel-Buffering': 'no',
             },
           }
         )

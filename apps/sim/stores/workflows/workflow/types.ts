@@ -183,7 +183,7 @@ export interface WorkflowActions {
   toggleBlockEnabled: (id: string) => void
   duplicateBlock: (id: string) => void
   toggleBlockHandles: (id: string) => void
-  updateBlockName: (id: string, name: string) => void
+  updateBlockName: (id: string, name: string) => boolean
   toggleBlockWide: (id: string) => void
   setBlockWide: (id: string, isWide: boolean) => void
   setBlockAdvancedMode: (id: string, advancedMode: boolean) => void
