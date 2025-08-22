@@ -100,12 +100,34 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const { name, description, author, category, icon, color, state } = validationResult.data
 
-    // Check if template exists and user has permission
+    // Check if template exists
     const existingTemplate = await db.select().from(templates).where(eq(templates.id, id)).limit(1)
 
     if (existingTemplate.length === 0) {
       logger.warn(`[${requestId}] Template not found for update: ${id}`)
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+    }
+
+    // Permission: template owner OR admin of the workflow's workspace (if any)
+    let canUpdate = existingTemplate[0].userId === session.user.id
+
+    if (!canUpdate && existingTemplate[0].workflowId) {
+      const wfRows = await db
+        .select({ workspaceId: workflow.workspaceId })
+        .from(workflow)
+        .where(eq(workflow.id, existingTemplate[0].workflowId))
+        .limit(1)
+
+      const workspaceId = wfRows[0]?.workspaceId as string | null | undefined
+      if (workspaceId) {
+        const hasAdmin = await hasAdminPermission(session.user.id, workspaceId)
+        if (hasAdmin) canUpdate = true
+      }
+    }
+
+    if (!canUpdate) {
+      logger.warn(`[${requestId}] User denied permission to update template ${id}`)
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
     // Update the template
