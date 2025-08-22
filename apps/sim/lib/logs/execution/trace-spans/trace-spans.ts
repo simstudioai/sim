@@ -119,7 +119,10 @@ export function buildTraceSpans(result: ExecutionResult): {
       const flatChildSpans: TraceSpan[] = []
       childTraceSpans.forEach((childSpan) => {
         // Skip the synthetic workflow span wrapper - we only want the actual block executions
-        if (childSpan.type === 'workflow' && childSpan.name === 'Workflow Execution') {
+        if (
+          childSpan.type === 'workflow' &&
+          (childSpan.name === 'Workflow Execution' || childSpan.name.endsWith(' workflow'))
+        ) {
           // Add its children directly, skipping the synthetic wrapper
           if (childSpan.children && Array.isArray(childSpan.children)) {
             flatChildSpans.push(...childSpan.children)
@@ -401,7 +404,10 @@ function ensureNestedWorkflowsProcessed(span: TraceSpan): TraceSpan {
 
     childTraceSpans.forEach((childSpan) => {
       // Skip synthetic workflow wrappers and get the actual blocks
-      if (childSpan.type === 'workflow' && childSpan.name === 'Workflow Execution') {
+      if (
+        childSpan.type === 'workflow' &&
+        (childSpan.name === 'Workflow Execution' || childSpan.name.endsWith(' workflow'))
+      ) {
         if (childSpan.children && Array.isArray(childSpan.children)) {
           // Recursively process each child to handle deeper nesting
           childSpan.children.forEach((grandchildSpan) => {
