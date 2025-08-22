@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { renderHelpConfirmationEmail } from '@/components/emails'
 import { getSession } from '@/lib/auth'
 import { sendEmail } from '@/lib/email/mailer'
+import { getFromEmailAddress } from '@/lib/email/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'
@@ -95,7 +96,7 @@ ${message}
       to: [`help@${env.EMAIL_DOMAIN || getEmailDomain()}`],
       subject: `[${type.toUpperCase()}] ${subject}`,
       text: emailText,
-      from: `${env.SENDER_NAME || 'Sim'} <noreply@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
+      from: getFromEmailAddress(),
       replyTo: email,
       emailType: 'transactional',
       attachments: images.map((image) => ({
@@ -125,7 +126,7 @@ ${message}
         to: [email],
         subject: `Your ${type} request has been received: ${subject}`,
         html: confirmationHtml,
-        from: `${env.SENDER_NAME || 'Sim'} <noreply@${env.EMAIL_DOMAIN || getEmailDomain()}>`,
+        from: getFromEmailAddress(),
         replyTo: `help@${env.EMAIL_DOMAIN || getEmailDomain()}`,
         emailType: 'transactional',
       })
