@@ -659,6 +659,8 @@ describe('createCustomToolRequestBody', () => {
       },
       workflowId: undefined,
       workflowVariables: {},
+      blockData: {},
+      blockNameMapping: {},
       isCustomTool: true,
     })
   })
@@ -684,6 +686,8 @@ describe('createCustomToolRequestBody', () => {
       envVars: {},
       workflowId: 'test-workflow-123',
       workflowVariables: {},
+      blockData: {},
+      blockNameMapping: {},
       isCustomTool: true,
     })
   })

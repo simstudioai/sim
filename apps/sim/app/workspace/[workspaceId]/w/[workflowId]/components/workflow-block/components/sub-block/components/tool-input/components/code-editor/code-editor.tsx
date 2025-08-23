@@ -122,40 +122,79 @@ export function CodeEditor({
     // First, get the default Prism highlighting
     let highlighted = highlight(code, languages[language], language)
 
-    // Then, highlight environment variables with {{var_name}} syntax in blue
-    if (highlighted.includes('{{')) {
-      highlighted = highlighted.replace(
-        /\{\{([^}]+)\}\}/g,
-        '<span class="text-blue-500">{{$1}}</span>'
-      )
+    // Collect all syntax highlights to apply in a single pass
+    type SyntaxHighlight = {
+      start: number
+      end: number
+      replacement: string
     }
+    const highlights: SyntaxHighlight[] = []
 
-    // Also highlight tags with <tag_name> syntax in blue
-    if (highlighted.includes('<') && !language.includes('html')) {
-      highlighted = highlighted.replace(/<([^>\s/]+)>/g, (match, group) => {
-        // Avoid replacing HTML tags in comments
-        if (match.startsWith('<!--') || match.includes('</')) {
-          return match
-        }
-        return `<span class="text-blue-500">&lt;${group}&gt;</span>`
+    // Find environment variables with {{var_name}} syntax
+    let match
+    const envVarRegex = /\{\{([^}]+)\}\}/g
+    while ((match = envVarRegex.exec(highlighted)) !== null) {
+      highlights.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        replacement: `<span class="text-blue-500">${match[0]}</span>`,
       })
     }
 
-    // Highlight schema parameters when they appear as standalone identifiers
+    // Find tags with <tag_name> syntax (not in HTML context)
+    if (!language.includes('html')) {
+      const tagRegex = /<([^>\s/]+)>/g
+      while ((match = tagRegex.exec(highlighted)) !== null) {
+        // Skip HTML comments and closing tags
+        if (!match[0].startsWith('<!--') && !match[0].includes('</')) {
+          const escaped = `&lt;${match[1]}&gt;`
+          highlights.push({
+            start: match.index,
+            end: match.index + match[0].length,
+            replacement: `<span class="text-blue-500">${escaped}</span>`,
+          })
+        }
+      }
+    }
+
+    // Find schema parameters as whole words
     if (schemaParameters.length > 0) {
       schemaParameters.forEach((param) => {
-        // Create a regex that matches the parameter name as a whole word
-        // This prevents partial matches and avoids matching within other identifiers
-        const paramRegex = new RegExp(`\\b(${param.name})\\b`, 'g')
-        highlighted = highlighted.replace(paramRegex, (match) => {
-          // Only highlight if it's not already within a span (to avoid double-highlighting)
-          if (match.includes('<span')) {
-            return match
+        // Escape special regex characters in parameter name
+        const escapedName = param.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const paramRegex = new RegExp(`\\b(${escapedName})\\b`, 'g')
+        while ((match = paramRegex.exec(highlighted)) !== null) {
+          // Check if this position is already inside an HTML tag
+          // by looking for unclosed < before this position
+          let insideTag = false
+          let pos = match.index - 1
+          while (pos >= 0) {
+            if (highlighted[pos] === '>') break
+            if (highlighted[pos] === '<') {
+              insideTag = true
+              break
+            }
+            pos--
           }
-          return `<span class="text-green-600 font-medium">${match}</span>`
-        })
+
+          if (!insideTag) {
+            highlights.push({
+              start: match.index,
+              end: match.index + match[0].length,
+              replacement: `<span class="text-green-600 font-medium">${match[0]}</span>`,
+            })
+          }
+        }
       })
     }
+
+    // Sort highlights by start position (reverse order to maintain positions)
+    highlights.sort((a, b) => b.start - a.start)
+
+    // Apply all highlights
+    highlights.forEach(({ start, end, replacement }) => {
+      highlighted = highlighted.slice(0, start) + replacement + highlighted.slice(end)
+    })
 
     return highlighted
   }
