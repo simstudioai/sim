@@ -213,25 +213,15 @@ function createUserFriendlyErrorMessage(
 }
 
 /**
- * Resolves environment variables and tags in code
- * @param code - Code with variables
- * @param params - Parameters that may contain variable values
- * @param envVars - Environment variables from the workflow
- * @returns Resolved code
+ * Resolves workflow variables with <variable.name> syntax
  */
-
-function resolveCodeVariables(
+function resolveWorkflowVariables(
   code: string,
-  params: Record<string, any>,
-  envVars: Record<string, string> = {},
-  blockData: Record<string, any> = {},
-  blockNameMapping: Record<string, string> = {},
-  workflowVariables: Record<string, any> = {}
-): { resolvedCode: string; contextVariables: Record<string, any> } {
+  workflowVariables: Record<string, any>,
+  contextVariables: Record<string, any>
+): string {
   let resolvedCode = code
-  const contextVariables: Record<string, any> = {}
 
-  // Resolve workflow variables with <variable.name> syntax first
   const variableMatches = resolvedCode.match(/<variable\.([^>]+)>/g) || []
   for (const match of variableMatches) {
     const variableName = match.slice('<variable.'.length, -1).trim()
@@ -284,7 +274,20 @@ function resolveCodeVariables(
     }
   }
 
-  // Resolve environment variables with {{var_name}} syntax
+  return resolvedCode
+}
+
+/**
+ * Resolves environment variables with {{var_name}} syntax
+ */
+function resolveEnvironmentVariables(
+  code: string,
+  params: Record<string, any>,
+  envVars: Record<string, string>,
+  contextVariables: Record<string, any>
+): string {
+  let resolvedCode = code
+
   const envVarMatches = resolvedCode.match(/\{\{([^}]+)\}\}/g) || []
   for (const match of envVarMatches) {
     const varName = match.slice(2, -2).trim()
@@ -299,7 +302,21 @@ function resolveCodeVariables(
     resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
 
-  // Resolve tags with <tag_name> syntax (including nested paths like <block.response.data>)
+  return resolvedCode
+}
+
+/**
+ * Resolves tags with <tag_name> syntax (including nested paths like <block.response.data>)
+ */
+function resolveTagVariables(
+  code: string,
+  params: Record<string, any>,
+  blockData: Record<string, any>,
+  blockNameMapping: Record<string, string>,
+  contextVariables: Record<string, any>
+): string {
+  let resolvedCode = code
+
   const tagMatches = resolvedCode.match(/<([a-zA-Z_][a-zA-Z0-9_.]*[a-zA-Z0-9_])>/g) || []
 
   for (const match of tagMatches) {
@@ -354,6 +371,42 @@ function resolveCodeVariables(
     resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
 
+  return resolvedCode
+}
+
+/**
+ * Resolves environment variables and tags in code
+ * @param code - Code with variables
+ * @param params - Parameters that may contain variable values
+ * @param envVars - Environment variables from the workflow
+ * @returns Resolved code
+ */
+function resolveCodeVariables(
+  code: string,
+  params: Record<string, any>,
+  envVars: Record<string, string> = {},
+  blockData: Record<string, any> = {},
+  blockNameMapping: Record<string, string> = {},
+  workflowVariables: Record<string, any> = {}
+): { resolvedCode: string; contextVariables: Record<string, any> } {
+  let resolvedCode = code
+  const contextVariables: Record<string, any> = {}
+
+  // Resolve workflow variables with <variable.name> syntax first
+  resolvedCode = resolveWorkflowVariables(resolvedCode, workflowVariables, contextVariables)
+
+  // Resolve environment variables with {{var_name}} syntax
+  resolvedCode = resolveEnvironmentVariables(resolvedCode, params, envVars, contextVariables)
+
+  // Resolve tags with <tag_name> syntax (including nested paths like <block.response.data>)
+  resolvedCode = resolveTagVariables(
+    resolvedCode,
+    params,
+    blockData,
+    blockNameMapping,
+    contextVariables
+  )
+
   return { resolvedCode, contextVariables }
 }
 
@@ -407,7 +460,6 @@ export async function POST(req: NextRequest) {
       timeout,
       workflowId,
       isCustomTool,
-      hasWorkflowVariables: Object.keys(workflowVariables).length > 0,
     })
 
     // Resolve variables in the code with workflow environment variables
