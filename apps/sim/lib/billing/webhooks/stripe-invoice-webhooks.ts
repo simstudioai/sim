@@ -41,7 +41,7 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
     if (invoice.subscription) {
       // Filter to subscription-cycle renewals; ignore updates/off-cycle charges
       const reason = invoice.billing_reason
-      const isCycle = reason === 'subscription_cycle' || reason === 'subscription'
+      const isCycle = reason === 'subscription_cycle'
       if (!isCycle) {
         logger.info('Ignoring non-cycle subscription invoice on payment_succeeded', {
           invoiceId: invoice.id,
