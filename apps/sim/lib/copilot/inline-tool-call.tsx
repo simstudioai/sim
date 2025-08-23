@@ -219,6 +219,8 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
   const liveToolCall = useCopilotStore((s) => (toolCallId ? s.toolCallsById[toolCallId] : undefined))
   const toolCall = liveToolCall || toolCallProp
 
+  if (!toolCall) return null
+
   const isExpandablePending =
     toolCall.state === 'pending' &&
     (toolCall.name === 'make_api_request' || toolCall.name === 'set_environment_variables')
@@ -228,15 +230,6 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
     toolCall.name === 'make_api_request' || toolCall.name === 'set_environment_variables'
 
   if (!toolCall) return null
-
-  // Skip rendering if tool is not registered and has no live instance
-  try {
-    const hasInstance = !!getClientTool(toolCall.id)
-    const isRegistered = !!getTool(toolCall.name)
-    if (!hasInstance && !isRegistered) {
-      return null
-    }
-  } catch {}
 
   const showButtons = shouldShowRunSkipButtons(toolCall)
 
