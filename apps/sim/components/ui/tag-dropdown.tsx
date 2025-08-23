@@ -418,7 +418,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       } else {
         if (sourceBlock?.triggerMode && blockConfig.triggers?.enabled) {
           const triggerId = blockConfig?.triggers?.available?.[0]
-          const firstTrigger = triggerId ? getTrigger(triggerId) : getTriggersByProvider(sourceBlock.type)[0]
+          const firstTrigger = triggerId
+            ? getTrigger(triggerId)
+            : getTriggersByProvider(sourceBlock.type)[0]
 
           if (firstTrigger?.outputs) {
             // Use trigger outputs instead of block outputs
@@ -687,7 +689,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         const blockState = blocks[accessibleBlockId]
         if (blockState?.triggerMode && blockConfig.triggers?.enabled) {
           const triggerId = blockConfig?.triggers?.available?.[0]
-          const firstTrigger = triggerId ? getTrigger(triggerId) : getTriggersByProvider(blockState.type)[0]
+          const firstTrigger = triggerId
+            ? getTrigger(triggerId)
+            : getTriggersByProvider(blockState.type)[0]
 
           if (firstTrigger?.outputs) {
             // Use trigger outputs instead of block outputs
