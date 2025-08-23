@@ -463,10 +463,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
 
     const getDepthIconFor = (value: 0 | 1 | 2 | 3) => {
-      if (value === 0) return <Zap className='h-3 w-3 text-muted-foreground' />
-      if (value === 1) return <InfinityIcon className='h-3 w-3 text-muted-foreground' />
-      if (value === 2) return <Brain className='h-3 w-3 text-muted-foreground' />
-      return <BrainCircuit className='h-3 w-3 text-muted-foreground' />
+      const colorClass = !agentPrefetch ? 'text-[var(--brand-primary-hover-hex)]' : 'text-muted-foreground'
+      if (value === 0) return <Zap className={`h-3 w-3 ${colorClass}`} />
+      if (value === 1) return <InfinityIcon className={`h-3 w-3 ${colorClass}`} />
+      if (value === 2) return <Brain className={`h-3 w-3 ${colorClass}`} />
+      return <BrainCircuit className={`h-3 w-3 ${colorClass}`} />
     }
 
     const getDepthIcon = () => getDepthIconFor(agentDepth)
@@ -639,7 +640,10 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     <Button
                       variant='ghost'
                       size='sm'
-                      className='flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs'
+                      className={cn(
+                        'flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs',
+                        !agentPrefetch && 'border-[var(--brand-primary-hover-hex)] text-[var(--brand-primary-hover-hex)] hover:bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_8%,transparent)] hover:text-[var(--brand-primary-hover-hex)]'
+                      )}
                       title='Choose mode'
                     >
                       {getDepthIcon()}
