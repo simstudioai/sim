@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getEmailSubject, renderInvitationEmail } from '@/components/emails/render-email'
 import { getSession } from '@/lib/auth'
+import { getUserUsageData } from '@/lib/billing/core/usage'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { sendEmail } from '@/lib/email/mailer'
 import { quickValidateEmail } from '@/lib/email/validation'
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Include usage data if requested and user has admin access
     if (includeUsage && hasAdminAccess) {
-      const membersWithUsage = await db
+      const base = await db
         .select({
           id: member.id,
           userId: member.userId,
@@ -74,8 +75,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           userEmail: user.email,
           currentPeriodCost: userStats.currentPeriodCost,
           currentUsageLimit: userStats.currentUsageLimit,
-          billingPeriodStart: userStats.billingPeriodStart,
-          billingPeriodEnd: userStats.billingPeriodEnd,
           usageLimitSetBy: userStats.usageLimitSetBy,
           usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
         })
@@ -83,6 +82,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         .innerJoin(user, eq(member.userId, user.id))
         .leftJoin(userStats, eq(user.id, userStats.userId))
         .where(eq(member.organizationId, organizationId))
+
+      const membersWithUsage = await Promise.all(
+        base.map(async (row) => {
+          const usage = await getUserUsageData(row.userId)
+          return {
+            ...row,
+            billingPeriodStart: usage.billingPeriodStart,
+            billingPeriodEnd: usage.billingPeriodEnd,
+          }
+        })
+      )
 
       return NextResponse.json({
         success: true,

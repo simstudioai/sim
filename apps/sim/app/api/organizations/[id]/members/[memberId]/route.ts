@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { getUserUsageData } from '@/lib/billing/core/usage'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { member, user, userStats } from '@/db/schema'
@@ -80,8 +81,6 @@ export async function GET(
         .select({
           currentPeriodCost: userStats.currentPeriodCost,
           currentUsageLimit: userStats.currentUsageLimit,
-          billingPeriodStart: userStats.billingPeriodStart,
-          billingPeriodEnd: userStats.billingPeriodEnd,
           usageLimitSetBy: userStats.usageLimitSetBy,
           usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
           lastPeriodCost: userStats.lastPeriodCost,
@@ -90,11 +89,22 @@ export async function GET(
         .where(eq(userStats.userId, memberId))
         .limit(1)
 
+      const computed = await getUserUsageData(memberId)
+
       if (usageData.length > 0) {
         memberData = {
           ...memberData,
-          usage: usageData[0],
-        } as typeof memberData & { usage: (typeof usageData)[0] }
+          usage: {
+            ...usageData[0],
+            billingPeriodStart: computed.billingPeriodStart,
+            billingPeriodEnd: computed.billingPeriodEnd,
+          },
+        } as typeof memberData & {
+          usage: (typeof usageData)[0] & {
+            billingPeriodStart: Date | null
+            billingPeriodEnd: Date | null
+          }
+        }
       }
     }
 
