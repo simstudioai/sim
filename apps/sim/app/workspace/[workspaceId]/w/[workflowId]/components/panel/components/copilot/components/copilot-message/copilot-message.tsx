@@ -594,11 +594,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           )
         }
         if (block.type === 'tool_call') {
-          // Skip hidden tools (like checkoff_todo)
-          if (block.toolCall.hidden) {
-            return null
-          }
-
+          // Visibility and filtering handled by InlineToolCall
           return (
             <div
               key={`tool-${block.toolCall.id}`}

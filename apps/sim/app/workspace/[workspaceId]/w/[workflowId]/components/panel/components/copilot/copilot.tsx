@@ -306,8 +306,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
         !isToolCallSeen(tc.id)
     )
 
-    if (previewToolCall?.result) {
-      logger.info('Preview workflow completed via native SSE - handling result')
+    if (previewToolCall) {
+      logger.info('Preview workflow completed via native SSE')
       // Mark as seen to prevent duplicate processing
       markToolCallAsSeen(previewToolCall.id)
       // Tool call handling logic would go here if needed
