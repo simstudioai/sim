@@ -179,6 +179,7 @@ export class AgentBlockHandler implements BlockHandler {
             ...mergedParams,
             timeout: tool.timeout ?? DEFAULT_FUNCTION_TIMEOUT,
             envVars: context.environmentVariables || {},
+            workflowVariables: context.workflowVariables || {},
             isCustomTool: true,
             _context: { workflowId: context.workflowId },
           },
@@ -368,6 +369,7 @@ export class AgentBlockHandler implements BlockHandler {
       stream: streaming,
       messages,
       environmentVariables: context.environmentVariables || {},
+      workflowVariables: context.workflowVariables || {},
       reasoningEffort: inputs.reasoningEffort,
       verbosity: inputs.verbosity,
     }

@@ -242,12 +242,16 @@ export function createCustomToolRequestBody(
     // 3. Empty object (fallback)
     const envVars = params.envVars || (isClient ? getClientEnvVars(getStore) : {})
 
+    // Get workflow variables from params (passed from execution context)
+    const workflowVariables = params.workflowVariables || {}
+
     // Include everything needed for execution
     return {
       code: customTool.code,
       params: params, // These will be available in the VM context
       schema: customTool.schema.function.parameters, // For validation
       envVars: envVars, // Environment variables
+      workflowVariables: workflowVariables, // Workflow variables for <variable.name> resolution
       workflowId: workflowId, // Pass workflowId for server-side context
       isCustomTool: true, // Flag to indicate this is a custom tool execution
     }

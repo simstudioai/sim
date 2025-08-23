@@ -152,6 +152,7 @@ export interface ProviderRequest {
   stream?: boolean
   streamToolCalls?: boolean // Whether to stream tool call responses back to user (default: false)
   environmentVariables?: Record<string, string> // Environment variables for tool execution
+  workflowVariables?: Record<string, any> // Workflow variables for <variable.name> resolution
   isCopilotRequest?: boolean // Flag to indicate this request is from the copilot system
   // Azure OpenAI specific parameters
   azureEndpoint?: string

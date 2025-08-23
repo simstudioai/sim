@@ -46,6 +46,7 @@ export class FunctionBlockHandler implements BlockHandler {
         code: codeContent,
         timeout: inputs.timeout || 5000,
         envVars: context.environmentVariables || {},
+        workflowVariables: context.workflowVariables || {},
         blockData: blockData, // Pass block data for variable resolution
         blockNameMapping: blockNameMapping, // Pass block name to ID mapping
         _context: { workflowId: context.workflowId },
