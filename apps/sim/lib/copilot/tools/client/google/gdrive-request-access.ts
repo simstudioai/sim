@@ -1,4 +1,4 @@
-import { CheckCircle, FolderOpen, Loader2, MinusCircle, XCircle } from 'lucide-react'
+import { CheckCircle, FolderOpen, Loader2, MinusCircle, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -19,13 +19,13 @@ export class GDriveRequestAccessClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing Google Drive access', icon: Loader2 },
-      [ClientToolCallState.pending]: { text: 'Grant Google Drive access?', icon: FolderOpen },
-      [ClientToolCallState.executing]: { text: 'Requesting Google Drive access', icon: Loader2 },
-      [ClientToolCallState.rejected]: { text: 'Skipped Google Drive access', icon: MinusCircle },
-      [ClientToolCallState.success]: { text: 'Google Drive access granted', icon: CheckCircle },
-      [ClientToolCallState.error]: { text: 'Failed to request Google Drive access', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Aborted', icon: XCircle },
+      [ClientToolCallState.generating]: { text: 'Requesting GDrive access', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Requesting GDrive access', icon: Loader2 },
+      [ClientToolCallState.executing]: { text: 'Requesting GDrive access', icon: Loader2 },
+      [ClientToolCallState.rejected]: { text: 'Skipped GDrive access', icon: MinusCircle },
+      [ClientToolCallState.success]: { text: 'GDrive access granted', icon: CheckCircle },
+      [ClientToolCallState.error]: { text: 'Failed to request GDrive access', icon: X },
+      [ClientToolCallState.aborted]: { text: 'Aborted GDrive access request', icon: XCircle },
     },
     interrupt: {
       accept: { text: 'Select', icon: FolderOpen },

@@ -309,7 +309,7 @@ export function DiffControls() {
           variant='outline'
           size='sm'
           onClick={handleReject}
-          className='h-8 rounded-full border-gray-200 bg-gray-100 px-3 text-gray-700 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+          className='h-8 rounded-[6px] border-gray-200 bg-gray-100 px-3 text-gray-700 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
           title='Reject changes'
         >
           Reject
@@ -320,7 +320,7 @@ export function DiffControls() {
           variant='default'
           size='sm'
           onClick={handleAccept}
-          className='h-8 rounded-full bg-[var(--brand-primary-hover-hex)] px-3 text-white hover:bg-[var(--brand-primary-hover-hex)]/90'
+          className='h-8 rounded-[6px] bg-[var(--brand-primary-hover-hex)] px-3 text-white hover:bg-[var(--brand-primary-hover-hex)]/90 hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
           title='Accept changes'
         >
           Accept

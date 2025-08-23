@@ -1,4 +1,4 @@
-import { Files, Loader2, XCircle } from 'lucide-react'
+import { FolderOpen, Loader2, XCircle, MinusCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -25,10 +25,12 @@ export class ListGDriveFilesClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing to list Drive files', icon: Loader2 },
-      [ClientToolCallState.executing]: { text: 'Listing Google Drive files', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Listed Google Drive files', icon: Files },
-      [ClientToolCallState.error]: { text: 'Failed to list Drive files', icon: XCircle },
+      [ClientToolCallState.generating]: { text: 'Listing GDrive files', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Listing GDrive files', icon: Loader2 },
+      [ClientToolCallState.executing]: { text: 'Listing GDrive files', icon: Loader2 },
+      [ClientToolCallState.success]: { text: 'Listed GDrive files', icon: FolderOpen },
+      [ClientToolCallState.error]: { text: 'Failed to list GDrive files', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped listing GDrive files', icon: MinusCircle },
     },
   }
 

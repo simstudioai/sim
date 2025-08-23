@@ -1,4 +1,4 @@
-import { Info, Loader2, X } from 'lucide-react'
+import { Info, Loader2, XCircle, MinusCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -24,11 +24,13 @@ export class GetBlocksMetadataClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing to get block metadata', icon: Loader2 },
-      [ClientToolCallState.executing]: { text: 'Retrieving block metadata', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Retrieved block metadata', icon: Info },
-      [ClientToolCallState.error]: { text: 'Failed to retrieve block metadata', icon: Info },
-      [ClientToolCallState.aborted]: { text: 'Aborted getting block metadata', icon: X },
+      [ClientToolCallState.generating]: { text: 'Evaluating block choices', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Evaluating block choices', icon: Loader2 },
+      [ClientToolCallState.executing]: { text: 'Evaluating block choices', icon: Loader2 },
+      [ClientToolCallState.success]: { text: 'Evaluated block choices', icon: Info },
+      [ClientToolCallState.error]: { text: 'Failed to evaluate block choices', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted evaluating block choices', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped evaluating block choices', icon: MinusCircle },
     },
   }
 

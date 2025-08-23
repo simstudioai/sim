@@ -1,4 +1,4 @@
-import { Grid2x2, Grid2x2Check, Loader2, XCircle } from 'lucide-react'
+import { Grid2x2, Grid2x2Check, Loader2, X, XCircle, MinusCircle, Grid2x2X } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -27,12 +27,14 @@ export class BuildWorkflowClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing to build workflow', icon: Loader2 },
+      [ClientToolCallState.generating]: { text: 'Building your workflow', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Building your workflow', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Built your workflow', icon: Grid2x2Check },
       [ClientToolCallState.error]: { text: 'Failed to build your workflow', icon: XCircle },
       [ClientToolCallState.review]: { text: 'Review your workflow', icon: Grid2x2 },
-      [ClientToolCallState.rejected]: { text: 'Rejected workflow', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Rejected workflow changes', icon: Grid2x2X },
+      [ClientToolCallState.aborted]: { text: 'Aborted building your workflow', icon: MinusCircle },
+      [ClientToolCallState.pending]: { text: 'Building your workflow', icon: Loader2 },
     },
   }
 

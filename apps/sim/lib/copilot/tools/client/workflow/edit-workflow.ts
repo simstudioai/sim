@@ -1,4 +1,4 @@
-import { Grid2x2, Loader2, XCircle } from 'lucide-react'
+import { Grid2x2, Loader2, X, XCircle, MinusCircle, Grid2x2Check, Grid2x2X } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -35,13 +35,14 @@ export class EditWorkflowClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing to update workflow', icon: Loader2 },
-      [ClientToolCallState.executing]: { text: 'Updating your workflow', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Updated your workflow', icon: Grid2x2 },
-      [ClientToolCallState.error]: { text: 'Failed to update your workflow', icon: XCircle },
-      [ClientToolCallState.review]: { text: 'Review your workflow update', icon: Grid2x2 },
-      [ClientToolCallState.rejected]: { text: 'Rejected update', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Aborted update', icon: XCircle },
+      [ClientToolCallState.generating]: { text: 'Editing your workflow', icon: Loader2 },
+      [ClientToolCallState.executing]: { text: 'Editing your workflow', icon: Loader2 },
+      [ClientToolCallState.success]: { text: 'Edited your workflow', icon: Grid2x2Check },
+      [ClientToolCallState.error]: { text: 'Failed to edit your workflow', icon: XCircle },
+      [ClientToolCallState.review]: { text: 'Review your workflow changes', icon: Grid2x2 },
+      [ClientToolCallState.rejected]: { text: 'Rejected workflow changes', icon: Grid2x2X },
+      [ClientToolCallState.aborted]: { text: 'Aborted editing your workflow', icon: MinusCircle },
+      [ClientToolCallState.pending]: { text: 'Editing your workflow', icon: Loader2 },
     },
   }
 
@@ -61,7 +62,7 @@ export class EditWorkflowClientTool extends BaseClientTool {
     const logger = createLogger('EditWorkflowClientTool')
     logger.info('handleReject called', { toolCallId: this.toolCallId, state: this.getState() })
     this.setState(ClientToolCallState.rejected)
-    await this.markToolComplete(200, 'Workflow edits rejected')
+    await this.markToolComplete(200, 'Workflow changes rejected')
   }
 
   async execute(args?: EditWorkflowArgs): Promise<void> {

@@ -1,4 +1,4 @@
-import { Loader2, MinusCircle, Play, XCircle } from 'lucide-react'
+import { Loader2, MinusCircle, Play, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -24,12 +24,13 @@ export class RunWorkflowClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Ready to run workflow', icon: Play },
+      [ClientToolCallState.generating]: { text: 'Preparing to run your workflow', icon: Play },
       [ClientToolCallState.pending]: { text: 'Run this workflow?', icon: Play },
       [ClientToolCallState.executing]: { text: 'Running your workflow', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Workflow ran', icon: Play },
-      [ClientToolCallState.error]: { text: 'Failed to run workflow', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Run cancelled', icon: MinusCircle },
+      [ClientToolCallState.success]: { text: 'Workflow executed', icon: Play },
+      [ClientToolCallState.error]: { text: 'Errored running workflow', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Workflow execution skipped', icon: MinusCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted workflow execution', icon: MinusCircle },
       [ClientToolCallState.background]: { text: 'Running in background', icon: Play },
     },
     interrupt: {

@@ -1,4 +1,4 @@
-import { Loader2, Workflow as WorkflowIcon, XCircle } from 'lucide-react'
+import { Loader2, Workflow as WorkflowIcon, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -26,12 +26,13 @@ export class GetUserWorkflowClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing to analyze workflow', icon: Loader2 },
-      [ClientToolCallState.pending]: { text: 'Analyze current workflow?', icon: WorkflowIcon },
+      [ClientToolCallState.generating]: { text: 'Analyzing your workflow', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Analyzing your workflow', icon: WorkflowIcon },
       [ClientToolCallState.executing]: { text: 'Analyzing your workflow', icon: Loader2 },
-      [ClientToolCallState.aborted]: { text: 'Aborted workflow analysis', icon: XCircle },
-      [ClientToolCallState.success]: { text: 'Workflow analyzed', icon: WorkflowIcon },
-      [ClientToolCallState.error]: { text: 'Failed to analyze workflow', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted analyzing your workflow', icon: XCircle },
+      [ClientToolCallState.success]: { text: 'Analyzed your workflow', icon: WorkflowIcon },
+      [ClientToolCallState.error]: { text: 'Failed to analyze your workflow', icon: X },
+      [ClientToolCallState.rejected]: { text: 'Skipped analyzing your workflow', icon: XCircle },
     },
   }
 

@@ -1,4 +1,4 @@
-import { KeyRound, Loader2, XCircle } from 'lucide-react'
+import { KeyRound, Loader2, MinusCircle, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -27,12 +27,15 @@ export class GetEnvironmentVariablesClientTool extends BaseClientTool {
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
       [ClientToolCallState.generating]: {
-        text: 'Preparing to read environment variables',
+        text: 'Reading environment variables',
         icon: Loader2,
       },
+      [ClientToolCallState.pending]: { text: 'Reading environment variables', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Reading environment variables', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Read environment variables', icon: KeyRound },
       [ClientToolCallState.error]: { text: 'Failed to read environment variables', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted reading environment variables', icon: MinusCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped reading environment variables', icon: MinusCircle },
     },
   }
 

@@ -1,4 +1,4 @@
-import { Loader2, Settings2, XCircle } from 'lucide-react'
+import { Loader2, Settings2, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -27,13 +27,15 @@ export class SetEnvironmentVariablesClientTool extends BaseClientTool {
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
       [ClientToolCallState.generating]: {
-        text: 'Preparing to set environment variables',
+        text: 'Setting environment variables',
         icon: Loader2,
       },
+      [ClientToolCallState.pending]: { text: 'Setting environment variables', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Setting environment variables', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Set environment variables', icon: Settings2 },
-      [ClientToolCallState.error]: { text: 'Failed to set environment variables', icon: XCircle },
-      [ClientToolCallState.pending]: { text: 'Set environment variables?', icon: Settings2 },
+      [ClientToolCallState.error]: { text: 'Failed to set environment variables', icon: X },
+      [ClientToolCallState.aborted]: { text: 'Aborted setting environment variables', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped setting environment variables', icon: XCircle },
     },
     interrupt: {
       accept: { text: 'Apply', icon: Settings2 },

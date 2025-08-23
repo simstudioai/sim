@@ -329,28 +329,35 @@ export function InlineToolCall({
   // Compute icon element from tool's display metadata (fallback to Loader2)
   const renderDisplayIcon = () => {
     try {
-      // Prefer icon resolved in the copilot store map
+      // Determine the icon component (prefer store, then registry, else Loader2)
       const IconFromStore = (toolCall as any).display?.icon
-      const spin =
-        toolCall.state === (ClientToolCallState.generating as any) ||
-        toolCall.state === (ClientToolCallState.executing as any) ||
-        toolCall.state === ('generating' as any) ||
-        toolCall.state === ('executing' as any)
-          ? 'animate-spin'
-          : ''
-      if (IconFromStore) {
-        return <IconFromStore className={`h-3 w-3 ${spin}`} />
+      let IconComp: any | undefined = IconFromStore
+      if (!IconComp) {
+        try {
+          const def = getRegisteredTools()[toolCall.name] as any
+          IconComp = def?.metadata?.displayNames?.[toolCall.state]?.icon
+        } catch {}
       }
-      // Fall back to registry metadata by state
-      try {
-        const def = getRegisteredTools()[toolCall.name] as any
-        const byState = def?.metadata?.displayNames?.[toolCall.state]
-        const MetaIcon = byState?.icon
-        if (MetaIcon) return <MetaIcon className={`h-3 w-3 ${spin}`} />
-      } catch {}
-      return <Loader2 className={`h-3 w-3 ${spin}`} />
+      if (!IconComp) IconComp = Loader2
+
+      // Color by state
+      let colorClass = ''
+      const state = toolCall.state as any
+      if (state === (ClientToolCallState as any).aborted || state === 'aborted') {
+        colorClass = 'text-amber-500'
+      } else if (state === (ClientToolCallState as any).error || state === 'error') {
+        colorClass = 'text-red-500'
+      } else if (state === (ClientToolCallState as any).success || state === 'success') {
+        const isBuildOrEdit = toolCall.name === 'build_workflow' || toolCall.name === 'edit_workflow'
+        colorClass = isBuildOrEdit ? 'text-[var(--brand-primary-hover-hex)]' : 'text-green-600'
+      }
+
+      // Only Loader2 should spin
+      const spinClass = IconComp === Loader2 ? 'animate-spin' : ''
+
+      return <IconComp className={`h-3 w-3 ${spinClass} ${colorClass}`} />
     } catch {
-      return <Loader2 className='h-3 w-3' />
+      return <Loader2 className='h-3 w-3 animate-spin' />
     }
   }
 

@@ -1,4 +1,4 @@
-import { Blocks, Loader2 } from 'lucide-react'
+import { Blocks, Loader2, X, XCircle, MinusCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -19,11 +19,13 @@ export class GetBlocksAndToolsClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing to explore options', icon: Loader2 },
-      [ClientToolCallState.pending]: { text: 'Explore available options?', icon: Blocks },
+      [ClientToolCallState.generating]: { text: 'Exploring available options', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Exploring available options', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Exploring available options', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Explored available options', icon: Blocks },
-      [ClientToolCallState.error]: { text: 'Failed to explore options', icon: Blocks },
+      [ClientToolCallState.error]: { text: 'Failed to explore options', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted exploring options', icon: MinusCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped exploring options', icon: MinusCircle },
     },
     interrupt: undefined,
   }

@@ -1,4 +1,4 @@
-import { BookOpen, Loader2, XCircle } from 'lucide-react'
+import { BookOpen, Loader2, XCircle, MinusCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -22,10 +22,13 @@ export class SearchDocumentationClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing to search docs', icon: Loader2 },
+      [ClientToolCallState.generating]: { text: 'Searching documentation', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Searching documentation', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Searching documentation', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Searched documentation', icon: BookOpen },
+      [ClientToolCallState.success]: { text: 'Documentation search complete', icon: BookOpen },
       [ClientToolCallState.error]: { text: 'Failed to search docs', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted documentation search', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped documentation search', icon: MinusCircle },
     },
   }
 

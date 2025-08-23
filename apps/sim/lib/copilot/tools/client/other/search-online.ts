@@ -1,4 +1,4 @@
-import { Globe, Loader2, XCircle } from 'lucide-react'
+import { Globe, Loader2, XCircle, MinusCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -24,10 +24,13 @@ export class SearchOnlineClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing to search online', icon: Loader2 },
+      [ClientToolCallState.generating]: { text: 'Searching online', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Searching online', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Searching online', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Searched online', icon: Globe },
+      [ClientToolCallState.success]: { text: 'Online search complete', icon: Globe },
       [ClientToolCallState.error]: { text: 'Failed to search online', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped online search', icon: MinusCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted online search', icon: XCircle },
     },
   }
 

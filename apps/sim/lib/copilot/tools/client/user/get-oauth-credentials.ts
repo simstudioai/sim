@@ -1,4 +1,4 @@
-import { Key, Loader2, XCircle } from 'lucide-react'
+import { Key, Loader2, MinusCircle, X, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -22,10 +22,13 @@ export class GetOAuthCredentialsClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing to fetch credentials', icon: Loader2 },
+      [ClientToolCallState.generating]: { text: 'Fetching OAuth credentials', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Fetching OAuth credentials', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Retrieving login IDs', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Retrieved login IDs', icon: Key },
       [ClientToolCallState.error]: { text: 'Failed to retrieve login IDs', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted fetching OAuth credentials', icon: MinusCircle },
+      [ClientToolCallState.rejected]: { text: 'Skipped fetching OAuth credentials', icon: MinusCircle },
     },
   }
 
