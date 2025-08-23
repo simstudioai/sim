@@ -673,15 +673,14 @@ export async function getUsersAndOrganizationsForOverageBilling(): Promise<{
         continue // Skip free plans
       }
 
-      // Check if subscription period ends today
+      // Check if subscription period ends today (range-based, inclusive of day)
       let shouldBillToday = false
 
       if (sub.periodEnd) {
         const periodEnd = new Date(sub.periodEnd)
-        periodEnd.setUTCHours(0, 0, 0, 0) // Normalize to start of day
+        const endsToday = periodEnd >= today && periodEnd < tomorrow
 
-        // Bill if the subscription period ends today
-        if (periodEnd.getTime() === today.getTime()) {
+        if (endsToday) {
           shouldBillToday = true
           logger.info('Subscription period ends today', {
             referenceId: sub.referenceId,
@@ -689,8 +688,10 @@ export async function getUsersAndOrganizationsForOverageBilling(): Promise<{
             periodEnd: sub.periodEnd,
           })
         }
-      } else {
-        // Fallback: Check userStats billing period for users
+      }
+
+      // Also check userStats billing period end as a safety net (handles stale subscription.periodEnd)
+      if (!shouldBillToday) {
         const userStatsRecord = await db
           .select({
             billingPeriodEnd: userStats.billingPeriodEnd,
@@ -700,10 +701,10 @@ export async function getUsersAndOrganizationsForOverageBilling(): Promise<{
           .limit(1)
 
         if (userStatsRecord.length > 0 && userStatsRecord[0].billingPeriodEnd) {
-          const billingPeriodEnd = new Date(userStatsRecord[0].billingPeriodEnd)
-          billingPeriodEnd.setUTCHours(0, 0, 0, 0) // Normalize to start of day
+          const bpEnd = new Date(userStatsRecord[0].billingPeriodEnd)
+          const endsToday = bpEnd >= today && bpEnd < tomorrow
 
-          if (billingPeriodEnd.getTime() === today.getTime()) {
+          if (endsToday) {
             shouldBillToday = true
             logger.info('User billing period ends today (from userStats)', {
               userId: sub.referenceId,
