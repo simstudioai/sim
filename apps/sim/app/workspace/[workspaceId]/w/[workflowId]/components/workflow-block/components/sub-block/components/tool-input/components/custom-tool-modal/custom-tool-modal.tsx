@@ -329,6 +329,15 @@ try {
         return false
       }
 
+      // Validate that parameters object exists with correct structure
+      if (!parsed.function.parameters) {
+        return false
+      }
+
+      if (!parsed.function.parameters.type || parsed.function.parameters.properties === undefined) {
+        return false
+      }
+
       return true
     } catch (_error) {
       return false
@@ -385,6 +394,34 @@ try {
 
       if (!parsed.function || !parsed.function.name) {
         setSchemaError('Schema must have a "function" object with a "name" field')
+        setActiveSection('schema')
+        return
+      }
+
+      // Validate parameters structure - must be present
+      if (!parsed.function.parameters) {
+        setSchemaError('Missing function.parameters object')
+        setActiveSection('schema')
+        return
+      }
+
+      if (!parsed.function.parameters.type) {
+        setSchemaError('Missing parameters.type field')
+        setActiveSection('schema')
+        return
+      }
+
+      if (parsed.function.parameters.properties === undefined) {
+        setSchemaError('Missing parameters.properties field')
+        setActiveSection('schema')
+        return
+      }
+
+      if (
+        typeof parsed.function.parameters.properties !== 'object' ||
+        parsed.function.parameters.properties === null
+      ) {
+        setSchemaError('parameters.properties must be an object')
         setActiveSection('schema')
         return
       }
@@ -478,7 +515,52 @@ try {
     // Prevent updates during AI generation/streaming
     if (schemaGeneration.isLoading || schemaGeneration.isStreaming) return
     setJsonSchema(value)
-    if (schemaError) {
+
+    // Real-time validation - show error immediately when schema is invalid
+    if (value.trim()) {
+      try {
+        const parsed = JSON.parse(value)
+
+        if (!parsed.type || parsed.type !== 'function') {
+          setSchemaError('Missing "type": "function"')
+          return
+        }
+
+        if (!parsed.function || !parsed.function.name) {
+          setSchemaError('Missing function.name field')
+          return
+        }
+
+        if (!parsed.function.parameters) {
+          setSchemaError('Missing function.parameters object')
+          return
+        }
+
+        if (!parsed.function.parameters.type) {
+          setSchemaError('Missing parameters.type field')
+          return
+        }
+
+        if (parsed.function.parameters.properties === undefined) {
+          setSchemaError('Missing parameters.properties field')
+          return
+        }
+
+        if (
+          typeof parsed.function.parameters.properties !== 'object' ||
+          parsed.function.parameters.properties === null
+        ) {
+          setSchemaError('parameters.properties must be an object')
+          return
+        }
+
+        // Schema is valid, clear any existing error
+        setSchemaError(null)
+      } catch {
+        setSchemaError('Invalid JSON format')
+      }
+    } else {
+      // Clear error when schema is empty (will be caught during save)
       setSchemaError(null)
     }
   }
@@ -869,7 +951,7 @@ try {
                   </div>
                   {schemaError &&
                     !schemaGeneration.isStreaming && ( // Hide schema error while streaming
-                      <span className='ml-4 flex-shrink-0 text-red-600 text-sm'>{schemaError}</span>
+                      <div className='ml-4 break-words text-red-600 text-sm'>{schemaError}</div>
                     )}
                 </div>
                 <CodeEditor
@@ -939,7 +1021,7 @@ try {
                   </div>
                   {codeError &&
                     !codeGeneration.isStreaming && ( // Hide code error while streaming
-                      <span className='ml-4 flex-shrink-0 text-red-600 text-sm'>{codeError}</span>
+                      <div className='ml-4 break-words text-red-600 text-sm'>{codeError}</div>
                     )}
                 </div>
                 {schemaParameters.length > 0 && (
@@ -1099,20 +1181,12 @@ try {
                   Cancel
                 </Button>
                 {activeSection === 'schema' ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        <Button onClick={() => setActiveSection('code')} disabled={!isSchemaValid}>
-                          Next
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    {!isSchemaValid && (
-                      <TooltipContent side='top'>
-                        <p>Invalid JSON schema</p>
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
+                  <Button
+                    onClick={() => setActiveSection('code')}
+                    disabled={!isSchemaValid || !!schemaError}
+                  >
+                    Next
+                  </Button>
                 ) : (
                   <Tooltip>
                     <TooltipTrigger asChild>
