@@ -58,9 +58,9 @@ async function handleSkip(toolCall: CopilotToolCall, setToolCallState: any, onSt
 }
 
 function getDisplayName(toolCall: CopilotToolCall): string {
-  const instance = getClientTool(toolCall.id) as any
-  const display = instance?.getDisplayState?.()
-  if (display?.text) return display.text
+  // Prefer display resolved in the copilot store (SSOT)
+  const fromStore = (toolCall as any).display?.text
+  if (fromStore) return fromStore
   try {
     const def = getTool(toolCall.name) as any
     const byState = def?.metadata?.displayNames?.[toolCall.state]
@@ -292,9 +292,8 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
   // Compute icon element from tool's display metadata (fallback to Loader2)
   const renderDisplayIcon = () => {
     try {
-      const instance = getClientTool(toolCall.id) as any
-      const display = instance?.getDisplayState?.()
-      const Icon = display?.icon
+      // Prefer icon resolved in the copilot store map
+      const IconFromStore = (toolCall as any).display?.icon
       const spin =
         toolCall.state === (ClientToolCallState.generating as any) ||
         toolCall.state === (ClientToolCallState.executing as any) ||
@@ -302,11 +301,10 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
         toolCall.state === ('executing' as any)
           ? 'animate-spin'
           : ''
-      if (Icon) {
-        return <Icon className={`h-3 w-3 ${spin}`} />
+      if (IconFromStore) {
+        return <IconFromStore className={`h-3 w-3 ${spin}`} />
       }
-      // Fallback
-      // Try registry icon
+      // Fall back to registry metadata by state
       try {
         const def = getTool(toolCall.name) as any
         const byState = def?.metadata?.displayNames?.[toolCall.state]

@@ -33,6 +33,7 @@ import { CheckoffTodoClientTool } from '@/lib/copilot-new/tools/client/other/che
 import { GDriveRequestAccessClientTool } from '@/lib/copilot-new/tools/client/google/gdrive-request-access'
 import { EditWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/edit-workflow'
 import { BuildWorkflowClientTool } from '@/lib/copilot-new/tools/client/workflow/build-workflow'
+import type { BaseClientToolMetadata } from '@/lib/copilot-new/tools/client/base-tool'
 
 const logger = createLogger('CopilotStore')
 
@@ -67,6 +68,27 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   build_workflow: (id) => new BuildWorkflowClientTool(id),
 }
 
+// Read-only static metadata for class-based tools (no instances)
+const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefined> = {
+  run_workflow: (RunWorkflowClientTool as any)?.metadata,
+  get_workflow_console: (GetWorkflowConsoleClientTool as any)?.metadata,
+  get_blocks_and_tools: (GetBlocksAndToolsClientTool as any)?.metadata,
+  get_blocks_metadata: (GetBlocksMetadataClientTool as any)?.metadata,
+  search_online: (SearchOnlineClientTool as any)?.metadata,
+  search_documentation: (SearchDocumentationClientTool as any)?.metadata,
+  get_environment_variables: (GetEnvironmentVariablesClientTool as any)?.metadata,
+  set_environment_variables: (SetEnvironmentVariablesClientTool as any)?.metadata,
+  list_gdrive_files: (ListGDriveFilesClientTool as any)?.metadata,
+  read_gdrive_file: (ReadGDriveFileClientTool as any)?.metadata,
+  get_oauth_credentials: (GetOAuthCredentialsClientTool as any)?.metadata,
+  make_api_request: (MakeApiRequestClientTool as any)?.metadata,
+  plan: (PlanClientTool as any)?.metadata,
+  checkoff_todo: (CheckoffTodoClientTool as any)?.metadata,
+  gdrive_request_access: (GDriveRequestAccessClientTool as any)?.metadata,
+  edit_workflow: (EditWorkflowClientTool as any)?.metadata,
+  build_workflow: (BuildWorkflowClientTool as any)?.metadata,
+}
+
 function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {
   try {
     if (!toolName || !toolCallId) return
@@ -93,19 +115,31 @@ function resolveToolDisplay(
   params?: Record<string, any>
 ): ClientToolDisplay | undefined {
   try {
-    if (toolName) {
-      const def = getTool(toolName) as any
-      const byState = def?.metadata?.displayNames?.[state]
-      if (byState?.text || byState?.icon) {
-        return { text: byState.text, icon: byState.icon }
-      }
+    if (!toolName) return undefined
+    const def = getTool(toolName) as any
+    const meta = def?.metadata?.displayNames || CLASS_TOOL_METADATA[toolName]?.displayNames || {}
+    // Exact state first
+    let ds = meta?.[state]
+    if (ds?.text || ds?.icon) return { text: ds.text, icon: ds.icon }
+    // Fallback order (prefer pre-execution states for unknown states like pending)
+    const fallbackOrder: ClientToolCallState[] = [
+      (ClientToolCallState as any).generating,
+      (ClientToolCallState as any).executing,
+      (ClientToolCallState as any).review,
+      (ClientToolCallState as any).success,
+      (ClientToolCallState as any).error,
+      (ClientToolCallState as any).rejected,
+    ]
+    for (const key of fallbackOrder) {
+      const cand = meta?.[key]
+      if (cand?.text || cand?.icon) return { text: cand.text, icon: cand.icon }
     }
   } catch {}
+  // Humanized fallback as last resort
   try {
-    if (toolCallId) {
-      const instance = getClientTool(toolCallId) as any
-      const display = instance?.getDisplayState?.()
-      if (display?.text || display?.icon) return display
+    if (toolName) {
+      const text = toolName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+      return { text, icon: undefined as any }
     }
   } catch {}
   return undefined
@@ -1143,10 +1177,11 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Update store map
       const updatedMap = { ...toolCallsById }
+      const updatedDisplay = resolveToolDisplay(current.name, targetState, id, current.params)
       updatedMap[id] = {
         ...current,
         state: targetState,
-        display: resolveToolDisplay(current.name, targetState, id, current.params),
+        display: updatedDisplay,
       }
       set({ toolCallsById: updatedMap })
 
@@ -1160,7 +1195,18 @@ export const useCopilotStore = create<CopilotStore>()(
           const blocks = m.contentBlocks.map((b: any) => {
             if (b.type === 'tool_call' && b.toolCall?.id === id) {
               changed = true
-              return { ...b, toolCall: { ...b.toolCall, state: targetState } }
+              const prev = b.toolCall || {}
+              return {
+                ...b,
+                toolCall: {
+                  ...prev,
+                  id,
+                  name: current.name,
+                  state: targetState,
+                  display: updatedDisplay,
+                  params: current.params,
+                },
+              }
             }
             return b
           })

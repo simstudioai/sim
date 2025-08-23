@@ -201,6 +201,32 @@ export function DiffControls() {
         logger.warn('Failed to clear preview YAML:', error)
       })
 
+      // Resolve target toolCallId for build/edit and update to terminal success state in the copilot store
+      try {
+        const { toolCallsById, messages } = useCopilotStore.getState()
+        let id: string | undefined
+        outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
+          const m = messages[mi]
+          if (m.role !== 'assistant' || !m.contentBlocks) continue
+          for (const b of m.contentBlocks as any[]) {
+            if (b?.type === 'tool_call') {
+              const tn = b.toolCall?.name
+              if (tn === 'build_workflow' || tn === 'edit_workflow') {
+                id = b.toolCall?.id
+                break outer
+              }
+            }
+          }
+        }
+        if (!id) {
+          const candidates = Object.values(toolCallsById).filter(
+            (t) => t.name === 'build_workflow' || t.name === 'edit_workflow'
+          )
+          id = candidates.length ? candidates[candidates.length - 1].id : undefined
+        }
+        if (id) updatePreviewToolCallState('accepted', id)
+      } catch {}
+
       // Accept changes without blocking the UI; errors will be logged by the store handler
       acceptChanges().catch((error) => {
         logger.error('Failed to accept changes (background):', error)
@@ -223,6 +249,32 @@ export function DiffControls() {
     clearPreviewYaml().catch((error) => {
       logger.warn('Failed to clear preview YAML:', error)
     })
+
+    // Resolve target toolCallId for build/edit and update to terminal rejected state in the copilot store
+    try {
+      const { toolCallsById, messages } = useCopilotStore.getState()
+      let id: string | undefined
+      outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
+        const m = messages[mi]
+        if (m.role !== 'assistant' || !m.contentBlocks) continue
+        for (const b of m.contentBlocks as any[]) {
+          if (b?.type === 'tool_call') {
+            const tn = b.toolCall?.name
+            if (tn === 'build_workflow' || tn === 'edit_workflow') {
+              id = b.toolCall?.id
+              break outer
+            }
+          }
+        }
+      }
+      if (!id) {
+        const candidates = Object.values(toolCallsById).filter(
+          (t) => t.name === 'build_workflow' || t.name === 'edit_workflow'
+        )
+        id = candidates.length ? candidates[candidates.length - 1].id : undefined
+      }
+      if (id) updatePreviewToolCallState('rejected', id)
+    } catch {}
 
     // Reject changes optimistically
     rejectChanges().catch((error) => {
