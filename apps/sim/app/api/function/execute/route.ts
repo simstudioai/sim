@@ -460,7 +460,6 @@ export async function POST(req: NextRequest) {
       timeout,
       workflowId,
       isCustomTool,
-      hasWorkflowVariables: Object.keys(workflowVariables).length > 0,
     })
 
     // Resolve variables in the code with workflow environment variables
