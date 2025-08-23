@@ -331,11 +331,13 @@ export function useWorkflowExecution() {
                     }
                   } else {
                     const errorText = await response.text()
-                    console.error(
-                      `Failed to upload file ${fileData.name}:`,
-                      response.status,
-                      errorText
-                    )
+                    const message = `Failed to upload ${fileData.name}: ${response.status} ${errorText}`
+                    console.error(message)
+                    if (typeof (workflowInput as any).onUploadError === 'function') {
+                      try {
+                        ;(workflowInput as any).onUploadError(message)
+                      } catch {}
+                    }
                   }
                 }
 
@@ -344,6 +346,11 @@ export function useWorkflowExecution() {
                 workflowInput.files = uploadedFiles
               } catch (error) {
                 console.error('Error uploading files:', error)
+                if (typeof (workflowInput as any).onUploadError === 'function') {
+                  try {
+                    ;(workflowInput as any).onUploadError('Unexpected error uploading files')
+                  } catch {}
+                }
                 // Continue execution even if file upload fails
                 workflowInput.files = []
               }

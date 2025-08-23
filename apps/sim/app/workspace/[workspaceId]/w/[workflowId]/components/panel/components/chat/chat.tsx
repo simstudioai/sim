@@ -4,6 +4,7 @@ import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState }
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Notice } from '@/components/ui/notice'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -63,6 +64,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   // File upload state
   const [chatFiles, setChatFiles] = useState<ChatFile[]>([])
   const [isUploadingFiles, setIsUploadingFiles] = useState(false)
+  const [uploadErrors, setUploadErrors] = useState<string[]>([])
   const [dragCounter, setDragCounter] = useState(0)
   const isDragOver = dragCounter > 0
   // Scroll state
@@ -285,6 +287,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
       // Clear input and files, refocus immediately
       setChatMessage('')
       setChatFiles([])
+      setUploadErrors([])
       focusInput(10)
 
       // Execute the workflow to generate a response
@@ -615,26 +618,69 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
             if (!(!activeWorkflowId || isExecuting || isUploadingFiles)) {
               const droppedFiles = Array.from(e.dataTransfer.files)
               if (droppedFiles.length > 0) {
-                const newFiles = droppedFiles.slice(0, 5 - chatFiles.length).map((file) => ({
-                  id: crypto.randomUUID(),
-                  name: file.name,
-                  size: file.size,
-                  type: file.type,
-                  file,
-                }))
-                setChatFiles([...chatFiles, ...newFiles])
+                const remainingSlots = Math.max(0, 5 - chatFiles.length)
+                const candidateFiles = droppedFiles.slice(0, remainingSlots)
+                const errors: string[] = []
+                const validNewFiles: ChatFile[] = []
+
+                for (const file of candidateFiles) {
+                  if (file.size > 10 * 1024 * 1024) {
+                    errors.push(`${file.name} is too large (max 10MB)`)
+                    continue
+                  }
+
+                  const isDuplicate = chatFiles.some(
+                    (existingFile) =>
+                      existingFile.name === file.name && existingFile.size === file.size
+                  )
+                  if (isDuplicate) {
+                    errors.push(`${file.name} already added`)
+                    continue
+                  }
+
+                  validNewFiles.push({
+                    id: crypto.randomUUID(),
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    file,
+                  })
+                }
+
+                if (errors.length > 0) {
+                  setUploadErrors(errors)
+                }
+
+                if (validNewFiles.length > 0) {
+                  setChatFiles([...chatFiles, ...validNewFiles])
+                }
               }
             }
           }}
         >
           {/* File upload section */}
           <div className='mb-2'>
+            {uploadErrors.length > 0 && (
+              <div className='mb-2'>
+                <Notice variant='error' title='File upload error'>
+                  <ul className='list-disc pl-5'>
+                    {uploadErrors.map((err, idx) => (
+                      <li key={idx}>{err}</li>
+                    ))}
+                  </ul>
+                </Notice>
+              </div>
+            )}
             <ChatFileUpload
               files={chatFiles}
-              onFilesChange={setChatFiles}
+              onFilesChange={(files) => {
+                setUploadErrors([])
+                setChatFiles(files)
+              }}
               maxFiles={5}
               maxSize={10}
               disabled={!activeWorkflowId || isExecuting || isUploadingFiles}
+              onError={(errors) => setUploadErrors(errors)}
             />
           </div>
 

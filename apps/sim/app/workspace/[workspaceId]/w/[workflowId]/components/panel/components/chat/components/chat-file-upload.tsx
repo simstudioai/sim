@@ -21,6 +21,7 @@ interface ChatFileUploadProps {
   maxSize?: number // in MB
   acceptedTypes?: string[]
   disabled?: boolean
+  onError?: (errors: string[]) => void
 }
 
 export function ChatFileUpload({
@@ -30,6 +31,7 @@ export function ChatFileUpload({
   maxSize = 10,
   acceptedTypes = ['*'],
   disabled = false,
+  onError,
 }: ChatFileUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -91,7 +93,7 @@ export function ChatFileUpload({
 
     if (errors.length > 0) {
       logger.warn('File upload errors:', errors)
-      // You could show these errors in a toast or alert
+      onError?.(errors)
     }
 
     if (newFiles.length > 0) {
