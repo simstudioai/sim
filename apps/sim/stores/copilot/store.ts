@@ -34,7 +34,6 @@ import { GDriveRequestAccessClientTool } from '@/lib/copilot/tools/client/google
 import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
 import { BuildWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/build-workflow'
 import type { BaseClientToolMetadata } from '@/lib/copilot/tools/client/base-tool'
-import { GetBestPracticesClientTool } from '@/lib/copilot/tools/client/noop/get-best-practices'
 
 const logger = createLogger('CopilotStore')
 
@@ -67,7 +66,6 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   gdrive_request_access: (id) => new GDriveRequestAccessClientTool(id),
   edit_workflow: (id) => new EditWorkflowClientTool(id),
   build_workflow: (id) => new BuildWorkflowClientTool(id),
-  get_best_practices: (id) => new GetBestPracticesClientTool(id),
 }
 
 // Read-only static metadata for class-based tools (no instances)
@@ -89,7 +87,6 @@ const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefined> = 
   gdrive_request_access: (GDriveRequestAccessClientTool as any)?.metadata,
   edit_workflow: (EditWorkflowClientTool as any)?.metadata,
   build_workflow: (BuildWorkflowClientTool as any)?.metadata,
-  get_best_practices: (GetBestPracticesClientTool as any)?.metadata,
 }
 
 function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {

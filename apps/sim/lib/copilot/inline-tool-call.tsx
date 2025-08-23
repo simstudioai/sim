@@ -229,6 +229,15 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
 
   if (!toolCall) return null
 
+  // Skip rendering if tool is not registered and has no live instance
+  try {
+    const hasInstance = !!getClientTool(toolCall.id)
+    const isRegistered = !!getTool(toolCall.name)
+    if (!hasInstance && !isRegistered) {
+      return null
+    }
+  } catch {}
+
   const showButtons = shouldShowRunSkipButtons(toolCall)
 
   const handleStateChange = (state: any) => {
