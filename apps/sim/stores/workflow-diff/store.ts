@@ -7,8 +7,8 @@ import { useWorkflowRegistry } from '../workflows/registry/store'
 import { useSubBlockStore } from '../workflows/subblock/store'
 import { useWorkflowStore } from '../workflows/workflow/store'
 import type { WorkflowState } from '../workflows/workflow/types'
-import { getClientTool } from '@/lib/copilot-new/tools/client/manager'
-import { ClientToolCallState } from '@/lib/copilot-new/tools/client/base-tool'
+import { getClientTool } from '@/lib/copilot/tools/client/manager'
+import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 
 const logger = createLogger('WorkflowDiffStore')
 

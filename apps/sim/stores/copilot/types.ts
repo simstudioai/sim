@@ -1,4 +1,4 @@
-import { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot-new/tools/client/base-tool'
+import { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot/tools/client/base-tool'
 
 export type ToolState = ClientToolCallState
 

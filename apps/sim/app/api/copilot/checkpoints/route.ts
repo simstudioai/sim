@@ -7,7 +7,7 @@ import {
   createInternalServerErrorResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot-new/auth'
+} from '@/lib/copilot/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { copilotChats, workflowCheckpoints } from '@/db/schema'

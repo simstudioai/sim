@@ -6,8 +6,8 @@ import {
   createInternalServerErrorResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot-new/auth'
-import { routeExecution } from '@/lib/copilot-new/tools/server/router'
+} from '@/lib/copilot/auth'
+import { routeExecution } from '@/lib/copilot/tools/server/router'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('ExecuteCopilotServerToolAPI')

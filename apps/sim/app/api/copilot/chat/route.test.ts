@@ -78,11 +78,11 @@ describe('Copilot Chat API Route', () => {
       model: 'claude-3-haiku-20240307',
     })
 
-    vi.doMock('@/lib/copilot-new/config', () => ({
+    vi.doMock('@/lib/copilot/config', () => ({
       getCopilotModel: mockGetCopilotModel,
     }))
 
-    vi.doMock('@/lib/copilot-new/prompts', () => ({
+    vi.doMock('@/lib/copilot/prompts', () => ({
       TITLE_GENERATION_SYSTEM_PROMPT: 'Generate a title',
       TITLE_GENERATION_USER_PROMPT: vi.fn((msg) => `Generate title for: ${msg}`),
     }))
