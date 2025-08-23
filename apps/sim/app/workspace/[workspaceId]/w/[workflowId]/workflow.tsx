@@ -667,6 +667,11 @@ const WorkflowContent = React.memo(() => {
             y: position.y - containerInfo.loopPosition.y,
           }
 
+          // Capture existing child blocks before adding the new one
+          const existingChildBlocks = Object.values(blocks).filter(
+            (b) => b.data?.parentId === containerInfo.loopId
+          )
+
           // Add block with parent info
           addBlock(id, data.type, name, relativePosition, {
             parentId: containerInfo.loopId,
@@ -680,12 +685,35 @@ const WorkflowContent = React.memo(() => {
           // Auto-connect logic for blocks inside containers
           const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
           if (isAutoConnectEnabled && data.type !== 'starter') {
-            // First priority: Connect to the container's start node
-            const containerNode = getNodes().find((n) => n.id === containerInfo.loopId)
-            const containerType = containerNode?.type
+            if (existingChildBlocks.length > 0) {
+              // Connect to the nearest existing child block within the container
+              const closestBlock = existingChildBlocks
+                .map((b) => ({
+                  block: b,
+                  distance: Math.sqrt(
+                    (b.position.x - relativePosition.x) ** 2 +
+                      (b.position.y - relativePosition.y) ** 2
+                  ),
+                }))
+                .sort((a, b) => a.distance - b.distance)[0]?.block
 
-            if (containerType === 'subflowNode') {
-              // Connect from the container's start node to the new block
+              if (closestBlock) {
+                const sourceHandle = determineSourceHandle({
+                  id: closestBlock.id,
+                  type: closestBlock.type,
+                })
+                addEdge({
+                  id: crypto.randomUUID(),
+                  source: closestBlock.id,
+                  target: id,
+                  sourceHandle,
+                  targetHandle: 'target',
+                  type: 'workflowEdge',
+                })
+              }
+            } else {
+              // No existing children: connect from the container's start handle
+              const containerNode = getNodes().find((n) => n.id === containerInfo.loopId)
               const startSourceHandle =
                 (containerNode?.data as any)?.kind === 'loop'
                   ? 'loop-start-source'
@@ -699,45 +727,6 @@ const WorkflowContent = React.memo(() => {
                 targetHandle: 'target',
                 type: 'workflowEdge',
               })
-            } else {
-              // Fallback: Try to find other nodes in the container to connect to
-              const containerNodes = getNodes().filter((n) => n.parentId === containerInfo.loopId)
-
-              if (containerNodes.length > 0) {
-                // Connect to the closest node in the container
-                const closestNode = containerNodes
-                  .map((n) => ({
-                    id: n.id,
-                    distance: Math.sqrt(
-                      (n.position.x - relativePosition.x) ** 2 +
-                        (n.position.y - relativePosition.y) ** 2
-                    ),
-                  }))
-                  .sort((a, b) => a.distance - b.distance)[0]
-
-                if (closestNode) {
-                  // Get appropriate source handle
-                  const sourceNode = getNodes().find((n) => n.id === closestNode.id)
-                  const sourceType = sourceNode?.data?.type
-
-                  // Default source handle
-                  let sourceHandle = 'source'
-
-                  // For condition blocks, use the condition-true handle
-                  if (sourceType === 'condition') {
-                    sourceHandle = 'condition-true'
-                  }
-
-                  addEdge({
-                    id: crypto.randomUUID(),
-                    source: closestNode.id,
-                    target: id,
-                    sourceHandle,
-                    targetHandle: 'target',
-                    type: 'workflowEdge',
-                  })
-                }
-              }
             }
           }
         } else {
