@@ -1824,6 +1824,7 @@ export function ToolInput({
         }}
         onSave={editingToolIndex !== null ? handleSaveCustomTool : handleAddCustomTool}
         onDelete={handleDeleteTool}
+        blockId={blockId}
         initialValues={
           editingToolIndex !== null && selectedTools[editingToolIndex]?.type === 'custom-tool'
             ? {

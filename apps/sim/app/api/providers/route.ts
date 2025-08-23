@@ -40,6 +40,8 @@ export async function POST(request: NextRequest) {
       messages,
       environmentVariables,
       workflowVariables,
+      blockData,
+      blockNameMapping,
       reasoningEffort,
       verbosity,
     } = body
@@ -106,6 +108,8 @@ export async function POST(request: NextRequest) {
       messages,
       environmentVariables,
       workflowVariables,
+      blockData,
+      blockNameMapping,
       reasoningEffort,
       verbosity,
     })

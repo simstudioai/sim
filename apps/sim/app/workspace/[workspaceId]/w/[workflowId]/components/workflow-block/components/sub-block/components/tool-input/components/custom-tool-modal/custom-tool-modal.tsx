@@ -37,6 +37,7 @@ interface CustomToolModalProps {
   onOpenChange: (open: boolean) => void
   onSave: (tool: CustomTool) => void
   onDelete?: (toolId: string) => void
+  blockId: string
   initialValues?: {
     id?: string
     schema: any
@@ -62,6 +63,7 @@ export function CustomToolModal({
   onOpenChange,
   onSave,
   onDelete,
+  blockId,
   initialValues,
 }: CustomToolModalProps) {
   const [activeSection, setActiveSection] = useState<ToolSection>('schema')
@@ -1086,7 +1088,7 @@ try {
                     <TagDropdown
                       visible={showTags}
                       onSelect={handleTagSelect}
-                      blockId=''
+                      blockId={blockId}
                       activeSourceBlockId={activeSourceBlockId}
                       inputValue={functionCode}
                       cursorPosition={cursorPosition}

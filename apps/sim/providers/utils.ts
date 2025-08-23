@@ -912,6 +912,8 @@ export function prepareToolExecution(
     userId?: string
     environmentVariables?: Record<string, any>
     workflowVariables?: Record<string, any>
+    blockData?: Record<string, any>
+    blockNameMapping?: Record<string, string>
   }
 ): {
   toolParams: Record<string, any>
@@ -937,6 +939,8 @@ export function prepareToolExecution(
       : {}),
     ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
     ...(request.workflowVariables ? { workflowVariables: request.workflowVariables } : {}),
+    ...(request.blockData ? { blockData: request.blockData } : {}),
+    ...(request.blockNameMapping ? { blockNameMapping: request.blockNameMapping } : {}),
   }
 
   return { toolParams, executionParams }
