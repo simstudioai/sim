@@ -621,7 +621,47 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             </div>
           )}
 
-          <div className='flex justify-end'>
+          <div className='flex items-center justify-end gap-0'>
+            {hasCheckpoints && (
+              <div className='inline-flex items-center justify-center mr-1'>
+                {showRestoreConfirmation ? (
+                  <div className='inline-flex items-center gap-1'>
+                    <button
+                      onClick={handleConfirmRevert}
+                      disabled={isRevertingCheckpoint}
+                      className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+                      title='Confirm restore'
+                      aria-label='Confirm restore'
+                    >
+                      {isRevertingCheckpoint ? (
+                        <Loader2 className='h-3 w-3 animate-spin' />
+                      ) : (
+                        <Check className='h-3 w-3' />
+                      )}
+                    </button>
+                    <button
+                      onClick={handleCancelRevert}
+                      disabled={isRevertingCheckpoint}
+                      className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+                      title='Cancel restore'
+                      aria-label='Cancel restore'
+                    >
+                      <X className='h-3 w-3' />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleRevertToCheckpoint}
+                    disabled={isRevertingCheckpoint}
+                    className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+                    title='Restore workflow to this checkpoint state'
+                    aria-label='Restore'
+                  >
+                    <RotateCcw className='h-3 w-3' />
+                  </button>
+                )}
+              </div>
+            )}
             <div className='min-w-0 max-w-[80%]'>
               {/* Message content in purple box */}
               <div
@@ -635,55 +675,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                   <WordWrap text={message.content} />
                 </div>
               </div>
-
-              {/* Checkpoints below message */}
-              {hasCheckpoints && (
-                <div className='mt-1 flex justify-end'>
-                  <div className='inline-flex items-center gap-0.5 text-muted-foreground text-xs'>
-                    <span className='select-none'>
-                      Restore{showRestoreConfirmation && <span className='ml-0.5'>?</span>}
-                    </span>
-                    <div className='inline-flex w-8 items-center justify-center'>
-                      {showRestoreConfirmation ? (
-                        <div className='inline-flex items-center gap-1'>
-                          <button
-                            onClick={handleConfirmRevert}
-                            disabled={isRevertingCheckpoint}
-                            className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
-                            title='Confirm restore'
-                            aria-label='Confirm restore'
-                          >
-                            {isRevertingCheckpoint ? (
-                              <Loader2 className='h-3 w-3 animate-spin' />
-                            ) : (
-                              <Check className='h-3 w-3' />
-                            )}
-                          </button>
-                          <button
-                            onClick={handleCancelRevert}
-                            disabled={isRevertingCheckpoint}
-                            className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
-                            title='Cancel restore'
-                            aria-label='Cancel restore'
-                          >
-                            <X className='h-3 w-3' />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={handleRevertToCheckpoint}
-                          disabled={isRevertingCheckpoint}
-                          className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
-                          title='Restore workflow to this checkpoint state'
-                          aria-label='Restore'
-                        >
-                          <RotateCcw className='h-3 w-3' />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
