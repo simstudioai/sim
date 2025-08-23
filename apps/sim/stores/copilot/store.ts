@@ -69,7 +69,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
 }
 
 // Read-only static metadata for class-based tools (no instances)
-const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefined> = {
+export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefined> = {
   run_workflow: (RunWorkflowClientTool as any)?.metadata,
   get_workflow_console: (GetWorkflowConsoleClientTool as any)?.metadata,
   get_blocks_and_tools: (GetBlocksAndToolsClientTool as any)?.metadata,
@@ -145,21 +145,37 @@ function resolveToolDisplay(
   return undefined
 }
 
+// Helper: check if a tool state is rejected
+function isRejectedState(state: any): boolean {
+  try {
+    return state === 'rejected' || state === (ClientToolCallState as any).rejected
+  } catch {
+    return state === 'rejected'
+  }
+}
+
 // Normalize loaded messages so assistant messages render correctly from DB
 function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
   try {
     return messages.map((message) => {
       if (message.role !== 'assistant') return message
 
-      // Start from existing blocks if any
-      let blocks: any[] = Array.isArray(message.contentBlocks) ? [...(message.contentBlocks as any[])] : []
+      // Use existing contentBlocks ordering if present; otherwise only render text content
+      const blocks: any[] = Array.isArray(message.contentBlocks)
+        ? (message.contentBlocks as any[]).map((b: any) =>
+            b?.type === 'tool_call' && b.toolCall
+              ? {
+                  ...b,
+                  toolCall: {
+                    ...b.toolCall,
+                    display: resolveToolDisplay(b.toolCall?.name, b.toolCall?.state as any, b.toolCall?.id, b.toolCall?.params),
+                  },
+                }
+              : b
+          )
+        : []
 
-      // If we have plain content and no text block, add it as a text block
-      if ((message.content && message.content.trim()) && !blocks.some((b) => b?.type === 'text')) {
-        blocks.push({ type: 'text', content: message.content, timestamp: Date.now() })
-      }
-
-      // Merge/append tool_call blocks from toolCalls array if missing
+      // Prepare toolCalls with display for non-block UI components, but do not fabricate blocks
       const updatedToolCalls = Array.isArray((message as any).toolCalls)
         ? (message as any).toolCalls.map((tc: any) => ({
             ...tc,
@@ -167,41 +183,14 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
           }))
         : (message as any).toolCalls
 
-      if (Array.isArray((message as any).toolCalls) && (message as any).toolCalls.length > 0) {
-        const existingIds = new Set(
-          blocks.filter((b: any) => b?.type === 'tool_call').map((b: any) => (b.toolCall && b.toolCall.id) || '')
-        )
-        for (const tc of (message as any).toolCalls as any[]) {
-          if (tc?.id && existingIds.has(tc.id)) {
-            // Update display on existing block
-            blocks = blocks.map((b: any) =>
-              b?.type === 'tool_call' && b.toolCall?.id === tc.id
-                ? {
-                    ...b,
-                    toolCall: {
-                      ...b.toolCall,
-                      display: resolveToolDisplay(tc?.name, tc?.state as any, tc?.id, tc?.params),
-                    },
-                  }
-                : b
-            )
-          } else {
-            blocks.push({
-              type: 'tool_call',
-              toolCall: {
-                ...tc,
-                display: resolveToolDisplay(tc?.name, tc?.state as any, tc?.id, tc?.params),
-              },
-              timestamp: Date.now(),
-            })
-          }
-        }
-      }
-
       return {
         ...message,
         ...(updatedToolCalls && { toolCalls: updatedToolCalls }),
-        ...(blocks.length > 0 && { contentBlocks: blocks }),
+        ...(blocks.length > 0
+          ? { contentBlocks: blocks }
+          : (message.content && message.content.trim()
+              ? { contentBlocks: [{ type: 'text', content: message.content, timestamp: Date.now() }] }
+              : {})),
       }
     })
   } catch {
@@ -304,13 +293,49 @@ function createErrorMessage(messageId: string, content: string): CopilotMessage 
 }
 
 function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
-  return messages.map((msg) => ({
-    id: msg.id,
-    role: msg.role,
-    content: (msg.content || '').replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim(),
-    timestamp: msg.timestamp,
-    ...(msg.fileAttachments && msg.fileAttachments.length > 0 && { fileAttachments: msg.fileAttachments }),
-  }))
+  return messages
+    .map((msg) => {
+      // Build content from blocks if assistant content is empty (exclude thinking)
+      let content = msg.content || ''
+      if (msg.role === 'assistant' && !content.trim() && msg.contentBlocks?.length) {
+        content = msg.contentBlocks
+          .filter((b: any) => b?.type === 'text')
+          .map((b: any) => String(b.content || ''))
+          .join('')
+          .trim()
+      }
+
+      // Strip thinking tags from content
+      if (content) {
+        content = content.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim()
+      }
+
+      return {
+        id: msg.id,
+        role: msg.role,
+        content,
+        timestamp: msg.timestamp,
+        ...(Array.isArray((msg as any).toolCalls) && (msg as any).toolCalls.length > 0 && {
+          toolCalls: (msg as any).toolCalls,
+        }),
+        ...(Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0 && {
+          // Persist contentBlocks but exclude thinking for storage
+          contentBlocks: (msg.contentBlocks as any[]).filter((b: any) => b?.type !== 'thinking'),
+        }),
+        ...(msg.fileAttachments && msg.fileAttachments.length > 0 && {
+          fileAttachments: msg.fileAttachments,
+        }),
+      }
+    })
+    .filter((m) => {
+      if (m.role === 'assistant') {
+        const hasText = typeof m.content === 'string' && m.content.trim().length > 0
+        const hasTools = Array.isArray((m as any).toolCalls) && (m as any).toolCalls.length > 0
+        const hasBlocks = Array.isArray((m as any).contentBlocks) && (m as any).contentBlocks.length > 0
+        return hasText || hasTools || hasBlocks
+      }
+      return true
+    })
 }
 
 // Streaming context and SSE parsing
@@ -341,6 +366,84 @@ const sseHandlers: Record<string, SSEHandler> = {
     if (!currentChat && context.newChatId) {
       await get().handleNewChatCreation(context.newChatId)
     }
+  },
+  tool_result: (data, context, get, set) => {
+    try {
+      const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
+      const success: boolean | undefined = data?.success
+      if (!toolCallId) return
+      const { toolCallsById } = get()
+      const current = toolCallsById[toolCallId]
+      if (current) {
+        if (isRejectedState(current.state)) {
+          // Preserve rejected state; update inline display if needed but do not change state
+          return
+        }
+        const newState = success ? ClientToolCallState.success : ClientToolCallState.error
+        const updatedMap = { ...toolCallsById }
+        updatedMap[toolCallId] = {
+          ...current,
+          state: newState,
+          display: resolveToolDisplay(current.name, newState, current.id, (current as any).params),
+        }
+        set({ toolCallsById: updatedMap })
+      }
+
+      // Update inline content block state
+      for (let i = 0; i < context.contentBlocks.length; i++) {
+        const b = context.contentBlocks[i] as any
+        if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
+          if (isRejectedState(b.toolCall?.state)) break
+          const newState = success ? ClientToolCallState.success : ClientToolCallState.error
+          context.contentBlocks[i] = {
+            ...b,
+            toolCall: {
+              ...b.toolCall,
+              state: newState,
+              display: resolveToolDisplay(b.toolCall?.name, newState, toolCallId, b.toolCall?.params),
+            },
+          }
+          break
+        }
+      }
+      updateStreamingMessage(set, context)
+    } catch {}
+  },
+  tool_error: (data, context, get, set) => {
+    try {
+      const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
+      if (!toolCallId) return
+      const { toolCallsById } = get()
+      const current = toolCallsById[toolCallId]
+      if (current) {
+        if (isRejectedState(current.state)) {
+          return
+        }
+        const updatedMap = { ...toolCallsById }
+        updatedMap[toolCallId] = {
+          ...current,
+          state: ClientToolCallState.error,
+          display: resolveToolDisplay(current.name, ClientToolCallState.error, current.id, (current as any).params),
+        }
+        set({ toolCallsById: updatedMap })
+      }
+      for (let i = 0; i < context.contentBlocks.length; i++) {
+        const b = context.contentBlocks[i] as any
+        if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
+          if (isRejectedState(b.toolCall?.state)) break
+          context.contentBlocks[i] = {
+            ...b,
+            toolCall: {
+              ...b.toolCall,
+              state: ClientToolCallState.error,
+              display: resolveToolDisplay(b.toolCall?.name, ClientToolCallState.error, toolCallId, b.toolCall?.params),
+            },
+          }
+          break
+        }
+      }
+      updateStreamingMessage(set, context)
+    } catch {}
   },
   tool_generating: (data, context, get, set) => {
     const { toolCallId, toolName } = data
@@ -458,6 +561,10 @@ const sseHandlers: Record<string, SSEHandler> = {
                 const result = await def.execute(ctx, args || {})
                 const success = result && typeof result.status === 'number' ? result.status >= 200 && result.status < 300 : true
                 const completeMap = { ...get().toolCallsById }
+                if (isRejectedState(completeMap[id]?.state)) {
+                  // Do not override user rejection
+                  return
+                }
                 completeMap[id] = {
                   ...completeMap[id],
                   state: success ? ClientToolCallState.success : ClientToolCallState.error,
@@ -488,6 +595,9 @@ const sseHandlers: Record<string, SSEHandler> = {
               })
               .catch((e) => {
                 const errorMap = { ...get().toolCallsById }
+                if (isRejectedState(errorMap[id]?.state)) {
+                  return
+                }
                 errorMap[id] = {
                   ...errorMap[id],
                   state: ClientToolCallState.error,
@@ -526,6 +636,9 @@ const sseHandlers: Record<string, SSEHandler> = {
             })
             .catch(() => {
               const errorMap = { ...get().toolCallsById }
+              if (isRejectedState(errorMap[id]?.state)) {
+                return
+              }
               errorMap[id] = {
                 ...errorMap[id],
                 state: ClientToolCallState.error,
@@ -1135,7 +1248,19 @@ export const useCopilotStore = create<CopilotStore>()(
           set({ isSendingMessage: false, isAborting: false, abortController: null })
         }
 
-        // Server persists messages on stream end; no client-side DB update needed
+        // Persist whatever contentBlocks/text we have to keep ordering for reloads
+        const { currentChat } = get()
+        if (currentChat) {
+          try {
+            const currentMessages = get().messages
+            const dbMessages = validateMessagesForLLM(currentMessages)
+            fetch('/api/copilot/chat/update-messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chatId: currentChat.id, messages: dbMessages }),
+            }).catch(() => {})
+          } catch {}
+        }
       } catch {
         set({ isSendingMessage: false, isAborting: false, abortController: null })
       }
@@ -1197,6 +1322,10 @@ export const useCopilotStore = create<CopilotStore>()(
         const map = { ...get().toolCallsById }
         const current = map[id]
         if (!current) return
+        // Preserve rejected state from being overridden
+        if (isRejectedState(current.state) && (newState === 'success' || newState === (ClientToolCallState as any).success)) {
+          return
+        }
         let norm: ClientToolCallState = current.state
         if (newState === 'executing') norm = ClientToolCallState.executing
         else if (newState === 'errored' || newState === 'error') norm = ClientToolCallState.error
@@ -1434,7 +1563,19 @@ export const useCopilotStore = create<CopilotStore>()(
           await get().handleNewChatCreation(context.newChatId)
         }
 
-        // Server persists messages at end of stream; skip client-side update
+        // Persist full message state (including contentBlocks) to database
+        const { currentChat } = get()
+        if (currentChat) {
+          try {
+            const currentMessages = get().messages
+            const dbMessages = validateMessagesForLLM(currentMessages)
+            await fetch('/api/copilot/chat/update-messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chatId: currentChat.id, messages: dbMessages }),
+            })
+          } catch {}
+        }
       } finally {
         clearTimeout(timeoutId)
       }

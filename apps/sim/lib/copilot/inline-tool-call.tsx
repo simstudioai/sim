@@ -10,7 +10,8 @@ import { getEnv } from '@/lib/env'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotToolCall } from '@/stores/copilot/types'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
-import { getTool } from '@/lib/copilot/tools/client/registry'
+import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
+import { CLASS_TOOL_METADATA } from '@/stores/copilot/store'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 
 interface InlineToolCallProps {
@@ -25,7 +26,7 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
   let hasInterrupt = !!instance?.getInterruptDisplays?.()
   if (!hasInterrupt) {
     try {
-      const def = getTool(toolCall.name)
+      const def = getRegisteredTools()[toolCall.name]
       if (def) {
         hasInterrupt = typeof def.hasInterrupt === 'function' ? !!def.hasInterrupt(toolCall.params || {}) : !!def.hasInterrupt
       }
@@ -62,7 +63,7 @@ function getDisplayName(toolCall: CopilotToolCall): string {
   const fromStore = (toolCall as any).display?.text
   if (fromStore) return fromStore
   try {
-    const def = getTool(toolCall.name) as any
+    const def = getRegisteredTools()[toolCall.name] as any
     const byState = def?.metadata?.displayNames?.[toolCall.state]
     if (byState?.text) return byState.text
   } catch {}
@@ -219,7 +220,17 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
   const liveToolCall = useCopilotStore((s) => (toolCallId ? s.toolCallsById[toolCallId] : undefined))
   const toolCall = liveToolCall || toolCallProp
 
+  // Guard: nothing to render without a toolCall
   if (!toolCall) return null
+
+  // Skip rendering tools that are not in the registry or are explicitly omitted
+  try {
+    if (toolCall.name === 'checkoff_todo') return null
+    // Allow if tool id exists in CLASS_TOOL_METADATA (client tools)
+    if (!CLASS_TOOL_METADATA[toolCall.name]) return null
+  } catch {
+    return null
+  }
 
   const isExpandablePending =
     toolCall.state === 'pending' &&
@@ -228,8 +239,6 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
   const [expanded, setExpanded] = useState(isExpandablePending)
   const isExpandableTool =
     toolCall.name === 'make_api_request' || toolCall.name === 'set_environment_variables'
-
-  if (!toolCall) return null
 
   const showButtons = shouldShowRunSkipButtons(toolCall)
 
@@ -308,7 +317,7 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
       }
       // Fall back to registry metadata by state
       try {
-        const def = getTool(toolCall.name) as any
+        const def = getRegisteredTools()[toolCall.name] as any
         const byState = def?.metadata?.displayNames?.[toolCall.state]
         const MetaIcon = byState?.icon
         if (MetaIcon) return <MetaIcon className={`h-3 w-3 ${spin}`} />
