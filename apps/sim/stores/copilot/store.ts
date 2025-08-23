@@ -371,6 +371,8 @@ const sseHandlers: Record<string, SSEHandler> = {
     try {
       const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
       const success: boolean | undefined = data?.success
+      const failedDependency: boolean = data?.failedDependency === true
+      const skipped: boolean = data?.result?.skipped === true
       if (!toolCallId) return
       const { toolCallsById } = get()
       const current = toolCallsById[toolCallId]
@@ -379,14 +381,30 @@ const sseHandlers: Record<string, SSEHandler> = {
           // Preserve rejected state; update inline display if needed but do not change state
           return
         }
-        const newState = success ? ClientToolCallState.success : ClientToolCallState.error
+        const targetState = success
+          ? ClientToolCallState.success
+          : failedDependency || skipped
+            ? ClientToolCallState.rejected
+            : ClientToolCallState.error
         const updatedMap = { ...toolCallsById }
         updatedMap[toolCallId] = {
           ...current,
-          state: newState,
-          display: resolveToolDisplay(current.name, newState, current.id, (current as any).params),
+          state: targetState,
+          display: resolveToolDisplay(current.name, targetState, current.id, (current as any).params),
         }
         set({ toolCallsById: updatedMap })
+
+        // If checkoff_todo succeeded, mark todo as completed in planTodos
+        if (targetState === ClientToolCallState.success && current.name === 'checkoff_todo') {
+          try {
+            const result = data?.result || data?.data?.result || {}
+            const input = (current as any).params || (current as any).input || {}
+            const todoId = input.id || input.todoId || result.id || result.todoId
+            if (todoId) {
+              get().updatePlanTodoStatus(todoId, 'completed')
+            }
+          } catch {}
+        }
       }
 
       // Update inline content block state
@@ -394,13 +412,17 @@ const sseHandlers: Record<string, SSEHandler> = {
         const b = context.contentBlocks[i] as any
         if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
           if (isRejectedState(b.toolCall?.state)) break
-          const newState = success ? ClientToolCallState.success : ClientToolCallState.error
+          const targetState = success
+            ? ClientToolCallState.success
+            : failedDependency || skipped
+              ? ClientToolCallState.rejected
+              : ClientToolCallState.error
           context.contentBlocks[i] = {
             ...b,
             toolCall: {
               ...b.toolCall,
-              state: newState,
-              display: resolveToolDisplay(b.toolCall?.name, newState, toolCallId, b.toolCall?.params),
+              state: targetState,
+              display: resolveToolDisplay(b.toolCall?.name, targetState, toolCallId, b.toolCall?.params),
             },
           }
           break
@@ -412,6 +434,7 @@ const sseHandlers: Record<string, SSEHandler> = {
   tool_error: (data, context, get, set) => {
     try {
       const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
+      const failedDependency: boolean = data?.failedDependency === true
       if (!toolCallId) return
       const { toolCallsById } = get()
       const current = toolCallsById[toolCallId]
@@ -419,11 +442,12 @@ const sseHandlers: Record<string, SSEHandler> = {
         if (isRejectedState(current.state)) {
           return
         }
+        const targetState = failedDependency ? ClientToolCallState.rejected : ClientToolCallState.error
         const updatedMap = { ...toolCallsById }
         updatedMap[toolCallId] = {
           ...current,
-          state: ClientToolCallState.error,
-          display: resolveToolDisplay(current.name, ClientToolCallState.error, current.id, (current as any).params),
+          state: targetState,
+          display: resolveToolDisplay(current.name, targetState, current.id, (current as any).params),
         }
         set({ toolCallsById: updatedMap })
       }
@@ -431,12 +455,13 @@ const sseHandlers: Record<string, SSEHandler> = {
         const b = context.contentBlocks[i] as any
         if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
           if (isRejectedState(b.toolCall?.state)) break
+          const targetState = failedDependency ? ClientToolCallState.rejected : ClientToolCallState.error
           context.contentBlocks[i] = {
             ...b,
             toolCall: {
               ...b.toolCall,
-              state: ClientToolCallState.error,
-              display: resolveToolDisplay(b.toolCall?.name, ClientToolCallState.error, toolCallId, b.toolCall?.params),
+              state: targetState,
+              display: resolveToolDisplay(b.toolCall?.name, targetState, toolCallId, b.toolCall?.params),
             },
           }
           break
@@ -1630,7 +1655,14 @@ export const useCopilotStore = create<CopilotStore>()(
 
     // Todo list (UI only)
     setPlanTodos: (todos) => set({ planTodos: todos, showPlanTodos: true }),
-    updatePlanTodoStatus: (_id, _status) => {},
+    updatePlanTodoStatus: (id, status) => {
+      set((state) => {
+        const updated = state.planTodos.map((t) =>
+          t.id === id ? { ...t, completed: status === 'completed', executing: status === 'executing' } : t
+        )
+        return { planTodos: updated }
+      })
+    },
     closePlanTodos: () => set({ showPlanTodos: false }),
 
     // Diff updates are out of scope for minimal store

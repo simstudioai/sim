@@ -20,6 +20,7 @@ export class PlanClientTool extends BaseClientTool {
       [ClientToolCallState.executing]: { text: 'DESIGNINGGGGGG an approach', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Designed an approach', icon: ListTodo },
       [ClientToolCallState.error]: { text: 'Errored planning approach', icon: XCircle },
+      [ClientToolCallState.rejected]: { text: 'Rejected planning approach', icon: XCircle },
     },
   }
 
