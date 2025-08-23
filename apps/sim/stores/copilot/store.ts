@@ -154,6 +154,15 @@ function isRejectedState(state: any): boolean {
   }
 }
 
+// Helper: check if a tool state is review (terminal for build/edit preview)
+function isReviewState(state: any): boolean {
+  try {
+    return state === 'review' || state === (ClientToolCallState as any).review
+  } catch {
+    return state === 'review'
+  }
+}
+
 // Normalize loaded messages so assistant messages render correctly from DB
 function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
   try {
@@ -377,8 +386,8 @@ const sseHandlers: Record<string, SSEHandler> = {
       const { toolCallsById } = get()
       const current = toolCallsById[toolCallId]
       if (current) {
-        if (isRejectedState(current.state)) {
-          // Preserve rejected state; update inline display if needed but do not change state
+        if (isRejectedState(current.state) || isReviewState(current.state)) {
+          // Preserve terminal review/rejected state; do not override
           return
         }
         const targetState = success
@@ -411,7 +420,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       for (let i = 0; i < context.contentBlocks.length; i++) {
         const b = context.contentBlocks[i] as any
         if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
-          if (isRejectedState(b.toolCall?.state)) break
+          if (isRejectedState(b.toolCall?.state) || isReviewState(b.toolCall?.state)) break
           const targetState = success
             ? ClientToolCallState.success
             : failedDependency || skipped
@@ -439,7 +448,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       const { toolCallsById } = get()
       const current = toolCallsById[toolCallId]
       if (current) {
-        if (isRejectedState(current.state)) {
+        if (isRejectedState(current.state) || isReviewState(current.state)) {
           return
         }
         const targetState = failedDependency ? ClientToolCallState.rejected : ClientToolCallState.error
@@ -454,7 +463,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       for (let i = 0; i < context.contentBlocks.length; i++) {
         const b = context.contentBlocks[i] as any
         if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
-          if (isRejectedState(b.toolCall?.state)) break
+          if (isRejectedState(b.toolCall?.state) || isReviewState(b.toolCall?.state)) break
           const targetState = failedDependency ? ClientToolCallState.rejected : ClientToolCallState.error
           context.contentBlocks[i] = {
             ...b,
@@ -586,8 +595,8 @@ const sseHandlers: Record<string, SSEHandler> = {
                 const result = await def.execute(ctx, args || {})
                 const success = result && typeof result.status === 'number' ? result.status >= 200 && result.status < 300 : true
                 const completeMap = { ...get().toolCallsById }
-                if (isRejectedState(completeMap[id]?.state)) {
-                  // Do not override user rejection
+                // Do not override terminal review/rejected
+                if (isRejectedState(completeMap[id]?.state) || isReviewState(completeMap[id]?.state)) {
                   return
                 }
                 completeMap[id] = {
@@ -620,7 +629,8 @@ const sseHandlers: Record<string, SSEHandler> = {
               })
               .catch((e) => {
                 const errorMap = { ...get().toolCallsById }
-                if (isRejectedState(errorMap[id]?.state)) {
+                // Do not override terminal review/rejected
+                if (isRejectedState(errorMap[id]?.state) || isReviewState(errorMap[id]?.state)) {
                   return
                 }
                 errorMap[id] = {
@@ -661,7 +671,8 @@ const sseHandlers: Record<string, SSEHandler> = {
             })
             .catch(() => {
               const errorMap = { ...get().toolCallsById }
-              if (isRejectedState(errorMap[id]?.state)) {
+              // Do not override terminal review/rejected
+              if (isRejectedState(errorMap[id]?.state) || isReviewState(errorMap[id]?.state)) {
                 return
               }
               errorMap[id] = {
@@ -1687,6 +1698,7 @@ try {
     else if (nextState === 'error' || nextState === 'errored') mapped = ClientToolCallState.error
     else if (nextState === 'rejected') mapped = ClientToolCallState.rejected
     else if (nextState === 'aborted') mapped = ClientToolCallState.aborted
+    else if (nextState === 'review') mapped = (ClientToolCallState as any).review
     else if (typeof nextState === 'number') mapped = (nextState as unknown) as ClientToolCallState
 
     // Store-authoritative gating: ignore invalid/downgrade transitions
@@ -1694,13 +1706,14 @@ try {
       s === ClientToolCallState.success ||
       s === ClientToolCallState.error ||
       s === ClientToolCallState.rejected ||
-      s === ClientToolCallState.aborted
+      s === ClientToolCallState.aborted ||
+      (s as any) === (ClientToolCallState as any).review
 
     // If we've already reached a terminal state, ignore any further non-terminal updates
     if (isTerminal(current.state) && !isTerminal(mapped)) {
       return
     }
-    // Prevent downgrades (executing -> pending, pending -> generating)
+    // Prevent downgrades (executing → pending, pending → generating)
     if (
       (current.state === ClientToolCallState.executing && mapped === ClientToolCallState.pending) ||
       (current.state === ClientToolCallState.pending && mapped === (ClientToolCallState as any).generating)
