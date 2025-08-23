@@ -120,12 +120,15 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const setMessage =
       controlledValue !== undefined ? onControlledChange || (() => {}) : setInternalMessage
 
-    // Auto-resize textarea
+    // Auto-resize textarea and toggle vertical scroll when exceeding max height
     useEffect(() => {
       const textarea = textareaRef.current
       if (textarea) {
+        const maxHeight = 120
         textarea.style.height = 'auto'
-        textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px` // Max height of 120px
+        const nextHeight = Math.min(textarea.scrollHeight, maxHeight)
+        textarea.style.height = `${nextHeight}px`
+        textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
       }
     }, [message])
 
@@ -550,7 +553,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             placeholder={isDragging ? 'Drop files here...' : placeholder}
             disabled={disabled}
             rows={1}
-            className='mb-2 min-h-[32px] w-full resize-none overflow-hidden border-0 bg-transparent px-[2px] py-1 text-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='mb-2 min-h-[32px] w-full resize-none overflow-x-hidden overflow-y-auto border-0 bg-transparent px-[2px] py-1 text-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
             style={{ height: 'auto' }}
           />
 

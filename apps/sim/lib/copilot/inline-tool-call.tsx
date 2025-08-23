@@ -347,7 +347,21 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
         ) : (
           showMoveToBackground ? (
             <Button
-              // Intentionally not wired up yet
+              // Intentionally minimal wiring per requirements
+              onClick={async () => {
+                try {
+                  const instance = getClientTool(toolCall.id)
+                  // Transition to background state locally so UI updates immediately
+                  instance?.setState?.((ClientToolCallState as any).background)
+                  await instance?.markToolComplete?.(
+                    200,
+                    'The user has chosen to move the workflow execution to the background. Check back with them later to know when the workflow execution is complete'
+                  )
+                  // Optionally force a re-render; store should sync state from server
+                  forceUpdate({})
+                  onStateChange?.('background')
+                } catch {}
+              }}
               size='sm'
               className='h-6 bg-blue-600 px-2 font-medium text-white text-xs hover:bg-blue-500 disabled:opacity-50 dark:bg-blue-400 dark:text-gray-900 dark:hover:bg-blue-300'
               title='Move to Background'

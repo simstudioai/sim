@@ -13,7 +13,8 @@ export enum ClientToolCallState {
   rejected = 'rejected',
   success = 'success',
   error = 'error',
-  review = 'review'
+  review = 'review',
+  background = 'background'
 }
 
 // Display configuration for a given state

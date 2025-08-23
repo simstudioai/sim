@@ -26,6 +26,7 @@ export class RunWorkflowClientTool extends BaseClientTool {
       [ClientToolCallState.success]: { text: 'Workflow ran', icon: Play },
       [ClientToolCallState.error]: { text: 'Failed to run workflow', icon: XCircle },
       [ClientToolCallState.rejected]: { text: 'Run cancelled', icon: MinusCircle },
+      [ClientToolCallState.background]: { text: 'Running in background', icon: Play },
     },
     interrupt: {
       accept: { text: 'Run', icon: Play },

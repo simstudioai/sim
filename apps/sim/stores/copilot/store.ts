@@ -166,6 +166,15 @@ function isReviewState(state: any): boolean {
   }
 }
 
+// Helper: check if a tool state is background (terminal)
+function isBackgroundState(state: any): boolean {
+  try {
+    return state === 'background' || state === (ClientToolCallState as any).background
+  } catch {
+    return state === 'background'
+  }
+}
+
 // Helper: abort all in-progress client tools and update inline blocks
 function abortAllInProgressTools(set: any, get: () => CopilotStore) {
   try {
@@ -447,7 +456,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       const { toolCallsById } = get()
       const current = toolCallsById[toolCallId]
       if (current) {
-        if (isRejectedState(current.state) || isReviewState(current.state)) {
+        if (isRejectedState(current.state) || isReviewState(current.state) || isBackgroundState(current.state)) {
           // Preserve terminal review/rejected state; do not override
           return
         }
@@ -481,7 +490,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       for (let i = 0; i < context.contentBlocks.length; i++) {
         const b = context.contentBlocks[i] as any
         if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
-          if (isRejectedState(b.toolCall?.state) || isReviewState(b.toolCall?.state)) break
+          if (isRejectedState(b.toolCall?.state) || isReviewState(b.toolCall?.state) || isBackgroundState(b.toolCall?.state)) break
           const targetState = success
             ? ClientToolCallState.success
             : failedDependency || skipped
@@ -509,7 +518,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       const { toolCallsById } = get()
       const current = toolCallsById[toolCallId]
       if (current) {
-        if (isRejectedState(current.state) || isReviewState(current.state)) {
+        if (isRejectedState(current.state) || isReviewState(current.state) || isBackgroundState(current.state)) {
           return
         }
         const targetState = failedDependency ? ClientToolCallState.rejected : ClientToolCallState.error
@@ -524,7 +533,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       for (let i = 0; i < context.contentBlocks.length; i++) {
         const b = context.contentBlocks[i] as any
         if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
-          if (isRejectedState(b.toolCall?.state) || isReviewState(b.toolCall?.state)) break
+          if (isRejectedState(b.toolCall?.state) || isReviewState(b.toolCall?.state) || isBackgroundState(b.toolCall?.state)) break
           const targetState = failedDependency ? ClientToolCallState.rejected : ClientToolCallState.error
           context.contentBlocks[i] = {
             ...b,
@@ -657,7 +666,7 @@ const sseHandlers: Record<string, SSEHandler> = {
                 const success = result && typeof result.status === 'number' ? result.status >= 200 && result.status < 300 : true
                 const completeMap = { ...get().toolCallsById }
                 // Do not override terminal review/rejected
-                if (isRejectedState(completeMap[id]?.state) || isReviewState(completeMap[id]?.state)) {
+                if (isRejectedState(completeMap[id]?.state) || isReviewState(completeMap[id]?.state) || isBackgroundState(completeMap[id]?.state)) {
                   return
                 }
                 completeMap[id] = {
@@ -691,7 +700,7 @@ const sseHandlers: Record<string, SSEHandler> = {
               .catch((e) => {
                 const errorMap = { ...get().toolCallsById }
                 // Do not override terminal review/rejected
-                if (isRejectedState(errorMap[id]?.state) || isReviewState(errorMap[id]?.state)) {
+                if (isRejectedState(errorMap[id]?.state) || isReviewState(errorMap[id]?.state) || isBackgroundState(errorMap[id]?.state)) {
                   return
                 }
                 errorMap[id] = {
@@ -733,7 +742,7 @@ const sseHandlers: Record<string, SSEHandler> = {
             .catch(() => {
               const errorMap = { ...get().toolCallsById }
               // Do not override terminal review/rejected
-              if (isRejectedState(errorMap[id]?.state) || isReviewState(errorMap[id]?.state)) {
+              if (isRejectedState(errorMap[id]?.state) || isReviewState(errorMap[id]?.state) || isBackgroundState(errorMap[id]?.state)) {
                 return
               }
               errorMap[id] = {
@@ -1842,6 +1851,7 @@ try {
     else if (nextState === 'rejected') mapped = ClientToolCallState.rejected
     else if (nextState === 'aborted') mapped = ClientToolCallState.aborted
     else if (nextState === 'review') mapped = (ClientToolCallState as any).review
+    else if (nextState === 'background') mapped = (ClientToolCallState as any).background
     else if (typeof nextState === 'number') mapped = (nextState as unknown) as ClientToolCallState
 
     // Store-authoritative gating: ignore invalid/downgrade transitions
@@ -1850,7 +1860,8 @@ try {
       s === ClientToolCallState.error ||
       s === ClientToolCallState.rejected ||
       s === ClientToolCallState.aborted ||
-      (s as any) === (ClientToolCallState as any).review
+      (s as any) === (ClientToolCallState as any).review ||
+      (s as any) === (ClientToolCallState as any).background
 
     // If we've already reached a terminal state, ignore any further non-terminal updates
     if (isTerminal(current.state) && !isTerminal(mapped)) {
