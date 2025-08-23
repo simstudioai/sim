@@ -74,7 +74,6 @@ const nextConfig: NextConfig = {
       'localhost:3000',
       'localhost:3001',
     ],
-    outputFileTracingRoot: path.join(__dirname, '../../'),
   }),
   transpilePackages: [
     'prettier',
