@@ -208,7 +208,9 @@ export function DiffControls() {
         outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
           const m = messages[mi]
           if (m.role !== 'assistant' || !m.contentBlocks) continue
-          for (const b of m.contentBlocks as any[]) {
+          const blocks = m.contentBlocks as any[]
+          for (let bi = blocks.length - 1; bi >= 0; bi--) {
+            const b = blocks[bi]
             if (b?.type === 'tool_call') {
               const tn = b.toolCall?.name
               if (tn === 'build_workflow' || tn === 'edit_workflow') {
@@ -257,7 +259,9 @@ export function DiffControls() {
       outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
         const m = messages[mi]
         if (m.role !== 'assistant' || !m.contentBlocks) continue
-        for (const b of m.contentBlocks as any[]) {
+        const blocks = m.contentBlocks as any[]
+        for (let bi = blocks.length - 1; bi >= 0; bi--) {
+          const b = blocks[bi]
           if (b?.type === 'tool_call') {
             const tn = b.toolCall?.name
             if (tn === 'build_workflow' || tn === 'edit_workflow') {

@@ -343,22 +343,31 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               // Update copilot tool call state to 'accepted'
               try {
                 const { useCopilotStore } = await import('@/stores/copilot/store')
-                const { messages } = useCopilotStore.getState()
-                const lastMessageWithPreview = messages
-                  .slice()
-                  .reverse()
-                  .find((msg: any) =>
-                    msg.toolCalls?.some(
-                      (tc: any) =>
-                        (tc.name === 'build_workflow' || tc.name === 'edit_workflow') &&
-                        (tc.state === ClientToolCallState.review)
-                    )
-                  )
-                const toolCallId = lastMessageWithPreview?.toolCalls?.find(
-                  (tc: any) =>
-                    (tc.name === 'build_workflow' || tc.name === 'edit_workflow') &&
-                    (tc.state === ClientToolCallState.review)
-                )?.id
+                const { messages, toolCallsById } = useCopilotStore.getState()
+
+                // Prefer the latest assistant message's build/edit tool_call from contentBlocks
+                let toolCallId: string | undefined
+                outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
+                  const m = messages[mi] as any
+                  if (m.role !== 'assistant' || !m.contentBlocks) continue
+                  for (const b of m.contentBlocks as any[]) {
+                    if (b?.type === 'tool_call') {
+                      const tn = b.toolCall?.name
+                      if (tn === 'build_workflow' || tn === 'edit_workflow') {
+                        toolCallId = b.toolCall?.id
+                        break outer
+                      }
+                    }
+                  }
+                }
+                // Fallback to toolCallsById map if not found in messages
+                if (!toolCallId) {
+                  const candidates = Object.values(toolCallsById).filter(
+                    (t: any) => t.name === 'build_workflow' || t.name === 'edit_workflow'
+                  ) as any[]
+                  toolCallId = candidates.length ? candidates[candidates.length - 1].id : undefined
+                }
+
                 if (toolCallId) {
                   const instance: any = getClientTool(toolCallId)
                   try {
@@ -384,22 +393,31 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           // Update copilot tool call state to 'rejected'
           try {
             const { useCopilotStore } = await import('@/stores/copilot/store')
-            const { messages } = useCopilotStore.getState()
-                            const lastMessageWithPreview = messages
-                  .slice()
-                  .reverse()
-                  .find((msg: any) =>
-                    msg.toolCalls?.some(
-                      (tc: any) =>
-                        (tc.name === 'build_workflow' || tc.name === 'edit_workflow') &&
-                        (tc.state === ClientToolCallState.review)
-                    )
-                  )
-                const toolCallId = lastMessageWithPreview?.toolCalls?.find(
-                  (tc: any) =>
-                    (tc.name === 'build_workflow' || tc.name === 'edit_workflow') &&
-                    (tc.state === ClientToolCallState.review)
-                )?.id
+            const { messages, toolCallsById } = useCopilotStore.getState()
+
+            // Prefer the latest assistant message's build/edit tool_call from contentBlocks
+            let toolCallId: string | undefined
+            outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
+              const m = messages[mi] as any
+              if (m.role !== 'assistant' || !m.contentBlocks) continue
+              for (const b of m.contentBlocks as any[]) {
+                if (b?.type === 'tool_call') {
+                  const tn = b.toolCall?.name
+                  if (tn === 'build_workflow' || tn === 'edit_workflow') {
+                    toolCallId = b.toolCall?.id
+                    break outer
+                  }
+                }
+              }
+            }
+            // Fallback to toolCallsById map if not found in messages
+            if (!toolCallId) {
+              const candidates = Object.values(toolCallsById).filter(
+                (t: any) => t.name === 'build_workflow' || t.name === 'edit_workflow'
+              ) as any[]
+              toolCallId = candidates.length ? candidates[candidates.length - 1].id : undefined
+            }
+
             if (toolCallId) {
               const instance: any = getClientTool(toolCallId)
               try {
