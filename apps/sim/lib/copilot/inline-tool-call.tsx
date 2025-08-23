@@ -241,6 +241,9 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
     toolCall.name === 'make_api_request' || toolCall.name === 'set_environment_variables'
 
   const showButtons = shouldShowRunSkipButtons(toolCall)
+  const showMoveToBackground =
+    (toolCall.name === 'run_workflow') &&
+    (toolCall.state === (ClientToolCallState.executing as any) || toolCall.state === ('executing' as any))
 
   const handleStateChange = (state: any) => {
     forceUpdate({})
@@ -339,8 +342,19 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
           <div className='flex-shrink-0'>{renderDisplayIcon()}</div>
           <span className='text-base'>{displayName}</span>
         </div>
-        {showButtons && (
+        {showButtons ? (
           <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} />
+        ) : (
+          showMoveToBackground ? (
+            <Button
+              // Intentionally not wired up yet
+              size='sm'
+              className='h-6 bg-blue-600 px-2 font-medium text-white text-xs hover:bg-blue-500 disabled:opacity-50 dark:bg-blue-400 dark:text-gray-900 dark:hover:bg-blue-300'
+              title='Move to Background'
+            >
+              Move to Background
+            </Button>
+          ) : null
         )}
       </div>
       {isExpandableTool && expanded && <div className='pr-1 pl-5'>{renderPendingDetails()}</div>}
