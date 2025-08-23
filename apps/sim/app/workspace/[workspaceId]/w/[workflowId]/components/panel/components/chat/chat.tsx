@@ -33,12 +33,11 @@ interface ChatFile {
 }
 
 interface ChatProps {
-  panelWidth: number
   chatMessage: string
   setChatMessage: (message: string) => void
 }
 
-export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
+export function Chat({ chatMessage, setChatMessage }: ChatProps) {
   const { activeWorkflowId } = useWorkflowRegistry()
 
   const {
@@ -282,6 +281,9 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
           type: chatFile.type,
           file: chatFile.file, // Pass the actual File object
         }))
+        workflowInput.onUploadError = (message: string) => {
+          setUploadErrors((prev) => [...prev, message])
+        }
       }
 
       // Clear input and files, refocus immediately
@@ -563,14 +565,16 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
               No messages yet
             </div>
           ) : (
-            <ScrollArea ref={scrollAreaRef} className='h-full pb-2' hideScrollbar={true}>
-              <div>
-                {workflowMessages.map((message) => (
-                  <ChatMessage key={message.id} message={message} />
-                ))}
-                <div ref={messagesEndRef} />
-              </div>
-            </ScrollArea>
+            <div ref={scrollAreaRef} className='h-full'>
+              <ScrollArea className='h-full pb-2' hideScrollbar={true}>
+                <div>
+                  {workflowMessages.map((message) => (
+                    <ChatMessage key={message.id} message={message} />
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              </ScrollArea>
+            </div>
           )}
 
           {/* Scroll to bottom button */}
@@ -674,7 +678,6 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
             <ChatFileUpload
               files={chatFiles}
               onFilesChange={(files) => {
-                setUploadErrors([])
                 setChatFiles(files)
               }}
               maxFiles={5}

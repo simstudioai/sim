@@ -170,7 +170,12 @@ export function ChatFileUpload({
           ref={fileInputRef}
           type='file'
           multiple
-          onChange={(e) => handleFileSelect(e.target.files)}
+          onChange={(e) => {
+            handleFileSelect(e.target.files)
+            if (fileInputRef.current) {
+              fileInputRef.current.value = ''
+            }
+          }}
           className='hidden'
           accept={acceptedTypes.join(',')}
           disabled={disabled}

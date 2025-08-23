@@ -279,6 +279,14 @@ export function useWorkflowExecution() {
 
             // Handle file uploads if present
             const uploadedFiles: any[] = []
+            interface UploadErrorCapableInput {
+              onUploadError?: (message: string) => void
+            }
+            const isUploadErrorCapable = (value: unknown): value is UploadErrorCapableInput =>
+              !!value &&
+              typeof value === 'object' &&
+              'onUploadError' in (value as any) &&
+              typeof (value as any).onUploadError === 'function'
             console.log('Checking for files to upload:', workflowInput.files)
             if (workflowInput.files && Array.isArray(workflowInput.files)) {
               try {
@@ -327,15 +335,15 @@ export function useWorkflowExecution() {
                       // Single file upload - the result IS the file object
                       uploadedFiles.push(processUploadResult(uploadResult))
                     } else {
-                      console.error('Unexpected upload response format:', uploadResult)
+                      logger.error('Unexpected upload response format:', uploadResult)
                     }
                   } else {
                     const errorText = await response.text()
                     const message = `Failed to upload ${fileData.name}: ${response.status} ${errorText}`
-                    console.error(message)
-                    if (typeof (workflowInput as any).onUploadError === 'function') {
+                    logger.error(message)
+                    if (isUploadErrorCapable(workflowInput)) {
                       try {
-                        ;(workflowInput as any).onUploadError(message)
+                        workflowInput.onUploadError(message)
                       } catch {}
                     }
                   }
@@ -345,10 +353,10 @@ export function useWorkflowExecution() {
                 // Update workflow input with uploaded files
                 workflowInput.files = uploadedFiles
               } catch (error) {
-                console.error('Error uploading files:', error)
-                if (typeof (workflowInput as any).onUploadError === 'function') {
+                logger.error('Error uploading files:', error)
+                if (isUploadErrorCapable(workflowInput)) {
                   try {
-                    ;(workflowInput as any).onUploadError('Unexpected error uploading files')
+                    workflowInput.onUploadError('Unexpected error uploading files')
                   } catch {}
                 }
                 // Continue execution even if file upload fails
