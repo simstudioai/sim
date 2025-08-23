@@ -94,8 +94,6 @@ export async function getOrganizationBillingData(
         // User stats fields
         currentPeriodCost: userStats.currentPeriodCost,
         currentUsageLimit: userStats.currentUsageLimit,
-        billingPeriodStart: userStats.billingPeriodStart,
-        billingPeriodEnd: userStats.billingPeriodEnd,
         lastActive: userStats.lastActive,
       })
       .from(member)
@@ -151,10 +149,9 @@ export async function getOrganizationBillingData(
 
     const averageUsagePerMember = members.length > 0 ? totalCurrentUsage / members.length : 0
 
-    // Get billing period from first member (should be consistent across org)
-    const firstMember = membersWithUsage[0]
-    const billingPeriodStart = firstMember?.billingPeriodStart || null
-    const billingPeriodEnd = firstMember?.billingPeriodEnd || null
+    // Billing period comes from the organization's subscription
+    const billingPeriodStart = subscription.periodStart || null
+    const billingPeriodEnd = subscription.periodEnd || null
 
     return {
       organizationId,

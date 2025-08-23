@@ -9,7 +9,7 @@ import { getUserUsageData } from '@/lib/billing/core/usage'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { member, organization, subscription, user, userStats } from '@/db/schema'
+import { member, organization, subscription, user } from '@/db/schema'
 
 const logger = createLogger('Billing')
 
@@ -687,31 +687,6 @@ export async function getUsersAndOrganizationsForOverageBilling(): Promise<{
             plan: sub.plan,
             periodEnd: sub.periodEnd,
           })
-        }
-      }
-
-      // Also check userStats billing period end as a safety net (handles stale subscription.periodEnd)
-      if (!shouldBillToday) {
-        const userStatsRecord = await db
-          .select({
-            billingPeriodEnd: userStats.billingPeriodEnd,
-          })
-          .from(userStats)
-          .where(eq(userStats.userId, sub.referenceId))
-          .limit(1)
-
-        if (userStatsRecord.length > 0 && userStatsRecord[0].billingPeriodEnd) {
-          const bpEnd = new Date(userStatsRecord[0].billingPeriodEnd)
-          const endsToday = bpEnd >= today && bpEnd < tomorrow
-
-          if (endsToday) {
-            shouldBillToday = true
-            logger.info('User billing period ends today (from userStats)', {
-              userId: sub.referenceId,
-              plan: sub.plan,
-              billingPeriodEnd: userStatsRecord[0].billingPeriodEnd,
-            })
-          }
         }
       }
 
