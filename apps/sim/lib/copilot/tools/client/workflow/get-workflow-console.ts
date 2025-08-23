@@ -1,4 +1,4 @@
-import { TerminalSquare, Loader2, XCircle, MinusCircle } from 'lucide-react'
+import { Loader2, MinusCircle, TerminalSquare, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -27,8 +27,14 @@ export class GetWorkflowConsoleClientTool extends BaseClientTool {
       [ClientToolCallState.executing]: { text: 'Fetching workflow console', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Workflow console fetched', icon: TerminalSquare },
       [ClientToolCallState.error]: { text: 'Failed to read workflow console', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Skipped reading workflow console', icon: MinusCircle },
-      [ClientToolCallState.aborted]: { text: 'Aborted reading workflow console', icon: MinusCircle },
+      [ClientToolCallState.rejected]: {
+        text: 'Skipped reading workflow console',
+        icon: MinusCircle,
+      },
+      [ClientToolCallState.aborted]: {
+        text: 'Aborted reading workflow console',
+        icon: MinusCircle,
+      },
       [ClientToolCallState.pending]: { text: 'Fetching workflow console', icon: Loader2 },
     },
   }

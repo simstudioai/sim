@@ -1,4 +1,4 @@
-import { Check, Eye, EyeOff, X } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useCopilotStore } from '@/stores/copilot/store'
@@ -286,7 +286,7 @@ export function DiffControls() {
     })
   }
 
-    return (
+  return (
     <div className='-translate-x-1/2 fixed bottom-20 left-1/2 z-30'>
       <div className='flex items-center gap-2'>
         {/* Toggle (left, icon-only, no background) */}
@@ -297,11 +297,7 @@ export function DiffControls() {
           className='h-8 rounded-full px-2 text-muted-foreground hover:bg-transparent'
           title={isShowingDiff ? 'View original' : 'Preview changes'}
         >
-          {isShowingDiff ? (
-            <Eye className='h-5 w-5' />
-          ) : (
-            <EyeOff className='h-5 w-5' />
-          )}
+          {isShowingDiff ? <Eye className='h-5 w-5' /> : <EyeOff className='h-5 w-5' />}
         </Button>
 
         {/* Reject (middle, light gray, icon-only) */}

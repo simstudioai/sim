@@ -470,7 +470,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
 
     const getDepthIconFor = (value: 0 | 1 | 2 | 3) => {
-      const colorClass = !agentPrefetch ? 'text-[var(--brand-primary-hover-hex)]' : 'text-muted-foreground'
+      const colorClass = !agentPrefetch
+        ? 'text-[var(--brand-primary-hover-hex)]'
+        : 'text-muted-foreground'
       if (value === 0) return <Zap className={`h-3 w-3 ${colorClass}`} />
       if (value === 1) return <InfinityIcon className={`h-3 w-3 ${colorClass}`} />
       if (value === 2) return <Brain className={`h-3 w-3 ${colorClass}`} />
@@ -683,14 +685,20 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                               >
                                 Significantly increases depth of reasoning
                                 <br />
-                                <span className='text-[10px] italic text-muted-foreground'>Only available in Advanced and Behemoth modes</span>
+                                <span className='text-[10px] text-muted-foreground italic'>
+                                  Only available in Advanced and Behemoth modes
+                                </span>
                               </TooltipContent>
                             </Tooltip>
                           </div>
                           <Switch
                             checked={!agentPrefetch}
                             disabled={agentDepth < 2}
-                            title={agentDepth < 2 ? 'MAX mode is only available for Advanced or Expert' : undefined}
+                            title={
+                              agentDepth < 2
+                                ? 'MAX mode is only available for Advanced or Expert'
+                                : undefined
+                            }
                             onCheckedChange={(checked) => {
                               if (agentDepth < 2) return
                               setAgentPrefetch(!checked)

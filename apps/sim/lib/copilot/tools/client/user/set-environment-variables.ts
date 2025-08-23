@@ -34,8 +34,14 @@ export class SetEnvironmentVariablesClientTool extends BaseClientTool {
       [ClientToolCallState.executing]: { text: 'Setting environment variables', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Set environment variables', icon: Settings2 },
       [ClientToolCallState.error]: { text: 'Failed to set environment variables', icon: X },
-      [ClientToolCallState.aborted]: { text: 'Aborted setting environment variables', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Skipped setting environment variables', icon: XCircle },
+      [ClientToolCallState.aborted]: {
+        text: 'Aborted setting environment variables',
+        icon: XCircle,
+      },
+      [ClientToolCallState.rejected]: {
+        text: 'Skipped setting environment variables',
+        icon: XCircle,
+      },
     },
     interrupt: {
       accept: { text: 'Apply', icon: Settings2 },

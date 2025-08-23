@@ -1642,10 +1642,7 @@ export const useCopilotStore = create<CopilotStore>()(
       const current = toolCallsById[id]
       if (!current) return
       // Do not override a rejected tool with success
-      if (
-        isRejectedState(current.state) &&
-        targetState === (ClientToolCallState as any).success
-      ) {
+      if (isRejectedState(current.state) && targetState === (ClientToolCallState as any).success) {
         return
       }
 

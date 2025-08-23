@@ -1,4 +1,4 @@
-import { FolderOpen, Loader2, XCircle, MinusCircle } from 'lucide-react'
+import { FolderOpen, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,

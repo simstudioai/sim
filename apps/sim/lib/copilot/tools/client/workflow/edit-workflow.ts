@@ -1,4 +1,4 @@
-import { Grid2x2, Loader2, X, XCircle, MinusCircle, Grid2x2Check, Grid2x2X } from 'lucide-react'
+import { Grid2x2, Grid2x2Check, Grid2x2X, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,

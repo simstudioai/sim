@@ -1,4 +1,4 @@
-import { BookOpen, Loader2, XCircle, MinusCircle } from 'lucide-react'
+import { BookOpen, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,

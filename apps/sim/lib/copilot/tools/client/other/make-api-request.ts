@@ -1,4 +1,4 @@
-import { Globe2, Loader2, XCircle, MinusCircle } from 'lucide-react'
+import { Globe2, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -30,7 +30,7 @@ export class MakeApiRequestClientTool extends BaseClientTool {
       [ClientToolCallState.success]: { text: 'API request complete', icon: Globe2 },
       [ClientToolCallState.error]: { text: 'Failed to execute API request', icon: XCircle },
       [ClientToolCallState.rejected]: { text: 'Skipped API request', icon: MinusCircle },
-	  [ClientToolCallState.aborted]: { text: 'Aborted API request', icon: XCircle },
+      [ClientToolCallState.aborted]: { text: 'Aborted API request', icon: XCircle },
     },
     interrupt: {
       accept: { text: 'Execute', icon: Globe2 },

@@ -1,4 +1,4 @@
-import { FileText, Loader2, XCircle, MinusCircle } from 'lucide-react'
+import { FileText, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -29,7 +29,10 @@ export class ReadGDriveFileClientTool extends BaseClientTool {
       [ClientToolCallState.success]: { text: 'Read Google Drive file', icon: FileText },
       [ClientToolCallState.error]: { text: 'Failed to read Google Drive file', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Aborted reading Google Drive file', icon: XCircle },
-      [ClientToolCallState.rejected]: { text: 'Skipped reading Google Drive file', icon: MinusCircle },
+      [ClientToolCallState.rejected]: {
+        text: 'Skipped reading Google Drive file',
+        icon: MinusCircle,
+      },
     },
   }
 

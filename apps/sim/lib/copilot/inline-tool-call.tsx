@@ -348,7 +348,8 @@ export function InlineToolCall({
       } else if (state === (ClientToolCallState as any).error || state === 'error') {
         colorClass = 'text-red-500'
       } else if (state === (ClientToolCallState as any).success || state === 'success') {
-        const isBuildOrEdit = toolCall.name === 'build_workflow' || toolCall.name === 'edit_workflow'
+        const isBuildOrEdit =
+          toolCall.name === 'build_workflow' || toolCall.name === 'edit_workflow'
         colorClass = isBuildOrEdit ? 'text-[var(--brand-primary-hover-hex)]' : 'text-green-600'
       }
 

@@ -623,7 +623,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
           <div className='flex items-center justify-end gap-0'>
             {hasCheckpoints && (
-              <div className='inline-flex items-center justify-center mr-1'>
+              <div className='mr-1 inline-flex items-center justify-center'>
                 {showRestoreConfirmation ? (
                   <div className='inline-flex items-center gap-1'>
                     <button
