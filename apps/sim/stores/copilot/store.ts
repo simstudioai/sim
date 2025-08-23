@@ -34,6 +34,7 @@ import { GDriveRequestAccessClientTool } from '@/lib/copilot/tools/client/google
 import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
 import { BuildWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/build-workflow'
 import type { BaseClientToolMetadata } from '@/lib/copilot/tools/client/base-tool'
+import { GetBestPracticesClientTool } from '@/lib/copilot/tools/client/noop/get-best-practices'
 
 const logger = createLogger('CopilotStore')
 
@@ -66,6 +67,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   gdrive_request_access: (id) => new GDriveRequestAccessClientTool(id),
   edit_workflow: (id) => new EditWorkflowClientTool(id),
   build_workflow: (id) => new BuildWorkflowClientTool(id),
+  get_best_practices: (id) => new GetBestPracticesClientTool(id),
 }
 
 // Read-only static metadata for class-based tools (no instances)
@@ -87,6 +89,7 @@ const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefined> = 
   gdrive_request_access: (GDriveRequestAccessClientTool as any)?.metadata,
   edit_workflow: (EditWorkflowClientTool as any)?.metadata,
   build_workflow: (BuildWorkflowClientTool as any)?.metadata,
+  get_best_practices: (GetBestPracticesClientTool as any)?.metadata,
 }
 
 function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {
@@ -143,6 +146,70 @@ function resolveToolDisplay(
     }
   } catch {}
   return undefined
+}
+
+// Normalize loaded messages so assistant messages render correctly from DB
+function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
+  try {
+    return messages.map((message) => {
+      if (message.role !== 'assistant') return message
+
+      // Start from existing blocks if any
+      let blocks: any[] = Array.isArray(message.contentBlocks) ? [...(message.contentBlocks as any[])] : []
+
+      // If we have plain content and no text block, add it as a text block
+      if ((message.content && message.content.trim()) && !blocks.some((b) => b?.type === 'text')) {
+        blocks.push({ type: 'text', content: message.content, timestamp: Date.now() })
+      }
+
+      // Merge/append tool_call blocks from toolCalls array if missing
+      const updatedToolCalls = Array.isArray((message as any).toolCalls)
+        ? (message as any).toolCalls.map((tc: any) => ({
+            ...tc,
+            display: resolveToolDisplay(tc?.name, tc?.state as any, tc?.id, tc?.params),
+          }))
+        : (message as any).toolCalls
+
+      if (Array.isArray((message as any).toolCalls) && (message as any).toolCalls.length > 0) {
+        const existingIds = new Set(
+          blocks.filter((b: any) => b?.type === 'tool_call').map((b: any) => (b.toolCall && b.toolCall.id) || '')
+        )
+        for (const tc of (message as any).toolCalls as any[]) {
+          if (tc?.id && existingIds.has(tc.id)) {
+            // Update display on existing block
+            blocks = blocks.map((b: any) =>
+              b?.type === 'tool_call' && b.toolCall?.id === tc.id
+                ? {
+                    ...b,
+                    toolCall: {
+                      ...b.toolCall,
+                      display: resolveToolDisplay(tc?.name, tc?.state as any, tc?.id, tc?.params),
+                    },
+                  }
+                : b
+            )
+          } else {
+            blocks.push({
+              type: 'tool_call',
+              toolCall: {
+                ...tc,
+                display: resolveToolDisplay(tc?.name, tc?.state as any, tc?.id, tc?.params),
+              },
+              timestamp: Date.now(),
+            })
+          }
+        }
+      }
+
+      return {
+        ...message,
+        ...(updatedToolCalls && { toolCalls: updatedToolCalls }),
+        ...(blocks.length > 0 && { contentBlocks: blocks }),
+      }
+    })
+  } catch {
+    return messages
+  }
 }
 
 // Simple object pool for content blocks
@@ -864,9 +931,32 @@ export const useCopilotStore = create<CopilotStore>()(
     },
 
     selectChat: async (chat: CopilotChat) => {
-      const { isSendingMessage, currentChat } = get()
+      const { isSendingMessage, currentChat, workflowId } = get()
+      if (!workflowId) {
+        return
+      }
       if (currentChat && currentChat.id !== chat.id && isSendingMessage) get().abortMessage()
-      set({ currentChat: chat, messages: chat.messages || [], planTodos: [], showPlanTodos: false })
+
+      // Optimistically set selected chat and normalize messages for UI
+      set({ currentChat: chat, messages: normalizeMessagesForUI(chat.messages || []), planTodos: [], showPlanTodos: false })
+
+      // Refresh selected chat from server to ensure we have latest messages/tool calls
+      try {
+        const response = await fetch(`/api/copilot/chat?workflowId=${workflowId}`)
+        if (!response.ok) throw new Error(`Failed to fetch latest chat data: ${response.status}`)
+        const data = await response.json()
+        if (data.success && Array.isArray(data.chats)) {
+          const latestChat = data.chats.find((c: CopilotChat) => c.id === chat.id)
+          if (latestChat) {
+            set({
+              currentChat: latestChat,
+              messages: normalizeMessagesForUI(latestChat.messages || []),
+              chats: (get().chats || []).map((c: CopilotChat) => (c.id === chat.id ? latestChat : c)),
+            })
+            try { await get().loadMessageCheckpoints(latestChat.id) } catch {}
+          }
+        }
+      } catch {}
     },
 
     createNewChat: async () => {
@@ -921,12 +1011,12 @@ export const useCopilotStore = create<CopilotStore>()(
               if (isSendingMessage) {
                 set({ currentChat: { ...updatedCurrentChat, messages: get().messages } })
               } else {
-                set({ currentChat: updatedCurrentChat, messages: updatedCurrentChat.messages || [] })
+                set({ currentChat: updatedCurrentChat, messages: normalizeMessagesForUI(updatedCurrentChat.messages || []) })
               }
               try { await get().loadMessageCheckpoints(updatedCurrentChat.id) } catch {}
             } else if (!isSendingMessage) {
               const mostRecentChat: CopilotChat = data.chats[0]
-              set({ currentChat: mostRecentChat, messages: mostRecentChat.messages || [] })
+              set({ currentChat: mostRecentChat, messages: normalizeMessagesForUI(mostRecentChat.messages || []) })
               try { await get().loadMessageCheckpoints(mostRecentChat.id) } catch {}
             }
           } else {
@@ -1048,18 +1138,7 @@ export const useCopilotStore = create<CopilotStore>()(
           set({ isSendingMessage: false, isAborting: false, abortController: null })
         }
 
-        const { currentChat } = get()
-        if (currentChat) {
-          try {
-            const currentMessages = get().messages
-            const dbMessages = validateMessagesForLLM(currentMessages)
-            fetch('/api/copilot/chat/update-messages', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ chatId: currentChat.id, messages: dbMessages }),
-            }).catch(() => {})
-          } catch {}
-        }
+        // Server persists messages on stream end; no client-side DB update needed
       } catch {
         set({ isSendingMessage: false, isAborting: false, abortController: null })
       }
@@ -1358,18 +1437,7 @@ export const useCopilotStore = create<CopilotStore>()(
           await get().handleNewChatCreation(context.newChatId)
         }
 
-        const { currentChat } = get()
-        if (currentChat) {
-          try {
-            const currentMessages = get().messages
-            const dbMessages = validateMessagesForLLM(currentMessages)
-            await fetch('/api/copilot/chat/update-messages', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ chatId: currentChat.id, messages: dbMessages }),
-            })
-          } catch {}
-        }
+        // Server persists messages at end of stream; skip client-side update
       } finally {
         clearTimeout(timeoutId)
       }
