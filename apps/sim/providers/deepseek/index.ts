@@ -8,7 +8,11 @@ import type {
   ProviderResponse,
   TimeSegment,
 } from '@/providers/types'
-import { prepareToolsWithUsageControl, trackForcedToolUsage } from '@/providers/utils'
+import {
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+  trackForcedToolUsage,
+} from '@/providers/utils'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('DeepseekProvider')
@@ -289,25 +293,7 @@ export const deepseekProvider: ProviderConfig = {
               // Execute the tool
               const toolCallStartTime = Date.now()
 
-              // Only merge actual tool parameters for logging
-              const toolParams = {
-                ...tool.params,
-                ...toolArgs,
-              }
-
-              // Add system parameters for execution
-              const executionParams = {
-                ...toolParams,
-                ...(request.workflowId
-                  ? {
-                      _context: {
-                        workflowId: request.workflowId,
-                        ...(request.chatId ? { chatId: request.chatId } : {}),
-                      },
-                    }
-                  : {}),
-                ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
-              }
+              const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
 
               const result = await executeTool(toolName, executionParams, true)
               const toolCallEndTime = Date.now()

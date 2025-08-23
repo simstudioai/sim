@@ -22,6 +22,7 @@ import {
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { Label } from '@/components/ui/label'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
@@ -36,6 +37,7 @@ interface CustomToolModalProps {
   onOpenChange: (open: boolean) => void
   onSave: (tool: CustomTool) => void
   onDelete?: (toolId: string) => void
+  blockId: string
   initialValues?: {
     id?: string
     schema: any
@@ -61,6 +63,7 @@ export function CustomToolModal({
   onOpenChange,
   onSave,
   onDelete,
+  blockId,
   initialValues,
 }: CustomToolModalProps) {
   const [activeSection, setActiveSection] = useState<ToolSection>('schema')
@@ -237,12 +240,16 @@ try {
   // Environment variables and tags dropdown state
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
+  const [showSchemaParams, setShowSchemaParams] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [cursorPosition, setCursorPosition] = useState(0)
   const codeEditorRef = useRef<HTMLDivElement>(null)
+  const schemaParamsDropdownRef = useRef<HTMLDivElement>(null)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   // Add state for dropdown positioning
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
+  // Schema params keyboard navigation
+  const [schemaParamSelectedIndex, setSchemaParamSelectedIndex] = useState(0)
 
   const addTool = useCustomToolsStore((state) => state.addTool)
   const updateTool = useCustomToolsStore((state) => state.updateTool)
@@ -269,6 +276,21 @@ try {
       resetForm()
     }
   }, [open, initialValues])
+
+  // Close schema params dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        schemaParamsDropdownRef.current &&
+        !schemaParamsDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowSchemaParams(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const resetForm = () => {
     setJsonSchema('')
@@ -309,6 +331,15 @@ try {
         return false
       }
 
+      // Validate that parameters object exists with correct structure
+      if (!parsed.function.parameters) {
+        return false
+      }
+
+      if (!parsed.function.parameters.type || parsed.function.parameters.properties === undefined) {
+        return false
+      }
+
       return true
     } catch (_error) {
       return false
@@ -319,6 +350,25 @@ try {
   const validateFunctionCode = (code: string): boolean => {
     return true // Allow empty code
   }
+
+  // Extract parameters from JSON schema for autocomplete
+  const schemaParameters = useMemo(() => {
+    try {
+      if (!jsonSchema) return []
+      const parsed = JSON.parse(jsonSchema)
+      const properties = parsed?.function?.parameters?.properties
+      if (!properties) return []
+
+      return Object.keys(properties).map((key) => ({
+        name: key,
+        type: properties[key].type || 'any',
+        description: properties[key].description || '',
+        required: parsed?.function?.parameters?.required?.includes(key) || false,
+      }))
+    } catch {
+      return []
+    }
+  }, [jsonSchema])
 
   // Memoize validation results to prevent unnecessary recalculations
   const isSchemaValid = useMemo(() => validateJsonSchema(jsonSchema), [jsonSchema])
@@ -346,6 +396,34 @@ try {
 
       if (!parsed.function || !parsed.function.name) {
         setSchemaError('Schema must have a "function" object with a "name" field')
+        setActiveSection('schema')
+        return
+      }
+
+      // Validate parameters structure - must be present
+      if (!parsed.function.parameters) {
+        setSchemaError('Missing function.parameters object')
+        setActiveSection('schema')
+        return
+      }
+
+      if (!parsed.function.parameters.type) {
+        setSchemaError('Missing parameters.type field')
+        setActiveSection('schema')
+        return
+      }
+
+      if (parsed.function.parameters.properties === undefined) {
+        setSchemaError('Missing parameters.properties field')
+        setActiveSection('schema')
+        return
+      }
+
+      if (
+        typeof parsed.function.parameters.properties !== 'object' ||
+        parsed.function.parameters.properties === null
+      ) {
+        setSchemaError('parameters.properties must be an object')
         setActiveSection('schema')
         return
       }
@@ -439,7 +517,52 @@ try {
     // Prevent updates during AI generation/streaming
     if (schemaGeneration.isLoading || schemaGeneration.isStreaming) return
     setJsonSchema(value)
-    if (schemaError) {
+
+    // Real-time validation - show error immediately when schema is invalid
+    if (value.trim()) {
+      try {
+        const parsed = JSON.parse(value)
+
+        if (!parsed.type || parsed.type !== 'function') {
+          setSchemaError('Missing "type": "function"')
+          return
+        }
+
+        if (!parsed.function || !parsed.function.name) {
+          setSchemaError('Missing function.name field')
+          return
+        }
+
+        if (!parsed.function.parameters) {
+          setSchemaError('Missing function.parameters object')
+          return
+        }
+
+        if (!parsed.function.parameters.type) {
+          setSchemaError('Missing parameters.type field')
+          return
+        }
+
+        if (parsed.function.parameters.properties === undefined) {
+          setSchemaError('Missing parameters.properties field')
+          return
+        }
+
+        if (
+          typeof parsed.function.parameters.properties !== 'object' ||
+          parsed.function.parameters.properties === null
+        ) {
+          setSchemaError('parameters.properties must be an object')
+          return
+        }
+
+        // Schema is valid, clear any existing error
+        setSchemaError(null)
+      } catch {
+        setSchemaError('Invalid JSON format')
+      }
+    } else {
+      // Clear error when schema is empty (will be caught during save)
       setSchemaError(null)
     }
   }
@@ -499,7 +622,38 @@ try {
       if (!tagTrigger.show) {
         setActiveSourceBlockId(null)
       }
+
+      // Show/hide schema parameters dropdown based on typing context
+      if (!codeGeneration.isStreaming && schemaParameters.length > 0) {
+        const schemaParamTrigger = checkSchemaParamTrigger(value, pos, schemaParameters)
+        if (schemaParamTrigger.show && !showSchemaParams) {
+          setShowSchemaParams(true)
+          setSchemaParamSelectedIndex(0)
+        } else if (!schemaParamTrigger.show && showSchemaParams) {
+          setShowSchemaParams(false)
+        }
+      }
     }
+  }
+
+  // Function to check if we should show schema parameters dropdown
+  const checkSchemaParamTrigger = (text: string, cursorPos: number, parameters: any[]) => {
+    if (parameters.length === 0) return { show: false, searchTerm: '' }
+
+    // Look for partial parameter names after common patterns like 'const ', '= ', etc.
+    const beforeCursor = text.substring(0, cursorPos)
+    const words = beforeCursor.split(/[\s=();,{}[\]]+/)
+    const currentWord = words[words.length - 1] || ''
+
+    // Show dropdown if typing and current word could be a parameter
+    if (currentWord.length > 0 && /^[a-zA-Z_][\w]*$/.test(currentWord)) {
+      const matchingParams = parameters.filter((param) =>
+        param.name.toLowerCase().startsWith(currentWord.toLowerCase())
+      )
+      return { show: matchingParams.length > 0, searchTerm: currentWord, matches: matchingParams }
+    }
+
+    return { show: false, searchTerm: '' }
   }
 
   // Handle environment variable selection
@@ -513,6 +667,32 @@ try {
     setFunctionCode(newValue)
     setShowTags(false)
     setActiveSourceBlockId(null)
+  }
+
+  // Handle schema parameter selection
+  const handleSchemaParamSelect = (paramName: string) => {
+    const textarea = codeEditorRef.current?.querySelector('textarea')
+    if (textarea) {
+      const pos = textarea.selectionStart
+      const beforeCursor = functionCode.substring(0, pos)
+      const afterCursor = functionCode.substring(pos)
+
+      // Find the start of the current word
+      const words = beforeCursor.split(/[\s=();,{}[\]]+/)
+      const currentWord = words[words.length - 1] || ''
+      const wordStart = beforeCursor.lastIndexOf(currentWord)
+
+      // Replace the current partial word with the selected parameter
+      const newValue = beforeCursor.substring(0, wordStart) + paramName + afterCursor
+      setFunctionCode(newValue)
+      setShowSchemaParams(false)
+
+      // Set cursor position after the inserted parameter
+      setTimeout(() => {
+        textarea.focus()
+        textarea.setSelectionRange(wordStart + paramName.length, wordStart + paramName.length)
+      }, 0)
+    }
   }
 
   // Handle key press events
@@ -535,10 +715,14 @@ try {
         e.stopPropagation()
         return
       }
-      // Close dropdowns only if AI prompt isn't active
-      if (!showEnvVars && !showTags) {
+      // Close dropdowns first, only close modal if no dropdowns are open
+      if (showEnvVars || showTags || showSchemaParams) {
         setShowEnvVars(false)
         setShowTags(false)
+        setShowSchemaParams(false)
+        e.preventDefault()
+        e.stopPropagation()
+        return
       }
     }
 
@@ -552,7 +736,37 @@ try {
       return
     }
 
-    // Let dropdowns handle their own keyboard events if visible
+    // Handle schema parameters dropdown keyboard navigation
+    if (showSchemaParams && schemaParameters.length > 0) {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault()
+          e.stopPropagation()
+          setSchemaParamSelectedIndex((prev) => Math.min(prev + 1, schemaParameters.length - 1))
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          e.stopPropagation()
+          setSchemaParamSelectedIndex((prev) => Math.max(prev - 1, 0))
+          break
+        case 'Enter':
+          e.preventDefault()
+          e.stopPropagation()
+          if (schemaParamSelectedIndex >= 0 && schemaParamSelectedIndex < schemaParameters.length) {
+            const selectedParam = schemaParameters[schemaParamSelectedIndex]
+            handleSchemaParamSelect(selectedParam.name)
+          }
+          break
+        case 'Escape':
+          e.preventDefault()
+          e.stopPropagation()
+          setShowSchemaParams(false)
+          break
+      }
+      return // Don't handle other dropdown events when schema params is active
+    }
+
+    // Let other dropdowns handle their own keyboard events if visible
     if (showEnvVars || showTags) {
       if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
         e.preventDefault()
@@ -619,6 +833,16 @@ try {
         <DialogContent
           className='flex h-[80vh] flex-col gap-0 p-0 sm:max-w-[700px]'
           hideCloseButton
+          onKeyDown={(e) => {
+            // Intercept Escape key when dropdowns are open
+            if (e.key === 'Escape' && (showEnvVars || showTags || showSchemaParams)) {
+              e.preventDefault()
+              e.stopPropagation()
+              setShowEnvVars(false)
+              setShowTags(false)
+              setShowSchemaParams(false)
+            }
+          }}
         >
           <DialogHeader className='border-b px-6 py-4'>
             <div className='flex items-center justify-between'>
@@ -729,7 +953,7 @@ try {
                   </div>
                   {schemaError &&
                     !schemaGeneration.isStreaming && ( // Hide schema error while streaming
-                      <span className='ml-4 flex-shrink-0 text-red-600 text-sm'>{schemaError}</span>
+                      <div className='ml-4 break-words text-red-600 text-sm'>{schemaError}</div>
                     )}
                 </div>
                 <CodeEditor
@@ -799,9 +1023,25 @@ try {
                   </div>
                   {codeError &&
                     !codeGeneration.isStreaming && ( // Hide code error while streaming
-                      <span className='ml-4 flex-shrink-0 text-red-600 text-sm'>{codeError}</span>
+                      <div className='ml-4 break-words text-red-600 text-sm'>{codeError}</div>
                     )}
                 </div>
+                {schemaParameters.length > 0 && (
+                  <div className='mb-2 rounded-md bg-muted/50 p-2'>
+                    <p className='text-muted-foreground text-xs'>
+                      <span className='font-medium'>Available parameters:</span>{' '}
+                      {schemaParameters.map((param, index) => (
+                        <span key={param.name}>
+                          <code className='rounded bg-background px-1 py-0.5 text-foreground'>
+                            {param.name}
+                          </code>
+                          {index < schemaParameters.length - 1 && ', '}
+                        </span>
+                      ))}
+                      {'. '}Start typing a parameter name for autocomplete.
+                    </p>
+                  </div>
+                )}
                 <div ref={codeEditorRef} className='relative'>
                   <CodeEditor
                     value={functionCode}
@@ -819,6 +1059,7 @@ try {
                     highlightVariables={true}
                     disabled={codeGeneration.isLoading || codeGeneration.isStreaming} // Use disabled prop instead of readOnly
                     onKeyDown={handleKeyDown} // Pass keydown handler
+                    schemaParameters={schemaParameters} // Pass schema parameters for highlighting
                   />
 
                   {/* Environment variables dropdown */}
@@ -847,7 +1088,7 @@ try {
                     <TagDropdown
                       visible={showTags}
                       onSelect={handleTagSelect}
-                      blockId=''
+                      blockId={blockId}
                       activeSourceBlockId={activeSourceBlockId}
                       inputValue={functionCode}
                       cursorPosition={cursorPosition}
@@ -862,6 +1103,49 @@ try {
                         left: `${dropdownPosition.left}px`,
                       }}
                     />
+                  )}
+
+                  {/* Schema parameters dropdown */}
+                  {showSchemaParams && schemaParameters.length > 0 && (
+                    <div
+                      ref={schemaParamsDropdownRef}
+                      className='absolute z-[9999] mt-1 w-64 overflow-visible rounded-md border bg-popover shadow-md'
+                      style={{
+                        top: `${dropdownPosition.top}px`,
+                        left: `${dropdownPosition.left}px`,
+                      }}
+                    >
+                      <div className='py-1'>
+                        <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
+                          Available Parameters
+                        </div>
+                        <div>
+                          {schemaParameters.map((param, index) => (
+                            <button
+                              key={param.name}
+                              onClick={() => handleSchemaParamSelect(param.name)}
+                              onMouseEnter={() => setSchemaParamSelectedIndex(index)}
+                              className={cn(
+                                'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
+                                'hover:bg-accent hover:text-accent-foreground',
+                                'focus:bg-accent focus:text-accent-foreground focus:outline-none',
+                                index === schemaParamSelectedIndex &&
+                                  'bg-accent text-accent-foreground'
+                              )}
+                            >
+                              <div
+                                className='flex h-5 w-5 items-center justify-center rounded'
+                                style={{ backgroundColor: '#2F8BFF' }}
+                              >
+                                <span className='h-3 w-3 font-bold text-white text-xs'>P</span>
+                              </div>
+                              <span className='flex-1 truncate'>{param.name}</span>
+                              <span className='text-muted-foreground text-xs'>{param.type}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
                 <div className='h-6' />
@@ -899,11 +1183,27 @@ try {
                   Cancel
                 </Button>
                 {activeSection === 'schema' ? (
-                  <Button onClick={() => setActiveSection('code')} disabled={!isSchemaValid}>
+                  <Button
+                    onClick={() => setActiveSection('code')}
+                    disabled={!isSchemaValid || !!schemaError}
+                  >
                     Next
                   </Button>
                 ) : (
-                  <Button onClick={handleSave}>{isEditing ? 'Update Tool' : 'Save Tool'}</Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button onClick={handleSave} disabled={!isSchemaValid}>
+                          {isEditing ? 'Update Tool' : 'Save Tool'}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {!isSchemaValid && (
+                      <TooltipContent side='top'>
+                        <p>Invalid JSON schema</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
                 )}
               </div>
             </div>

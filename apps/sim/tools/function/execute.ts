@@ -45,6 +45,13 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       description: 'Mapping of block names to block IDs',
       default: {},
     },
+    workflowVariables: {
+      type: 'object',
+      required: false,
+      visibility: 'user-only',
+      description: 'Workflow variables for <variable.name> resolution',
+      default: {},
+    },
   },
 
   request: {
@@ -62,6 +69,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         code: codeContent,
         timeout: params.timeout || DEFAULT_TIMEOUT,
         envVars: params.envVars || {},
+        workflowVariables: params.workflowVariables || {},
         blockData: params.blockData || {},
         blockNameMapping: params.blockNameMapping || {},
         workflowId: params._context?.workflowId,

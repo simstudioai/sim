@@ -4,7 +4,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
 import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
+import { prepareToolExecution, prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('AnthropicProvider')
 
@@ -456,28 +456,11 @@ ${fieldDescriptions}
                 // Execute the tool
                 const toolCallStartTime = Date.now()
 
-                // Only merge actual tool parameters for logging
-                const toolParams = {
-                  ...tool.params,
-                  ...toolArgs,
-                }
-
-                // Add system parameters for execution
-                const executionParams = {
-                  ...toolParams,
-                  ...(request.workflowId
-                    ? {
-                        _context: {
-                          workflowId: request.workflowId,
-                          ...(request.chatId ? { chatId: request.chatId } : {}),
-                          ...(request.userId ? { userId: request.userId } : {}),
-                        },
-                      }
-                    : {}),
-                  ...(request.environmentVariables
-                    ? { envVars: request.environmentVariables }
-                    : {}),
-                }
+                const { toolParams, executionParams } = prepareToolExecution(
+                  tool,
+                  toolArgs,
+                  request
+                )
 
                 // Use general tool system for requests
                 const result = await executeTool(toolName, executionParams, true)
@@ -827,26 +810,7 @@ ${fieldDescriptions}
               // Execute the tool
               const toolCallStartTime = Date.now()
 
-              // Only merge actual tool parameters for logging
-              const toolParams = {
-                ...tool.params,
-                ...toolArgs,
-              }
-
-              // Add system parameters for execution
-              const executionParams = {
-                ...toolParams,
-                ...(request.workflowId
-                  ? {
-                      _context: {
-                        workflowId: request.workflowId,
-                        ...(request.chatId ? { chatId: request.chatId } : {}),
-                        ...(request.userId ? { userId: request.userId } : {}),
-                      },
-                    }
-                  : {}),
-                ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
-              }
+              const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
 
               // Use general tool system for requests
               const result = await executeTool(toolName, executionParams, true)

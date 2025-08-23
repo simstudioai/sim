@@ -1320,7 +1320,7 @@ export function ToolInput({
 
             // For custom tools, extract parameters from schema
             const customToolParams =
-              isCustomTool && tool.schema
+              isCustomTool && tool.schema && tool.schema.function?.parameters?.properties
                 ? Object.entries(tool.schema.function.parameters.properties || {}).map(
                     ([paramId, param]: [string, any]) => ({
                       id: paramId,
@@ -1824,6 +1824,7 @@ export function ToolInput({
         }}
         onSave={editingToolIndex !== null ? handleSaveCustomTool : handleAddCustomTool}
         onDelete={handleDeleteTool}
+        blockId={blockId}
         initialValues={
           editingToolIndex !== null && selectedTools[editingToolIndex]?.type === 'custom-tool'
             ? {
