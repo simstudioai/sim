@@ -418,8 +418,8 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
           }),
         ...(Array.isArray(msg.contentBlocks) &&
           msg.contentBlocks.length > 0 && {
-            // Persist contentBlocks but exclude thinking for storage
-            contentBlocks: (msg.contentBlocks as any[]).filter((b: any) => b?.type !== 'thinking'),
+            // Persist full contentBlocks including thinking so history can render it
+            contentBlocks: msg.contentBlocks,
           }),
         ...(msg.fileAttachments &&
           msg.fileAttachments.length > 0 && {

@@ -65,7 +65,7 @@ export function ThinkingBlock({
   }
 
   return (
-    <div className='my-1'>
+    <div className='mt-1 mb-0'>
       <button
         onClick={() => setIsExpanded((v) => !v)}
         className={cn(
