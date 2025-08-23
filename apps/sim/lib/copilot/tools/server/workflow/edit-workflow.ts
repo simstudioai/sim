@@ -58,7 +58,13 @@ async function applyOperationsToYaml(currentYaml: string, operations: EditWorkfl
 	}
 	const workflowData = parseResult.data
 
-	for (const operation of operations) {
+	// Reorder operations: delete -> add -> edit to ensure consistent application semantics
+	const deletes = operations.filter((op) => op.operation_type === 'delete')
+	const adds = operations.filter((op) => op.operation_type === 'add')
+	const edits = operations.filter((op) => op.operation_type === 'edit')
+	const orderedOperations: EditWorkflowOperation[] = [...deletes, ...adds, ...edits]
+
+	for (const operation of orderedOperations) {
 		const { operation_type, block_id, params } = operation
 		switch (operation_type) {
 			case 'delete':

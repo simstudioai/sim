@@ -1,4 +1,4 @@
-import { Loader2, Info } from 'lucide-react'
+import { Loader2, Info, X } from 'lucide-react'
 import { BaseClientTool, ClientToolCallState, type BaseClientToolMetadata } from '@/lib/copilot/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
 import { ExecuteResponseSuccessSchema, GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot/tools/shared/schemas'
@@ -20,6 +20,7 @@ export class GetBlocksMetadataClientTool extends BaseClientTool {
       [ClientToolCallState.executing]: { text: 'Retrieving block metadata', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Retrieved block metadata', icon: Info },
       [ClientToolCallState.error]: { text: 'Failed to retrieve block metadata', icon: Info },
+      [ClientToolCallState.aborted]: { text: 'Aborted getting block metadata', icon: X },
     },
   }
 

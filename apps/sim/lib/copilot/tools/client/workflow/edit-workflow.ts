@@ -1,4 +1,4 @@
-import { Loader2, Grid2x2, XCircle, MinusCircle, CheckCircle } from 'lucide-react'
+import { Loader2, Grid2x2, XCircle, MinusCircle, CheckCircle, X } from 'lucide-react'
 import { BaseClientTool, ClientToolCallState, type BaseClientToolMetadata } from '@/lib/copilot/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
 import { ExecuteResponseSuccessSchema, BuildWorkflowResult } from '@/lib/copilot/tools/shared/schemas'
@@ -37,6 +37,7 @@ export class EditWorkflowClientTool extends BaseClientTool {
 			[ClientToolCallState.error]: { text: 'Failed to update your workflow', icon: XCircle },
 			[ClientToolCallState.review]: { text: 'Review your workflow update', icon: Grid2x2 },
 			[ClientToolCallState.rejected]: { text: 'Rejected update', icon: XCircle },
+			[ClientToolCallState.aborted]: { text: 'Aborted update', icon: XCircle },
 		},
 	}
 

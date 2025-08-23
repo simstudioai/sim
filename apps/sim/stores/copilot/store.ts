@@ -34,8 +34,19 @@ import { GDriveRequestAccessClientTool } from '@/lib/copilot/tools/client/google
 import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
 import { BuildWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/build-workflow'
 import type { BaseClientToolMetadata } from '@/lib/copilot/tools/client/base-tool'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('CopilotStore')
+
+// On module load, clear any lingering diff preview (fresh page refresh)
+try {
+  const diffStore = useWorkflowDiffStore.getState()
+  if (diffStore?.isShowingDiff || diffStore?.diffWorkflow) {
+    diffStore.clearDiff()
+  }
+} catch {}
 
 // Known class-based client tools: map tool name -> instantiator
 const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
@@ -153,6 +164,64 @@ function isReviewState(state: any): boolean {
   } catch {
     return state === 'review'
   }
+}
+
+// Helper: abort all in-progress client tools and update inline blocks
+function abortAllInProgressTools(set: any, get: () => CopilotStore) {
+  try {
+    const { toolCallsById, messages } = get()
+    const updatedMap = { ...toolCallsById }
+    const abortedIds = new Set<string>()
+    for (const [id, tc] of Object.entries(toolCallsById)) {
+      const st = tc.state as any
+      // Abort anything not already terminal success/error/rejected/aborted
+      const isTerminal =
+        st === ClientToolCallState.success ||
+        st === ClientToolCallState.error ||
+        st === ClientToolCallState.rejected ||
+        st === ClientToolCallState.aborted
+      if (!isTerminal || isReviewState(st)) {
+        abortedIds.add(id)
+        updatedMap[id] = {
+          ...tc,
+          state: ClientToolCallState.aborted,
+          display: resolveToolDisplay(tc.name, ClientToolCallState.aborted, id, (tc as any).params),
+        }
+      }
+    }
+    if (abortedIds.size > 0) {
+      set({ toolCallsById: updatedMap })
+      // Update inline blocks in-place for the latest assistant message only (most relevant)
+      set((s: CopilotStore) => {
+        const msgs = [...s.messages]
+        for (let mi = msgs.length - 1; mi >= 0; mi--) {
+          const m = msgs[mi] as any
+          if (m.role !== 'assistant' || !Array.isArray(m.contentBlocks)) continue
+          let changed = false
+          const blocks = m.contentBlocks.map((b: any) => {
+            if (b?.type === 'tool_call' && b.toolCall?.id && abortedIds.has(b.toolCall.id)) {
+              changed = true
+              const prev = b.toolCall
+              return {
+                ...b,
+                toolCall: {
+                  ...prev,
+                  state: ClientToolCallState.aborted,
+                  display: resolveToolDisplay(prev?.name, ClientToolCallState.aborted, prev?.id, prev?.params),
+                },
+              }
+            }
+            return b
+          })
+          if (changed) {
+            msgs[mi] = { ...m, contentBlocks: blocks }
+            break
+          }
+        }
+        return { messages: msgs }
+      })
+    }
+  } catch {}
 }
 
 // Normalize loaded messages so assistant messages render correctly from DB
@@ -1047,6 +1116,11 @@ export const useCopilotStore = create<CopilotStore>()(
       if (currentWorkflowId === workflowId) return
       const { isSendingMessage } = get()
       if (isSendingMessage) get().abortMessage()
+
+      // Abort all in-progress tools and clear any diff preview
+      abortAllInProgressTools(set, get)
+      try { useWorkflowDiffStore.getState().clearDiff() } catch {}
+
       set({
         ...initialState,
         workflowId,
@@ -1075,6 +1149,10 @@ export const useCopilotStore = create<CopilotStore>()(
       }
       if (currentChat && currentChat.id !== chat.id && isSendingMessage) get().abortMessage()
 
+      // Abort in-progress tools and clear diff when changing chats
+      abortAllInProgressTools(set, get)
+      try { useWorkflowDiffStore.getState().clearDiff() } catch {}
+
       // Optimistically set selected chat and normalize messages for UI
       set({ currentChat: chat, messages: normalizeMessagesForUI(chat.messages || []), planTodos: [], showPlanTodos: false })
 
@@ -1100,6 +1178,11 @@ export const useCopilotStore = create<CopilotStore>()(
     createNewChat: async () => {
       const { isSendingMessage } = get()
       if (isSendingMessage) get().abortMessage()
+
+      // Abort in-progress tools and clear diff on new chat
+      abortAllInProgressTools(set, get)
+      try { useWorkflowDiffStore.getState().clearDiff() } catch {}
+
       set({
         currentChat: null,
         messages: [],
@@ -1275,6 +1358,9 @@ export const useCopilotStore = create<CopilotStore>()(
         } else {
           set({ isSendingMessage: false, isAborting: false, abortController: null })
         }
+
+        // Immediately put all in-progress tools into aborted state
+        abortAllInProgressTools(set, get)
 
         // Persist whatever contentBlocks/text we have to keep ordering for reloads
         const { currentChat } = get()
@@ -1505,9 +1591,66 @@ export const useCopilotStore = create<CopilotStore>()(
       }
     },
 
-    // Revert checkpoints (minimal: not implemented)
-    revertToCheckpoint: async (_checkpointId: string) => {},
-    getCheckpointsForMessage: (_messageId: string) => [],
+    // Revert to a specific checkpoint and apply state locally
+    revertToCheckpoint: async (checkpointId: string) => {
+      const { workflowId } = get()
+      if (!workflowId) return
+      set({ isRevertingCheckpoint: true, checkpointError: null })
+      try {
+        const response = await fetch('/api/copilot/checkpoints/revert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ checkpointId }),
+        })
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '')
+          throw new Error(errorText || `Failed to revert: ${response.statusText}`)
+        }
+        const result = await response.json()
+        const reverted = result?.checkpoint?.workflowState || null
+        if (reverted) {
+          // Apply to main workflow store
+          useWorkflowStore.setState({
+            blocks: reverted.blocks || {},
+            edges: reverted.edges || [],
+            loops: reverted.loops || {},
+            parallels: reverted.parallels || {},
+            lastSaved: reverted.lastSaved || Date.now(),
+            isDeployed: !!reverted.isDeployed,
+            ...(reverted.deployedAt ? { deployedAt: new Date(reverted.deployedAt) } : {}),
+            deploymentStatuses: reverted.deploymentStatuses || {},
+            hasActiveWebhook: !!reverted.hasActiveWebhook,
+          })
+
+          // Extract and apply subblock values
+          const values: Record<string, Record<string, any>> = {}
+          Object.entries(reverted.blocks || {}).forEach(([blockId, block]: [string, any]) => {
+            values[blockId] = {}
+            Object.entries((block as any).subBlocks || {}).forEach(([subId, sub]: [string, any]) => {
+              values[blockId][subId] = (sub as any)?.value
+            })
+          })
+          const subState = useSubBlockStore.getState()
+          useSubBlockStore.setState({
+            workflowValues: {
+              ...subState.workflowValues,
+              [workflowId]: values,
+            },
+          })
+        }
+        set({ isRevertingCheckpoint: false })
+      } catch (error) {
+        set({
+          isRevertingCheckpoint: false,
+          checkpointError: error instanceof Error ? error.message : 'Failed to revert checkpoint',
+        })
+        throw error
+      }
+    },
+    getCheckpointsForMessage: (messageId: string) => {
+      const { messageCheckpoints } = get()
+      return messageCheckpoints[messageId] || []
+    },
 
     // Preview YAML (stubbed/no-op)
     setPreviewYaml: async (_yamlContent: string) => {},
@@ -1621,6 +1764,10 @@ export const useCopilotStore = create<CopilotStore>()(
         createdAt: new Date(),
         updatedAt: new Date(),
       }
+      // Abort any in-progress tools and clear diff on new chat creation
+      abortAllInProgressTools(set, get)
+      try { useWorkflowDiffStore.getState().clearDiff() } catch {}
+
       set({
         currentChat: newChat,
         chats: [newChat, ...(get().chats || [])],
@@ -1645,10 +1792,14 @@ export const useCopilotStore = create<CopilotStore>()(
         streamingUpdateRAF = null
       }
       streamingUpdateQueue.clear()
+      // Clear any diff on cleanup
+      try { useWorkflowDiffStore.getState().clearDiff() } catch {}
     },
 
     reset: () => {
       get().cleanup()
+      // Abort in-progress tools prior to reset
+      abortAllInProgressTools(set, get)
       set(initialState)
     },
 
