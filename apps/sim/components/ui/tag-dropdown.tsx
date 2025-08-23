@@ -977,6 +977,27 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const handleKeyboardEvent = (e: KeyboardEvent) => {
         if (!orderedTags.length) return
 
+        const canEnterSubmenuForSelected = (): {
+          groupIndex: number
+          nestedTagIndex: number
+        } | null => {
+          if (selectedIndex < 0 || selectedIndex >= orderedTags.length) return null
+          const selectedTag = orderedTags[selectedIndex]
+          for (let gi = 0; gi < nestedBlockTagGroups.length; gi++) {
+            const group = nestedBlockTagGroups[gi]
+            for (let ni = 0; ni < group.nestedTags.length; ni++) {
+              const nestedTag = group.nestedTags[ni]
+              if (nestedTag.children && nestedTag.children.length > 0) {
+                const firstChild = nestedTag.children[0]
+                if (firstChild.fullTag === selectedTag) {
+                  return { groupIndex: gi, nestedTagIndex: ni }
+                }
+              }
+            }
+          }
+          return null
+        }
+
         if (inSubmenu) {
           const currentHovered = hoveredNested
           if (!currentHovered) {
@@ -1105,31 +1126,22 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               })
               break
             case 'ArrowRight':
-              e.preventDefault()
-              e.stopPropagation()
-              if (selectedIndex >= 0 && selectedIndex < orderedTags.length) {
-                const selectedTag = orderedTags[selectedIndex]
-                for (const group of nestedBlockTagGroups) {
-                  for (
-                    let nestedTagIndex = 0;
-                    nestedTagIndex < group.nestedTags.length;
-                    nestedTagIndex++
-                  ) {
-                    const nestedTag = group.nestedTags[nestedTagIndex]
-                    if (nestedTag.children && nestedTag.children.length > 0) {
-                      const firstChild = nestedTag.children[0]
-                      if (firstChild.fullTag === selectedTag) {
-                        setInSubmenu(true)
-                        setSubmenuIndex(0)
-                        setHoveredNested({
-                          tag: `${group.blockId}-${nestedTag.key}`,
-                          index: nestedTagIndex,
-                        })
-                        return
-                      }
-                    }
-                  }
+              {
+                const targetLocation = canEnterSubmenuForSelected()
+                if (!targetLocation) {
+                  // No submenu action for current selection; allow caret move
+                  return
                 }
+                e.preventDefault()
+                e.stopPropagation()
+                const group = nestedBlockTagGroups[targetLocation.groupIndex]
+                const nestedTag = group.nestedTags[targetLocation.nestedTagIndex]
+                setInSubmenu(true)
+                setSubmenuIndex(0)
+                setHoveredNested({
+                  tag: `${group.blockId}-${nestedTag.key}`,
+                  index: targetLocation.nestedTagIndex,
+                })
               }
               break
             case 'Enter':
