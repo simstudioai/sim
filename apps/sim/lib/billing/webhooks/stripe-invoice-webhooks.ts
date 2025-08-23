@@ -1,5 +1,12 @@
+import { eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
+import {
+  resetOrganizationBillingPeriod,
+  resetUserBillingPeriod,
+} from '@/lib/billing/core/billing-periods'
 import { createLogger } from '@/lib/logs/console/logger'
+import { db } from '@/db'
+import { subscription as subscriptionTable } from '@/db/schema'
 
 const logger = createLogger('StripeInvoiceWebhooks')
 
@@ -99,27 +106,69 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
   try {
     const invoice = event.data.object as Stripe.Invoice
 
-    // Check if this is an overage billing invoice
-    if (invoice.metadata?.type !== 'overage_billing') {
-      logger.info('Ignoring non-overage billing invoice finalization', { invoiceId: invoice.id })
+    // Case 1: Overage invoices (metadata.type === 'overage_billing')
+    if (invoice.metadata?.type === 'overage_billing') {
+      const customerId = invoice.customer as string
+      const invoiceAmount = invoice.amount_due / 100
+      const billingPeriod = invoice.metadata?.billingPeriod || 'unknown'
+
+      logger.info('Overage billing invoice finalized', {
+        invoiceId: invoice.id,
+        customerId,
+        invoiceAmount,
+        billingPeriod,
+        customerEmail: invoice.customer_email,
+        hostedInvoiceUrl: invoice.hosted_invoice_url,
+      })
+
       return
     }
 
-    const customerId = invoice.customer as string
-    const invoiceAmount = invoice.amount_due / 100 // Convert from cents to dollars
-    const billingPeriod = invoice.metadata?.billingPeriod || 'unknown'
+    // Case 2: Subscription cycle invoices (primary period rollover)
+    // When an invoice is finalized for a subscription cycle, align our usage reset to this boundary
+    if (invoice.subscription) {
+      const stripeSubscriptionId = String(invoice.subscription)
 
-    logger.info('Overage billing invoice finalized', {
+      const records = await db
+        .select()
+        .from(subscriptionTable)
+        .where(eq(subscriptionTable.stripeSubscriptionId, stripeSubscriptionId))
+        .limit(1)
+
+      if (records.length === 0) {
+        logger.warn('No matching internal subscription for Stripe invoice subscription', {
+          invoiceId: invoice.id,
+          stripeSubscriptionId,
+        })
+        return
+      }
+
+      const sub = records[0]
+
+      // Idempotent reset aligned to the subscription’s new cycle
+      if (sub.plan === 'team' || sub.plan === 'enterprise') {
+        await resetOrganizationBillingPeriod(sub.referenceId)
+        logger.info('Reset organization billing period on subscription invoice finalization', {
+          invoiceId: invoice.id,
+          organizationId: sub.referenceId,
+          plan: sub.plan,
+        })
+      } else {
+        await resetUserBillingPeriod(sub.referenceId)
+        logger.info('Reset user billing period on subscription invoice finalization', {
+          invoiceId: invoice.id,
+          userId: sub.referenceId,
+          plan: sub.plan,
+        })
+      }
+
+      return
+    }
+
+    logger.info('Ignoring non-subscription invoice finalization', {
       invoiceId: invoice.id,
-      customerId,
-      invoiceAmount,
-      billingPeriod,
-      customerEmail: invoice.customer_email,
-      hostedInvoiceUrl: invoice.hosted_invoice_url,
+      billingReason: invoice.billing_reason,
     })
-
-    // Additional invoice finalization logic can be added here
-    // For example: update internal records, trigger notifications, etc.
   } catch (error) {
     logger.error('Failed to handle invoice finalized', {
       eventId: event.id,
