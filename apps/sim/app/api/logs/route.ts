@@ -73,30 +73,59 @@ export async function GET(request: NextRequest) {
       const { searchParams } = new URL(request.url)
       const params = QueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
 
+      // Conditionally select columns based on detail level to optimize performance
+      const selectColumns =
+        params.details === 'full'
+          ? {
+              id: workflowExecutionLogs.id,
+              workflowId: workflowExecutionLogs.workflowId,
+              executionId: workflowExecutionLogs.executionId,
+              stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
+              level: workflowExecutionLogs.level,
+              trigger: workflowExecutionLogs.trigger,
+              startedAt: workflowExecutionLogs.startedAt,
+              endedAt: workflowExecutionLogs.endedAt,
+              totalDurationMs: workflowExecutionLogs.totalDurationMs,
+              executionData: workflowExecutionLogs.executionData, // Large field - only in full mode
+              cost: workflowExecutionLogs.cost,
+              files: workflowExecutionLogs.files, // Large field - only in full mode
+              createdAt: workflowExecutionLogs.createdAt,
+              workflowName: workflow.name,
+              workflowDescription: workflow.description,
+              workflowColor: workflow.color,
+              workflowFolderId: workflow.folderId,
+              workflowUserId: workflow.userId,
+              workflowWorkspaceId: workflow.workspaceId,
+              workflowCreatedAt: workflow.createdAt,
+              workflowUpdatedAt: workflow.updatedAt,
+            }
+          : {
+              // Basic mode - exclude large fields for better performance
+              id: workflowExecutionLogs.id,
+              workflowId: workflowExecutionLogs.workflowId,
+              executionId: workflowExecutionLogs.executionId,
+              stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
+              level: workflowExecutionLogs.level,
+              trigger: workflowExecutionLogs.trigger,
+              startedAt: workflowExecutionLogs.startedAt,
+              endedAt: workflowExecutionLogs.endedAt,
+              totalDurationMs: workflowExecutionLogs.totalDurationMs,
+              executionData: sql<null>`NULL`, // Exclude large execution data in basic mode
+              cost: workflowExecutionLogs.cost,
+              files: sql<null>`NULL`, // Exclude files in basic mode
+              createdAt: workflowExecutionLogs.createdAt,
+              workflowName: workflow.name,
+              workflowDescription: workflow.description,
+              workflowColor: workflow.color,
+              workflowFolderId: workflow.folderId,
+              workflowUserId: workflow.userId,
+              workflowWorkspaceId: workflow.workspaceId,
+              workflowCreatedAt: workflow.createdAt,
+              workflowUpdatedAt: workflow.updatedAt,
+            }
+
       const baseQuery = db
-        .select({
-          id: workflowExecutionLogs.id,
-          workflowId: workflowExecutionLogs.workflowId,
-          executionId: workflowExecutionLogs.executionId,
-          stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
-          level: workflowExecutionLogs.level,
-          trigger: workflowExecutionLogs.trigger,
-          startedAt: workflowExecutionLogs.startedAt,
-          endedAt: workflowExecutionLogs.endedAt,
-          totalDurationMs: workflowExecutionLogs.totalDurationMs,
-          executionData: workflowExecutionLogs.executionData,
-          cost: workflowExecutionLogs.cost,
-          files: workflowExecutionLogs.files,
-          createdAt: workflowExecutionLogs.createdAt,
-          workflowName: workflow.name,
-          workflowDescription: workflow.description,
-          workflowColor: workflow.color,
-          workflowFolderId: workflow.folderId,
-          workflowUserId: workflow.userId,
-          workflowWorkspaceId: workflow.workspaceId,
-          workflowCreatedAt: workflow.createdAt,
-          workflowUpdatedAt: workflow.updatedAt,
-        })
+        .select(selectColumns)
         .from(workflowExecutionLogs)
         .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
         .innerJoin(
@@ -276,18 +305,24 @@ export async function GET(request: NextRequest) {
       const enhancedLogs = logs.map((log) => {
         const blockExecutions = blockExecutionsByExecution[log.executionId] || []
 
-        // Use stored trace spans if available, otherwise create from block executions
-        const storedTraceSpans = (log.executionData as any)?.traceSpans
-        const traceSpans =
-          storedTraceSpans && Array.isArray(storedTraceSpans) && storedTraceSpans.length > 0
-            ? storedTraceSpans
-            : createTraceSpans(blockExecutions)
+        // Only process trace spans and detailed cost in full mode
+        let traceSpans = []
+        let costSummary = (log.cost as any) || { total: 0 }
 
-        // Prefer stored cost JSON; otherwise synthesize from blocks
-        const costSummary =
-          log.cost && Object.keys(log.cost as any).length > 0
-            ? (log.cost as any)
-            : extractCostSummary(blockExecutions)
+        if (params.details === 'full' && log.executionData) {
+          // Use stored trace spans if available, otherwise create from block executions
+          const storedTraceSpans = (log.executionData as any)?.traceSpans
+          traceSpans =
+            storedTraceSpans && Array.isArray(storedTraceSpans) && storedTraceSpans.length > 0
+              ? storedTraceSpans
+              : createTraceSpans(blockExecutions)
+
+          // Prefer stored cost JSON; otherwise synthesize from blocks
+          costSummary =
+            log.cost && Object.keys(log.cost as any).length > 0
+              ? (log.cost as any)
+              : extractCostSummary(blockExecutions)
+        }
 
         const workflowSummary = {
           id: log.workflowId,
