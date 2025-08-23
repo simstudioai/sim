@@ -1,7 +1,15 @@
-import { Loader2, Grid2x2, XCircle, Grid2x2Check } from 'lucide-react'
-import { BaseClientTool, ClientToolCallState, type BaseClientToolMetadata } from '@/lib/copilot/tools/client/base-tool'
+import { Grid2x2, Grid2x2Check, Loader2, XCircle } from 'lucide-react'
+import {
+  BaseClientTool,
+  type BaseClientToolMetadata,
+  ClientToolCallState,
+} from '@/lib/copilot/tools/client/base-tool'
+import {
+  BuildWorkflowInput,
+  BuildWorkflowResult,
+  ExecuteResponseSuccessSchema,
+} from '@/lib/copilot/tools/shared/schemas'
 import { createLogger } from '@/lib/logs/console/logger'
-import { ExecuteResponseSuccessSchema, BuildWorkflowInput, BuildWorkflowResult } from '@/lib/copilot/tools/shared/schemas'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 
 interface BuildWorkflowArgs {
@@ -104,4 +112,4 @@ export class BuildWorkflowClientTool extends BaseClientTool {
       this.setState(ClientToolCallState.error)
     }
   }
-} 
+}

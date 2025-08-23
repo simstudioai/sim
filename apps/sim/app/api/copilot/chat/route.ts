@@ -3,7 +3,13 @@ import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { authenticateCopilotRequestSessionOnly, createBadRequestResponse, createInternalServerErrorResponse, createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/auth'
+import {
+  authenticateCopilotRequestSessionOnly,
+  createBadRequestResponse,
+  createInternalServerErrorResponse,
+  createRequestTracker,
+  createUnauthorizedResponse,
+} from '@/lib/copilot/auth'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
 import { env } from '@/lib/env'
@@ -418,27 +424,7 @@ export async function POST(req: NextRequest) {
       ...(requestOrigin ? { origin: requestOrigin } : {}),
     }
 
-    // Log the payload being sent to the streaming endpoint
-    try {
-      // logger.info(`[${tracker.requestId}] Sending payload to sim agent streaming endpoint`, {
-      //   url: `${SIM_AGENT_API_URL}/api/chat-completion-streaming`,
-      //   provider: providerToUse,
-      //   mode,
-      //   stream,
-      //   workflowId,
-      //   hasConversationId: !!effectiveConversationId,
-      //   depth: typeof effectiveDepth === 'number' ? effectiveDepth : undefined,
-      //   prefetch: typeof effectivePrefetch === 'boolean' ? effectivePrefetch : undefined,
-      //   messagesCount: requestPayload.messages.length,
-      //   ...(requestOrigin ? { origin: requestOrigin } : {}),
-      // })
-      // Full payload as JSON string
-      // logger.info(
-      //   `[${tracker.requestId}] Full streaming payload: ${JSON.stringify(requestPayload)}`
-      // )
-    } catch (e) {
-      logger.warn(`[${tracker.requestId}] Failed to log payload preview for streaming endpoint`, e)
-    }
+    // Log the payload being sent to the streaming endpoint (logs currently disabled)
 
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
@@ -487,7 +473,7 @@ export async function POST(req: NextRequest) {
           let assistantContent = ''
           const toolCalls: any[] = []
           let buffer = ''
-          let isFirstDone = true
+          const isFirstDone = true
           let responseIdFromStart: string | undefined
           let responseIdFromDone: string | undefined
           // Track tool call progress to identify a safe done event
@@ -657,7 +643,6 @@ export async function POST(req: NextRequest) {
                       case 'start':
                         if (event.data?.responseId) {
                           responseIdFromStart = event.data.responseId
-
                         }
                         break
 
@@ -673,7 +658,6 @@ export async function POST(req: NextRequest) {
                           const hasToolInProgress = announced > completed || started > completed
                           if (!hasToolInProgress) {
                             lastSafeDoneResponseId = responseIdFromDone
-
                           }
                         }
                         break
@@ -682,7 +666,6 @@ export async function POST(req: NextRequest) {
                         break
 
                       default:
-                        
                     }
                   } catch (e) {
                     // Enhanced error handling for large payloads and parsing issues

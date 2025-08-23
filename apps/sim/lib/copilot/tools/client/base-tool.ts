@@ -14,7 +14,7 @@ export enum ClientToolCallState {
   success = 'success',
   error = 'error',
   review = 'review',
-  background = 'background'
+  background = 'background',
 }
 
 // Display configuration for a given state

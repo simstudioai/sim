@@ -553,7 +553,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             placeholder={isDragging ? 'Drop files here...' : placeholder}
             disabled={disabled}
             rows={1}
-            className='mb-2 min-h-[32px] w-full resize-none overflow-x-hidden overflow-y-auto border-0 bg-transparent px-[2px] py-1 text-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='mb-2 min-h-[32px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent px-[2px] py-1 text-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
             style={{ height: 'auto' }}
           />
 

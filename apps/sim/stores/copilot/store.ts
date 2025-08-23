@@ -2,41 +2,46 @@
 
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
+import type {
+  BaseClientToolMetadata,
+  ClientToolDisplay,
+} from '@/lib/copilot/tools/client/base-tool'
+import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
+import { GetBlocksAndToolsClientTool } from '@/lib/copilot/tools/client/blocks/get-blocks-and-tools'
+import { GetBlocksMetadataClientTool } from '@/lib/copilot/tools/client/blocks/get-blocks-metadata'
+import { ListGDriveFilesClientTool } from '@/lib/copilot/tools/client/gdrive/list-files'
+import { ReadGDriveFileClientTool } from '@/lib/copilot/tools/client/gdrive/read-file'
+import { GDriveRequestAccessClientTool } from '@/lib/copilot/tools/client/google/gdrive-request-access'
+import {
+  getClientTool,
+  registerClientTool,
+  registerToolStateSync,
+} from '@/lib/copilot/tools/client/manager'
+import { CheckoffTodoClientTool } from '@/lib/copilot/tools/client/other/checkoff-todo'
+import { MakeApiRequestClientTool } from '@/lib/copilot/tools/client/other/make-api-request'
+import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
+import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
+import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
+import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
+import { GetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/get-environment-variables'
+import { GetOAuthCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-oauth-credentials'
+import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
+import { BuildWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/build-workflow'
+import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
+import { GetUserWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/get-user-workflow'
+import { GetWorkflowConsoleClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-console'
+import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
 import { createLogger } from '@/lib/logs/console/logger'
-import { sendStreamingMessage, type CopilotChat } from '@/lib/copilot/api'
 import type {
   CopilotMessage,
   CopilotStore,
+  CopilotToolCall,
   MessageFileAttachment,
-  CopilotMode,
 } from '@/stores/copilot/types'
-import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
-import type { CopilotToolCall } from '@/stores/copilot/types'
-import { getClientTool, registerClientTool, registerToolStateSync } from '@/lib/copilot/tools/client/manager'
-import { getTool, createExecutionContext, registerTool } from '@/lib/copilot/tools/client/registry'
-import { GetUserWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/get-user-workflow'
-import type { ClientToolDisplay } from '@/lib/copilot/tools/client/base-tool'
-import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
-import { GetWorkflowConsoleClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-console'
-import { GetBlocksAndToolsClientTool } from '@/lib/copilot/tools/client/blocks/get-blocks-and-tools'
-import { GetBlocksMetadataClientTool } from '@/lib/copilot/tools/client/blocks/get-blocks-metadata'
-import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
-import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
-import { GetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/get-environment-variables'
-import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
-import { ListGDriveFilesClientTool } from '@/lib/copilot/tools/client/gdrive/list-files'
-import { ReadGDriveFileClientTool } from '@/lib/copilot/tools/client/gdrive/read-file'
-import { GetOAuthCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-oauth-credentials'
-import { MakeApiRequestClientTool } from '@/lib/copilot/tools/client/other/make-api-request'
-import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
-import { CheckoffTodoClientTool } from '@/lib/copilot/tools/client/other/checkoff-todo'
-import { GDriveRequestAccessClientTool } from '@/lib/copilot/tools/client/google/gdrive-request-access'
-import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
-import { BuildWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/build-workflow'
-import type { BaseClientToolMetadata } from '@/lib/copilot/tools/client/base-tool'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('CopilotStore')
 
@@ -122,7 +127,7 @@ function resolveToolDisplay(
     const def = getTool(toolName) as any
     const meta = def?.metadata?.displayNames || CLASS_TOOL_METADATA[toolName]?.displayNames || {}
     // Exact state first
-    let ds = meta?.[state]
+    const ds = meta?.[state]
     if (ds?.text || ds?.icon) return { text: ds.text, icon: ds.icon }
     // Fallback order (prefer pre-execution states for unknown states like pending)
     const fallbackOrder: ClientToolCallState[] = [
@@ -216,7 +221,12 @@ function abortAllInProgressTools(set: any, get: () => CopilotStore) {
                 toolCall: {
                   ...prev,
                   state: ClientToolCallState.aborted,
-                  display: resolveToolDisplay(prev?.name, ClientToolCallState.aborted, prev?.id, prev?.params),
+                  display: resolveToolDisplay(
+                    prev?.name,
+                    ClientToolCallState.aborted,
+                    prev?.id,
+                    prev?.params
+                  ),
                 },
               }
             }
@@ -247,7 +257,12 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
                   ...b,
                   toolCall: {
                     ...b.toolCall,
-                    display: resolveToolDisplay(b.toolCall?.name, b.toolCall?.state as any, b.toolCall?.id, b.toolCall?.params),
+                    display: resolveToolDisplay(
+                      b.toolCall?.name,
+                      b.toolCall?.state as any,
+                      b.toolCall?.id,
+                      b.toolCall?.params
+                    ),
                   },
                 }
               : b
@@ -267,9 +282,9 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
         ...(updatedToolCalls && { toolCalls: updatedToolCalls }),
         ...(blocks.length > 0
           ? { contentBlocks: blocks }
-          : (message.content && message.content.trim()
-              ? { contentBlocks: [{ type: 'text', content: message.content, timestamp: Date.now() }] }
-              : {})),
+          : message.content?.trim()
+            ? { contentBlocks: [{ type: 'text', content: message.content, timestamp: Date.now() }] }
+            : {}),
       }
     })
   } catch {
@@ -336,7 +351,10 @@ class StringBuilder {
 }
 
 // Helpers
-function createUserMessage(content: string, fileAttachments?: MessageFileAttachment[]): CopilotMessage {
+function createUserMessage(
+  content: string,
+  fileAttachments?: MessageFileAttachment[]
+): CopilotMessage {
   return {
     id: crypto.randomUUID(),
     role: 'user',
@@ -394,23 +412,27 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
         role: msg.role,
         content,
         timestamp: msg.timestamp,
-        ...(Array.isArray((msg as any).toolCalls) && (msg as any).toolCalls.length > 0 && {
-          toolCalls: (msg as any).toolCalls,
-        }),
-        ...(Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0 && {
-          // Persist contentBlocks but exclude thinking for storage
-          contentBlocks: (msg.contentBlocks as any[]).filter((b: any) => b?.type !== 'thinking'),
-        }),
-        ...(msg.fileAttachments && msg.fileAttachments.length > 0 && {
-          fileAttachments: msg.fileAttachments,
-        }),
+        ...(Array.isArray((msg as any).toolCalls) &&
+          (msg as any).toolCalls.length > 0 && {
+            toolCalls: (msg as any).toolCalls,
+          }),
+        ...(Array.isArray(msg.contentBlocks) &&
+          msg.contentBlocks.length > 0 && {
+            // Persist contentBlocks but exclude thinking for storage
+            contentBlocks: (msg.contentBlocks as any[]).filter((b: any) => b?.type !== 'thinking'),
+          }),
+        ...(msg.fileAttachments &&
+          msg.fileAttachments.length > 0 && {
+            fileAttachments: msg.fileAttachments,
+          }),
       }
     })
     .filter((m) => {
       if (m.role === 'assistant') {
         const hasText = typeof m.content === 'string' && m.content.trim().length > 0
         const hasTools = Array.isArray((m as any).toolCalls) && (m as any).toolCalls.length > 0
-        const hasBlocks = Array.isArray((m as any).contentBlocks) && (m as any).contentBlocks.length > 0
+        const hasBlocks =
+          Array.isArray((m as any).contentBlocks) && (m as any).contentBlocks.length > 0
         return hasText || hasTools || hasBlocks
       }
       return true
@@ -456,7 +478,11 @@ const sseHandlers: Record<string, SSEHandler> = {
       const { toolCallsById } = get()
       const current = toolCallsById[toolCallId]
       if (current) {
-        if (isRejectedState(current.state) || isReviewState(current.state) || isBackgroundState(current.state)) {
+        if (
+          isRejectedState(current.state) ||
+          isReviewState(current.state) ||
+          isBackgroundState(current.state)
+        ) {
           // Preserve terminal review/rejected state; do not override
           return
         }
@@ -469,7 +495,12 @@ const sseHandlers: Record<string, SSEHandler> = {
         updatedMap[toolCallId] = {
           ...current,
           state: targetState,
-          display: resolveToolDisplay(current.name, targetState, current.id, (current as any).params),
+          display: resolveToolDisplay(
+            current.name,
+            targetState,
+            current.id,
+            (current as any).params
+          ),
         }
         set({ toolCallsById: updatedMap })
 
@@ -490,7 +521,12 @@ const sseHandlers: Record<string, SSEHandler> = {
       for (let i = 0; i < context.contentBlocks.length; i++) {
         const b = context.contentBlocks[i] as any
         if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
-          if (isRejectedState(b.toolCall?.state) || isReviewState(b.toolCall?.state) || isBackgroundState(b.toolCall?.state)) break
+          if (
+            isRejectedState(b.toolCall?.state) ||
+            isReviewState(b.toolCall?.state) ||
+            isBackgroundState(b.toolCall?.state)
+          )
+            break
           const targetState = success
             ? ClientToolCallState.success
             : failedDependency || skipped
@@ -501,7 +537,12 @@ const sseHandlers: Record<string, SSEHandler> = {
             toolCall: {
               ...b.toolCall,
               state: targetState,
-              display: resolveToolDisplay(b.toolCall?.name, targetState, toolCallId, b.toolCall?.params),
+              display: resolveToolDisplay(
+                b.toolCall?.name,
+                targetState,
+                toolCallId,
+                b.toolCall?.params
+              ),
             },
           }
           break
@@ -518,29 +559,52 @@ const sseHandlers: Record<string, SSEHandler> = {
       const { toolCallsById } = get()
       const current = toolCallsById[toolCallId]
       if (current) {
-        if (isRejectedState(current.state) || isReviewState(current.state) || isBackgroundState(current.state)) {
+        if (
+          isRejectedState(current.state) ||
+          isReviewState(current.state) ||
+          isBackgroundState(current.state)
+        ) {
           return
         }
-        const targetState = failedDependency ? ClientToolCallState.rejected : ClientToolCallState.error
+        const targetState = failedDependency
+          ? ClientToolCallState.rejected
+          : ClientToolCallState.error
         const updatedMap = { ...toolCallsById }
         updatedMap[toolCallId] = {
           ...current,
           state: targetState,
-          display: resolveToolDisplay(current.name, targetState, current.id, (current as any).params),
+          display: resolveToolDisplay(
+            current.name,
+            targetState,
+            current.id,
+            (current as any).params
+          ),
         }
         set({ toolCallsById: updatedMap })
       }
       for (let i = 0; i < context.contentBlocks.length; i++) {
         const b = context.contentBlocks[i] as any
         if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
-          if (isRejectedState(b.toolCall?.state) || isReviewState(b.toolCall?.state) || isBackgroundState(b.toolCall?.state)) break
-          const targetState = failedDependency ? ClientToolCallState.rejected : ClientToolCallState.error
+          if (
+            isRejectedState(b.toolCall?.state) ||
+            isReviewState(b.toolCall?.state) ||
+            isBackgroundState(b.toolCall?.state)
+          )
+            break
+          const targetState = failedDependency
+            ? ClientToolCallState.rejected
+            : ClientToolCallState.error
           context.contentBlocks[i] = {
             ...b,
             toolCall: {
               ...b.toolCall,
               state: targetState,
-              display: resolveToolDisplay(b.toolCall?.name, targetState, toolCallId, b.toolCall?.params),
+              display: resolveToolDisplay(
+                b.toolCall?.name,
+                targetState,
+                toolCallId,
+                b.toolCall?.params
+              ),
             },
           }
           break
@@ -580,7 +644,8 @@ const sseHandlers: Record<string, SSEHandler> = {
           break
         }
       }
-      if (!found) context.contentBlocks.push({ type: 'tool_call', toolCall: tc, timestamp: Date.now() })
+      if (!found)
+        context.contentBlocks.push({ type: 'tool_call', toolCall: tc, timestamp: Date.now() })
       updateStreamingMessage(set, context)
     }
   },
@@ -633,7 +698,10 @@ const sseHandlers: Record<string, SSEHandler> = {
     try {
       const def = name ? getTool(name) : undefined
       if (def) {
-        const hasInterrupt = typeof def.hasInterrupt === 'function' ? !!def.hasInterrupt(args || {}) : !!def.hasInterrupt
+        const hasInterrupt =
+          typeof def.hasInterrupt === 'function'
+            ? !!def.hasInterrupt(args || {})
+            : !!def.hasInterrupt
         if (!hasInterrupt && typeof def.execute === 'function') {
           const ctx = createExecutionContext({ toolCallId: id, toolName: name || 'unknown_tool' })
           // Defer executing transition by a tick to let pending render
@@ -663,10 +731,17 @@ const sseHandlers: Record<string, SSEHandler> = {
             Promise.resolve()
               .then(async () => {
                 const result = await def.execute(ctx, args || {})
-                const success = result && typeof result.status === 'number' ? result.status >= 200 && result.status < 300 : true
+                const success =
+                  result && typeof result.status === 'number'
+                    ? result.status >= 200 && result.status < 300
+                    : true
                 const completeMap = { ...get().toolCallsById }
                 // Do not override terminal review/rejected
-                if (isRejectedState(completeMap[id]?.state) || isReviewState(completeMap[id]?.state) || isBackgroundState(completeMap[id]?.state)) {
+                if (
+                  isRejectedState(completeMap[id]?.state) ||
+                  isReviewState(completeMap[id]?.state) ||
+                  isBackgroundState(completeMap[id]?.state)
+                ) {
                   return
                 }
                 completeMap[id] = {
@@ -680,7 +755,10 @@ const sseHandlers: Record<string, SSEHandler> = {
                   ),
                 }
                 set({ toolCallsById: completeMap })
-                logger.info('[toolCallsById] executing → ' + (success ? 'success' : 'error') + ' (registry)', { id, name })
+                logger.info(
+                  `[toolCallsById] executing → ${success ? 'success' : 'error'} (registry)`,
+                  { id, name }
+                )
 
                 // Notify backend tool mark-complete endpoint
                 try {
@@ -690,7 +768,8 @@ const sseHandlers: Record<string, SSEHandler> = {
                     body: JSON.stringify({
                       id,
                       name: name || 'unknown_tool',
-                      status: typeof result?.status === 'number' ? result.status : success ? 200 : 500,
+                      status:
+                        typeof result?.status === 'number' ? result.status : success ? 200 : 500,
                       message: result?.message,
                       data: result?.data,
                     }),
@@ -700,7 +779,11 @@ const sseHandlers: Record<string, SSEHandler> = {
               .catch((e) => {
                 const errorMap = { ...get().toolCallsById }
                 // Do not override terminal review/rejected
-                if (isRejectedState(errorMap[id]?.state) || isReviewState(errorMap[id]?.state) || isBackgroundState(errorMap[id]?.state)) {
+                if (
+                  isRejectedState(errorMap[id]?.state) ||
+                  isReviewState(errorMap[id]?.state) ||
+                  isBackgroundState(errorMap[id]?.state)
+                ) {
                   return
                 }
                 errorMap[id] = {
@@ -742,7 +825,11 @@ const sseHandlers: Record<string, SSEHandler> = {
             .catch(() => {
               const errorMap = { ...get().toolCallsById }
               // Do not override terminal review/rejected
-              if (isRejectedState(errorMap[id]?.state) || isReviewState(errorMap[id]?.state) || isBackgroundState(errorMap[id]?.state)) {
+              if (
+                isRejectedState(errorMap[id]?.state) ||
+                isReviewState(errorMap[id]?.state) ||
+                isBackgroundState(errorMap[id]?.state)
+              ) {
                 return
               }
               errorMap[id] = {
@@ -755,7 +842,6 @@ const sseHandlers: Record<string, SSEHandler> = {
         }, 0)
       }
     } catch {}
-
   },
   reasoning: (data, context, _get, set) => {
     const phase = (data && (data.phase || data?.data?.phase)) as string | undefined
@@ -930,7 +1016,11 @@ const sseHandlers: Record<string, SSEHandler> = {
     set((state: CopilotStore) => ({
       messages: state.messages.map((msg) =>
         msg.id === context.messageId
-          ? { ...msg, content: context.accumulatedContent || 'An error occurred.', error: data.error }
+          ? {
+              ...msg,
+              content: context.accumulatedContent || 'An error occurred.',
+              error: data.error,
+            }
           : msg
       ),
     }))
@@ -1128,7 +1218,9 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Abort all in-progress tools and clear any diff preview
       abortAllInProgressTools(set, get)
-      try { useWorkflowDiffStore.getState().clearDiff() } catch {}
+      try {
+        useWorkflowDiffStore.getState().clearDiff()
+      } catch {}
 
       set({
         ...initialState,
@@ -1160,10 +1252,17 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Abort in-progress tools and clear diff when changing chats
       abortAllInProgressTools(set, get)
-      try { useWorkflowDiffStore.getState().clearDiff() } catch {}
+      try {
+        useWorkflowDiffStore.getState().clearDiff()
+      } catch {}
 
       // Optimistically set selected chat and normalize messages for UI
-      set({ currentChat: chat, messages: normalizeMessagesForUI(chat.messages || []), planTodos: [], showPlanTodos: false })
+      set({
+        currentChat: chat,
+        messages: normalizeMessagesForUI(chat.messages || []),
+        planTodos: [],
+        showPlanTodos: false,
+      })
 
       // Refresh selected chat from server to ensure we have latest messages/tool calls
       try {
@@ -1176,9 +1275,13 @@ export const useCopilotStore = create<CopilotStore>()(
             set({
               currentChat: latestChat,
               messages: normalizeMessagesForUI(latestChat.messages || []),
-              chats: (get().chats || []).map((c: CopilotChat) => (c.id === chat.id ? latestChat : c)),
+              chats: (get().chats || []).map((c: CopilotChat) =>
+                c.id === chat.id ? latestChat : c
+              ),
             })
-            try { await get().loadMessageCheckpoints(latestChat.id) } catch {}
+            try {
+              await get().loadMessageCheckpoints(latestChat.id)
+            } catch {}
           }
         }
       } catch {}
@@ -1190,7 +1293,9 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Abort in-progress tools and clear diff on new chat
       abortAllInProgressTools(set, get)
-      try { useWorkflowDiffStore.getState().clearDiff() } catch {}
+      try {
+        useWorkflowDiffStore.getState().clearDiff()
+      } catch {}
 
       set({
         currentChat: null,
@@ -1237,17 +1342,29 @@ export const useCopilotStore = create<CopilotStore>()(
               currentChat && data.chats.some((c: CopilotChat) => c.id === currentChat.id)
 
             if (currentChatStillExists) {
-              const updatedCurrentChat = data.chats.find((c: CopilotChat) => c.id === currentChat!.id)!
+              const updatedCurrentChat = data.chats.find(
+                (c: CopilotChat) => c.id === currentChat!.id
+              )!
               if (isSendingMessage) {
                 set({ currentChat: { ...updatedCurrentChat, messages: get().messages } })
               } else {
-                set({ currentChat: updatedCurrentChat, messages: normalizeMessagesForUI(updatedCurrentChat.messages || []) })
+                set({
+                  currentChat: updatedCurrentChat,
+                  messages: normalizeMessagesForUI(updatedCurrentChat.messages || []),
+                })
               }
-              try { await get().loadMessageCheckpoints(updatedCurrentChat.id) } catch {}
+              try {
+                await get().loadMessageCheckpoints(updatedCurrentChat.id)
+              } catch {}
             } else if (!isSendingMessage) {
               const mostRecentChat: CopilotChat = data.chats[0]
-              set({ currentChat: mostRecentChat, messages: normalizeMessagesForUI(mostRecentChat.messages || []) })
-              try { await get().loadMessageCheckpoints(mostRecentChat.id) } catch {}
+              set({
+                currentChat: mostRecentChat,
+                messages: normalizeMessagesForUI(mostRecentChat.messages || []),
+              })
+              try {
+                await get().loadMessageCheckpoints(mostRecentChat.id)
+              } catch {}
             }
           } else {
             set({ currentChat: null, messages: [] })
@@ -1267,7 +1384,10 @@ export const useCopilotStore = create<CopilotStore>()(
     // Send a message (streaming only)
     sendMessage: async (message: string, options = {}) => {
       const { workflowId, currentChat, mode, revertState } = get()
-      const { stream = true, fileAttachments } = options as { stream?: boolean; fileAttachments?: MessageFileAttachment[] }
+      const { stream = true, fileAttachments } = options as {
+        stream?: boolean
+        fileAttachments?: MessageFileAttachment[]
+      }
       if (!workflowId) return
 
       const abortController = new AbortController()
@@ -1291,7 +1411,9 @@ export const useCopilotStore = create<CopilotStore>()(
       if (isFirstMessage) {
         const optimisticTitle = message.length > 50 ? `${message.substring(0, 47)}...` : message
         set((state) => ({
-          currentChat: state.currentChat ? { ...state.currentChat, title: optimisticTitle } : state.currentChat,
+          currentChat: state.currentChat
+            ? { ...state.currentChat, title: optimisticTitle }
+            : state.currentChat,
         }))
       }
 
@@ -1353,7 +1475,10 @@ export const useCopilotStore = create<CopilotStore>()(
         const lastMessage = messages[messages.length - 1]
         if (lastMessage && lastMessage.role === 'assistant') {
           const textContent =
-            lastMessage.contentBlocks?.filter((b) => b.type === 'text').map((b: any) => b.content).join('') || ''
+            lastMessage.contentBlocks
+              ?.filter((b) => b.type === 'text')
+              .map((b: any) => b.content)
+              .join('') || ''
           set((state) => ({
             messages: state.messages.map((msg) =>
               msg.id === lastMessage.id
@@ -1414,9 +1539,14 @@ export const useCopilotStore = create<CopilotStore>()(
           await get().handleStreamingResponse(result.stream, newAssistantMessage.id, false)
         } else {
           if (result.error === 'Request was aborted') return
-          const errorMessage = createErrorMessage(newAssistantMessage.id, result.error || 'Failed to send implicit feedback')
+          const errorMessage = createErrorMessage(
+            newAssistantMessage.id,
+            result.error || 'Failed to send implicit feedback'
+          )
           set((state) => ({
-            messages: state.messages.map((msg) => (msg.id === newAssistantMessage.id ? errorMessage : msg)),
+            messages: state.messages.map((msg) =>
+              msg.id === newAssistantMessage.id ? errorMessage : msg
+            ),
             error: result.error || 'Failed to send implicit feedback',
             isSendingMessage: false,
             abortController: null,
@@ -1429,7 +1559,9 @@ export const useCopilotStore = create<CopilotStore>()(
           'Sorry, I encountered an error while processing your feedback. Please try again.'
         )
         set((state) => ({
-          messages: state.messages.map((msg) => (msg.id === newAssistantMessage.id ? errorMessage : msg)),
+          messages: state.messages.map((msg) =>
+            msg.id === newAssistantMessage.id ? errorMessage : msg
+          ),
           error: error instanceof Error ? error.message : 'Failed to send implicit feedback',
           isSendingMessage: false,
           abortController: null,
@@ -1446,7 +1578,10 @@ export const useCopilotStore = create<CopilotStore>()(
         const current = map[id]
         if (!current) return
         // Preserve rejected state from being overridden
-        if (isRejectedState(current.state) && (newState === 'success' || newState === (ClientToolCallState as any).success)) {
+        if (
+          isRejectedState(current.state) &&
+          (newState === 'success' || newState === (ClientToolCallState as any).success)
+        ) {
           return
         }
         let norm: ClientToolCallState = current.state
@@ -1454,9 +1589,10 @@ export const useCopilotStore = create<CopilotStore>()(
         else if (newState === 'errored' || newState === 'error') norm = ClientToolCallState.error
         else if (newState === 'rejected') norm = ClientToolCallState.rejected
         else if (newState === 'pending') norm = ClientToolCallState.pending
-        else if (newState === 'success' || newState === 'accepted') norm = ClientToolCallState.success
+        else if (newState === 'success' || newState === 'accepted')
+          norm = ClientToolCallState.success
         else if (newState === 'aborted') norm = ClientToolCallState.aborted
-        else if (typeof newState === 'number') norm = (newState as unknown) as ClientToolCallState
+        else if (typeof newState === 'number') norm = newState as unknown as ClientToolCallState
         map[id] = {
           ...current,
           state: norm,
@@ -1465,7 +1601,10 @@ export const useCopilotStore = create<CopilotStore>()(
         set({ toolCallsById: map })
       } catch {}
     },
-    updatePreviewToolCallState: (toolCallState: 'accepted' | 'rejected' | 'error', toolCallId?: string) => {
+    updatePreviewToolCallState: (
+      toolCallState: 'accepted' | 'rejected' | 'error',
+      toolCallId?: string
+    ) => {
       const stateMap: Record<string, ClientToolCallState> = {
         accepted: ClientToolCallState.success,
         rejected: ClientToolCallState.rejected,
@@ -1554,11 +1693,12 @@ export const useCopilotStore = create<CopilotStore>()(
           body: JSON.stringify({
             id,
             name: current.name,
-            status: targetState === ClientToolCallState.success
-              ? 200
-              : targetState === ClientToolCallState.rejected
-              ? 409
-              : 500,
+            status:
+              targetState === ClientToolCallState.success
+                ? 200
+                : targetState === ClientToolCallState.rejected
+                  ? 409
+                  : 500,
             message: toolCallState,
           }),
         }).catch(() => {})
@@ -1635,9 +1775,11 @@ export const useCopilotStore = create<CopilotStore>()(
           const values: Record<string, Record<string, any>> = {}
           Object.entries(reverted.blocks || {}).forEach(([blockId, block]: [string, any]) => {
             values[blockId] = {}
-            Object.entries((block as any).subBlocks || {}).forEach(([subId, sub]: [string, any]) => {
-              values[blockId][subId] = (sub as any)?.value
-            })
+            Object.entries((block as any).subBlocks || {}).forEach(
+              ([subId, sub]: [string, any]) => {
+                values[blockId][subId] = (sub as any)?.value
+              }
+            )
           })
           const subState = useSubBlockStore.getState()
           useSubBlockStore.setState({
@@ -1670,7 +1812,11 @@ export const useCopilotStore = create<CopilotStore>()(
     },
 
     // Handle streaming response
-    handleStreamingResponse: async (stream: ReadableStream, messageId: string, isContinuation = false) => {
+    handleStreamingResponse: async (
+      stream: ReadableStream,
+      messageId: string,
+      isContinuation = false
+    ) => {
       const reader = stream.getReader()
       const decoder = new TextDecoder()
 
@@ -1690,7 +1836,9 @@ export const useCopilotStore = create<CopilotStore>()(
         const existingMessage = messages.find((m) => m.id === messageId)
         if (existingMessage) {
           if (existingMessage.content) context.accumulatedContent.append(existingMessage.content)
-          context.contentBlocks = existingMessage.contentBlocks ? [...existingMessage.contentBlocks] : []
+          context.contentBlocks = existingMessage.contentBlocks
+            ? [...existingMessage.contentBlocks]
+            : []
         }
       }
 
@@ -1775,7 +1923,9 @@ export const useCopilotStore = create<CopilotStore>()(
       }
       // Abort any in-progress tools and clear diff on new chat creation
       abortAllInProgressTools(set, get)
-      try { useWorkflowDiffStore.getState().clearDiff() } catch {}
+      try {
+        useWorkflowDiffStore.getState().clearDiff()
+      } catch {}
 
       set({
         currentChat: newChat,
@@ -1802,7 +1952,9 @@ export const useCopilotStore = create<CopilotStore>()(
       }
       streamingUpdateQueue.clear()
       // Clear any diff on cleanup
-      try { useWorkflowDiffStore.getState().clearDiff() } catch {}
+      try {
+        useWorkflowDiffStore.getState().clearDiff()
+      } catch {}
     },
 
     reset: () => {
@@ -1821,7 +1973,9 @@ export const useCopilotStore = create<CopilotStore>()(
     updatePlanTodoStatus: (id, status) => {
       set((state) => {
         const updated = state.planTodos.map((t) =>
-          t.id === id ? { ...t, completed: status === 'completed', executing: status === 'executing' } : t
+          t.id === id
+            ? { ...t, completed: status === 'completed', executing: status === 'executing' }
+            : t
         )
         return { planTodos: updated }
       })
@@ -1846,13 +2000,14 @@ try {
     let mapped: ClientToolCallState = current.state
     if (nextState === 'executing') mapped = ClientToolCallState.executing
     else if (nextState === 'pending') mapped = ClientToolCallState.pending
-    else if (nextState === 'success' || nextState === 'accepted') mapped = ClientToolCallState.success
+    else if (nextState === 'success' || nextState === 'accepted')
+      mapped = ClientToolCallState.success
     else if (nextState === 'error' || nextState === 'errored') mapped = ClientToolCallState.error
     else if (nextState === 'rejected') mapped = ClientToolCallState.rejected
     else if (nextState === 'aborted') mapped = ClientToolCallState.aborted
     else if (nextState === 'review') mapped = (ClientToolCallState as any).review
     else if (nextState === 'background') mapped = (ClientToolCallState as any).background
-    else if (typeof nextState === 'number') mapped = (nextState as unknown) as ClientToolCallState
+    else if (typeof nextState === 'number') mapped = nextState as unknown as ClientToolCallState
 
     // Store-authoritative gating: ignore invalid/downgrade transitions
     const isTerminal = (s: ClientToolCallState) =>
@@ -1870,7 +2025,8 @@ try {
     // Prevent downgrades (executing → pending, pending → generating)
     if (
       (current.state === ClientToolCallState.executing && mapped === ClientToolCallState.pending) ||
-      (current.state === ClientToolCallState.pending && mapped === (ClientToolCallState as any).generating)
+      (current.state === ClientToolCallState.pending &&
+        mapped === (ClientToolCallState as any).generating)
     ) {
       return
     }

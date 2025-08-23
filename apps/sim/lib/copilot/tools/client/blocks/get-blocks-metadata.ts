@@ -1,7 +1,15 @@
-import { Loader2, Info, X } from 'lucide-react'
-import { BaseClientTool, ClientToolCallState, type BaseClientToolMetadata } from '@/lib/copilot/tools/client/base-tool'
+import { Info, Loader2, X } from 'lucide-react'
+import {
+  BaseClientTool,
+  type BaseClientToolMetadata,
+  ClientToolCallState,
+} from '@/lib/copilot/tools/client/base-tool'
+import {
+  ExecuteResponseSuccessSchema,
+  GetBlocksMetadataInput,
+  GetBlocksMetadataResult,
+} from '@/lib/copilot/tools/shared/schemas'
 import { createLogger } from '@/lib/logs/console/logger'
-import { ExecuteResponseSuccessSchema, GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot/tools/shared/schemas'
 
 interface GetBlocksMetadataArgs {
   blockIds: string[]
@@ -52,4 +60,4 @@ export class GetBlocksMetadataClientTool extends BaseClientTool {
       this.setState(ClientToolCallState.error)
     }
   }
-} 
+}

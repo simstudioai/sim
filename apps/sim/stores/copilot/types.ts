@@ -1,4 +1,4 @@
-import { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot/tools/client/base-tool'
+import type { ClientToolCallState, ClientToolDisplay } from '@/lib/copilot/tools/client/base-tool'
 
 export type ToolState = ClientToolCallState
 
@@ -27,7 +27,13 @@ export interface CopilotMessage {
   toolCalls?: CopilotToolCall[]
   contentBlocks?: Array<
     | { type: 'text'; content: string; timestamp: number }
-    | { type: 'thinking'; content: string; timestamp: number; duration?: number; startTime?: number }
+    | {
+        type: 'thinking'
+        content: string
+        timestamp: number
+        duration?: number
+        startTime?: number
+      }
     | { type: 'tool_call'; toolCall: CopilotToolCall; timestamp: number }
   >
   fileAttachments?: MessageFileAttachment[]
@@ -99,10 +105,19 @@ export interface CopilotActions {
   createNewChat: () => Promise<void>
   deleteChat: (chatId: string) => Promise<void>
 
-  sendMessage: (message: string, options?: { stream?: boolean; fileAttachments?: MessageFileAttachment[] }) => Promise<void>
+  sendMessage: (
+    message: string,
+    options?: { stream?: boolean; fileAttachments?: MessageFileAttachment[] }
+  ) => Promise<void>
   abortMessage: () => void
-  sendImplicitFeedback: (implicitFeedback: string, toolCallState?: 'accepted' | 'rejected' | 'error') => Promise<void>
-  updatePreviewToolCallState: (toolCallState: 'accepted' | 'rejected' | 'error', toolCallId?: string) => void
+  sendImplicitFeedback: (
+    implicitFeedback: string,
+    toolCallState?: 'accepted' | 'rejected' | 'error'
+  ) => Promise<void>
+  updatePreviewToolCallState: (
+    toolCallState: 'accepted' | 'rejected' | 'error',
+    toolCallId?: string
+  ) => void
   setToolCallState: (toolCall: any, newState: ClientToolCallState, options?: any) => void
   sendDocsMessage: (query: string, options?: { stream?: boolean; topK?: number }) => Promise<void>
   saveChatMessages: (chatId: string) => Promise<void>
@@ -126,11 +141,17 @@ export interface CopilotActions {
   setInputValue: (value: string) => void
   clearRevertState: () => void
 
-  setPlanTodos: (todos: Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>) => void
+  setPlanTodos: (
+    todos: Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>
+  ) => void
   updatePlanTodoStatus: (id: string, status: 'executing' | 'completed') => void
   closePlanTodos: () => void
 
-  handleStreamingResponse: (stream: ReadableStream, messageId: string, isContinuation?: boolean) => Promise<void>
+  handleStreamingResponse: (
+    stream: ReadableStream,
+    messageId: string,
+    isContinuation?: boolean
+  ) => Promise<void>
   handleNewChatCreation: (newChatId: string) => Promise<void>
   updateDiffStore: (yamlContent: string, toolName?: string) => Promise<void>
   updateDiffStoreWithWorkflowState: (workflowState: any, toolName?: string) => Promise<void>

@@ -1,5 +1,9 @@
-import { Loader2, FolderOpen, MinusCircle, CheckCircle, XCircle } from 'lucide-react'
-import { BaseClientTool, ClientToolCallState, type BaseClientToolMetadata } from '@/lib/copilot/tools/client/base-tool'
+import { CheckCircle, FolderOpen, Loader2, MinusCircle, XCircle } from 'lucide-react'
+import {
+  BaseClientTool,
+  type BaseClientToolMetadata,
+  ClientToolCallState,
+} from '@/lib/copilot/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
 
 interface GDriveAcceptContext {
@@ -97,4 +101,4 @@ export class GDriveRequestAccessClientTool extends BaseClientTool {
   async execute(args?: any): Promise<void> {
     await this.handleAccept(args)
   }
-} 
+}

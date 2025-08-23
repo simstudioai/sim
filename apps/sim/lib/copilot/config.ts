@@ -340,4 +340,4 @@ export function validateCopilotConfig(config: CopilotConfig): ValidationResult {
     isValid: errors.length === 0,
     errors,
   }
-} 
+}

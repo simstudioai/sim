@@ -87,4 +87,4 @@ export async function authenticateCopilotRequestSessionOnly(): Promise<CopilotAu
     userId,
     isAuthenticated: userId !== null,
   }
-} 
+}

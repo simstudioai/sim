@@ -6,13 +6,12 @@ import useDrivePicker from 'react-google-drive-picker'
 import { GoogleDriveIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { getEnv } from '@/lib/env'
-import { useCopilotStore } from '@/stores/copilot/store'
-import type { CopilotToolCall } from '@/stores/copilot/types'
+import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
-import { CLASS_TOOL_METADATA } from '@/stores/copilot/store'
-import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
+import { getEnv } from '@/lib/env'
+import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/copilot/store'
+import type { CopilotToolCall } from '@/stores/copilot/types'
 
 interface InlineToolCallProps {
   toolCall?: CopilotToolCall
@@ -28,7 +27,10 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
     try {
       const def = getRegisteredTools()[toolCall.name]
       if (def) {
-        hasInterrupt = typeof def.hasInterrupt === 'function' ? !!def.hasInterrupt(toolCall.params || {}) : !!def.hasInterrupt
+        hasInterrupt =
+          typeof def.hasInterrupt === 'function'
+            ? !!def.hasInterrupt(toolCall.params || {})
+            : !!def.hasInterrupt
       }
     } catch {}
   }
@@ -39,7 +41,8 @@ async function handleRun(toolCall: CopilotToolCall, setToolCallState: any, onSta
   const instance = getClientTool(toolCall.id)
   if (!instance) return
   try {
-    const mergedParams = (toolCall as any).params || (toolCall as any).parameters || (toolCall as any).input || {}
+    const mergedParams =
+      (toolCall as any).params || (toolCall as any).parameters || (toolCall as any).input || {}
     await instance.handleAccept?.(mergedParams)
     onStateChange?.('executing')
   } catch (e) {
@@ -70,7 +73,13 @@ function getDisplayName(toolCall: CopilotToolCall): string {
   return toolCall.name
 }
 
-function RunSkipButtons({ toolCall, onStateChange }: { toolCall: CopilotToolCall; onStateChange?: (state: any) => void }) {
+function RunSkipButtons({
+  toolCall,
+  onStateChange,
+}: {
+  toolCall: CopilotToolCall
+  onStateChange?: (state: any) => void
+}) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [buttonsHidden, setButtonsHidden] = useState(false)
   const { setToolCallState } = useCopilotStore()
@@ -196,7 +205,12 @@ function RunSkipButtons({ toolCall, onStateChange }: { toolCall: CopilotToolCall
 
   return (
     <div className='flex items-center gap-1.5'>
-      <Button onClick={onRun} disabled={isProcessing} size='sm' className='h-6 bg-gray-900 px-2 font-medium text-white text-xs hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200'>
+      <Button
+        onClick={onRun}
+        disabled={isProcessing}
+        size='sm'
+        className='h-6 bg-gray-900 px-2 font-medium text-white text-xs hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200'
+      >
         {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
         {acceptLabel}
       </Button>
@@ -215,9 +229,16 @@ function RunSkipButtons({ toolCall, onStateChange }: { toolCall: CopilotToolCall
   )
 }
 
-export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChange, context }: InlineToolCallProps) {
+export function InlineToolCall({
+  toolCall: toolCallProp,
+  toolCallId,
+  onStateChange,
+  context,
+}: InlineToolCallProps) {
   const [, forceUpdate] = useState({})
-  const liveToolCall = useCopilotStore((s) => (toolCallId ? s.toolCallsById[toolCallId] : undefined))
+  const liveToolCall = useCopilotStore((s) =>
+    toolCallId ? s.toolCallsById[toolCallId] : undefined
+  )
   const toolCall = liveToolCall || toolCallProp
 
   // Guard: nothing to render without a toolCall
@@ -242,8 +263,9 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
 
   const showButtons = shouldShowRunSkipButtons(toolCall)
   const showMoveToBackground =
-    (toolCall.name === 'run_workflow') &&
-    (toolCall.state === (ClientToolCallState.executing as any) || toolCall.state === ('executing' as any))
+    toolCall.name === 'run_workflow' &&
+    (toolCall.state === (ClientToolCallState.executing as any) ||
+      toolCall.state === ('executing' as any))
 
   const handleStateChange = (state: any) => {
     forceUpdate({})
@@ -279,7 +301,8 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
     }
 
     if (toolCall.name === 'set_environment_variables') {
-      const variables = params.variables && typeof params.variables === 'object' ? params.variables : {}
+      const variables =
+        params.variables && typeof params.variables === 'object' ? params.variables : {}
       const entries = Object.entries(variables)
       return (
         <div className='mt-0.5'>
@@ -333,7 +356,8 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
 
   return (
     <div className='flex w-full flex-col gap-1 py-1'>
-      <div className={`flex items-center justify-between gap-2 ${isExpandableTool ? 'cursor-pointer' : ''}`}
+      <div
+        className={`flex items-center justify-between gap-2 ${isExpandableTool ? 'cursor-pointer' : ''}`}
         onClick={() => {
           if (isExpandableTool) setExpanded((e) => !e)
         }}
@@ -344,34 +368,32 @@ export function InlineToolCall({ toolCall: toolCallProp, toolCallId, onStateChan
         </div>
         {showButtons ? (
           <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} />
-        ) : (
-          showMoveToBackground ? (
-            <Button
-              // Intentionally minimal wiring per requirements
-              onClick={async () => {
-                try {
-                  const instance = getClientTool(toolCall.id)
-                  // Transition to background state locally so UI updates immediately
-                  instance?.setState?.((ClientToolCallState as any).background)
-                  await instance?.markToolComplete?.(
-                    200,
-                    'The user has chosen to move the workflow execution to the background. Check back with them later to know when the workflow execution is complete'
-                  )
-                  // Optionally force a re-render; store should sync state from server
-                  forceUpdate({})
-                  onStateChange?.('background')
-                } catch {}
-              }}
-              size='sm'
-              className='h-6 bg-blue-600 px-2 font-medium text-white text-xs hover:bg-blue-500 disabled:opacity-50 dark:bg-blue-400 dark:text-gray-900 dark:hover:bg-blue-300'
-              title='Move to Background'
-            >
-              Move to Background
-            </Button>
-          ) : null
-        )}
+        ) : showMoveToBackground ? (
+          <Button
+            // Intentionally minimal wiring per requirements
+            onClick={async () => {
+              try {
+                const instance = getClientTool(toolCall.id)
+                // Transition to background state locally so UI updates immediately
+                instance?.setState?.((ClientToolCallState as any).background)
+                await instance?.markToolComplete?.(
+                  200,
+                  'The user has chosen to move the workflow execution to the background. Check back with them later to know when the workflow execution is complete'
+                )
+                // Optionally force a re-render; store should sync state from server
+                forceUpdate({})
+                onStateChange?.('background')
+              } catch {}
+            }}
+            size='sm'
+            className='h-6 bg-blue-600 px-2 font-medium text-white text-xs hover:bg-blue-500 disabled:opacity-50 dark:bg-blue-400 dark:text-gray-900 dark:hover:bg-blue-300'
+            title='Move to Background'
+          >
+            Move to Background
+          </Button>
+        ) : null}
       </div>
       {isExpandableTool && expanded && <div className='pr-1 pl-5'>{renderPendingDetails()}</div>}
     </div>
   )
-} 
+}

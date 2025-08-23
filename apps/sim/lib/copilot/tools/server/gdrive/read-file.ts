@@ -1,8 +1,7 @@
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getOAuthToken } from '@/app/api/auth/oauth/utils'
+import { getOAuthToken, getUserId } from '@/app/api/auth/oauth/utils'
 import { executeTool } from '@/tools'
-import { getUserId } from '@/app/api/auth/oauth/utils'
 
 interface ReadGDriveFileParams {
   userId?: string
@@ -67,7 +66,8 @@ export const readGDriveFileServerTool: BaseServerTool<ReadGDriveFileParams, any>
     }
 
     // Normalize fileId from multiple possible fields
-    let fileId = params?.fileId || params?.file_id || params?.id || params?.spreadsheetId || params?.documentId
+    let fileId =
+      params?.fileId || params?.file_id || params?.id || params?.spreadsheetId || params?.documentId
 
     // If a URL/link is passed, extract id and possibly type
     if (!fileId && (params?.url || params?.link || params?.webViewLink)) {
@@ -101,7 +101,9 @@ export const readGDriveFileServerTool: BaseServerTool<ReadGDriveFileParams, any>
     if (type === 'doc') {
       const accessToken = await getOAuthToken(userId, 'google-drive')
       if (!accessToken)
-        throw new Error('No Google Drive connection found for this user. Please connect Google Drive in settings.')
+        throw new Error(
+          'No Google Drive connection found for this user. Please connect Google Drive in settings.'
+        )
       const result = await executeTool('google_drive_get_content', { accessToken, fileId }, true)
       if (!result.success) throw new Error(result.error || 'Failed to read Google Drive document')
       const output = (result as any).output || result
@@ -113,7 +115,9 @@ export const readGDriveFileServerTool: BaseServerTool<ReadGDriveFileParams, any>
     if (type === 'sheet') {
       const accessToken = await getOAuthToken(userId, 'google-sheets')
       if (!accessToken)
-        throw new Error('No Google Sheets connection found for this user. Please connect Google Sheets in settings.')
+        throw new Error(
+          'No Google Sheets connection found for this user. Please connect Google Sheets in settings.'
+        )
       const result = await executeTool(
         'google_sheets_read',
         { accessToken, spreadsheetId: fileId, ...(params?.range ? { range: params.range } : {}) },
@@ -129,4 +133,4 @@ export const readGDriveFileServerTool: BaseServerTool<ReadGDriveFileParams, any>
 
     throw new Error(`Unsupported type: ${type}`)
   },
-} 
+}

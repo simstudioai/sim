@@ -134,4 +134,4 @@ export interface Tool {
     options?: ToolExecutionOptions
   ): Promise<void>
   requiresConfirmation(toolCall: CopilotToolCall): boolean
-} 
+}

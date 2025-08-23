@@ -1,5 +1,9 @@
-import { Loader2, Check, XCircle } from 'lucide-react'
-import { BaseClientTool, ClientToolCallState, type BaseClientToolMetadata } from '@/lib/copilot/tools/client/base-tool'
+import { Check, Loader2, XCircle } from 'lucide-react'
+import {
+  BaseClientTool,
+  type BaseClientToolMetadata,
+  ClientToolCallState,
+} from '@/lib/copilot/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
 
 interface CheckoffTodoArgs {
@@ -54,4 +58,4 @@ export class CheckoffTodoClientTool extends BaseClientTool {
       await this.markToolComplete(500, e?.message || 'Failed to check off todo')
     }
   }
-} 
+}

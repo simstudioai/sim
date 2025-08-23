@@ -1,5 +1,9 @@
-import { Loader2, ListTodo, XCircle } from 'lucide-react'
-import { BaseClientTool, ClientToolCallState, type BaseClientToolMetadata } from '@/lib/copilot/tools/client/base-tool'
+import { ListTodo, Loader2, XCircle } from 'lucide-react'
+import {
+  BaseClientTool,
+  type BaseClientToolMetadata,
+  ClientToolCallState,
+} from '@/lib/copilot/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
 
 interface PlanArgs {
@@ -60,4 +64,4 @@ export class PlanClientTool extends BaseClientTool {
       await this.markToolComplete(500, e?.message || 'Failed to plan')
     }
   }
-} 
+}

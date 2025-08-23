@@ -181,8 +181,14 @@ export const ToolSSESchemas = {
     'set_environment_variables',
     ToolArgSchemas.set_environment_variables
   ),
-  get_oauth_credentials: toolCallSSEFor('get_oauth_credentials', ToolArgSchemas.get_oauth_credentials),
-  gdrive_request_access: toolCallSSEFor('gdrive_request_access', ToolArgSchemas.gdrive_request_access),
+  get_oauth_credentials: toolCallSSEFor(
+    'get_oauth_credentials',
+    ToolArgSchemas.get_oauth_credentials
+  ),
+  gdrive_request_access: toolCallSSEFor(
+    'gdrive_request_access',
+    ToolArgSchemas.gdrive_request_access
+  ),
   list_gdrive_files: toolCallSSEFor('list_gdrive_files', ToolArgSchemas.list_gdrive_files),
   read_gdrive_file: toolCallSSEFor('read_gdrive_file', ToolArgSchemas.read_gdrive_file),
   reason: toolCallSSEFor('reason', ToolArgSchemas.reason),
@@ -237,7 +243,11 @@ export const ToolResultSchemas = {
   }),
   get_edit_workflow_examples: z.object({
     examples: z.array(
-      z.object({ id: z.string(), title: z.string().optional(), operations: z.array(z.any()).optional() })
+      z.object({
+        id: z.string(),
+        title: z.string().optional(),
+        operations: z.array(z.any()).optional(),
+      })
     ),
   }),
   search_documentation: z.object({ results: z.array(z.any()) }),
@@ -249,18 +259,26 @@ export const ToolResultSchemas = {
     body: z.any().optional(),
   }),
   get_environment_variables: z.object({ variables: z.record(z.string()) }),
-  set_environment_variables: z.object({ variables: z.record(z.string()) }).or(
-    z.object({ message: z.any().optional(), data: z.any().optional() })
-  ),
+  set_environment_variables: z
+    .object({ variables: z.record(z.string()) })
+    .or(z.object({ message: z.any().optional(), data: z.any().optional() })),
   get_oauth_credentials: z.object({
     credentials: z.array(
       z.object({ id: z.string(), provider: z.string(), isDefault: z.boolean().optional() })
     ),
   }),
-  gdrive_request_access: z.object({ granted: z.boolean().optional(), message: z.string().optional() }),
+  gdrive_request_access: z.object({
+    granted: z.boolean().optional(),
+    message: z.string().optional(),
+  }),
   list_gdrive_files: z.object({
     files: z.array(
-      z.object({ id: z.string(), name: z.string().optional(), mimeType: z.string().optional(), size: z.number().optional() })
+      z.object({
+        id: z.string(),
+        name: z.string().optional(),
+        mimeType: z.string().optional(),
+        size: z.number().optional(),
+      })
     ),
   }),
   read_gdrive_file: z.object({ content: z.string().optional(), data: z.any().optional() }),
@@ -270,17 +288,23 @@ export type ToolResultSchemaMap = typeof ToolResultSchemas
 
 // Consolidated registry entry per tool
 export const ToolRegistry = Object.freeze(
-  (Object.keys(ToolArgSchemas) as ToolId[]).reduce((acc, toolId) => {
-    const args = (ToolArgSchemas as any)[toolId] as z.ZodTypeAny
-    const sse = (ToolSSESchemas as any)[toolId] as z.ZodTypeAny
-    const result = (ToolResultSchemas as any)[toolId] as z.ZodTypeAny
-    acc[toolId] = { id: toolId, args, sse, result }
-    return acc
-  }, {} as Record<ToolId, { id: ToolId; args: z.ZodTypeAny; sse: z.ZodTypeAny; result: z.ZodTypeAny }>)
+  (Object.keys(ToolArgSchemas) as ToolId[]).reduce(
+    (acc, toolId) => {
+      const args = (ToolArgSchemas as any)[toolId] as z.ZodTypeAny
+      const sse = (ToolSSESchemas as any)[toolId] as z.ZodTypeAny
+      const result = (ToolResultSchemas as any)[toolId] as z.ZodTypeAny
+      acc[toolId] = { id: toolId, args, sse, result }
+      return acc
+    },
+    {} as Record<
+      ToolId,
+      { id: ToolId; args: z.ZodTypeAny; sse: z.ZodTypeAny; result: z.ZodTypeAny }
+    >
+  )
 )
 export type ToolRegistryMap = typeof ToolRegistry
 
 // Convenience helper types inferred from schemas
 export type InferArgs<T extends ToolId> = z.infer<(typeof ToolArgSchemas)[T]>
 export type InferResult<T extends ToolId> = z.infer<(typeof ToolResultSchemas)[T]>
-export type InferToolCallSSE<T extends ToolId> = z.infer<(typeof ToolSSESchemas)[T]> 
+export type InferToolCallSSE<T extends ToolId> = z.infer<(typeof ToolSSESchemas)[T]>

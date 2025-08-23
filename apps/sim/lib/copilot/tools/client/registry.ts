@@ -1,5 +1,5 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type { ClientToolDefinition, ToolExecutionContext } from '@/lib/copilot/tools/client/types'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('ClientToolRegistry')
 
@@ -31,4 +31,4 @@ export function createExecutionContext(params: {
 
 export function getRegisteredTools(): Record<string, ClientToolDefinition<any>> {
   return { ...tools }
-} 
+}

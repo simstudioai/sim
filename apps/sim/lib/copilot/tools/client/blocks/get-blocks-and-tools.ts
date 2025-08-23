@@ -1,7 +1,14 @@
-import { Loader2, Blocks } from 'lucide-react'
-import { BaseClientTool, ClientToolCallState, type BaseClientToolMetadata } from '@/lib/copilot/tools/client/base-tool'
+import { Blocks, Loader2 } from 'lucide-react'
+import {
+  BaseClientTool,
+  type BaseClientToolMetadata,
+  ClientToolCallState,
+} from '@/lib/copilot/tools/client/base-tool'
+import {
+  ExecuteResponseSuccessSchema,
+  GetBlocksAndToolsResult,
+} from '@/lib/copilot/tools/shared/schemas'
 import { createLogger } from '@/lib/logs/console/logger'
-import { ExecuteResponseSuccessSchema, GetBlocksAndToolsResult } from '@/lib/copilot/tools/shared/schemas'
 
 export class GetBlocksAndToolsClientTool extends BaseClientTool {
   static readonly id = 'get_blocks_and_tools'
@@ -39,11 +46,7 @@ export class GetBlocksAndToolsClientTool extends BaseClientTool {
       const parsed = ExecuteResponseSuccessSchema.parse(json)
       const result = GetBlocksAndToolsResult.parse(parsed.result)
 
-      await this.markToolComplete(
-        200,
-        'Successfully retrieved blocks and tools',
-        result
-      )
+      await this.markToolComplete(200, 'Successfully retrieved blocks and tools', result)
       this.setState(ClientToolCallState.success)
     } catch (error: any) {
       const message = error instanceof Error ? error.message : String(error)
@@ -51,4 +54,4 @@ export class GetBlocksAndToolsClientTool extends BaseClientTool {
       this.setState(ClientToolCallState.error)
     }
   }
-} 
+}
