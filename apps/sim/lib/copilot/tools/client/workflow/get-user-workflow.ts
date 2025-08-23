@@ -1,7 +1,6 @@
 import { Loader2, Workflow as WorkflowIcon, XCircle } from 'lucide-react'
+import { BaseClientTool, ClientToolCallState, type BaseClientToolMetadata } from '@/lib/copilot/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { ClientToolDefinition } from '@/lib/copilot/tools/client/types'
-import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -12,11 +11,16 @@ interface GetUserWorkflowArgs {
   includeMetadata?: boolean
 }
 
-const logger = createLogger('GetUserWorkflow')
+const logger = createLogger('GetUserWorkflowClientTool')
 
-export const GetUserWorkflowTool: ClientToolDefinition<GetUserWorkflowArgs> = {
-  name: 'get_user_workflow',
-  metadata: {
+export class GetUserWorkflowClientTool extends BaseClientTool {
+  static readonly id = 'get_user_workflow'
+
+  constructor(toolCallId: string) {
+    super(toolCallId, GetUserWorkflowClientTool.id, GetUserWorkflowClientTool.metadata)
+  }
+
+  static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
       [ClientToolCallState.generating]: { text: 'Preparing to analyze workflow', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Analyze current workflow?', icon: WorkflowIcon },
@@ -25,25 +29,27 @@ export const GetUserWorkflowTool: ClientToolDefinition<GetUserWorkflowArgs> = {
       [ClientToolCallState.success]: { text: 'Workflow analyzed', icon: WorkflowIcon },
       [ClientToolCallState.error]: { text: 'Failed to analyze workflow', icon: XCircle },
     },
-  },
-  hasInterrupt: false,
-  async execute(ctx, args) {
+  }
+
+  async execute(args?: GetUserWorkflowArgs): Promise<void> {
     try {
-      const params = args || {}
+      this.setState(ClientToolCallState.executing)
 
       // Determine workflow ID (explicit or active)
-      let workflowId = params.workflowId
+      let workflowId = args?.workflowId
       if (!workflowId) {
         const { activeWorkflowId } = useWorkflowRegistry.getState()
         if (!activeWorkflowId) {
-          return { status: 400, message: 'No active workflow found' }
+          await this.markToolComplete(400, 'No active workflow found')
+          this.setState(ClientToolCallState.error)
+          return
         }
-        workflowId = activeWorkflowId
+        workflowId = activeWorkflowId as any
       }
 
       logger.info('Fetching user workflow from stores', {
         workflowId,
-        includeMetadata: params.includeMetadata,
+        includeMetadata: args?.includeMetadata,
       })
 
       // Prefer diff/preview store if available; otherwise use main workflow store
@@ -59,10 +65,13 @@ export const GetUserWorkflowTool: ClientToolDefinition<GetUserWorkflowArgs> = {
 
         if (!fullWorkflowState || !fullWorkflowState.blocks) {
           const workflowRegistry = useWorkflowRegistry.getState()
-          const workflow = workflowRegistry.workflows[workflowId]
+          const wfKey = String(workflowId)
+          const workflow = (workflowRegistry as any).workflows?.[wfKey]
 
           if (!workflow) {
-            return { status: 404, message: `Workflow ${workflowId} not found in any store` }
+            await this.markToolComplete(404, `Workflow ${workflowId} not found in any store`)
+            this.setState(ClientToolCallState.error)
+            return
           }
 
           logger.warn('No workflow state found, using workflow metadata only', { workflowId })
@@ -89,7 +98,7 @@ export const GetUserWorkflowTool: ClientToolDefinition<GetUserWorkflowArgs> = {
         if (workflowState?.blocks) {
           workflowState = {
             ...workflowState,
-            blocks: mergeSubblockState(workflowState.blocks, workflowId),
+            blocks: mergeSubblockState(workflowState.blocks, workflowId as any),
           }
           logger.info('Merged subblock values into workflow state', {
             workflowId,
@@ -111,12 +120,9 @@ export const GetUserWorkflowTool: ClientToolDefinition<GetUserWorkflowArgs> = {
       })
 
       if (!workflowState || !workflowState.blocks) {
-        logger.error('Workflow state validation failed', {
-          workflowId,
-          workflowState: workflowState,
-          hasBlocks: !!workflowState?.blocks,
-        })
-        return { status: 422, message: 'Workflow state is empty or invalid' }
+        await this.markToolComplete(422, 'Workflow state is empty or invalid')
+        this.setState(ClientToolCallState.error)
+        return
       }
 
       // Convert to JSON string for transport
@@ -128,29 +134,28 @@ export const GetUserWorkflowTool: ClientToolDefinition<GetUserWorkflowArgs> = {
           jsonLength: workflowJson.length,
         })
       } catch (stringifyError) {
-        logger.error('Error stringifying workflow state', {
-          workflowId,
-          error: stringifyError,
-        })
-        return {
-          status: 500,
-          message: `Failed to convert workflow to JSON: ${
+        await this.markToolComplete(
+          500,
+          `Failed to convert workflow to JSON: ${
             stringifyError instanceof Error ? stringifyError.message : 'Unknown error'
-          }`,
-        }
+          }`
+        )
+        this.setState(ClientToolCallState.error)
+        return
       }
 
-      // Return result to store for mark-complete proxying
-      const message = { userWorkflow: workflowJson }
-      return { status: 200, message }
+      // Mark complete with data; keep state success for store render
+      await this.markToolComplete(200, 'Workflow analyzed', { userWorkflow: workflowJson })
+      this.setState(ClientToolCallState.success)
     } catch (error: any) {
       const message = error instanceof Error ? error.message : String(error)
       logger.error('Error in tool execution', {
-        toolCallId: ctx.toolCallId,
+        toolCallId: this.toolCallId,
         error,
         message,
       })
-      return { status: 500, message: message || 'Failed to fetch workflow' }
+      await this.markToolComplete(500, message || 'Failed to fetch workflow')
+      this.setState(ClientToolCallState.error)
     }
-  },
+  }
 }

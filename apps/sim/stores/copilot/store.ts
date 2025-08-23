@@ -14,7 +14,7 @@ import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import type { CopilotToolCall } from '@/stores/copilot/types'
 import { getClientTool, registerClientTool, registerToolStateSync } from '@/lib/copilot/tools/client/manager'
 import { getTool, createExecutionContext, registerTool } from '@/lib/copilot/tools/client/registry'
-import { GetUserWorkflowTool } from '@/lib/copilot/tools/client/workflow/get-user-workflow'
+import { GetUserWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/get-user-workflow'
 import type { ClientToolDisplay } from '@/lib/copilot/tools/client/base-tool'
 import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
 import { GetWorkflowConsoleClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-console'
@@ -37,16 +37,6 @@ import type { BaseClientToolMetadata } from '@/lib/copilot/tools/client/base-too
 
 const logger = createLogger('CopilotStore')
 
-// Register interface-based client tools needed for auto-execution
-try {
-  registerTool(GetUserWorkflowTool)
-  logger.info('[registry] Registered get_user_workflow tool')
-  // Register remaining tools (excluding build/edit workflow)
-  registerClientTool as any
-  // Class-based tools are instantiated per toolCallId on demand, but we can pre-import and rely on metadata via instances
-  // No registry def needed for class-based tools; display/interrupt comes from instance
-} catch {}
-
 // Known class-based client tools: map tool name -> instantiator
 const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   run_workflow: (id) => new RunWorkflowClientTool(id),
@@ -66,6 +56,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   gdrive_request_access: (id) => new GDriveRequestAccessClientTool(id),
   edit_workflow: (id) => new EditWorkflowClientTool(id),
   build_workflow: (id) => new BuildWorkflowClientTool(id),
+  get_user_workflow: (id) => new GetUserWorkflowClientTool(id),
 }
 
 // Read-only static metadata for class-based tools (no instances)
@@ -87,6 +78,7 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   gdrive_request_access: (GDriveRequestAccessClientTool as any)?.metadata,
   edit_workflow: (EditWorkflowClientTool as any)?.metadata,
   build_workflow: (BuildWorkflowClientTool as any)?.metadata,
+  get_user_workflow: (GetUserWorkflowClientTool as any)?.metadata,
 }
 
 function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {
