@@ -92,6 +92,13 @@ import {
 } from '@/tools/microsoft_teams'
 import { mistralParserTool } from '@/tools/mistral'
 import {
+  deleteTool as mysqlDeleteTool,
+  executeTool as mysqlExecuteTool,
+  insertTool as mysqlInsertTool,
+  queryTool as mysqlQueryTool,
+  updateTool as mysqlUpdateTool,
+} from '@/tools/mysql'
+import {
   notionCreateDatabaseTool,
   notionCreatePageTool,
   notionQueryDatabaseTool,
@@ -230,6 +237,11 @@ export const tools: Record<string, ToolConfig> = {
   postgresql_update: postgresUpdateTool,
   postgresql_delete: postgresDeleteTool,
   postgresql_execute: postgresExecuteTool,
+  mysql_query: mysqlQueryTool,
+  mysql_insert: mysqlInsertTool,
+  mysql_update: mysqlUpdateTool,
+  mysql_delete: mysqlDeleteTool,
+  mysql_execute: mysqlExecuteTool,
   github_pr: githubPrTool,
   github_comment: githubCommentTool,
   exa_search: exaSearchTool,

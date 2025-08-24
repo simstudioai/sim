@@ -33,6 +33,7 @@
     "microsoft_planner",
     "microsoft_teams",
     "mistral_parse",
+    "mysql",
     "notion",
     "onedrive",
     "openai",
