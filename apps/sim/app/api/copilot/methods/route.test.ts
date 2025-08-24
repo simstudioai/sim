@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 describe('copilot methods route placeholder', () => {
   it('loads test suite', () => {
