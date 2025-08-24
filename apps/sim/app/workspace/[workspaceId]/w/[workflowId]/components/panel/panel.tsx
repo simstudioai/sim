@@ -492,11 +492,7 @@ export function Panel() {
           <div className='flex-1 overflow-hidden px-3'>
             {/* Keep all tabs mounted but hidden to preserve state and animations */}
             <div style={{ display: activeTab === 'chat' ? 'block' : 'none', height: '100%' }}>
-              <Chat
-                panelWidth={panelWidth}
-                chatMessage={chatMessage}
-                setChatMessage={setChatMessage}
-              />
+              <Chat chatMessage={chatMessage} setChatMessage={setChatMessage} />
             </div>
             <div style={{ display: activeTab === 'console' ? 'block' : 'none', height: '100%' }}>
               <Console panelWidth={panelWidth} />
