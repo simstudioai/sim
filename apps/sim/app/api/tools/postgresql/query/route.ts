@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { createPostgresConnection, executeQuery } from '../utils'
+import { createPostgresConnection, executeQuery } from '@/app/api/tools/postgresql/utils'
 
 const logger = createLogger('PostgreSQLQueryAPI')
 
@@ -11,7 +11,7 @@ const QuerySchema = z.object({
   database: z.string().min(1, 'Database name is required'),
   username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required'),
-  ssl: z.enum(['disable', 'require', 'prefer']).default('prefer'),
+  ssl: z.enum(['disabled', 'required', 'preferred']).default('required'),
   query: z.string().min(1, 'Query is required'),
 })
 

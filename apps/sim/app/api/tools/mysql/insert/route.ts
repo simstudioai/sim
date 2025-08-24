@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { buildInsertQuery, createMySQLConnection, executeQuery } from '../utils'
+import { buildInsertQuery, createMySQLConnection, executeQuery } from '@/app/api/tools/mysql/utils'
 
 const logger = createLogger('MySQLInsertAPI')
 
@@ -11,10 +11,12 @@ const InsertSchema = z.object({
   database: z.string().min(1, 'Database name is required'),
   username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required'),
-  ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
+  ssl: z.enum(['disabled', 'required', 'preferred']).default('required'),
   table: z.string().min(1, 'Table name is required'),
   data: z.union([
-    z.record(z.any()).refine((obj) => Object.keys(obj).length > 0, 'Data object cannot be empty'),
+    z
+      .record(z.unknown())
+      .refine((obj) => Object.keys(obj).length > 0, 'Data object cannot be empty'),
     z
       .string()
       .min(1)

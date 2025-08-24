@@ -8,7 +8,14 @@ export async function createPostgresConnection(config: PostgresConnectionConfig)
     database: config.database,
     user: config.username,
     password: config.password,
-    ssl: config.ssl === 'disable' ? false : config.ssl === 'require',
+    ssl:
+      config.ssl === 'disabled'
+        ? false
+        : config.ssl === 'required'
+          ? true
+          : config.ssl === 'preferred'
+            ? { rejectUnauthorized: false }
+            : false,
     connectionTimeoutMillis: 10000, // 10 seconds
     query_timeout: 30000, // 30 seconds
   })
@@ -25,8 +32,8 @@ export async function createPostgresConnection(config: PostgresConnectionConfig)
 export async function executeQuery(
   client: Client,
   query: string,
-  params: any[] = []
-): Promise<{ rows: any[]; rowCount: number }> {
+  params: unknown[] = []
+): Promise<{ rows: unknown[]; rowCount: number }> {
   const result = await client.query(query, params)
   return {
     rows: result.rows || [],
@@ -34,18 +41,93 @@ export async function executeQuery(
   }
 }
 
+export function validateQuery(query: string): { isValid: boolean; error?: string } {
+  const trimmedQuery = query.trim().toLowerCase()
+
+  // Block dangerous SQL operations
+  const dangerousPatterns = [
+    /drop\s+database/i,
+    /drop\s+schema/i,
+    /drop\s+user/i,
+    /create\s+user/i,
+    /create\s+role/i,
+    /grant\s+/i,
+    /revoke\s+/i,
+    /alter\s+user/i,
+    /alter\s+role/i,
+    /set\s+role/i,
+    /reset\s+role/i,
+    /copy\s+.*from/i,
+    /copy\s+.*to/i,
+    /lo_import/i,
+    /lo_export/i,
+    /pg_read_file/i,
+    /pg_write_file/i,
+    /pg_ls_dir/i,
+    /information_schema\.tables/i,
+    /pg_catalog/i,
+    /pg_user/i,
+    /pg_shadow/i,
+    /pg_roles/i,
+    /pg_authid/i,
+    /pg_stat_activity/i,
+    /dblink/i,
+    /\\\\copy/i,
+  ]
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(query)) {
+      return {
+        isValid: false,
+        error: `Query contains potentially dangerous operation: ${pattern.source}`,
+      }
+    }
+  }
+
+  // Only allow specific statement types for execute endpoint
+  const allowedStatements = /^(select|insert|update|delete|with|explain|analyze|show)\s+/i
+  if (!allowedStatements.test(trimmedQuery)) {
+    return {
+      isValid: false,
+      error:
+        'Only SELECT, INSERT, UPDATE, DELETE, WITH, EXPLAIN, ANALYZE, and SHOW statements are allowed',
+    }
+  }
+
+  return { isValid: true }
+}
+
 export function sanitizeIdentifier(identifier: string): string {
-  // Just return the identifier as-is, PostgreSQL handles quoting automatically when needed
-  // This preserves schema.table format and avoids breaking valid identifiers
-  return identifier
+  // Handle schema.table format
+  if (identifier.includes('.')) {
+    const parts = identifier.split('.')
+    return parts.map((part) => sanitizeSingleIdentifier(part)).join('.')
+  }
+
+  return sanitizeSingleIdentifier(identifier)
+}
+
+function sanitizeSingleIdentifier(identifier: string): string {
+  // Remove any existing double quotes to prevent double-escaping
+  const cleaned = identifier.replace(/"/g, '')
+
+  // Validate identifier contains only safe characters
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(cleaned)) {
+    throw new Error(
+      `Invalid identifier: ${identifier}. Identifiers must start with a letter or underscore and contain only letters, numbers, and underscores.`
+    )
+  }
+
+  // Wrap in double quotes for PostgreSQL
+  return `"${cleaned}"`
 }
 
 export function buildInsertQuery(
   table: string,
-  data: Record<string, any>
+  data: Record<string, unknown>
 ): {
   query: string
-  values: any[]
+  values: unknown[]
 } {
   const sanitizedTable = sanitizeIdentifier(table)
   const columns = Object.keys(data)
@@ -60,11 +142,11 @@ export function buildInsertQuery(
 
 export function buildUpdateQuery(
   table: string,
-  data: Record<string, any>,
-  whereClause: string
+  data: Record<string, unknown>,
+  whereConditions: Record<string, unknown>
 ): {
   query: string
-  values: any[]
+  values: unknown[]
 } {
   const sanitizedTable = sanitizeIdentifier(table)
   const columns = Object.keys(data)
@@ -72,12 +154,38 @@ export function buildUpdateQuery(
   const setClause = sanitizedColumns.map((col, index) => `${col} = $${index + 1}`).join(', ')
   const values = columns.map((col) => data[col])
 
-  const query = `UPDATE ${sanitizedTable} SET ${setClause} WHERE ${whereClause} RETURNING *`
+  // Build parameterized WHERE clause
+  const whereColumns = Object.keys(whereConditions)
+  const sanitizedWhereColumns = whereColumns.map((col) => sanitizeIdentifier(col))
+  const whereValues = Object.values(whereConditions)
+  const whereClause = sanitizedWhereColumns
+    .map((col, index) => `${col} = $${values.length + index + 1}`)
+    .join(' AND ')
 
-  return { query, values }
+  const query = `UPDATE ${sanitizedTable} SET ${setClause} WHERE ${whereClause} RETURNING *`
+  const allValues = [...values, ...whereValues]
+
+  return { query, values: allValues }
 }
 
-export function buildDeleteQuery(table: string, whereClause: string): string {
+export function buildDeleteQuery(
+  table: string,
+  whereConditions: Record<string, unknown>
+): {
+  query: string
+  values: unknown[]
+} {
   const sanitizedTable = sanitizeIdentifier(table)
-  return `DELETE FROM ${sanitizedTable} WHERE ${whereClause} RETURNING *`
+
+  // Build parameterized WHERE clause
+  const whereColumns = Object.keys(whereConditions)
+  const sanitizedWhereColumns = whereColumns.map((col) => sanitizeIdentifier(col))
+  const whereValues = Object.values(whereConditions)
+  const whereClause = sanitizedWhereColumns
+    .map((col, index) => `${col} = $${index + 1}`)
+    .join(' AND ')
+
+  const query = `DELETE FROM ${sanitizedTable} WHERE ${whereClause} RETURNING *`
+
+  return { query, values: whereValues }
 }

@@ -6,7 +6,7 @@ export interface PostgresConnectionConfig {
   database: string
   username: string
   password: string
-  ssl: 'disable' | 'require' | 'prefer'
+  ssl: 'disabled' | 'required' | 'preferred'
 }
 
 export interface PostgresQueryParams extends PostgresConnectionConfig {
@@ -15,12 +15,12 @@ export interface PostgresQueryParams extends PostgresConnectionConfig {
 
 export interface PostgresInsertParams extends PostgresConnectionConfig {
   table: string
-  data: Record<string, any>
+  data: Record<string, unknown>
 }
 
 export interface PostgresUpdateParams extends PostgresConnectionConfig {
   table: string
-  data: Record<string, any>
+  data: Record<string, unknown>
   where: string
 }
 
@@ -36,7 +36,7 @@ export interface PostgresExecuteParams extends PostgresConnectionConfig {
 export interface PostgresBaseResponse extends ToolResponse {
   output: {
     message: string
-    rows: any[]
+    rows: unknown[]
     rowCount: number
   }
   error?: string

@@ -15,12 +15,12 @@ export interface MySQLQueryParams extends MySQLConnectionConfig {
 
 export interface MySQLInsertParams extends MySQLConnectionConfig {
   table: string
-  data: Record<string, any>
+  data: Record<string, unknown>
 }
 
 export interface MySQLUpdateParams extends MySQLConnectionConfig {
   table: string
-  data: Record<string, any>
+  data: Record<string, unknown>
   where: string
 }
 
@@ -36,7 +36,7 @@ export interface MySQLExecuteParams extends MySQLConnectionConfig {
 export interface MySQLBaseResponse extends ToolResponse {
   output: {
     message: string
-    rows: any[]
+    rows: unknown[]
     rowCount: number
   }
   error?: string

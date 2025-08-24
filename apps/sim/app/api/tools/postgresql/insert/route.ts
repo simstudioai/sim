@@ -1,7 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { buildInsertQuery, createPostgresConnection, executeQuery } from '../utils'
+import {
+  buildInsertQuery,
+  createPostgresConnection,
+  executeQuery,
+} from '@/app/api/tools/postgresql/utils'
 
 const logger = createLogger('PostgreSQLInsertAPI')
 
@@ -11,10 +15,12 @@ const InsertSchema = z.object({
   database: z.string().min(1, 'Database name is required'),
   username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required'),
-  ssl: z.enum(['disable', 'require', 'prefer']).default('prefer'),
+  ssl: z.enum(['disabled', 'required', 'preferred']).default('required'),
   table: z.string().min(1, 'Table name is required'),
   data: z.union([
-    z.record(z.any()).refine((obj) => Object.keys(obj).length > 0, 'Data object cannot be empty'),
+    z
+      .record(z.unknown())
+      .refine((obj) => Object.keys(obj).length > 0, 'Data object cannot be empty'),
     z
       .string()
       .min(1)

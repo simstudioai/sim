@@ -42,7 +42,7 @@ export const updateTool: ToolConfig<PostgresUpdateParams, PostgresUpdateResponse
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'SSL connection mode (disable, require, prefer)',
+      description: 'SSL connection mode (disabled, required, preferred)',
     },
     table: {
       type: 'string',
@@ -76,7 +76,7 @@ export const updateTool: ToolConfig<PostgresUpdateParams, PostgresUpdateResponse
       database: params.database,
       username: params.username,
       password: params.password,
-      ssl: params.ssl || 'prefer',
+      ssl: params.ssl || 'required',
       table: params.table,
       data: params.data,
       where: params.where,

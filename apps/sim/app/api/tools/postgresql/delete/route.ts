@@ -1,7 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { buildDeleteQuery, createPostgresConnection, executeQuery } from '../utils'
+import {
+  buildDeleteQuery,
+  createPostgresConnection,
+  executeQuery,
+} from '@/app/api/tools/postgresql/utils'
 
 const logger = createLogger('PostgreSQLDeleteAPI')
 
@@ -11,9 +15,27 @@ const DeleteSchema = z.object({
   database: z.string().min(1, 'Database name is required'),
   username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required'),
-  ssl: z.enum(['disable', 'require', 'prefer']).default('prefer'),
+  ssl: z.enum(['disabled', 'required', 'preferred']).default('required'),
   table: z.string().min(1, 'Table name is required'),
-  where: z.string().min(1, 'WHERE clause is required'),
+  where: z.union([
+    z
+      .record(z.unknown())
+      .refine((obj) => Object.keys(obj).length > 0, 'WHERE conditions cannot be empty'),
+    z
+      .string()
+      .min(1)
+      .transform((str) => {
+        try {
+          const parsed = JSON.parse(str)
+          if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+            throw new Error('WHERE conditions must be a JSON object')
+          }
+          return parsed
+        } catch (e) {
+          throw new Error('Invalid JSON format in WHERE conditions')
+        }
+      }),
+  ]),
 })
 
 export async function POST(request: NextRequest) {
@@ -37,8 +59,8 @@ export async function POST(request: NextRequest) {
     })
 
     try {
-      const query = buildDeleteQuery(params.table, params.where)
-      const result = await executeQuery(client, query)
+      const { query, values } = buildDeleteQuery(params.table, params.where)
+      const result = await executeQuery(client, query, values)
 
       logger.info(`[${requestId}] Delete executed successfully, ${result.rowCount} row(s) deleted`)
 

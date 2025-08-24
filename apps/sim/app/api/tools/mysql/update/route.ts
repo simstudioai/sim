@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { buildUpdateQuery, createMySQLConnection, executeQuery } from '../utils'
+import { buildUpdateQuery, createMySQLConnection, executeQuery } from '@/app/api/tools/mysql/utils'
 
 const logger = createLogger('MySQLUpdateAPI')
 
@@ -11,10 +11,12 @@ const UpdateSchema = z.object({
   database: z.string().min(1, 'Database name is required'),
   username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required'),
-  ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
+  ssl: z.enum(['disabled', 'required', 'preferred']).default('required'),
   table: z.string().min(1, 'Table name is required'),
   data: z.union([
-    z.record(z.any()).refine((obj) => Object.keys(obj).length > 0, 'Data object cannot be empty'),
+    z
+      .record(z.unknown())
+      .refine((obj) => Object.keys(obj).length > 0, 'Data object cannot be empty'),
     z
       .string()
       .min(1)
@@ -30,7 +32,25 @@ const UpdateSchema = z.object({
         }
       }),
   ]),
-  where: z.string().min(1, 'WHERE clause is required'),
+  where: z.union([
+    z
+      .record(z.unknown())
+      .refine((obj) => Object.keys(obj).length > 0, 'WHERE conditions cannot be empty'),
+    z
+      .string()
+      .min(1)
+      .transform((str) => {
+        try {
+          const parsed = JSON.parse(str)
+          if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+            throw new Error('WHERE conditions must be a JSON object')
+          }
+          return parsed
+        } catch (e) {
+          throw new Error('Invalid JSON format in WHERE conditions')
+        }
+      }),
+  ]),
 })
 
 export async function POST(request: NextRequest) {

@@ -10,7 +10,7 @@ export interface MySQLConnectionConfig {
 }
 
 export async function createMySQLConnection(config: MySQLConnectionConfig) {
-  const connectionConfig: any = {
+  const connectionConfig: mysql.ConnectionOptions = {
     host: config.host,
     port: config.port,
     database: config.database,
@@ -29,12 +29,16 @@ export async function createMySQLConnection(config: MySQLConnectionConfig) {
   return mysql.createConnection(connectionConfig)
 }
 
-export async function executeQuery(connection: mysql.Connection, query: string, values?: any[]) {
+export async function executeQuery(
+  connection: mysql.Connection,
+  query: string,
+  values?: unknown[]
+) {
   const [rows, fields] = await connection.execute(query, values)
 
   if (Array.isArray(rows)) {
     return {
-      rows: rows as any[],
+      rows: rows as unknown[],
       rowCount: rows.length,
       fields,
     }
@@ -42,12 +46,65 @@ export async function executeQuery(connection: mysql.Connection, query: string, 
 
   return {
     rows: [],
-    rowCount: (rows as any).affectedRows || 0,
+    rowCount: (rows as mysql.ResultSetHeader).affectedRows || 0,
     fields,
   }
 }
 
-export function buildInsertQuery(table: string, data: Record<string, any>) {
+export function validateQuery(query: string): { isValid: boolean; error?: string } {
+  const trimmedQuery = query.trim().toLowerCase()
+
+  // Block dangerous SQL operations
+  const dangerousPatterns = [
+    /drop\s+database/i,
+    /drop\s+schema/i,
+    /drop\s+user/i,
+    /create\s+user/i,
+    /grant\s+/i,
+    /revoke\s+/i,
+    /alter\s+user/i,
+    /set\s+global/i,
+    /set\s+session/i,
+    /load\s+data/i,
+    /into\s+outfile/i,
+    /into\s+dumpfile/i,
+    /load_file\s*\(/i,
+    /system\s+/i,
+    /exec\s+/i,
+    /execute\s+immediate/i,
+    /xp_cmdshell/i,
+    /sp_configure/i,
+    /information_schema\.tables/i,
+    /mysql\.user/i,
+    /mysql\.db/i,
+    /mysql\.host/i,
+    /performance_schema/i,
+    /sys\./i,
+  ]
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(query)) {
+      return {
+        isValid: false,
+        error: `Query contains potentially dangerous operation: ${pattern.source}`,
+      }
+    }
+  }
+
+  // Only allow specific statement types for execute endpoint
+  const allowedStatements = /^(select|insert|update|delete|with|show|describe|explain)\s+/i
+  if (!allowedStatements.test(trimmedQuery)) {
+    return {
+      isValid: false,
+      error:
+        'Only SELECT, INSERT, UPDATE, DELETE, WITH, SHOW, DESCRIBE, and EXPLAIN statements are allowed',
+    }
+  }
+
+  return { isValid: true }
+}
+
+export function buildInsertQuery(table: string, data: Record<string, unknown>) {
   const sanitizedTable = sanitizeIdentifier(table)
   const columns = Object.keys(data)
   const values = Object.values(data)
@@ -58,24 +115,62 @@ export function buildInsertQuery(table: string, data: Record<string, any>) {
   return { query, values }
 }
 
-export function buildUpdateQuery(table: string, data: Record<string, any>, where: string) {
+export function buildUpdateQuery(
+  table: string,
+  data: Record<string, unknown>,
+  whereConditions: Record<string, unknown>
+) {
   const sanitizedTable = sanitizeIdentifier(table)
   const columns = Object.keys(data)
   const values = Object.values(data)
 
   const setClause = columns.map((col) => `${sanitizeIdentifier(col)} = ?`).join(', ')
-  const query = `UPDATE ${sanitizedTable} SET ${setClause} WHERE ${where}`
 
-  return { query, values }
+  // Build parameterized WHERE clause
+  const whereColumns = Object.keys(whereConditions)
+  const whereValues = Object.values(whereConditions)
+  const whereClause = whereColumns.map((col) => `${sanitizeIdentifier(col)} = ?`).join(' AND ')
+
+  const query = `UPDATE ${sanitizedTable} SET ${setClause} WHERE ${whereClause}`
+  const allValues = [...values, ...whereValues]
+
+  return { query, values: allValues }
 }
 
-export function buildDeleteQuery(table: string, where: string) {
+export function buildDeleteQuery(table: string, whereConditions: Record<string, unknown>) {
   const sanitizedTable = sanitizeIdentifier(table)
-  const query = `DELETE FROM ${sanitizedTable} WHERE ${where}`
 
-  return { query, values: [] }
+  // Build parameterized WHERE clause
+  const whereColumns = Object.keys(whereConditions)
+  const whereValues = Object.values(whereConditions)
+  const whereClause = whereColumns.map((col) => `${sanitizeIdentifier(col)} = ?`).join(' AND ')
+
+  const query = `DELETE FROM ${sanitizedTable} WHERE ${whereClause}`
+
+  return { query, values: whereValues }
 }
 
 export function sanitizeIdentifier(identifier: string): string {
-  return identifier
+  // Handle schema.table format
+  if (identifier.includes('.')) {
+    const parts = identifier.split('.')
+    return parts.map((part) => sanitizeSingleIdentifier(part)).join('.')
+  }
+
+  return sanitizeSingleIdentifier(identifier)
+}
+
+function sanitizeSingleIdentifier(identifier: string): string {
+  // Remove any existing backticks to prevent double-escaping
+  const cleaned = identifier.replace(/`/g, '')
+
+  // Validate identifier contains only safe characters
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(cleaned)) {
+    throw new Error(
+      `Invalid identifier: ${identifier}. Identifiers must start with a letter or underscore and contain only letters, numbers, and underscores.`
+    )
+  }
+
+  // Wrap in backticks for MySQL
+  return `\`${cleaned}\``
 }

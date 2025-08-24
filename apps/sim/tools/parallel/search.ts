@@ -55,7 +55,7 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
       'x-api-key': params.apiKey,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         objective: params.objective,
         search_queries: params.search_queries,
       }
@@ -76,11 +76,14 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
       success: true,
       output: {
         search_id: data.search_id || '',
-        results: data.results.map((result: any) => ({
-          url: result.url || '',
-          title: result.title || '',
-          excerpts: result.excerpts || [],
-        })),
+        results: data.results.map((result: unknown) => {
+          const resultObj = result as Record<string, unknown>
+          return {
+            url: resultObj.url || '',
+            title: resultObj.title || '',
+            excerpts: resultObj.excerpts || [],
+          }
+        }),
       },
     }
   },

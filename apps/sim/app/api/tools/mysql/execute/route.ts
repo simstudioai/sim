@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { createMySQLConnection, executeQuery } from '../utils'
+import { createMySQLConnection, executeQuery, validateQuery } from '@/app/api/tools/mysql/utils'
 
 const logger = createLogger('MySQLExecuteAPI')
 
@@ -11,7 +11,7 @@ const ExecuteSchema = z.object({
   database: z.string().min(1, 'Database name is required'),
   username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required'),
-  ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
+  ssl: z.enum(['disabled', 'required', 'preferred']).default('required'),
   query: z.string().min(1, 'Query is required'),
 })
 
@@ -25,6 +25,16 @@ export async function POST(request: NextRequest) {
     logger.info(
       `[${requestId}] Executing raw SQL on ${params.host}:${params.port}/${params.database}`
     )
+
+    // Validate query before execution
+    const validation = validateQuery(params.query)
+    if (!validation.isValid) {
+      logger.warn(`[${requestId}] Query validation failed: ${validation.error}`)
+      return NextResponse.json(
+        { error: `Query validation failed: ${validation.error}` },
+        { status: 400 }
+      )
+    }
 
     const connection = await createMySQLConnection({
       host: params.host,

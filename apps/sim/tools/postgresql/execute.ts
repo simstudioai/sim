@@ -42,7 +42,7 @@ export const executeTool: ToolConfig<PostgresExecuteParams, PostgresExecuteRespo
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'SSL connection mode (disable, require, prefer)',
+      description: 'SSL connection mode (disabled, required, preferred)',
     },
     query: {
       type: 'string',
@@ -64,7 +64,7 @@ export const executeTool: ToolConfig<PostgresExecuteParams, PostgresExecuteRespo
       database: params.database,
       username: params.username,
       password: params.password,
-      ssl: params.ssl || 'prefer',
+      ssl: params.ssl || 'required',
       query: params.query,
     }),
   },
