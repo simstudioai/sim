@@ -1,4 +1,4 @@
-import { Info, Loader2, MinusCircle, XCircle } from 'lucide-react'
+import { Info, Loader2, MinusCircle, XCircle, ListFilter } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -27,7 +27,7 @@ export class GetBlocksMetadataClientTool extends BaseClientTool {
       [ClientToolCallState.generating]: { text: 'Evaluating block choices', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Evaluating block choices', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Evaluating block choices', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Evaluated block choices', icon: Info },
+      [ClientToolCallState.success]: { text: 'Evaluated block choices', icon: ListFilter },
       [ClientToolCallState.error]: { text: 'Failed to evaluate block choices', icon: XCircle },
       [ClientToolCallState.aborted]: { text: 'Aborted evaluating block choices', icon: XCircle },
       [ClientToolCallState.rejected]: {

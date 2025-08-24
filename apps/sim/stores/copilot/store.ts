@@ -260,9 +260,25 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
                   ...b,
                   toolCall: {
                     ...b.toolCall,
+                    state:
+                      isRejectedState(b.toolCall?.state) ||
+                      isReviewState(b.toolCall?.state) ||
+                      isBackgroundState(b.toolCall?.state) ||
+                      b.toolCall?.state === ClientToolCallState.success ||
+                      b.toolCall?.state === ClientToolCallState.error ||
+                      b.toolCall?.state === ClientToolCallState.aborted
+                        ? b.toolCall.state
+                        : ClientToolCallState.rejected,
                     display: resolveToolDisplay(
                       b.toolCall?.name,
-                      b.toolCall?.state as any,
+                      (isRejectedState(b.toolCall?.state) ||
+                        isReviewState(b.toolCall?.state) ||
+                        isBackgroundState(b.toolCall?.state) ||
+                        b.toolCall?.state === ClientToolCallState.success ||
+                        b.toolCall?.state === ClientToolCallState.error ||
+                        b.toolCall?.state === ClientToolCallState.aborted
+                        ? (b.toolCall?.state as any)
+                        : ClientToolCallState.rejected) as any,
                       b.toolCall?.id,
                       b.toolCall?.params
                     ),
@@ -276,7 +292,28 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
       const updatedToolCalls = Array.isArray((message as any).toolCalls)
         ? (message as any).toolCalls.map((tc: any) => ({
             ...tc,
-            display: resolveToolDisplay(tc?.name, tc?.state as any, tc?.id, tc?.params),
+            state:
+              isRejectedState(tc?.state) ||
+              isReviewState(tc?.state) ||
+              isBackgroundState(tc?.state) ||
+              tc?.state === ClientToolCallState.success ||
+              tc?.state === ClientToolCallState.error ||
+              tc?.state === ClientToolCallState.aborted
+                ? tc.state
+                : ClientToolCallState.rejected,
+            display: resolveToolDisplay(
+              tc?.name,
+              (isRejectedState(tc?.state) ||
+                isReviewState(tc?.state) ||
+                isBackgroundState(tc?.state) ||
+                tc?.state === ClientToolCallState.success ||
+                tc?.state === ClientToolCallState.error ||
+                tc?.state === ClientToolCallState.aborted
+                ? (tc?.state as any)
+                : ClientToolCallState.rejected) as any,
+              tc?.id,
+              tc?.params
+            ),
           }))
         : (message as any).toolCalls
 
