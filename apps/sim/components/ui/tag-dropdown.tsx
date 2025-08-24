@@ -14,7 +14,7 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTool } from '@/tools/utils'
-import { getTriggersByProvider } from '@/triggers'
+import { getTrigger, getTriggersByProvider } from '@/triggers'
 
 interface BlockTagGroup {
   blockName: string
@@ -104,8 +104,8 @@ const getOutputTypeForPath = (
   outputPath: string
 ): string => {
   if (block?.triggerMode && blockConfig?.triggers?.enabled) {
-    const triggers = getTriggersByProvider(block.type)
-    const firstTrigger = triggers[0]
+    const triggerId = blockConfig?.triggers?.available?.[0]
+    const firstTrigger = triggerId ? getTrigger(triggerId) : getTriggersByProvider(block.type)[0]
 
     if (firstTrigger?.outputs) {
       const pathParts = outputPath.split('.')
@@ -418,8 +418,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         }
       } else {
         if (sourceBlock?.triggerMode && blockConfig.triggers?.enabled) {
-          const triggers = getTriggersByProvider(sourceBlock.type)
-          const firstTrigger = triggers[0]
+          const triggerId = blockConfig?.triggers?.available?.[0]
+          const firstTrigger = triggerId
+            ? getTrigger(triggerId)
+            : getTriggersByProvider(sourceBlock.type)[0]
 
           if (firstTrigger?.outputs) {
             // Use trigger outputs instead of block outputs
@@ -687,8 +689,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       } else {
         const blockState = blocks[accessibleBlockId]
         if (blockState?.triggerMode && blockConfig.triggers?.enabled) {
-          const triggers = getTriggersByProvider(blockState.type) // Use block type as provider
-          const firstTrigger = triggers[0]
+          const triggerId = blockConfig?.triggers?.available?.[0]
+          const firstTrigger = triggerId
+            ? getTrigger(triggerId)
+            : getTriggersByProvider(blockState.type)[0]
 
           if (firstTrigger?.outputs) {
             // Use trigger outputs instead of block outputs
