@@ -143,7 +143,7 @@ export function buildInsertQuery(
 export function buildUpdateQuery(
   table: string,
   data: Record<string, unknown>,
-  whereConditions: Record<string, unknown>
+  where: string
 ): {
   query: string
   values: unknown[]
@@ -154,38 +154,20 @@ export function buildUpdateQuery(
   const setClause = sanitizedColumns.map((col, index) => `${col} = $${index + 1}`).join(', ')
   const values = columns.map((col) => data[col])
 
-  // Build parameterized WHERE clause
-  const whereColumns = Object.keys(whereConditions)
-  const sanitizedWhereColumns = whereColumns.map((col) => sanitizeIdentifier(col))
-  const whereValues = Object.values(whereConditions)
-  const whereClause = sanitizedWhereColumns
-    .map((col, index) => `${col} = $${values.length + index + 1}`)
-    .join(' AND ')
+  const query = `UPDATE ${sanitizedTable} SET ${setClause} WHERE ${where} RETURNING *`
 
-  const query = `UPDATE ${sanitizedTable} SET ${setClause} WHERE ${whereClause} RETURNING *`
-  const allValues = [...values, ...whereValues]
-
-  return { query, values: allValues }
+  return { query, values }
 }
 
 export function buildDeleteQuery(
   table: string,
-  whereConditions: Record<string, unknown>
+  where: string
 ): {
   query: string
   values: unknown[]
 } {
   const sanitizedTable = sanitizeIdentifier(table)
+  const query = `DELETE FROM ${sanitizedTable} WHERE ${where} RETURNING *`
 
-  // Build parameterized WHERE clause
-  const whereColumns = Object.keys(whereConditions)
-  const sanitizedWhereColumns = whereColumns.map((col) => sanitizeIdentifier(col))
-  const whereValues = Object.values(whereConditions)
-  const whereClause = sanitizedWhereColumns
-    .map((col, index) => `${col} = $${index + 1}`)
-    .join(' AND ')
-
-  const query = `DELETE FROM ${sanitizedTable} WHERE ${whereClause} RETURNING *`
-
-  return { query, values: whereValues }
+  return { query, values: [] }
 }

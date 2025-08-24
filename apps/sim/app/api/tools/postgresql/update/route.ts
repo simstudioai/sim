@@ -36,25 +36,7 @@ const UpdateSchema = z.object({
         }
       }),
   ]),
-  where: z.union([
-    z
-      .record(z.unknown())
-      .refine((obj) => Object.keys(obj).length > 0, 'WHERE conditions cannot be empty'),
-    z
-      .string()
-      .min(1)
-      .transform((str) => {
-        try {
-          const parsed = JSON.parse(str)
-          if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-            throw new Error('WHERE conditions must be a JSON object')
-          }
-          return parsed
-        } catch (e) {
-          throw new Error('Invalid JSON format in WHERE conditions')
-        }
-      }),
-  ]),
+  where: z.string().min(1, 'WHERE clause is required'),
 })
 
 export async function POST(request: NextRequest) {

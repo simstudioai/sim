@@ -75,11 +75,11 @@ export const PostgreSQLBlock: BlockConfig<PostgresResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        { label: 'Disable', id: 'disable' },
-        { label: 'Require', id: 'require' },
-        { label: 'Prefer', id: 'prefer' },
+        { label: 'Disabled', id: 'disabled' },
+        { label: 'Required', id: 'required' },
+        { label: 'Preferred', id: 'preferred' },
       ],
-      value: () => 'prefer',
+      value: () => 'preferred',
     },
     // Table field for insert/update/delete operations
     {
@@ -216,7 +216,7 @@ export const PostgreSQLBlock: BlockConfig<PostgresResponse> = {
           database: rest.database,
           username: rest.username,
           password: rest.password,
-          ssl: rest.ssl || 'prefer',
+          ssl: rest.ssl || 'preferred',
         }
 
         // Build params object

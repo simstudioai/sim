@@ -69,7 +69,7 @@ Execute a SELECT query on PostgreSQL database
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disable, require, prefer\) |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `query` | string | Yes | SQL SELECT query to execute |
 
 #### Output
@@ -93,7 +93,7 @@ Insert data into PostgreSQL database
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disable, require, prefer\) |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to insert data into |
 | `data` | object | Yes | Data object to insert \(key-value pairs\) |
 
@@ -118,7 +118,7 @@ Update data in PostgreSQL database
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disable, require, prefer\) |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to update data in |
 | `data` | object | Yes | Data object with fields to update \(key-value pairs\) |
 | `where` | string | Yes | WHERE clause condition \(without WHERE keyword\) |
@@ -144,7 +144,7 @@ Delete data from PostgreSQL database
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disable, require, prefer\) |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to delete data from |
 | `where` | string | Yes | WHERE clause condition \(without WHERE keyword\) |
 
@@ -169,7 +169,7 @@ Execute raw SQL query on PostgreSQL database
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disable, require, prefer\) |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `query` | string | Yes | Raw SQL query to execute |
 
 #### Output
