@@ -35,7 +35,7 @@ export const insertTool: ToolConfig<MySQLInsertParams, MySQLResponse> = {
     password: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Database password',
     },
     ssl: {

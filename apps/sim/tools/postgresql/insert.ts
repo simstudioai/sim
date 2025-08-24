@@ -35,7 +35,7 @@ export const insertTool: ToolConfig<PostgresInsertParams, PostgresInsertResponse
     password: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Database password',
     },
     ssl: {

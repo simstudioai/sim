@@ -35,7 +35,7 @@ export const executeTool: ToolConfig<MySQLExecuteParams, MySQLResponse> = {
     password: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Database password',
     },
     ssl: {

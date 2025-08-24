@@ -35,7 +35,7 @@ export const queryTool: ToolConfig<PostgresQueryParams, PostgresQueryResponse> =
     password: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Database password',
     },
     ssl: {

@@ -35,7 +35,7 @@ export const updateTool: ToolConfig<PostgresUpdateParams, PostgresUpdateResponse
     password: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Database password',
     },
     ssl: {
