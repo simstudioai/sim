@@ -143,7 +143,7 @@ async function generateChatTitleAsync(
   streamController?: ReadableStreamDefaultController<Uint8Array>
 ): Promise<void> {
   try {
-    logger.info(`[${requestId}] Starting async title generation for chat ${chatId}`)
+    // logger.info(`[${requestId}] Starting async title generation for chat ${chatId}`)
 
     const title = await generateChatTitle(userMessage)
 
@@ -167,7 +167,7 @@ async function generateChatTitleAsync(
       logger.debug(`[${requestId}] Sent title_updated event to client: "${title}"`)
     }
 
-    logger.info(`[${requestId}] Generated title for chat ${chatId}: "${title}"`)
+    // logger.info(`[${requestId}] Generated title for chat ${chatId}: "${title}"`)
   } catch (error) {
     logger.error(`[${requestId}] Failed to generate title for chat ${chatId}:`, error)
     // Don't throw - this is a background operation
@@ -229,21 +229,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    logger.info(`[${tracker.requestId}] Processing copilot chat request`, {
-      userId: authenticatedUserId,
-      workflowId,
-      chatId,
-      mode,
-      stream,
-      createNewChat,
-      messageLength: message.length,
-      hasImplicitFeedback: !!implicitFeedback,
-      provider: provider || 'openai',
-      hasConversationId: !!conversationId,
-      depth,
-      prefetch,
-      origin: requestOrigin,
-    })
+    // logger.info(`[${tracker.requestId}] Processing copilot chat request`, {
+    //   userId: authenticatedUserId,
+    //   workflowId,
+    //   chatId,
+    //   mode,
+    //   stream,
+    //   createNewChat,
+    //   messageLength: message.length,
+    //   hasImplicitFeedback: !!implicitFeedback,
+    //   provider: provider || 'openai',
+    //   hasConversationId: !!conversationId,
+    //   depth,
+    //   prefetch,
+    //   origin: requestOrigin,
+    // })
 
     // Handle chat context
     let currentChat: any = null
@@ -285,7 +285,7 @@ export async function POST(req: NextRequest) {
     // Process file attachments if present
     const processedFileContents: any[] = []
     if (fileAttachments && fileAttachments.length > 0) {
-      logger.info(`[${tracker.requestId}] Processing ${fileAttachments.length} file attachments`)
+      // logger.info(`[${tracker.requestId}] Processing ${fileAttachments.length} file attachments`)
 
       for (const attachment of fileAttachments) {
         try {
@@ -296,7 +296,7 @@ export async function POST(req: NextRequest) {
           }
 
           // Download file from S3
-          logger.info(`[${tracker.requestId}] Downloading file: ${attachment.s3_key}`)
+          // logger.info(`[${tracker.requestId}] Downloading file: ${attachment.s3_key}`)
           let fileBuffer: Buffer
           if (USE_S3_STORAGE) {
             fileBuffer = await downloadFromS3WithConfig(attachment.s3_key, S3_COPILOT_CONFIG)
@@ -309,9 +309,9 @@ export async function POST(req: NextRequest) {
           const fileContent = createAnthropicFileContent(fileBuffer, attachment.media_type)
           if (fileContent) {
             processedFileContents.push(fileContent)
-            logger.info(
-              `[${tracker.requestId}] Processed file: ${attachment.filename} (${attachment.media_type})`
-            )
+            // logger.info(
+            //   `[${tracker.requestId}] Processed file: ${attachment.filename} (${attachment.media_type})`
+            // )
           }
         } catch (error) {
           logger.error(
@@ -424,27 +424,7 @@ export async function POST(req: NextRequest) {
       ...(requestOrigin ? { origin: requestOrigin } : {}),
     }
 
-    // Log the payload being sent to the streaming endpoint
-    try {
-      logger.info(`[${tracker.requestId}] Sending payload to sim agent streaming endpoint`, {
-        url: `${SIM_AGENT_API_URL}/api/chat-completion-streaming`,
-        provider: providerToUse,
-        mode,
-        stream,
-        workflowId,
-        hasConversationId: !!effectiveConversationId,
-        depth: typeof effectiveDepth === 'number' ? effectiveDepth : undefined,
-        prefetch: typeof effectivePrefetch === 'boolean' ? effectivePrefetch : undefined,
-        messagesCount: requestPayload.messages.length,
-        ...(requestOrigin ? { origin: requestOrigin } : {}),
-      })
-      // Full payload as JSON string
-      logger.info(
-        `[${tracker.requestId}] Full streaming payload: ${JSON.stringify(requestPayload)}`
-      )
-    } catch (e) {
-      logger.warn(`[${tracker.requestId}] Failed to log payload preview for streaming endpoint`, e)
-    }
+    // Log the payload being sent to the streaming endpoint (logs currently disabled)
 
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
@@ -475,7 +455,7 @@ export async function POST(req: NextRequest) {
 
     // If streaming is requested, forward the stream and update chat later
     if (stream && simAgentResponse.body) {
-      logger.info(`[${tracker.requestId}] Streaming response from sim agent`)
+      // logger.info(`[${tracker.requestId}] Streaming response from sim agent`)
 
       // Create user message to save
       const userMessage = {
@@ -493,7 +473,7 @@ export async function POST(req: NextRequest) {
           let assistantContent = ''
           const toolCalls: any[] = []
           let buffer = ''
-          let isFirstDone = true
+          const isFirstDone = true
           let responseIdFromStart: string | undefined
           let responseIdFromDone: string | undefined
           // Track tool call progress to identify a safe done event
@@ -515,30 +495,30 @@ export async function POST(req: NextRequest) {
 
           // Start title generation in parallel if needed
           if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
-            logger.info(`[${tracker.requestId}] Starting title generation with stream updates`, {
-              chatId: actualChatId,
-              hasTitle: !!currentChat?.title,
-              conversationLength: conversationHistory.length,
-              message: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
-            })
+            // logger.info(`[${tracker.requestId}] Starting title generation with stream updates`, {
+            //   chatId: actualChatId,
+            //   hasTitle: !!currentChat?.title,
+            //   conversationLength: conversationHistory.length,
+            //   message: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
+            // })
             generateChatTitleAsync(actualChatId, message, tracker.requestId, controller).catch(
               (error) => {
                 logger.error(`[${tracker.requestId}] Title generation failed:`, error)
               }
             )
           } else {
-            logger.debug(`[${tracker.requestId}] Skipping title generation`, {
-              chatId: actualChatId,
-              hasTitle: !!currentChat?.title,
-              conversationLength: conversationHistory.length,
-              reason: !actualChatId
-                ? 'no chatId'
-                : currentChat?.title
-                  ? 'already has title'
-                  : conversationHistory.length > 0
-                    ? 'not first message'
-                    : 'unknown',
-            })
+            // logger.debug(`[${tracker.requestId}] Skipping title generation`, {
+            //   chatId: actualChatId,
+            //   hasTitle: !!currentChat?.title,
+            //   conversationLength: conversationHistory.length,
+            //   reason: !actualChatId
+            //     ? 'no chatId'
+            //     : currentChat?.title
+            //       ? 'already has title'
+            //       : conversationHistory.length > 0
+            //         ? 'not first message'
+            //         : 'unknown',
+            // })
           }
 
           // Forward the sim agent stream and capture assistant response
@@ -549,7 +529,7 @@ export async function POST(req: NextRequest) {
             while (true) {
               const { done, value } = await reader.read()
               if (done) {
-                logger.info(`[${tracker.requestId}] Stream reading completed`)
+                // logger.info(`[${tracker.requestId}] Stream reading completed`)
                 break
               }
 
@@ -559,9 +539,9 @@ export async function POST(req: NextRequest) {
                 controller.enqueue(value)
               } catch (error) {
                 // Client disconnected - stop reading from sim agent
-                logger.info(
-                  `[${tracker.requestId}] Client disconnected, stopping stream processing`
-                )
+                // logger.info(
+                //   `[${tracker.requestId}] Client disconnected, stopping stream processing`
+                // )
                 reader.cancel() // Stop reading from sim agent
                 break
               }
@@ -608,15 +588,15 @@ export async function POST(req: NextRequest) {
                         break
 
                       case 'tool_call':
-                        logger.info(
-                          `[${tracker.requestId}] Tool call ${event.data?.partial ? '(partial)' : '(complete)'}:`,
-                          {
-                            id: event.data?.id,
-                            name: event.data?.name,
-                            arguments: event.data?.arguments,
-                            blockIndex: event.data?._blockIndex,
-                          }
-                        )
+                        // logger.info(
+                        //   `[${tracker.requestId}] Tool call ${event.data?.partial ? '(partial)' : '(complete)'}:`,
+                        //   {
+                        //     id: event.data?.id,
+                        //     name: event.data?.name,
+                        //     arguments: event.data?.arguments,
+                        //     blockIndex: event.data?._blockIndex,
+                        //   }
+                        // )
                         if (!event.data?.partial) {
                           toolCalls.push(event.data)
                           if (event.data?.id) {
@@ -625,30 +605,24 @@ export async function POST(req: NextRequest) {
                         }
                         break
 
-                      case 'tool_execution':
-                        logger.info(`[${tracker.requestId}] Tool execution started:`, {
-                          toolCallId: event.toolCallId,
-                          toolName: event.toolName,
-                          status: event.status,
-                        })
+                      case 'tool_generating':
+                        // logger.info(`[${tracker.requestId}] Tool generating:`, {
+                        //   toolCallId: event.toolCallId,
+                        //   toolName: event.toolName,
+                        // })
                         if (event.toolCallId) {
-                          if (event.status === 'completed') {
-                            startedToolExecutionIds.add(event.toolCallId)
-                            completedToolExecutionIds.add(event.toolCallId)
-                          } else {
-                            startedToolExecutionIds.add(event.toolCallId)
-                          }
+                          startedToolExecutionIds.add(event.toolCallId)
                         }
                         break
 
                       case 'tool_result':
-                        logger.info(`[${tracker.requestId}] Tool result received:`, {
-                          toolCallId: event.toolCallId,
-                          toolName: event.toolName,
-                          success: event.success,
-                          result: `${JSON.stringify(event.result).substring(0, 200)}...`,
-                          resultSize: JSON.stringify(event.result).length,
-                        })
+                        // logger.info(`[${tracker.requestId}] Tool result received:`, {
+                        //   toolCallId: event.toolCallId,
+                        //   toolName: event.toolName,
+                        //   success: event.success,
+                        //   result: `${JSON.stringify(event.result).substring(0, 200)}...`,
+                        //   resultSize: JSON.stringify(event.result).length,
+                        // })
                         if (event.toolCallId) {
                           completedToolExecutionIds.add(event.toolCallId)
                         }
@@ -669,9 +643,6 @@ export async function POST(req: NextRequest) {
                       case 'start':
                         if (event.data?.responseId) {
                           responseIdFromStart = event.data.responseId
-                          logger.info(
-                            `[${tracker.requestId}] Received start event with responseId: ${responseIdFromStart}`
-                          )
                         }
                         break
 
@@ -679,9 +650,7 @@ export async function POST(req: NextRequest) {
                         if (event.data?.responseId) {
                           responseIdFromDone = event.data.responseId
                           lastDoneResponseId = responseIdFromDone
-                          logger.info(
-                            `[${tracker.requestId}] Received done event with responseId: ${responseIdFromDone}`
-                          )
+
                           // Mark this done as safe only if no tool call is currently in progress or pending
                           const announced = announcedToolCallIds.size
                           const completed = completedToolExecutionIds.size
@@ -689,34 +658,14 @@ export async function POST(req: NextRequest) {
                           const hasToolInProgress = announced > completed || started > completed
                           if (!hasToolInProgress) {
                             lastSafeDoneResponseId = responseIdFromDone
-                            logger.info(
-                              `[${tracker.requestId}] Marked done as SAFE (no tools in progress)`
-                            )
-                          } else {
-                            logger.info(
-                              `[${tracker.requestId}] Done received but tools are in progress (announced=${announced}, started=${started}, completed=${completed})`
-                            )
                           }
-                        }
-                        if (isFirstDone) {
-                          logger.info(
-                            `[${tracker.requestId}] Initial AI response complete, tool count: ${toolCalls.length}`
-                          )
-                          isFirstDone = false
-                        } else {
-                          logger.info(`[${tracker.requestId}] Conversation round complete`)
                         }
                         break
 
                       case 'error':
-                        logger.error(`[${tracker.requestId}] Stream error event:`, event.error)
                         break
 
                       default:
-                        logger.debug(
-                          `[${tracker.requestId}] Unknown event type: ${event.type}`,
-                          event
-                        )
                     }
                   } catch (e) {
                     // Enhanced error handling for large payloads and parsing issues
