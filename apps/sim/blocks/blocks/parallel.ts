@@ -50,7 +50,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
     },
     {
       id: 'max_chars_per_result',
-      title: 'Max Chars per Result',
+      title: 'Max Chars',
       type: 'short-input',
       layout: 'half',
       placeholder: '1500',
@@ -104,7 +104,6 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
     apiKey: { type: 'string', description: 'Parallel AI API key' },
   },
   outputs: {
-    search_id: { type: 'string', description: 'Unique identifier for the search request' },
     results: { type: 'array', description: 'Search results with excerpts from relevant pages' },
   },
 }

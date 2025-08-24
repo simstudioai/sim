@@ -75,7 +75,6 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
     return {
       success: true,
       output: {
-        search_id: data.search_id || '',
         results: data.results.map((result: unknown) => {
           const resultObj = result as Record<string, unknown>
           return {
@@ -89,10 +88,6 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
   },
 
   outputs: {
-    search_id: {
-      type: 'string',
-      description: 'Unique identifier for the search request',
-    },
     results: {
       type: 'array',
       description: 'Search results with excerpts from relevant pages',

@@ -14,6 +14,5 @@ export interface ParallelSearchResult {
 }
 
 export interface ParallelSearchResponse {
-  search_id: string
   results: ParallelSearchResult[]
 }
