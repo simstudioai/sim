@@ -112,6 +112,13 @@ import {
   pineconeSearchVectorTool,
   pineconeUpsertTextTool,
 } from '@/tools/pinecone'
+import {
+  deleteTool as postgresDeleteTool,
+  executeTool as postgresExecuteTool,
+  insertTool as postgresInsertTool,
+  queryTool as postgresQueryTool,
+  updateTool as postgresUpdateTool,
+} from '@/tools/postgresql'
 import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdrant'
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from '@/tools/reddit'
 import { s3GetObjectTool } from '@/tools/s3'
@@ -218,6 +225,11 @@ export const tools: Record<string, ToolConfig> = {
   pinecone_search_text: pineconeSearchTextTool,
   pinecone_search_vector: pineconeSearchVectorTool,
   pinecone_upsert_text: pineconeUpsertTextTool,
+  postgresql_query: postgresQueryTool,
+  postgresql_insert: postgresInsertTool,
+  postgresql_update: postgresUpdateTool,
+  postgresql_delete: postgresDeleteTool,
+  postgresql_execute: postgresExecuteTool,
   github_pr: githubPrTool,
   github_comment: githubCommentTool,
   exa_search: exaSearchTool,
