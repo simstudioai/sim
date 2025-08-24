@@ -352,11 +352,13 @@ export const isPointInLoopNode = (
   const containingNodes = getNodes()
     .filter((n) => isContainerType(n.type))
     .filter((n) => {
+      // Use absolute coordinates for nested containers
+      const absolutePos = getNodeAbsolutePosition(n.id, getNodes)
       const rect = {
-        left: n.position.x,
-        right: n.position.x + (n.data?.width || DEFAULT_CONTAINER_WIDTH),
-        top: n.position.y,
-        bottom: n.position.y + (n.data?.height || DEFAULT_CONTAINER_HEIGHT),
+        left: absolutePos.x,
+        right: absolutePos.x + (n.data?.width || DEFAULT_CONTAINER_WIDTH),
+        top: absolutePos.y,
+        bottom: absolutePos.y + (n.data?.height || DEFAULT_CONTAINER_HEIGHT),
       }
 
       return (
@@ -368,7 +370,8 @@ export const isPointInLoopNode = (
     })
     .map((n) => ({
       loopId: n.id,
-      loopPosition: n.position,
+      // Return absolute position so callers can compute relative placement correctly
+      loopPosition: getNodeAbsolutePosition(n.id, getNodes),
       dimensions: {
         width: n.data?.width || DEFAULT_CONTAINER_WIDTH,
         height: n.data?.height || DEFAULT_CONTAINER_HEIGHT,

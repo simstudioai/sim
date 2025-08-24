@@ -7,6 +7,33 @@ import { executeTool } from '@/tools'
 const logger = createLogger('FunctionBlockHandler')
 
 /**
+ * Helper function to collect runtime block outputs and name mappings
+ * for tag resolution in function execution
+ */
+function collectBlockData(context: ExecutionContext): {
+  blockData: Record<string, any>
+  blockNameMapping: Record<string, string>
+} {
+  const blockData: Record<string, any> = {}
+  const blockNameMapping: Record<string, string> = {}
+
+  for (const [id, state] of context.blockStates.entries()) {
+    if (state.output !== undefined) {
+      blockData[id] = state.output
+      const workflowBlock = context.workflow?.blocks?.find((b) => b.id === id)
+      if (workflowBlock?.metadata?.name) {
+        // Map both the display name and normalized form
+        blockNameMapping[workflowBlock.metadata.name] = id
+        const normalized = workflowBlock.metadata.name.replace(/\s+/g, '').toLowerCase()
+        blockNameMapping[normalized] = id
+      }
+    }
+  }
+
+  return { blockData, blockNameMapping }
+}
+
+/**
  * Handler for Function blocks that execute custom code.
  */
 export class FunctionBlockHandler implements BlockHandler {
@@ -24,20 +51,7 @@ export class FunctionBlockHandler implements BlockHandler {
       : inputs.code
 
     // Extract block data for variable resolution
-    const blockData: Record<string, any> = {}
-    const blockNameMapping: Record<string, string> = {}
-
-    for (const [blockId, blockState] of context.blockStates.entries()) {
-      if (blockState.output) {
-        blockData[blockId] = blockState.output
-
-        // Try to find the block name from the workflow
-        const workflowBlock = context.workflow?.blocks?.find((b) => b.id === blockId)
-        if (workflowBlock?.metadata?.name) {
-          blockNameMapping[workflowBlock.metadata.name] = blockId
-        }
-      }
-    }
+    const { blockData, blockNameMapping } = collectBlockData(context)
 
     // Directly use the function_execute tool which calls the API route
     const result = await executeTool(
@@ -46,6 +60,7 @@ export class FunctionBlockHandler implements BlockHandler {
         code: codeContent,
         timeout: inputs.timeout || 5000,
         envVars: context.environmentVariables || {},
+        workflowVariables: context.workflowVariables || {},
         blockData: blockData, // Pass block data for variable resolution
         blockNameMapping: blockNameMapping, // Pass block name to ID mapping
         _context: { workflowId: context.workflowId },

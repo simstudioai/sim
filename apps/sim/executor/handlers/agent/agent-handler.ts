@@ -24,6 +24,33 @@ const REQUEST_TIMEOUT = 120000
 const CUSTOM_TOOL_PREFIX = 'custom_'
 
 /**
+ * Helper function to collect runtime block outputs and name mappings
+ * for tag resolution in custom tools and prompts
+ */
+function collectBlockData(context: ExecutionContext): {
+  blockData: Record<string, any>
+  blockNameMapping: Record<string, string>
+} {
+  const blockData: Record<string, any> = {}
+  const blockNameMapping: Record<string, string> = {}
+
+  for (const [id, state] of context.blockStates.entries()) {
+    if (state.output !== undefined) {
+      blockData[id] = state.output
+      const workflowBlock = context.workflow?.blocks?.find((b) => b.id === id)
+      if (workflowBlock?.metadata?.name) {
+        // Map both the display name and normalized form
+        blockNameMapping[workflowBlock.metadata.name] = id
+        const normalized = workflowBlock.metadata.name.replace(/\s+/g, '').toLowerCase()
+        blockNameMapping[normalized] = id
+      }
+    }
+  }
+
+  return { blockData, blockNameMapping }
+}
+
+/**
  * Handler for Agent blocks that process LLM requests with optional tools.
  */
 export class AgentBlockHandler implements BlockHandler {
@@ -172,6 +199,9 @@ export class AgentBlockHandler implements BlockHandler {
         // Merge user-provided parameters with LLM-generated parameters
         const mergedParams = mergeToolParameters(userProvidedParams, callParams)
 
+        // Collect block outputs for tag resolution
+        const { blockData, blockNameMapping } = collectBlockData(context)
+
         const result = await executeTool(
           'function_execute',
           {
@@ -179,6 +209,9 @@ export class AgentBlockHandler implements BlockHandler {
             ...mergedParams,
             timeout: tool.timeout ?? DEFAULT_FUNCTION_TIMEOUT,
             envVars: context.environmentVariables || {},
+            workflowVariables: context.workflowVariables || {},
+            blockData,
+            blockNameMapping,
             isCustomTool: true,
             _context: { workflowId: context.workflowId },
           },
@@ -352,6 +385,9 @@ export class AgentBlockHandler implements BlockHandler {
 
     const validMessages = this.validateMessages(messages)
 
+    // Collect block outputs for runtime resolution
+    const { blockData, blockNameMapping } = collectBlockData(context)
+
     return {
       provider: providerId,
       model,
@@ -368,6 +404,9 @@ export class AgentBlockHandler implements BlockHandler {
       stream: streaming,
       messages,
       environmentVariables: context.environmentVariables || {},
+      workflowVariables: context.workflowVariables || {},
+      blockData,
+      blockNameMapping,
       reasoningEffort: inputs.reasoningEffort,
       verbosity: inputs.verbosity,
     }
@@ -457,6 +496,9 @@ export class AgentBlockHandler implements BlockHandler {
 
     const finalApiKey = this.getApiKey(providerId, model, providerRequest.apiKey)
 
+    // Collect block outputs for runtime resolution
+    const { blockData, blockNameMapping } = collectBlockData(context)
+
     const response = await executeProviderRequest(providerId, {
       model,
       systemPrompt: 'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
@@ -472,6 +514,9 @@ export class AgentBlockHandler implements BlockHandler {
       stream: providerRequest.stream,
       messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
       environmentVariables: context.environmentVariables || {},
+      workflowVariables: context.workflowVariables || {},
+      blockData,
+      blockNameMapping,
     })
 
     this.logExecutionSuccess(providerId, model, context, block, providerStartTime, response)

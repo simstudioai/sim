@@ -12,7 +12,7 @@ import {
   ThumbsUp,
   X,
 } from 'lucide-react'
-import { InlineToolCall } from '@/lib/copilot/tools/inline-tool-call'
+import { InlineToolCall } from '@/lib/copilot/inline-tool-call'
 import { createLogger } from '@/lib/logs/console/logger'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
@@ -594,18 +594,14 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           )
         }
         if (block.type === 'tool_call') {
-          // Skip hidden tools (like checkoff_todo)
-          if (block.toolCall.hidden) {
-            return null
-          }
-
+          // Visibility and filtering handled by InlineToolCall
           return (
             <div
               key={`tool-${block.toolCall.id}`}
               className='transition-opacity duration-300 ease-in-out'
               style={{ opacity: 1 }}
             >
-              <InlineToolCall toolCall={block.toolCall} />
+              <InlineToolCall toolCallId={block.toolCall.id} toolCall={block.toolCall} />
             </div>
           )
         }
@@ -625,7 +621,47 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             </div>
           )}
 
-          <div className='flex justify-end'>
+          <div className='flex items-center justify-end gap-0'>
+            {hasCheckpoints && (
+              <div className='mr-1 inline-flex items-center justify-center'>
+                {showRestoreConfirmation ? (
+                  <div className='inline-flex items-center gap-1'>
+                    <button
+                      onClick={handleConfirmRevert}
+                      disabled={isRevertingCheckpoint}
+                      className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+                      title='Confirm restore'
+                      aria-label='Confirm restore'
+                    >
+                      {isRevertingCheckpoint ? (
+                        <Loader2 className='h-3 w-3 animate-spin' />
+                      ) : (
+                        <Check className='h-3 w-3' />
+                      )}
+                    </button>
+                    <button
+                      onClick={handleCancelRevert}
+                      disabled={isRevertingCheckpoint}
+                      className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+                      title='Cancel restore'
+                      aria-label='Cancel restore'
+                    >
+                      <X className='h-3 w-3' />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleRevertToCheckpoint}
+                    disabled={isRevertingCheckpoint}
+                    className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+                    title='Restore workflow to this checkpoint state'
+                    aria-label='Restore'
+                  >
+                    <RotateCcw className='h-3 w-3' />
+                  </button>
+                )}
+              </div>
+            )}
             <div className='min-w-0 max-w-[80%]'>
               {/* Message content in purple box */}
               <div
@@ -639,55 +675,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                   <WordWrap text={message.content} />
                 </div>
               </div>
-
-              {/* Checkpoints below message */}
-              {hasCheckpoints && (
-                <div className='mt-1 flex justify-end'>
-                  <div className='inline-flex items-center gap-0.5 text-muted-foreground text-xs'>
-                    <span className='select-none'>
-                      Restore{showRestoreConfirmation && <span className='ml-0.5'>?</span>}
-                    </span>
-                    <div className='inline-flex w-8 items-center justify-center'>
-                      {showRestoreConfirmation ? (
-                        <div className='inline-flex items-center gap-1'>
-                          <button
-                            onClick={handleConfirmRevert}
-                            disabled={isRevertingCheckpoint}
-                            className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
-                            title='Confirm restore'
-                            aria-label='Confirm restore'
-                          >
-                            {isRevertingCheckpoint ? (
-                              <Loader2 className='h-3 w-3 animate-spin' />
-                            ) : (
-                              <Check className='h-3 w-3' />
-                            )}
-                          </button>
-                          <button
-                            onClick={handleCancelRevert}
-                            disabled={isRevertingCheckpoint}
-                            className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
-                            title='Cancel restore'
-                            aria-label='Cancel restore'
-                          >
-                            <X className='h-3 w-3' />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={handleRevertToCheckpoint}
-                          disabled={isRevertingCheckpoint}
-                          className='text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
-                          title='Restore workflow to this checkpoint state'
-                          aria-label='Restore'
-                        >
-                          <RotateCcw className='h-3 w-3' />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>

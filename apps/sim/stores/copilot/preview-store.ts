@@ -207,7 +207,7 @@ export const usePreviewStore = create<PreviewStore>()(
             message.toolCalls.forEach((toolCall: CopilotToolCall) => {
               if (
                 toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW &&
-                toolCall.state === 'completed' &&
+                toolCall.state === 'success' &&
                 toolCall.id
               ) {
                 toolCallIds.add(toolCall.id)

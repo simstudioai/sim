@@ -50,6 +50,7 @@ describe('Function Execute Tool', () => {
       expect(body).toEqual({
         code: 'return 42',
         envVars: {},
+        workflowVariables: {},
         blockData: {},
         blockNameMapping: {},
         isCustomTool: false,
@@ -75,6 +76,7 @@ describe('Function Execute Tool', () => {
         code: 'const x = 40;\nconst y = 2;\nreturn x + y;',
         timeout: 10000,
         envVars: {},
+        workflowVariables: {},
         blockData: {},
         blockNameMapping: {},
         isCustomTool: false,
@@ -91,6 +93,7 @@ describe('Function Execute Tool', () => {
         code: 'return 42',
         timeout: 10000,
         envVars: {},
+        workflowVariables: {},
         blockData: {},
         blockNameMapping: {},
         isCustomTool: false,

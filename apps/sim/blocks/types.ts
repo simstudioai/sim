@@ -4,7 +4,7 @@ import type { ToolResponse } from '@/tools/types'
 // Basic types
 export type BlockIcon = (props: SVGProps<SVGSVGElement>) => JSX.Element
 export type ParamType = 'string' | 'number' | 'boolean' | 'json'
-export type PrimitiveValueType = 'string' | 'number' | 'boolean' | 'json' | 'any'
+export type PrimitiveValueType = 'string' | 'number' | 'boolean' | 'json' | 'array' | 'any'
 
 // Block classification
 export type BlockCategory = 'blocks' | 'tools' | 'triggers'

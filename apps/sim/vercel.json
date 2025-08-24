@@ -15,10 +15,6 @@
     {
       "path": "/api/logs/cleanup",
       "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/billing/daily",
-      "schedule": "0 2 * * *"
     }
   ]
 }

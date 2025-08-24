@@ -39,6 +39,9 @@ export async function POST(request: NextRequest) {
       stream,
       messages,
       environmentVariables,
+      workflowVariables,
+      blockData,
+      blockNameMapping,
       reasoningEffort,
       verbosity,
     } = body
@@ -60,6 +63,7 @@ export async function POST(request: NextRequest) {
       messageCount: messages?.length || 0,
       hasEnvironmentVariables:
         !!environmentVariables && Object.keys(environmentVariables).length > 0,
+      hasWorkflowVariables: !!workflowVariables && Object.keys(workflowVariables).length > 0,
       reasoningEffort,
       verbosity,
     })
@@ -103,6 +107,9 @@ export async function POST(request: NextRequest) {
       stream,
       messages,
       environmentVariables,
+      workflowVariables,
+      blockData,
+      blockNameMapping,
       reasoningEffort,
       verbosity,
     })

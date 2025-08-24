@@ -92,6 +92,13 @@ import {
 } from '@/tools/microsoft_teams'
 import { mistralParserTool } from '@/tools/mistral'
 import {
+  deleteTool as mysqlDeleteTool,
+  executeTool as mysqlExecuteTool,
+  insertTool as mysqlInsertTool,
+  queryTool as mysqlQueryTool,
+  updateTool as mysqlUpdateTool,
+} from '@/tools/mysql'
+import {
   notionCreateDatabaseTool,
   notionCreatePageTool,
   notionQueryDatabaseTool,
@@ -103,6 +110,7 @@ import {
 import { onedriveCreateFolderTool, onedriveListTool, onedriveUploadTool } from '@/tools/onedrive'
 import { imageTool, embeddingsTool as openAIEmbeddings } from '@/tools/openai'
 import { outlookDraftTool, outlookReadTool, outlookSendTool } from '@/tools/outlook'
+import { parallelSearchTool } from '@/tools/parallel'
 import { perplexityChatTool } from '@/tools/perplexity'
 import {
   pineconeFetchTool,
@@ -111,6 +119,13 @@ import {
   pineconeSearchVectorTool,
   pineconeUpsertTextTool,
 } from '@/tools/pinecone'
+import {
+  deleteTool as postgresDeleteTool,
+  executeTool as postgresExecuteTool,
+  insertTool as postgresInsertTool,
+  queryTool as postgresQueryTool,
+  updateTool as postgresUpdateTool,
+} from '@/tools/postgresql'
 import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdrant'
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from '@/tools/reddit'
 import { s3GetObjectTool } from '@/tools/s3'
@@ -217,6 +232,16 @@ export const tools: Record<string, ToolConfig> = {
   pinecone_search_text: pineconeSearchTextTool,
   pinecone_search_vector: pineconeSearchVectorTool,
   pinecone_upsert_text: pineconeUpsertTextTool,
+  postgresql_query: postgresQueryTool,
+  postgresql_insert: postgresInsertTool,
+  postgresql_update: postgresUpdateTool,
+  postgresql_delete: postgresDeleteTool,
+  postgresql_execute: postgresExecuteTool,
+  mysql_query: mysqlQueryTool,
+  mysql_insert: mysqlInsertTool,
+  mysql_update: mysqlUpdateTool,
+  mysql_delete: mysqlDeleteTool,
+  mysql_execute: mysqlExecuteTool,
   github_pr: githubPrTool,
   github_comment: githubCommentTool,
   exa_search: exaSearchTool,
@@ -224,6 +249,7 @@ export const tools: Record<string, ToolConfig> = {
   exa_find_similar_links: exaFindSimilarLinksTool,
   exa_answer: exaAnswerTool,
   exa_research: exaResearchTool,
+  parallel_search: parallelSearchTool,
   reddit_hot_posts: redditHotPostsTool,
   reddit_get_posts: redditGetPostsTool,
   reddit_get_comments: redditGetCommentsTool,

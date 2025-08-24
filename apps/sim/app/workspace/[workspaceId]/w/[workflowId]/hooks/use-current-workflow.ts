@@ -50,7 +50,9 @@ export function useCurrentWorkflow(): CurrentWorkflow {
   // Create the abstracted interface
   const currentWorkflow = useMemo((): CurrentWorkflow => {
     // Determine which workflow to use - only use diff if it's ready
-    const shouldUseDiff = isShowingDiff && isDiffReady && !!diffWorkflow
+    const hasDiffBlocks =
+      !!diffWorkflow && Object.keys((diffWorkflow as any).blocks || {}).length > 0
+    const shouldUseDiff = isShowingDiff && isDiffReady && hasDiffBlocks
     const activeWorkflow = shouldUseDiff ? diffWorkflow : normalWorkflow
 
     return {

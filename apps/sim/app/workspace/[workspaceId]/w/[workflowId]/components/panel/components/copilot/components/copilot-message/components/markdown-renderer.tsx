@@ -78,6 +78,14 @@ if (typeof document !== 'undefined') {
         overflow-wrap: anywhere !important;
         word-break: break-word !important;
       }
+
+      /* Reduce top margin for first heading (e.g., right after thinking block) */
+      .copilot-markdown-wrapper > h1:first-child,
+      .copilot-markdown-wrapper > h2:first-child,
+      .copilot-markdown-wrapper > h3:first-child,
+      .copilot-markdown-wrapper > h4:first-child {
+        margin-top: 0.25rem !important;
+      }
     `
     document.head.appendChild(style)
   }
@@ -140,17 +148,17 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
 
       // Headings
       h1: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h1 className='mt-10 mb-5 font-geist-sans font-semibold text-2xl text-gray-900 dark:text-gray-100'>
+        <h1 className='mt-3 mb-3 font-geist-sans font-semibold text-2xl text-gray-900 dark:text-gray-100'>
           {children}
         </h1>
       ),
       h2: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h2 className='mt-8 mb-4 font-geist-sans font-semibold text-gray-900 text-xl dark:text-gray-100'>
+        <h2 className='mt-2.5 mb-2.5 font-geist-sans font-semibold text-gray-900 text-xl dark:text-gray-100'>
           {children}
         </h2>
       ),
       h3: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h3 className='mt-7 mb-3 font-geist-sans font-semibold text-gray-900 text-lg dark:text-gray-100'>
+        <h3 className='mt-2 mb-2 font-geist-sans font-semibold text-gray-900 text-lg dark:text-gray-100'>
           {children}
         </h3>
       ),

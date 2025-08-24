@@ -145,12 +145,9 @@ export async function initializeBillingPeriod(
       end = billingPeriod.end
     }
 
-    // Update user stats with billing period info
     await db
       .update(userStats)
       .set({
-        billingPeriodStart: start,
-        billingPeriodEnd: end,
         currentPeriodCost: '0',
       })
       .where(eq(userStats.userId, userId))
@@ -212,14 +209,12 @@ export async function resetUserBillingPeriod(userId: string): Promise<void> {
       newPeriodEnd = billingPeriod.end
     }
 
-    // Archive current period cost and reset for new period
+    // Archive current period cost and reset for new period (no longer updating period dates in user_stats)
     await db
       .update(userStats)
       .set({
-        lastPeriodCost: currentPeriodCost, // Archive previous period
-        currentPeriodCost: '0', // Reset to zero for new period
-        billingPeriodStart: newPeriodStart,
-        billingPeriodEnd: newPeriodEnd,
+        lastPeriodCost: currentPeriodCost,
+        currentPeriodCost: '0',
       })
       .where(eq(userStats.userId, userId))
 

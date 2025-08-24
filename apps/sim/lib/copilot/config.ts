@@ -74,17 +74,11 @@ export interface CopilotConfig {
   }
 }
 
-/**
- * Validate and return a ProviderId if valid, otherwise return null
- */
 function validateProviderId(value: string | undefined): ProviderId | null {
   if (!value) return null
   return VALID_PROVIDER_IDS.includes(value as ProviderId) ? (value as ProviderId) : null
 }
 
-/**
- * Safely parse a float from environment variable with validation
- */
 function parseFloatEnv(value: string | undefined, name: string): number | null {
   if (!value) return null
   const parsed = Number.parseFloat(value)
@@ -95,9 +89,6 @@ function parseFloatEnv(value: string | undefined, name: string): number | null {
   return parsed
 }
 
-/**
- * Safely parse an integer from environment variable with validation
- */
 function parseIntEnv(value: string | undefined, name: string): number | null {
   if (!value) return null
   const parsed = Number.parseInt(value, 10)
@@ -108,18 +99,11 @@ function parseIntEnv(value: string | undefined, name: string): number | null {
   return parsed
 }
 
-/**
- * Safely parse a boolean from environment variable
- */
 function parseBooleanEnv(value: string | undefined): boolean | null {
   if (!value) return null
   return value.toLowerCase() === 'true'
 }
 
-/**
- * Default copilot configuration
- * Uses Claude 4 Sonnet
- */
 export const DEFAULT_COPILOT_CONFIG: CopilotConfig = {
   chat: {
     defaultProvider: 'anthropic',
@@ -144,11 +128,7 @@ export const DEFAULT_COPILOT_CONFIG: CopilotConfig = {
   },
 }
 
-/**
- * Apply environment variable overrides to configuration
- */
 function applyEnvironmentOverrides(config: CopilotConfig): void {
-  // Chat configuration overrides
   const chatProvider = validateProviderId(process.env.COPILOT_CHAT_PROVIDER)
   if (chatProvider) {
     config.chat.defaultProvider = chatProvider
@@ -175,7 +155,6 @@ function applyEnvironmentOverrides(config: CopilotConfig): void {
     config.chat.maxTokens = chatMaxTokens
   }
 
-  // RAG configuration overrides
   const ragProvider = validateProviderId(process.env.COPILOT_RAG_PROVIDER)
   if (ragProvider) {
     config.rag.defaultProvider = ragProvider
@@ -215,7 +194,6 @@ function applyEnvironmentOverrides(config: CopilotConfig): void {
     config.rag.similarityThreshold = ragSimilarityThreshold
   }
 
-  // General configuration overrides
   const streamingEnabled = parseBooleanEnv(process.env.COPILOT_STREAMING_ENABLED)
   if (streamingEnabled !== null) {
     config.general.streamingEnabled = streamingEnabled
@@ -234,9 +212,6 @@ function applyEnvironmentOverrides(config: CopilotConfig): void {
   }
 }
 
-/**
- * Get copilot configuration with environment variable overrides
- */
 export function getCopilotConfig(): CopilotConfig {
   const config = structuredClone(DEFAULT_COPILOT_CONFIG)
 
@@ -257,9 +232,6 @@ export function getCopilotConfig(): CopilotConfig {
   return config
 }
 
-/**
- * Get the model to use for a specific copilot function
- */
 export function getCopilotModel(type: CopilotModelType): {
   provider: ProviderId
   model: string
@@ -287,9 +259,6 @@ export function getCopilotModel(type: CopilotModelType): {
   }
 }
 
-/**
- * Validate a numeric value against constraints
- */
 function validateNumericValue(
   value: number,
   constraint: { min: number; max: number },
@@ -301,13 +270,9 @@ function validateNumericValue(
   return null
 }
 
-/**
- * Validate that a provider/model combination is available
- */
 export function validateCopilotConfig(config: CopilotConfig): ValidationResult {
   const errors: string[] = []
 
-  // Validate chat provider/model
   try {
     const chatDefaultModel = getProviderDefaultModel(config.chat.defaultProvider)
     if (!chatDefaultModel) {
@@ -317,7 +282,6 @@ export function validateCopilotConfig(config: CopilotConfig): ValidationResult {
     errors.push(`Invalid chat provider: ${config.chat.defaultProvider}`)
   }
 
-  // Validate RAG provider/model
   try {
     const ragDefaultModel = getProviderDefaultModel(config.rag.defaultProvider)
     if (!ragDefaultModel) {
@@ -327,7 +291,6 @@ export function validateCopilotConfig(config: CopilotConfig): ValidationResult {
     errors.push(`Invalid RAG provider: ${config.rag.defaultProvider}`)
   }
 
-  // Validate configuration values using constraints
   const validationChecks = [
     {
       value: config.chat.temperature,
