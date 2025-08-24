@@ -111,9 +111,7 @@ export const TodoList = memo(function TodoList({
                       : 'border-gray-300 dark:border-gray-600'
                   )}
                 >
-                  {todo.completed ? (
-                    <Check className='h-3 w-3 text-white' strokeWidth={3} />
-                  ) : null}
+                  {todo.completed ? <Check className='h-3 w-3 text-white' strokeWidth={3} /> : null}
                 </div>
               )}
 

@@ -20,6 +20,7 @@ import {
 } from '@/lib/copilot/tools/client/manager'
 import { CheckoffTodoClientTool } from '@/lib/copilot/tools/client/other/checkoff-todo'
 import { MakeApiRequestClientTool } from '@/lib/copilot/tools/client/other/make-api-request'
+import { MarkTodoInProgressClientTool } from '@/lib/copilot/tools/client/other/mark-todo-in-progress'
 import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
@@ -42,7 +43,6 @@ import type {
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { MarkTodoInProgressClientTool } from '@/lib/copilot/tools/client/other/mark-todo-in-progress'
 
 const logger = createLogger('CopilotStore')
 
@@ -272,11 +272,11 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
                     display: resolveToolDisplay(
                       b.toolCall?.name,
                       (isRejectedState(b.toolCall?.state) ||
-                        isReviewState(b.toolCall?.state) ||
-                        isBackgroundState(b.toolCall?.state) ||
-                        b.toolCall?.state === ClientToolCallState.success ||
-                        b.toolCall?.state === ClientToolCallState.error ||
-                        b.toolCall?.state === ClientToolCallState.aborted
+                      isReviewState(b.toolCall?.state) ||
+                      isBackgroundState(b.toolCall?.state) ||
+                      b.toolCall?.state === ClientToolCallState.success ||
+                      b.toolCall?.state === ClientToolCallState.error ||
+                      b.toolCall?.state === ClientToolCallState.aborted
                         ? (b.toolCall?.state as any)
                         : ClientToolCallState.rejected) as any,
                       b.toolCall?.id,
@@ -304,11 +304,11 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
             display: resolveToolDisplay(
               tc?.name,
               (isRejectedState(tc?.state) ||
-                isReviewState(tc?.state) ||
-                isBackgroundState(tc?.state) ||
-                tc?.state === ClientToolCallState.success ||
-                tc?.state === ClientToolCallState.error ||
-                tc?.state === ClientToolCallState.aborted
+              isReviewState(tc?.state) ||
+              isBackgroundState(tc?.state) ||
+              tc?.state === ClientToolCallState.success ||
+              tc?.state === ClientToolCallState.error ||
+              tc?.state === ClientToolCallState.aborted
                 ? (tc?.state as any)
                 : ClientToolCallState.rejected) as any,
               tc?.id,
@@ -557,7 +557,10 @@ const sseHandlers: Record<string, SSEHandler> = {
         }
 
         // If mark_todo_in_progress succeeded, set todo executing in planTodos
-        if (targetState === ClientToolCallState.success && current.name === 'mark_todo_in_progress') {
+        if (
+          targetState === ClientToolCallState.success &&
+          current.name === 'mark_todo_in_progress'
+        ) {
           try {
             const result = data?.result || data?.data?.result || {}
             const input = (current as any).params || (current as any).input || {}

@@ -1,4 +1,4 @@
-import { Info, Loader2, MinusCircle, XCircle, ListFilter } from 'lucide-react'
+import { ListFilter, Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,

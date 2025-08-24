@@ -1,4 +1,4 @@
-import { Loader2, MinusCircle, X, XCircle } from 'lucide-react'
+import { Loader2, MinusCircle, XCircle } from 'lucide-react'
 import {
   BaseClientTool,
   type BaseClientToolMetadata,
@@ -61,4 +61,4 @@ export class MarkTodoInProgressClientTool extends BaseClientTool {
       await this.markToolComplete(500, e?.message || 'Failed to mark todo in progress')
     }
   }
-} 
+}
