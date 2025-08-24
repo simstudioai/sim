@@ -42,6 +42,7 @@ import type {
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { MarkTodoInProgressClientTool } from '@/lib/copilot/tools/client/other/mark-todo-in-progress'
 
 const logger = createLogger('CopilotStore')
 
@@ -69,6 +70,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   make_api_request: (id) => new MakeApiRequestClientTool(id),
   plan: (id) => new PlanClientTool(id),
   checkoff_todo: (id) => new CheckoffTodoClientTool(id),
+  mark_todo_in_progress: (id) => new MarkTodoInProgressClientTool(id),
   gdrive_request_access: (id) => new GDriveRequestAccessClientTool(id),
   edit_workflow: (id) => new EditWorkflowClientTool(id),
   build_workflow: (id) => new BuildWorkflowClientTool(id),
@@ -91,6 +93,7 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   make_api_request: (MakeApiRequestClientTool as any)?.metadata,
   plan: (PlanClientTool as any)?.metadata,
   checkoff_todo: (CheckoffTodoClientTool as any)?.metadata,
+  mark_todo_in_progress: (MarkTodoInProgressClientTool as any)?.metadata,
   gdrive_request_access: (GDriveRequestAccessClientTool as any)?.metadata,
   edit_workflow: (EditWorkflowClientTool as any)?.metadata,
   build_workflow: (BuildWorkflowClientTool as any)?.metadata,
@@ -512,6 +515,18 @@ const sseHandlers: Record<string, SSEHandler> = {
             const todoId = input.id || input.todoId || result.id || result.todoId
             if (todoId) {
               get().updatePlanTodoStatus(todoId, 'completed')
+            }
+          } catch {}
+        }
+
+        // If mark_todo_in_progress succeeded, set todo executing in planTodos
+        if (targetState === ClientToolCallState.success && current.name === 'mark_todo_in_progress') {
+          try {
+            const result = data?.result || data?.data?.result || {}
+            const input = (current as any).params || (current as any).input || {}
+            const todoId = input.id || input.todoId || result.id || result.todoId
+            if (todoId) {
+              get().updatePlanTodoStatus(todoId, 'executing')
             }
           } catch {}
         }
@@ -1620,7 +1635,9 @@ export const useCopilotStore = create<CopilotStore>()(
         outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
           const m = messages[mi]
           if (m.role !== 'assistant' || !m.contentBlocks) continue
-          for (const b of m.contentBlocks as any[]) {
+          const blocks = m.contentBlocks as any[]
+          for (let bi = blocks.length - 1; bi >= 0; bi--) {
+            const b = blocks[bi]
             if (b?.type === 'tool_call') {
               const tn = b.toolCall?.name
               if (tn === 'build_workflow' || tn === 'edit_workflow') {

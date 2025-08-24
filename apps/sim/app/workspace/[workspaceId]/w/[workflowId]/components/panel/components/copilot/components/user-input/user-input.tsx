@@ -653,7 +653,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                         'flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs',
                         !agentPrefetch
                           ? 'border-[var(--brand-primary-hover-hex)] text-[var(--brand-primary-hover-hex)] hover:bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_8%,transparent)] hover:text-[var(--brand-primary-hover-hex)]'
-                          : 'border-border text-muted-foreground hover:bg-transparent'
+                          : 'border-border text-foreground'
                       )}
                       title='Choose mode'
                     >

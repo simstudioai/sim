@@ -246,7 +246,7 @@ export function InlineToolCall({
 
   // Skip rendering tools that are not in the registry or are explicitly omitted
   try {
-    if (toolCall.name === 'checkoff_todo') return null
+    if (toolCall.name === 'checkoff_todo' || toolCall.name === 'mark_todo_in_progress') return null
     // Allow if tool id exists in CLASS_TOOL_METADATA (client tools)
     if (!CLASS_TOOL_METADATA[toolCall.name]) return null
   } catch {
