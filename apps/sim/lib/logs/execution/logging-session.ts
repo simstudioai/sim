@@ -150,19 +150,18 @@ export class LoggingSession {
       }
 
       const message = error?.message || 'Execution failed before starting blocks'
-      const stackTrace = error?.stackTrace
 
       const syntheticErrorSpan: TraceSpan[] = [
         {
           id: 'pre-execution-validation',
-          name: 'Pre-execution validation',
+          name: 'Workflow Error',
           type: 'validation',
           duration: Math.max(1, durationMs),
           startTime: startTime.toISOString(),
           endTime: endTime.toISOString(),
           status: 'error',
           children: [],
-          output: stackTrace ? { error: message, stackTrace } : { error: message },
+          output: { error: message },
         },
       ]
 
