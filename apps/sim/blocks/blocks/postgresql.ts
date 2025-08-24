@@ -41,7 +41,7 @@ export const PostgreSQLBlock: BlockConfig<PostgresResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: '5432',
-      value: () => 5432,
+      value: () => '5432',
       required: true,
     },
     {
@@ -220,7 +220,7 @@ export const PostgreSQLBlock: BlockConfig<PostgresResponse> = {
         }
 
         // Build params object
-        const result = { ...connectionConfig }
+        const result: any = { ...connectionConfig }
 
         if (rest.table) result.table = rest.table
         if (rest.query) result.query = rest.query

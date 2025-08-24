@@ -10,16 +10,23 @@ export interface MySQLConnectionConfig {
 }
 
 export async function createMySQLConnection(config: MySQLConnectionConfig) {
-  const sslConfig = config.ssl === 'disabled' ? false : config.ssl === 'required' ? true : undefined
-
-  return mysql.createConnection({
+  const connectionConfig: any = {
     host: config.host,
     port: config.port,
     database: config.database,
     user: config.username,
     password: config.password,
-    ssl: sslConfig,
-  })
+  }
+
+  // Handle SSL configuration
+  if (config.ssl === 'required') {
+    connectionConfig.ssl = { rejectUnauthorized: true }
+  } else if (config.ssl === 'preferred') {
+    connectionConfig.ssl = { rejectUnauthorized: false }
+  }
+  // For 'disabled', we don't set the ssl property at all
+
+  return mysql.createConnection(connectionConfig)
 }
 
 export async function executeQuery(connection: mysql.Connection, query: string, values?: any[]) {
