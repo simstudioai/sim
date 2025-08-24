@@ -281,6 +281,41 @@ const WorkflowContent = React.memo(() => {
     [getNodes]
   )
 
+  // Compute the absolute position of a node's source anchor (right-middle)
+  const getNodeAnchorPosition = useCallback(
+    (nodeId: string): { x: number; y: number } => {
+      const node = getNodes().find((n) => n.id === nodeId)
+      const absPos = getNodeAbsolutePositionWrapper(nodeId)
+
+      if (!node) {
+        return absPos
+      }
+
+      // Use known defaults per node type without type casting
+      const isSubflow = node.type === 'subflowNode'
+      const width = isSubflow
+        ? typeof node.data?.width === 'number'
+          ? node.data.width
+          : 500
+        : typeof node.width === 'number'
+          ? node.width
+          : 350
+      const height = isSubflow
+        ? typeof node.data?.height === 'number'
+          ? node.data.height
+          : 300
+        : typeof node.height === 'number'
+          ? node.height
+          : 100
+
+      return {
+        x: absPos.x + width,
+        y: absPos.y + height / 2,
+      }
+    },
+    [getNodes, getNodeAbsolutePositionWrapper]
+  )
+
   // Auto-layout handler - now uses frontend auto layout for immediate updates
   const handleAutoLayout = useCallback(async () => {
     if (Object.keys(blocks).length === 0) return
@@ -373,22 +408,37 @@ const WorkflowContent = React.memo(() => {
   // Handle drops
   const findClosestOutput = useCallback(
     (newNodePosition: { x: number; y: number }): BlockData | null => {
-      const existingBlocks = Object.entries(blocks)
-        .filter(([_, block]) => block.enabled)
-        .map(([id, block]) => ({
-          id,
-          type: block.type,
-          position: block.position,
-          distance: Math.sqrt(
-            (block.position.x - newNodePosition.x) ** 2 +
-              (block.position.y - newNodePosition.y) ** 2
-          ),
-        }))
+      // Determine if drop is inside a container; if not, exclude child nodes from candidates
+      const containerAtPoint = isPointInLoopNodeWrapper(newNodePosition)
+      const nodeIndex = new Map(getNodes().map((n) => [n.id, n]))
+
+      const candidates = Object.entries(blocks)
+        .filter(([id, block]) => {
+          if (!block.enabled) return false
+          const node = nodeIndex.get(id)
+          if (!node) return false
+
+          // If dropping outside containers, ignore blocks that are inside a container
+          if (!containerAtPoint && node.parentId) return false
+          return true
+        })
+        .map(([id, block]) => {
+          const anchor = getNodeAnchorPosition(id)
+          const distance = Math.sqrt(
+            (anchor.x - newNodePosition.x) ** 2 + (anchor.y - newNodePosition.y) ** 2
+          )
+          return {
+            id,
+            type: block.type,
+            position: anchor,
+            distance,
+          }
+        })
         .sort((a, b) => a.distance - b.distance)
 
-      return existingBlocks[0] || null
+      return candidates[0] || null
     },
-    [blocks]
+    [blocks, getNodes, getNodeAnchorPosition, isPointInLoopNodeWrapper]
   )
 
   // Determine the appropriate source handle based on block type
@@ -1385,8 +1435,69 @@ const WorkflowContent = React.memo(() => {
 
       // Update the node's parent relationship
       if (potentialParentId) {
+        // Compute relative position BEFORE updating parent to avoid stale state
+        const containerAbsPosBefore = getNodeAbsolutePositionWrapper(potentialParentId)
+        const nodeAbsPosBefore = getNodeAbsolutePositionWrapper(node.id)
+        const relativePositionBefore = {
+          x: nodeAbsPosBefore.x - containerAbsPosBefore.x,
+          y: nodeAbsPosBefore.y - containerAbsPosBefore.y,
+        }
+
         // Moving to a new parent container
         updateNodeParent(node.id, potentialParentId)
+
+        // Auto-connect when moving an existing block into a container
+        const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
+        if (isAutoConnectEnabled) {
+          // Existing children in the target container (excluding the moved node)
+          const existingChildBlocks = Object.values(blocks).filter(
+            (b) => b.data?.parentId === potentialParentId && b.id !== node.id
+          )
+
+          if (existingChildBlocks.length > 0) {
+            // Connect from nearest existing child inside the container
+            const closestBlock = existingChildBlocks
+              .map((b) => ({
+                block: b,
+                distance: Math.sqrt(
+                  (b.position.x - relativePositionBefore.x) ** 2 +
+                    (b.position.y - relativePositionBefore.y) ** 2
+                ),
+              }))
+              .sort((a, b) => a.distance - b.distance)[0]?.block
+
+            if (closestBlock) {
+              const sourceHandle = determineSourceHandle({
+                id: closestBlock.id,
+                type: closestBlock.type,
+              })
+              addEdge({
+                id: crypto.randomUUID(),
+                source: closestBlock.id,
+                target: node.id,
+                sourceHandle,
+                targetHandle: 'target',
+                type: 'workflowEdge',
+              })
+            }
+          } else {
+            // No children: connect from the container's start handle to the moved node
+            const containerNode = getNodes().find((n) => n.id === potentialParentId)
+            const startSourceHandle =
+              (containerNode?.data as any)?.kind === 'loop'
+                ? 'loop-start-source'
+                : 'parallel-start-source'
+
+            addEdge({
+              id: crypto.randomUUID(),
+              source: potentialParentId,
+              target: node.id,
+              sourceHandle: startSourceHandle,
+              targetHandle: 'target',
+              type: 'workflowEdge',
+            })
+          }
+        }
       }
 
       // Reset state
@@ -1400,6 +1511,10 @@ const WorkflowContent = React.memo(() => {
       updateNodeParent,
       getNodeHierarchyWrapper,
       collaborativeUpdateBlockPosition,
+      addEdge,
+      determineSourceHandle,
+      blocks,
+      getNodeAbsolutePositionWrapper,
     ]
   )
 
