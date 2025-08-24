@@ -16,10 +16,10 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
       description: 'The search objective or question to answer',
     },
     search_queries: {
-      type: 'array',
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional array of search queries to execute',
+      description: 'Optional comma-separated list of search queries to execute',
     },
     processor: {
       type: 'string',
