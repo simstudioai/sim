@@ -33,6 +33,20 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
     </svg>`}
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+The [PostgreSQL](https://www.postgresql.org/) tool enables you to connect to any PostgreSQL database and perform a wide range of database operations directly within your agentic workflows. With secure connection handling and flexible configuration, you can easily manage and interact with your data.
+
+With the PostgreSQL tool, you can:
+
+- **Query data**: Execute SELECT queries to retrieve data from your PostgreSQL tables using the `postgresql_query` operation.
+- **Insert records**: Add new rows to your tables with the `postgresql_insert` operation by specifying the table and data to insert.
+- **Update records**: Modify existing data in your tables using the `postgresql_update` operation, providing the table, new data, and WHERE conditions.
+- **Delete records**: Remove rows from your tables with the `postgresql_delete` operation, specifying the table and WHERE conditions.
+- **Execute raw SQL**: Run any custom SQL command using the `postgresql_execute` operation for advanced use cases.
+
+The PostgreSQL tool is ideal for scenarios where your agents need to interact with structured data—such as automating reporting, syncing data between systems, or powering data-driven workflows. It streamlines database access, making it easy to read, write, and manage your PostgreSQL data programmatically.
+{/* MANUAL-CONTENT-END */}
+
 ## Usage Instructions
 
 Connect to any PostgreSQL database to execute queries, manage data, and perform database operations. Supports SELECT, INSERT, UPDATE, DELETE operations with secure connection handling.
