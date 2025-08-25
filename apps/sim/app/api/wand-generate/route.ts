@@ -5,7 +5,6 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
 export const maxDuration = 60
 
 const logger = createLogger('WandGenerateAPI')
