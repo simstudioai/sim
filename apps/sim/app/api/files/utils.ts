@@ -70,7 +70,6 @@ export const contentTypeMap: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   gif: 'image/gif',
-  svg: 'image/svg+xml',
   // Archive formats
   zip: 'application/zip',
   // Folder format
@@ -161,8 +160,6 @@ export function extractFilename(path: string): string {
     filename = path.split('/').pop() || path
   }
 
-  // Security: Remove path traversal sequences and validate
-  // This prevents directory traversal attacks while maintaining backward compatibility
   filename = filename
     .replace(/\.\./g, '')
     .replace(/\/\.\./g, '')
@@ -209,16 +206,65 @@ export function findLocalFile(filename: string): string | null {
   return null
 }
 
+const SAFE_INLINE_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/gif',
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'application/json',
+])
+
+// File extensions that should always be served as attachment for security
+const FORCE_ATTACHMENT_EXTENSIONS = new Set(['html', 'htm', 'svg', 'js', 'css', 'xml'])
+
 /**
- * Create a file response with appropriate headers
+ * Determines safe content type and disposition for file serving
+ */
+function getSecureFileHeaders(filename: string, originalContentType: string) {
+  const extension = filename.split('.').pop()?.toLowerCase() || ''
+
+  // Force attachment for potentially dangerous file types
+  if (FORCE_ATTACHMENT_EXTENSIONS.has(extension)) {
+    return {
+      contentType: 'application/octet-stream', // Force download
+      disposition: 'attachment',
+    }
+  }
+
+  // Override content type for safety while preserving legitimate use cases
+  let safeContentType = originalContentType
+
+  // Handle potentially dangerous content types
+  if (originalContentType === 'text/html' || originalContentType === 'image/svg+xml') {
+    safeContentType = 'text/plain' // Prevent browser rendering
+  }
+
+  // Use inline only for verified safe content types
+  const disposition = SAFE_INLINE_TYPES.has(safeContentType) ? 'inline' : 'attachment'
+
+  return {
+    contentType: safeContentType,
+    disposition,
+  }
+}
+
+/**
+ * Create a file response with appropriate security headers
  */
 export function createFileResponse(file: FileResponse): NextResponse {
+  const { contentType, disposition } = getSecureFileHeaders(file.filename, file.contentType)
+
   return new NextResponse(file.buffer as BodyInit, {
     status: 200,
     headers: {
-      'Content-Type': file.contentType,
-      'Content-Disposition': `inline; filename="${file.filename}"`,
+      'Content-Type': contentType,
+      'Content-Disposition': `${disposition}; filename="${file.filename}"`,
       'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox;",
     },
   })
 }
