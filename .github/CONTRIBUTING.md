@@ -9,6 +9,7 @@ Thank you for your interest in contributing to Sim! Our goal is to provide devel
 
 ## Table of Contents
 
+- [Code of Conduct](#code-of-conduct)
 - [How to Contribute](#how-to-contribute)
 - [Reporting Issues](#reporting-issues)
 - [Pull Request Process](#pull-request-process)
@@ -19,6 +20,10 @@ Thank you for your interest in contributing to Sim! Our goal is to provide devel
 - [Contributor License Agreement (CLA)](#contributor-license-agreement-cla)
 
 ---
+
+## Code of Conduct
+
+Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a welcoming environment.
 
 ## How to Contribute
 
@@ -225,6 +230,7 @@ Dev Containers provide a consistent and easy-to-use development environment:
 If you prefer not to use Docker or Dev Containers:
 
 1. **Clone the Repository:**
+
    ```bash
    git clone https://github.com/<your-username>/sim.git
    cd sim
@@ -491,12 +497,12 @@ Maintaining consistent naming across the codebase is critical for auto-generatio
 
 Sim implements a sophisticated parameter visibility system that controls how parameters are exposed to users and LLMs in agent workflows. Each parameter can have one of four visibility levels:
 
-| Visibility  | User Sees | LLM Sees | How It Gets Set                |
-|-------------|-----------|----------|--------------------------------|
-| `user-only` | ✅ Yes     | ❌ No     | User provides in UI            |
-| `user-or-llm` | ✅ Yes     | ✅ Yes    | User provides OR LLM generates |
-| `llm-only`  | ❌ No      | ✅ Yes    | LLM generates only             |
-| `hidden`    | ❌ No      | ❌ No     | Application injects at runtime |
+| Visibility    | User Sees | LLM Sees | How It Gets Set                |
+| ------------- | --------- | -------- | ------------------------------ |
+| `user-only`   | ✅ Yes    | ❌ No    | User provides in UI            |
+| `user-or-llm` | ✅ Yes    | ✅ Yes   | User provides OR LLM generates |
+| `llm-only`    | ❌ No     | ✅ Yes   | LLM generates only             |
+| `hidden`      | ❌ No     | ❌ No    | Application injects at runtime |
 
 #### Visibility Guidelines
 
