@@ -19,6 +19,7 @@ import {
   MemberInvitationCard,
   NoOrganizationView,
   OrganizationSettingsTab,
+  OrganizationUsageCap,
   PendingInvitationsList,
   RemoveMemberDialog,
   TeamMembersList,
@@ -318,6 +319,8 @@ export function TeamManagement() {
               onLoadUserWorkspaces={() => loadUserWorkspaces(session?.user?.id)}
               onWorkspaceToggle={handleWorkspaceToggle}
               inviteSuccess={inviteSuccess}
+              availableSeats={Math.max(0, (subscriptionData?.seats || 0) - usedSeats.used)}
+              maxSeats={subscriptionData?.seats || 0}
             />
           )}
 
@@ -349,6 +352,7 @@ export function TeamManagement() {
         </TabsContent>
 
         <TabsContent value='usage' className='mt-4 space-y-4'>
+          <OrganizationUsageCap hasAdminAccess={adminOrOwner} />
           <TeamUsage hasAdminAccess={adminOrOwner} />
         </TabsContent>
 

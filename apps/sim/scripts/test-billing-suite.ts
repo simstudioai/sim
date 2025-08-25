@@ -208,7 +208,6 @@ async function createTestUser(plan: 'free' | 'pro', usageAmount: number): Promis
     id: nanoid(),
     userId,
     currentPeriodCost: usageAmount.toString(),
-    billingPeriodEnd: periodEnd,
     currentUsageLimit: (usageAmount + 10).toString(), // Some headroom
   })
 
@@ -331,7 +330,6 @@ async function createTestOrganization(
       id: nanoid(),
       userId: memberId,
       currentPeriodCost: usagePerMember.toString(),
-      billingPeriodEnd: periodEnd,
       currentUsageLimit: (usagePerMember + 50).toString(),
     })
   }

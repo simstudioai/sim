@@ -5,7 +5,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type {
   BillingStatus,
   SubscriptionData,
-  SubscriptionFeatures,
   SubscriptionStore,
   UsageData,
   UsageLimitData,
@@ -14,12 +13,6 @@ import type {
 const logger = createLogger('SubscriptionStore')
 
 const CACHE_DURATION = 30 * 1000
-
-const defaultFeatures: SubscriptionFeatures = {
-  sharingEnabled: false,
-  multiplayerEnabled: false,
-  workspaceCollaborationEnabled: false,
-}
 
 const defaultUsage: UsageData = {
   current: 0,
@@ -428,10 +421,6 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         }
       },
 
-      getFeatures: () => {
-        return get().subscriptionData?.features ?? defaultFeatures
-      },
-
       getUsage: () => {
         return get().subscriptionData?.usage ?? defaultUsage
       },
@@ -458,10 +447,6 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
         return Math.max(0, diffDays)
-      },
-
-      hasFeature: (feature: keyof SubscriptionFeatures) => {
-        return get().getFeatures()[feature] ?? false
       },
 
       isAtLeastPro: () => {

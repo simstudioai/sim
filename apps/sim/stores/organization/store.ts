@@ -586,37 +586,6 @@ export const useOrganizationStore = create<OrganizationStore>()(
         }
       },
 
-      updateMemberUsageLimit: async (userId: string, organizationId: string, newLimit: number) => {
-        try {
-          const response = await fetch(
-            `/api/usage-limits?context=member&userId=${userId}&organizationId=${organizationId}`,
-            {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ limit: newLimit }),
-            }
-          )
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            throw new Error(errorData.error || 'Failed to update member usage limit')
-          }
-
-          // Refresh organization billing data
-          await get().loadOrganizationBillingData(organizationId)
-
-          logger.debug('Member usage limit updated successfully', { userId, newLimit })
-          return { success: true }
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : 'Failed to update member usage limit'
-          logger.error('Failed to update member usage limit', { error, userId, newLimit })
-          return { success: false, error: errorMessage }
-        }
-      },
-
       // Seat management
       addSeats: async (newSeatCount: number) => {
         const { activeOrganization, subscriptionData } = get()

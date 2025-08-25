@@ -74,6 +74,8 @@ interface MemberInvitationCardProps {
   onLoadUserWorkspaces: () => Promise<void>
   onWorkspaceToggle: (workspaceId: string, permission: string) => void
   inviteSuccess: boolean
+  availableSeats?: number
+  maxSeats?: number
 }
 
 function ButtonSkeleton() {
@@ -94,8 +96,11 @@ export function MemberInvitationCard({
   onLoadUserWorkspaces,
   onWorkspaceToggle,
   inviteSuccess,
+  availableSeats = 0,
+  maxSeats = 0,
 }: MemberInvitationCardProps) {
   const selectedCount = selectedWorkspaces.length
+  const hasAvailableSeats = availableSeats > 0
 
   return (
     <Card className='rounded-[8px] shadow-xs'>
@@ -106,13 +111,22 @@ export function MemberInvitationCard({
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-4 p-4 pt-0'>
+        {!hasAvailableSeats && (
+          <Alert className='border-orange-200 bg-orange-50'>
+            <AlertDescription className='text-orange-800'>
+              <strong>No seats available.</strong> You are using all {maxSeats} licensed seats. Add
+              more seats below before inviting new members.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className='flex items-center gap-3'>
           <div className='flex-1'>
             <Input
               placeholder='Enter email address'
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              disabled={isInviting}
+              disabled={isInviting || !hasAvailableSeats}
               className='w-full'
             />
           </div>
@@ -125,7 +139,7 @@ export function MemberInvitationCard({
                 onLoadUserWorkspaces()
               }
             }}
-            disabled={isInviting}
+            disabled={isInviting || !hasAvailableSeats}
             className='h-9 shrink-0 gap-1 rounded-[8px]'
           >
             {showWorkspaceInvite ? 'Hide' : 'Add'} Workspaces
@@ -144,11 +158,11 @@ export function MemberInvitationCard({
           <Button
             size='sm'
             onClick={onInviteMember}
-            disabled={!inviteEmail || isInviting}
+            disabled={!inviteEmail || isInviting || !hasAvailableSeats}
             className='h-9 shrink-0 gap-2 rounded-[8px]'
           >
             {isInviting ? <ButtonSkeleton /> : <PlusCircle className='h-4 w-4' />}
-            Invite
+            {hasAvailableSeats ? 'Invite' : 'No Seats'}
           </Button>
         </div>
 

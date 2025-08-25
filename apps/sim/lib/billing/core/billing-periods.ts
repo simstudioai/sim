@@ -187,18 +187,13 @@ export async function resetUserBillingPeriod(userId: string): Promise<void> {
     const stats = currentStats[0]
     const currentPeriodCost = stats.currentPeriodCost || '0'
 
-    // Calculate next billing period based on subscription or current period end
+    // Calculate next billing period based on subscription
     let newPeriodStart: Date
     let newPeriodEnd: Date
 
     if (userSubscription.length > 0 && userSubscription[0].periodEnd) {
       // Use subscription-based period calculation
       const nextPeriod = calculateNextBillingPeriod(userSubscription[0].periodEnd)
-      newPeriodStart = nextPeriod.start
-      newPeriodEnd = nextPeriod.end
-    } else if (stats.billingPeriodEnd) {
-      // Use current billing period end to calculate next period
-      const nextPeriod = calculateNextBillingPeriod(stats.billingPeriodEnd)
       newPeriodStart = nextPeriod.start
       newPeriodEnd = nextPeriod.end
     } else {

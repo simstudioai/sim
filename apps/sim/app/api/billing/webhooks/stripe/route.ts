@@ -3,15 +3,18 @@ import { type NextRequest, NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { handleInvoiceWebhook } from '@/lib/billing/webhooks/stripe-invoice-webhooks'
+import { handleSubscriptionWebhook } from '@/lib/billing/webhooks/stripe-subscription-webhooks'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 
-const logger = createLogger('StripeInvoiceWebhook')
+const logger = createLogger('StripeWebhook')
 
 /**
- * Stripe billing webhook endpoint for invoice-related events
+ * Stripe billing webhook endpoint
  * Endpoint: /api/billing/webhooks/stripe
- * Handles: invoice.payment_succeeded, invoice.payment_failed, invoice.finalized
+ * Handles:
+ *   - invoice.payment_succeeded, invoice.payment_failed, invoice.finalized
+ *   - customer.subscription.updated
  */
 export async function POST(request: NextRequest) {
   try {
@@ -52,19 +55,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
     }
 
-    logger.info('Received Stripe invoice webhook', {
+    logger.info('Received Stripe webhook', {
       eventId: event.id,
       eventType: event.type,
     })
 
-    // Handle specific invoice events
-    const supportedEvents = [
+    // Handle specific events
+    const invoiceEvents = [
       'invoice.payment_succeeded',
       'invoice.payment_failed',
       'invoice.finalized',
     ]
 
-    if (supportedEvents.includes(event.type)) {
+    const subscriptionEvents = ['customer.subscription.updated']
+
+    const supportedEvents = [...invoiceEvents, ...subscriptionEvents]
+
+    if (invoiceEvents.includes(event.type)) {
       try {
         await handleInvoiceWebhook(event)
 
@@ -84,8 +91,28 @@ export async function POST(request: NextRequest) {
         // Return 500 to tell Stripe to retry the webhook
         return NextResponse.json({ error: 'Failed to process webhook' }, { status: 500 })
       }
+    } else if (subscriptionEvents.includes(event.type)) {
+      try {
+        await handleSubscriptionWebhook(event)
+
+        logger.info('Successfully processed subscription webhook', {
+          eventId: event.id,
+          eventType: event.type,
+        })
+
+        return NextResponse.json({ received: true })
+      } catch (processingError) {
+        logger.error('Failed to process subscription webhook', {
+          eventId: event.id,
+          eventType: event.type,
+          error: processingError,
+        })
+
+        // Return 500 to tell Stripe to retry the webhook
+        return NextResponse.json({ error: 'Failed to process webhook' }, { status: 500 })
+      }
     } else {
-      // Not a supported invoice event, ignore
+      // Not a supported event, ignore
       logger.info('Ignoring unsupported webhook event', {
         eventId: event.id,
         eventType: event.type,

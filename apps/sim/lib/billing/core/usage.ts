@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { calculateDefaultUsageLimit, canEditUsageLimit } from '@/lib/billing/subscriptions/utils'
+import { canEditUsageLimit, getPerUserMinimumLimit } from '@/lib/billing/subscriptions/utils'
 import type { BillingData, UsageData, UsageLimitInfo } from '@/lib/billing/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
@@ -101,33 +101,8 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
       }
     }
 
-    // Use plan-based minimums instead of role-based minimums
-    let minimumLimit: number
-    if (!subscription || subscription.status !== 'active') {
-      // Free plan users
-      minimumLimit = DEFAULT_FREE_CREDITS
-    } else if (subscription.plan === 'pro') {
-      // Pro plan users: $20 minimum
-      minimumLimit = 20
-    } else if (subscription.plan === 'team') {
-      // Team plan users: $40 minimum (per-seat allocation, regardless of role)
-      minimumLimit = 40
-    } else if (subscription.plan === 'enterprise') {
-      // Enterprise plan users: per-seat allocation from their plan
-      const metadata = subscription.metadata || {}
-      if (metadata.perSeatAllowance) {
-        minimumLimit = Number.parseFloat(metadata.perSeatAllowance)
-      } else if (metadata.totalAllowance) {
-        // For total allowance, use per-seat calculation
-        const seats = subscription.seats || 1
-        minimumLimit = Number.parseFloat(metadata.totalAllowance) / seats
-      } else {
-        minimumLimit = 200 // Default enterprise per-seat limit
-      }
-    } else {
-      // Fallback to plan-based calculation
-      minimumLimit = calculateDefaultUsageLimit(subscription)
-    }
+    // Use per-user minimums derived from plan/env/metadata
+    const minimumLimit = getPerUserMinimumLimit(subscription)
 
     const userStatsRecord = await db
       .select()
@@ -142,7 +117,6 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
         canEdit: false,
         minimumLimit: DEFAULT_FREE_CREDITS,
         plan: 'free',
-        setBy: null,
         updatedAt: null,
       }
     }
@@ -153,7 +127,6 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
       canEdit,
       minimumLimit,
       plan: subscription?.plan || 'free',
-      setBy: stats.usageLimitSetBy,
       updatedAt: stats.usageLimitUpdatedAt,
     }
   } catch (error) {
@@ -184,7 +157,6 @@ export async function initializeUserUsageLimit(userId: string): Promise<void> {
       userId,
       currentUsageLimit: DEFAULT_FREE_CREDITS.toString(), // Default free credits for new users
       usageLimitUpdatedAt: new Date(),
-      billingPeriodStart: new Date(), // Start billing period immediately
     })
 
     logger.info('Initialized usage limit for new user', { userId, limit: DEFAULT_FREE_CREDITS })
@@ -235,34 +207,7 @@ export async function updateUserUsageLimit(
       return { success: false, error: 'Free plan users cannot edit usage limits' }
     }
 
-    // Use plan-based minimums instead of role-based minimums
-    let minimumLimit: number
-
-    if (!subscription || subscription.status !== 'active') {
-      // Free plan users (shouldn't reach here due to canEditUsageLimit check above)
-      minimumLimit = DEFAULT_FREE_CREDITS
-    } else if (subscription.plan === 'pro') {
-      // Pro plan users: $20 minimum
-      minimumLimit = 20
-    } else if (subscription.plan === 'team') {
-      // Team plan users: $40 minimum (per-seat allocation, regardless of role)
-      minimumLimit = 40
-    } else if (subscription.plan === 'enterprise') {
-      // Enterprise plan users: per-seat allocation from their plan
-      const metadata = subscription.metadata || {}
-      if (metadata.perSeatAllowance) {
-        minimumLimit = Number.parseFloat(metadata.perSeatAllowance)
-      } else if (metadata.totalAllowance) {
-        // For total allowance, use per-seat calculation
-        const seats = subscription.seats || 1
-        minimumLimit = Number.parseFloat(metadata.totalAllowance) / seats
-      } else {
-        minimumLimit = 200 // Default enterprise per-seat limit
-      }
-    } else {
-      // Fallback to plan-based calculation
-      minimumLimit = calculateDefaultUsageLimit(subscription)
-    }
+    const minimumLimit = getPerUserMinimumLimit(subscription)
 
     logger.info('Applying plan-based validation', {
       userId,
@@ -305,7 +250,6 @@ export async function updateUserUsageLimit(
       .update(userStats)
       .set({
         currentUsageLimit: newLimit.toString(),
-        usageLimitSetBy: setBy || userId,
         usageLimitUpdatedAt: new Date(),
       })
       .where(eq(userStats.userId, userId))
@@ -382,7 +326,7 @@ export async function checkUsageStatus(userId: string): Promise<{
 export async function syncUsageLimitsFromSubscription(userId: string): Promise<void> {
   try {
     const subscription = await getHighestPrioritySubscription(userId)
-    const defaultLimit = calculateDefaultUsageLimit(subscription)
+    const defaultLimit = getPerUserMinimumLimit(subscription)
 
     // Get current user stats
     const currentUserStats = await db
@@ -453,8 +397,6 @@ export async function getTeamUsageLimits(organizationId: string): Promise<
     currentUsage: number
     totalCost: number
     lastActive: Date | null
-    limitSetBy: string | null
-    limitUpdatedAt: Date | null
   }>
 > {
   try {
@@ -467,8 +409,6 @@ export async function getTeamUsageLimits(organizationId: string): Promise<
         currentPeriodCost: userStats.currentPeriodCost,
         totalCost: userStats.totalCost,
         lastActive: userStats.lastActive,
-        limitSetBy: userStats.usageLimitSetBy,
-        limitUpdatedAt: userStats.usageLimitUpdatedAt,
       })
       .from(member)
       .innerJoin(user, eq(member.userId, user.id))
@@ -483,8 +423,6 @@ export async function getTeamUsageLimits(organizationId: string): Promise<
       currentUsage: Number.parseFloat(memberData.currentPeriodCost || '0'),
       totalCost: Number.parseFloat(memberData.totalCost || '0'),
       lastActive: memberData.lastActive,
-      limitSetBy: memberData.limitSetBy,
-      limitUpdatedAt: memberData.limitUpdatedAt,
     }))
   } catch (error) {
     logger.error('Failed to get team usage limits', { organizationId, error })

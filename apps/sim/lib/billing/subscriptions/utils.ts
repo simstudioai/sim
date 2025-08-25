@@ -1,4 +1,10 @@
-import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
+import {
+  DEFAULT_ENTERPRISE_TIER_COST_LIMIT,
+  DEFAULT_FREE_CREDITS,
+  DEFAULT_PRO_TIER_COST_LIMIT,
+  DEFAULT_TEAM_TIER_COST_LIMIT,
+} from '@/lib/billing/constants'
+import type { EnterpriseSubscriptionMetadata } from '@/lib/billing/types'
 import { env } from '@/lib/env'
 
 export function checkEnterprisePlan(subscription: any): boolean {
@@ -14,12 +20,14 @@ export function checkTeamPlan(subscription: any): boolean {
 }
 
 /**
- * Calculate default usage limit for a subscription based on its type and metadata
- * This is now used as the minimum limit for paid plans
+ * Calculate the total subscription-level allowance (what the org/user gets for their base payment)
+ * - Pro: Fixed amount per user
+ * - Team: Seats * base price (pooled for the org)
+ * - Enterprise: Seats * per-seat price (pooled, with optional custom pricing in metadata)
  * @param subscription The subscription object
- * @returns The calculated default usage limit in dollars
+ * @returns The total subscription allowance in dollars
  */
-export function calculateDefaultUsageLimit(subscription: any): number {
+export function getSubscriptionAllowance(subscription: any): number {
   if (!subscription || subscription.status !== 'active') {
     return env.FREE_TIER_COST_LIMIT || DEFAULT_FREE_CREDITS
   }
@@ -27,23 +35,57 @@ export function calculateDefaultUsageLimit(subscription: any): number {
   const seats = subscription.seats || 1
 
   if (subscription.plan === 'pro') {
-    return env.PRO_TIER_COST_LIMIT || 0
+    return env.PRO_TIER_COST_LIMIT || DEFAULT_PRO_TIER_COST_LIMIT
   }
   if (subscription.plan === 'team') {
-    return seats * (env.TEAM_TIER_COST_LIMIT || 0)
+    return seats * (env.TEAM_TIER_COST_LIMIT || DEFAULT_TEAM_TIER_COST_LIMIT)
   }
   if (subscription.plan === 'enterprise') {
-    const metadata = subscription.metadata || {}
+    const metadata = subscription.metadata as EnterpriseSubscriptionMetadata | undefined
 
-    if (metadata.perSeatAllowance) {
-      return seats * Number.parseFloat(metadata.perSeatAllowance)
+    // Enterprise uses per-seat pricing (pooled like Team)
+    // Custom per-seat price can be set in metadata
+    let perSeatPrice = env.ENTERPRISE_TIER_COST_LIMIT || DEFAULT_ENTERPRISE_TIER_COST_LIMIT
+    if (metadata?.perSeatPrice) {
+      const parsed = Number.parseFloat(String(metadata.perSeatPrice))
+      if (parsed > 0 && !Number.isNaN(parsed)) {
+        perSeatPrice = parsed
+      }
     }
 
-    if (metadata.totalAllowance) {
-      return Number.parseFloat(metadata.totalAllowance)
-    }
+    return seats * perSeatPrice
+  }
 
-    return seats * (env.ENTERPRISE_TIER_COST_LIMIT || 0)
+  return env.FREE_TIER_COST_LIMIT || DEFAULT_FREE_CREDITS
+}
+
+/**
+ * Get the minimum usage limit for an individual user (used for validation)
+ * - Pro: User's plan minimum
+ * - Team: 0 (pooled model, no individual minimums)
+ * - Enterprise: 0 (pooled model, no individual minimums)
+ * @param subscription The subscription object
+ * @returns The per-user minimum limit in dollars
+ */
+export function getPerUserMinimumLimit(subscription: any): number {
+  if (!subscription || subscription.status !== 'active') {
+    return env.FREE_TIER_COST_LIMIT || DEFAULT_FREE_CREDITS
+  }
+
+  const seats = subscription.seats || 1
+
+  if (subscription.plan === 'pro') {
+    return env.PRO_TIER_COST_LIMIT || DEFAULT_PRO_TIER_COST_LIMIT
+  }
+  if (subscription.plan === 'team') {
+    // For team plans, return 0 as individual members don't have personal minimums
+    // Team usage is managed at the organization level with a pooled cap
+    // Individual member limits are not used in the team billing model
+    return 0
+  }
+  if (subscription.plan === 'enterprise') {
+    // Enterprise works like Team - pooled usage, no individual minimums
+    return 0
   }
 
   return env.FREE_TIER_COST_LIMIT || DEFAULT_FREE_CREDITS
@@ -74,5 +116,5 @@ export function canEditUsageLimit(subscription: any): boolean {
  * @returns The minimum allowed usage limit in dollars
  */
 export function getMinimumUsageLimit(subscription: any): number {
-  return calculateDefaultUsageLimit(subscription)
+  return getPerUserMinimumLimit(subscription)
 }

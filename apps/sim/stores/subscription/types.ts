@@ -1,9 +1,3 @@
-export interface SubscriptionFeatures {
-  sharingEnabled: boolean
-  multiplayerEnabled: boolean
-  workspaceCollaborationEnabled: boolean
-}
-
 export interface UsageData {
   current: number
   limit: number
@@ -35,7 +29,6 @@ export interface SubscriptionData {
   metadata: any | null
   stripeSubscriptionId: string | null
   periodEnd: Date | null
-  features: SubscriptionFeatures
   usage: UsageData
 }
 
@@ -69,12 +62,10 @@ export interface SubscriptionStore {
     seats: number | null
     metadata: any | null
   }
-  getFeatures: () => SubscriptionFeatures
   getUsage: () => UsageData
   getBillingStatus: () => BillingStatus
   getRemainingBudget: () => number
   getDaysRemainingInPeriod: () => number | null
-  hasFeature: (feature: keyof SubscriptionFeatures) => boolean
   isAtLeastPro: () => boolean
   isAtLeastTeam: () => boolean
   canUpgrade: () => boolean

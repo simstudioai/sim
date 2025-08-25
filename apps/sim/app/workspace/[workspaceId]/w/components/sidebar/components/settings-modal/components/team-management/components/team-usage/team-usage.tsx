@@ -1,15 +1,12 @@
-import { useEffect, useState } from 'react'
-import { AlertCircle, Settings2 } from 'lucide-react'
+import { useEffect } from 'react'
+import { AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveOrganization } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useOrganizationStore } from '@/stores/organization'
-import type { MemberUsageData } from '@/stores/organization/types'
-import { MemberLimit } from '../member-limit'
 
 const logger = createLogger('TeamUsage')
 
@@ -19,14 +16,10 @@ interface TeamUsageProps {
 
 export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
   const { data: activeOrg } = useActiveOrganization()
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [selectedMember, setSelectedMember] = useState<MemberUsageData | null>(null)
-  const [isUpdating, setIsUpdating] = useState(false)
 
   const {
     organizationBillingData: billingData,
     loadOrganizationBillingData,
-    updateMemberUsageLimit,
     isLoadingOrgBilling,
     error,
   } = useOrganizationStore()
@@ -36,49 +29,6 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
       loadOrganizationBillingData(activeOrg.id)
     }
   }, [activeOrg?.id, loadOrganizationBillingData])
-
-  const handleEditLimit = (member: MemberUsageData) => {
-    setSelectedMember(member)
-    setEditDialogOpen(true)
-  }
-
-  const handleSaveLimit = async (userId: string, newLimit: number): Promise<void> => {
-    if (!activeOrg?.id) {
-      throw new Error('No active organization found')
-    }
-
-    try {
-      setIsUpdating(true)
-      const result = await updateMemberUsageLimit(userId, activeOrg.id, newLimit)
-
-      if (!result.success) {
-        logger.error('Failed to update usage limit', { error: result.error, userId, newLimit })
-        throw new Error(result.error || 'Failed to update usage limit')
-      }
-
-      logger.info('Successfully updated member usage limit', {
-        userId,
-        newLimit,
-        organizationId: activeOrg.id,
-      })
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update usage limit'
-      logger.error('Failed to update usage limit', {
-        error,
-        userId,
-        newLimit,
-        organizationId: activeOrg.id,
-      })
-      throw new Error(errorMessage)
-    } finally {
-      setIsUpdating(false)
-    }
-  }
-
-  const handleCloseEditDialog = () => {
-    setEditDialogOpen(false)
-    setSelectedMember(null)
-  }
 
   const formatCurrency = (amount: number) => `$${amount.toFixed(2)}`
   const formatDate = (dateString: string | null) => {
@@ -119,7 +69,7 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
               <div className='divide-y divide-border'>
                 {[...Array(3)].map((_, index) => (
                   <div key={index} className='px-6 py-4'>
-                    <div className='grid grid-cols-12 items-center gap-4'>
+                    <div className='grid grid-cols-11 items-center gap-4'>
                       {/* Member Info Skeleton */}
                       <div className='col-span-4'>
                         <div className='flex items-center gap-3'>
@@ -228,13 +178,12 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
           <div className='overflow-hidden rounded-lg border'>
             {/* Table Header */}
             <div className='bg-muted/30 px-6 py-4'>
-              <div className='grid grid-cols-12 gap-4 font-medium text-muted-foreground text-xs'>
+              <div className='grid grid-cols-11 gap-4 font-medium text-muted-foreground text-xs'>
                 <div className='col-span-4'>Member</div>
                 <div className='col-span-2 text-center'>Role</div>
                 <div className='col-span-2 hidden text-right sm:block'>Usage</div>
-                <div className='col-span-2 hidden text-right sm:block'>Limit</div>
+                <div className='col-span-2 hidden text-right sm:block'>Pool Contribution</div>
                 <div className='col-span-1 hidden text-center lg:block'>Active</div>
-                <div className='col-span-1 text-center' />
               </div>
             </div>
 
@@ -246,7 +195,7 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
                     key={member.userId}
                     className='group px-6 py-4 transition-colors hover:bg-muted/30'
                   >
-                    <div className='grid grid-cols-12 items-center gap-4'>
+                    <div className='grid grid-cols-11 items-center gap-4'>
                       {/* Member Info */}
                       <div className='col-span-4'>
                         <div className='flex items-center gap-3'>
@@ -262,18 +211,10 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
                         </div>
 
                         {/* Mobile-only usage info */}
-                        <div className='mt-3 grid grid-cols-2 gap-4 sm:hidden'>
-                          <div>
-                            <div className='text-muted-foreground text-xs'>Usage</div>
-                            <div className='font-medium text-sm'>
-                              {formatCurrency(member.currentUsage)}
-                            </div>
-                          </div>
-                          <div>
-                            <div className='text-muted-foreground text-xs'>Limit</div>
-                            <div className='font-medium text-sm'>
-                              {formatCurrency(member.usageLimit)}
-                            </div>
+                        <div className='mt-3 sm:hidden'>
+                          <div className='text-muted-foreground text-xs'>Contributing to pool</div>
+                          <div className='font-medium text-sm'>
+                            {formatCurrency(member.currentUsage)}
                           </div>
                         </div>
                       </div>
@@ -292,11 +233,12 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
                         </div>
                       </div>
 
-                      {/* Limit - Desktop */}
+                      {/* Pool Contribution - Desktop */}
                       <div className='col-span-2 hidden text-right sm:block'>
                         <div className='font-medium text-sm'>
-                          {formatCurrency(member.usageLimit)}
+                          {formatCurrency(member.currentUsage)}
                         </div>
+                        <div className='text-muted-foreground text-xs'>of team pool</div>
                       </div>
 
                       {/* Last Active - Desktop */}
@@ -304,22 +246,6 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
                         <div className='text-muted-foreground text-xs'>
                           {formatDate(member.lastActive)}
                         </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className='col-span-1 text-center'>
-                        {hasAdminAccess && (
-                          <Button
-                            size='sm'
-                            variant='ghost'
-                            onClick={() => handleEditLimit(member)}
-                            disabled={isUpdating}
-                            className='h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100 sm:opacity-100'
-                            title='Edit usage limit'
-                          >
-                            <Settings2 className='h-3 w-3' />
-                          </Button>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -333,16 +259,6 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
           </div>
         </CardContent>
       </Card>
-
-      {/* Edit Member Limit Dialog */}
-      <MemberLimit
-        open={editDialogOpen}
-        onOpenChange={handleCloseEditDialog}
-        member={selectedMember}
-        onSave={handleSaveLimit}
-        isLoading={isUpdating}
-        planType='team'
-      />
     </div>
   )
 }

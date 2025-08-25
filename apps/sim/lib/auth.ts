@@ -1178,9 +1178,6 @@ export const auth = betterAuth({
                   priceId: env.STRIPE_FREE_PRICE_ID || '',
                   limits: {
                     cost: env.FREE_TIER_COST_LIMIT ?? DEFAULT_FREE_CREDITS,
-                    sharingEnabled: 0,
-                    multiplayerEnabled: 0,
-                    workspaceCollaborationEnabled: 0,
                   },
                 },
                 {
@@ -1188,9 +1185,6 @@ export const auth = betterAuth({
                   priceId: env.STRIPE_PRO_PRICE_ID || '',
                   limits: {
                     cost: env.PRO_TIER_COST_LIMIT ?? 20,
-                    sharingEnabled: 1,
-                    multiplayerEnabled: 0,
-                    workspaceCollaborationEnabled: 0,
                   },
                 },
                 {
@@ -1198,9 +1192,6 @@ export const auth = betterAuth({
                   priceId: env.STRIPE_TEAM_PRICE_ID || '',
                   limits: {
                     cost: env.TEAM_TIER_COST_LIMIT ?? 40, // $40 per seat
-                    sharingEnabled: 1,
-                    multiplayerEnabled: 1,
-                    workspaceCollaborationEnabled: 1,
                   },
                 },
               ],
@@ -1267,6 +1258,29 @@ export const auth = betterAuth({
                   plan: subscription.plan,
                   status: subscription.status,
                 })
+
+                // Update subscription table with period dates from Stripe
+                try {
+                  const { subscription: subscriptionTable } = await import('@/db/schema')
+                  await db
+                    .update(subscriptionTable)
+                    .set({
+                      periodStart: new Date(stripeSubscription.current_period_start * 1000),
+                      periodEnd: new Date(stripeSubscription.current_period_end * 1000),
+                    })
+                    .where(eq(subscriptionTable.stripeSubscriptionId, stripeSubscription.id))
+
+                  logger.info('Updated subscription period dates from Stripe', {
+                    stripeSubscriptionId: stripeSubscription.id,
+                    periodStart: new Date(stripeSubscription.current_period_start * 1000),
+                    periodEnd: new Date(stripeSubscription.current_period_end * 1000),
+                  })
+                } catch (error) {
+                  logger.error('Failed to update subscription period dates', {
+                    stripeSubscriptionId: stripeSubscription.id,
+                    error,
+                  })
+                }
 
                 // Auto-create organization for team plan purchases
                 try {

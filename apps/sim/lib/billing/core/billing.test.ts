@@ -152,51 +152,51 @@ describe('Billing Core Functions', () => {
 
     it.concurrent('returns correct pricing for enterprise plan with metadata', () => {
       const subscription = {
-        metadata: { perSeatAllowance: 150 },
+        metadata: { perSeatPrice: 150 },
       }
       const result = getPlanPricing('enterprise', subscription)
       expect(result).toEqual({ basePrice: 150, minimum: 150 })
     })
 
-    it.concurrent('handles invalid perSeatAllowance values - negative number', () => {
+    it.concurrent('handles invalid perSeatPrice values - negative number', () => {
       const subscription = {
-        metadata: { perSeatAllowance: -50 },
+        metadata: { perSeatPrice: -50 },
       }
       const result = getPlanPricing('enterprise', subscription)
       // Should fall back to default enterprise pricing
-      expect(result).toEqual({ basePrice: 100, minimum: 100 })
+      expect(result).toEqual({ basePrice: 200, minimum: 200 })
     })
 
-    it.concurrent('handles invalid perSeatAllowance values - zero', () => {
+    it.concurrent('handles invalid perSeatPrice values - zero', () => {
       const subscription = {
-        metadata: { perSeatAllowance: 0 },
+        metadata: { perSeatPrice: 0 },
       }
       const result = getPlanPricing('enterprise', subscription)
       // Should fall back to default enterprise pricing
-      expect(result).toEqual({ basePrice: 100, minimum: 100 })
+      expect(result).toEqual({ basePrice: 200, minimum: 200 })
     })
 
-    it.concurrent('handles invalid perSeatAllowance values - non-numeric string', () => {
+    it.concurrent('handles invalid perSeatPrice values - non-numeric string', () => {
       const subscription = {
-        metadata: { perSeatAllowance: 'invalid' },
+        metadata: { perSeatPrice: 'invalid' },
       }
       const result = getPlanPricing('enterprise', subscription)
       // Should fall back to default enterprise pricing
-      expect(result).toEqual({ basePrice: 100, minimum: 100 })
+      expect(result).toEqual({ basePrice: 200, minimum: 200 })
     })
 
-    it.concurrent('handles invalid perSeatAllowance values - null', () => {
+    it.concurrent('handles invalid perSeatPrice values - null', () => {
       const subscription = {
-        metadata: { perSeatAllowance: null },
+        metadata: { perSeatPrice: null },
       }
       const result = getPlanPricing('enterprise', subscription)
       // Should fall back to default enterprise pricing
-      expect(result).toEqual({ basePrice: 100, minimum: 100 })
+      expect(result).toEqual({ basePrice: 200, minimum: 200 })
     })
 
     it.concurrent('returns default enterprise pricing when metadata missing', () => {
       const result = getPlanPricing('enterprise')
-      expect(result).toEqual({ basePrice: 100, minimum: 100 })
+      expect(result).toEqual({ basePrice: 200, minimum: 200 })
     })
   })
 
