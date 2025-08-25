@@ -5,6 +5,7 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 export const maxDuration = 60
 
 const logger = createLogger('WandGenerateAPI')
@@ -107,6 +108,10 @@ export async function POST(req: NextRequest) {
           `[${requestId}] Starting streaming request to ${useWandAzure ? 'Azure OpenAI' : 'OpenAI'}`
         )
 
+        logger.info(
+          `[${requestId}] About to create stream with model: ${useWandAzure ? wandModelName : 'gpt-4o'}`
+        )
+
         const streamCompletion = await client.chat.completions.create({
           model: useWandAzure ? wandModelName : 'gpt-4o',
           messages: messages,
@@ -114,6 +119,8 @@ export async function POST(req: NextRequest) {
           max_tokens: 10000,
           stream: true,
         })
+
+        logger.info(`[${requestId}] Stream created successfully, starting iteration`)
 
         logger.debug(`[${requestId}] Stream connection established successfully`)
 
@@ -123,7 +130,17 @@ export async function POST(req: NextRequest) {
               const encoder = new TextEncoder()
 
               try {
+                logger.info(`[${requestId}] Starting streaming loop`)
+                let chunkCount = 0
+                let hasUsageData = false
+
                 for await (const chunk of streamCompletion) {
+                  chunkCount++
+
+                  if (chunkCount === 1) {
+                    logger.info(`[${requestId}] Received first chunk`)
+                  }
+
                   const content = chunk.choices[0]?.delta?.content || ''
                   if (content) {
                     // Use SSE format identical to chat streaming
@@ -131,12 +148,33 @@ export async function POST(req: NextRequest) {
                       encoder.encode(`data: ${JSON.stringify({ chunk: content })}\n\n`)
                     )
                   }
+
+                  // Check for usage data
+                  if (chunk.usage) {
+                    hasUsageData = true
+                    logger.info(
+                      `[${requestId}] Received usage data: ${JSON.stringify(chunk.usage)}`
+                    )
+                  }
+
+                  // Log every 5th chunk to avoid spam
+                  if (chunkCount % 5 === 0) {
+                    logger.debug(`[${requestId}] Processed ${chunkCount} chunks so far`)
+                  }
                 }
 
+                logger.info(
+                  `[${requestId}] Streaming loop completed. Total chunks: ${chunkCount}, Usage data received: ${hasUsageData}`
+                )
+
                 // Send completion signal in SSE format
+                logger.info(`[${requestId}] Sending completion signal`)
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`))
+
+                logger.info(`[${requestId}] Closing controller`)
                 controller.close()
-                logger.info(`[${requestId}] Wand generation streaming completed`)
+
+                logger.info(`[${requestId}] Wand generation streaming completed successfully`)
               } catch (streamError: any) {
                 logger.error(`[${requestId}] Streaming error`, { error: streamError.message })
                 controller.enqueue(
