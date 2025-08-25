@@ -796,7 +796,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             type='file'
             onChange={handleFileChange}
             className='hidden'
-            accept='.pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.gif,.svg'
+            accept='.pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.gif'
             multiple
             disabled={disabled || isLoading}
           />

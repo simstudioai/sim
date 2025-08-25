@@ -9,6 +9,34 @@ import {
   InvalidRequestError,
 } from '@/app/api/files/utils'
 
+// Allowlist of permitted file extensions for security
+const ALLOWED_EXTENSIONS = new Set([
+  // Documents
+  'pdf',
+  'doc',
+  'docx',
+  'txt',
+  'md',
+  // Images (safe formats)
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  // Data files
+  'csv',
+  'xlsx',
+  'xls',
+])
+
+/**
+ * Validates file extension against allowlist
+ */
+function validateFileExtension(filename: string): boolean {
+  const extension = filename.split('.').pop()?.toLowerCase()
+  if (!extension) return false
+  return ALLOWED_EXTENSIONS.has(extension)
+}
+
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('FilesUploadAPI')
@@ -49,6 +77,14 @@ export async function POST(request: NextRequest) {
     // Process each file
     for (const file of files) {
       const originalName = file.name
+
+      if (!validateFileExtension(originalName)) {
+        const extension = originalName.split('.').pop()?.toLowerCase() || 'unknown'
+        throw new InvalidRequestError(
+          `File type '${extension}' is not allowed. Allowed types: ${Array.from(ALLOWED_EXTENSIONS).join(', ')}`
+        )
+      }
+
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
 
