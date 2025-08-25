@@ -192,14 +192,12 @@ describe('File Upload Security Tests', () => {
     vi.resetModules()
     vi.clearAllMocks()
 
-    // Mock session for authentication
     vi.doMock('@/lib/auth', () => ({
       getSession: vi.fn().mockResolvedValue({
         user: { id: 'test-user-id' },
       }),
     }))
 
-    // Mock upload utilities
     vi.doMock('@/lib/uploads', () => ({
       isUsingCloudStorage: vi.fn().mockReturnValue(false),
       uploadFile: vi.fn().mockResolvedValue({
