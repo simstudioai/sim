@@ -1,4 +1,3 @@
-import { unstable_noStore as noStore } from 'next/cache'
 import { type NextRequest, NextResponse } from 'next/server'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { env } from '@/lib/env'
@@ -63,7 +62,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    noStore()
     const body = (await req.json()) as RequestBody
 
     const { prompt, systemPrompt, stream = false, history = [] } = body
@@ -112,15 +110,33 @@ export async function POST(req: NextRequest) {
           `[${requestId}] About to create stream with model: ${useWandAzure ? wandModelName : 'gpt-4o'}`
         )
 
-        const streamCompletion = await client.chat.completions.create({
-          model: useWandAzure ? wandModelName : 'gpt-4o',
-          messages: messages,
-          temperature: 0.3,
-          max_tokens: 10000,
-          stream: true,
+        // Add AbortController with timeout
+        const abortController = new AbortController()
+        const timeoutId = setTimeout(() => {
+          abortController.abort('Stream timeout after 30 seconds')
+        }, 30000)
+
+        // Forward request abort signal if available
+        req.signal?.addEventListener('abort', () => {
+          abortController.abort('Request cancelled by client')
         })
 
-        logger.info(`[${requestId}] Stream created successfully, starting iteration`)
+        const streamCompletion = await client.chat.completions.create(
+          {
+            model: useWandAzure ? wandModelName : 'gpt-4o',
+            messages: messages,
+            temperature: 0.3,
+            max_tokens: 10000,
+            stream: true,
+            stream_options: { include_usage: true },
+          },
+          {
+            signal: abortController.signal, // Add AbortSignal
+          }
+        )
+
+        clearTimeout(timeoutId) // Clear timeout after successful creation
+        logger.info(`[${requestId}] Stream created successfully, starting reader pattern`)
 
         logger.debug(`[${requestId}] Stream connection established successfully`)
 
@@ -130,18 +146,20 @@ export async function POST(req: NextRequest) {
               const encoder = new TextEncoder()
 
               try {
-                logger.info(`[${requestId}] Starting streaming loop`)
+                logger.info(`[${requestId}] Starting streaming with timeout protection`)
                 let chunkCount = 0
                 let hasUsageData = false
 
+                // Use for await with AbortController timeout protection
                 for await (const chunk of streamCompletion) {
                   chunkCount++
 
                   if (chunkCount === 1) {
-                    logger.info(`[${requestId}] Received first chunk`)
+                    logger.info(`[${requestId}] Received first chunk via for await`)
                   }
 
-                  const content = chunk.choices[0]?.delta?.content || ''
+                  // Process the chunk
+                  const content = chunk.choices?.[0]?.delta?.content || ''
                   if (content) {
                     // Use SSE format identical to chat streaming
                     controller.enqueue(
@@ -164,7 +182,7 @@ export async function POST(req: NextRequest) {
                 }
 
                 logger.info(
-                  `[${requestId}] Streaming loop completed. Total chunks: ${chunkCount}, Usage data received: ${hasUsageData}`
+                  `[${requestId}] Reader pattern completed. Total chunks: ${chunkCount}, Usage data received: ${hasUsageData}`
                 )
 
                 // Send completion signal in SSE format
@@ -176,12 +194,23 @@ export async function POST(req: NextRequest) {
 
                 logger.info(`[${requestId}] Wand generation streaming completed successfully`)
               } catch (streamError: any) {
-                logger.error(`[${requestId}] Streaming error`, { error: streamError.message })
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ error: 'Streaming failed', done: true })}\n\n`
+                if (streamError.name === 'AbortError') {
+                  logger.info(
+                    `[${requestId}] Stream was aborted (timeout or cancel): ${streamError.message}`
                   )
-                )
+                  controller.enqueue(
+                    encoder.encode(
+                      `data: ${JSON.stringify({ error: 'Stream cancelled', done: true })}\n\n`
+                    )
+                  )
+                } else {
+                  logger.error(`[${requestId}] Streaming error`, { error: streamError.message })
+                  controller.enqueue(
+                    encoder.encode(
+                      `data: ${JSON.stringify({ error: 'Streaming failed', done: true })}\n\n`
+                    )
+                  )
+                }
                 controller.close()
               }
             },
