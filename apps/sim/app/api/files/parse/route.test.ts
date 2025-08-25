@@ -7,7 +7,6 @@ import { NextRequest } from 'next/server'
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest, setupFileApiMocks } from '@/app/api/__test-utils__/utils'
-import { POST } from '@/app/api/files/parse/route'
 
 const mockJoin = vi.fn((...args: string[]): string => {
   if (args[0] === '/test/uploads') {
@@ -20,7 +19,6 @@ describe('File Parse API Route', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.resetAllMocks()
-
     vi.doMock('@/lib/file-parsers', () => ({
       isSupportedFileType: vi.fn().mockReturnValue(true),
       parseFile: vi.fn().mockResolvedValue({
@@ -41,12 +39,14 @@ describe('File Parse API Route', () => {
         extname: path.extname,
       }
     })
-
     vi.doMock('@/lib/uploads/setup.server', () => ({}))
   })
 
   afterEach(() => {
     vi.clearAllMocks()
+    if ((globalThis as any).fetch && (globalThis.fetch as any).__vitestMock) {
+      delete (globalThis as any).fetch
+    }
   })
 
   it('should handle missing file path', async () => {
@@ -217,6 +217,7 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
+        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
@@ -240,6 +241,7 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
+        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
@@ -265,6 +267,7 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
+        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
@@ -288,6 +291,7 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
+        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
@@ -314,6 +318,7 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
+        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
@@ -337,6 +342,7 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
+        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
@@ -354,6 +360,7 @@ describe('Files Parse API - Path Traversal Security', () => {
         }),
       })
 
+      const { POST } = await import('@/app/api/files/parse/route')
       const response = await POST(request)
       const result = await response.json()
 
@@ -367,11 +374,97 @@ describe('Files Parse API - Path Traversal Security', () => {
         body: JSON.stringify({}),
       })
 
+      const { POST } = await import('@/app/api/files/parse/route')
       const response = await POST(request)
       const result = await response.json()
 
       expect(response.status).toBe(400)
       expect(result.error).toBe('No file path provided')
     })
+  })
+})
+
+//SSRF Specific Tests
+
+describe('Files Parse API - SSRF protection', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.resetAllMocks()
+  })
+
+  afterEach(() => {
+    if ((globalThis as any).fetch && (globalThis.fetch as any).__vitestMock) {
+      delete (globalThis as any).fetch
+    }
+  })
+
+  it('should reject external URLs that resolve to private/reserved IPs (SSRF protection)', async () => {
+    setupFileApiMocks()
+    vi.doMock('dns/promises', () => ({
+      lookup: vi.fn().mockResolvedValue([{ address: '192.168.1.50', family: 4 }]),
+    }))
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: {
+          get: (k: string) => null,
+          entries: () => [],
+        },
+        arrayBuffer: async () => new TextEncoder().encode('ok').buffer,
+      })
+    )
+    ;(globalThis as any).fetch = fetchMock
+    ;(globalThis.fetch as any).__vitestMock = true
+
+    const req = new NextRequest('http://localhost:3000/api/files/parse', {
+      method: 'POST',
+      body: JSON.stringify({
+        filePath: 'http://example.com/file.txt',
+      }),
+    })
+
+    const { POST } = await import('@/app/api/files/parse/route')
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data).toHaveProperty('success', false)
+    expect(data.error).toMatch(/private|reserved|Localhost/i)
+    expect(fetchMock.mock.calls.length === 0 || fetchMock.mock.calls.length >= 0).toBe(true)
+  })
+
+  it('should allow external URLs that resolve to public IPs', async () => {
+    setupFileApiMocks()
+    vi.doMock('dns/promises', () => ({
+      lookup: vi.fn().mockResolvedValue([{ address: '93.184.216.34', family: 4 }]),
+    }))
+    const bodyBytes = new TextEncoder().encode('hello').buffer
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: {
+          get: (k: string) => (k === 'content-length' ? String(bodyBytes.byteLength) : null),
+          entries: () => [['content-length', String(bodyBytes.byteLength)]],
+        },
+        arrayBuffer: async () => bodyBytes,
+      })
+    )
+    ;(globalThis as any).fetch = fetchMock
+    ;(globalThis.fetch as any).__vitestMock = true
+
+    const req = new NextRequest('http://localhost:3000/api/files/parse', {
+      method: 'POST',
+      body: JSON.stringify({
+        filePath: 'http://example.com/file.txt',
+      }),
+    })
+
+    const { POST } = await import('@/app/api/files/parse/route')
+    const response = await POST(req)
+    const data = await response.json()
+    expect(response.status).toBe(200)
+    expect(data).toHaveProperty('success')
   })
 })

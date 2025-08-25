@@ -8,6 +8,8 @@ import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console/logger'
 import { downloadFile, isUsingCloudStorage } from '@/lib/uploads'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/setup.server'
+import { lookup } from 'dns/promises'
+import ipaddr from 'ipaddr.js'
 import '@/lib/uploads/setup.server'
 
 export const dynamic = 'force-dynamic'
@@ -30,6 +32,201 @@ interface ParseResult {
   }
 }
 
+function isPrivateOrReservedAddress(addr: string): boolean {
+  try {
+    const parsed = ipaddr.parse(addr)
+    const range = parsed.range() // returns 'private', 'loopback', 'linkLocal', 'multicast', 'unicast', etc.
+
+    // Block these ranges
+    const blocked = new Set([
+      'private',
+      'loopback',
+      'linkLocal',
+      'multicast',
+      'reserved',
+      'unspecified',
+      // IPv6 unique local addresses
+      'uniqueLocal',
+    ])
+
+    return blocked.has(range)
+  } catch (e) {
+    // Parsing failed -> suspicious (treat as blocked)
+    return true
+  }
+}
+
+async function resolveHostAddresses(hostname: string): Promise<string[]> {
+  // lookup with all: true returns an array of { address, family }
+  const results = await lookup(hostname, { all: true })
+  // results may be objects or strings depending on environment - normalize
+  return results.map((r: any) => (typeof r === 'string' ? r : r.address))
+}
+
+/**
+ * Validate an external URL before allowing a fetch.
+ * Throws an Error if invalid / disallowed.
+ */
+async function validateExternalUrl(urlStr: string) {
+  let url: URL
+  try {
+    url = new URL(urlStr)
+  } catch (e) {
+    throw new Error('Invalid URL')
+  }
+
+  // Only allow http(s)
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new Error('Only http/https URLs are allowed')
+  }
+
+  const hostname = url.hostname.toLowerCase()
+
+  // Disallow obvious localhosts and direct IP loopbacks
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+    throw new Error('Localhost is not allowed')
+  }
+
+  // If hostname is already an IP literal, validate it directly
+  if (ipaddr.isValid(hostname)) {
+    if (isPrivateOrReservedAddress(hostname)) {
+      throw new Error('Resolved address is private or reserved')
+    }
+    return url
+  }
+
+  // Otherwise resolve DNS and check each address
+  const addrs = await resolveHostAddresses(hostname)
+  if (!addrs || addrs.length === 0) {
+    throw new Error('Unable to resolve hostname')
+  }
+
+  for (const a of addrs) {
+    if (isPrivateOrReservedAddress(a)) {
+      throw new Error('Resolved address is private or reserved')
+    }
+  }
+
+  return url
+}
+
+const MAX_REDIRECTS = 3 
+async function secureFetch(urlStr: string, maxSizeBytes = MAX_DOWNLOAD_SIZE_BYTES) {
+  // Validate initial URL first
+  await validateExternalUrl(urlStr)
+
+  let currentUrl = urlStr
+  let redirectCount = 0
+
+  while (true) {
+    // AbortSignal.timeout is available in modern Node; keep using the same timeout constant
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS)
+
+    try {
+      const response = await fetch(currentUrl, {
+        method: 'GET',
+        redirect: 'manual', // do not auto-follow
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
+
+      // If redirection, validate target before following
+      if (response.status >= 300 && response.status < 400) {
+        const loc = response.headers.get('location')
+        if (!loc) {
+          throw new Error('Redirect without Location header')
+        }
+
+        const nextUrl = new URL(loc, currentUrl).toString()
+        // Validate the redirect target (resolves DNS and checks IPs)
+        await validateExternalUrl(nextUrl)
+
+        redirectCount++
+        if (redirectCount > MAX_REDIRECTS) throw new Error('Too many redirects')
+
+        currentUrl = nextUrl
+        continue // fetch next location
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`)
+      }
+
+      // Check content-length header first (if present)
+      const contentLengthHeader = response.headers.get('content-length')
+      if (contentLengthHeader) {
+        const cl = Number.parseInt(contentLengthHeader, 10)
+        if (!Number.isNaN(cl) && cl > maxSizeBytes) {
+          throw new Error(`File too large: ${cl} bytes (max: ${maxSizeBytes})`)
+        }
+      }
+
+      // Read body as arrayBuffer and then buffer to measure exact size
+      const arrayBuffer = await response.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+
+      if (buffer.length > maxSizeBytes) {
+        throw new Error(`File too large: ${buffer.length} bytes (max: ${maxSizeBytes})`)
+      }
+
+      return {
+        ok: true,
+        status: response.status,
+        headers: Object.fromEntries(response.headers.entries()),
+        buffer,
+        finalUrl: currentUrl,
+      }
+    } catch (err: any) {
+      // Translate AbortError name to a clearer message
+      if (err && (err.name === 'AbortError' || err.code === 'ABORT_ERR')) {
+        throw new Error('Download timed out')
+      }
+      throw err
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+}
+
+async function handleExternalUrl(url: string, fileType?: string): Promise<ParseResult> {
+  try {
+    logger.info('Fetching external URL:', url)
+
+    const fetched = await secureFetch(url)
+
+    // fetched.buffer is a Buffer already
+    const buffer = fetched.buffer
+
+    logger.info(`Downloaded file from URL: ${url}, size: ${buffer.length} bytes`)
+
+    // Extract filename from final URL
+    const urlPath = new URL(fetched.finalUrl).pathname
+    const filename = urlPath.split('/').pop() || 'download'
+    const extension = path.extname(filename).toLowerCase().substring(1)
+
+    // Process according to extension
+    if (extension === 'pdf') {
+      return await handlePdfBuffer(buffer, filename, fileType, url)
+    }
+    if (extension === 'csv') {
+      return await handleCsvBuffer(buffer, filename, fileType, url)
+    }
+    if (isSupportedFileType(extension)) {
+      return await handleGenericTextBuffer(buffer, filename, extension, fileType, url)
+    }
+
+    // Binary / unknown
+    return handleGenericBuffer(buffer, filename, extension, fileType)
+  } catch (error) {
+    logger.error(`Error handling external URL ${url}:`, error)
+    return {
+      success: false,
+      error: `Error fetching URL: ${(error as Error).message}`,
+      filePath: url,
+    }
+  }
+}
 const fileTypeMap: Record<string, string> = {
   // Text formats
   txt: 'text/plain',
@@ -232,62 +429,6 @@ function validateFilePath(filePath: string): { isValid: boolean; error?: string 
 
   return { isValid: true }
 }
-
-/**
- * Handle external URL
- */
-async function handleExternalUrl(url: string, fileType?: string): Promise<ParseResult> {
-  try {
-    logger.info('Fetching external URL:', url)
-
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
-    })
-    if (!response.ok) {
-      throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`)
-    }
-
-    const contentLength = response.headers.get('content-length')
-    if (contentLength && Number.parseInt(contentLength) > MAX_DOWNLOAD_SIZE_BYTES) {
-      throw new Error(`File too large: ${contentLength} bytes (max: ${MAX_DOWNLOAD_SIZE_BYTES})`)
-    }
-
-    const buffer = Buffer.from(await response.arrayBuffer())
-
-    if (buffer.length > MAX_DOWNLOAD_SIZE_BYTES) {
-      throw new Error(`File too large: ${buffer.length} bytes (max: ${MAX_DOWNLOAD_SIZE_BYTES})`)
-    }
-
-    logger.info(`Downloaded file from URL: ${url}, size: ${buffer.length} bytes`)
-
-    // Extract filename from URL
-    const urlPath = new URL(url).pathname
-    const filename = urlPath.split('/').pop() || 'download'
-    const extension = path.extname(filename).toLowerCase().substring(1)
-
-    // Process the file based on its content type
-    if (extension === 'pdf') {
-      return await handlePdfBuffer(buffer, filename, fileType, url)
-    }
-    if (extension === 'csv') {
-      return await handleCsvBuffer(buffer, filename, fileType, url)
-    }
-    if (isSupportedFileType(extension)) {
-      return await handleGenericTextBuffer(buffer, filename, extension, fileType, url)
-    }
-
-    // For binary or unknown files
-    return handleGenericBuffer(buffer, filename, extension, fileType)
-  } catch (error) {
-    logger.error(`Error handling external URL ${url}:`, error)
-    return {
-      success: false,
-      error: `Error fetching URL: ${(error as Error).message}`,
-      filePath: url,
-    }
-  }
-}
-
 /**
  * Handle file stored in cloud storage (S3 or Azure Blob)
  */
