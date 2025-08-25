@@ -153,10 +153,45 @@ export function extractBlobKey(path: string): string {
  * Extract filename from a serve path
  */
 export function extractFilename(path: string): string {
+  let filename: string
+
   if (path.startsWith('/api/files/serve/')) {
-    return path.substring('/api/files/serve/'.length)
+    filename = path.substring('/api/files/serve/'.length)
+  } else {
+    filename = path.split('/').pop() || path
   }
-  return path.split('/').pop() || path
+
+  // Security: Remove path traversal sequences and validate
+  // This prevents directory traversal attacks while maintaining backward compatibility
+  filename = filename
+    .replace(/\.\./g, '')
+    .replace(/\/\.\./g, '')
+    .replace(/\.\.\//g, '')
+
+  // Handle cloud storage paths (s3/key, blob/key) - preserve forward slashes for these
+  if (filename.startsWith('s3/') || filename.startsWith('blob/')) {
+    // For cloud paths, only sanitize the key portion after the prefix
+    const parts = filename.split('/')
+    const prefix = parts[0] // 's3' or 'blob'
+    const keyParts = parts.slice(1)
+
+    // Sanitize each part of the key to prevent traversal
+    const sanitizedKeyParts = keyParts
+      .map((part) => part.replace(/\.\./g, '').replace(/^\./g, '').trim())
+      .filter((part) => part.length > 0)
+
+    filename = `${prefix}/${sanitizedKeyParts.join('/')}`
+  } else {
+    // For regular filenames, remove any remaining path separators
+    filename = filename.replace(/[/\\]/g, '')
+  }
+
+  // Additional validation: ensure filename is not empty after sanitization
+  if (!filename || filename.trim().length === 0) {
+    throw new Error('Invalid or empty filename after sanitization')
+  }
+
+  return filename
 }
 
 /**
