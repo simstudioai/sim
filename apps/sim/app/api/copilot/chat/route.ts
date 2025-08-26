@@ -401,24 +401,26 @@ export async function POST(req: NextRequest) {
     }
 
     const defaults = getCopilotModel('chat')
-    const providerToUse = (env.COPILOT_PROVIDER as any) || defaults.provider
     const modelToUse = env.COPILOT_MODEL || defaults.model
 
-    let providerConfig: CopilotProviderConfig
+    let providerConfig: CopilotProviderConfig | undefined
+    const providerEnv = env.COPILOT_PROVIDER as any
 
-    if (providerToUse === 'azure-openai') {
-      providerConfig = {
-        provider: 'azure-openai',
-        model: modelToUse,
-        apiKey: env.AZURE_OPENAI_API_KEY,
-        apiVersion: env.AZURE_OPENAI_API_VERSION,
-        endpoint: env.AZURE_OPENAI_ENDPOINT,
-      }
-    } else {
-      providerConfig = {
-        provider: providerToUse,
-        model: modelToUse,
-        apiKey: env.COPILOT_API_KEY,
+    if (providerEnv) {
+      if (providerEnv === 'azure-openai') {
+        providerConfig = {
+          provider: 'azure-openai',
+          model: modelToUse,
+          apiKey: env.AZURE_OPENAI_API_KEY,
+          apiVersion: env.AZURE_OPENAI_API_VERSION,
+          endpoint: env.AZURE_OPENAI_ENDPOINT,
+        }
+      } else {
+        providerConfig = {
+          provider: providerEnv,
+          model: modelToUse,
+          apiKey: env.COPILOT_API_KEY,
+        }
       }
     }
 
@@ -438,7 +440,7 @@ export async function POST(req: NextRequest) {
       stream: stream,
       streamToolCalls: true,
       mode: mode,
-      provider: providerConfig,
+      ...(providerConfig ? { provider: providerConfig } : {}),
       ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
       ...(typeof effectiveDepth === 'number' ? { depth: effectiveDepth } : {}),
       ...(typeof effectivePrefetch === 'boolean' ? { prefetch: effectivePrefetch } : {}),
