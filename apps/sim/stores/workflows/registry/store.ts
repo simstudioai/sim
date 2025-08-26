@@ -108,7 +108,7 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
         name,
         description: description || '',
         color: color || '#3972F6',
-        lastModified: new Date(createdAt || 0),
+        lastModified: createdAt ? new Date(createdAt) : new Date(),
         marketplaceData: marketplaceData || null,
         workspaceId,
         folderId: folderId || null,
