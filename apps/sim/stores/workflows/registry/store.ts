@@ -164,6 +164,9 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
       error: null,
     })
 
+    // Mark that initial load has completed
+    hasInitiallyLoaded = true
+
     // Only set first workflow as active if no active workflow is set and we have workflows
     const currentState = useWorkflowRegistry.getState()
     if (!currentState.activeWorkflowId && Object.keys(registryWorkflows).length > 0) {
@@ -177,6 +180,11 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
     )
   } catch (error) {
     logger.error('Error fetching workflows from DB:', error)
+
+    // Mark that initial load has completed even on error
+    // This prevents indefinite waiting for workflows that failed to load
+    hasInitiallyLoaded = true
+
     useWorkflowRegistry.setState({
       isLoading: false,
       error: `Failed to load workflows: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -256,21 +264,28 @@ export function isWorkspaceInTransition(): boolean {
   return isWorkspaceTransitioning
 }
 
+/**
+ * Checks if workflows have been initially loaded
+ * @returns True if the initial workflow load has completed at least once
+ */
+export function hasWorkflowsInitiallyLoaded(): boolean {
+  return hasInitiallyLoaded
+}
+
+// Track if initial load has happened to prevent premature navigation
+let hasInitiallyLoaded = false
+
 export const useWorkflowRegistry = create<WorkflowRegistry>()(
   devtools(
     (set, get) => ({
       // Store state
       workflows: {},
       activeWorkflowId: null,
-      isLoading: true,
+      isLoading: false,
       error: null,
-      // Initialize deployment statuses
       deploymentStatuses: {},
 
-      // Set loading state
       setLoading: (loading: boolean) => {
-        // Remove the broken logic that prevents loading when workflows exist
-        // This was causing race conditions during deletion and sync operations
         set({ isLoading: loading })
       },
 
@@ -294,6 +309,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
         try {
           logger.info(`Switching to workspace: ${workspaceId}`)
+
+          // Reset the initial load flag when switching workspaces
+          hasInitiallyLoaded = false
 
           // Clear current workspace state
           resetWorkflowStores()
@@ -500,7 +518,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             })
           })
 
-          // Update subblock store for this workflow
           useSubBlockStore.setState((state) => ({
             workflowValues: {
               ...state.workflowValues,
@@ -542,10 +559,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           )
         }
 
-        // Set the workflow state in the store
-        useWorkflowStore.setState(workflowState)
-
-        // CRITICAL: Set deployment status in registry when switching to workflow
         if (workflowData?.isDeployed || workflowData?.deployedAt) {
           set((state) => ({
             deploymentStatuses: {
@@ -560,11 +573,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }))
         }
 
-        // Update the active workflow ID
+        useWorkflowStore.setState(workflowState)
+
         set({ activeWorkflowId: id, error: null })
 
-        // Emit a global event to notify that the active workflow has changed
-        // This allows the workflow component to join the socket room
         window.dispatchEvent(
           new CustomEvent('active-workflow-changed', {
             detail: { workflowId: id },

@@ -39,7 +39,7 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { hasWorkflowsInitiallyLoaded, useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Workflow')
@@ -908,14 +908,21 @@ const WorkflowContent = React.memo(() => {
       const workflowIds = Object.keys(workflows)
       const currentId = params.workflowId as string
 
+      // Check if workflows have been initially loaded at least once
+      // This prevents premature navigation decisions on page refresh
+      if (!hasWorkflowsInitiallyLoaded()) {
+        logger.info('Waiting for initial workflow load...')
+        return
+      }
+
       // Wait for both initialization and workflow loading to complete
       if (isLoading) {
         logger.info('Workflows still loading, waiting...')
         return
       }
 
-      // If no workflows exist, redirect to workspace root to let server handle workflow creation
-      if (workflowIds.length === 0 && !isLoading) {
+      // If no workflows exist after loading, redirect to workspace root
+      if (workflowIds.length === 0) {
         logger.info('No workflows found, redirecting to workspace root')
         router.replace(`/workspace/${workspaceId}/w`)
         return
