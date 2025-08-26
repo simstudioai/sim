@@ -46,7 +46,7 @@ const initialState = {
         isDeployed: false,
         isPublished: false,
       },
-      timestamp: Date.now(),
+      timestamp: 0, // Use 0 for initial state to avoid SSR hydration issues
       action: 'Initial state',
       subblockValues: {},
     },
