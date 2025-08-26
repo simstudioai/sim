@@ -20,7 +20,6 @@ let isFetching = false
 let lastFetchTimestamp = 0
 
 async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
-  // Skip fetch on server-side to prevent hydration issues
   if (typeof window === 'undefined') return
 
   // Prevent concurrent fetch operations
@@ -109,7 +108,7 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
         name,
         description: description || '',
         color: color || '#3972F6',
-        lastModified: new Date(createdAt || 0), // Use epoch time if no createdAt to avoid SSR issues
+        lastModified: new Date(createdAt || 0),
         marketplaceData: marketplaceData || null,
         workspaceId,
         folderId: folderId || null,
