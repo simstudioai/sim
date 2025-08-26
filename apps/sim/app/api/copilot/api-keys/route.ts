@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key/get-api-keys`, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
       },
@@ -64,7 +64,7 @@ export async function DELETE(request: NextRequest) {
 
     const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key/delete`, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
       },
