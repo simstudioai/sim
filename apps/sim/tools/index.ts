@@ -410,15 +410,47 @@ async function handleInternalRequest(
 
     const response = await fetch(fullUrl, requestOptions)
 
-    // Parse response data once
-    let responseData
-    try {
-      responseData = await response.json()
-    } catch (jsonError) {
-      logger.error(`[${requestId}] JSON parse error for ${toolId}:`, {
-        error: jsonError instanceof Error ? jsonError.message : String(jsonError),
-      })
-      throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
+    // Parse response data once with guard for empty 202 bodies
+    let responseData: any
+    const status = response.status
+    const contentType = response.headers.get('content-type') || ''
+    const contentLength = response.headers.get('content-length') || ''
+
+    if (status === 202) {
+      // Many APIs (e.g., Microsoft Graph) return 202 with empty body
+      let text = ''
+      try {
+        text = await response.text()
+      } catch (_e) {
+        text = ''
+      }
+
+      if (!text) {
+        logger.info(`[${requestId}] ${toolId} received 202 Accepted with empty body`, {
+          status,
+          contentType,
+          contentLength,
+        })
+        responseData = { status }
+      } else {
+        responseData = text
+      }
+    } else if (contentType.includes('application/json')) {
+      try {
+        responseData = await response.json()
+      } catch (jsonError) {
+        logger.warn(`[${requestId}] JSON parse failed for ${toolId}, falling back to text`, {
+          error: jsonError instanceof Error ? jsonError.message : String(jsonError),
+          status,
+          contentType,
+          contentLength,
+        })
+        const text = await response.text().catch(() => '')
+        responseData = text || null
+      }
+    } else {
+      const text = await response.text().catch(() => '')
+      responseData = text || null
     }
 
     // Check for error conditions
