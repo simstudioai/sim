@@ -18,6 +18,7 @@ interface CodeEditorProps {
   highlightVariables?: boolean
   onKeyDown?: (e: React.KeyboardEvent) => void
   disabled?: boolean
+  schemaParameters?: Array<{ name: string; type: string; description: string; required: boolean }>
 }
 
 export function CodeEditor({
@@ -30,6 +31,7 @@ export function CodeEditor({
   highlightVariables = true,
   onKeyDown,
   disabled = false,
+  schemaParameters = [],
 }: CodeEditorProps) {
   const [code, setCode] = useState(value)
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
@@ -120,24 +122,79 @@ export function CodeEditor({
     // First, get the default Prism highlighting
     let highlighted = highlight(code, languages[language], language)
 
-    // Then, highlight environment variables with {{var_name}} syntax in blue
-    if (highlighted.includes('{{')) {
-      highlighted = highlighted.replace(
-        /\{\{([^}]+)\}\}/g,
-        '<span class="text-blue-500">{{$1}}</span>'
-      )
+    // Collect all syntax highlights to apply in a single pass
+    type SyntaxHighlight = {
+      start: number
+      end: number
+      replacement: string
     }
+    const highlights: SyntaxHighlight[] = []
 
-    // Also highlight tags with <tag_name> syntax in blue
-    if (highlighted.includes('<') && !language.includes('html')) {
-      highlighted = highlighted.replace(/<([^>\s/]+)>/g, (match, group) => {
-        // Avoid replacing HTML tags in comments
-        if (match.startsWith('<!--') || match.includes('</')) {
-          return match
-        }
-        return `<span class="text-blue-500">&lt;${group}&gt;</span>`
+    // Find environment variables with {{var_name}} syntax
+    let match
+    const envVarRegex = /\{\{([^}]+)\}\}/g
+    while ((match = envVarRegex.exec(highlighted)) !== null) {
+      highlights.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        replacement: `<span class="text-blue-500">${match[0]}</span>`,
       })
     }
+
+    // Find tags with <tag_name> syntax (not in HTML context)
+    if (!language.includes('html')) {
+      const tagRegex = /<([^>\s/]+)>/g
+      while ((match = tagRegex.exec(highlighted)) !== null) {
+        // Skip HTML comments and closing tags
+        if (!match[0].startsWith('<!--') && !match[0].includes('</')) {
+          const escaped = `&lt;${match[1]}&gt;`
+          highlights.push({
+            start: match.index,
+            end: match.index + match[0].length,
+            replacement: `<span class="text-blue-500">${escaped}</span>`,
+          })
+        }
+      }
+    }
+
+    // Find schema parameters as whole words
+    if (schemaParameters.length > 0) {
+      schemaParameters.forEach((param) => {
+        // Escape special regex characters in parameter name
+        const escapedName = param.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const paramRegex = new RegExp(`\\b(${escapedName})\\b`, 'g')
+        while ((match = paramRegex.exec(highlighted)) !== null) {
+          // Check if this position is already inside an HTML tag
+          // by looking for unclosed < before this position
+          let insideTag = false
+          let pos = match.index - 1
+          while (pos >= 0) {
+            if (highlighted[pos] === '>') break
+            if (highlighted[pos] === '<') {
+              insideTag = true
+              break
+            }
+            pos--
+          }
+
+          if (!insideTag) {
+            highlights.push({
+              start: match.index,
+              end: match.index + match[0].length,
+              replacement: `<span class="text-green-600 font-medium">${match[0]}</span>`,
+            })
+          }
+        }
+      })
+    }
+
+    // Sort highlights by start position (reverse order to maintain positions)
+    highlights.sort((a, b) => b.start - a.start)
+
+    // Apply all highlights
+    highlights.forEach(({ start, end, replacement }) => {
+      highlighted = highlighted.slice(0, start) + replacement + highlighted.slice(end)
+    })
 
     return highlighted
   }
@@ -204,12 +261,17 @@ export function CodeEditor({
           disabled={disabled}
           style={{
             fontFamily: 'inherit',
-            minHeight: '46px',
+            minHeight: minHeight,
             lineHeight: '21px',
+            height: '100%',
           }}
-          className={cn('focus:outline-none', isCollapsed && 'pointer-events-none select-none')}
+          className={cn(
+            'h-full focus:outline-none',
+            isCollapsed && 'pointer-events-none select-none'
+          )}
           textareaClassName={cn(
             'focus:outline-none focus:ring-0 bg-transparent',
+            '!min-h-full !h-full resize-none !block',
             (isCollapsed || disabled) && 'pointer-events-none'
           )}
         />

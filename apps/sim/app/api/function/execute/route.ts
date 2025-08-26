@@ -213,24 +213,81 @@ function createUserFriendlyErrorMessage(
 }
 
 /**
- * Resolves environment variables and tags in code
- * @param code - Code with variables
- * @param params - Parameters that may contain variable values
- * @param envVars - Environment variables from the workflow
- * @returns Resolved code
+ * Resolves workflow variables with <variable.name> syntax
  */
+function resolveWorkflowVariables(
+  code: string,
+  workflowVariables: Record<string, any>,
+  contextVariables: Record<string, any>
+): string {
+  let resolvedCode = code
 
-function resolveCodeVariables(
+  const variableMatches = resolvedCode.match(/<variable\.([^>]+)>/g) || []
+  for (const match of variableMatches) {
+    const variableName = match.slice('<variable.'.length, -1).trim()
+
+    // Find the variable by name (workflowVariables is indexed by ID, values are variable objects)
+    const foundVariable = Object.entries(workflowVariables).find(
+      ([_, variable]) => (variable.name || '').replace(/\s+/g, '') === variableName
+    )
+
+    if (foundVariable) {
+      const variable = foundVariable[1]
+      // Get the typed value - handle different variable types
+      let variableValue = variable.value
+
+      if (variable.value !== undefined && variable.value !== null) {
+        try {
+          // Handle 'string' type the same as 'plain' for backward compatibility
+          const type = variable.type === 'string' ? 'plain' : variable.type
+
+          // For plain text, use exactly what's entered without modifications
+          if (type === 'plain' && typeof variableValue === 'string') {
+            // Use as-is for plain text
+          } else if (type === 'number') {
+            variableValue = Number(variableValue)
+          } else if (type === 'boolean') {
+            variableValue = variableValue === 'true' || variableValue === true
+          } else if (type === 'json') {
+            try {
+              variableValue =
+                typeof variableValue === 'string' ? JSON.parse(variableValue) : variableValue
+            } catch {
+              // Keep original value if JSON parsing fails
+            }
+          }
+        } catch (error) {
+          // Fallback to original value on error
+          variableValue = variable.value
+        }
+      }
+
+      // Create a safe variable reference
+      const safeVarName = `__variable_${variableName.replace(/[^a-zA-Z0-9_]/g, '_')}`
+      contextVariables[safeVarName] = variableValue
+
+      // Replace the variable reference with the safe variable name
+      resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
+    } else {
+      // Variable not found - replace with empty string to avoid syntax errors
+      resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), '')
+    }
+  }
+
+  return resolvedCode
+}
+
+/**
+ * Resolves environment variables with {{var_name}} syntax
+ */
+function resolveEnvironmentVariables(
   code: string,
   params: Record<string, any>,
-  envVars: Record<string, string> = {},
-  blockData: Record<string, any> = {},
-  blockNameMapping: Record<string, string> = {}
-): { resolvedCode: string; contextVariables: Record<string, any> } {
+  envVars: Record<string, string>,
+  contextVariables: Record<string, any>
+): string {
   let resolvedCode = code
-  const contextVariables: Record<string, any> = {}
 
-  // Resolve environment variables with {{var_name}} syntax
   const envVarMatches = resolvedCode.match(/\{\{([^}]+)\}\}/g) || []
   for (const match of envVarMatches) {
     const varName = match.slice(2, -2).trim()
@@ -245,7 +302,21 @@ function resolveCodeVariables(
     resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
 
-  // Resolve tags with <tag_name> syntax (including nested paths like <block.response.data>)
+  return resolvedCode
+}
+
+/**
+ * Resolves tags with <tag_name> syntax (including nested paths like <block.response.data>)
+ */
+function resolveTagVariables(
+  code: string,
+  params: Record<string, any>,
+  blockData: Record<string, any>,
+  blockNameMapping: Record<string, string>,
+  contextVariables: Record<string, any>
+): string {
+  let resolvedCode = code
+
   const tagMatches = resolvedCode.match(/<([a-zA-Z_][a-zA-Z0-9_.]*[a-zA-Z0-9_])>/g) || []
 
   for (const match of tagMatches) {
@@ -300,6 +371,42 @@ function resolveCodeVariables(
     resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
 
+  return resolvedCode
+}
+
+/**
+ * Resolves environment variables and tags in code
+ * @param code - Code with variables
+ * @param params - Parameters that may contain variable values
+ * @param envVars - Environment variables from the workflow
+ * @returns Resolved code
+ */
+function resolveCodeVariables(
+  code: string,
+  params: Record<string, any>,
+  envVars: Record<string, string> = {},
+  blockData: Record<string, any> = {},
+  blockNameMapping: Record<string, string> = {},
+  workflowVariables: Record<string, any> = {}
+): { resolvedCode: string; contextVariables: Record<string, any> } {
+  let resolvedCode = code
+  const contextVariables: Record<string, any> = {}
+
+  // Resolve workflow variables with <variable.name> syntax first
+  resolvedCode = resolveWorkflowVariables(resolvedCode, workflowVariables, contextVariables)
+
+  // Resolve environment variables with {{var_name}} syntax
+  resolvedCode = resolveEnvironmentVariables(resolvedCode, params, envVars, contextVariables)
+
+  // Resolve tags with <tag_name> syntax (including nested paths like <block.response.data>)
+  resolvedCode = resolveTagVariables(
+    resolvedCode,
+    params,
+    blockData,
+    blockNameMapping,
+    contextVariables
+  )
+
   return { resolvedCode, contextVariables }
 }
 
@@ -338,6 +445,7 @@ export async function POST(req: NextRequest) {
       envVars = {},
       blockData = {},
       blockNameMapping = {},
+      workflowVariables = {},
       workflowId,
       isCustomTool = false,
     } = body
@@ -360,7 +468,8 @@ export async function POST(req: NextRequest) {
       executionParams,
       envVars,
       blockData,
-      blockNameMapping
+      blockNameMapping,
+      workflowVariables
     )
     resolvedCode = codeResolution.resolvedCode
     const contextVariables = codeResolution.contextVariables
@@ -368,8 +477,8 @@ export async function POST(req: NextRequest) {
     const executionMethod = 'vm' // Default execution method
 
     logger.info(`[${requestId}] Using VM for code execution`, {
-      resolvedCode,
       hasEnvVars: Object.keys(envVars).length > 0,
+      hasWorkflowVariables: Object.keys(workflowVariables).length > 0,
     })
 
     // Create a secure context with console logging

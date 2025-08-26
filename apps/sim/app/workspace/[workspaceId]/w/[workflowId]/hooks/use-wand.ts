@@ -198,35 +198,37 @@ export function useWand({
             const { done, value } = await reader.read()
             if (done) break
 
-            // Process incoming chunks
-            const text = decoder.decode(value)
-            const lines = text.split('\n').filter((line) => line.trim() !== '')
+            // Process incoming chunks using SSE format (identical to Chat panel)
+            const chunk = decoder.decode(value)
+            const lines = chunk.split('\n\n')
 
             for (const line of lines) {
-              try {
-                const data = JSON.parse(line)
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.substring(6))
 
-                // Check if there's an error
-                if (data.error) {
-                  throw new Error(data.error)
-                }
-
-                // Process chunk
-                if (data.chunk && !data.done) {
-                  accumulatedContent += data.chunk
-                  // Stream each chunk to the UI immediately
-                  if (onStreamChunk) {
-                    onStreamChunk(data.chunk)
+                  // Check if there's an error
+                  if (data.error) {
+                    throw new Error(data.error)
                   }
-                }
 
-                // Check if streaming is complete
-                if (data.done) {
-                  break
+                  // Process chunk
+                  if (data.chunk) {
+                    accumulatedContent += data.chunk
+                    // Stream each chunk to the UI immediately
+                    if (onStreamChunk) {
+                      onStreamChunk(data.chunk)
+                    }
+                  }
+
+                  // Check if streaming is complete
+                  if (data.done) {
+                    break
+                  }
+                } catch (parseError) {
+                  // Continue processing other lines
+                  logger.debug('Failed to parse SSE line', { line, parseError })
                 }
-              } catch (parseError) {
-                // Continue processing other lines
-                logger.debug('Failed to parse streaming line', { line, parseError })
               }
             }
           }

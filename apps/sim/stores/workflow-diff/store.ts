@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { createLogger } from '@/lib/logs/console/logger'
 import { type DiffAnalysis, WorkflowDiffEngine } from '@/lib/workflows/diff'
 import { Serializer } from '@/serializer'
@@ -341,7 +342,39 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               // Update copilot tool call state to 'accepted'
               try {
                 const { useCopilotStore } = await import('@/stores/copilot/store')
-                useCopilotStore.getState().updatePreviewToolCallState('accepted')
+                const { messages, toolCallsById } = useCopilotStore.getState()
+
+                // Prefer the latest assistant message's build/edit tool_call from contentBlocks
+                let toolCallId: string | undefined
+                outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
+                  const m = messages[mi] as any
+                  if (m.role !== 'assistant' || !m.contentBlocks) continue
+                  for (const b of m.contentBlocks as any[]) {
+                    if (b?.type === 'tool_call') {
+                      const tn = b.toolCall?.name
+                      if (tn === 'build_workflow' || tn === 'edit_workflow') {
+                        toolCallId = b.toolCall?.id
+                        break outer
+                      }
+                    }
+                  }
+                }
+                // Fallback to toolCallsById map if not found in messages
+                if (!toolCallId) {
+                  const candidates = Object.values(toolCallsById).filter(
+                    (t: any) => t.name === 'build_workflow' || t.name === 'edit_workflow'
+                  ) as any[]
+                  toolCallId = candidates.length ? candidates[candidates.length - 1].id : undefined
+                }
+
+                if (toolCallId) {
+                  const instance: any = getClientTool(toolCallId)
+                  try {
+                    await instance?.handleAccept?.()
+                  } catch (e) {
+                    logger.warn('Failed to mark tool complete on accept', e)
+                  }
+                }
               } catch (error) {
                 logger.warn('Failed to update copilot tool call state after accept:', error)
               }
@@ -359,7 +392,39 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           // Update copilot tool call state to 'rejected'
           try {
             const { useCopilotStore } = await import('@/stores/copilot/store')
-            useCopilotStore.getState().updatePreviewToolCallState('rejected')
+            const { messages, toolCallsById } = useCopilotStore.getState()
+
+            // Prefer the latest assistant message's build/edit tool_call from contentBlocks
+            let toolCallId: string | undefined
+            outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
+              const m = messages[mi] as any
+              if (m.role !== 'assistant' || !m.contentBlocks) continue
+              for (const b of m.contentBlocks as any[]) {
+                if (b?.type === 'tool_call') {
+                  const tn = b.toolCall?.name
+                  if (tn === 'build_workflow' || tn === 'edit_workflow') {
+                    toolCallId = b.toolCall?.id
+                    break outer
+                  }
+                }
+              }
+            }
+            // Fallback to toolCallsById map if not found in messages
+            if (!toolCallId) {
+              const candidates = Object.values(toolCallsById).filter(
+                (t: any) => t.name === 'build_workflow' || t.name === 'edit_workflow'
+              ) as any[]
+              toolCallId = candidates.length ? candidates[candidates.length - 1].id : undefined
+            }
+
+            if (toolCallId) {
+              const instance: any = getClientTool(toolCallId)
+              try {
+                await instance?.handleReject?.()
+              } catch (e) {
+                logger.warn('Failed to mark tool complete on reject', e)
+              }
+            }
           } catch (error) {
             logger.warn('Failed to update copilot tool call state after reject:', error)
           }

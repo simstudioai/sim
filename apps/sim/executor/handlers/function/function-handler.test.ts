@@ -77,6 +77,7 @@ describe('FunctionBlockHandler', () => {
       code: inputs.code,
       timeout: inputs.timeout,
       envVars: {},
+      workflowVariables: {},
       blockData: {},
       blockNameMapping: {},
       _context: { workflowId: mockContext.workflowId },
@@ -108,6 +109,7 @@ describe('FunctionBlockHandler', () => {
       code: expectedCode,
       timeout: inputs.timeout,
       envVars: {},
+      workflowVariables: {},
       blockData: {},
       blockNameMapping: {},
       _context: { workflowId: mockContext.workflowId },
@@ -132,6 +134,7 @@ describe('FunctionBlockHandler', () => {
       code: inputs.code,
       timeout: 5000, // Default timeout
       envVars: {},
+      workflowVariables: {},
       blockData: {},
       blockNameMapping: {},
       _context: { workflowId: mockContext.workflowId },

@@ -37,11 +37,11 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
       visibility: 'user-only',
       description: 'Select the folder to list files from',
     },
-    folderId: {
+    manualFolderId: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description: 'The ID of the folder to list files from (internal use)',
+      description: 'The manually entered folder ID (advanced mode)',
     },
     query: {
       type: 'string',
@@ -60,9 +60,10 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
   request: {
     url: (params) => {
       // Use specific folder if provided, otherwise use root
-      const folderId = params.folderId || params.folderSelector
-      const baseUrl = folderId
-        ? `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children`
+      const folderId = params.manualFolderId || params.folderSelector
+      const encodedFolderId = folderId ? encodeURIComponent(folderId) : ''
+      const baseUrl = encodedFolderId
+        ? `https://graph.microsoft.com/v1.0/me/drive/items/${encodedFolderId}/children`
         : 'https://graph.microsoft.com/v1.0/me/drive/root/children'
 
       const url = new URL(baseUrl)
@@ -83,7 +84,6 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
         url.searchParams.append('$top', params.pageSize.toString())
       }
 
-      // Remove the $skip logic entirely. Instead, use the full nextLink URL if provided
       return url.toString()
     },
     method: 'GET',

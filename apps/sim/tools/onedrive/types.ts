@@ -48,8 +48,8 @@ export interface OneDriveUploadResponse extends ToolResponse {
 
 export interface OneDriveToolParams {
   accessToken: string
-  folderId?: string
   folderSelector?: string
+  manualFolderId?: string
   folderName?: string
   fileId?: string
   fileName?: string

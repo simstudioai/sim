@@ -98,22 +98,22 @@ export const TodoList = memo(function TodoList({
                 index !== todos.length - 1 && 'border-gray-50 border-b dark:border-gray-800'
               )}
             >
-              <div
-                className={cn(
-                  'mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-all',
-                  todo.executing
-                    ? 'border-blue-400 dark:border-blue-500'
-                    : todo.completed
+              {todo.executing ? (
+                <div className='mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center'>
+                  <Loader2 className='h-3 w-3 animate-spin text-blue-500' />
+                </div>
+              ) : (
+                <div
+                  className={cn(
+                    'mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-all',
+                    todo.completed
                       ? 'border-blue-500 bg-blue-500'
                       : 'border-gray-300 dark:border-gray-600'
-                )}
-              >
-                {todo.executing ? (
-                  <Loader2 className='h-3 w-3 animate-spin text-blue-500' />
-                ) : todo.completed ? (
-                  <Check className='h-3 w-3 text-white' strokeWidth={3} />
-                ) : null}
-              </div>
+                  )}
+                >
+                  {todo.completed ? <Check className='h-3 w-3 text-white' strokeWidth={3} /> : null}
+                </div>
+              )}
 
               <span
                 className={cn(

@@ -63,6 +63,18 @@ export class TriggerBlockHandler implements BlockHandler {
             }
           }
 
+          if (provider === 'microsoftteams') {
+            const providerData = (starterOutput as any)[provider] || webhookData[provider] || {}
+            // Expose the raw Teams message payload at the root for easy indexing
+            const payloadSource = providerData?.message?.raw || webhookData.payload || {}
+            return {
+              ...payloadSource,
+              // Keep nested copy for backwards compatibility with existing workflows
+              [provider]: providerData,
+              webhook: starterOutput.webhook,
+            }
+          }
+
           // Provider-specific early return for Airtable: preserve raw shape entirely
           if (provider === 'airtable') {
             return starterOutput

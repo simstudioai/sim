@@ -3,55 +3,336 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
-import { toolRegistry } from '@/lib/copilot/tools'
+import type {
+  BaseClientToolMetadata,
+  ClientToolDisplay,
+} from '@/lib/copilot/tools/client/base-tool'
+import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
+import { GetBlocksAndToolsClientTool } from '@/lib/copilot/tools/client/blocks/get-blocks-and-tools'
+import { GetBlocksMetadataClientTool } from '@/lib/copilot/tools/client/blocks/get-blocks-metadata'
+import { ListGDriveFilesClientTool } from '@/lib/copilot/tools/client/gdrive/list-files'
+import { ReadGDriveFileClientTool } from '@/lib/copilot/tools/client/gdrive/read-file'
+import { GDriveRequestAccessClientTool } from '@/lib/copilot/tools/client/google/gdrive-request-access'
+import {
+  getClientTool,
+  registerClientTool,
+  registerToolStateSync,
+} from '@/lib/copilot/tools/client/manager'
+import { CheckoffTodoClientTool } from '@/lib/copilot/tools/client/other/checkoff-todo'
+import { MakeApiRequestClientTool } from '@/lib/copilot/tools/client/other/make-api-request'
+import { MarkTodoInProgressClientTool } from '@/lib/copilot/tools/client/other/mark-todo-in-progress'
+import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
+import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
+import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
+import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/registry'
+import { GetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/get-environment-variables'
+import { GetOAuthCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-oauth-credentials'
+import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
+import { BuildWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/build-workflow'
+import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
+import { GetUserWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/get-user-workflow'
+import { GetWorkflowConsoleClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-console'
+import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
 import { createLogger } from '@/lib/logs/console/logger'
-import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
-import { useWorkflowDiffStore } from '../workflow-diff/store'
-import { COPILOT_TOOL_IDS } from './constants'
 import type {
   CopilotMessage,
   CopilotStore,
+  CopilotToolCall,
   MessageFileAttachment,
-  WorkflowCheckpoint,
-} from './types'
+} from '@/stores/copilot/types'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('CopilotStore')
 
-// Helper function to check if a tool requires interrupt by name
-function toolRequiresInterrupt(toolName: string): boolean {
-  return toolRegistry.requiresInterrupt(toolName)
+// On module load, clear any lingering diff preview (fresh page refresh)
+try {
+  const diffStore = useWorkflowDiffStore.getState()
+  if (diffStore?.isShowingDiff || diffStore?.diffWorkflow) {
+    diffStore.clearDiff()
+  }
+} catch {}
+
+// Known class-based client tools: map tool name -> instantiator
+const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
+  run_workflow: (id) => new RunWorkflowClientTool(id),
+  get_workflow_console: (id) => new GetWorkflowConsoleClientTool(id),
+  get_blocks_and_tools: (id) => new GetBlocksAndToolsClientTool(id),
+  get_blocks_metadata: (id) => new GetBlocksMetadataClientTool(id),
+  search_online: (id) => new SearchOnlineClientTool(id),
+  search_documentation: (id) => new SearchDocumentationClientTool(id),
+  get_environment_variables: (id) => new GetEnvironmentVariablesClientTool(id),
+  set_environment_variables: (id) => new SetEnvironmentVariablesClientTool(id),
+  list_gdrive_files: (id) => new ListGDriveFilesClientTool(id),
+  read_gdrive_file: (id) => new ReadGDriveFileClientTool(id),
+  get_oauth_credentials: (id) => new GetOAuthCredentialsClientTool(id),
+  make_api_request: (id) => new MakeApiRequestClientTool(id),
+  plan: (id) => new PlanClientTool(id),
+  checkoff_todo: (id) => new CheckoffTodoClientTool(id),
+  mark_todo_in_progress: (id) => new MarkTodoInProgressClientTool(id),
+  gdrive_request_access: (id) => new GDriveRequestAccessClientTool(id),
+  edit_workflow: (id) => new EditWorkflowClientTool(id),
+  build_workflow: (id) => new BuildWorkflowClientTool(id),
+  get_user_workflow: (id) => new GetUserWorkflowClientTool(id),
 }
 
-// Helper function to check if a tool supports ready_for_review state
-function toolSupportsReadyForReview(toolName: string): boolean {
-  // Check client tools first
-  const clientTool = toolRegistry.getTool(toolName)
-  if (clientTool) {
-    return clientTool.metadata.displayConfig.states.ready_for_review !== undefined
-  }
-
-  // Check server tools
-  const serverToolMetadata = toolRegistry.getServerToolMetadata(toolName)
-  if (serverToolMetadata) {
-    return serverToolMetadata.displayConfig.states.ready_for_review !== undefined
-  }
-
-  return false
+// Read-only static metadata for class-based tools (no instances)
+export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefined> = {
+  run_workflow: (RunWorkflowClientTool as any)?.metadata,
+  get_workflow_console: (GetWorkflowConsoleClientTool as any)?.metadata,
+  get_blocks_and_tools: (GetBlocksAndToolsClientTool as any)?.metadata,
+  get_blocks_metadata: (GetBlocksMetadataClientTool as any)?.metadata,
+  search_online: (SearchOnlineClientTool as any)?.metadata,
+  search_documentation: (SearchDocumentationClientTool as any)?.metadata,
+  get_environment_variables: (GetEnvironmentVariablesClientTool as any)?.metadata,
+  set_environment_variables: (SetEnvironmentVariablesClientTool as any)?.metadata,
+  list_gdrive_files: (ListGDriveFilesClientTool as any)?.metadata,
+  read_gdrive_file: (ReadGDriveFileClientTool as any)?.metadata,
+  get_oauth_credentials: (GetOAuthCredentialsClientTool as any)?.metadata,
+  make_api_request: (MakeApiRequestClientTool as any)?.metadata,
+  plan: (PlanClientTool as any)?.metadata,
+  checkoff_todo: (CheckoffTodoClientTool as any)?.metadata,
+  mark_todo_in_progress: (MarkTodoInProgressClientTool as any)?.metadata,
+  gdrive_request_access: (GDriveRequestAccessClientTool as any)?.metadata,
+  edit_workflow: (EditWorkflowClientTool as any)?.metadata,
+  build_workflow: (BuildWorkflowClientTool as any)?.metadata,
+  get_user_workflow: (GetUserWorkflowClientTool as any)?.metadata,
 }
 
-// PERFORMANCE OPTIMIZATION: Cached constants for faster lookups
+function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {
+  try {
+    if (!toolName || !toolCallId) return
+    if (getClientTool(toolCallId)) return
+    const make = CLIENT_TOOL_INSTANTIATORS[toolName]
+    if (make) {
+      const inst = make(toolCallId)
+      registerClientTool(toolCallId, inst)
+    }
+  } catch {}
+}
+
+// Constants
 const TEXT_BLOCK_TYPE = 'text'
 const THINKING_BLOCK_TYPE = 'thinking'
-const TOOL_CALL_BLOCK_TYPE = 'tool_call'
-const ASSISTANT_ROLE = 'assistant'
 const DATA_PREFIX = 'data: '
 const DATA_PREFIX_LENGTH = 6
 
-// PERFORMANCE OPTIMIZATION: Pre-compiled regex for better SSE parsing
-const LINE_SPLIT_REGEX = /\n/
-const TRIM_REGEX = /^\s+|\s+$/g
+// Resolve display text/icon for a tool based on its state
+function resolveToolDisplay(
+  toolName: string | undefined,
+  state: ClientToolCallState,
+  toolCallId?: string,
+  params?: Record<string, any>
+): ClientToolDisplay | undefined {
+  try {
+    if (!toolName) return undefined
+    const def = getTool(toolName) as any
+    const meta = def?.metadata?.displayNames || CLASS_TOOL_METADATA[toolName]?.displayNames || {}
+    // Exact state first
+    const ds = meta?.[state]
+    if (ds?.text || ds?.icon) return { text: ds.text, icon: ds.icon }
+    // Fallback order (prefer pre-execution states for unknown states like pending)
+    const fallbackOrder: ClientToolCallState[] = [
+      (ClientToolCallState as any).generating,
+      (ClientToolCallState as any).executing,
+      (ClientToolCallState as any).review,
+      (ClientToolCallState as any).success,
+      (ClientToolCallState as any).error,
+      (ClientToolCallState as any).rejected,
+    ]
+    for (const key of fallbackOrder) {
+      const cand = meta?.[key]
+      if (cand?.text || cand?.icon) return { text: cand.text, icon: cand.icon }
+    }
+  } catch {}
+  // Humanized fallback as last resort
+  try {
+    if (toolName) {
+      const text = toolName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+      return { text, icon: undefined as any }
+    }
+  } catch {}
+  return undefined
+}
 
-// PERFORMANCE OPTIMIZATION: Object pools for frequently created objects
+// Helper: check if a tool state is rejected
+function isRejectedState(state: any): boolean {
+  try {
+    return state === 'rejected' || state === (ClientToolCallState as any).rejected
+  } catch {
+    return state === 'rejected'
+  }
+}
+
+// Helper: check if a tool state is review (terminal for build/edit preview)
+function isReviewState(state: any): boolean {
+  try {
+    return state === 'review' || state === (ClientToolCallState as any).review
+  } catch {
+    return state === 'review'
+  }
+}
+
+// Helper: check if a tool state is background (terminal)
+function isBackgroundState(state: any): boolean {
+  try {
+    return state === 'background' || state === (ClientToolCallState as any).background
+  } catch {
+    return state === 'background'
+  }
+}
+
+// Helper: abort all in-progress client tools and update inline blocks
+function abortAllInProgressTools(set: any, get: () => CopilotStore) {
+  try {
+    const { toolCallsById, messages } = get()
+    const updatedMap = { ...toolCallsById }
+    const abortedIds = new Set<string>()
+    for (const [id, tc] of Object.entries(toolCallsById)) {
+      const st = tc.state as any
+      // Abort anything not already terminal success/error/rejected/aborted
+      const isTerminal =
+        st === ClientToolCallState.success ||
+        st === ClientToolCallState.error ||
+        st === ClientToolCallState.rejected ||
+        st === ClientToolCallState.aborted
+      if (!isTerminal || isReviewState(st)) {
+        abortedIds.add(id)
+        updatedMap[id] = {
+          ...tc,
+          state: ClientToolCallState.aborted,
+          display: resolveToolDisplay(tc.name, ClientToolCallState.aborted, id, (tc as any).params),
+        }
+      }
+    }
+    if (abortedIds.size > 0) {
+      set({ toolCallsById: updatedMap })
+      // Update inline blocks in-place for the latest assistant message only (most relevant)
+      set((s: CopilotStore) => {
+        const msgs = [...s.messages]
+        for (let mi = msgs.length - 1; mi >= 0; mi--) {
+          const m = msgs[mi] as any
+          if (m.role !== 'assistant' || !Array.isArray(m.contentBlocks)) continue
+          let changed = false
+          const blocks = m.contentBlocks.map((b: any) => {
+            if (b?.type === 'tool_call' && b.toolCall?.id && abortedIds.has(b.toolCall.id)) {
+              changed = true
+              const prev = b.toolCall
+              return {
+                ...b,
+                toolCall: {
+                  ...prev,
+                  state: ClientToolCallState.aborted,
+                  display: resolveToolDisplay(
+                    prev?.name,
+                    ClientToolCallState.aborted,
+                    prev?.id,
+                    prev?.params
+                  ),
+                },
+              }
+            }
+            return b
+          })
+          if (changed) {
+            msgs[mi] = { ...m, contentBlocks: blocks }
+            break
+          }
+        }
+        return { messages: msgs }
+      })
+    }
+  } catch {}
+}
+
+// Normalize loaded messages so assistant messages render correctly from DB
+function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
+  try {
+    return messages.map((message) => {
+      if (message.role !== 'assistant') return message
+
+      // Use existing contentBlocks ordering if present; otherwise only render text content
+      const blocks: any[] = Array.isArray(message.contentBlocks)
+        ? (message.contentBlocks as any[]).map((b: any) =>
+            b?.type === 'tool_call' && b.toolCall
+              ? {
+                  ...b,
+                  toolCall: {
+                    ...b.toolCall,
+                    state:
+                      isRejectedState(b.toolCall?.state) ||
+                      isReviewState(b.toolCall?.state) ||
+                      isBackgroundState(b.toolCall?.state) ||
+                      b.toolCall?.state === ClientToolCallState.success ||
+                      b.toolCall?.state === ClientToolCallState.error ||
+                      b.toolCall?.state === ClientToolCallState.aborted
+                        ? b.toolCall.state
+                        : ClientToolCallState.rejected,
+                    display: resolveToolDisplay(
+                      b.toolCall?.name,
+                      (isRejectedState(b.toolCall?.state) ||
+                      isReviewState(b.toolCall?.state) ||
+                      isBackgroundState(b.toolCall?.state) ||
+                      b.toolCall?.state === ClientToolCallState.success ||
+                      b.toolCall?.state === ClientToolCallState.error ||
+                      b.toolCall?.state === ClientToolCallState.aborted
+                        ? (b.toolCall?.state as any)
+                        : ClientToolCallState.rejected) as any,
+                      b.toolCall?.id,
+                      b.toolCall?.params
+                    ),
+                  },
+                }
+              : b
+          )
+        : []
+
+      // Prepare toolCalls with display for non-block UI components, but do not fabricate blocks
+      const updatedToolCalls = Array.isArray((message as any).toolCalls)
+        ? (message as any).toolCalls.map((tc: any) => ({
+            ...tc,
+            state:
+              isRejectedState(tc?.state) ||
+              isReviewState(tc?.state) ||
+              isBackgroundState(tc?.state) ||
+              tc?.state === ClientToolCallState.success ||
+              tc?.state === ClientToolCallState.error ||
+              tc?.state === ClientToolCallState.aborted
+                ? tc.state
+                : ClientToolCallState.rejected,
+            display: resolveToolDisplay(
+              tc?.name,
+              (isRejectedState(tc?.state) ||
+              isReviewState(tc?.state) ||
+              isBackgroundState(tc?.state) ||
+              tc?.state === ClientToolCallState.success ||
+              tc?.state === ClientToolCallState.error ||
+              tc?.state === ClientToolCallState.aborted
+                ? (tc?.state as any)
+                : ClientToolCallState.rejected) as any,
+              tc?.id,
+              tc?.params
+            ),
+          }))
+        : (message as any).toolCalls
+
+      return {
+        ...message,
+        ...(updatedToolCalls && { toolCalls: updatedToolCalls }),
+        ...(blocks.length > 0
+          ? { contentBlocks: blocks }
+          : message.content?.trim()
+            ? { contentBlocks: [{ type: 'text', content: message.content, timestamp: Date.now() }] }
+            : {}),
+      }
+    })
+  } catch {
+    return messages
+  }
+}
+
+// Simple object pool for content blocks
 class ObjectPool<T> {
   private pool: T[] = []
   private createFn: () => T
@@ -60,12 +341,8 @@ class ObjectPool<T> {
   constructor(createFn: () => T, resetFn: (obj: T) => void, initialSize = 5) {
     this.createFn = createFn
     this.resetFn = resetFn
-    // Pre-populate pool
-    for (let i = 0; i < initialSize; i++) {
-      this.pool.push(createFn())
-    }
+    for (let i = 0; i < initialSize; i++) this.pool.push(createFn())
   }
-
   get(): T {
     const obj = this.pool.pop()
     if (obj) {
@@ -74,137 +351,46 @@ class ObjectPool<T> {
     }
     return this.createFn()
   }
-
   release(obj: T): void {
-    if (this.pool.length < 20) {
-      // Cap pool size
-      this.pool.push(obj)
-    }
+    if (this.pool.length < 20) this.pool.push(obj)
   }
 }
 
-// PERFORMANCE OPTIMIZATION: Content block pool for reduced allocations
 const contentBlockPool = new ObjectPool(
-  () => ({ type: '', content: '', timestamp: 0, toolCall: null }),
+  () => ({ type: '', content: '', timestamp: 0, toolCall: null as any }),
   (obj) => {
     obj.type = ''
     obj.content = ''
     obj.timestamp = 0
-    obj.toolCall = null
-    // Ensure any timing fields are cleared so pooled blocks don't leak timing
+    ;(obj as any).toolCall = null
     ;(obj as any).startTime = undefined
     ;(obj as any).duration = undefined
   }
 )
 
-// PERFORMANCE OPTIMIZATION: String builder for efficient concatenation
+// Efficient string builder
 class StringBuilder {
   private parts: string[] = []
   private length = 0
-
   append(str: string): void {
     this.parts.push(str)
     this.length += str.length
   }
-
   toString(): string {
     const result = this.parts.join('')
     this.clear()
     return result
   }
-
   clear(): void {
     this.parts.length = 0
     this.length = 0
   }
-
   get size(): number {
     return this.length
   }
 }
 
-/**
- * Helper function to parse content and extract thinking blocks
- * Returns an array of content blocks with their types
- */
-function parseContentWithThinkingTags(content: string): Array<{ type: string; content: string }> {
-  const blocks: Array<{ type: string; content: string }> = []
-  const thinkingRegex = /<thinking>([\s\S]*?)<\/thinking>/g
-  let lastIndex = 0
-  let match: RegExpExecArray | null
-
-  while ((match = thinkingRegex.exec(content)) !== null) {
-    // Add any text before the thinking tag as a text block
-    if (match.index > lastIndex) {
-      const textContent = content.substring(lastIndex, match.index)
-      if (textContent.trim()) {
-        blocks.push({ type: TEXT_BLOCK_TYPE, content: textContent })
-      }
-    }
-
-    // Add the thinking content as a thinking block
-    const thinkingContent = match[1]
-    if (thinkingContent.trim()) {
-      blocks.push({ type: THINKING_BLOCK_TYPE, content: thinkingContent })
-    }
-
-    lastIndex = match.index + match[0].length
-  }
-
-  // Add any remaining text after the last thinking tag
-  if (lastIndex < content.length) {
-    const remainingContent = content.substring(lastIndex)
-    if (remainingContent.trim()) {
-      blocks.push({ type: TEXT_BLOCK_TYPE, content: remainingContent })
-    }
-  }
-
-  // If no thinking tags were found, return the whole content as a text block
-  if (blocks.length === 0 && content.trim()) {
-    blocks.push({ type: TEXT_BLOCK_TYPE, content })
-  }
-
-  return blocks
-}
-
-/**
- * Initial state for the copilot store
- */
-const initialState = {
-  mode: 'agent' as const,
-  agentDepth: 0 as 0 | 1 | 2 | 3,
-  agentPrefetch: true,
-  currentChat: null,
-  chats: [],
-  messages: [],
-  checkpoints: [],
-  messageCheckpoints: {}, // New field for message-checkpoint mappings
-  isLoading: false,
-  isLoadingChats: false,
-  isLoadingCheckpoints: false,
-  isSendingMessage: false,
-  isSaving: false,
-  isRevertingCheckpoint: false,
-  isAborting: false,
-  error: null,
-  saveError: null,
-  checkpointError: null,
-  workflowId: null,
-  abortController: null,
-  chatsLastLoadedAt: null, // Track when chats were last loaded
-  chatsLoadedForWorkflow: null, // Track which workflow the chats were loaded for
-  // Revert state management
-  revertState: null as { messageId: string; messageContent: string } | null, // Track which message we reverted from
-  inputValue: '', // Control the input field
-
-  // Todo list state (from plan tool)
-  planTodos: [],
-  showPlanTodos: false,
-}
-
-/**
- * Helper function to create a new user message
- */
+// Helpers
 function createUserMessage(
   content: string,
   fileAttachments?: MessageFileAttachment[]
@@ -218,9 +404,6 @@ function createUserMessage(
   }
 }
 
-/**
- * Helper function to create a streaming placeholder message
- */
 function createStreamingMessage(): CopilotMessage {
   return {
     id: crypto.randomUUID(),
@@ -230,9 +413,6 @@ function createStreamingMessage(): CopilotMessage {
   }
 }
 
-/**
- * Helper function to create an error message
- */
 function createErrorMessage(messageId: string, content: string): CopilotMessage {
   return {
     id: messageId,
@@ -249,541 +429,68 @@ function createErrorMessage(messageId: string, content: string): CopilotMessage 
   }
 }
 
-/**
- * Helper function to handle errors in async operations
- */
-function handleStoreError(error: unknown, fallbackMessage: string): string {
-  const errorMessage = error instanceof Error ? error.message : fallbackMessage
-  logger.error(fallbackMessage, error)
-  return errorMessage
-}
-
-/**
- * Helper function to validate and clean messages for LLM consumption
- */
 function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
   return messages
     .map((msg) => {
-      // Build content from contentBlocks if content is empty, but EXCLUDE thinking blocks
-      let validContent = msg.content || ''
-
-      // For assistant messages, if content is empty but there are contentBlocks, build content from them
-      // BUT exclude thinking blocks to prevent thinking text from being sent to LLM
-      if (msg.role === 'assistant' && !validContent.trim() && msg.contentBlocks?.length) {
-        validContent = msg.contentBlocks
-          .filter((block) => block.type === 'text') // Only include text blocks, NOT thinking blocks
-          .map((block) => block.content)
+      // Build content from blocks if assistant content is empty (exclude thinking)
+      let content = msg.content || ''
+      if (msg.role === 'assistant' && !content.trim() && msg.contentBlocks?.length) {
+        content = msg.contentBlocks
+          .filter((b: any) => b?.type === 'text')
+          .map((b: any) => String(b.content || ''))
           .join('')
           .trim()
       }
 
-      // For all messages, clean any thinking tags from the content to ensure no thinking text leaks through
-      if (validContent) {
-        validContent = cleanThinkingTags(validContent)
+      // Strip thinking tags from content
+      if (content) {
+        content = content.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim()
       }
 
       return {
         id: msg.id,
         role: msg.role,
-        content: validContent,
+        content,
         timestamp: msg.timestamp,
-        ...(msg.toolCalls && msg.toolCalls.length > 0 && { toolCalls: msg.toolCalls }),
-        ...(msg.contentBlocks &&
+        ...(Array.isArray((msg as any).toolCalls) &&
+          (msg as any).toolCalls.length > 0 && {
+            toolCalls: (msg as any).toolCalls,
+          }),
+        ...(Array.isArray(msg.contentBlocks) &&
           msg.contentBlocks.length > 0 && {
-            contentBlocks: msg.contentBlocks.filter((block) => block.type !== 'thinking'), // Exclude thinking blocks
+            // Persist full contentBlocks including thinking so history can render it
+            contentBlocks: msg.contentBlocks,
           }),
         ...(msg.fileAttachments &&
-          msg.fileAttachments.length > 0 && { fileAttachments: msg.fileAttachments }),
+          msg.fileAttachments.length > 0 && {
+            fileAttachments: msg.fileAttachments,
+          }),
       }
     })
-    .filter((msg) => {
-      // Remove assistant messages with no meaningful content (aborted/incomplete messages)
-      if (msg.role === 'assistant') {
-        const hasContent = msg.content && msg.content.trim().length > 0
-        const hasCompletedTools = msg.toolCalls?.some(
-          (tc) =>
-            tc.state === 'completed' ||
-            tc.state === 'accepted' ||
-            tc.state === 'rejected' ||
-            tc.state === 'ready_for_review' ||
-            tc.state === 'background'
-        )
-        return hasContent || hasCompletedTools
+    .filter((m) => {
+      if (m.role === 'assistant') {
+        const hasText = typeof m.content === 'string' && m.content.trim().length > 0
+        const hasTools = Array.isArray((m as any).toolCalls) && (m as any).toolCalls.length > 0
+        const hasBlocks =
+          Array.isArray((m as any).contentBlocks) && (m as any).contentBlocks.length > 0
+        return hasText || hasTools || hasBlocks
       }
-      return true // Keep all non-assistant messages
+      return true
     })
 }
 
-/**
- * Helper function to remove thinking tags and their content from text
- */
-function cleanThinkingTags(content: string): string {
-  return content.replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim()
-}
-
-/**
- * Helper function to get a display name for a tool
- */
-function getToolDisplayName(toolName: string): string {
-  // Use dynamically generated display names from the tool registry
-  return COPILOT_TOOL_DISPLAY_NAMES[toolName] || toolName
-}
-
-/**
- * Helper function to get appropriate tool display name based on state
- * Uses the tool registry as the single source of truth
- */
-function getToolDisplayNameByState(toolCall: any): string {
-  const toolName = toolCall.name
-  const state = toolCall.state
-
-  // Check if it's a client tool
-  const clientTool = toolRegistry.getTool(toolName)
-  if (clientTool) {
-    // Use client tool's display name logic
-    return clientTool.getDisplayName(toolCall)
-  }
-
-  // For server tools, use server tool metadata
-  const serverToolMetadata = toolRegistry.getServerToolMetadata(toolName)
-  if (serverToolMetadata) {
-    // Check if there's a dynamic display name function
-    if (serverToolMetadata.displayConfig.getDynamicDisplayName) {
-      const dynamicName = serverToolMetadata.displayConfig.getDynamicDisplayName(
-        state,
-        toolCall.input || toolCall.parameters || {}
-      )
-      if (dynamicName) return dynamicName
-    }
-
-    // Use state-specific display config
-    const stateConfig =
-      serverToolMetadata.displayConfig.states[
-        state as keyof typeof serverToolMetadata.displayConfig.states
-      ]
-    if (stateConfig) {
-      return stateConfig.displayName
-    }
-  }
-
-  // Fallback to tool name if no specific display logic found
-  return toolName
-}
-
-/**
- * Helper function to ensure tool calls have display names
- * This is needed when loading messages from database where tool calls
- * don't go through createToolCall()
- */
-function ensureToolCallDisplayNames(messages: CopilotMessage[]): CopilotMessage[] {
-  return messages.map((message: CopilotMessage) => {
-    if (message.role === 'assistant' && (message.toolCalls || message.contentBlocks)) {
-      // Check for workflow tools before recalculating
-      const hasWorkflowTools =
-        message.toolCalls?.some(
-          (tc) =>
-            tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-            tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-        ) ||
-        message.contentBlocks?.some(
-          (block) =>
-            (block.type === 'tool_call' &&
-              (block as any).toolCall?.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW) ||
-            (block as any).toolCall?.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-        )
-
-      if (hasWorkflowTools) {
-        // Log current states before recalculation
-        const workflowToolStates = message.contentBlocks
-          ?.filter(
-            (b) =>
-              b.type === 'tool_call' &&
-              ((b as any).toolCall?.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-                (b as any).toolCall?.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW)
-          )
-          .map((b) => ({
-            name: (b as any).toolCall.name,
-            state: (b as any).toolCall.state,
-            displayName: (b as any).toolCall.displayName,
-          }))
-      }
-
-      return {
-        ...message,
-        // Always recalculate displayName based on current state
-        ...(message.toolCalls && {
-          toolCalls: message.toolCalls.map((toolCall: any) => ({
-            ...toolCall,
-            displayName: getToolDisplayNameByState(toolCall),
-          })),
-        }),
-        // Always recalculate displayName based on current state
-        ...(message.contentBlocks && {
-          contentBlocks: message.contentBlocks.map((block: any) =>
-            block.type === 'tool_call'
-              ? {
-                  ...block,
-                  toolCall: {
-                    ...block.toolCall,
-                    displayName: getToolDisplayNameByState(block.toolCall),
-                  },
-                }
-              : block
-          ),
-        }),
-      }
-    }
-    return message
-  })
-}
-
-/**
- * Helper function to process workflow tool results (build_workflow or edit_workflow)
- */
-function processWorkflowToolResult(toolCall: any, result: any, get: () => CopilotStore): void {
-  // Extract YAML content from various possible locations in the result
-  const yamlContent =
-    result?.yamlContent ||
-    result?.data?.yamlContent ||
-    toolCall.input?.yamlContent ||
-    toolCall.input?.data?.yamlContent
-
-  // For build_workflow tool, also extract workflowState if available
-  const workflowState = result?.workflowState || result?.data?.workflowState
-
-  if (yamlContent) {
-    logger.info(`Setting preview YAML from ${toolCall.name} tool`, {
-      yamlLength: yamlContent.length,
-      yamlPreview: yamlContent.substring(0, 100),
-      hasWorkflowState: !!workflowState,
-    })
-    get().setPreviewYaml(yamlContent)
-
-    // For build_workflow, use the workflowState directly if available
-    if (toolCall.name === 'build_workflow' && workflowState) {
-      logger.info('Using workflowState directly for build_workflow tool')
-      get().updateDiffStoreWithWorkflowState(workflowState, toolCall.name)
-    } else {
-      get().updateDiffStore(yamlContent, toolCall.name)
-    }
-  } else {
-    logger.warn(`No yamlContent found in ${toolCall.name} result`, {
-      resultKeys: Object.keys(result || {}),
-      inputKeys: Object.keys(toolCall.input || {}),
-    })
-  }
-}
-
-/**
- * Helper function to handle tool execution failure
- */
-function handleToolFailure(toolCall: any, error: string, failedDependency?: boolean): void {
-  // Don't override terminal states for tools with ready_for_review and interrupt tools
-  if (
-    (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
-    (toolCall.state === 'accepted' ||
-      toolCall.state === 'rejected' ||
-      toolCall.state === 'background')
-  ) {
-    // Tool is already in a terminal state, don't override it
-    logger.info(
-      'Tool call already in terminal state, preserving:',
-      toolCall.id,
-      toolCall.name,
-      toolCall.state
-    )
-    return
-  }
-
-  // Check if failedDependency is true to set 'rejected' state instead of 'errored'
-  toolCall.state = failedDependency === true ? 'rejected' : 'errored'
-  toolCall.error = error
-
-  // Update displayName to match the error state
-  toolCall.displayName = getToolDisplayNameByState(toolCall)
-
-  logger.error('Tool call failed:', toolCall.id, toolCall.name, error)
-}
-
-/**
- * Centralized function to set tool call state and handle side effects
- */
-function setToolCallState(
-  toolCall: any,
-  newState: string,
-  options: {
-    result?: any
-    error?: string
-    preserveTerminalStates?: boolean
-  } = {}
-): void {
-  const { result, error, preserveTerminalStates = true } = options
-
-  // Don't override terminal states for tools with ready_for_review and interrupt tools if preserveTerminalStates is true
-  if (
-    preserveTerminalStates &&
-    (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
-    (toolCall.state === 'accepted' ||
-      toolCall.state === 'rejected' ||
-      toolCall.state === 'background')
-  ) {
-    logger.info(
-      'Tool call already in terminal state, preserving:',
-      toolCall.id,
-      toolCall.name,
-      toolCall.state
-    )
-    return
-  }
-
-  const oldState = toolCall.state
-  toolCall.state = newState
-
-  // Handle state-specific logic
-  switch (newState) {
-    case 'completed':
-    case 'success':
-      toolCall.endTime = Date.now()
-      toolCall.duration = toolCall.endTime - toolCall.startTime
-      if (result !== undefined) {
-        toolCall.result = result
-      }
-
-      // Check if tool supports ready_for_review state instead of hard-coding tool names
-      if (toolSupportsReadyForReview(toolCall.name)) {
-        toolCall.state = 'ready_for_review'
-      }
-      break
-
-    case 'errored':
-      toolCall.endTime = Date.now()
-      toolCall.duration = toolCall.endTime - toolCall.startTime
-      if (error) {
-        toolCall.error = error
-      }
-      break
-
-    case 'executing':
-      // Tool is now executing
-      break
-
-    case 'pending':
-      // Tool is waiting for user confirmation
-      break
-
-    case 'accepted':
-      // User accepted the tool
-      break
-
-    case 'rejected':
-      // User rejected the tool or tool was skipped
-      toolCall.endTime = Date.now()
-      toolCall.duration = toolCall.endTime - toolCall.startTime
-      if (error) {
-        toolCall.error = error
-      }
-      break
-
-    case 'background':
-      // Tool execution moved to background - this is a terminal state
-      toolCall.endTime = Date.now()
-      toolCall.duration = toolCall.endTime - toolCall.startTime
-      break
-
-    case 'aborted':
-      // Tool was aborted
-      toolCall.endTime = Date.now()
-      toolCall.duration = toolCall.endTime - toolCall.startTime
-      if (error) {
-        toolCall.error = error
-      }
-      break
-
-    default:
-      logger.warn(`Unknown tool state: ${newState}`)
-      break
-  }
-
-  // Update display name based on new state
-  toolCall.displayName = getToolDisplayNameByState(toolCall)
-
-  logger.info(
-    `Tool call state changed: ${toolCall.name} (${toolCall.id}) ${oldState} → ${newState}`
-  )
-}
-
-/**
- * Helper function to create a tool call object with proper initial state
- */
-function createToolCall(id: string, name: string, input: any = {}): any {
-  const toolCall = {
-    id,
-    name,
-    input,
-    displayName: getToolDisplayName(name), // Will be updated by setToolCallState
-    state: 'pending', // Temporary state, will be set properly below
-    startTime: Date.now(),
-    timestamp: Date.now(),
-  }
-
-  // Use centralized state management to set initial state
-  const requiresInterrupt = toolRequiresInterrupt(name)
-  const initialState = requiresInterrupt ? 'pending' : 'executing'
-
-  setToolCallState(toolCall, initialState, { preserveTerminalStates: false })
-
-  // Auto-execute client tools that don't require interrupt
-  if (!requiresInterrupt && toolRegistry.getTool(name)) {
-    logger.info('Auto-executing client tool:', name, toolCall.id)
-    // Execute client tool asynchronously
-    setTimeout(async () => {
-      try {
-        const tool = toolRegistry.getTool(name)
-        if (tool && toolCall.state === 'executing') {
-          await tool.execute(toolCall as any, {
-            onStateChange: (state: any) => {
-              // Update the tool call state in the store
-              const currentState = useCopilotStore.getState()
-              const updatedMessages = currentState.messages.map((msg) => ({
-                ...msg,
-                toolCalls: msg.toolCalls?.map((tc) =>
-                  tc.id === toolCall.id ? { ...tc, state } : tc
-                ),
-                contentBlocks: msg.contentBlocks?.map((block) =>
-                  block.type === 'tool_call' && block.toolCall?.id === toolCall.id
-                    ? { ...block, toolCall: { ...block.toolCall, state } }
-                    : block
-                ),
-              }))
-
-              useCopilotStore.setState({ messages: updatedMessages })
-            },
-          })
-        }
-      } catch (error) {
-        logger.error('Error auto-executing client tool:', name, toolCall.id, error)
-        setToolCallState(toolCall, 'errored', {
-          error: error instanceof Error ? error.message : 'Auto-execution failed',
-        })
-      }
-    }, 0)
-  }
-
-  return toolCall
-}
-
-/**
- * Helper function to finalize a tool call
- */
-function finalizeToolCall(
-  toolCall: any,
-  success: boolean,
-  result?: any,
-  get?: () => CopilotStore
-): void {
-  toolCall.endTime = Date.now()
-  toolCall.duration = toolCall.endTime - toolCall.startTime
-
-  if (success) {
-    toolCall.result = result
-
-    // For tools with ready_for_review and interrupt tools, check if they're already in a terminal state in the store
-    if (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) {
-      // Get current state from store if get function is available
-      if (get) {
-        const state = get()
-        const currentMessage = state.messages.find(
-          (msg: any) =>
-            msg.toolCalls?.some((tc: any) => tc.id === toolCall.id) ||
-            msg.contentBlocks?.some(
-              (block: any) =>
-                block.type === 'tool_call' && (block as any).toolCall.id === toolCall.id
-            )
-        )
-
-        if (currentMessage) {
-          // Check both toolCalls array and contentBlocks
-          const currentToolCall = currentMessage.toolCalls?.find((tc: any) => tc.id === toolCall.id)
-          if (!currentToolCall) {
-            const toolBlock = currentMessage.contentBlocks?.find(
-              (block: any) =>
-                block.type === 'tool_call' && (block as any).toolCall.id === toolCall.id
-            ) as any
-            const blockToolCall = toolBlock?.toolCall
-            if (
-              blockToolCall &&
-              (blockToolCall.state === 'accepted' ||
-                blockToolCall.state === 'rejected' ||
-                blockToolCall.state === 'background')
-            ) {
-              // Don't override terminal states, just update result and timing
-              toolCall.state = blockToolCall.state
-              toolCall.displayName = blockToolCall.displayName
-              return
-            }
-          } else if (
-            currentToolCall &&
-            (currentToolCall.state === 'accepted' ||
-              currentToolCall.state === 'rejected' ||
-              currentToolCall.state === 'background')
-          ) {
-            // Don't override terminal states, just update result and timing
-            toolCall.state = currentToolCall.state
-            toolCall.displayName = currentToolCall.displayName
-            return
-          }
-        }
-      }
-
-      // Not in terminal state, set appropriate state
-      if (toolSupportsReadyForReview(toolCall.name)) {
-        toolCall.state = 'ready_for_review'
-      } else if (toolCall.name === COPILOT_TOOL_IDS.RUN_WORKFLOW) {
-        // For run_workflow, check if it's still executing (e.g., moved to background)
-        // If the current state is 'executing', preserve it
-        if (toolCall.state === 'executing') {
-          // Keep executing state - workflow was moved to background
-          return
-        }
-        toolCall.state = 'completed'
-      } else {
-        toolCall.state = 'completed'
-      }
-    } else {
-      toolCall.state = 'completed'
-    }
-  } else {
-    handleToolFailure(toolCall, result || 'Tool execution failed')
-  }
-
-  // Set display name if not already set
-  if (!toolCall.displayName) {
-    toolCall.displayName = getToolDisplayNameByState(toolCall)
-  }
-}
-
-/**
- * SSE event handlers for different event types - OPTIMIZED
- */
+// Streaming context and SSE parsing
 interface StreamingContext {
   messageId: string
-  accumulatedContent: StringBuilder // Use StringBuilder for efficient concatenation
-  toolCalls: any[]
+  accumulatedContent: StringBuilder
   contentBlocks: any[]
   currentTextBlock: any | null
-  currentBlockType: 'text' | 'tool_use' | 'thinking' | null
-  toolCallBuffer: any | null
+  isInThinkingBlock: boolean
+  currentThinkingBlock: any | null
+  pendingContent: string
   newChatId?: string
   doneEventCount: number
   streamComplete?: boolean
-  // Thinking tag tracking
-  pendingContent: string // Buffer for content that may contain partial thinking tags
-  isInThinkingBlock: boolean // Track if we're currently inside a thinking block
-  currentThinkingBlock: any | null
-  // PERFORMANCE OPTIMIZATION: Pre-allocated buffers and caching
-  _tempBuffer?: string[]
-  _lastUpdateTime?: number
-  _batchedUpdates?: boolean
 }
 
 type SSEHandler = (
@@ -794,72 +501,423 @@ type SSEHandler = (
 ) => Promise<void> | void
 
 const sseHandlers: Record<string, SSEHandler> = {
-  // Handle chat ID event (custom event)
   chat_id: async (data, context, get) => {
     context.newChatId = data.chatId
-    logger.info('Received chatId from stream:', context.newChatId)
-
     const { currentChat } = get()
     if (!currentChat && context.newChatId) {
       await get().handleNewChatCreation(context.newChatId)
     }
   },
+  tool_result: (data, context, get, set) => {
+    try {
+      const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
+      const success: boolean | undefined = data?.success
+      const failedDependency: boolean = data?.failedDependency === true
+      const skipped: boolean = data?.result?.skipped === true
+      if (!toolCallId) return
+      const { toolCallsById } = get()
+      const current = toolCallsById[toolCallId]
+      if (current) {
+        if (
+          isRejectedState(current.state) ||
+          isReviewState(current.state) ||
+          isBackgroundState(current.state)
+        ) {
+          // Preserve terminal review/rejected state; do not override
+          return
+        }
+        const targetState = success
+          ? ClientToolCallState.success
+          : failedDependency || skipped
+            ? ClientToolCallState.rejected
+            : ClientToolCallState.error
+        const updatedMap = { ...toolCallsById }
+        updatedMap[toolCallId] = {
+          ...current,
+          state: targetState,
+          display: resolveToolDisplay(
+            current.name,
+            targetState,
+            current.id,
+            (current as any).params
+          ),
+        }
+        set({ toolCallsById: updatedMap })
 
-  // Handle chat title update event (custom event)
-  title_updated: async (data, context, get, set) => {
-    const { title } = data
-    const { currentChat } = get()
-    const previousTitle = currentChat?.title
+        // If checkoff_todo succeeded, mark todo as completed in planTodos
+        if (targetState === ClientToolCallState.success && current.name === 'checkoff_todo') {
+          try {
+            const result = data?.result || data?.data?.result || {}
+            const input = (current as any).params || (current as any).input || {}
+            const todoId = input.id || input.todoId || result.id || result.todoId
+            if (todoId) {
+              get().updatePlanTodoStatus(todoId, 'completed')
+            }
+          } catch {}
+        }
 
-    logger.info('Received title update from stream:', {
-      newTitle: title,
-      previousTitle,
-      isOptimisticReplacement: previousTitle !== null && previousTitle !== title,
-    })
+        // If mark_todo_in_progress succeeded, set todo executing in planTodos
+        if (
+          targetState === ClientToolCallState.success &&
+          current.name === 'mark_todo_in_progress'
+        ) {
+          try {
+            const result = data?.result || data?.data?.result || {}
+            const input = (current as any).params || (current as any).input || {}
+            const todoId = input.id || input.todoId || result.id || result.todoId
+            if (todoId) {
+              get().updatePlanTodoStatus(todoId, 'executing')
+            }
+          } catch {}
+        }
+      }
 
-    set((state: CopilotStore) => ({
-      currentChat: state.currentChat
-        ? {
-            ...state.currentChat,
-            title,
-            updatedAt: new Date(),
+      // Update inline content block state
+      for (let i = 0; i < context.contentBlocks.length; i++) {
+        const b = context.contentBlocks[i] as any
+        if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
+          if (
+            isRejectedState(b.toolCall?.state) ||
+            isReviewState(b.toolCall?.state) ||
+            isBackgroundState(b.toolCall?.state)
+          )
+            break
+          const targetState = success
+            ? ClientToolCallState.success
+            : failedDependency || skipped
+              ? ClientToolCallState.rejected
+              : ClientToolCallState.error
+          context.contentBlocks[i] = {
+            ...b,
+            toolCall: {
+              ...b.toolCall,
+              state: targetState,
+              display: resolveToolDisplay(
+                b.toolCall?.name,
+                targetState,
+                toolCallId,
+                b.toolCall?.params
+              ),
+            },
           }
-        : state.currentChat,
-      // Also update the chat in the chats array
-      chats: state.chats.map((chat) =>
-        chat.id === state.currentChat?.id ? { ...chat, title, updatedAt: new Date() } : chat
-      ),
-    }))
+          break
+        }
+      }
+      updateStreamingMessage(set, context)
+    } catch {}
   },
+  tool_error: (data, context, get, set) => {
+    try {
+      const toolCallId: string | undefined = data?.toolCallId || data?.data?.id
+      const failedDependency: boolean = data?.failedDependency === true
+      if (!toolCallId) return
+      const { toolCallsById } = get()
+      const current = toolCallsById[toolCallId]
+      if (current) {
+        if (
+          isRejectedState(current.state) ||
+          isReviewState(current.state) ||
+          isBackgroundState(current.state)
+        ) {
+          return
+        }
+        const targetState = failedDependency
+          ? ClientToolCallState.rejected
+          : ClientToolCallState.error
+        const updatedMap = { ...toolCallsById }
+        updatedMap[toolCallId] = {
+          ...current,
+          state: targetState,
+          display: resolveToolDisplay(
+            current.name,
+            targetState,
+            current.id,
+            (current as any).params
+          ),
+        }
+        set({ toolCallsById: updatedMap })
+      }
+      for (let i = 0; i < context.contentBlocks.length; i++) {
+        const b = context.contentBlocks[i] as any
+        if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
+          if (
+            isRejectedState(b.toolCall?.state) ||
+            isReviewState(b.toolCall?.state) ||
+            isBackgroundState(b.toolCall?.state)
+          )
+            break
+          const targetState = failedDependency
+            ? ClientToolCallState.rejected
+            : ClientToolCallState.error
+          context.contentBlocks[i] = {
+            ...b,
+            toolCall: {
+              ...b.toolCall,
+              state: targetState,
+              display: resolveToolDisplay(
+                b.toolCall?.name,
+                targetState,
+                toolCallId,
+                b.toolCall?.params
+              ),
+            },
+          }
+          break
+        }
+      }
+      updateStreamingMessage(set, context)
+    } catch {}
+  },
+  tool_generating: (data, context, get, set) => {
+    const { toolCallId, toolName } = data
+    if (!toolCallId || !toolName) return
+    const { toolCallsById } = get()
 
-  // Render model "reasoning" stream as thinking blocks
-  reasoning: (data, context, get, set) => {
-    // Support both nested and flat phase shapes
+    // Ensure class-based client tool instances are registered (for interrupts/display)
+    ensureClientToolInstance(toolName, toolCallId)
+
+    if (!toolCallsById[toolCallId]) {
+      // Show as pending until we receive full tool_call (with arguments) to decide execution
+      const initialState = ClientToolCallState.pending
+      const tc: CopilotToolCall = {
+        id: toolCallId,
+        name: toolName,
+        state: initialState,
+        display: resolveToolDisplay(toolName, initialState, toolCallId),
+      }
+      const updated = { ...toolCallsById, [toolCallId]: tc }
+      set({ toolCallsById: updated })
+      logger.info('[toolCallsById] map updated', updated)
+
+      // Add/refresh inline content block
+      let found = false
+      for (let i = 0; i < context.contentBlocks.length; i++) {
+        const b = context.contentBlocks[i] as any
+        if (b.type === 'tool_call' && b.toolCall?.id === toolCallId) {
+          context.contentBlocks[i] = { ...b, toolCall: tc }
+          found = true
+          break
+        }
+      }
+      if (!found)
+        context.contentBlocks.push({ type: 'tool_call', toolCall: tc, timestamp: Date.now() })
+      updateStreamingMessage(set, context)
+    }
+  },
+  tool_call: (data, context, get, set) => {
+    const toolData = data?.data || {}
+    const id: string | undefined = toolData.id || data?.toolCallId
+    const name: string | undefined = toolData.name || data?.toolName
+    if (!id) return
+    const args = toolData.arguments
+    const { toolCallsById } = get()
+
+    // Ensure class-based client tool instances are registered (for interrupts/display)
+    ensureClientToolInstance(name, id)
+
+    const existing = toolCallsById[id]
+    const next: CopilotToolCall = existing
+      ? {
+          ...existing,
+          state: ClientToolCallState.pending,
+          ...(args ? { params: args } : {}),
+          display: resolveToolDisplay(name, ClientToolCallState.pending, id, args),
+        }
+      : {
+          id,
+          name: name || 'unknown_tool',
+          state: ClientToolCallState.pending,
+          ...(args ? { params: args } : {}),
+          display: resolveToolDisplay(name, ClientToolCallState.pending, id, args),
+        }
+    const updated = { ...toolCallsById, [id]: next }
+    set({ toolCallsById: updated })
+    logger.info('[toolCallsById] → pending', { id, name, params: args })
+
+    // Ensure an inline content block exists/updated for this tool call
+    let found = false
+    for (let i = 0; i < context.contentBlocks.length; i++) {
+      const b = context.contentBlocks[i] as any
+      if (b.type === 'tool_call' && b.toolCall?.id === id) {
+        context.contentBlocks[i] = { ...b, toolCall: next }
+        found = true
+        break
+      }
+    }
+    if (!found) {
+      context.contentBlocks.push({ type: 'tool_call', toolCall: next, timestamp: Date.now() })
+    }
+    updateStreamingMessage(set, context)
+
+    // Prefer interface-based registry to determine interrupt and execute
+    try {
+      const def = name ? getTool(name) : undefined
+      if (def) {
+        const hasInterrupt =
+          typeof def.hasInterrupt === 'function'
+            ? !!def.hasInterrupt(args || {})
+            : !!def.hasInterrupt
+        if (!hasInterrupt && typeof def.execute === 'function') {
+          const ctx = createExecutionContext({ toolCallId: id, toolName: name || 'unknown_tool' })
+          // Defer executing transition by a tick to let pending render
+          setTimeout(() => {
+            const executingMap = { ...get().toolCallsById }
+            executingMap[id] = {
+              ...executingMap[id],
+              state: ClientToolCallState.executing,
+              display: resolveToolDisplay(name, ClientToolCallState.executing, id, args),
+            }
+            set({ toolCallsById: executingMap })
+            logger.info('[toolCallsById] pending → executing (registry)', { id, name })
+
+            // Update inline content block to executing
+            for (let i = 0; i < context.contentBlocks.length; i++) {
+              const b = context.contentBlocks[i] as any
+              if (b.type === 'tool_call' && b.toolCall?.id === id) {
+                context.contentBlocks[i] = {
+                  ...b,
+                  toolCall: { ...b.toolCall, state: ClientToolCallState.executing },
+                }
+                break
+              }
+            }
+            updateStreamingMessage(set, context)
+
+            Promise.resolve()
+              .then(async () => {
+                const result = await def.execute(ctx, args || {})
+                const success =
+                  result && typeof result.status === 'number'
+                    ? result.status >= 200 && result.status < 300
+                    : true
+                const completeMap = { ...get().toolCallsById }
+                // Do not override terminal review/rejected
+                if (
+                  isRejectedState(completeMap[id]?.state) ||
+                  isReviewState(completeMap[id]?.state) ||
+                  isBackgroundState(completeMap[id]?.state)
+                ) {
+                  return
+                }
+                completeMap[id] = {
+                  ...completeMap[id],
+                  state: success ? ClientToolCallState.success : ClientToolCallState.error,
+                  display: resolveToolDisplay(
+                    name,
+                    success ? ClientToolCallState.success : ClientToolCallState.error,
+                    id,
+                    args
+                  ),
+                }
+                set({ toolCallsById: completeMap })
+                logger.info(
+                  `[toolCallsById] executing → ${success ? 'success' : 'error'} (registry)`,
+                  { id, name }
+                )
+
+                // Notify backend tool mark-complete endpoint
+                try {
+                  await fetch('/api/copilot/tools/mark-complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      id,
+                      name: name || 'unknown_tool',
+                      status:
+                        typeof result?.status === 'number' ? result.status : success ? 200 : 500,
+                      message: result?.message,
+                      data: result?.data,
+                    }),
+                  })
+                } catch {}
+              })
+              .catch((e) => {
+                const errorMap = { ...get().toolCallsById }
+                // Do not override terminal review/rejected
+                if (
+                  isRejectedState(errorMap[id]?.state) ||
+                  isReviewState(errorMap[id]?.state) ||
+                  isBackgroundState(errorMap[id]?.state)
+                ) {
+                  return
+                }
+                errorMap[id] = {
+                  ...errorMap[id],
+                  state: ClientToolCallState.error,
+                  display: resolveToolDisplay(name, ClientToolCallState.error, id, args),
+                }
+                set({ toolCallsById: errorMap })
+                logger.error('Registry auto-execute tool failed', { id, name, error: e })
+              })
+          }, 0)
+          return
+        }
+      }
+    } catch (e) {
+      logger.warn('tool_call registry auto-exec check failed', { id, name, error: e })
+    }
+
+    // Class-based auto-exec for non-interrupt tools
+    try {
+      const inst = getClientTool(id) as any
+      const hasInterrupt = !!inst?.getInterruptDisplays?.()
+      if (!hasInterrupt && typeof inst?.execute === 'function') {
+        setTimeout(() => {
+          const executingMap = { ...get().toolCallsById }
+          executingMap[id] = {
+            ...executingMap[id],
+            state: ClientToolCallState.executing,
+            display: resolveToolDisplay(name, ClientToolCallState.executing, id, args),
+          }
+          set({ toolCallsById: executingMap })
+          logger.info('[toolCallsById] pending → executing (class)', { id, name })
+
+          Promise.resolve()
+            .then(async () => {
+              await inst.execute(args || {})
+              // Success/error will be synced via registerToolStateSync
+            })
+            .catch(() => {
+              const errorMap = { ...get().toolCallsById }
+              // Do not override terminal review/rejected
+              if (
+                isRejectedState(errorMap[id]?.state) ||
+                isReviewState(errorMap[id]?.state) ||
+                isBackgroundState(errorMap[id]?.state)
+              ) {
+                return
+              }
+              errorMap[id] = {
+                ...errorMap[id],
+                state: ClientToolCallState.error,
+                display: resolveToolDisplay(name, ClientToolCallState.error, id, args),
+              }
+              set({ toolCallsById: errorMap })
+            })
+        }, 0)
+      }
+    } catch {}
+  },
+  reasoning: (data, context, _get, set) => {
     const phase = (data && (data.phase || data?.data?.phase)) as string | undefined
-
-    // Handle control phases
     if (phase === 'start') {
-      // Begin a thinking block session
       if (!context.currentThinkingBlock) {
         context.currentThinkingBlock = contentBlockPool.get()
         context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
         context.currentThinkingBlock.content = ''
         context.currentThinkingBlock.timestamp = Date.now()
-        context.currentThinkingBlock.startTime = Date.now()
+        ;(context.currentThinkingBlock as any).startTime = Date.now()
         context.contentBlocks.push(context.currentThinkingBlock)
       }
-
       context.isInThinkingBlock = true
       context.currentTextBlock = null
       updateStreamingMessage(set, context)
       return
     }
-
     if (phase === 'end') {
-      // Finish the current thinking block
       if (context.currentThinkingBlock) {
-        context.currentThinkingBlock.duration =
-          Date.now() - (context.currentThinkingBlock.startTime || Date.now())
+        ;(context.currentThinkingBlock as any).duration =
+          Date.now() - ((context.currentThinkingBlock as any).startTime || Date.now())
       }
       context.isInThinkingBlock = false
       context.currentThinkingBlock = null
@@ -867,11 +925,8 @@ const sseHandlers: Record<string, SSEHandler> = {
       updateStreamingMessage(set, context)
       return
     }
-
-    // Fallback: some providers may stream reasoning text directly on this event
     const chunk: string = typeof data?.data === 'string' ? data.data : data?.content || ''
     if (!chunk) return
-
     if (context.currentThinkingBlock) {
       context.currentThinkingBlock.content += chunk
     } else {
@@ -879,149 +934,31 @@ const sseHandlers: Record<string, SSEHandler> = {
       context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
       context.currentThinkingBlock.content = chunk
       context.currentThinkingBlock.timestamp = Date.now()
-      context.currentThinkingBlock.startTime = Date.now()
+      ;(context.currentThinkingBlock as any).startTime = Date.now()
       context.contentBlocks.push(context.currentThinkingBlock)
     }
-
     context.isInThinkingBlock = true
     context.currentTextBlock = null
-
     updateStreamingMessage(set, context)
   },
-
-  // Handle tool result events - simplified
-  tool_result: (data, context, get, set) => {
-    const { toolCallId, result, success, error, failedDependency } = data
-
-    if (!toolCallId) return
-
-    // Find tool call in context
-    const toolCall =
-      context.toolCalls.find((tc) => tc.id === toolCallId) ||
-      context.contentBlocks
-        .filter((b) => b.type === 'tool_call')
-        .map((b) => b.toolCall)
-        .find((tc) => tc.id === toolCallId)
-
-    if (!toolCall) {
-      logger.error('Tool call not found for result', { toolCallId })
-      return
-    }
-
-    // Ensure tool call is in context for updates
-    if (!context.toolCalls.find((tc) => tc.id === toolCallId)) {
-      context.toolCalls.push(toolCall)
-    }
-
-    if (success) {
-      // Parse result if needed
-      const parsedResult =
-        typeof result === 'string' && result.startsWith('{')
-          ? (() => {
-              try {
-                return JSON.parse(result)
-              } catch {
-                return result
-              }
-            })()
-          : result
-
-      // NEW LOGIC: Use centralized state management
-      setToolCallState(toolCall, 'success', { result: parsedResult })
-
-      // Check if this is the plan tool and extract todos
-      if (toolCall.name === 'plan' && parsedResult?.todoList) {
-        const todos = parsedResult.todoList.map((item: any, index: number) => ({
-          id: item.id || `todo-${index}`,
-          content: typeof item === 'string' ? item : item.content,
-          completed: false,
-          executing: false,
-        }))
-
-        // Set the todos in the store
-        const store = get()
-        if (store.setPlanTodos) {
-          store.setPlanTodos(todos)
-        }
-      }
-
-      // Check if this is the checkoff_todo tool and mark the todo as complete
-      if (toolCall.name === 'checkoff_todo') {
-        // Check various possible locations for the todo ID
-        const todoId =
-          toolCall.input?.id || toolCall.input?.todoId || parsedResult?.todoId || parsedResult?.id
-        if (todoId) {
-          const store = get()
-          if (store.updatePlanTodoStatus) {
-            store.updatePlanTodoStatus(todoId, 'completed')
-          }
-        }
-
-        // Mark this tool as hidden from UI
-        toolCall.hidden = true
-      }
-
-      // Handle tools with ready_for_review state
-      if (toolSupportsReadyForReview(toolCall.name)) {
-        processWorkflowToolResult(toolCall, parsedResult, get)
-      }
-
-      // COMMENTED OUT OLD LOGIC:
-      // finalizeToolCall(toolCall, true, parsedResult, get)
-    } else {
-      // NEW LOGIC: Use centralized state management
-      // Check if failedDependency is true to set 'rejected' state instead of 'errored'
-      // Use the error field first, then fall back to result field, then default message
-      const errorMessage = error || result || 'Tool execution failed'
-      const targetState = failedDependency === true ? 'rejected' : 'errored'
-
-      setToolCallState(toolCall, targetState, { error: errorMessage })
-
-      // COMMENTED OUT OLD LOGIC:
-      // handleToolFailure(toolCall, result || 'Tool execution failed')
-    }
-
-    // Update both contentBlocks and toolCalls atomically before UI update
-    updateContentBlockToolCall(context.contentBlocks, toolCallId, toolCall)
-
-    // Ensure the toolCall in context.toolCalls is also updated with the latest state
-    const toolCallIndex = context.toolCalls.findIndex((tc) => tc.id === toolCallId)
-    if (toolCallIndex !== -1) {
-      const existingToolCall = context.toolCalls[toolCallIndex]
-      context.toolCalls[toolCallIndex] = preserveToolTerminalState(toolCall, existingToolCall)
-    }
-
-    updateStreamingMessage(set, context)
-  },
-
-  // Handle content events - OPTIMIZED
-  content: (data, context, get, set) => {
+  content: (data, context, _get, set) => {
     if (!data.data) return
-
-    // Append new data to pending content buffer
     context.pendingContent += data.data
 
-    // Process complete thinking tags in the pending content
     let contentToProcess = context.pendingContent
     let hasProcessedContent = false
 
-    // Check for complete thinking tags
     const thinkingStartRegex = /<thinking>/
     const thinkingEndRegex = /<\/thinking>/
 
     while (contentToProcess.length > 0) {
       if (context.isInThinkingBlock) {
-        // We're inside a thinking block, look for the closing tag
         const endMatch = thinkingEndRegex.exec(contentToProcess)
         if (endMatch) {
-          // Found the end of thinking block
           const thinkingContent = contentToProcess.substring(0, endMatch.index)
-
-          // Append to current thinking block
           if (context.currentThinkingBlock) {
             context.currentThinkingBlock.content += thinkingContent
           } else {
-            // Create new thinking block
             context.currentThinkingBlock = contentBlockPool.get()
             context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
             context.currentThinkingBlock.content = thinkingContent
@@ -1029,26 +966,19 @@ const sseHandlers: Record<string, SSEHandler> = {
             context.currentThinkingBlock.startTime = Date.now()
             context.contentBlocks.push(context.currentThinkingBlock)
           }
-
-          // Reset thinking state
           context.isInThinkingBlock = false
           if (context.currentThinkingBlock) {
-            // Set final duration
             context.currentThinkingBlock.duration =
               Date.now() - (context.currentThinkingBlock.startTime || Date.now())
           }
           context.currentThinkingBlock = null
           context.currentTextBlock = null
-
-          // Continue processing after the closing tag
           contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
           hasProcessedContent = true
         } else {
-          // No closing tag yet, accumulate in thinking block
           if (context.currentThinkingBlock) {
             context.currentThinkingBlock.content += contentToProcess
           } else {
-            // Create new thinking block
             context.currentThinkingBlock = contentBlockPool.get()
             context.currentThinkingBlock.type = THINKING_BLOCK_TYPE
             context.currentThinkingBlock.content = contentToProcess
@@ -1060,17 +990,11 @@ const sseHandlers: Record<string, SSEHandler> = {
           hasProcessedContent = true
         }
       } else {
-        // Not in a thinking block, look for the start of one
         const startMatch = thinkingStartRegex.exec(contentToProcess)
         if (startMatch) {
-          // Found start of thinking block
           const textBeforeThinking = contentToProcess.substring(0, startMatch.index)
-
-          // Add any text before the thinking tag as a text block AND to accumulated content
           if (textBeforeThinking) {
-            // Add to accumulated content for final message
             context.accumulatedContent.append(textBeforeThinking)
-
             if (context.currentTextBlock && context.contentBlocks.length > 0) {
               const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
               if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
@@ -1089,31 +1013,22 @@ const sseHandlers: Record<string, SSEHandler> = {
               context.currentTextBlock.timestamp = Date.now()
               context.contentBlocks.push(context.currentTextBlock)
             }
+            hasProcessedContent = true
           }
-
-          // Enter thinking block mode
           context.isInThinkingBlock = true
           context.currentTextBlock = null
           contentToProcess = contentToProcess.substring(startMatch.index + startMatch[0].length)
           hasProcessedContent = true
         } else {
-          // No thinking tag, treat as regular text
-          // But check if we might have a partial opening tag at the end
           const partialTagIndex = contentToProcess.lastIndexOf('<')
           let textToAdd = contentToProcess
           let remaining = ''
-
           if (partialTagIndex >= 0 && partialTagIndex > contentToProcess.length - 10) {
-            // Might be a partial tag, keep it in buffer
             textToAdd = contentToProcess.substring(0, partialTagIndex)
             remaining = contentToProcess.substring(partialTagIndex)
           }
-
           if (textToAdd) {
-            // Add to accumulated content for final message
             context.accumulatedContent.append(textToAdd)
-
-            // Add as regular text block
             if (context.currentTextBlock && context.contentBlocks.length > 0) {
               const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
               if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
@@ -1134,272 +1049,31 @@ const sseHandlers: Record<string, SSEHandler> = {
             }
             hasProcessedContent = true
           }
-
           contentToProcess = remaining
-          break // Exit loop to wait for more content if we have a partial tag
+          break
         }
       }
     }
 
-    // Update pending content with any remaining unprocessed content
     context.pendingContent = contentToProcess
-
     if (hasProcessedContent) {
       updateStreamingMessage(set, context)
     }
   },
-
-  // Handle tool call events - simplified
-  tool_call: (data, context, get, set) => {
-    const toolData = data.data
-    if (!toolData) return
-
-    // Check if tool call already exists
-    const existingToolCall = context.toolCalls.find((tc) => tc.id === toolData.id)
-
-    if (existingToolCall) {
-      // Update existing tool call with new arguments (for partial -> complete transition)
-      existingToolCall.input = toolData.arguments || {}
-
-      // Update the content block as well
-      updateContentBlockToolCall(context.contentBlocks, toolData.id, existingToolCall)
-      updateStreamingMessage(set, context)
-      return
-    }
-
-    const toolCall = createToolCall(toolData.id, toolData.name, toolData.arguments)
-
-    // Mark checkoff_todo as hidden from the start
-    if (toolData.name === 'checkoff_todo') {
-      toolCall.hidden = true
-    }
-
-    context.toolCalls.push(toolCall)
-
-    context.contentBlocks.push({
-      type: 'tool_call',
-      toolCall,
-      timestamp: Date.now(),
-      // Ensure per-tool timing context for UI components that might rely on block-level timing
-      startTime: toolCall.startTime,
-    })
-
-    updateStreamingMessage(set, context)
-  },
-
-  // Handle tool execution event
-  tool_execution: (data, context, get, set) => {
-    const toolCall = context.toolCalls.find((tc) => tc.id === data.toolCallId)
-    if (toolCall) {
-      // For interrupt tools, only allow transition from pending to executing
-      // Block if tool is still in pending state (user hasn't accepted yet)
-      if (toolRequiresInterrupt(toolCall.name) && toolCall.state === 'pending') {
-        logger.info(
-          'Tool requires interrupt and is still pending, ignoring execution event:',
-          toolCall.name,
-          toolCall.id
-        )
-        return
-      }
-
-      // If already executing, skip (happens when client sets executing immediately)
-      if (toolCall.state === 'executing') {
-        logger.info('Tool already in executing state, skipping:', toolCall.name, toolCall.id)
-        return
-      }
-
-      // Don't override terminal states
-      if (
-        toolCall.state === 'rejected' ||
-        toolCall.state === 'background' ||
-        toolCall.state === 'completed' ||
-        toolCall.state === 'success' ||
-        toolCall.state === 'errored'
-      ) {
-        logger.info(
-          'Tool is already in terminal state, ignoring execution event:',
-          toolCall.name,
-          toolCall.id,
-          toolCall.state
-        )
-        return
-      }
-
-      toolCall.state = 'executing'
-
-      // Mark checkoff_todo as hidden
-      if (toolCall.name === 'checkoff_todo') {
-        toolCall.hidden = true
-      }
-
-      // Update both contentBlocks and toolCalls atomically before UI update
-      updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
-
-      // toolCall is already updated by reference in context.toolCalls since we found it there
-      updateStreamingMessage(set, context)
-    }
-  },
-
-  // Handle Anthropic content block events - simplified
-  content_block_start: (data, context) => {
-    context.currentBlockType = data.content_block?.type
-
-    if (context.currentBlockType === 'text') {
-      // Start a new text block
-      context.currentTextBlock = {
-        type: 'text',
-        content: '',
-        timestamp: Date.now(),
-      }
-      context.contentBlocks.push(context.currentTextBlock)
-    } else if (context.currentBlockType === 'tool_use') {
-      // Mark that we're no longer in a text block
-      context.currentTextBlock = null
-
-      const toolCall = createToolCall(data.content_block.id, data.content_block.name)
-      toolCall.partialInput = ''
-
-      // Mark checkoff_todo as hidden from the start
-      if (data.content_block.name === 'checkoff_todo') {
-        toolCall.hidden = true
-      }
-
-      context.toolCallBuffer = toolCall
-      context.toolCalls.push(toolCall)
-
-      context.contentBlocks.push({
-        type: 'tool_call',
-        toolCall,
-        timestamp: Date.now(),
-        // Ensure per-tool timing context for UI components that might rely on block-level timing
-        startTime: toolCall.startTime,
-      })
-    }
-  },
-
-  content_block_delta: (data, context, get, set) => {
-    if (context.currentBlockType === TEXT_BLOCK_TYPE && data.delta?.text) {
-      // PERFORMANCE OPTIMIZATION: Use StringBuilder for efficient concatenation
-      context.accumulatedContent.append(data.delta.text)
-      if (context.currentTextBlock) {
-        // Update text content in-place for better performance
-        context.currentTextBlock.content += data.delta.text
-        updateStreamingMessage(set, context)
-      }
-    } else if (
-      context.currentBlockType === 'tool_use' &&
-      data.delta?.partial_json &&
-      context.toolCallBuffer
-    ) {
-      // PERFORMANCE OPTIMIZATION: Use StringBuilder or direct concatenation based on size
-      if (!context.toolCallBuffer.partialInput) {
-        context.toolCallBuffer.partialInput = data.delta.partial_json
-      } else {
-        context.toolCallBuffer.partialInput += data.delta.partial_json
-      }
-    }
-  },
-
-  content_block_stop: (data, context, get, set) => {
-    if (context.currentBlockType === 'text') {
-      // Text block is complete
-      context.currentTextBlock = null
-    } else if (context.currentBlockType === 'tool_use' && context.toolCallBuffer) {
-      try {
-        // Parse complete tool input
-        context.toolCallBuffer.input = JSON.parse(context.toolCallBuffer.partialInput || '{}')
-        finalizeToolCall(context.toolCallBuffer, true, context.toolCallBuffer.input, get)
-
-        // Handle tools with ready_for_review state immediately
-        if (toolSupportsReadyForReview(context.toolCallBuffer.name)) {
-          processWorkflowToolResult(context.toolCallBuffer, context.toolCallBuffer.input, get)
-        }
-
-        // Check if this is the plan tool and extract todos
-        if (context.toolCallBuffer.name === 'plan' && context.toolCallBuffer.input?.todoList) {
-          const todos = context.toolCallBuffer.input.todoList.map((item: any, index: number) => ({
-            id: item.id || `todo-${index}`,
-            content: typeof item === 'string' ? item : item.content,
-            completed: false,
-            executing: false,
-          }))
-
-          // Set the todos in the store
-          const store = get()
-          if (store.setPlanTodos) {
-            store.setPlanTodos(todos)
-          }
-        }
-
-        // Check if this is the checkoff_todo tool and mark the todo as complete
-        if (context.toolCallBuffer.name === 'checkoff_todo') {
-          // Check both input.id and input.todoId for compatibility
-          const todoId = context.toolCallBuffer.input?.id || context.toolCallBuffer.input?.todoId
-          if (todoId) {
-            const store = get()
-            if (store.updatePlanTodoStatus) {
-              store.updatePlanTodoStatus(todoId, 'completed')
-            }
-          }
-
-          // Mark this tool as hidden from UI
-          context.toolCallBuffer.hidden = true
-        }
-
-        // Update both contentBlocks and toolCalls atomically before UI update
-        updateContentBlockToolCall(
-          context.contentBlocks,
-          context.toolCallBuffer.id,
-          context.toolCallBuffer
-        )
-
-        // Ensure the toolCall in context.toolCalls is also updated with the latest state
-        const toolCallIndex = context.toolCalls.findIndex(
-          (tc) => tc.id === context.toolCallBuffer.id
-        )
-        if (toolCallIndex !== -1) {
-          const existingToolCall = context.toolCalls[toolCallIndex]
-          context.toolCalls[toolCallIndex] = preserveToolTerminalState(
-            context.toolCallBuffer,
-            existingToolCall
-          )
-        }
-
-        updateStreamingMessage(set, context)
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        handleToolFailure(context.toolCallBuffer, errorMsg)
-      }
-
-      context.toolCallBuffer = null
-    }
-    context.currentBlockType = null
-  },
-
-  // Handle done event
-  done: (data, context) => {
+  done: (_data, context) => {
     context.doneEventCount++
-
-    // Only complete after all tools are done and we've received multiple done events
-    // Check for both executing tools AND pending tools (waiting for user interaction)
-    const executingTools = context.toolCalls.filter((tc) => tc.state === 'executing')
-    const pendingTools = context.toolCalls.filter((tc) => tc.state === 'pending')
-
-    if (executingTools.length === 0 && pendingTools.length === 0 && context.doneEventCount >= 2) {
+    if (context.doneEventCount >= 1) {
       context.streamComplete = true
     }
   },
-
-  // Handle errors
-  error: (data, context, get, set) => {
+  error: (data, context, _get, set) => {
     logger.error('Stream error:', data.error)
     set((state: CopilotStore) => ({
-      messages: state.messages.map((msg: CopilotMessage) =>
+      messages: state.messages.map((msg) =>
         msg.id === context.messageId
           ? {
               ...msg,
-              content:
-                context.accumulatedContent || 'An error occurred while processing your request.',
+              content: context.accumulatedContent || 'An error occurred.',
               error: data.error,
             }
           : msg
@@ -1407,31 +1081,12 @@ const sseHandlers: Record<string, SSEHandler> = {
     }))
     context.streamComplete = true
   },
-
-  // Handle tool errors
-  tool_error: (data, context, get, set) => {
-    const toolCall = context.toolCalls.find((tc) => tc.id === data.toolCallId)
-    if (toolCall) {
-      // Check if failedDependency is available in the data
-      const failedDependency = data.failedDependency
-      handleToolFailure(toolCall, data.error, failedDependency)
-      updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
-      updateStreamingMessage(set, context)
-    }
-  },
-
-  // Handle stream end event - flush any pending content
-  stream_end: (data, context, get, set) => {
-    // Flush any remaining pending content as text
+  stream_end: (_data, context, _get, set) => {
     if (context.pendingContent) {
       if (context.isInThinkingBlock && context.currentThinkingBlock) {
-        // We were in a thinking block, append remaining content to it
-        // But DON'T add it to accumulated content
         context.currentThinkingBlock.content += context.pendingContent
       } else if (context.pendingContent.trim()) {
-        // Add remaining content as a text block AND to accumulated content
         context.accumulatedContent.append(context.pendingContent)
-
         if (context.currentTextBlock && context.contentBlocks.length > 0) {
           const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
           if (lastBlock.type === TEXT_BLOCK_TYPE && lastBlock === context.currentTextBlock) {
@@ -1453,291 +1108,76 @@ const sseHandlers: Record<string, SSEHandler> = {
       }
       context.pendingContent = ''
     }
-
-    // If a thinking block is open, set final duration before clearing
     if (context.currentThinkingBlock) {
       context.currentThinkingBlock.duration =
         Date.now() - (context.currentThinkingBlock.startTime || Date.now())
     }
-
-    // Reset thinking state
     context.isInThinkingBlock = false
     context.currentThinkingBlock = null
     context.currentTextBlock = null
-
     updateStreamingMessage(set, context)
   },
-
-  // Default handler for unknown events
-  default: () => {
-    // Silently ignore unhandled events
-  },
+  default: () => {},
 }
 
-// Cache tools that support ready_for_review state for faster lookup
-function getToolsWithReadyForReview(): Set<string> {
-  const toolsWithReadyForReview = new Set<string>()
-
-  return new Set([COPILOT_TOOL_IDS.BUILD_WORKFLOW, COPILOT_TOOL_IDS.EDIT_WORKFLOW])
-}
-
-// Cache for ready_for_review tools
-let READY_FOR_REVIEW_TOOL_IDS: Set<string> | null = null
-
-// Helper function to get cached ready_for_review tool IDs
-function getReadyForReviewToolIds(): Set<string> {
-  if (!READY_FOR_REVIEW_TOOL_IDS) {
-    READY_FOR_REVIEW_TOOL_IDS = getToolsWithReadyForReview()
-  }
-  return READY_FOR_REVIEW_TOOL_IDS
-}
-
-/**
- * Helper function to preserve terminal states for workflow tools and interrupt tools
- */
-function preserveToolTerminalState(newToolCall: any, existingToolCall: any): any {
-  // Early return if not a tool with ready_for_review or interrupt tool
-  if (!toolSupportsReadyForReview(newToolCall.name) && !toolRequiresInterrupt(newToolCall.name)) {
-    return newToolCall
-  }
-
-  // Early return if no existing tool call or no terminal state
-  if (
-    !existingToolCall ||
-    (existingToolCall.state !== 'accepted' &&
-      existingToolCall.state !== 'rejected' &&
-      existingToolCall.state !== 'background')
-  ) {
-    return newToolCall
-  }
-
-  // Only create new object if state would actually change
-  if (
-    newToolCall.state === existingToolCall.state &&
-    newToolCall.displayName === existingToolCall.displayName
-  ) {
-    return newToolCall
-  }
-
-  return {
-    ...newToolCall,
-    state: existingToolCall.state,
-    displayName: existingToolCall.displayName,
-  }
-}
-
-/**
- * Helper function to merge tool calls while preserving terminal states
- */
-function mergeToolCallsPreservingTerminalStates(
-  newToolCalls: any[],
-  existingToolCalls: any[] = []
-): any[] {
-  if (
-    !existingToolCalls.length ||
-    !newToolCalls.some(
-      (tc) => toolSupportsReadyForReview(tc.name) || toolRequiresInterrupt(tc.name)
-    )
-  ) {
-    return newToolCalls
-  }
-
-  // Create a lookup map for faster access
-  const existingMap = new Map(existingToolCalls.map((tc) => [tc.id, tc]))
-
-  return newToolCalls.map((newToolCall) => {
-    const existingToolCall = existingMap.get(newToolCall.id)
-    return preserveToolTerminalState(newToolCall, existingToolCall)
-  })
-}
-
-/**
- * Helper function to merge content blocks while preserving terminal states
- */
-function mergeContentBlocksPreservingTerminalStates(
-  newContentBlocks: any[],
-  existingContentBlocks: any[] = []
-): any[] {
-  // Early return if no existing blocks or no tool call blocks to check
-  if (!existingContentBlocks.length || !newContentBlocks.some((b) => b.type === 'tool_call')) {
-    return newContentBlocks
-  }
-
-  // Create a lookup map for tool call blocks for faster access
-  const existingToolCallMap = new Map()
-  existingContentBlocks.forEach((block) => {
-    if (block.type === 'tool_call') {
-      existingToolCallMap.set((block as any).toolCall.id, block)
-    }
-  })
-
-  return newContentBlocks.map((newBlock) => {
-    if (newBlock.type === 'tool_call') {
-      const toolCallBlock = newBlock as any
-
-      // Skip if not a tool with ready_for_review or interrupt tool
-      if (
-        !toolSupportsReadyForReview(toolCallBlock.toolCall.name) &&
-        !toolRequiresInterrupt(toolCallBlock.toolCall.name)
-      ) {
-        return newBlock
-      }
-
-      const existingBlock = existingToolCallMap.get(toolCallBlock.toolCall.id)
-      const preservedToolCall = preserveToolTerminalState(
-        toolCallBlock.toolCall,
-        existingBlock?.toolCall
-      )
-
-      // Only create new object if something actually changed
-      if (preservedToolCall !== toolCallBlock.toolCall) {
-        return {
-          ...newBlock,
-          toolCall: preservedToolCall,
-        }
-      }
-    }
-    return newBlock
-  })
-}
-
-/**
- * Helper function to update content block with tool call
- */
-function updateContentBlockToolCall(contentBlocks: any[], toolCallId: string, toolCall: any) {
-  for (let i = 0; i < contentBlocks.length; i++) {
-    const block = contentBlocks[i]
-    if (block.type === 'tool_call' && block.toolCall.id === toolCallId) {
-      const preservedToolCall = preserveToolTerminalState(toolCall, block.toolCall)
-      contentBlocks[i] = {
-        type: 'tool_call',
-        toolCall: preservedToolCall,
-        timestamp: block.timestamp,
-      }
-      break
-    }
-  }
-}
-
-/**
- * Helper function to update content block with text
- */
-function updateContentBlockText(contentBlocks: any[], textBlock: any) {
-  for (let i = contentBlocks.length - 1; i >= 0; i--) {
-    if (
-      contentBlocks[i] === textBlock ||
-      (contentBlocks[i].type === 'text' && contentBlocks[i].timestamp === textBlock.timestamp)
-    ) {
-      contentBlocks[i] = { ...textBlock }
-      break
-    }
-  }
-}
-
-/**
- * Debounced UI update queue for smoother streaming
- */
-// PERFORMANCE OPTIMIZATION: Enhanced RAF-based update batching with adaptive timing
+// Debounced UI update queue for smoother streaming
 const streamingUpdateQueue = new Map<string, StreamingContext>()
 let streamingUpdateRAF: number | null = null
 let lastBatchTime = 0
-const MIN_BATCH_INTERVAL = 16 // ~60fps for smooth updates
-const MAX_BATCH_INTERVAL = 50 // Max 20fps for heavy content
-const MAX_QUEUE_SIZE = 5 // Force flush at this queue size
+const MIN_BATCH_INTERVAL = 16
+const MAX_BATCH_INTERVAL = 50
+const MAX_QUEUE_SIZE = 5
 
-/**
- * Helper function to create optimized content blocks with minimal allocations
- */
 function createOptimizedContentBlocks(contentBlocks: any[]): any[] {
-  // PERFORMANCE OPTIMIZATION: Only clone objects that actually need it
   const result: any[] = new Array(contentBlocks.length)
   for (let i = 0; i < contentBlocks.length; i++) {
     const block = contentBlocks[i]
-    result[i] = { ...block } // Minimal clone for React change detection
+    result[i] = { ...block }
   }
   return result
 }
 
-/**
- * Helper function to update streaming message with adaptive batching
- */
 function updateStreamingMessage(set: any, context: StreamingContext) {
   const now = performance.now()
-
-  // Queue this update with timestamp
   streamingUpdateQueue.set(context.messageId, context)
-  context._lastUpdateTime = now
-
-  // Adaptive batching strategy
   const timeSinceLastBatch = now - lastBatchTime
   const shouldFlushImmediately =
     streamingUpdateQueue.size >= MAX_QUEUE_SIZE || timeSinceLastBatch > MAX_BATCH_INTERVAL
 
-  // Schedule RAF if none pending
   if (streamingUpdateRAF === null) {
     const scheduleUpdate = () => {
       streamingUpdateRAF = requestAnimationFrame(() => {
-        // Process all queued updates in a single optimized batch
         const updates = new Map(streamingUpdateQueue)
         streamingUpdateQueue.clear()
         streamingUpdateRAF = null
         lastBatchTime = performance.now()
-
         set((state: CopilotStore) => {
-          // Fast exit for no updates
           if (updates.size === 0) return state
-
           const messages = state.messages
-
-          // PERFORMANCE OPTIMIZATION: Single message update (most common case)
           const lastMessage = messages[messages.length - 1]
           const lastMessageUpdate = lastMessage ? updates.get(lastMessage.id) : null
-
           if (updates.size === 1 && lastMessageUpdate) {
-            // Fast path: only updating the last message
             const newMessages = [...messages]
-
-            const mergedToolCalls = mergeToolCallsPreservingTerminalStates(
-              lastMessageUpdate.toolCalls,
-              lastMessage.toolCalls
-            )
-            const mergedContentBlocks = mergeContentBlocksPreservingTerminalStates(
-              lastMessageUpdate.contentBlocks,
-              lastMessage.contentBlocks
-            )
-
             newMessages[messages.length - 1] = {
               ...lastMessage,
-              content: '', // Don't use accumulated content for display
-              toolCalls: mergedToolCalls.length > 0 ? mergedToolCalls : [],
+              content: '',
               contentBlocks:
-                mergedContentBlocks.length > 0
-                  ? createOptimizedContentBlocks(mergedContentBlocks)
+                lastMessageUpdate.contentBlocks.length > 0
+                  ? createOptimizedContentBlocks(lastMessageUpdate.contentBlocks)
                   : [],
             }
             return { messages: newMessages }
           }
-          // Fallback to mapping for multiple updates or non-last message updates
           return {
-            messages: messages.map((msg: CopilotMessage) => {
+            messages: messages.map((msg) => {
               const update = updates.get(msg.id)
               if (update) {
-                const mergedToolCalls = mergeToolCallsPreservingTerminalStates(
-                  update.toolCalls,
-                  msg.toolCalls
-                )
-                const mergedContentBlocks = mergeContentBlocksPreservingTerminalStates(
-                  update.contentBlocks,
-                  msg.contentBlocks
-                )
-
                 return {
                   ...msg,
-                  content: '', // Don't use accumulated content for display
-                  toolCalls: mergedToolCalls.length > 0 ? mergedToolCalls : [],
+                  content: '',
                   contentBlocks:
-                    mergedContentBlocks.length > 0
-                      ? createOptimizedContentBlocks(mergedContentBlocks)
+                    update.contentBlocks.length > 0
+                      ? createOptimizedContentBlocks(update.contentBlocks)
                       : [],
                 }
               }
@@ -1747,56 +1187,31 @@ function updateStreamingMessage(set: any, context: StreamingContext) {
         })
       })
     }
-
-    // Execute immediately or with delay based on batching strategy
-    if (shouldFlushImmediately) {
-      scheduleUpdate()
-    } else {
-      // Small delay for better batching
-      setTimeout(scheduleUpdate, Math.max(0, MIN_BATCH_INTERVAL - timeSinceLastBatch))
-    }
+    if (shouldFlushImmediately) scheduleUpdate()
+    else setTimeout(scheduleUpdate, Math.max(0, MIN_BATCH_INTERVAL - timeSinceLastBatch))
   }
 }
 
-/**
- * Parse SSE stream and handle events - OPTIMIZED
- */
 async function* parseSSEStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   decoder: TextDecoder
 ) {
-  // PERFORMANCE OPTIMIZATION: Pre-allocated buffers and constants
   let buffer = ''
-  const chunkBuilder = new StringBuilder()
-
-  // Reuse array for line splitting to reduce allocations
-  let lineBuffer: string[] = []
-
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-
-    // PERFORMANCE OPTIMIZATION: Decode chunk efficiently
     const chunk = decoder.decode(value, { stream: true })
     buffer += chunk
-
-    // PERFORMANCE OPTIMIZATION: Process lines in chunks to reduce split() calls
     const lastNewlineIndex = buffer.lastIndexOf('\n')
     if (lastNewlineIndex !== -1) {
       const linesToProcess = buffer.substring(0, lastNewlineIndex)
       buffer = buffer.substring(lastNewlineIndex + 1)
-
-      // Split only the portion with complete lines
-      lineBuffer = linesToProcess.split('\n')
-
-      for (let i = 0; i < lineBuffer.length; i++) {
-        const line = lineBuffer[i]
-        // PERFORMANCE OPTIMIZATION: Avoid trim() for empty check
+      const lines = linesToProcess.split('\n')
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
         if (line.length === 0) continue
         if (line.charCodeAt(0) === 100 && line.startsWith(DATA_PREFIX)) {
-          // 'd' === 100
           try {
-            // PERFORMANCE OPTIMIZATION: Use slice with pre-calculated length
             const jsonStr = line.substring(DATA_PREFIX_LENGTH)
             yield JSON.parse(jsonStr)
           } catch (error) {
@@ -1804,1633 +1219,888 @@ async function* parseSSEStream(
           }
         }
       }
-
-      // Clear line buffer for reuse
-      lineBuffer.length = 0
     }
   }
 }
 
-// Auth/usage assistant response messages for Copilot
-const COPILOT_AUTH_REQUIRED_MESSAGE =
-  '*Authorization failed. An API key must be configured in order to use the copilot. You can configure an API key at [sim.ai](https://sim.ai).*'
-const COPILOT_USAGE_EXCEEDED_MESSAGE =
-  '*Usage limit exceeded, please upgrade your plan or top up credits at [sim.ai](https://sim.ai) to continue using the copilot*'
+// Initial state (subset required for UI/streaming)
+const initialState = {
+  mode: 'agent' as const,
+  agentDepth: 0 as 0 | 1 | 2 | 3,
+  agentPrefetch: true,
+  currentChat: null as CopilotChat | null,
+  chats: [] as CopilotChat[],
+  messages: [] as CopilotMessage[],
+  checkpoints: [] as any[],
+  messageCheckpoints: {} as Record<string, any[]>,
+  isLoading: false,
+  isLoadingChats: false,
+  isLoadingCheckpoints: false,
+  isSendingMessage: false,
+  isSaving: false,
+  isRevertingCheckpoint: false,
+  isAborting: false,
+  error: null as string | null,
+  saveError: null as string | null,
+  checkpointError: null as string | null,
+  workflowId: null as string | null,
+  abortController: null as AbortController | null,
+  chatsLastLoadedAt: null as Date | null,
+  chatsLoadedForWorkflow: null as string | null,
+  revertState: null as { messageId: string; messageContent: string } | null,
+  inputValue: '',
+  planTodos: [] as Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>,
+  showPlanTodos: false,
+  toolCallsById: {} as Record<string, CopilotToolCall>,
+}
 
-/**
- * Copilot store using the new unified API
- */
 export const useCopilotStore = create<CopilotStore>()(
-  devtools(
-    (set, get) => ({
-      ...initialState,
+  devtools((set, get) => ({
+    ...initialState,
 
-      // Set chat mode
-      setMode: (mode) => {
-        const previousMode = get().mode
-        set({ mode })
-        logger.info(`Copilot mode changed from ${previousMode} to ${mode}`)
-      },
+    // Basic mode controls
+    setMode: (mode) => set({ mode }),
 
-      // Clear messages for current chat
-      clearMessages: () => {
-        set({ messages: [] })
-        logger.info('Cleared messages')
-      },
+    // Clear messages
+    clearMessages: () => set({ messages: [] }),
 
-      // Set workflow ID and reset state
-      setWorkflowId: async (workflowId: string | null) => {
-        const currentWorkflowId = get().workflowId
+    // Workflow selection
+    setWorkflowId: async (workflowId: string | null) => {
+      const currentWorkflowId = get().workflowId
+      if (currentWorkflowId === workflowId) return
+      const { isSendingMessage } = get()
+      if (isSendingMessage) get().abortMessage()
 
-        if (currentWorkflowId === workflowId) {
-          return
-        }
+      // Abort all in-progress tools and clear any diff preview
+      abortAllInProgressTools(set, get)
+      try {
+        useWorkflowDiffStore.getState().clearDiff()
+      } catch {}
 
-        // Abort any ongoing streams before switching workflows
-        const { isSendingMessage } = get()
-        if (isSendingMessage) {
-          logger.info('Aborting ongoing copilot stream due to workflow switch')
-          get().abortMessage()
-        }
+      set({
+        ...initialState,
+        workflowId,
+        mode: get().mode,
+        agentDepth: get().agentDepth,
+        agentPrefetch: get().agentPrefetch,
+      })
+    },
 
-        // Clear workflow diff store when switching workflows
-        const { clearDiff } = useWorkflowDiffStore.getState()
-        clearDiff()
+    // Chats (minimal implementation for visibility)
+    validateCurrentChat: () => {
+      const { currentChat, workflowId, chats } = get()
+      if (!currentChat || !workflowId) return false
+      const chatExists = chats.some((c) => c.id === currentChat.id)
+      if (!chatExists) {
+        set({ currentChat: null, messages: [] })
+        return false
+      }
+      return true
+    },
 
-        logger.info(`Setting workflow ID: ${workflowId}`)
+    selectChat: async (chat: CopilotChat) => {
+      const { isSendingMessage, currentChat, workflowId } = get()
+      if (!workflowId) {
+        return
+      }
+      if (currentChat && currentChat.id !== chat.id && isSendingMessage) get().abortMessage()
 
-        // Reset state when switching workflows, including chat cache and checkpoints
-        set({
-          ...initialState,
-          workflowId,
-          mode: get().mode, // Preserve mode
-          agentDepth: get().agentDepth, // Preserve agent depth
-        })
-      },
+      // Abort in-progress tools and clear diff when changing chats
+      abortAllInProgressTools(set, get)
+      try {
+        useWorkflowDiffStore.getState().clearDiff()
+      } catch {}
 
-      // Validate that current chat belongs to current workflow
-      validateCurrentChat: () => {
-        const { currentChat, workflowId, chats } = get()
+      // Optimistically set selected chat and normalize messages for UI
+      set({
+        currentChat: chat,
+        messages: normalizeMessagesForUI(chat.messages || []),
+        planTodos: [],
+        showPlanTodos: false,
+      })
 
-        if (!currentChat || !workflowId) {
-          return false
-        }
-
-        // Check if the current chat belongs to the current workflow
-        // Since chats are filtered by workflow ID from API, if current chat
-        // is not in the chats array, it means it's stale
-        const chatExists = chats.some((chat) => chat.id === currentChat.id)
-
-        if (!chatExists) {
-          logger.info('Current chat does not belong to current workflow, clearing stale state')
-
-          // Clear workflow diff store when clearing stale chat state
-          const { clearDiff } = useWorkflowDiffStore.getState()
-          clearDiff()
-
-          set({
-            currentChat: null,
-            messages: [],
-          })
-          return false
-        }
-
-        return true
-      },
-
-      // Select chat and load latest messages
-      selectChat: async (chat: CopilotChat) => {
-        logger.info('💬 SELECT CHAT CALLED', { newChatId: chat.id })
-        const { workflowId, currentChat } = get()
-
-        if (!workflowId) {
-          logger.warn('Cannot select chat: no workflow ID set')
-          return
-        }
-
-        // Abort any ongoing streams before switching chats
-        if (currentChat && currentChat.id !== chat.id) {
-          const { isSendingMessage } = get()
-          logger.info('Different chat selected, checking for active stream:', { isSendingMessage })
-
-          if (isSendingMessage) {
-            logger.info('🛑 Aborting ongoing copilot stream due to chat switch')
-            get().abortMessage()
-          }
-
-          // Clear workflow diff store when switching to a different chat
-          const { clearDiff } = useWorkflowDiffStore.getState()
-          clearDiff()
-        }
-
-        // Optimistically set the chat first
-        set({
-          currentChat: chat,
-          messages: ensureToolCallDisplayNames(chat.messages || []),
-          // Clear todos when switching chats
-          planTodos: [],
-          showPlanTodos: false,
-        })
-
-        try {
-          // Fetch the latest version of this specific chat to get updated messages
-          const response = await fetch(`/api/copilot/chat?workflowId=${workflowId}`)
-
-          if (!response.ok) {
-            throw new Error(`Failed to fetch latest chat data: ${response.status}`)
-          }
-
-          const data = await response.json()
-
-          if (data.success && Array.isArray(data.chats)) {
-            // Find the selected chat in the fresh data
-            const latestChat = data.chats.find((c: CopilotChat) => c.id === chat.id)
-
-            if (latestChat) {
-              // Update with the latest messages
-              set({
-                currentChat: latestChat,
-                messages: ensureToolCallDisplayNames(latestChat.messages || []),
-                // Also update the chat in the chats array with latest data
-                chats: get().chats.map((c: CopilotChat) => (c.id === chat.id ? latestChat : c)),
-              })
-              logger.info(
-                `Selected chat with latest messages: ${latestChat.title || 'Untitled'} (${latestChat.messages?.length || 0} messages)`
-              )
-
-              // Automatically load checkpoints for this chat
-              await get().loadMessageCheckpoints(chat.id)
-            } else {
-              logger.warn(`Selected chat ${chat.id} not found in latest data`)
-            }
-          }
-        } catch (error) {
-          logger.error('Failed to fetch latest chat data, using cached messages:', error)
-          // Already set optimistically above, so just log the error
-
-          // Still try to load checkpoints even if chat refresh failed
-          try {
-            await get().loadMessageCheckpoints(chat.id)
-          } catch (checkpointError) {
-            logger.error('Failed to load checkpoints for selected chat:', checkpointError)
-          }
-        }
-      },
-
-      // Create a new chat - clear current chat state like when switching workflows
-      createNewChat: async () => {
-        logger.info('🆕 CREATE NEW CHAT CALLED')
-
-        // Abort any ongoing streams before creating new chat
-        const { isSendingMessage, abortController } = get()
-        logger.info('Current streaming state:', {
-          isSendingMessage,
-          hasAbortController: !!abortController,
-        })
-
-        if (isSendingMessage) {
-          logger.info('🛑 Aborting ongoing copilot stream due to new chat creation')
-          get().abortMessage()
-        }
-
-        // Clear workflow diff store when creating a new chat
-        const { clearDiff } = useWorkflowDiffStore.getState()
-        clearDiff()
-
-        // Set state to null so backend creates a new chat on first message
-        set({
-          currentChat: null,
-          messages: [],
-          messageCheckpoints: {}, // Clear checkpoints when creating new chat
-          planTodos: [], // Clear todos when creating new chat
-          showPlanTodos: false,
-        })
-        logger.info('🆕 Cleared chat state for new conversation')
-      },
-
-      // Delete chat is now a no-op since we don't have the API
-      deleteChat: async (chatId: string) => {
-        logger.warn('Chat deletion not implemented without API endpoint')
-        // The interface expects Promise<void>, not Promise<boolean>
-      },
-
-      // Check if chats are fresh for a given workflow (within 5 minutes)
-      areChatsFresh: (workflowId: string) => {
-        const { chatsLastLoadedAt, chatsLoadedForWorkflow } = get()
-
-        if (!chatsLastLoadedAt || chatsLoadedForWorkflow !== workflowId) {
-          return false
-        }
-
-        // Consider chats fresh if loaded within the last 5 minutes
-        const CHAT_FRESHNESS_DURATION = 5 * 60 * 1000 // 5 minutes in milliseconds
-        const timeSinceLastLoad = Date.now() - chatsLastLoadedAt.getTime()
-        return timeSinceLastLoad < CHAT_FRESHNESS_DURATION
-      },
-
-      // Load chats for current workflow with smart caching
-      loadChats: async (forceRefresh = false) => {
-        const { workflowId } = get()
-
-        if (!workflowId) {
-          logger.warn('No workflow ID set, cannot load chats')
-          set({ chats: [], isLoadingChats: false })
-          return
-        }
-
-        // Check if we already have fresh chats for this workflow
-        if (!forceRefresh && get().areChatsFresh(workflowId)) {
-          logger.info(`Using cached chats for workflow ${workflowId}`)
-          return
-        }
-
-        // Prevent multiple concurrent requests
-        if (get().isLoadingChats && !forceRefresh) {
-          logger.info('Chat loading already in progress, skipping duplicate request')
-          return
-        }
-
-        set({ isLoadingChats: true })
-
-        try {
-          logger.info(
-            `Loading chats for workflow ${workflowId}${forceRefresh ? ' (forced refresh)' : ''}`
-          )
-          const response = await fetch(`/api/copilot/chat?workflowId=${workflowId}`)
-
-          if (!response.ok) {
-            throw new Error(`Failed to fetch chats: ${response.status}`)
-          }
-
-          const data = await response.json()
-
-          if (data.success && Array.isArray(data.chats)) {
-            const now = new Date()
-
+      // Refresh selected chat from server to ensure we have latest messages/tool calls
+      try {
+        const response = await fetch(`/api/copilot/chat?workflowId=${workflowId}`)
+        if (!response.ok) throw new Error(`Failed to fetch latest chat data: ${response.status}`)
+        const data = await response.json()
+        if (data.success && Array.isArray(data.chats)) {
+          const latestChat = data.chats.find((c: CopilotChat) => c.id === chat.id)
+          if (latestChat) {
             set({
-              chats: data.chats,
-              isLoadingChats: false,
-              chatsLastLoadedAt: now,
-              chatsLoadedForWorkflow: workflowId,
-            })
-
-            // Smart chat selection logic
-            if (data.chats.length > 0) {
-              const { currentChat } = get()
-              // Check if current chat still exists in the loaded chats for this workflow
-              const currentChatStillExists =
-                currentChat && data.chats.some((chat: CopilotChat) => chat.id === currentChat.id)
-
-              if (currentChatStillExists) {
-                // Preserve the current chat but update it with latest data from DB
-                const updatedCurrentChat = data.chats.find(
-                  (chat: CopilotChat) => chat.id === currentChat.id
-                )
-                if (updatedCurrentChat) {
-                  const { isSendingMessage } = get()
-
-                  // If we're currently streaming, preserve the current messages state
-                  // to avoid overwriting streaming content with stale database state
-                  if (isSendingMessage) {
-                    set({
-                      currentChat: {
-                        ...updatedCurrentChat,
-                        messages: get().messages, // Preserve current streaming messages
-                      },
-                    })
-                    logger.info(
-                      `Preserved current chat and streaming messages during active stream: ${updatedCurrentChat.title || 'Untitled'}`
-                    )
-                  } else {
-                    // Safe to update messages when not streaming
-                    set({
-                      currentChat: updatedCurrentChat,
-                      messages: ensureToolCallDisplayNames(updatedCurrentChat.messages || []),
-                    })
-                    logger.info(
-                      `Updated current chat with latest database state: ${updatedCurrentChat.title || 'Untitled'} (${updatedCurrentChat.messages?.length || 0} messages)`
-                    )
-                  }
-
-                  // Load checkpoints for the preserved chat
-                  try {
-                    await get().loadMessageCheckpoints(updatedCurrentChat.id)
-                  } catch (checkpointError) {
-                    logger.error('Failed to load checkpoints for preserved chat:', checkpointError)
-                  }
-                }
-              } else {
-                // Only auto-select most recent chat if no current chat or current chat is stale
-                // But don't auto-select during streaming to avoid disrupting the conversation
-                const { isSendingMessage } = get()
-
-                if (!isSendingMessage) {
-                  const mostRecentChat = data.chats[0]
-                  set({
-                    currentChat: mostRecentChat,
-                    messages: ensureToolCallDisplayNames(mostRecentChat.messages || []),
-                  })
-                  logger.info(
-                    `Auto-selected most recent chat for workflow ${workflowId}: ${mostRecentChat.title || 'Untitled'}`
-                  )
-
-                  // Load checkpoints for the auto-selected chat
-                  try {
-                    await get().loadMessageCheckpoints(mostRecentChat.id)
-                  } catch (checkpointError) {
-                    logger.error(
-                      'Failed to load checkpoints for auto-selected chat:',
-                      checkpointError
-                    )
-                  }
-                } else {
-                  logger.info(
-                    `Skipped auto-selecting chat during active stream for workflow ${workflowId}`
-                  )
-                }
-              }
-            } else {
-              // Ensure we clear everything if there are no chats for this workflow
-              set({
-                currentChat: null,
-                messages: [],
-              })
-              logger.info(`No chats found for workflow ${workflowId}, cleared chat state`)
-            }
-
-            logger.info(`Loaded ${data.chats.length} chats for workflow ${workflowId}`)
-          } else {
-            throw new Error('Invalid response format')
-          }
-        } catch (error) {
-          logger.error('Failed to load chats:', error)
-          set({
-            chats: [],
-            isLoadingChats: false,
-            error: error instanceof Error ? error.message : 'Failed to load chats',
-          })
-        }
-      },
-
-      // Send a message
-      sendMessage: async (message: string, options = {}) => {
-        const { workflowId, currentChat, mode, revertState } = get()
-        const { stream = true, fileAttachments } = options
-
-        if (!workflowId) {
-          logger.warn('Cannot send message: no workflow ID set')
-          return
-        }
-
-        // Create abort controller for this request
-        const abortController = new AbortController()
-        set({ isSendingMessage: true, error: null, abortController })
-
-        const userMessage = createUserMessage(message, fileAttachments)
-        const streamingMessage = createStreamingMessage()
-
-        // Handle message history rewriting if we're in revert state
-        let newMessages: CopilotMessage[]
-        if (revertState) {
-          // Since we already truncated the history on revert (excluding the reverted message),
-          // just append the new message and assistant response to the remaining messages
-          const currentMessages = get().messages
-          newMessages = [
-            ...currentMessages, // Keep all remaining messages (reverted message already removed)
-            userMessage, // Add new message
-            streamingMessage, // Add assistant response
-          ]
-          logger.info(
-            `Added new message after revert point, continuing conversation from ${currentMessages.length} existing messages`
-          )
-
-          // Clear revert state since we're now continuing from this point
-          set({ revertState: null, inputValue: '' })
-        } else {
-          // Normal message append
-          newMessages = [...get().messages, userMessage, streamingMessage]
-        }
-
-        // Check if this is the first message before updating state
-        const isFirstMessage = get().messages.length === 0 && !currentChat?.title
-
-        set({ messages: newMessages })
-
-        // Optimistic title update for first message
-        if (isFirstMessage) {
-          // Generate optimistic title from first few words of user message
-          const optimisticTitle = message.length > 50 ? `${message.substring(0, 47)}...` : message
-
-          set((state) => ({
-            currentChat: state.currentChat
-              ? {
-                  ...state.currentChat,
-                  title: optimisticTitle,
-                }
-              : state.currentChat,
-          }))
-
-          logger.info('Set optimistic title for first message:', optimisticTitle)
-        }
-
-        try {
-          const result = await sendStreamingMessage({
-            message,
-            userMessageId: userMessage.id, // Send the frontend-generated ID
-            chatId: currentChat?.id,
-            workflowId,
-            mode: mode === 'ask' ? 'ask' : 'agent',
-            depth: get().agentDepth,
-            prefetch: get().agentPrefetch,
-            createNewChat: !currentChat,
-            stream,
-            fileAttachments: options.fileAttachments,
-            abortSignal: abortController.signal,
-          })
-
-          if (result.success && result.stream) {
-            await get().handleStreamingResponse(result.stream, streamingMessage.id)
-
-            // Invalidate chat cache after successful message to ensure fresh ordering
-            // since the chat's updatedAt timestamp would have changed
-            set({
-              chatsLastLoadedAt: null,
-              chatsLoadedForWorkflow: null,
-            })
-            logger.info('Invalidated chat cache after successful message send')
-          } else {
-            // Handle abort gracefully
-            if (result.error === 'Request was aborted') {
-              logger.info('Message sending was aborted by user')
-              return // Don't throw or update state, abort handler already did
-            }
-
-            // Handle specific upstream statuses
-            let displayError = result.error || 'Failed to send message'
-            if (result.status === 401) {
-              displayError = COPILOT_AUTH_REQUIRED_MESSAGE
-            } else if (result.status === 402) {
-              displayError = COPILOT_USAGE_EXCEEDED_MESSAGE
-            }
-
-            const errorMessage = createErrorMessage(streamingMessage.id, displayError)
-
-            // Show as a normal assistant response without global error for auth/usage cases
-            const isAuthOrUsage = result.status === 401 || result.status === 402
-
-            set((state) => ({
-              messages: state.messages.map((msg) =>
-                msg.id === streamingMessage.id ? errorMessage : msg
+              currentChat: latestChat,
+              messages: normalizeMessagesForUI(latestChat.messages || []),
+              chats: (get().chats || []).map((c: CopilotChat) =>
+                c.id === chat.id ? latestChat : c
               ),
-              error: isAuthOrUsage ? null : displayError,
-              isSendingMessage: false,
-              abortController: null,
-            }))
+            })
+            try {
+              await get().loadMessageCheckpoints(latestChat.id)
+            } catch {}
           }
-        } catch (error) {
-          // Check if this was an abort
-          if (error instanceof Error && error.name === 'AbortError') {
-            logger.info('Message sending was aborted')
-            return // Don't update state, abort handler already did
-          }
+        }
+      } catch {}
+    },
 
+    createNewChat: async () => {
+      const { isSendingMessage } = get()
+      if (isSendingMessage) get().abortMessage()
+
+      // Abort in-progress tools and clear diff on new chat
+      abortAllInProgressTools(set, get)
+      try {
+        useWorkflowDiffStore.getState().clearDiff()
+      } catch {}
+
+      set({
+        currentChat: null,
+        messages: [],
+        messageCheckpoints: {},
+        planTodos: [],
+        showPlanTodos: false,
+      })
+    },
+
+    deleteChat: async (_chatId: string) => {
+      // no-op for now
+    },
+
+    areChatsFresh: (_workflowId: string) => false,
+
+    loadChats: async (_forceRefresh = false) => {
+      const { workflowId } = get()
+      if (!workflowId) {
+        set({ chats: [], isLoadingChats: false })
+        return
+      }
+
+      // For now always fetch fresh
+      set({ isLoadingChats: true })
+      try {
+        const response = await fetch(`/api/copilot/chat?workflowId=${workflowId}`)
+        if (!response.ok) {
+          throw new Error(`Failed to fetch chats: ${response.status}`)
+        }
+        const data = await response.json()
+        if (data.success && Array.isArray(data.chats)) {
+          const now = new Date()
+          set({
+            chats: data.chats,
+            isLoadingChats: false,
+            chatsLastLoadedAt: now,
+            chatsLoadedForWorkflow: workflowId,
+          })
+
+          if (data.chats.length > 0) {
+            const { currentChat, isSendingMessage } = get()
+            const currentChatStillExists =
+              currentChat && data.chats.some((c: CopilotChat) => c.id === currentChat.id)
+
+            if (currentChatStillExists) {
+              const updatedCurrentChat = data.chats.find(
+                (c: CopilotChat) => c.id === currentChat!.id
+              )!
+              if (isSendingMessage) {
+                set({ currentChat: { ...updatedCurrentChat, messages: get().messages } })
+              } else {
+                set({
+                  currentChat: updatedCurrentChat,
+                  messages: normalizeMessagesForUI(updatedCurrentChat.messages || []),
+                })
+              }
+              try {
+                await get().loadMessageCheckpoints(updatedCurrentChat.id)
+              } catch {}
+            } else if (!isSendingMessage) {
+              const mostRecentChat: CopilotChat = data.chats[0]
+              set({
+                currentChat: mostRecentChat,
+                messages: normalizeMessagesForUI(mostRecentChat.messages || []),
+              })
+              try {
+                await get().loadMessageCheckpoints(mostRecentChat.id)
+              } catch {}
+            }
+          } else {
+            set({ currentChat: null, messages: [] })
+          }
+        } else {
+          throw new Error('Invalid response format')
+        }
+      } catch (error) {
+        set({
+          chats: [],
+          isLoadingChats: false,
+          error: error instanceof Error ? error.message : 'Failed to load chats',
+        })
+      }
+    },
+
+    // Send a message (streaming only)
+    sendMessage: async (message: string, options = {}) => {
+      const { workflowId, currentChat, mode, revertState } = get()
+      const { stream = true, fileAttachments } = options as {
+        stream?: boolean
+        fileAttachments?: MessageFileAttachment[]
+      }
+      if (!workflowId) return
+
+      const abortController = new AbortController()
+      set({ isSendingMessage: true, error: null, abortController })
+
+      const userMessage = createUserMessage(message, fileAttachments)
+      const streamingMessage = createStreamingMessage()
+
+      let newMessages: CopilotMessage[]
+      if (revertState) {
+        const currentMessages = get().messages
+        newMessages = [...currentMessages, userMessage, streamingMessage]
+        set({ revertState: null, inputValue: '' })
+      } else {
+        newMessages = [...get().messages, userMessage, streamingMessage]
+      }
+
+      const isFirstMessage = get().messages.length === 0 && !currentChat?.title
+      set({ messages: newMessages })
+
+      if (isFirstMessage) {
+        const optimisticTitle = message.length > 50 ? `${message.substring(0, 47)}...` : message
+        set((state) => ({
+          currentChat: state.currentChat
+            ? { ...state.currentChat, title: optimisticTitle }
+            : state.currentChat,
+        }))
+      }
+
+      try {
+        const result = await sendStreamingMessage({
+          message,
+          userMessageId: userMessage.id,
+          chatId: currentChat?.id,
+          workflowId,
+          mode: mode === 'ask' ? 'ask' : 'agent',
+          depth: get().agentDepth,
+          prefetch: get().agentPrefetch,
+          createNewChat: !currentChat,
+          stream,
+          fileAttachments,
+          abortSignal: abortController.signal,
+        })
+
+        if (result.success && result.stream) {
+          await get().handleStreamingResponse(result.stream, streamingMessage.id)
+          set({ chatsLastLoadedAt: null, chatsLoadedForWorkflow: null })
+        } else {
+          if (result.error === 'Request was aborted') {
+            return
+          }
           const errorMessage = createErrorMessage(
             streamingMessage.id,
-            'Sorry, I encountered an error while processing your message. Please try again.'
+            result.error || 'Failed to send message'
           )
-
           set((state) => ({
-            messages: state.messages.map((msg) =>
-              msg.id === streamingMessage.id ? errorMessage : msg
-            ),
-            error: handleStoreError(error, 'Failed to send message'),
+            messages: state.messages.map((m) => (m.id === streamingMessage.id ? errorMessage : m)),
+            error: result.error || 'Failed to send message',
             isSendingMessage: false,
             abortController: null,
           }))
         }
-      },
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') return
+        const errorMessage = createErrorMessage(
+          streamingMessage.id,
+          'Sorry, I encountered an error while processing your message. Please try again.'
+        )
+        set((state) => ({
+          messages: state.messages.map((m) => (m.id === streamingMessage.id ? errorMessage : m)),
+          error: error instanceof Error ? error.message : 'Failed to send message',
+          isSendingMessage: false,
+          abortController: null,
+        }))
+      }
+    },
 
-      // Abort current message streaming
-      abortMessage: () => {
-        const { abortController, isSendingMessage, messages } = get()
-        logger.info('🛑 Abort message called:', {
-          isSendingMessage,
-          hasAbortController: !!abortController,
-        })
-
-        if (!isSendingMessage || !abortController) {
-          logger.warn('Cannot abort: no active streaming request')
-          return
-        }
-
-        logger.info('Aborting stream and updating tool states')
-        set({ isAborting: true })
-
-        try {
-          // Abort the request
-          abortController.abort()
-
-          // Find the last streaming message and mark any executing tool calls as aborted
-          const lastMessage = messages[messages.length - 1]
-          if (lastMessage && lastMessage.role === 'assistant') {
-            // Mark any active tool calls as terminated based on their current state
-            const updatedToolCalls =
-              lastMessage.toolCalls?.map((toolCall) => {
-                if (toolCall.state === 'executing') {
-                  // Executing tools become aborted
-                  return {
-                    ...toolCall,
-                    state: 'aborted' as const,
-                    endTime: Date.now(),
-                    error: 'Operation was interrupted by user action',
-                    displayName: getToolDisplayNameByState({ ...toolCall, state: 'aborted' }),
-                  }
-                }
-                if (toolCall.state === 'pending') {
-                  // Pending tools become rejected/skipped
-                  return {
-                    ...toolCall,
-                    state: 'rejected' as const,
-                    endTime: Date.now(),
-                    error: 'Operation was cancelled due to page refresh or user action',
-                    displayName: getToolDisplayNameByState({ ...toolCall, state: 'rejected' }),
-                  }
-                }
-                // Leave other states unchanged
-                return toolCall
-              }) || []
-
-            // Update content blocks to reflect terminated tool calls
-            const updatedContentBlocks =
-              lastMessage.contentBlocks?.map((block) => {
-                if (block.type === 'tool_call') {
-                  if (block.toolCall.state === 'executing') {
-                    // Executing tools become aborted
-                    return {
-                      ...block,
-                      toolCall: {
-                        ...block.toolCall,
-                        state: 'aborted' as const,
-                        endTime: Date.now(),
-                        error: 'Operation was interrupted by user action',
-                        displayName: getToolDisplayNameByState({
-                          ...block.toolCall,
-                          state: 'aborted',
-                        }),
-                      },
-                    }
-                  }
-                  if (block.toolCall.state === 'pending') {
-                    // Pending tools become rejected/skipped
-                    return {
-                      ...block,
-                      toolCall: {
-                        ...block.toolCall,
-                        state: 'rejected' as const,
-                        endTime: Date.now(),
-                        error: 'Operation was cancelled due to page refresh or user action',
-                        displayName: getToolDisplayNameByState({
-                          ...block.toolCall,
-                          state: 'rejected',
-                        }),
-                      },
-                    }
-                  }
-                }
-                // Leave other blocks unchanged
-                return block
-              }) || []
-
-            const terminatedToolsCount = updatedToolCalls.filter(
-              (tc) =>
-                (tc.state === 'aborted' || tc.state === 'rejected') &&
-                typeof tc.error === 'string' &&
-                (tc.error.includes('interrupted') || tc.error.includes('cancelled'))
-            ).length
-
-            // Check if the assistant message has any meaningful content
-            const textContent =
-              lastMessage.contentBlocks
-                ?.filter((block) => block.type === 'text')
-                .map((block) => block.content)
-                .join('') || ''
-
-            // Always keep the message when aborted - user should see what was attempted
-            set((state) => ({
-              messages: state.messages.map((msg) =>
-                msg.id === lastMessage.id
-                  ? {
-                      ...msg,
-                      content: textContent.trim() || 'Message was aborted', // Show fallback if no content
-                      toolCalls: updatedToolCalls,
-                      contentBlocks: updatedContentBlocks,
-                    }
-                  : msg
-              ),
-              isSendingMessage: false,
-              isAborting: false,
-              abortController: null,
-            }))
-            logger.info('Preserved assistant message after abort to show what was attempted')
-
-            logger.info(
-              `Message streaming aborted successfully. ${terminatedToolsCount > 0 ? `Terminated ${terminatedToolsCount} tool calls (pending → rejected, executing → aborted).` : 'No tool calls were running.'}`
-            )
-
-            // Save the cleaned state to database immediately
-            const { currentChat } = get()
-            if (currentChat) {
-              try {
-                const currentMessages = get().messages
-
-                // Validate and clean messages before saving using helper function
-                const dbMessages = validateMessagesForLLM(currentMessages)
-
-                logger.info('💾 Saving cleaned message state after abort:', {
-                  messageCount: dbMessages.length,
-                  preservedMessage: true, // Messages are always preserved on abort
-                })
-
-                fetch('/api/copilot/chat/update-messages', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    chatId: currentChat.id,
-                    messages: dbMessages,
-                  }),
-                })
-                  .then((response) => {
-                    if (response.ok) {
-                      logger.info('Successfully persisted cleaned message state to database')
-                    } else {
-                      logger.error('Failed to persist cleaned message state:', response.statusText)
-                    }
-                  })
-                  .catch((error) => {
-                    logger.error('Error persisting cleaned message state:', error)
-                  })
-              } catch (error) {
-                logger.error('Error persisting cleaned message state:', error)
-              }
-            }
-          } else {
-            // No streaming message found, just reset the state
-            set({
-              isSendingMessage: false,
-              isAborting: false,
-              abortController: null,
-            })
-            logger.info('Message streaming aborted successfully')
-          }
-        } catch (error) {
-          logger.error('Error during abort:', error)
-          set({
+    // Abort streaming
+    abortMessage: () => {
+      const { abortController, isSendingMessage, messages } = get()
+      if (!isSendingMessage || !abortController) return
+      set({ isAborting: true })
+      try {
+        abortController.abort()
+        const lastMessage = messages[messages.length - 1]
+        if (lastMessage && lastMessage.role === 'assistant') {
+          const textContent =
+            lastMessage.contentBlocks
+              ?.filter((b) => b.type === 'text')
+              .map((b: any) => b.content)
+              .join('') || ''
+          set((state) => ({
+            messages: state.messages.map((msg) =>
+              msg.id === lastMessage.id
+                ? { ...msg, content: textContent.trim() || 'Message was aborted' }
+                : msg
+            ),
             isSendingMessage: false,
             isAborting: false,
             abortController: null,
-          })
-        }
-      },
-
-      // Send implicit feedback
-      sendImplicitFeedback: async (
-        implicitFeedback: string,
-        toolCallState?: 'accepted' | 'rejected' | 'errored'
-      ) => {
-        const { workflowId, currentChat, mode, agentDepth } = get()
-
-        if (!workflowId) {
-          logger.warn('Cannot send implicit feedback: no workflow ID set')
-          return
+          }))
+        } else {
+          set({ isSendingMessage: false, isAborting: false, abortController: null })
         }
 
-        // Update the tool call state if provided
-        if (toolCallState) {
-          get().updatePreviewToolCallState(toolCallState)
+        // Immediately put all in-progress tools into aborted state
+        abortAllInProgressTools(set, get)
+
+        // Persist whatever contentBlocks/text we have to keep ordering for reloads
+        const { currentChat } = get()
+        if (currentChat) {
+          try {
+            const currentMessages = get().messages
+            const dbMessages = validateMessagesForLLM(currentMessages)
+            fetch('/api/copilot/chat/update-messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chatId: currentChat.id, messages: dbMessages }),
+            }).catch(() => {})
+          } catch {}
         }
+      } catch {
+        set({ isSendingMessage: false, isAborting: false, abortController: null })
+      }
+    },
 
-        // Create abort controller for this request
-        const abortController = new AbortController()
-        set({ isSendingMessage: true, error: null, abortController })
-
-        // Create a new assistant message for the response
-        const newAssistantMessage = createStreamingMessage()
-
-        set((state) => ({
-          messages: [...state.messages, newAssistantMessage],
-        }))
-
-        try {
-          const result = await sendStreamingMessage({
-            message: 'Please continue your response.', // Simple continuation prompt
-            chatId: currentChat?.id,
-            workflowId,
-            mode: mode === 'ask' ? 'ask' : 'agent',
-            depth: agentDepth,
-            prefetch: get().agentPrefetch,
-            createNewChat: !currentChat,
-            stream: true,
-            implicitFeedback, // Pass the implicit feedback
-            abortSignal: abortController.signal,
-          })
-
-          if (result.success && result.stream) {
-            await get().handleStreamingResponse(result.stream, newAssistantMessage.id, false)
-          } else {
-            if (result.error === 'Request was aborted') {
-              logger.info('Implicit feedback sending was aborted by user')
-              return
-            }
-            // Handle specific upstream statuses as normal assistant responses
-            let displayError = result.error || 'Failed to send implicit feedback'
-            if (result.status === 401) {
-              displayError = COPILOT_AUTH_REQUIRED_MESSAGE
-            } else if (result.status === 402) {
-              displayError = COPILOT_USAGE_EXCEEDED_MESSAGE
-            }
-
-            const errorMessage = createErrorMessage(newAssistantMessage.id, displayError)
-
-            const isAuthOrUsage = result.status === 401 || result.status === 402
-            set((state) => ({
-              messages: state.messages.map((msg) =>
-                msg.id === newAssistantMessage.id ? errorMessage : msg
-              ),
-              error: isAuthOrUsage ? null : displayError,
-              isSendingMessage: false,
-              abortController: null,
-            }))
-          }
-        } catch (error) {
-          if (error instanceof Error && error.name === 'AbortError') {
-            logger.info('Implicit feedback sending was aborted')
-            return
-          }
-
+    // Implicit feedback (send a continuation) - minimal
+    sendImplicitFeedback: async (implicitFeedback: string) => {
+      const { workflowId, currentChat, mode, agentDepth } = get()
+      if (!workflowId) return
+      const abortController = new AbortController()
+      set({ isSendingMessage: true, error: null, abortController })
+      const newAssistantMessage = createStreamingMessage()
+      set((state) => ({ messages: [...state.messages, newAssistantMessage] }))
+      try {
+        const result = await sendStreamingMessage({
+          message: 'Please continue your response.',
+          chatId: currentChat?.id,
+          workflowId,
+          mode: mode === 'ask' ? 'ask' : 'agent',
+          depth: agentDepth,
+          prefetch: get().agentPrefetch,
+          createNewChat: !currentChat,
+          stream: true,
+          implicitFeedback,
+          abortSignal: abortController.signal,
+        })
+        if (result.success && result.stream) {
+          await get().handleStreamingResponse(result.stream, newAssistantMessage.id, false)
+        } else {
+          if (result.error === 'Request was aborted') return
           const errorMessage = createErrorMessage(
             newAssistantMessage.id,
-            'Sorry, I encountered an error while processing your feedback. Please try again.'
+            result.error || 'Failed to send implicit feedback'
           )
-
           set((state) => ({
             messages: state.messages.map((msg) =>
               msg.id === newAssistantMessage.id ? errorMessage : msg
             ),
-            error: handleStoreError(error, 'Failed to send implicit feedback'),
+            error: result.error || 'Failed to send implicit feedback',
             isSendingMessage: false,
             abortController: null,
           }))
         }
-      },
-
-      // NEW: Set tool call state using centralized function
-      setToolCallState: (toolCall: any, newState: string, options?: any) => {
-        setToolCallState(toolCall, newState, options)
-
-        // Trigger UI update by updating messages
-        const { messages } = get()
-        set((state) => ({
-          messages: [...state.messages], // Force re-render
-        }))
-      },
-
-      // Update preview tool call state
-      updatePreviewToolCallState: (
-        toolCallState: 'accepted' | 'rejected' | 'errored',
-        toolCallId?: string
-      ) => {
-        const { messages } = get()
-
-        // If toolCallId is provided, update specific tool call (for interrupt tools)
-        if (toolCallId) {
-          set((state) => {
-            const updatedMessages = state.messages.map((msg) =>
-              msg.toolCalls?.some((tc) => tc.id === toolCallId) ||
-              msg.contentBlocks?.some(
-                (block) => block.type === 'tool_call' && (block as any).toolCall.id === toolCallId
-              )
-                ? {
-                    ...msg,
-                    toolCalls: msg.toolCalls?.map((tc) =>
-                      tc.id === toolCallId
-                        ? {
-                            ...tc,
-                            state: toolCallState,
-                            displayName: getToolDisplayNameByState({ ...tc, state: toolCallState }),
-                          }
-                        : tc
-                    ),
-                    contentBlocks: msg.contentBlocks?.map((block) =>
-                      block.type === 'tool_call' && (block as any).toolCall.id === toolCallId
-                        ? {
-                            ...block,
-                            toolCall: {
-                              ...(block as any).toolCall,
-                              state: toolCallState,
-                              displayName: getToolDisplayNameByState({
-                                ...(block as any).toolCall,
-                                state: toolCallState,
-                              }),
-                            },
-                          }
-                        : block
-                    ),
-                  }
-                : msg
-            )
-            return { messages: updatedMessages }
-          })
-          return
-        }
-
-        // Existing workflow tool logic
-        // Find last message with workflow tools
-        const lastMessageWithPreview = messages
-          .slice()
-          .reverse()
-          .find((msg) =>
-            msg.toolCalls?.some(
-              (tc) =>
-                (tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-                  tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
-                (tc.state === 'ready_for_review' || tc.state === 'completed')
-            )
-          )
-
-        if (!lastMessageWithPreview) {
-          logger.error('No message with workflow tools found')
-          return
-        }
-
-        const lastWorkflowToolCall = lastMessageWithPreview.toolCalls?.find(
-          (tc) =>
-            (tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-              tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
-            (tc.state === 'ready_for_review' || tc.state === 'completed')
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') return
+        const errorMessage = createErrorMessage(
+          newAssistantMessage.id,
+          'Sorry, I encountered an error while processing your feedback. Please try again.'
         )
-
-        if (!lastWorkflowToolCall) {
-          logger.error('No workflow tool call found in message')
-          return
-        }
-
-        set((state) => {
-          const updatedMessages = state.messages.map((msg) =>
-            msg.id === lastMessageWithPreview.id
-              ? {
-                  ...msg,
-                  toolCalls: msg.toolCalls?.map((tc) =>
-                    tc.id === lastWorkflowToolCall.id
-                      ? {
-                          ...tc,
-                          state: toolCallState,
-                          displayName: getToolDisplayNameByState({ ...tc, state: toolCallState }),
-                        }
-                      : tc
-                  ),
-                  contentBlocks: msg.contentBlocks?.map((block) =>
-                    block.type === 'tool_call' &&
-                    (block as any).toolCall.id === lastWorkflowToolCall.id
-                      ? {
-                          ...block,
-                          toolCall: {
-                            ...(block as any).toolCall,
-                            state: toolCallState,
-                            displayName: getToolDisplayNameByState({
-                              ...(block as any).toolCall,
-                              state: toolCallState,
-                            }),
-                          },
-                        }
-                      : block
-                  ),
-                }
-              : msg
-          )
-          return { messages: updatedMessages }
-        })
-      },
-
-      // Send docs message - simplified without separate API
-      sendDocsMessage: async (query: string) => {
-        // Just send as a regular message since docs search is now a tool
-        await get().sendMessage(query)
-      },
-
-      // Save chat messages - no-op for now
-      saveChatMessages: async (chatId: string) => {
-        logger.info('Chat saving handled automatically by backend')
-      },
-
-      // Load checkpoints - no-op (legacy)
-      loadCheckpoints: async (chatId: string) => {
-        logger.warn('Legacy checkpoint loading not implemented')
-        set({ checkpoints: [] })
-      },
-
-      // Load message checkpoints
-      loadMessageCheckpoints: async (chatId: string) => {
-        const { workflowId } = get()
-        if (!workflowId) {
-          logger.warn('Cannot load message checkpoints: no workflow ID')
-          return
-        }
-
-        set({ isLoadingCheckpoints: true, checkpointError: null })
-
-        try {
-          const response = await fetch(`/api/copilot/checkpoints?chatId=${chatId}`)
-          if (!response.ok) {
-            throw new Error(`Failed to load checkpoints: ${response.statusText}`)
-          }
-
-          const data = await response.json()
-          if (data.success && Array.isArray(data.checkpoints)) {
-            // Group checkpoints by messageId
-            const messageCheckpoints: Record<string, WorkflowCheckpoint[]> = {}
-            data.checkpoints.forEach((checkpoint: WorkflowCheckpoint) => {
-              if (checkpoint.messageId) {
-                if (!messageCheckpoints[checkpoint.messageId]) {
-                  messageCheckpoints[checkpoint.messageId] = []
-                }
-                messageCheckpoints[checkpoint.messageId].push(checkpoint)
-              }
-            })
-
-            set({
-              messageCheckpoints,
-              isLoadingCheckpoints: false,
-            })
-            logger.info(`Loaded checkpoints for ${Object.keys(messageCheckpoints).length} messages`)
-          }
-        } catch (error) {
-          logger.error('Failed to load message checkpoints:', error)
-          set({
-            isLoadingCheckpoints: false,
-            checkpointError: error instanceof Error ? error.message : 'Failed to load checkpoints',
-          })
-        }
-      },
-
-      // Revert to checkpoint
-      revertToCheckpoint: async (checkpointId: string) => {
-        // Abort any ongoing streams before reverting to checkpoint
-        const { isSendingMessage } = get()
-        if (isSendingMessage) {
-          logger.info('🛑 Aborting ongoing copilot stream due to checkpoint revert')
-          get().abortMessage()
-        }
-
-        set({ isRevertingCheckpoint: true, checkpointError: null })
-
-        try {
-          // Find the checkpoint to get its associated message
-          const { messageCheckpoints, messages } = get()
-          let checkpointMessage: CopilotMessage | null = null
-
-          // Find which message this checkpoint belongs to
-          for (const [messageId, checkpoints] of Object.entries(messageCheckpoints)) {
-            const checkpoint = checkpoints.find((cp) => cp.id === checkpointId)
-            if (checkpoint) {
-              checkpointMessage = messages.find((msg) => msg.id === messageId) || null
-              break
-            }
-          }
-
-          const response = await fetch('/api/copilot/checkpoints/revert', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ checkpointId }),
-          })
-
-          if (!response.ok) {
-            throw new Error(`Failed to revert checkpoint: ${response.statusText}`)
-          }
-
-          const result = await response.json()
-          if (result.success && result.checkpoint?.workflowState) {
-            logger.info(`Successfully reverted to checkpoint ${checkpointId}`)
-
-            // Update the workflow store directly instead of refreshing the page
-            // This follows the same pattern as diff acceptance
-            const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
-            const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-            const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
-            const checkpointState = result.checkpoint.workflowState
-            const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-
-            // Update the main workflow store state
-            useWorkflowStore.setState({
-              blocks: checkpointState.blocks || {},
-              edges: checkpointState.edges || [],
-              loops: checkpointState.loops || {},
-              parallels: checkpointState.parallels || {},
-            })
-
-            // Update the subblock store with the values from the checkpoint blocks
-            if (activeWorkflowId) {
-              const subblockValues: Record<string, Record<string, any>> = {}
-
-              Object.entries(checkpointState.blocks || {}).forEach(([blockId, block]) => {
-                subblockValues[blockId] = {}
-                Object.entries((block as any).subBlocks || {}).forEach(([subblockId, subblock]) => {
-                  subblockValues[blockId][subblockId] = (subblock as any).value
-                })
-              })
-
-              useSubBlockStore.setState((state: any) => ({
-                workflowValues: {
-                  ...state.workflowValues,
-                  [activeWorkflowId]: subblockValues,
-                },
-              }))
-            }
-
-            // Trigger save and history update
-            const workflowStore = useWorkflowStore.getState()
-            workflowStore.updateLastSaved()
-
-            // Clear any pending diff changes since we've reverted to a checkpoint
-            const { useWorkflowDiffStore } = await import('@/stores/workflow-diff')
-            useWorkflowDiffStore.getState().clearDiff()
-
-            // Set up revert state and populate input if we found the message
-            if (checkpointMessage) {
-              // Find the index of the reverted message and truncate chat history
-              const currentMessages = get().messages
-              const revertedMessageIndex = currentMessages.findIndex(
-                (msg) => msg.id === checkpointMessage.id
-              )
-
-              let newMessages = currentMessages
-              if (revertedMessageIndex !== -1) {
-                // Keep only messages up to (but NOT including) the reverted message
-                // since the reverted message is now in the text box for editing
-                newMessages = currentMessages.slice(0, revertedMessageIndex)
-                logger.info(
-                  `Truncated chat history: kept ${newMessages.length} messages, removed ${currentMessages.length - newMessages.length} messages from revert point onwards`
-                )
-              }
-
-              set({
-                revertState: {
-                  messageId: checkpointMessage.id,
-                  messageContent: checkpointMessage.content,
-                },
-                inputValue: checkpointMessage.content,
-                messages: newMessages, // Update the chat UI immediately
-              })
-              logger.info('Set revert state, populated input, and updated chat UI')
-
-              // Persist the truncated chat state to the database
-              if (get().currentChat) {
-                try {
-                  const chatId = get().currentChat!.id
-
-                  // Format messages for database storage using validation
-                  const dbMessages = validateMessagesForLLM(newMessages)
-
-                  const response = await fetch('/api/copilot/chat/update-messages', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      chatId,
-                      messages: dbMessages,
-                    }),
-                  })
-
-                  if (!response.ok) {
-                    logger.error('Failed to persist truncated chat state:', response.statusText)
-                  } else {
-                    logger.info('Successfully persisted truncated chat state to database')
-
-                    // Update the current chat object to reflect the new messages
-                    set((state) => ({
-                      currentChat: state.currentChat
-                        ? {
-                            ...state.currentChat,
-                            messages: newMessages,
-                            updatedAt: new Date(),
-                          }
-                        : state.currentChat,
-                      // Invalidate chat cache to ensure fresh data on reload
-                      chatsLastLoadedAt: null,
-                      chatsLoadedForWorkflow: null,
-                    }))
-                  }
-                } catch (error) {
-                  logger.error('Error persisting truncated chat state:', error)
-                }
-              }
-            }
-
-            logger.info(
-              'Successfully applied checkpoint state to workflow store and cleared pending diffs'
-            )
-          } else {
-            throw new Error(result.error || 'Failed to revert checkpoint')
-          }
-        } catch (error) {
-          logger.error('Failed to revert to checkpoint:', error)
-          set({
-            checkpointError: error instanceof Error ? error.message : 'Failed to revert checkpoint',
-          })
-          throw error
-        } finally {
-          set({ isRevertingCheckpoint: false })
-        }
-      },
-
-      getCheckpointsForMessage: (messageId: string) => {
-        const { messageCheckpoints } = get()
-        return messageCheckpoints[messageId] || []
-      },
-
-      // Set preview YAML
-      setPreviewYaml: async (yamlContent: string) => {
-        const { currentChat } = get()
-        if (!currentChat) {
-          logger.warn('Cannot set preview YAML: no current chat')
-          return
-        }
-
         set((state) => ({
-          currentChat: state.currentChat
-            ? {
-                ...state.currentChat,
-                previewYaml: yamlContent,
-              }
-            : null,
+          messages: state.messages.map((msg) =>
+            msg.id === newAssistantMessage.id ? errorMessage : msg
+          ),
+          error: error instanceof Error ? error.message : 'Failed to send implicit feedback',
+          isSendingMessage: false,
+          abortController: null,
         }))
-        logger.info('Preview YAML set locally')
-      },
+      }
+    },
 
-      // Clear preview YAML
-      clearPreviewYaml: async () => {
-        const { currentChat } = get()
-        if (!currentChat) {
-          logger.warn('Cannot clear preview YAML: no current chat')
+    // Tool-call related APIs are stubbed for now
+    setToolCallState: (toolCall: any, newState: any) => {
+      try {
+        const id: string | undefined = toolCall?.id
+        if (!id) return
+        const map = { ...get().toolCallsById }
+        const current = map[id]
+        if (!current) return
+        // Preserve rejected state from being overridden
+        if (
+          isRejectedState(current.state) &&
+          (newState === 'success' || newState === (ClientToolCallState as any).success)
+        ) {
           return
         }
-
-        set((state) => ({
-          currentChat: state.currentChat
-            ? {
-                ...state.currentChat,
-                previewYaml: null,
+        let norm: ClientToolCallState = current.state
+        if (newState === 'executing') norm = ClientToolCallState.executing
+        else if (newState === 'errored' || newState === 'error') norm = ClientToolCallState.error
+        else if (newState === 'rejected') norm = ClientToolCallState.rejected
+        else if (newState === 'pending') norm = ClientToolCallState.pending
+        else if (newState === 'success' || newState === 'accepted')
+          norm = ClientToolCallState.success
+        else if (newState === 'aborted') norm = ClientToolCallState.aborted
+        else if (typeof newState === 'number') norm = newState as unknown as ClientToolCallState
+        map[id] = {
+          ...current,
+          state: norm,
+          display: resolveToolDisplay(current.name, norm, id, current.params),
+        }
+        set({ toolCallsById: map })
+      } catch {}
+    },
+    updatePreviewToolCallState: (
+      toolCallState: 'accepted' | 'rejected' | 'error',
+      toolCallId?: string
+    ) => {
+      const stateMap: Record<string, ClientToolCallState> = {
+        accepted: ClientToolCallState.success,
+        rejected: ClientToolCallState.rejected,
+        error: ClientToolCallState.error,
+      }
+      const targetState = stateMap[toolCallState] || ClientToolCallState.success
+      const { toolCallsById } = get()
+      // Determine target tool
+      let id = toolCallId
+      if (!id) {
+        // Prefer the latest assistant message's build/edit tool_call
+        const messages = get().messages
+        outer: for (let mi = messages.length - 1; mi >= 0; mi--) {
+          const m = messages[mi]
+          if (m.role !== 'assistant' || !m.contentBlocks) continue
+          const blocks = m.contentBlocks as any[]
+          for (let bi = blocks.length - 1; bi >= 0; bi--) {
+            const b = blocks[bi]
+            if (b?.type === 'tool_call') {
+              const tn = b.toolCall?.name
+              if (tn === 'build_workflow' || tn === 'edit_workflow') {
+                id = b.toolCall?.id
+                break outer
               }
-            : null,
-        }))
-        logger.info('Preview YAML cleared locally')
-      },
-
-      // Handle streaming response
-      handleStreamingResponse: async (
-        stream: ReadableStream,
-        messageId: string,
-        isContinuation = false
-      ) => {
-        const reader = stream.getReader()
-        const decoder = new TextDecoder()
-
-        // Initialize streaming context
-        const context: StreamingContext = {
-          messageId,
-          accumulatedContent: new StringBuilder(),
-          toolCalls: [],
-          contentBlocks: [],
-          currentTextBlock: null,
-          currentBlockType: null,
-          toolCallBuffer: null,
-          doneEventCount: 0,
-          pendingContent: '',
-          isInThinkingBlock: false,
-          currentThinkingBlock: null,
-          _tempBuffer: [],
-          _lastUpdateTime: 0,
-          _batchedUpdates: false,
-        }
-
-        // If continuation, preserve existing message state
-        if (isContinuation) {
-          const { messages } = get()
-          const existingMessage = messages.find((msg) => msg.id === messageId)
-          if (existingMessage) {
-            if (existingMessage.content) {
-              context.accumulatedContent.append(existingMessage.content)
-            }
-            context.toolCalls = existingMessage.toolCalls ? [...existingMessage.toolCalls] : []
-            context.contentBlocks = existingMessage.contentBlocks
-              ? [...existingMessage.contentBlocks]
-              : []
-          }
-        }
-
-        // Add timeout to prevent hanging
-        const timeoutId = setTimeout(() => {
-          logger.warn('Stream timeout reached, completing response')
-          reader.cancel()
-        }, 600000) // 10 minute timeout
-
-        try {
-          // Process SSE events
-          for await (const data of parseSSEStream(reader, decoder)) {
-            const { abortController } = get()
-
-            // Check if we should abort
-            if (abortController?.signal.aborted) {
-              logger.info('🚫 Stream reading aborted - breaking out of SSE loop')
-              break
-            }
-
-            // Get handler for this event type
-            const handler = sseHandlers[data.type] || sseHandlers.default
-            await handler(data, context, get, set)
-
-            // Check if handler set stream completion flag
-            if (context.streamComplete) {
-              break
             }
           }
-
-          // Stream ended - finalize the message
-          logger.info(
-            `Completed streaming response, content length: ${context.accumulatedContent.size}`
+        }
+        // Fallback to map if not found in messages
+        if (!id) {
+          const candidates = Object.values(toolCallsById).filter(
+            (t) => t.name === 'build_workflow' || t.name === 'edit_workflow'
           )
-
-          // Call stream_end handler to flush any pending content
-          if (sseHandlers.stream_end) {
-            sseHandlers.stream_end({}, context, get, set)
-          }
-
-          // PERFORMANCE OPTIMIZATION: Cleanup and memory management
-          if (streamingUpdateRAF !== null) {
-            cancelAnimationFrame(streamingUpdateRAF)
-            streamingUpdateRAF = null
-          }
-          streamingUpdateQueue.clear()
-
-          // Release pooled objects back to pool for reuse
-          if (context.contentBlocks) {
-            context.contentBlocks.forEach((block) => {
-              if (block.type === TEXT_BLOCK_TYPE || block.type === THINKING_BLOCK_TYPE) {
-                contentBlockPool.release(block)
-              }
-            })
-          }
-
-          // PERFORMANCE OPTIMIZATION: Final content update with completed content from StringBuilder
-          const finalContent = context.accumulatedContent.toString()
-
-          set((state) => ({
-            messages: state.messages.map((msg) => {
-              if (msg.id === messageId) {
-                const existingMsg = state.messages.find((m) => m.id === messageId)
-                const mergedToolCalls = mergeToolCallsPreservingTerminalStates(
-                  context.toolCalls,
-                  existingMsg?.toolCalls
-                )
-                const mergedContentBlocks = mergeContentBlocksPreservingTerminalStates(
-                  context.contentBlocks,
-                  existingMsg?.contentBlocks
-                )
-
-                return {
-                  ...msg,
-                  content: finalContent, // Set final content for non-streaming display
-                  toolCalls: mergedToolCalls,
-                  contentBlocks: mergedContentBlocks,
-                }
-              }
-              return msg
-            }),
-            isSendingMessage: false,
-            abortController: null,
-          }))
-
-          // Handle new chat creation if needed
-          if (context.newChatId && !get().currentChat) {
-            await get().handleNewChatCreation(context.newChatId)
-          }
-
-          // Save the complete message state (with contentBlocks and toolCalls) to database
-          // This ensures all streamed content including thinking text and tool calls are persisted
-          const { currentChat } = get()
-          if (currentChat) {
-            try {
-              const currentMessages = get().messages
-              const updatedMessage = currentMessages.find((msg) => msg.id === messageId)
-
-              if (
-                updatedMessage &&
-                (updatedMessage.toolCalls?.length || updatedMessage.contentBlocks?.length)
-              ) {
-                const dbMessages = validateMessagesForLLM(currentMessages)
-
-                const response = await fetch('/api/copilot/chat/update-messages', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    chatId: currentChat.id,
-                    messages: dbMessages,
-                  }),
-                })
-
-                if (response.ok) {
-                  logger.info('Successfully persisted complete streaming state to database', {
-                    messageId,
-                    toolCallsCount: updatedMessage.toolCalls?.length || 0,
-                    contentBlocksCount: updatedMessage.contentBlocks?.length || 0,
-                  })
-                } else {
-                  logger.error('Failed to persist complete streaming state:', response.statusText)
-                }
-              }
-            } catch (error) {
-              logger.error('Error persisting complete streaming state:', error)
-            }
-          }
-        } catch (error) {
-          // Handle AbortError gracefully
-          if (error instanceof Error && error.name === 'AbortError') {
-            logger.info('Stream reading was aborted by user')
-            // Cancel any pending RAF updates and clear queue on abort
-            if (streamingUpdateRAF !== null) {
-              cancelAnimationFrame(streamingUpdateRAF)
-              streamingUpdateRAF = null
-            }
-            streamingUpdateQueue.clear()
-            return
-          }
-
-          logger.error('Error handling streaming response:', error)
-          throw error
-        } finally {
-          clearTimeout(timeoutId)
+          id = candidates.length ? candidates[candidates.length - 1].id : undefined
         }
-      },
+      }
+      if (!id) return
+      const current = toolCallsById[id]
+      if (!current) return
+      // Do not override a rejected tool with success
+      if (isRejectedState(current.state) && targetState === (ClientToolCallState as any).success) {
+        return
+      }
 
-      // Handle new chat creation after streaming
-      handleNewChatCreation: async (newChatId: string) => {
-        // Create a proper chat object from the ID
-        const newChat: CopilotChat = {
-          id: newChatId,
-          title: null,
-          model: 'gpt-4',
-          messages: get().messages,
-          messageCount: get().messages.length,
-          previewYaml: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+      // Update store map
+      const updatedMap = { ...toolCallsById }
+      const updatedDisplay = resolveToolDisplay(current.name, targetState, id, current.params)
+      updatedMap[id] = {
+        ...current,
+        state: targetState,
+        display: updatedDisplay,
+      }
+      set({ toolCallsById: updatedMap })
+
+      // Update inline content block in the latest assistant message
+      set((s) => {
+        const messages = [...s.messages]
+        for (let mi = messages.length - 1; mi >= 0; mi--) {
+          const m = messages[mi]
+          if (m.role !== 'assistant' || !m.contentBlocks) continue
+          let changed = false
+          const blocks = m.contentBlocks.map((b: any) => {
+            if (b.type === 'tool_call' && b.toolCall?.id === id) {
+              changed = true
+              const prev = b.toolCall || {}
+              return {
+                ...b,
+                toolCall: {
+                  ...prev,
+                  id,
+                  name: current.name,
+                  state: targetState,
+                  display: updatedDisplay,
+                  params: current.params,
+                },
+              }
+            }
+            return b
+          })
+          if (changed) {
+            messages[mi] = { ...m, contentBlocks: blocks }
+            break
+          }
         }
+        return { messages }
+      })
 
+      // Notify backend mark-complete to finalize tool server-side
+      try {
+        fetch('/api/copilot/tools/mark-complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id,
+            name: current.name,
+            status:
+              targetState === ClientToolCallState.success
+                ? 200
+                : targetState === ClientToolCallState.rejected
+                  ? 409
+                  : 500,
+            message: toolCallState,
+          }),
+        }).catch(() => {})
+      } catch {}
+    },
+
+    sendDocsMessage: async (query: string) => {
+      await get().sendMessage(query)
+    },
+
+    saveChatMessages: async (_chatId: string) => {},
+
+    loadCheckpoints: async (_chatId: string) => set({ checkpoints: [] }),
+
+    loadMessageCheckpoints: async (chatId: string) => {
+      const { workflowId } = get()
+      if (!workflowId) return
+      set({ isLoadingCheckpoints: true, checkpointError: null })
+      try {
+        const response = await fetch(`/api/copilot/checkpoints?chatId=${chatId}`)
+        if (!response.ok) throw new Error(`Failed to load checkpoints: ${response.statusText}`)
+        const data = await response.json()
+        if (data.success && Array.isArray(data.checkpoints)) {
+          const grouped = data.checkpoints.reduce((acc: Record<string, any[]>, cp: any) => {
+            const key = cp.messageId || '__no_message__'
+            acc[key] = acc[key] || []
+            acc[key].push(cp)
+            return acc
+          }, {})
+          set({ messageCheckpoints: grouped, isLoadingCheckpoints: false })
+        } else {
+          throw new Error('Invalid checkpoints response')
+        }
+      } catch (error) {
         set({
-          currentChat: newChat,
-          chats: [newChat, ...get().chats],
-          // Invalidate cache since we have a new chat
-          chatsLastLoadedAt: null,
-          chatsLoadedForWorkflow: null,
-          // Clear todos when creating new chat
-          planTodos: [],
-          showPlanTodos: false,
+          isLoadingCheckpoints: false,
+          checkpointError: error instanceof Error ? error.message : 'Failed to load checkpoints',
         })
-        logger.info(`Created new chat from streaming response: ${newChatId}`)
-      },
+      }
+    },
 
-      // Clear error
-      clearError: () => {
-        set({ error: null })
-      },
+    // Revert to a specific checkpoint and apply state locally
+    revertToCheckpoint: async (checkpointId: string) => {
+      const { workflowId } = get()
+      if (!workflowId) return
+      set({ isRevertingCheckpoint: true, checkpointError: null })
+      try {
+        const response = await fetch('/api/copilot/checkpoints/revert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ checkpointId }),
+        })
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '')
+          throw new Error(errorText || `Failed to revert: ${response.statusText}`)
+        }
+        const result = await response.json()
+        const reverted = result?.checkpoint?.workflowState || null
+        if (reverted) {
+          // Apply to main workflow store
+          useWorkflowStore.setState({
+            blocks: reverted.blocks || {},
+            edges: reverted.edges || [],
+            loops: reverted.loops || {},
+            parallels: reverted.parallels || {},
+            lastSaved: reverted.lastSaved || Date.now(),
+            isDeployed: !!reverted.isDeployed,
+            ...(reverted.deployedAt ? { deployedAt: new Date(reverted.deployedAt) } : {}),
+            deploymentStatuses: reverted.deploymentStatuses || {},
+            hasActiveWebhook: !!reverted.hasActiveWebhook,
+          })
 
-      // Clear save error state
-      clearSaveError: () => {
-        set({ saveError: null })
-      },
+          // Extract and apply subblock values
+          const values: Record<string, Record<string, any>> = {}
+          Object.entries(reverted.blocks || {}).forEach(([blockId, block]: [string, any]) => {
+            values[blockId] = {}
+            Object.entries((block as any).subBlocks || {}).forEach(
+              ([subId, sub]: [string, any]) => {
+                values[blockId][subId] = (sub as any)?.value
+              }
+            )
+          })
+          const subState = useSubBlockStore.getState()
+          useSubBlockStore.setState({
+            workflowValues: {
+              ...subState.workflowValues,
+              [workflowId]: values,
+            },
+          })
+        }
+        set({ isRevertingCheckpoint: false })
+      } catch (error) {
+        set({
+          isRevertingCheckpoint: false,
+          checkpointError: error instanceof Error ? error.message : 'Failed to revert checkpoint',
+        })
+        throw error
+      }
+    },
+    getCheckpointsForMessage: (messageId: string) => {
+      const { messageCheckpoints } = get()
+      return messageCheckpoints[messageId] || []
+    },
 
-      // Clear checkpoint error state
-      clearCheckpointError: () => {
-        set({ checkpointError: null })
-      },
+    // Preview YAML (stubbed/no-op)
+    setPreviewYaml: async (_yamlContent: string) => {},
+    clearPreviewYaml: async () => {
+      set((state) => ({
+        currentChat: state.currentChat ? { ...state.currentChat, previewYaml: null } : null,
+      }))
+    },
 
-      // Retry saving chat messages
-      retrySave: async (chatId: string) => {
-        await get().saveChatMessages(chatId)
-      },
+    // Handle streaming response
+    handleStreamingResponse: async (
+      stream: ReadableStream,
+      messageId: string,
+      isContinuation = false
+    ) => {
+      const reader = stream.getReader()
+      const decoder = new TextDecoder()
 
-      // Cleanup any ongoing streams
-      cleanup: () => {
-        const { isSendingMessage } = get()
-        logger.info('🧹 Cleanup called:', { isSendingMessage })
+      const context: StreamingContext = {
+        messageId,
+        accumulatedContent: new StringBuilder(),
+        contentBlocks: [],
+        currentTextBlock: null,
+        isInThinkingBlock: false,
+        currentThinkingBlock: null,
+        pendingContent: '',
+        doneEventCount: 0,
+      }
 
-        if (isSendingMessage) {
-          logger.info('Cleaning up ongoing copilot stream')
-          // Call the full abort logic, not just abortController.abort()
-          get().abortMessage()
+      if (isContinuation) {
+        const { messages } = get()
+        const existingMessage = messages.find((m) => m.id === messageId)
+        if (existingMessage) {
+          if (existingMessage.content) context.accumulatedContent.append(existingMessage.content)
+          context.contentBlocks = existingMessage.contentBlocks
+            ? [...existingMessage.contentBlocks]
+            : []
+        }
+      }
+
+      const timeoutId = setTimeout(() => {
+        logger.warn('Stream timeout reached, completing response')
+        reader.cancel()
+      }, 600000)
+
+      try {
+        for await (const data of parseSSEStream(reader, decoder)) {
+          const { abortController } = get()
+          if (abortController?.signal.aborted) break
+          const handler = sseHandlers[data.type] || sseHandlers.default
+          await handler(data, context, get, set)
+          if (context.streamComplete) break
         }
 
-        // Cancel any pending RAF updates and clear queue
+        if (sseHandlers.stream_end) sseHandlers.stream_end({}, context, get, set)
+
         if (streamingUpdateRAF !== null) {
           cancelAnimationFrame(streamingUpdateRAF)
           streamingUpdateRAF = null
         }
         streamingUpdateQueue.clear()
-      },
 
-      // Reset entire store
-      reset: () => {
-        // Cleanup before reset
-        get().cleanup()
-        set(initialState)
-      },
+        if (context.contentBlocks) {
+          context.contentBlocks.forEach((block) => {
+            if (block.type === TEXT_BLOCK_TYPE || block.type === THINKING_BLOCK_TYPE) {
+              contentBlockPool.release(block)
+            }
+          })
+        }
 
-      // Input control actions
-      setInputValue: (value: string) => {
-        set({ inputValue: value })
-      },
-
-      clearRevertState: () => {
-        set({ revertState: null })
-      },
-
-      // Todo list actions
-      setPlanTodos: (todos) => {
-        set({ planTodos: todos, showPlanTodos: true })
-      },
-
-      updatePlanTodoStatus: (id, status) => {
+        const finalContent = context.accumulatedContent.toString()
         set((state) => ({
-          planTodos: state.planTodos.map((todo) =>
-            todo.id === id
-              ? { ...todo, executing: status === 'executing', completed: status === 'completed' }
-              : todo
+          messages: state.messages.map((msg) =>
+            msg.id === messageId
+              ? {
+                  ...msg,
+                  content: finalContent,
+                  contentBlocks: context.contentBlocks,
+                }
+              : msg
           ),
+          isSendingMessage: false,
+          abortController: null,
         }))
-      },
 
-      closePlanTodos: () => {
-        set({ showPlanTodos: false })
-      },
-
-      // Update the diff store with proposed workflow changes
-      updateDiffStore: async (yamlContent: string, toolName?: string) => {
-        // Check if we're in an aborted state before updating diff
-        const { abortController } = get()
-        if (abortController?.signal.aborted) {
-          logger.info('🚫 Skipping diff update - request was aborted')
-          return
+        if (context.newChatId && !get().currentChat) {
+          await get().handleNewChatCreation(context.newChatId)
         }
 
-        try {
-          // Import diff store dynamically to avoid circular dependencies
-          const { useWorkflowDiffStore } = await import('@/stores/workflow-diff')
-
-          logger.info('📊 Updating diff store with copilot YAML', {
-            yamlLength: yamlContent.length,
-            yamlPreview: yamlContent.substring(0, 200),
-            toolName: toolName || 'unknown',
-          })
-
-          // Check current diff store state before update
-          const diffStoreBefore = useWorkflowDiffStore.getState()
-          logger.info('Diff store state before update:', {
-            isShowingDiff: diffStoreBefore.isShowingDiff,
-            isDiffReady: diffStoreBefore.isDiffReady,
-            hasDiffWorkflow: !!diffStoreBefore.diffWorkflow,
-          })
-
-          // Determine diff merge strategy based on tool type and existing edits
-          const messageHasExistingEdits = !!diffStoreBefore.diffWorkflow
-          const shouldClearDiff =
-            toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || // build_workflow always clears
-            (toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW && !messageHasExistingEdits) // first edit_workflow in message clears
-
-          logger.info('Diff merge strategy:', {
-            toolName,
-            messageHasExistingEdits,
-            shouldClearDiff,
-          })
-
-          // Generate diff analysis by comparing current vs proposed YAML
-          // Skip diff analysis - let sim-agent handle it through /api/yaml/diff/create
-          // The diff/create endpoint will compare against the current workflow state
-          // and generate the diff analysis automatically
-          logger.info('Proceeding to create diff without pre-analysis')
-
-          // Set or merge the proposed changes in the diff store based on the strategy
-          const diffStore = useWorkflowDiffStore.getState()
-
-          logger.info('CopilotStore.updateDiffStore calling setProposedChanges with:', {
-            yamlContentLength: yamlContent.length,
-            diffAnalysis: undefined,
-            diffAnalysisType: 'undefined',
-            diffAnalysisUndefined: true,
-            diffAnalysisNull: false,
-            shouldClearDiff: shouldClearDiff,
-            hasDiffWorkflow: !!diffStoreBefore.diffWorkflow,
-          })
-
-          // Always use setProposedChanges to ensure the diff view fully overwrites with new changes
-          // This provides better UX as users expect to see the latest changes, not merged/cumulative changes
-          await diffStore.setProposedChanges(yamlContent, undefined)
-
-          // Check diff store state after update
-          const diffStoreAfter = useWorkflowDiffStore.getState()
-
-          // Log the diff state after update
-          logger.info('CopilotStore diff updated:', {
-            hasDiffWorkflow: !!diffStoreAfter.diffWorkflow,
-            hasDiffAnalysis: !!diffStoreAfter.diffAnalysis,
-            diffAnalysis: diffStoreAfter.diffAnalysis,
-          })
-          logger.info('Diff store state after update:', {
-            isShowingDiff: diffStoreAfter.isShowingDiff,
-            isDiffReady: diffStoreAfter.isDiffReady,
-            hasDiffWorkflow: !!diffStoreAfter.diffWorkflow,
-            diffWorkflowBlockCount: diffStoreAfter.diffWorkflow
-              ? Object.keys(diffStoreAfter.diffWorkflow.blocks).length
-              : 0,
-          })
-
-          logger.info('Successfully updated diff store with proposed workflow changes')
-        } catch (error) {
-          logger.error('Failed to update diff store:', error)
-          // Show error to user
-          console.error('[Copilot] Error updating diff store:', error)
-
-          // Try to show at least the preview YAML even if diff fails
-          const { currentChat } = get()
-          if (currentChat?.previewYaml) {
-            logger.info('Preview YAML is set, user can still view it despite diff error')
-          }
+        // Persist full message state (including contentBlocks) to database
+        const { currentChat } = get()
+        if (currentChat) {
+          try {
+            const currentMessages = get().messages
+            const dbMessages = validateMessagesForLLM(currentMessages)
+            await fetch('/api/copilot/chat/update-messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chatId: currentChat.id, messages: dbMessages }),
+            })
+          } catch {}
         }
-      },
+      } finally {
+        clearTimeout(timeoutId)
+      }
+    },
 
-      updateDiffStoreWithWorkflowState: async (workflowState: any, toolName?: string) => {
-        // Check if we're in an aborted state before updating diff
-        const { abortController } = get()
-        if (abortController?.signal.aborted) {
-          logger.info('🚫 Skipping diff update - request was aborted')
-          return
-        }
+    // Handle new chat creation from stream
+    handleNewChatCreation: async (newChatId: string) => {
+      const newChat: CopilotChat = {
+        id: newChatId,
+        title: null,
+        model: 'gpt-4',
+        messages: get().messages,
+        messageCount: get().messages.length,
+        previewYaml: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+      // Abort any in-progress tools and clear diff on new chat creation
+      abortAllInProgressTools(set, get)
+      try {
+        useWorkflowDiffStore.getState().clearDiff()
+      } catch {}
 
-        try {
-          // Import diff store dynamically to avoid circular dependencies
-          const { useWorkflowDiffStore } = await import('@/stores/workflow-diff')
+      set({
+        currentChat: newChat,
+        chats: [newChat, ...(get().chats || [])],
+        chatsLastLoadedAt: null,
+        chatsLoadedForWorkflow: null,
+        planTodos: [],
+        showPlanTodos: false,
+      })
+    },
 
-          logger.info('📊 Updating diff store with workflowState directly', {
-            blockCount: Object.keys(workflowState.blocks).length,
-            edgeCount: workflowState.edges.length,
-            toolName: toolName || 'unknown',
-          })
+    // Utilities
+    clearError: () => set({ error: null }),
+    clearSaveError: () => set({ saveError: null }),
+    clearCheckpointError: () => set({ checkpointError: null }),
+    retrySave: async (_chatId: string) => {},
 
-          // Check current diff store state before update
-          const diffStoreBefore = useWorkflowDiffStore.getState()
-          logger.info('Diff store state before workflowState update:', {
-            isShowingDiff: diffStoreBefore.isShowingDiff,
-            isDiffReady: diffStoreBefore.isDiffReady,
-            hasDiffWorkflow: !!diffStoreBefore.diffWorkflow,
-          })
+    cleanup: () => {
+      const { isSendingMessage } = get()
+      if (isSendingMessage) get().abortMessage()
+      if (streamingUpdateRAF !== null) {
+        cancelAnimationFrame(streamingUpdateRAF)
+        streamingUpdateRAF = null
+      }
+      streamingUpdateQueue.clear()
+      // Clear any diff on cleanup
+      try {
+        useWorkflowDiffStore.getState().clearDiff()
+      } catch {}
+    },
 
-          // Direct assignment to the diff store for build_workflow
-          logger.info('Using direct workflowState assignment for build tool')
-          useWorkflowDiffStore.setState({
-            diffWorkflow: workflowState,
-            isDiffReady: true,
-            isShowingDiff: false, // Let user decide when to show diff
-          })
+    reset: () => {
+      get().cleanup()
+      // Abort in-progress tools prior to reset
+      abortAllInProgressTools(set, get)
+      set(initialState)
+    },
 
-          // Check diff store state after update
-          const diffStoreAfter = useWorkflowDiffStore.getState()
-          logger.info('Diff store state after workflowState update:', {
-            isShowingDiff: diffStoreAfter.isShowingDiff,
-            isDiffReady: diffStoreAfter.isDiffReady,
-            hasDiffWorkflow: !!diffStoreAfter.diffWorkflow,
-            diffWorkflowBlockCount: diffStoreAfter.diffWorkflow
-              ? Object.keys(diffStoreAfter.diffWorkflow.blocks).length
-              : 0,
-          })
+    // Input controls
+    setInputValue: (value: string) => set({ inputValue: value }),
+    clearRevertState: () => set({ revertState: null }),
 
-          logger.info('Successfully updated diff store with workflowState')
-        } catch (error) {
-          logger.error('Failed to update diff store with workflowState:', error)
-          // Show error to user
-          console.error('[Copilot] Error updating diff store with workflowState:', error)
-        }
-      },
+    // Todo list (UI only)
+    setPlanTodos: (todos) => set({ planTodos: todos, showPlanTodos: true }),
+    updatePlanTodoStatus: (id, status) => {
+      set((state) => {
+        const updated = state.planTodos.map((t) =>
+          t.id === id
+            ? { ...t, completed: status === 'completed', executing: status === 'executing' }
+            : t
+        )
+        return { planTodos: updated }
+      })
+    },
+    closePlanTodos: () => set({ showPlanTodos: false }),
 
-      setAgentDepth: (depth) => {
-        const prev = get().agentDepth
-        set({ agentDepth: depth })
-        logger.info(`Copilot agent depth changed from ${prev} to ${depth}`)
-      },
+    // Diff updates are out of scope for minimal store
+    updateDiffStore: async (_yamlContent: string) => {},
+    updateDiffStoreWithWorkflowState: async (_workflowState: any) => {},
 
-      setAgentPrefetch: (prefetch: boolean) => {
-        const prev = get().agentPrefetch
-        set({ agentPrefetch: prefetch })
-        logger.info(`Copilot agent prefetch changed from ${prev} to ${prefetch}`)
-      },
-    }),
-    { name: 'copilot-store' }
-  )
+    setAgentDepth: (depth) => set({ agentDepth: depth }),
+    setAgentPrefetch: (prefetch) => set({ agentPrefetch: prefetch }),
+  }))
 )
+
+// Sync class-based tool instance state changes back into the store map
+try {
+  registerToolStateSync((toolCallId: string, nextState: any) => {
+    const state = useCopilotStore.getState()
+    const current = state.toolCallsById[toolCallId]
+    if (!current) return
+    let mapped: ClientToolCallState = current.state
+    if (nextState === 'executing') mapped = ClientToolCallState.executing
+    else if (nextState === 'pending') mapped = ClientToolCallState.pending
+    else if (nextState === 'success' || nextState === 'accepted')
+      mapped = ClientToolCallState.success
+    else if (nextState === 'error' || nextState === 'errored') mapped = ClientToolCallState.error
+    else if (nextState === 'rejected') mapped = ClientToolCallState.rejected
+    else if (nextState === 'aborted') mapped = ClientToolCallState.aborted
+    else if (nextState === 'review') mapped = (ClientToolCallState as any).review
+    else if (nextState === 'background') mapped = (ClientToolCallState as any).background
+    else if (typeof nextState === 'number') mapped = nextState as unknown as ClientToolCallState
+
+    // Store-authoritative gating: ignore invalid/downgrade transitions
+    const isTerminal = (s: ClientToolCallState) =>
+      s === ClientToolCallState.success ||
+      s === ClientToolCallState.error ||
+      s === ClientToolCallState.rejected ||
+      s === ClientToolCallState.aborted ||
+      (s as any) === (ClientToolCallState as any).review ||
+      (s as any) === (ClientToolCallState as any).background
+
+    // If we've already reached a terminal state, ignore any further non-terminal updates
+    if (isTerminal(current.state) && !isTerminal(mapped)) {
+      return
+    }
+    // Prevent downgrades (executing → pending, pending → generating)
+    if (
+      (current.state === ClientToolCallState.executing && mapped === ClientToolCallState.pending) ||
+      (current.state === ClientToolCallState.pending &&
+        mapped === (ClientToolCallState as any).generating)
+    ) {
+      return
+    }
+    // No-op if unchanged
+    if (mapped === current.state) return
+    const updated = {
+      ...state.toolCallsById,
+      [toolCallId]: {
+        ...current,
+        state: mapped,
+        display: resolveToolDisplay(current.name, mapped, toolCallId, current.params),
+      },
+    }
+    useCopilotStore.setState({ toolCallsById: updated })
+  })
+} catch {}

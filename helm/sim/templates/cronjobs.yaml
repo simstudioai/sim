@@ -1,0 +1,90 @@
+{{- if .Values.cronjobs.enabled }}
+{{- range $jobKey, $jobConfig := .Values.cronjobs.jobs }}
+{{- if $jobConfig.enabled }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "sim.fullname" $ }}-{{ $jobConfig.name }}
+  labels:
+    {{- include "sim.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: cronjob-{{ $jobConfig.name }}
+spec:
+  schedule: {{ $jobConfig.schedule | quote }}
+  concurrencyPolicy: {{ $jobConfig.concurrencyPolicy | default "Forbid" }}
+  successfulJobsHistoryLimit: {{ $jobConfig.successfulJobsHistoryLimit | default 3 }}
+  failedJobsHistoryLimit: {{ $jobConfig.failedJobsHistoryLimit | default 1 }}
+  {{- with $.Values.cronjobs.startingDeadlineSeconds }}
+  startingDeadlineSeconds: {{ . }}
+  {{- end }}
+  jobTemplate:
+    spec:
+      {{- with $.Values.cronjobs.activeDeadlineSeconds }}
+      activeDeadlineSeconds: {{ . }}
+      {{- end }}
+      template:
+        metadata:
+          labels:
+            {{- include "sim.selectorLabels" $ | nindent 12 }}
+            app.kubernetes.io/component: cronjob-{{ $jobConfig.name }}
+        spec:
+          restartPolicy: {{ $.Values.cronjobs.restartPolicy | default "OnFailure" }}
+          {{- with $.Values.cronjobs.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+          - name: {{ $jobConfig.name }}
+            image: "{{ $.Values.cronjobs.image.repository }}:{{ $.Values.cronjobs.image.tag }}"
+            imagePullPolicy: {{ $.Values.cronjobs.image.pullPolicy }}
+            {{- with $.Values.cronjobs.securityContext }}
+            securityContext:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            command:
+            - /bin/sh
+            - -c
+            args:
+            - |
+              echo "Starting cron job: {{ $jobConfig.name }}"
+              echo "Making HTTP request to {{ $jobConfig.path }}"
+              
+              # Determine the service URL (use internal service regardless of ingress)
+              SERVICE_URL="http://{{ include "sim.fullname" $ }}-app:{{ $.Values.app.service.port }}"
+              
+              # Make the HTTP request with timeout and retry logic
+              for i in $(seq 1 3); do
+                echo "Attempt $i/3"
+                if curl -f -s -S --max-time 60 --retry 2 --retry-delay 5 \
+                  -H "Content-Type: application/json" \
+                  -H "User-Agent: Kubernetes-CronJob/{{ $jobConfig.name }}" \
+                  "$SERVICE_URL{{ $jobConfig.path }}"; then
+                  echo "Success: HTTP request completed"
+                  exit 0
+                fi
+                echo "Attempt $i failed, retrying..."
+                sleep 10
+              done
+              echo "Error: All attempts failed"
+              exit 1
+            resources:
+              {{- toYaml $.Values.cronjobs.resources | nindent 14 }}
+          {{- with $.Values.global.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $.Values.app.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $.Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $.Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

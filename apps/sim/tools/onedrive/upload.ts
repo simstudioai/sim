@@ -48,11 +48,11 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       visibility: 'user-only',
       description: 'Select the folder to upload the file to',
     },
-    folderId: {
+    manualFolderId: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description: 'The ID of the folder to upload the file to (internal use)',
+      description: 'Manually entered folder ID (advanced mode)',
     },
   },
 
@@ -67,9 +67,9 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       }
 
       // Build the proper URL based on parent folder
-      const parentFolderId = params.folderSelector || params.folderId
+      const parentFolderId = params.manualFolderId || params.folderSelector
       if (parentFolderId && parentFolderId.trim() !== '') {
-        return `https://graph.microsoft.com/v1.0/me/drive/items/${parentFolderId}:/${fileName}:/content`
+        return `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(parentFolderId)}:/${fileName}:/content`
       }
       // Default to root folder
       return `https://graph.microsoft.com/v1.0/me/drive/root:/${fileName}:/content`

@@ -314,6 +314,42 @@ The following table lists the configurable parameters and their default values.
 | `migrations.podSecurityContext` | Migrations pod security context | `fsGroup: 1001` |
 | `migrations.securityContext` | Migrations container security context | `runAsNonRoot: true, runAsUser: 1001` |
 
+### CronJob Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `cronjobs.enabled` | Enable all scheduled cron jobs | `true` |
+| `cronjobs.image.repository` | CronJob image repository for HTTP requests | `curlimages/curl` |
+| `cronjobs.image.tag` | CronJob image tag | `8.5.0` |
+| `cronjobs.image.pullPolicy` | CronJob image pull policy | `IfNotPresent` |
+| `cronjobs.resources` | CronJob resource limits and requests | See values.yaml |
+| `cronjobs.restartPolicy` | CronJob pod restart policy | `OnFailure` |
+| `cronjobs.activeDeadlineSeconds` | CronJob active deadline in seconds | `300` |
+| `cronjobs.startingDeadlineSeconds` | CronJob starting deadline in seconds | `60` |
+| `cronjobs.podSecurityContext` | CronJob pod security context | `fsGroup: 1001` |
+| `cronjobs.securityContext` | CronJob container security context | `runAsNonRoot: true, runAsUser: 1001` |
+| `cronjobs.jobs.scheduleExecution.enabled` | Enable schedule execution cron job | `true` |
+| `cronjobs.jobs.scheduleExecution.name` | Schedule execution job name | `schedule-execution` |
+| `cronjobs.jobs.scheduleExecution.schedule` | Schedule execution cron schedule | `"*/1 * * * *"` |
+| `cronjobs.jobs.scheduleExecution.path` | Schedule execution API path | `"/api/schedules/execute"` |
+| `cronjobs.jobs.scheduleExecution.concurrencyPolicy` | Schedule execution concurrency policy | `Forbid` |
+| `cronjobs.jobs.scheduleExecution.successfulJobsHistoryLimit` | Schedule execution successful jobs history | `3` |
+| `cronjobs.jobs.scheduleExecution.failedJobsHistoryLimit` | Schedule execution failed jobs history | `1` |
+| `cronjobs.jobs.gmailWebhookPoll.enabled` | Enable Gmail webhook polling cron job | `true` |
+| `cronjobs.jobs.gmailWebhookPoll.name` | Gmail webhook polling job name | `gmail-webhook-poll` |
+| `cronjobs.jobs.gmailWebhookPoll.schedule` | Gmail webhook polling cron schedule | `"*/1 * * * *"` |
+| `cronjobs.jobs.gmailWebhookPoll.path` | Gmail webhook polling API path | `"/api/webhooks/poll/gmail"` |
+| `cronjobs.jobs.gmailWebhookPoll.concurrencyPolicy` | Gmail webhook polling concurrency policy | `Forbid` |
+| `cronjobs.jobs.gmailWebhookPoll.successfulJobsHistoryLimit` | Gmail webhook polling successful jobs history | `3` |
+| `cronjobs.jobs.gmailWebhookPoll.failedJobsHistoryLimit` | Gmail webhook polling failed jobs history | `1` |
+| `cronjobs.jobs.outlookWebhookPoll.enabled` | Enable Outlook webhook polling cron job | `true` |
+| `cronjobs.jobs.outlookWebhookPoll.name` | Outlook webhook polling job name | `outlook-webhook-poll` |
+| `cronjobs.jobs.outlookWebhookPoll.schedule` | Outlook webhook polling cron schedule | `"*/1 * * * *"` |
+| `cronjobs.jobs.outlookWebhookPoll.path` | Outlook webhook polling API path | `"/api/webhooks/poll/outlook"` |
+| `cronjobs.jobs.outlookWebhookPoll.concurrencyPolicy` | Outlook webhook polling concurrency policy | `Forbid` |
+| `cronjobs.jobs.outlookWebhookPoll.successfulJobsHistoryLimit` | Outlook webhook polling successful jobs history | `3` |
+| `cronjobs.jobs.outlookWebhookPoll.failedJobsHistoryLimit` | Outlook webhook polling failed jobs history | `1` |
+
 ### Shared Storage Parameters
 
 | Parameter | Description | Default |
@@ -508,6 +544,46 @@ This creates network policies that:
 - Restrict unnecessary network access
 - Permit DNS resolution and HTTPS egress
 - Support custom ingress/egress rules
+
+### CronJobs for Scheduled Tasks
+
+Enable automated scheduled tasks functionality:
+
+```yaml
+cronjobs:
+  enabled: true
+  
+  # Customize individual jobs
+  jobs:
+    scheduleExecution:
+      enabled: true
+      schedule: "*/1 * * * *"  # Every minute
+    
+    gmailWebhookPoll:
+      enabled: true
+      schedule: "*/1 * * * *"  # Every minute
+    
+    outlookWebhookPoll:
+      enabled: true
+      schedule: "*/1 * * * *"  # Every minute
+    
+      
+  # Global job configuration
+  resources:
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+```
+
+This creates Kubernetes CronJob resources that:
+- Execute HTTP requests to your application's API endpoints
+- Handle retries and error logging automatically
+- Use minimal resources with curl-based containers
+- Support individual enable/disable per job
+- Follow Kubernetes security best practices
 
 ### High Availability
 

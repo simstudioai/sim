@@ -40,15 +40,10 @@ async function processFileOutputs(
       return result
     }
 
-    logger.info(`File processing for tool ${tool.id}: checking outputs`, Object.keys(result.output))
     const processedOutput = await FileToolProcessor.processToolOutputs(
       result.output,
       tool,
       executionContext
-    )
-    logger.info(
-      `File processing for tool ${tool.id}: processed outputs`,
-      Object.keys(processedOutput)
     )
 
     return {
@@ -536,7 +531,14 @@ function validateClientSideParams(
   }
 
   // Internal parameters that should be excluded from validation
-  const internalParamSet = new Set(['_context', 'workflowId', 'envVars'])
+  const internalParamSet = new Set([
+    '_context',
+    'workflowId',
+    'envVars',
+    'workflowVariables',
+    'blockData',
+    'blockNameMapping',
+  ])
 
   // Check required parameters
   if (schema.required) {
