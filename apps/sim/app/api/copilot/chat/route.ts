@@ -12,6 +12,7 @@ import {
 } from '@/lib/copilot/auth'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
+import type { CopilotProviderConfig } from '@/lib/copilot/types'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
@@ -399,8 +400,29 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    const defaults = getCopilotModel('chat')
+    const providerToUse = (env.COPILOT_PROVIDER as any) || defaults.provider
+    const modelToUse = env.COPILOT_MODEL || defaults.model
+
+    let providerConfig: CopilotProviderConfig
+
+    if (providerToUse === 'azure-openai') {
+      providerConfig = {
+        provider: 'azure-openai',
+        model: modelToUse,
+        apiKey: env.AZURE_OPENAI_API_KEY,
+        apiVersion: env.AZURE_OPENAI_API_VERSION,
+        endpoint: env.AZURE_OPENAI_ENDPOINT,
+      }
+    } else {
+      providerConfig = {
+        provider: providerToUse,
+        model: modelToUse,
+        apiKey: env.COPILOT_API_KEY,
+      }
+    }
+
     // Determine provider and conversationId to use for this request
-    const providerToUse = provider || 'openai'
     const effectiveConversationId =
       (currentChat?.conversationId as string | undefined) || conversationId
 
@@ -416,7 +438,7 @@ export async function POST(req: NextRequest) {
       stream: stream,
       streamToolCalls: true,
       mode: mode,
-      provider: providerToUse,
+      provider: providerConfig,
       ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
       ...(typeof effectiveDepth === 'number' ? { depth: effectiveDepth } : {}),
       ...(typeof effectivePrefetch === 'boolean' ? { prefetch: effectivePrefetch } : {}),

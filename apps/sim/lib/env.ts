@@ -24,10 +24,13 @@ export const env = createEnv({
     ALLOWED_LOGIN_DOMAINS:                 z.string().optional(),                  // Comma-separated list of allowed email domains for login
     ENCRYPTION_KEY:                        z.string().min(32),                     // Key for encrypting sensitive data
     INTERNAL_API_SECRET:                   z.string().min(32),                     // Secret for internal API authentication
+
+    // Copilot
+    COPILOT_PROVIDER:                      z.string().optional(),                  // Provider for copilot API calls
+    COPILOT_MODEL:                         z.string().optional(),                  // Model for copilot API calls
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
-    AGENT_API_DB_ENCRYPTION_KEY:           z.string().min(32).optional(),          // Key for encrypting sensitive data for sim agent
-    AGENT_API_NETWORK_ENCRYPTION_KEY:      z.string().min(32).optional(),          // Key for encrypting sensitive data for sim agent
+
 
     // Database & Storage
     POSTGRES_URL:                          z.string().url().optional(),            // Alternative PostgreSQL connection string

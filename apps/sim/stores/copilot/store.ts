@@ -1494,13 +1494,21 @@ export const useCopilotStore = create<CopilotStore>()(
           if (result.error === 'Request was aborted') {
             return
           }
-          const errorMessage = createErrorMessage(
-            streamingMessage.id,
-            result.error || 'Failed to send message'
-          )
+
+          // Check for specific status codes and provide custom messages
+          let errorContent = result.error || 'Failed to send message'
+          if (result.status === 401) {
+            errorContent =
+              '_Unauthorized request. You need a valid API key to use the copilot. You can get one by going to [sim.ai](https://sim.ai) settings and generating one there._'
+          } else if (result.status === 402) {
+            errorContent =
+              '_Usage limit exceeded. To continue using this service, upgrade your plan or top up on credits._'
+          }
+
+          const errorMessage = createErrorMessage(streamingMessage.id, errorContent)
           set((state) => ({
             messages: state.messages.map((m) => (m.id === streamingMessage.id ? errorMessage : m)),
-            error: result.error || 'Failed to send message',
+            error: errorContent,
             isSendingMessage: false,
             abortController: null,
           }))
