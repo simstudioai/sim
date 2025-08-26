@@ -7,8 +7,6 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { MessageCircle, Package, Zap, Infinity as InfinityIcon, Brain, BrainCircuit } from 'lucide-react'
 
-## What is Copilot
-
 Copilot is your in-editor assistant that helps you build, understand, and improve workflows. It can:
 
 - **Explain**: Answer questions about Sim and your current workflow
@@ -18,35 +16,34 @@ Copilot is your in-editor assistant that helps you build, understand, and improv
 <Callout type="info">
   Copilot is a Sim-managed service. For self-hosted deployments, generate a Copilot API key in the hosted app (sim.ai → Settings → Copilot)
   1. Go to [sim.ai](https://sim.ai) → Settings → Copilot and generate a Copilot API key
-2. Set `COPILOT_API_KEY` in your self-hosted environment to that value
-3. Host Sim on a publicly available DNS and set `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL` to that value (e.g., using ngrok)
+  2. Set `COPILOT_API_KEY` in your self-hosted environment to that value
 </Callout>
 
 ## Modes
 
 <Cards>
-  <Card title="Ask">
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/50 bg-muted/60">
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
         <MessageCircle className="h-4 w-4 text-muted-foreground" />
+        Ask
       </span>
-      <div>
-        <p className="m-0 text-sm">
-          Q&A mode for explanations, guidance, and suggestions without making changes to your workflow.
-        </p>
-      </div>
+    }
+  >
+    <div className="m-0 text-sm">
+      Q&A mode for explanations, guidance, and suggestions without making changes to your workflow.
     </div>
   </Card>
-  <Card title="Agent">
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/50 bg-muted/60">
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
         <Package className="h-4 w-4 text-muted-foreground" />
+        Agent
       </span>
-      <div>
-        <p className="m-0 text-sm">
-          Build-and-edit mode. Copilot proposes specific edits (add blocks, wire variables, tweak settings) and applies them when you approve.
-        </p>
-      </div>
+    }
+  >
+    <div className="m-0 text-sm">
+      Build-and-edit mode. Copilot proposes specific edits (add blocks, wire variables, tweak settings) and applies them when you approve.
     </div>
   </Card>
 </Cards>
@@ -54,44 +51,44 @@ Copilot is your in-editor assistant that helps you build, understand, and improv
 ## Depth Levels
 
 <Cards>
-  <Card title="Fast">
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/50 bg-muted/60">
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
         <Zap className="h-4 w-4 text-muted-foreground" />
+        Fast
       </span>
-      <div>
-        <p className="m-0 text-sm">Quickest and cheapest. Best for small edits, simple workflows, and minor tweaks.</p>
-      </div>
-    </div>
+    }
+  >
+    <div className="m-0 text-sm">Quickest and cheapest. Best for small edits, simple workflows, and minor tweaks.</div>
   </Card>
-  <Card title="Auto">
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/50 bg-muted/60">
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
         <InfinityIcon className="h-4 w-4 text-muted-foreground" />
+        Auto
       </span>
-      <div>
-        <p className="m-0 text-sm">Balanced speed and reasoning. Recommended default for most tasks.</p>
-      </div>
-    </div>
+    }
+  >
+    <div className="m-0 text-sm">Balanced speed and reasoning. Recommended default for most tasks.</div>
   </Card>
-  <Card title="Pro">
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/50 bg-muted/60">
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
         <Brain className="h-4 w-4 text-muted-foreground" />
+        Advanced
       </span>
-      <div>
-        <p className="m-0 text-sm">More reasoning for larger workflows and complex edits while staying performant.</p>
-      </div>
-    </div>
+    }
+  >
+    <div className="m-0 text-sm">More reasoning for larger workflows and complex edits while staying performant.</div>
   </Card>
-  <Card title="Max">
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/50 bg-muted/60">
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
         <BrainCircuit className="h-4 w-4 text-muted-foreground" />
+        Behemoth
       </span>
-      <div>
-        <p className="m-0 text-sm">Maximum reasoning for deep planning, debugging, and complex architectural changes.</p>
-      </div>
-    </div>
+    }
+  >
+    <div className="m-0 text-sm">Maximum reasoning for deep planning, debugging, and complex architectural changes.</div>
   </Card>
 </Cards> 
