@@ -281,15 +281,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       // Store state
       workflows: {},
       activeWorkflowId: null,
-      isLoading: false, // Start with false to prevent hydration mismatch
+      isLoading: false,
       error: null,
-      // Initialize deployment statuses
       deploymentStatuses: {},
 
-      // Set loading state
       setLoading: (loading: boolean) => {
-        // Remove the broken logic that prevents loading when workflows exist
-        // This was causing race conditions during deletion and sync operations
         set({ isLoading: loading })
       },
 
