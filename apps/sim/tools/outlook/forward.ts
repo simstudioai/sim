@@ -75,23 +75,80 @@ export const outlookForwardTool: ToolConfig<OutlookForwardParams, OutlookForward
     },
   },
 
-  transformResponse: async () => {
+  transformResponse: async (response: Response) => {
+    const status = response.status
+    const requestId =
+      response.headers?.get('request-id') || response.headers?.get('x-ms-request-id') || undefined
+
+    // Graph forward action typically returns 202/204 with no body. Try to read text safely.
+    let bodyText = ''
+    try {
+      bodyText = await response.text()
+    } catch (_) {
+      // ignore body read errors
+    }
+
+    // Attempt to parse JSON if present (rare for this endpoint). Extract message identifiers if available.
+    let parsed: any | undefined
+    if (bodyText && bodyText.trim().length > 0) {
+      try {
+        parsed = JSON.parse(bodyText)
+      } catch (_) {
+        // non-JSON body; ignore
+      }
+    }
+
+    const messageId = parsed?.id || parsed?.messageId || parsed?.internetMessageId
+    const internetMessageId = parsed?.internetMessageId
+
     return {
       success: true,
       output: {
-        message: 'Email forwarded successfully',
+        message:
+          status === 202 || status === 204
+            ? 'Email forwarded successfully'
+            : `Email forwarded (HTTP ${status})`,
         results: {
           status: 'forwarded',
           timestamp: new Date().toISOString(),
+          httpStatus: status,
+          requestId,
+          ...(messageId ? { messageId } : {}),
+          ...(internetMessageId ? { internetMessageId } : {}),
         },
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Email forward success status' },
-    status: { type: 'string', description: 'Delivery status of the email' },
-    timestamp: { type: 'string', description: 'Timestamp when email was forwarded' },
     message: { type: 'string', description: 'Success or error message' },
+    results: {
+      type: 'object',
+      description: 'Delivery result details',
+      properties: {
+        status: { type: 'string', description: 'Delivery status of the email' },
+        timestamp: { type: 'string', description: 'Timestamp when email was forwarded' },
+        httpStatus: {
+          type: 'number',
+          description: 'HTTP status code returned by the API',
+          optional: true,
+        },
+        requestId: {
+          type: 'string',
+          description: 'Microsoft Graph request-id header for tracing',
+          optional: true,
+        },
+        messageId: {
+          type: 'string',
+          description: 'Forwarded message ID if provided by API',
+          optional: true,
+        },
+        internetMessageId: {
+          type: 'string',
+          description: 'RFC 822 Message-ID if provided',
+          optional: true,
+        },
+      },
+    },
   },
 }
