@@ -507,6 +507,23 @@ function SignupFormContent({
             Sign in
           </Link>
         </div>
+
+        <div className='text-center text-neutral-500/80 text-xs leading-relaxed'>
+          By creating an account, you agree to our{' '}
+          <Link
+            href='/terms'
+            className='text-neutral-400 underline-offset-4 transition hover:text-neutral-300 hover:underline'
+          >
+            Terms of Service
+          </Link>{' '}
+          and{' '}
+          <Link
+            href='/privacy'
+            className='text-neutral-400 underline-offset-4 transition hover:text-neutral-300 hover:underline'
+          >
+            Privacy Policy
+          </Link>
+        </div>
       </div>
     </div>
   )
