@@ -79,7 +79,7 @@ export const outlookPollingTrigger: TriggerConfig = {
       },
       bodyText: {
         type: 'string',
-        description: 'Plain text email body (preview)',
+        description: 'Plain text email body',
       },
       bodyHtml: {
         type: 'string',

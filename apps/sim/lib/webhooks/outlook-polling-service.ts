@@ -79,6 +79,70 @@ export interface OutlookWebhookPayload {
   rawEmail?: OutlookEmail // Only included when includeRawEmail is true
 }
 
+/**
+ * Convert HTML content to a readable plain-text representation.
+ * Keeps reasonable newlines and decodes common HTML entities.
+ */
+function convertHtmlToPlainText(html: string): string {
+  if (!html) return ''
+
+  let working = html
+
+  // Remove script and style content
+  working = working.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+  working = working.replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+
+  // Line breaks for common block-level tags
+  working = working
+    .replace(/<br\s*\/?>(?=\s|$)/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6]|tr)>/gi, '\n')
+    .replace(/<(p|div|li|h[1-6]|tr)[^>]*>/gi, '')
+    .replace(/<\/(td|th)>/gi, '\t')
+
+  // Remove all remaining tags
+  working = working.replace(/<[^>]+>/g, '')
+
+  // Decode common HTML entities
+  const entityMap: Record<string, string> = {
+    '&nbsp;': ' ',
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+  }
+  for (const [entity, char] of Object.entries(entityMap)) {
+    working = working.split(entity).join(char)
+  }
+  // Numeric entities (decimal)
+  working = working.replace(/&#(\d+);/g, (_, dec: string) => {
+    const code = Number(dec)
+    return Number.isFinite(code) ? String.fromCharCode(code) : _
+  })
+  // Numeric entities (hex)
+  working = working.replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => {
+    const code = Number.parseInt(hex, 16)
+    return Number.isFinite(code) ? String.fromCharCode(code) : _
+  })
+
+  // Normalize whitespace
+  working = working
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\t/g, '  ')
+    .replace(/\u00A0/g, ' ')
+
+  // Collapse excessive blank lines and trim
+  working = working
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  return working
+}
+
 export async function pollOutlookWebhooks() {
   logger.info('Starting Outlook webhook polling')
 
@@ -357,7 +421,18 @@ async function processOutlookEmails(
         to: email.toRecipients?.map((r) => r.emailAddress.address).join(', ') || '',
         cc: email.ccRecipients?.map((r) => r.emailAddress.address).join(', ') || '',
         date: email.receivedDateTime,
-        bodyText: email.bodyPreview || '',
+        bodyText: (() => {
+          const content = email.body?.content || ''
+          const type = (email.body?.contentType || '').toLowerCase()
+          if (!content) {
+            return email.bodyPreview || ''
+          }
+          if (type === 'text' || type === 'text/plain') {
+            return content
+          }
+          // Default to converting HTML or unknown types
+          return convertHtmlToPlainText(content)
+        })(),
         bodyHtml: email.body?.content || '',
         hasAttachments: email.hasAttachments,
         isRead: email.isRead,
