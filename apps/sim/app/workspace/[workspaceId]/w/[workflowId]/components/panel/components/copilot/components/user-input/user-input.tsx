@@ -24,24 +24,30 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import {
+  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+  Switch,
+  Textarea,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { CopilotSlider } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components/copilot-slider'
 import { useCopilotStore } from '@/stores/copilot/store'
-import { CopilotSlider as Slider } from './copilot-slider'
+
+const logger = createLogger('CopilotUserInput')
 
 export interface MessageFileAttachment {
   id: string
-  s3_key: string
+  key: string
   filename: string
   media_type: string
   size: number
@@ -53,7 +59,7 @@ interface AttachedFile {
   size: number
   type: string
   path: string
-  key?: string // Add key field to store the actual S3 key
+  key?: string // Add key field to store the actual storage key
   uploading: boolean
   previewUrl?: string // For local preview of images before upload
 }
@@ -191,7 +197,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       const userId = session?.user?.id
 
       if (!userId) {
-        console.error('User ID not available for file upload')
+        logger.error('User ID not available for file upload')
         return
       }
 
@@ -237,21 +243,22 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
           const presignedData = await presignedResponse.json()
 
-          // Upload file to S3
-          console.log('Uploading to S3:', presignedData.presignedUrl)
+          logger.info(`Uploading file: ${presignedData.presignedUrl}`)
+          const uploadHeaders = presignedData.uploadHeaders || {}
           const uploadResponse = await fetch(presignedData.presignedUrl, {
             method: 'PUT',
             headers: {
               'Content-Type': file.type,
+              ...uploadHeaders,
             },
             body: file,
           })
 
-          console.log('S3 Upload response status:', uploadResponse.status)
+          logger.info(`Upload response status: ${uploadResponse.status}`)
 
           if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text()
-            console.error('S3 Upload failed:', errorText)
+            logger.error(`Upload failed: ${errorText}`)
             throw new Error(`Failed to upload file: ${uploadResponse.status} ${errorText}`)
           }
 
@@ -262,14 +269,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                 ? {
                     ...f,
                     path: presignedData.fileInfo.path,
-                    key: presignedData.fileInfo.key, // Store the actual S3 key
+                    key: presignedData.fileInfo.key, // Store the actual storage key
                     uploading: false,
                   }
                 : f
             )
           )
         } catch (error) {
-          console.error('File upload failed:', error)
+          logger.error(`File upload failed: ${error}`)
           // Remove failed upload
           setAttachedFiles((prev) => prev.filter((f) => f.id !== tempFile.id))
         }
@@ -283,10 +290,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       // Check for failed uploads and show user feedback
       const failedUploads = attachedFiles.filter((f) => !f.uploading && !f.key)
       if (failedUploads.length > 0) {
-        console.error(
-          'Some files failed to upload:',
-          failedUploads.map((f) => f.name)
-        )
+        logger.error(`Some files failed to upload: ${failedUploads.map((f) => f.name).join(', ')}`)
       }
 
       // Convert attached files to the format expected by the API
@@ -294,7 +298,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         .filter((f) => !f.uploading && f.key) // Only include successfully uploaded files with keys
         .map((f) => ({
           id: f.id,
-          s3_key: f.key!, // Use the actual S3 key stored from the upload response
+          key: f.key!, // Use the actual storage key from the upload response
           filename: f.name,
           media_type: f.type,
           size: f.size,
@@ -372,9 +376,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
 
     const handleFileClick = (file: AttachedFile) => {
-      // If file has been uploaded and has an S3 key, open the S3 URL
+      // If file has been uploaded and has a storage key, open the file URL
       if (file.key) {
-        const serveUrl = `/api/files/serve/s3/${encodeURIComponent(file.key)}?bucket=copilot`
+        const serveUrl = file.path
         window.open(serveUrl, '_blank')
       } else if (file.previewUrl) {
         // If file hasn't been uploaded yet but has a preview URL, open that
@@ -512,9 +516,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                       className='h-full w-full object-cover'
                     />
                   ) : isImageFile(file.type) && file.key ? (
-                    // For uploaded images without preview URL, use S3 URL
+                    // For uploaded images without preview URL, use storage URL
                     <img
-                      src={`/api/files/serve/s3/${encodeURIComponent(file.key)}?bucket=copilot`}
+                      src={file.previewUrl || file.path}
                       alt={file.name}
                       className='h-full w-full object-cover'
                     />
@@ -719,7 +723,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             </div>
                           </div>
                           <div className='relative'>
-                            <Slider
+                            <CopilotSlider
                               min={0}
                               max={3}
                               step={1}
