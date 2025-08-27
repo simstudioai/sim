@@ -202,6 +202,15 @@ export function useCollaborativeWorkflow() {
               if (payload.autoConnectEdge) {
                 workflowStore.addEdge(payload.autoConnectEdge)
               }
+              // Apply subblock values from duplicate payload so collaborators see content immediately
+              if (payload.subBlocks && typeof payload.subBlocks === 'object') {
+                Object.entries(payload.subBlocks).forEach(([subblockId, subblock]) => {
+                  const value = (subblock as any)?.value
+                  if (value !== undefined) {
+                    subBlockStore.setValue(payload.id, subblockId, value)
+                  }
+                })
+              }
               break
           }
         } else if (target === 'edge') {
