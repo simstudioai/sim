@@ -417,9 +417,9 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                       onClick={scrollToBottom}
                       size='sm'
                       variant='outline'
-                      className='flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 shadow-lg transition-all hover:bg-gray-50'
+                      className='flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 shadow-lg transition-all hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700'
                     >
-                      <ArrowDown className='h-3.5 w-3.5' />
+                      <ArrowDown className='h-3.5 w-3.5 text-gray-700 dark:text-gray-300' />
                       <span className='sr-only'>Scroll to bottom</span>
                     </Button>
                   </div>

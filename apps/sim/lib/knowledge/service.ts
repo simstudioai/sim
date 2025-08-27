@@ -1,6 +1,10 @@
 import { randomUUID } from 'crypto'
 import { and, count, eq, isNotNull, isNull, or } from 'drizzle-orm'
-import type { CreateKnowledgeBaseData, KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
+import type {
+  ChunkingConfig,
+  CreateKnowledgeBaseData,
+  KnowledgeBaseWithCounts,
+} from '@/lib/knowledge/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
@@ -67,6 +71,7 @@ export async function getKnowledgeBases(
 
   return knowledgeBasesWithCounts.map((kb) => ({
     ...kb,
+    chunkingConfig: kb.chunkingConfig as ChunkingConfig,
     docCount: Number(kb.docCount),
   }))
 }
@@ -81,7 +86,6 @@ export async function createKnowledgeBase(
   const kbId = randomUUID()
   const now = new Date()
 
-  // Check workspace permissions if workspaceId is provided
   if (data.workspaceId) {
     const hasPermission = await getUserEntityPermissions(data.userId, 'workspace', data.workspaceId)
     if (hasPermission === null) {
@@ -159,14 +163,12 @@ export async function updateKnowledgeBase(
   if (updates.description !== undefined) updateData.description = updates.description
   if (updates.chunkingConfig !== undefined) {
     updateData.chunkingConfig = updates.chunkingConfig
-    // Reset embedding model when chunking config changes
     updateData.embeddingModel = 'text-embedding-3-small'
     updateData.embeddingDimension = 1536
   }
 
   await db.update(knowledgeBase).set(updateData).where(eq(knowledgeBase.id, knowledgeBaseId))
 
-  // Fetch the updated knowledge base with document count
   const updatedKb = await db
     .select({
       id: knowledgeBase.id,
@@ -198,6 +200,7 @@ export async function updateKnowledgeBase(
 
   return {
     ...updatedKb[0],
+    chunkingConfig: updatedKb[0].chunkingConfig as ChunkingConfig,
     docCount: Number(updatedKb[0].docCount),
   }
 }
@@ -237,6 +240,7 @@ export async function getKnowledgeBaseById(
 
   return {
     ...result[0],
+    chunkingConfig: result[0].chunkingConfig as ChunkingConfig,
     docCount: Number(result[0].docCount),
   }
 }
