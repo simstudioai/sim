@@ -552,9 +552,7 @@ const WorkflowContent = React.memo(() => {
 
       // Create a new block with a unique ID
       const id = crypto.randomUUID()
-      const name = `${blockConfig.name} ${
-        Object.values(blocks).filter((b) => b.type === type).length + 1
-      }`
+      const name = `${blockConfig.name} ${Object.values(blocks).filter((b) => b.type === type).length + 1}`
 
       // Auto-connect logic
       const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled

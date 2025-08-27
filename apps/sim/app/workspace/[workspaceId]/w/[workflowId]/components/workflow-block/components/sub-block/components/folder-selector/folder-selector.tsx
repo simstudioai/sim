@@ -155,7 +155,9 @@ export function FolderSelector({
           if (!accessToken) return null
           const resp = await fetch(
             `https://graph.microsoft.com/v1.0/me/mailFolders/${encodeURIComponent(folderId)}`,
-            { headers: { Authorization: `Bearer ${accessToken}` } }
+            {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            }
           )
           if (!resp.ok) return null
           const folder = await resp.json()

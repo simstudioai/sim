@@ -149,12 +149,12 @@ vi.mock('@/db', () => {
   }
 })
 
+import { processDocumentAsync } from '@/lib/documents/service'
+import { generateEmbeddings } from '@/lib/embeddings/utils'
 import {
   checkChunkAccess,
   checkDocumentAccess,
   checkKnowledgeBaseAccess,
-  generateEmbeddings,
-  processDocumentAsync,
 } from '@/app/api/knowledge/utils'
 
 describe('Knowledge Utils', () => {

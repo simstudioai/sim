@@ -2,6 +2,7 @@ import { createReadStream, existsSync } from 'fs'
 import { Readable } from 'stream'
 import csvParser from 'csv-parser'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
+import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CsvParser')
@@ -39,19 +40,22 @@ export class CsvParser implements FileParser {
             // Convert CSV data to a formatted string representation
             let content = ''
 
-            // Add headers
+            // Add headers (sanitized)
             if (headers.length > 0) {
-              content += `${headers.join(', ')}\n`
+              const cleanHeaders = headers.map((h) => sanitizeTextForUTF8(String(h)))
+              content += `${cleanHeaders.join(', ')}\n`
             }
 
-            // Add rows
+            // Add rows (sanitized)
             results.forEach((row) => {
-              const rowValues = Object.values(row).join(', ')
-              content += `${rowValues}\n`
+              const cleanValues = Object.values(row).map((v) =>
+                sanitizeTextForUTF8(String(v || ''))
+              )
+              content += `${cleanValues.join(', ')}\n`
             })
 
             resolve({
-              content,
+              content: sanitizeTextForUTF8(content),
               metadata: {
                 rowCount: results.length,
                 headers: headers,
@@ -99,19 +103,22 @@ export class CsvParser implements FileParser {
             // Convert CSV data to a formatted string representation
             let content = ''
 
-            // Add headers
+            // Add headers (sanitized)
             if (headers.length > 0) {
-              content += `${headers.join(', ')}\n`
+              const cleanHeaders = headers.map((h) => sanitizeTextForUTF8(String(h)))
+              content += `${cleanHeaders.join(', ')}\n`
             }
 
-            // Add rows
+            // Add rows (sanitized)
             results.forEach((row) => {
-              const rowValues = Object.values(row).join(', ')
-              content += `${rowValues}\n`
+              const cleanValues = Object.values(row).map((v) =>
+                sanitizeTextForUTF8(String(v || ''))
+              )
+              content += `${cleanValues.join(', ')}\n`
             })
 
             resolve({
-              content,
+              content: sanitizeTextForUTF8(content),
               metadata: {
                 rowCount: results.length,
                 headers: headers,

@@ -104,7 +104,7 @@ async function callEmbeddingAPI(inputs: string[], config: EmbeddingConfig): Prom
 }
 
 /**
- * Generate embeddings for multiple texts with batching
+ * Generate embeddings for multiple texts with simple batching
  */
 export async function generateEmbeddings(
   texts: string[],

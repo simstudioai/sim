@@ -1440,16 +1440,12 @@ export function ToolInput({
                                 Auto
                               </span>
                               <span
-                                className={`font-medium text-xs ${
-                                  tool.usageControl === 'force' ? 'block' : 'hidden'
-                                }`}
+                                className={`font-medium text-xs ${tool.usageControl === 'force' ? 'block' : 'hidden'}`}
                               >
                                 Force
                               </span>
                               <span
-                                className={`font-medium text-xs ${
-                                  tool.usageControl === 'none' ? 'block' : 'hidden'
-                                }`}
+                                className={`font-medium text-xs ${tool.usageControl === 'none' ? 'block' : 'hidden'}`}
                               >
                                 None
                               </span>

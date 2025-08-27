@@ -889,9 +889,7 @@ export function Sidebar() {
 
           {/* 2. Workspace Selector */}
           <div
-            className={`pointer-events-auto flex-shrink-0 ${
-              !isWorkspaceSelectorVisible ? 'hidden' : ''
-            }`}
+            className={`pointer-events-auto flex-shrink-0 ${!isWorkspaceSelectorVisible ? 'hidden' : ''}`}
           >
             <WorkspaceSelector
               workspaces={workspaces}

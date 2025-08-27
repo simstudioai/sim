@@ -865,11 +865,7 @@ export function KnowledgeBase({
                               key={doc.id}
                               className={`border-b transition-colors hover:bg-accent/30 ${
                                 isSelected ? 'bg-accent/30' : ''
-                              } ${
-                                doc.processingStatus === 'completed'
-                                  ? 'cursor-pointer'
-                                  : 'cursor-default'
-                              }`}
+                              } ${doc.processingStatus === 'completed' ? 'cursor-pointer' : 'cursor-default'}`}
                               onClick={() => {
                                 if (doc.processingStatus === 'completed') {
                                   handleDocumentClick(doc.id)

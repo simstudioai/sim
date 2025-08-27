@@ -84,9 +84,8 @@ class ProcessingError extends KnowledgeUploadError {
 }
 
 // Upload configuration constants
-// Vercel has a 4.5MB body size limit for API routes
 const UPLOAD_CONFIG = {
-  BATCH_SIZE: 5, // Upload 5 files in parallel
+  BATCH_SIZE: 8, // Reduced from 15 to 8 files in parallel to reduce API pressure
   MAX_RETRIES: 3, // Retry failed uploads up to 3 times
   RETRY_DELAY: 1000, // Initial retry delay in ms
   CHUNK_SIZE: 5 * 1024 * 1024,
@@ -321,7 +320,9 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
             reject(
               new DirectUploadError(
                 `Direct upload failed for ${file.name}: ${xhr.status} ${xhr.statusText}`,
-                { uploadResponse: xhr.statusText }
+                {
+                  uploadResponse: xhr.statusText,
+                }
               )
             )
           }
@@ -420,7 +421,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       // Step 4: Upload parts in parallel (batch them to avoid overwhelming the browser)
       const uploadedParts: Array<{ ETag: string; PartNumber: number }> = []
-      const PARALLEL_UPLOADS = 3 // Upload 3 parts at a time
+      const PARALLEL_UPLOADS = 2 // Reduced from 3 to 2 parts at a time
 
       for (let i = 0; i < presignedUrls.length; i += PARALLEL_UPLOADS) {
         const batch = presignedUrls.slice(i, i + PARALLEL_UPLOADS)
@@ -538,10 +539,10 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   }
 
   /**
-   * Upload files with a constant pool of concurrent uploads
+   * Upload files using batch presigned URLs (works for both S3 and Azure Blob)
    */
   const uploadFilesInBatches = async (files: File[]): Promise<UploadedFile[]> => {
-    const uploadedFiles: UploadedFile[] = []
+    const results: UploadedFile[] = []
     const failedFiles: Array<{ file: File; error: Error }> = []
 
     // Initialize file statuses
@@ -557,57 +558,100 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       fileStatuses,
     }))
 
-    // Create a queue of files to upload
-    const fileQueue = files.map((file, index) => ({ file, index }))
-    const activeUploads = new Map<number, Promise<any>>()
+    logger.info(`Starting batch upload of ${files.length} files`)
 
-    logger.info(
-      `Starting upload of ${files.length} files with concurrency ${UPLOAD_CONFIG.BATCH_SIZE}`
-    )
+    try {
+      const BATCH_SIZE = 100 // Process 100 files at a time
+      const batches = []
 
-    // Function to start an upload for a file
-    const startUpload = async (file: File, fileIndex: number) => {
-      // Mark file as uploading (only if not already processing)
-      setUploadProgress((prev) => {
-        const currentStatus = prev.fileStatuses?.[fileIndex]?.status
-        // Don't re-upload files that are already completed or currently uploading
-        if (currentStatus === 'completed' || currentStatus === 'uploading') {
-          return prev
+      // Create all batches
+      for (let batchStart = 0; batchStart < files.length; batchStart += BATCH_SIZE) {
+        const batchFiles = files.slice(batchStart, batchStart + BATCH_SIZE)
+        const batchIndexOffset = batchStart
+        batches.push({ batchFiles, batchIndexOffset })
+      }
+
+      logger.info(`Starting parallel processing of ${batches.length} batches`)
+
+      // Step 1: Get ALL presigned URLs in parallel
+      const presignedPromises = batches.map(async ({ batchFiles }, batchIndex) => {
+        logger.info(
+          `Getting presigned URLs for batch ${batchIndex + 1}/${batches.length} (${batchFiles.length} files)`
+        )
+
+        const batchRequest = {
+          files: batchFiles.map((file) => ({
+            fileName: file.name,
+            contentType: file.type,
+            fileSize: file.size,
+          })),
         }
-        return {
-          ...prev,
-          fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-            idx === fileIndex ? { ...fs, status: 'uploading' as const, progress: 0 } : fs
-          ),
+
+        const batchResponse = await fetch('/api/files/presigned/batch?type=knowledge-base', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(batchRequest),
+        })
+
+        if (!batchResponse.ok) {
+          throw new Error(
+            `Batch ${batchIndex + 1} presigned URL generation failed: ${batchResponse.statusText}`
+          )
         }
+
+        const { files: presignedData } = await batchResponse.json()
+        return { batchFiles, presignedData, batchIndex }
       })
 
-      try {
-        const result = await uploadSingleFileWithRetry(file, 0, fileIndex)
+      const allPresignedData = await Promise.all(presignedPromises)
+      logger.info(`Got all presigned URLs, starting uploads`)
 
-        // Mark file as completed (with atomic update)
-        setUploadProgress((prev) => {
-          // Only mark as completed if still uploading (prevent race conditions)
-          if (prev.fileStatuses?.[fileIndex]?.status === 'uploading') {
-            return {
+      // Step 2: Upload all files with global concurrency control
+      const allUploads = allPresignedData.flatMap(({ batchFiles, presignedData, batchIndex }) => {
+        const batchIndexOffset = batchIndex * BATCH_SIZE
+
+        return batchFiles.map((file, batchFileIndex) => {
+          const fileIndex = batchIndexOffset + batchFileIndex
+          const presigned = presignedData[batchFileIndex]
+
+          return { file, presigned, fileIndex }
+        })
+      })
+
+      // Process all uploads with concurrency control - TRUE PARALLEL PROCESSING
+      for (let i = 0; i < allUploads.length; i += UPLOAD_CONFIG.BATCH_SIZE) {
+        const concurrentBatch = allUploads.slice(i, i + UPLOAD_CONFIG.BATCH_SIZE)
+
+        const uploadPromises = concurrentBatch.map(async ({ file, presigned, fileIndex }) => {
+          if (!presigned) {
+            throw new Error(`No presigned data for file ${file.name}`)
+          }
+
+          // Mark as uploading
+          setUploadProgress((prev) => ({
+            ...prev,
+            fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+              idx === fileIndex ? { ...fs, status: 'uploading' as const } : fs
+            ),
+          }))
+
+          try {
+            // Upload directly to storage
+            const result = await uploadFileDirectly(file, presigned, fileIndex)
+
+            // Mark as completed
+            setUploadProgress((prev) => ({
               ...prev,
               filesCompleted: prev.filesCompleted + 1,
               fileStatuses: prev.fileStatuses?.map((fs, idx) =>
                 idx === fileIndex ? { ...fs, status: 'completed' as const, progress: 100 } : fs
               ),
-            }
-          }
-          return prev
-        })
+            }))
 
-        uploadedFiles.push(result)
-        return { success: true, file, result }
-      } catch (error) {
-        // Mark file as failed (with atomic update)
-        setUploadProgress((prev) => {
-          // Only mark as failed if still uploading
-          if (prev.fileStatuses?.[fileIndex]?.status === 'uploading') {
-            return {
+            return result
+          } catch (error) {
+            // Mark as failed
+            setUploadProgress((prev) => ({
               ...prev,
               fileStatuses: prev.fileStatuses?.map((fs, idx) =>
                 idx === fileIndex
@@ -618,52 +662,87 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
                     }
                   : fs
               ),
-            }
+            }))
+            throw error
           }
-          return prev
         })
 
-        failedFiles.push({
-          file,
-          error: error instanceof Error ? error : new Error(String(error)),
-        })
+        const batchResults = await Promise.allSettled(uploadPromises)
 
-        return {
-          success: false,
-          file,
-          error: error instanceof Error ? error : new Error(String(error)),
+        for (let j = 0; j < batchResults.length; j++) {
+          const result = batchResults[j]
+          if (result.status === 'fulfilled') {
+            results.push(result.value)
+          } else {
+            failedFiles.push({
+              file: concurrentBatch[j].file,
+              error:
+                result.reason instanceof Error ? result.reason : new Error(String(result.reason)),
+            })
+          }
         }
       }
-    }
 
-    // Process files with constant concurrency pool
-    while (fileQueue.length > 0 || activeUploads.size > 0) {
-      // Start new uploads up to the batch size limit
-      while (fileQueue.length > 0 && activeUploads.size < UPLOAD_CONFIG.BATCH_SIZE) {
-        const { file, index } = fileQueue.shift()!
-        const uploadPromise = startUpload(file, index).finally(() => {
-          activeUploads.delete(index)
-        })
-        activeUploads.set(index, uploadPromise)
+      if (failedFiles.length > 0) {
+        logger.error(`Failed to upload ${failedFiles.length} files`)
+        throw new KnowledgeUploadError(
+          `Failed to upload ${failedFiles.length} file(s)`,
+          'PARTIAL_UPLOAD_FAILURE',
+          {
+            failedFiles,
+            uploadedFiles: results,
+          }
+        )
       }
 
-      // Wait for at least one upload to complete if we're at capacity or done with queue
-      if (activeUploads.size > 0) {
-        await Promise.race(Array.from(activeUploads.values()))
-      }
+      return results
+    } catch (error) {
+      logger.error('Batch upload failed:', error)
+      throw error
     }
+  }
 
-    // Report failed files
-    if (failedFiles.length > 0) {
-      logger.error(`Failed to upload ${failedFiles.length} files:`, failedFiles)
-      const errorMessage = `Failed to upload ${failedFiles.length} file(s): ${failedFiles.map((f) => f.file.name).join(', ')}`
-      throw new KnowledgeUploadError(errorMessage, 'PARTIAL_UPLOAD_FAILURE', {
-        failedFiles,
-        uploadedFiles,
+  /**
+   * Upload chunks for a single file
+   */
+  const uploadFileChunks = async (file: File, upload: any, fileIndex: number) => {
+    const { partUrls, totalParts } = upload
+    const chunkSize = UPLOAD_CONFIG.CHUNK_SIZE
+    const parts = []
+
+    for (let i = 0; i < totalParts; i++) {
+      const partNumber = i + 1
+      const start = i * chunkSize
+      const end = Math.min(start + chunkSize, file.size)
+      const chunk = file.slice(start, end)
+      const partUrl = partUrls.find((p: any) => p.partNumber === partNumber)?.url
+
+      if (!partUrl) throw new Error(`No URL for part ${partNumber}`)
+
+      const response = await fetch(partUrl, {
+        method: 'PUT',
+        body: chunk,
+        headers: { 'Content-Type': file.type },
       })
+
+      if (!response.ok) {
+        throw new Error(`Failed to upload part ${partNumber}: ${response.statusText}`)
+      }
+
+      const etag = response.headers.get('ETag')?.replace(/"/g, '') || ''
+      parts.push({ ETag: etag, PartNumber: partNumber })
+
+      // Update progress
+      const progress = Math.round((partNumber / totalParts) * 100)
+      setUploadProgress((prev) => ({
+        ...prev,
+        fileStatuses: prev.fileStatuses?.map((fs, idx) =>
+          idx === fileIndex ? { ...fs, progress } : fs
+        ),
+      }))
     }
 
-    return uploadedFiles
+    return parts
   }
 
   const uploadFiles = async (
