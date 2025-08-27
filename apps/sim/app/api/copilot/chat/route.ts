@@ -15,12 +15,11 @@ import { env } from '@/lib/env'
 import { generateChatTitle } from '@/lib/generate-chat-title'
 import { createLogger } from '@/lib/logs/console/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
-import { downloadFile } from '@/lib/uploads'
-import { downloadFromS3WithConfig } from '@/lib/uploads/s3/s3-client'
-import { S3_COPILOT_CONFIG, USE_S3_STORAGE } from '@/lib/uploads/setup'
+import { createFileContent, isSupportedFileType } from '@/lib/uploads/file-utils'
+import { S3_COPILOT_CONFIG } from '@/lib/uploads/setup'
+import { downloadFile, getStorageProvider } from '@/lib/uploads/storage-client'
 import { db } from '@/db'
 import { copilotChats } from '@/db/schema'
-import { createAnthropicFileContent, isSupportedFileType } from './file-utils'
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -28,7 +27,7 @@ const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 const FileAttachmentSchema = z.object({
   id: z.string(),
-  s3_key: z.string(),
+  key: z.string(),
   filename: z.string(),
   media_type: z.string(),
   size: z.number(),
@@ -137,8 +136,6 @@ export async function POST(req: NextRequest) {
     // Process file attachments if present
     const processedFileContents: any[] = []
     if (fileAttachments && fileAttachments.length > 0) {
-      // logger.info(`[${tracker.requestId}] Processing ${fileAttachments.length} file attachments`)
-
       for (const attachment of fileAttachments) {
         try {
           // Check if file type is supported
@@ -147,23 +144,30 @@ export async function POST(req: NextRequest) {
             continue
           }
 
-          // Download file from S3
-          // logger.info(`[${tracker.requestId}] Downloading file: ${attachment.s3_key}`)
+          const storageProvider = getStorageProvider()
           let fileBuffer: Buffer
-          if (USE_S3_STORAGE) {
-            fileBuffer = await downloadFromS3WithConfig(attachment.s3_key, S3_COPILOT_CONFIG)
+
+          if (storageProvider === 's3') {
+            fileBuffer = await downloadFile(attachment.key, {
+              bucket: S3_COPILOT_CONFIG.bucket,
+              region: S3_COPILOT_CONFIG.region,
+            })
+          } else if (storageProvider === 'blob') {
+            const { BLOB_COPILOT_CONFIG } = await import('@/lib/uploads/setup')
+            fileBuffer = await downloadFile(attachment.key, {
+              containerName: BLOB_COPILOT_CONFIG.containerName,
+              accountName: BLOB_COPILOT_CONFIG.accountName,
+              accountKey: BLOB_COPILOT_CONFIG.accountKey,
+              connectionString: BLOB_COPILOT_CONFIG.connectionString,
+            })
           } else {
-            // Fallback to generic downloadFile for other storage providers
-            fileBuffer = await downloadFile(attachment.s3_key)
+            fileBuffer = await downloadFile(attachment.key)
           }
 
-          // Convert to Anthropic format
-          const fileContent = createAnthropicFileContent(fileBuffer, attachment.media_type)
+          // Convert to format
+          const fileContent = createFileContent(fileBuffer, attachment.media_type)
           if (fileContent) {
             processedFileContents.push(fileContent)
-            // logger.info(
-            //   `[${tracker.requestId}] Processed file: ${attachment.filename} (${attachment.media_type})`
-            // )
           }
         } catch (error) {
           logger.error(
@@ -188,14 +192,26 @@ export async function POST(req: NextRequest) {
         for (const attachment of msg.fileAttachments) {
           try {
             if (isSupportedFileType(attachment.media_type)) {
+              const storageProvider = getStorageProvider()
               let fileBuffer: Buffer
-              if (USE_S3_STORAGE) {
-                fileBuffer = await downloadFromS3WithConfig(attachment.s3_key, S3_COPILOT_CONFIG)
+
+              if (storageProvider === 's3') {
+                fileBuffer = await downloadFile(attachment.key, {
+                  bucket: S3_COPILOT_CONFIG.bucket,
+                  region: S3_COPILOT_CONFIG.region,
+                })
+              } else if (storageProvider === 'blob') {
+                const { BLOB_COPILOT_CONFIG } = await import('@/lib/uploads/setup')
+                fileBuffer = await downloadFile(attachment.key, {
+                  containerName: BLOB_COPILOT_CONFIG.containerName,
+                  accountName: BLOB_COPILOT_CONFIG.accountName,
+                  accountKey: BLOB_COPILOT_CONFIG.accountKey,
+                  connectionString: BLOB_COPILOT_CONFIG.connectionString,
+                })
               } else {
-                // Fallback to generic downloadFile for other storage providers
-                fileBuffer = await downloadFile(attachment.s3_key)
+                fileBuffer = await downloadFile(attachment.key)
               }
-              const fileContent = createAnthropicFileContent(fileBuffer, attachment.media_type)
+              const fileContent = createFileContent(fileBuffer, attachment.media_type)
               if (fileContent) {
                 content.push(fileContent)
               }

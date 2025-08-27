@@ -37,11 +37,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useSession } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
-import { CopilotSlider as Slider } from './copilot-slider'
+import { CopilotSlider as Slider } from './components/copilot-slider'
 
 export interface MessageFileAttachment {
   id: string
-  s3_key: string
+  key: string
   filename: string
   media_type: string
   size: number
@@ -53,7 +53,7 @@ interface AttachedFile {
   size: number
   type: string
   path: string
-  key?: string // Add key field to store the actual S3 key
+  key?: string // Add key field to store the actual storage key
   uploading: boolean
   previewUrl?: string // For local preview of images before upload
 }
@@ -237,21 +237,23 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
           const presignedData = await presignedResponse.json()
 
-          // Upload file to S3
-          console.log('Uploading to S3:', presignedData.presignedUrl)
+          // Upload file using presigned URL
+          console.log('Uploading file:', presignedData.presignedUrl)
+          const uploadHeaders = presignedData.uploadHeaders || {}
           const uploadResponse = await fetch(presignedData.presignedUrl, {
             method: 'PUT',
             headers: {
               'Content-Type': file.type,
+              ...uploadHeaders,
             },
             body: file,
           })
 
-          console.log('S3 Upload response status:', uploadResponse.status)
+          console.log('Upload response status:', uploadResponse.status)
 
           if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text()
-            console.error('S3 Upload failed:', errorText)
+            console.error('Upload failed:', errorText)
             throw new Error(`Failed to upload file: ${uploadResponse.status} ${errorText}`)
           }
 
@@ -262,7 +264,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                 ? {
                     ...f,
                     path: presignedData.fileInfo.path,
-                    key: presignedData.fileInfo.key, // Store the actual S3 key
+                    key: presignedData.fileInfo.key, // Store the actual storage key
                     uploading: false,
                   }
                 : f
@@ -294,7 +296,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         .filter((f) => !f.uploading && f.key) // Only include successfully uploaded files with keys
         .map((f) => ({
           id: f.id,
-          s3_key: f.key!, // Use the actual S3 key stored from the upload response
+          key: f.key!, // Use the actual storage key from the upload response
           filename: f.name,
           media_type: f.type,
           size: f.size,
@@ -372,9 +374,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
 
     const handleFileClick = (file: AttachedFile) => {
-      // If file has been uploaded and has an S3 key, open the S3 URL
+      // If file has been uploaded and has a storage key, open the file URL
       if (file.key) {
-        const serveUrl = `/api/files/serve/s3/${encodeURIComponent(file.key)}?bucket=copilot`
+        const serveUrl = file.path
         window.open(serveUrl, '_blank')
       } else if (file.previewUrl) {
         // If file hasn't been uploaded yet but has a preview URL, open that
@@ -512,9 +514,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                       className='h-full w-full object-cover'
                     />
                   ) : isImageFile(file.type) && file.key ? (
-                    // For uploaded images without preview URL, use S3 URL
+                    // For uploaded images without preview URL, use storage URL
                     <img
-                      src={`/api/files/serve/s3/${encodeURIComponent(file.key)}?bucket=copilot`}
+                      src={file.previewUrl || file.path}
                       alt={file.name}
                       className='h-full w-full object-cover'
                     />

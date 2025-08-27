@@ -229,7 +229,6 @@ describe('Copilot Chat Update Messages API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Mock chat exists - override the default empty array
       const existingChat = {
         id: 'chat-123',
         userId: 'user-123',
@@ -267,7 +266,6 @@ describe('Copilot Chat Update Messages API Route', () => {
         messageCount: 2,
       })
 
-      // Verify database operations
       expect(mockSelect).toHaveBeenCalled()
       expect(mockUpdate).toHaveBeenCalled()
       expect(mockSet).toHaveBeenCalledWith({
@@ -280,7 +278,6 @@ describe('Copilot Chat Update Messages API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Mock chat exists
       const existingChat = {
         id: 'chat-456',
         userId: 'user-123',
@@ -341,7 +338,6 @@ describe('Copilot Chat Update Messages API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Mock chat exists
       const existingChat = {
         id: 'chat-789',
         userId: 'user-123',
@@ -374,7 +370,6 @@ describe('Copilot Chat Update Messages API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Mock database error during chat lookup
       mockLimit.mockRejectedValueOnce(new Error('Database connection failed'))
 
       const req = createMockRequest('POST', {
@@ -401,7 +396,6 @@ describe('Copilot Chat Update Messages API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Mock chat exists
       const existingChat = {
         id: 'chat-123',
         userId: 'user-123',
@@ -409,7 +403,6 @@ describe('Copilot Chat Update Messages API Route', () => {
       }
       mockLimit.mockResolvedValueOnce([existingChat])
 
-      // Mock database error during update
       mockSet.mockReturnValueOnce({
         where: vi.fn().mockRejectedValue(new Error('Update operation failed')),
       })
@@ -438,7 +431,6 @@ describe('Copilot Chat Update Messages API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Create a request with invalid JSON
       const req = new NextRequest('http://localhost:3000/api/copilot/chat/update-messages', {
         method: 'POST',
         body: '{invalid-json',
@@ -459,7 +451,6 @@ describe('Copilot Chat Update Messages API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Mock chat exists
       const existingChat = {
         id: 'chat-large',
         userId: 'user-123',
@@ -467,7 +458,6 @@ describe('Copilot Chat Update Messages API Route', () => {
       }
       mockLimit.mockResolvedValueOnce([existingChat])
 
-      // Create a large array of messages
       const messages = Array.from({ length: 100 }, (_, i) => ({
         id: `msg-${i + 1}`,
         role: i % 2 === 0 ? 'user' : 'assistant',
@@ -500,7 +490,6 @@ describe('Copilot Chat Update Messages API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Mock chat exists
       const existingChat = {
         id: 'chat-mixed',
         userId: 'user-123',

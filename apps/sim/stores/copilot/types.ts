@@ -12,7 +12,7 @@ export interface CopilotToolCall {
 
 export interface MessageFileAttachment {
   id: string
-  s3_key: string
+  key: string
   filename: string
   media_type: string
   size: number
