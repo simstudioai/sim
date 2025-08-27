@@ -514,9 +514,12 @@ export async function createDocumentRecords(
   requestId: string
 ): Promise<DocumentData[]> {
   return await db.transaction(async (tx) => {
-    const documentPromises = documents.map(async (docData) => {
+    const now = new Date()
+    const documentRecords = []
+    const returnData: DocumentData[] = []
+
+    for (const docData of documents) {
       const documentId = randomUUID()
-      const now = new Date()
 
       let processedTags: Record<string, string | null> = {
         tag1: null,
@@ -562,21 +565,24 @@ export async function createDocumentRecords(
         tag7: processedTags.tag7 || docData.tag7 || null,
       }
 
-      await tx.insert(document).values(newDocument)
-      logger.info(
-        `[${requestId}] Document record created: ${documentId} for file: ${docData.filename}`
-      )
-
-      return {
+      documentRecords.push(newDocument)
+      returnData.push({
         documentId,
         filename: docData.filename,
         fileUrl: docData.fileUrl,
         fileSize: docData.fileSize,
         mimeType: docData.mimeType,
-      }
-    })
+      })
+    }
 
-    return await Promise.all(documentPromises)
+    if (documentRecords.length > 0) {
+      await tx.insert(document).values(documentRecords)
+      logger.info(
+        `[${requestId}] Bulk created ${documentRecords.length} document records in knowledge base ${knowledgeBaseId}`
+      )
+    }
+
+    return returnData
   })
 }
 

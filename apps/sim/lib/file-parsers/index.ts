@@ -109,7 +109,6 @@ function getParserInstances(): Record<string, FileParser> {
     }
   }
 
-  logger.info('Available parsers:', Object.keys(parserInstances))
   return parserInstances
 }
 
