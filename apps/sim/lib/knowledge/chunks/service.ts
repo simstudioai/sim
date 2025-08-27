@@ -1,13 +1,13 @@
 import { createHash, randomUUID } from 'crypto'
 import { and, asc, eq, ilike, inArray, sql } from 'drizzle-orm'
+import { generateEmbeddings } from '@/lib/embeddings/utils'
 import type {
   BatchOperationResult,
   ChunkData,
   ChunkFilters,
   ChunkQueryResult,
   CreateChunkData,
-} from '@/lib/chunks/types'
-import { generateEmbeddings } from '@/lib/embeddings/utils'
+} from '@/lib/knowledge/chunks/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { db } from '@/db'

@@ -1,5 +1,5 @@
-import { isRetryableError, retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
+import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('EmbeddingUtils')

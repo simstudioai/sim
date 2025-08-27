@@ -1,11 +1,11 @@
 import crypto, { randomUUID } from 'crypto'
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { getSlotsForFieldType, type TAG_SLOT_CONFIG } from '@/lib/constants/knowledge'
-import { processDocument } from '@/lib/documents/document-processor'
 import { generateEmbeddings } from '@/lib/embeddings/utils'
+import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import { getNextAvailableSlot } from '@/lib/knowledge/tags/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
-import { getNextAvailableSlot } from '@/lib/tags/service'
 import { db } from '@/db'
 import { document, embedding, knowledgeBaseTagDefinitions } from '@/db/schema'
 import { DocumentProcessingQueue } from './queue'
@@ -371,19 +371,17 @@ export async function processDocumentAsync(
   try {
     logger.info(`[${documentId}] Starting document processing: ${docData.filename}`)
 
-    // Set status to processing
     await db
       .update(document)
       .set({
         processingStatus: 'processing',
         processingStartedAt: new Date(),
-        processingError: null, // Clear any previous error
+        processingError: null,
       })
       .where(eq(document.id, documentId))
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
-    // Wrap the entire processing operation with timeout
     await withTimeout(
       (async () => {
         const processed = await processDocument(
@@ -406,7 +404,6 @@ export async function processDocumentAsync(
 
         logger.info(`[${documentId}] Embeddings generated, fetching document tags`)
 
-        // Fetch document to get tags
         const documentRecord = await db
           .select({
             tag1: document.tag1,
@@ -521,7 +518,6 @@ export async function createDocumentRecords(
       const documentId = randomUUID()
       const now = new Date()
 
-      // Process documentTagsData if provided (for knowledge base block)
       let processedTags: Record<string, string | null> = {
         tag1: null,
         tag2: null,

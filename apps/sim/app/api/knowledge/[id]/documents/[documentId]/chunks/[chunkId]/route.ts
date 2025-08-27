@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { deleteChunk, updateChunk } from '@/lib/chunks/service'
+import { deleteChunk, updateChunk } from '@/lib/knowledge/chunks/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { checkChunkAccess } from '@/app/api/knowledge/utils'
 

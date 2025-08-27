@@ -24,7 +24,7 @@ vi.mock('@/app/api/knowledge/utils', () => ({
   processDocumentAsync: vi.fn(),
 }))
 
-vi.mock('@/lib/documents/service', () => ({
+vi.mock('@/lib/knowledge/documents/service', () => ({
   getDocuments: vi.fn(),
   createSingleDocument: vi.fn(),
   createDocumentRecords: vi.fn(),
@@ -109,7 +109,7 @@ describe('Knowledge Base Documents API Route', () => {
 
     it('should retrieve documents successfully for authenticated user', async () => {
       const { checkKnowledgeBaseAccess } = await import('@/app/api/knowledge/utils')
-      const { getDocuments } = await import('@/lib/documents/service')
+      const { getDocuments } = await import('@/lib/knowledge/documents/service')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({
@@ -151,7 +151,7 @@ describe('Knowledge Base Documents API Route', () => {
 
     it('should filter disabled documents by default', async () => {
       const { checkKnowledgeBaseAccess } = await import('@/app/api/knowledge/utils')
-      const { getDocuments } = await import('@/lib/documents/service')
+      const { getDocuments } = await import('@/lib/knowledge/documents/service')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({
@@ -188,7 +188,7 @@ describe('Knowledge Base Documents API Route', () => {
 
     it('should include disabled documents when requested', async () => {
       const { checkKnowledgeBaseAccess } = await import('@/app/api/knowledge/utils')
-      const { getDocuments } = await import('@/lib/documents/service')
+      const { getDocuments } = await import('@/lib/knowledge/documents/service')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({
@@ -272,7 +272,7 @@ describe('Knowledge Base Documents API Route', () => {
 
     it('should handle database errors', async () => {
       const { checkKnowledgeBaseAccess } = await import('@/app/api/knowledge/utils')
-      const { getDocuments } = await import('@/lib/documents/service')
+      const { getDocuments } = await import('@/lib/knowledge/documents/service')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({
@@ -302,7 +302,7 @@ describe('Knowledge Base Documents API Route', () => {
 
     it('should create single document successfully', async () => {
       const { checkKnowledgeBaseWriteAccess } = await import('@/app/api/knowledge/utils')
-      const { createSingleDocument } = await import('@/lib/documents/service')
+      const { createSingleDocument } = await import('@/lib/knowledge/documents/service')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({
@@ -405,7 +405,7 @@ describe('Knowledge Base Documents API Route', () => {
     it('should create bulk documents successfully', async () => {
       const { checkKnowledgeBaseWriteAccess } = await import('@/app/api/knowledge/utils')
       const { createDocumentRecords, processDocumentsWithQueue, getProcessingConfig } =
-        await import('@/lib/documents/service')
+        await import('@/lib/knowledge/documents/service')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({
@@ -498,7 +498,7 @@ describe('Knowledge Base Documents API Route', () => {
     it('should handle processing errors gracefully', async () => {
       const { checkKnowledgeBaseWriteAccess } = await import('@/app/api/knowledge/utils')
       const { createDocumentRecords, processDocumentsWithQueue, getProcessingConfig } =
-        await import('@/lib/documents/service')
+        await import('@/lib/knowledge/documents/service')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({
@@ -591,7 +591,7 @@ describe('Knowledge Base Documents API Route', () => {
 
     it('should handle database errors during creation', async () => {
       const { checkKnowledgeBaseWriteAccess } = await import('@/app/api/knowledge/utils')
-      const { createSingleDocument } = await import('@/lib/documents/service')
+      const { createSingleDocument } = await import('@/lib/knowledge/documents/service')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({

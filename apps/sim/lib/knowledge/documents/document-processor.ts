@@ -1,7 +1,7 @@
-import { type Chunk, TextChunker } from '@/lib/documents/chunker'
-import { retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
 import { parseBuffer, parseFile } from '@/lib/file-parsers'
+import { type Chunk, TextChunker } from '@/lib/knowledge/documents/chunker'
+import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   type CustomStorageConfig,

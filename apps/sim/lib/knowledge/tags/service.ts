@@ -5,13 +5,13 @@ import {
   SUPPORTED_FIELD_TYPES,
   type TAG_SLOT_CONFIG,
 } from '@/lib/constants/knowledge'
+import type { BulkTagDefinitionsData, DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type {
   CreateTagDefinitionData,
   TagDefinition,
   UpdateTagDefinitionData,
 } from '@/lib/knowledge/types'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { BulkTagDefinitionsData, DocumentTagDefinition } from '@/lib/tags/types'
 import { db } from '@/db'
 import { document, embedding, knowledgeBaseTagDefinitions } from '@/db/schema'
 

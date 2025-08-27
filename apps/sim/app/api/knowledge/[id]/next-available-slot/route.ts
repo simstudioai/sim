@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { getNextAvailableSlot, getTagDefinitions } from '@/lib/knowledge/tags/service'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getNextAvailableSlot, getTagDefinitions } from '@/lib/tags/service'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('NextAvailableSlotAPI')

@@ -3,14 +3,14 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { SUPPORTED_FIELD_TYPES } from '@/lib/constants/knowledge'
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   cleanupUnusedTagDefinitions,
   createOrUpdateTagDefinitionsBulk,
   deleteAllTagDefinitions,
   getDocumentTagDefinitions,
-} from '@/lib/tags/service'
-import type { BulkTagDefinitionsData } from '@/lib/tags/types'
+} from '@/lib/knowledge/tags/service'
+import type { BulkTagDefinitionsData } from '@/lib/knowledge/tags/types'
+import { createLogger } from '@/lib/logs/console/logger'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
 
 export const dynamic = 'force-dynamic'

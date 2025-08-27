@@ -6,7 +6,7 @@ import {
   markDocumentAsFailedTimeout,
   retryDocumentProcessing,
   updateDocument,
-} from '@/lib/documents/service'
+} from '@/lib/knowledge/documents/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
 

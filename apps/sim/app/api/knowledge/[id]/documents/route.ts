@@ -9,7 +9,7 @@ import {
   getDocuments,
   getProcessingConfig,
   processDocumentsWithQueue,
-} from '@/lib/documents/service'
+} from '@/lib/knowledge/documents/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
