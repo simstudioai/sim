@@ -5,7 +5,10 @@ import {
   generateBlobSASQueryParameters,
   StorageSharedKeyCredential,
 } from '@azure/storage-blob'
+import { createLogger } from '@/lib/logs/console/logger'
 import { BLOB_CONFIG } from '@/lib/uploads/setup'
+
+const logger = createLogger('BlobClient')
 
 // Lazily create a single Blob service client instance.
 let _blobServiceClient: BlobServiceClient | null = null
@@ -643,6 +646,6 @@ export async function abortMultipartUpload(
     await blockBlobClient.deleteIfExists()
   } catch (error) {
     // Ignore errors since we're just cleaning up
-    console.warn('Error cleaning up multipart upload:', error)
+    logger.warn('Error cleaning up multipart upload:', error)
   }
 }

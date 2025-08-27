@@ -181,8 +181,7 @@ async function handleBatchS3PresignedUrls(
     throw new Error(`S3 configuration missing for ${uploadType} uploads`)
   }
 
-  const { getS3Client } = await import('@/lib/uploads/s3/s3-client')
-  const { sanitizeFilenameForMetadata } = await import('@/lib/uploads/s3/s3-client')
+  const { getS3Client, sanitizeFilenameForMetadata } = await import('@/lib/uploads/s3/s3-client')
   const s3Client = getS3Client()
 
   let prefix = ''

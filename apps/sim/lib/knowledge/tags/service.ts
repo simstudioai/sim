@@ -17,6 +17,14 @@ import { document, embedding, knowledgeBaseTagDefinitions } from '@/db/schema'
 
 const logger = createLogger('TagsService')
 
+const VALID_TAG_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
+
+function validateTagSlot(tagSlot: string): asserts tagSlot is (typeof VALID_TAG_SLOTS)[number] {
+  if (!VALID_TAG_SLOTS.includes(tagSlot as (typeof VALID_TAG_SLOTS)[number])) {
+    throw new Error(`Invalid tag slot: ${tagSlot}. Must be one of: ${VALID_TAG_SLOTS.join(', ')}`)
+  }
+}
+
 /**
  * Get the next available slot for a knowledge base and field type
  */
@@ -25,20 +33,16 @@ export async function getNextAvailableSlot(
   fieldType: string,
   existingBySlot?: Map<string, any>
 ): Promise<string | null> {
-  // Get available slots for this field type
   const availableSlots = getSlotsForFieldType(fieldType)
   let usedSlots: Set<string>
 
   if (existingBySlot) {
-    // Use provided map if available (for performance in batch operations)
-    // Filter by field type
     usedSlots = new Set(
       Array.from(existingBySlot.entries())
         .filter(([_, def]) => def.fieldType === fieldType)
         .map(([slot, _]) => slot)
     )
   } else {
-    // Query existing definitions for this knowledge base and field type
     const existingDefinitions = await db
       .select({ tagSlot: knowledgeBaseTagDefinitions.tagSlot })
       .from(knowledgeBaseTagDefinitions)
@@ -52,7 +56,6 @@ export async function getNextAvailableSlot(
     usedSlots = new Set(existingDefinitions.map((def) => def.tagSlot))
   }
 
-  // Find first available slot
   for (const slot of availableSlots) {
     if (!usedSlots.has(slot)) {
       return slot
@@ -280,13 +283,13 @@ export async function updateTagValuesInDocumentsAndChunks(
   newValue: string | null,
   requestId: string
 ): Promise<{ documentsUpdated: number; chunksUpdated: number }> {
+  validateTagSlot(tagSlot)
+
   let documentsUpdated = 0
   let chunksUpdated = 0
 
   await db.transaction(async (tx) => {
-    // Update documents
     if (oldValue) {
-      // Update specific old value to new value
       await tx
         .update(document)
         .set({
@@ -298,14 +301,10 @@ export async function updateTagValuesInDocumentsAndChunks(
             eq(sql.raw(`${document}.${tagSlot}`), oldValue)
           )
         )
-      // Note: rowsAffected is not available in this version of drizzle
-      // We'll estimate based on the operation success
       documentsUpdated = 1
     }
 
-    // Update chunks
     if (oldValue) {
-      // Update specific old value to new value
       await tx
         .update(embedding)
         .set({
@@ -317,8 +316,6 @@ export async function updateTagValuesInDocumentsAndChunks(
             eq(sql.raw(`${embedding}.${tagSlot}`), oldValue)
           )
         )
-      // Note: rowsAffected is not available in this version of drizzle
-      // We'll estimate based on the operation success
       chunksUpdated = 1
     }
   })
@@ -329,8 +326,6 @@ export async function updateTagValuesInDocumentsAndChunks(
 
   return { documentsUpdated, chunksUpdated }
 }
-
-// Simple deleteTagDefinition removed - use comprehensive deleteTagDefinition below
 
 /**
  * Cleanup unused tag definitions for a knowledge base
@@ -344,8 +339,8 @@ export async function cleanupUnusedTagDefinitions(
 
   for (const def of definitions) {
     const tagSlot = def.tagSlot
+    validateTagSlot(tagSlot)
 
-    // Check if any documents use this tag
     const docCountResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(document)
@@ -357,7 +352,6 @@ export async function cleanupUnusedTagDefinitions(
         )
       )
 
-    // Check if any chunks use this tag
     const chunkCountResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(embedding)
@@ -369,7 +363,6 @@ export async function cleanupUnusedTagDefinitions(
     const chunkCount = Number(chunkCountResult[0]?.count || 0)
 
     if (docCount === 0 && chunkCount === 0) {
-      // This tag definition is unused, delete it
       await db.delete(knowledgeBaseTagDefinitions).where(eq(knowledgeBaseTagDefinitions.id, def.id))
 
       cleanedUp++
@@ -409,7 +402,6 @@ export async function deleteTagDefinition(
   tagDefinitionId: string,
   requestId: string
 ): Promise<{ tagSlot: string; displayName: string }> {
-  // First get the tag definition to know which slot to clean up
   const tagDef = await db
     .select({
       id: knowledgeBaseTagDefinitions.id,
@@ -429,9 +421,9 @@ export async function deleteTagDefinition(
   const knowledgeBaseId = definition.knowledgeBaseId
   const tagSlot = definition.tagSlot as string
 
-  // Delete the tag definition and clear all references in a transaction
+  validateTagSlot(tagSlot)
+
   await db.transaction(async (tx) => {
-    // Clear the tag from documents that have this tag set
     await tx
       .update(document)
       .set({ [tagSlot]: null })
@@ -439,7 +431,6 @@ export async function deleteTagDefinition(
         and(eq(document.knowledgeBaseId, knowledgeBaseId), isNotNull(sql`${sql.raw(tagSlot)}`))
       )
 
-    // Clear the tag from embeddings that have this tag set
     await tx
       .update(embedding)
       .set({ [tagSlot]: null })
@@ -447,7 +438,6 @@ export async function deleteTagDefinition(
         and(eq(embedding.knowledgeBaseId, knowledgeBaseId), isNotNull(sql`${sql.raw(tagSlot)}`))
       )
 
-    // Delete the tag definition
     await tx
       .delete(knowledgeBaseTagDefinitions)
       .where(eq(knowledgeBaseTagDefinitions.id, tagDefinitionId))
@@ -570,8 +560,8 @@ export async function getTagUsage(
 
   for (const def of definitions) {
     const tagSlot = def.tagSlot
+    validateTagSlot(tagSlot)
 
-    // Get documents with this tag and their tag values
     const documentsWithTag = await db
       .select({
         id: document.id,
@@ -605,7 +595,7 @@ export async function getTagUsage(
 }
 
 /**
- * Get tag usage statistics (aggregated format - for internal use)
+ * Get tag usage statistics
  */
 export async function getTagUsageStats(
   knowledgeBaseId: string,
@@ -624,8 +614,8 @@ export async function getTagUsageStats(
 
   for (const def of definitions) {
     const tagSlot = def.tagSlot
+    validateTagSlot(tagSlot)
 
-    // Count documents with this tag using proper drizzle queries
     const docCountResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(document)
@@ -637,7 +627,6 @@ export async function getTagUsageStats(
         )
       )
 
-    // Count chunks with this tag using proper drizzle queries
     const chunkCountResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(embedding)

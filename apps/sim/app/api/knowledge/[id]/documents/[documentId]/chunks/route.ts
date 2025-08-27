@@ -3,7 +3,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { batchChunkOperation, createChunk, queryChunks } from '@/lib/knowledge/chunks/service'
-import type { ChunkFilters, CreateChunkData } from '@/lib/knowledge/chunks/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
@@ -90,7 +89,7 @@ export async function GET(
       offset: searchParams.get('offset') || undefined,
     })
 
-    const result = await queryChunks(documentId, queryParams as ChunkFilters, requestId)
+    const result = await queryChunks(documentId, queryParams, requestId)
 
     return NextResponse.json({
       success: true,
@@ -170,7 +169,7 @@ export async function POST(
         knowledgeBaseId,
         documentId,
         docTags,
-        validatedData as CreateChunkData,
+        validatedData,
         requestId
       )
 

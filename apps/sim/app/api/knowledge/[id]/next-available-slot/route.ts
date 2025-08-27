@@ -33,12 +33,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const nextAvailableSlot = await getNextAvailableSlot(knowledgeBaseId, fieldType)
-
+    // Get existing definitions once and reuse
     const existingDefinitions = await getTagDefinitions(knowledgeBaseId)
     const usedSlots = existingDefinitions
       .filter((def) => def.fieldType === fieldType)
       .map((def) => def.tagSlot)
+
+    // Create a map for efficient lookup and pass to avoid redundant query
+    const existingBySlot = new Map(existingDefinitions.map((def) => [def.tagSlot as string, def]))
+    const nextAvailableSlot = await getNextAvailableSlot(knowledgeBaseId, fieldType, existingBySlot)
 
     logger.info(
       `[${requestId}] Next available slot for fieldType ${fieldType}: ${nextAvailableSlot}`

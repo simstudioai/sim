@@ -64,7 +64,7 @@ export class TextChunker {
   /**
    * Simple token estimation using character count
    */
-  private async estimateTokens(text: string): Promise<number> {
+  private estimateTokens(text: string): number {
     // Handle empty or whitespace-only text
     if (!text?.trim()) return 0
 
@@ -76,7 +76,7 @@ export class TextChunker {
    * Split text recursively using hierarchical separators
    */
   private async splitRecursively(text: string, separatorIndex = 0): Promise<string[]> {
-    const tokenCount = await this.estimateTokens(text)
+    const tokenCount = this.estimateTokens(text)
 
     // If chunk is small enough, return it
     if (tokenCount <= this.chunkSize) {
@@ -111,7 +111,7 @@ export class TextChunker {
     for (const part of parts) {
       const testChunk = currentChunk + (currentChunk ? separator : '') + part
 
-      if ((await this.estimateTokens(testChunk)) <= this.chunkSize) {
+      if (this.estimateTokens(testChunk) <= this.chunkSize) {
         currentChunk = testChunk
       } else {
         // Save current chunk if it meets minimum size
@@ -121,7 +121,7 @@ export class TextChunker {
 
         // Start new chunk with current part
         // If part itself is too large, split it further
-        if ((await this.estimateTokens(part)) > this.chunkSize) {
+        if (this.estimateTokens(part) > this.chunkSize) {
           chunks.push(...(await this.splitRecursively(part, separatorIndex + 1)))
           currentChunk = ''
         } else {
@@ -227,7 +227,7 @@ export class TextChunker {
 
       const chunk: Chunk = {
         text: chunkText,
-        tokenCount: await this.estimateTokens(chunkText),
+        tokenCount: this.estimateTokens(chunkText),
         metadata: {
           startIndex: safeStart,
           endIndex: endIndexSafe,

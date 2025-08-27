@@ -1,3 +1,9 @@
+export interface ChunkingConfig {
+  maxSize: number
+  minSize: number
+  overlap: number
+}
+
 export interface KnowledgeBaseWithCounts {
   id: string
   name: string
@@ -5,7 +11,7 @@ export interface KnowledgeBaseWithCounts {
   tokenCount: number
   embeddingModel: string
   embeddingDimension: number
-  chunkingConfig: unknown
+  chunkingConfig: ChunkingConfig
   createdAt: Date
   updatedAt: Date
   workspaceId: string | null
@@ -18,11 +24,7 @@ export interface CreateKnowledgeBaseData {
   workspaceId?: string
   embeddingModel: 'text-embedding-3-small'
   embeddingDimension: 1536
-  chunkingConfig: {
-    maxSize: number
-    minSize: number
-    overlap: number
-  }
+  chunkingConfig: ChunkingConfig
   userId: string
 }
 

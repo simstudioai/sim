@@ -702,49 +702,6 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     }
   }
 
-  /**
-   * Upload chunks for a single file
-   */
-  const uploadFileChunks = async (file: File, upload: any, fileIndex: number) => {
-    const { partUrls, totalParts } = upload
-    const chunkSize = UPLOAD_CONFIG.CHUNK_SIZE
-    const parts = []
-
-    for (let i = 0; i < totalParts; i++) {
-      const partNumber = i + 1
-      const start = i * chunkSize
-      const end = Math.min(start + chunkSize, file.size)
-      const chunk = file.slice(start, end)
-      const partUrl = partUrls.find((p: any) => p.partNumber === partNumber)?.url
-
-      if (!partUrl) throw new Error(`No URL for part ${partNumber}`)
-
-      const response = await fetch(partUrl, {
-        method: 'PUT',
-        body: chunk,
-        headers: { 'Content-Type': file.type },
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to upload part ${partNumber}: ${response.statusText}`)
-      }
-
-      const etag = response.headers.get('ETag')?.replace(/"/g, '') || ''
-      parts.push({ ETag: etag, PartNumber: partNumber })
-
-      // Update progress
-      const progress = Math.round((partNumber / totalParts) * 100)
-      setUploadProgress((prev) => ({
-        ...prev,
-        fileStatuses: prev.fileStatuses?.map((fs, idx) =>
-          idx === fileIndex ? { ...fs, progress } : fs
-        ),
-      }))
-    }
-
-    return parts
-  }
-
   const uploadFiles = async (
     files: File[],
     knowledgeBaseId: string,

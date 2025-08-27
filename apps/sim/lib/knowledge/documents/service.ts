@@ -1064,7 +1064,24 @@ export async function updateDocument(
   tag7: string | null
   deletedAt: Date | null
 }> {
-  const dbUpdateData: any = {}
+  const dbUpdateData: Partial<{
+    filename: string
+    enabled: boolean
+    chunkCount: number
+    tokenCount: number
+    characterCount: number
+    processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+    processingError: string | null
+    processingStartedAt: Date | null
+    processingCompletedAt: Date | null
+    tag1: string | null
+    tag2: string | null
+    tag3: string | null
+    tag4: string | null
+    tag5: string | null
+    tag6: string | null
+    tag7: string | null
+  }> = {}
   const TAG_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7']
 
   // Regular field updates

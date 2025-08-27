@@ -71,11 +71,6 @@ export async function POST(req: NextRequest) {
       const createData = {
         ...validatedData,
         userId: session.user.id,
-        chunkingConfig: validatedData.chunkingConfig || {
-          maxSize: 1024,
-          minSize: 1,
-          overlap: 200,
-        },
       }
 
       const newKnowledgeBase = await createKnowledgeBase(createData, requestId)

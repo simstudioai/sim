@@ -31,7 +31,6 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   processDocumentsWithQueue: vi.fn(),
   getProcessingConfig: vi.fn(),
   bulkDocumentOperation: vi.fn(),
-  processDocumentAsync: vi.fn(),
   updateDocument: vi.fn(),
   deleteDocument: vi.fn(),
   markDocumentAsFailedTimeout: vi.fn(),

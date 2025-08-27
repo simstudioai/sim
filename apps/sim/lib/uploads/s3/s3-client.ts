@@ -331,7 +331,7 @@ export async function initiateS3MultipartUpload(
     Key: uniqueKey,
     ContentType: contentType,
     Metadata: {
-      originalName: fileName,
+      originalName: sanitizeFilenameForMetadata(fileName),
       uploadedAt: new Date().toISOString(),
       purpose: 'knowledge-base',
     },
