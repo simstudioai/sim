@@ -574,6 +574,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         }
 
         useWorkflowStore.setState(workflowState)
+        useSubBlockStore.getState().initializeFromWorkflow(id, (workflowState as any).blocks || {})
 
         set({ activeWorkflowId: id, error: null })
 
