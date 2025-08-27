@@ -335,6 +335,18 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
           if (data.workflowId === urlWorkflowId) {
             try {
+              const { useOperationQueueStore } = require('@/stores/operation-queue/store')
+              const hasPending = useOperationQueueStore
+                .getState()
+                .operations.some(
+                  (op: any) => op.workflowId === data.workflowId && op.status !== 'confirmed'
+                )
+              if (hasPending) {
+                logger.info('Skipping copilot rehydration due to pending operations in queue')
+                return
+              }
+            } catch {}
+            try {
               // Fetch fresh workflow state directly from API
               const response = await fetch(`/api/workflows/${data.workflowId}`)
               if (response.ok) {
@@ -364,27 +376,38 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
                         )
                       })
 
-                      // Update workflow store with fresh state from database
-                      const newWorkflowState = {
-                        blocks: workflowState.blocks || {},
-                        edges: workflowState.edges || [],
-                        loops: workflowState.loops || {},
-                        parallels: workflowState.parallels || {},
-                        lastSaved: workflowState.lastSaved || Date.now(),
-                        isDeployed: workflowState.isDeployed || false,
-                        deployedAt: workflowState.deployedAt,
-                        deploymentStatuses: workflowState.deploymentStatuses || {},
-                        hasActiveSchedule: workflowState.hasActiveSchedule || false,
-                        hasActiveWebhook: workflowState.hasActiveWebhook || false,
+                      // Merge workflow store with server state (do not drop optimistic local state)
+                      const existing = useWorkflowStore.getState()
+                      const mergedBlocks = {
+                        ...(existing.blocks || {}),
+                        ...(workflowState.blocks || {}),
                       }
+                      const edgeById = new Map<string, any>()
+                      ;(existing.edges || []).forEach((e: any) => edgeById.set(e.id, e))
+                      ;(workflowState.edges || []).forEach((e: any) => edgeById.set(e.id, e))
+                      const mergedEdges = Array.from(edgeById.values())
+                      useWorkflowStore.setState({
+                        blocks: mergedBlocks,
+                        edges: mergedEdges,
+                        loops: workflowState.loops || existing.loops || {},
+                        parallels: workflowState.parallels || existing.parallels || {},
+                        lastSaved: workflowState.lastSaved || existing.lastSaved || Date.now(),
+                        isDeployed: workflowState.isDeployed ?? existing.isDeployed ?? false,
+                        deployedAt: workflowState.deployedAt || existing.deployedAt,
+                        deploymentStatuses:
+                          workflowState.deploymentStatuses || existing.deploymentStatuses || {},
+                        hasActiveWebhook:
+                          workflowState.hasActiveWebhook ?? existing.hasActiveWebhook ?? false,
+                      })
 
-                      useWorkflowStore.setState(newWorkflowState)
-
-                      // Update subblock store with fresh values
+                      // Merge subblock store values per workflow
                       useSubBlockStore.setState((state: any) => ({
                         workflowValues: {
                           ...state.workflowValues,
-                          [data.workflowId]: subblockValues,
+                          [data.workflowId]: {
+                            ...(state.workflowValues?.[data.workflowId] || {}),
+                            ...subblockValues,
+                          },
                         },
                       }))
 
@@ -461,19 +484,31 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
           // Update local stores with the fresh workflow state (same logic as YAML editor)
           if (workflowData?.state && workflowData.id === urlWorkflowId) {
+            try {
+              const { useOperationQueueStore } = require('@/stores/operation-queue/store')
+              const hasPending = useOperationQueueStore
+                .getState()
+                .operations.some(
+                  (op: any) => op.workflowId === workflowData.id && op.status !== 'confirmed'
+                )
+              if (hasPending) {
+                logger.info(
+                  'Skipping workflow-state rehydration due to pending operations in queue'
+                )
+                return
+              }
+            } catch {}
             logger.info('Updating local stores with fresh workflow state from server')
 
             try {
-              // Import stores dynamically to avoid import issues
               Promise.all([
                 import('@/stores/workflows/workflow/store'),
                 import('@/stores/workflows/subblock/store'),
                 import('@/stores/workflows/registry/store'),
               ])
-                .then(([{ useWorkflowStore }, { useSubBlockStore }, { useWorkflowRegistry }]) => {
+                .then(([{ useWorkflowStore }, { useSubBlockStore }]) => {
                   const workflowState = workflowData.state
 
-                  // Extract subblock values from blocks before updating workflow store
                   const subblockValues: Record<string, Record<string, any>> = {}
                   Object.entries(workflowState.blocks || {}).forEach(([blockId, block]) => {
                     const blockState = block as any
@@ -483,36 +518,40 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
                     })
                   })
 
-                  // Update workflow store with new state
-                  const newWorkflowState = {
-                    blocks: workflowState.blocks || {},
-                    edges: workflowState.edges || [],
-                    loops: workflowState.loops || {},
-                    parallels: workflowState.parallels || {},
-                    lastSaved: workflowState.lastSaved || Date.now(),
-                    isDeployed: workflowState.isDeployed || false,
-                    deployedAt: workflowState.deployedAt,
-                    deploymentStatuses: workflowState.deploymentStatuses || {},
-                    hasActiveSchedule: workflowState.hasActiveSchedule || false,
-                    hasActiveWebhook: workflowState.hasActiveWebhook || false,
+                  const existing = useWorkflowStore.getState()
+                  const mergedBlocks = {
+                    ...(existing.blocks || {}),
+                    ...(workflowState.blocks || {}),
                   }
+                  const edgeById = new Map<string, any>()
+                  ;(existing.edges || []).forEach((e: any) => edgeById.set(e.id, e))
+                  ;(workflowState.edges || []).forEach((e: any) => edgeById.set(e.id, e))
+                  const mergedEdges = Array.from(edgeById.values())
+                  useWorkflowStore.setState({
+                    blocks: mergedBlocks,
+                    edges: mergedEdges,
+                    loops: workflowState.loops || existing.loops || {},
+                    parallels: workflowState.parallels || existing.parallels || {},
+                    lastSaved: workflowState.lastSaved || existing.lastSaved || Date.now(),
+                    isDeployed: workflowState.isDeployed ?? existing.isDeployed ?? false,
+                    deployedAt: workflowState.deployedAt || existing.deployedAt,
+                    deploymentStatuses:
+                      workflowState.deploymentStatuses || existing.deploymentStatuses || {},
+                    hasActiveWebhook:
+                      workflowState.hasActiveWebhook ?? existing.hasActiveWebhook ?? false,
+                  })
 
-                  useWorkflowStore.setState(newWorkflowState)
-
-                  // Update subblock store with fresh values
                   useSubBlockStore.setState((state: any) => ({
                     workflowValues: {
                       ...state.workflowValues,
-                      [workflowData.id]: subblockValues,
+                      [workflowData.id]: {
+                        ...(state.workflowValues?.[workflowData.id] || {}),
+                        ...subblockValues,
+                      },
                     },
                   }))
 
-                  // Note: Auto layout is not triggered here because:
-                  // 1. For copilot edits: positions are already optimized by the backend
-                  // 2. For other syncs: the existing positions should be preserved
-                  // This prevents ID conflicts and unnecessary position updates
-
-                  logger.info('Successfully updated local stores with fresh workflow state')
+                  logger.info('Merged fresh workflow state with local state')
                 })
                 .catch((error) => {
                   logger.error('Failed to import stores for workflow state update:', error)
@@ -557,6 +596,16 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     logger.info(
       `URL workflow changed from ${currentWorkflowId} to ${urlWorkflowId}, switching rooms`
     )
+
+    try {
+      const { useOperationQueueStore } = require('@/stores/operation-queue/store')
+      // Flush debounced updates for the old workflow before switching rooms
+      if (currentWorkflowId) {
+        useOperationQueueStore.getState().flushDebouncedForWorkflow(currentWorkflowId)
+      } else {
+        useOperationQueueStore.getState().flushAllDebounced()
+      }
+    } catch {}
 
     // Leave current workflow first if we're in one
     if (currentWorkflowId) {
@@ -615,6 +664,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const leaveWorkflow = useCallback(() => {
     if (socket && currentWorkflowId) {
       logger.info(`Leaving workflow: ${currentWorkflowId}`)
+      try {
+        const { useOperationQueueStore } = require('@/stores/operation-queue/store')
+        useOperationQueueStore.getState().flushDebouncedForWorkflow(currentWorkflowId)
+        useOperationQueueStore.getState().cancelOperationsForWorkflow(currentWorkflowId)
+      } catch {}
       socket.emit('leave-workflow')
       setCurrentWorkflowId(null)
       setPresenceUsers([])

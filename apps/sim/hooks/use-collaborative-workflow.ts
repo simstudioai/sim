@@ -492,7 +492,6 @@ export function useCollaborativeWorkflow() {
     (operation: string, target: string, payload: any, localAction: () => void) => {
       if (isApplyingRemoteChange.current) return
 
-      // Skip socket operations when in diff mode
       if (isShowingDiff) {
         logger.debug('Skipping debounced socket operation in diff mode:', operation)
         return
@@ -673,32 +672,6 @@ export function useCollaborativeWorkflow() {
     (id: string, name: string) => {
       executeQueuedOperation('update-name', 'block', { id, name }, () => {
         workflowStore.updateBlockName(id, name)
-
-        // Handle pending subblock updates
-        const globalWindow = window as any
-        const pendingUpdates = globalWindow.__pendingSubblockUpdates
-        if (pendingUpdates && Array.isArray(pendingUpdates)) {
-          // Queue each subblock update individually
-          for (const update of pendingUpdates) {
-            const { blockId, subBlockId, newValue } = update
-            const operationId = crypto.randomUUID()
-
-            addToQueue({
-              id: operationId,
-              operation: {
-                operation: 'subblock-update',
-                target: 'subblock',
-                payload: { blockId, subblockId: subBlockId, value: newValue },
-              },
-              workflowId: activeWorkflowId || '',
-              userId: session?.user?.id || 'unknown',
-            })
-
-            subBlockStore.setValue(blockId, subBlockId, newValue)
-          }
-          // Clear the pending updates
-          globalWindow.__pendingSubblockUpdates = undefined
-        }
       })
     },
     [
