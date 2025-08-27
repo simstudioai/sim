@@ -555,7 +555,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
+            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[10px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
               <Trash2 className='h-4 w-4' />
             </div>
           </TooltipTrigger>
@@ -588,12 +588,12 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               <Button
                 variant='outline'
                 className={cn(
-                  'h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs',
+                  'h-12 w-12 rounded-[10px] border bg-card text-card-foreground shadow-xs',
                   'hover:border-red-500 hover:bg-red-500 hover:text-white',
                   'transition-all duration-200'
                 )}
               >
-                <Trash2 className='h-5 w-5' />
+                <Trash2 className='h-4 w-4' />
                 <span className='sr-only'>Delete Workflow</span>
               </Button>
             </AlertDialogTrigger>
@@ -706,16 +706,16 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       <Tooltip>
         <TooltipTrigger asChild>
           {isDisabled ? (
-            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
+            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[10px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
               <Copy className='h-4 w-4' />
             </div>
           ) : (
             <Button
               variant='outline'
               onClick={handleDuplicateWorkflow}
-              className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
+              className='h-12 w-12 rounded-[10px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
             >
-              <Copy className='h-5 w-5' />
+              <Copy className='h-4 w-4' />
               <span className='sr-only'>Duplicate Workflow</span>
             </Button>
           )}
@@ -770,7 +770,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       <Tooltip>
         <TooltipTrigger asChild>
           {isDisabled ? (
-            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
+            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[10px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
               {isAutoLayouting ? (
                 <RefreshCw className='h-4 w-4 animate-spin' />
               ) : (
@@ -781,13 +781,13 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             <Button
               variant='outline'
               onClick={handleAutoLayoutClick}
-              className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
+              className='h-12 w-12 rounded-[10px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
               disabled={isAutoLayouting}
             >
               {isAutoLayouting ? (
-                <RefreshCw className='h-5 w-5 animate-spin' />
+                <RefreshCw className='h-4 w-4 animate-spin' />
               ) : (
-                <Layers className='h-5 w-5' />
+                <Layers className='h-4 w-4' />
               )}
               <span className='sr-only'>Auto Layout</span>
             </Button>
@@ -850,7 +850,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     const isControlDisabled = pendingCount === 0
 
     const debugButtonClass = cn(
-      'h-12 w-12 rounded-[11px] font-medium',
+      'h-12 w-12 rounded-[10px] font-medium',
       'bg-[var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
       'shadow-[0_0_0_0_var(--brand-primary-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]]',
       'text-white transition-all duration-200',
@@ -869,7 +869,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               className={debugButtonClass}
               disabled={isControlDisabled}
             >
-              <StepForward className='h-5 w-5' />
+              <StepForward className='h-4 w-4' />
               <span className='sr-only'>Step Forward</span>
             </Button>
           </TooltipTrigger>
@@ -886,7 +886,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               className={debugButtonClass}
               disabled={isControlDisabled}
             >
-              <SkipForward className='h-5 w-5' />
+              <SkipForward className='h-4 w-4' />
               <span className='sr-only'>Resume Until End</span>
             </Button>
           </TooltipTrigger>
@@ -901,7 +901,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               }}
               className={debugButtonClass}
             >
-              <X className='h-5 w-5' />
+              <X className='h-4 w-4' />
               <span className='sr-only'>Cancel Debugging</span>
             </Button>
           </TooltipTrigger>
@@ -929,16 +929,16 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       <Tooltip>
         <TooltipTrigger asChild>
           {isDisabled ? (
-            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
+            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[10px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
               <Store className='h-4 w-4' />
             </div>
           ) : (
             <Button
               variant='outline'
               onClick={() => setIsTemplateModalOpen(true)}
-              className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
+              className='h-12 w-12 rounded-[10px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
             >
-              <Store className='h-5 w-5' />
+              <Store className='h-4 w-4' />
               <span className='sr-only'>Publish Template</span>
             </Button>
           )}
@@ -968,7 +968,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     const buttonClass = cn(
-      'h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary',
+      'h-12 w-12 rounded-[10px] border bg-card text-card-foreground shadow-xs hover:bg-secondary',
       isDebugging && 'text-amber-500'
     )
 
@@ -979,7 +979,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             <div
               className={cn(
                 'inline-flex h-12 w-12 cursor-not-allowed items-center justify-center',
-                'rounded-[11px] border bg-card text-card-foreground opacity-50',
+                'rounded-[10px] border bg-card text-card-foreground opacity-50',
                 'shadow-xs transition-colors',
                 isDebugging && 'text-amber-500'
               )}
@@ -988,7 +988,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             </div>
           ) : (
             <Button variant='outline' onClick={handleDebugToggle} className={buttonClass}>
-              <Bug className='h-5 w-5' />
+              <Bug className='h-4 w-4' />
               <span className='sr-only'>{getTooltipText()}</span>
             </Button>
           )}
@@ -1018,7 +1018,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
                 'bg-red-500 hover:bg-red-600',
                 'shadow-[0_0_0_0_#ef4444] hover:shadow-[0_0_0_4px_rgba(239,68,68,0.15)]',
                 'text-white transition-all duration-200',
-                'h-12 rounded-[11px] px-4 py-2'
+                'h-12 rounded-[10px] px-4 py-2'
               )}
               onClick={handleCancelExecution}
             >
@@ -1082,7 +1082,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               'shadow-[0_0_0_0_var(--brand-primary-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
               'text-white transition-all duration-200',
               'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none',
-              'h-12 rounded-[11px] px-4 py-2'
+              'h-12 rounded-[10px] px-4 py-2'
             )}
             onClick={handleRunClick}
             disabled={isButtonDisabled}
@@ -1160,10 +1160,10 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     return (
-      <div className='flex h-12 items-center gap-2 rounded-[11px] border border-red-500 bg-red-500 px-3 text-white shadow-xs'>
+      <div className='flex h-12 items-center gap-2 rounded-[10px] border border-red-500 bg-red-500 px-3 text-white shadow-xs'>
         <Tooltip>
           <TooltipTrigger asChild>
-            <WifiOff className='h-[18px] w-[18px] cursor-help' />
+            <WifiOff className='h-4 w-4 cursor-help' />
           </TooltipTrigger>
           <TooltipContent className='mt-3'>Connection lost - refresh</TooltipContent>
         </Tooltip>
@@ -1189,11 +1189,11 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
           <Button
             variant='outline'
             onClick={() => setIsExpanded(!isExpanded)}
-            className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
+            className='h-12 w-12 rounded-[10px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
           >
             <ChevronLeft
               className={cn(
-                'h-5 w-5 transition-transform duration-200',
+                'h-4 w-4 transition-transform duration-200',
                 isExpanded && 'rotate-180'
               )}
             />

@@ -80,16 +80,16 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
     <Tooltip>
       <TooltipTrigger asChild>
         {isDisabled ? (
-          <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
-            <Upload className='h-5 w-5' />
+          <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[10px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
+            <Upload className='h-4 w-4' />
           </div>
         ) : (
           <Button
             variant='outline'
             onClick={handleExportYaml}
-            className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
+            className='h-12 w-12 rounded-[10px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
           >
-            <Upload className='h-5 w-5' />
+            <Upload className='h-4 w-4' />
             <span className='sr-only'>Export as YAML</span>
           </Button>
         )}

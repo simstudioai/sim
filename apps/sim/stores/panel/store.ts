@@ -19,8 +19,8 @@ export const usePanelStore = create<PanelStore>()(
         },
 
         setPanelWidth: (width: number) => {
-          // Ensure minimum width of 308px and maximum of 800px
-          const clampedWidth = Math.max(308, Math.min(800, width))
+          // Ensure minimum width of 308px and maximum of 600px
+          const clampedWidth = Math.max(308, Math.min(600, width))
           set({ panelWidth: clampedWidth })
         },
       }),

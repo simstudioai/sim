@@ -15,6 +15,7 @@ import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ControlBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/control-bar'
+import { Design } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/design/design'
 import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/diff-controls'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/panel'
@@ -35,6 +36,7 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useCopilotStore } from '@/stores/copilot/store'
+import { useDesignStore } from '@/stores/design/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
@@ -170,7 +172,7 @@ const WorkflowContent = React.memo(() => {
 
   // Store access
   const {
-    collaborativeAddBlock: addBlock,
+    collaborativeAddBlock,
     collaborativeAddEdge: addEdge,
     collaborativeRemoveEdge: removeEdge,
     collaborativeUpdateBlockPosition,
@@ -179,6 +181,20 @@ const WorkflowContent = React.memo(() => {
   } = useCollaborativeWorkflow()
 
   const { resetLoaded: resetVariablesLoaded } = useVariablesStore()
+
+  // Wrapper for addBlock that auto-selects the new block
+  const addBlock = useCallback(
+    (...args: Parameters<typeof collaborativeAddBlock>) => {
+      const [id, type] = args
+      const result = collaborativeAddBlock(...args)
+      // Auto-select the newly added block (only workflow blocks, not subflow nodes)
+      if (type !== 'subflow') {
+        useDesignStore.getState().selectBlock(id)
+      }
+      return result
+    },
+    [collaborativeAddBlock]
+  )
 
   // Execution and debug mode state
   const { activeBlockIds, pendingBlocks } = useExecutionStore()
@@ -1526,6 +1542,7 @@ const WorkflowContent = React.memo(() => {
   // Update onPaneClick to only handle edge selection
   const onPaneClick = useCallback(() => {
     setSelectedEdgeInfo(null)
+    useDesignStore.getState().selectBlock(null)
   }, [])
 
   // Edge selection
@@ -1655,6 +1672,9 @@ const WorkflowContent = React.memo(() => {
         <div className='fixed top-0 right-0 z-10'>
           <Panel />
         </div>
+        <div className='fixed top-0 right-0 z-10'>
+          <Design />
+        </div>
 
         {/* Floating Control Bar */}
         <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
@@ -1681,8 +1701,12 @@ const WorkflowContent = React.memo(() => {
             strokeDasharray: '5,5',
           }}
           connectionLineType={ConnectionLineType.SmoothStep}
-          onNodeClick={(e, _node) => {
+          onNodeClick={(e, node) => {
             e.stopPropagation()
+            // Only select workflow blocks, not subflow nodes
+            if (node.type === 'workflowBlock') {
+              useDesignStore.getState().selectBlock(node.id)
+            }
           }}
           onPaneClick={onPaneClick}
           onEdgeClick={onEdgeClick}

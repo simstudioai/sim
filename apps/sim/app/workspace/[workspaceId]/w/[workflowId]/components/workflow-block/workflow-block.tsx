@@ -12,6 +12,7 @@ import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useDesignStore } from '@/stores/design/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -562,6 +563,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   // Check webhook indicator
   const showWebhookIndicator = (isStarterBlock || isWebhookTriggerBlock) && blockWebhookStatus
 
+  // Get selected block state
+  const selectedBlockId = useDesignStore((state) => state.selectedBlockId)
+  const isSelected = selectedBlockId === id
+
   const getProviderName = (providerId: string): string => {
     const providers: Record<string, string> = {
       whatsapp: 'WhatsApp',
@@ -591,6 +596,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           !isEnabled && 'shadow-sm',
           isActive && 'animate-pulse-ring ring-2 ring-blue-500',
           isPending && 'ring-2 ring-amber-500',
+          // Selection highlighting with panel border color
+          isSelected && 'ring-2 ring-[#E5E5E5] dark:ring-[#414141]',
           // Diff highlighting
           diffStatus === 'new' && 'bg-green-50/50 ring-2 ring-green-500 dark:bg-green-900/10',
           diffStatus === 'edited' && 'bg-orange-50/50 ring-2 ring-orange-500 dark:bg-orange-900/10',

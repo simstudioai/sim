@@ -10,51 +10,51 @@ const SkeletonControlBar = () => {
       {/* Delete Button */}
       <Button
         variant='outline'
-        className='h-12 w-12 cursor-not-allowed rounded-[11px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))]'
+        className='h-12 w-12 cursor-not-allowed rounded-[10px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))]'
         disabled
       >
-        <Trash2 className='h-5 w-5' />
+        <Trash2 className='h-4 w-4' />
       </Button>
 
       {/* Duplicate Button */}
       <Button
         variant='outline'
-        className='h-12 w-12 cursor-not-allowed rounded-[11px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))] hover:bg-gray-100'
+        className='h-12 w-12 cursor-not-allowed rounded-[10px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))] hover:bg-gray-100'
         disabled
       >
-        <Copy className='h-5 w-5' />
+        <Copy className='h-4 w-4' />
       </Button>
 
       {/* Auto Layout Button */}
       <Button
         variant='outline'
-        className='h-12 w-12 cursor-not-allowed rounded-[11px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))] hover:bg-gray-100'
+        className='h-12 w-12 cursor-not-allowed rounded-[10px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))] hover:bg-gray-100'
         disabled
       >
-        <Layers className='h-5 w-5' />
+        <Layers className='h-4 w-4' />
       </Button>
 
       {/* Debug Mode Button */}
       <Button
         variant='outline'
-        className='h-12 w-12 cursor-not-allowed rounded-[11px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))] hover:bg-gray-100'
+        className='h-12 w-12 cursor-not-allowed rounded-[10px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))] hover:bg-gray-100'
         disabled
       >
-        <Bug className='h-5 w-5' />
+        <Bug className='h-4 w-4' />
       </Button>
 
       {/* Deploy Button */}
       <Button
         variant='outline'
-        className='h-12 w-12 cursor-not-allowed rounded-[11px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))] hover:bg-gray-100'
+        className='h-12 w-12 cursor-not-allowed rounded-[10px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))] hover:bg-gray-100'
         disabled
       >
-        <Rocket className='h-5 w-5' />
+        <Rocket className='h-4 w-4' />
       </Button>
 
       {/* Run Button */}
       <Button
-        className='h-12 cursor-not-allowed gap-2 rounded-[11px] bg-[var(--brand-primary-hex)] px-4 py-2 font-medium text-white shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none'
+        className='h-12 cursor-not-allowed gap-2 rounded-[10px] bg-[var(--brand-primary-hex)] px-4 py-2 font-medium text-white shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none'
         disabled
       >
         <Play className='h-3.5 w-3.5 fill-current stroke-current' />
@@ -65,21 +65,28 @@ const SkeletonControlBar = () => {
 
 const SkeletonPanelComponent = () => {
   return (
-    <div className='fixed top-0 right-0 z-10'>
+    <div className='fixed top-[124px] right-4 bottom-4 z-10'>
       {/* Panel skeleton */}
-      <div className='h-96 w-80 space-y-4 rounded-bl-lg border-b border-l bg-background p-4'>
-        {/* Tab headers skeleton */}
-        <div className='flex gap-2 border-b pb-2'>
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className='h-6 w-16' />
-          ))}
+      <div
+        className='flex flex-col rounded-[10px] border bg-card shadow-xs'
+        style={{ width: '320px' }}
+      >
+        {/* Header skeleton */}
+        <div className='flex items-center justify-between px-3 pt-3 pb-1'>
+          <Skeleton className='h-5 w-20' />
+          <div className='flex items-center gap-2'>
+            <Skeleton className='h-4 w-4' />
+            <Skeleton className='h-4 w-4' />
+          </div>
         </div>
 
         {/* Content skeleton */}
-        <div className='space-y-3'>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className='h-4' style={{ width: `${Math.random() * 40 + 60}%` }} />
-          ))}
+        <div className='flex-1 overflow-hidden px-3'>
+          <div className='space-y-3 pt-3 pb-4'>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className='h-4' style={{ width: `${Math.random() * 40 + 60}%` }} />
+            ))}
+          </div>
         </div>
       </div>
     </div>
