@@ -52,7 +52,8 @@ let documentQueue: DocumentProcessingQueue | null = null
 
 export function getDocumentQueue(): DocumentProcessingQueue {
   if (!documentQueue) {
-    const config = getRedisClient() ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
+    const redisClient = getRedisClient()
+    const config = redisClient ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
     documentQueue = new DocumentProcessingQueue({
       maxConcurrent: config.maxConcurrentDocuments,
       retryDelay: 2000,
@@ -63,7 +64,8 @@ export function getDocumentQueue(): DocumentProcessingQueue {
 }
 
 export function getProcessingConfig() {
-  return getRedisClient() ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
+  const redisClient = getRedisClient()
+  return redisClient ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
 }
 
 export interface DocumentData {
@@ -188,43 +190,48 @@ export async function processDocumentsWithQueue(
   requestId: string
 ): Promise<void> {
   const queue = getDocumentQueue()
-  const isRedisEnabled = getRedisClient() !== null
+  const redisClient = getRedisClient()
 
-  if (isRedisEnabled) {
-    logger.info(`[${requestId}] Using Redis queue for ${createdDocuments.length} documents`)
+  if (redisClient) {
+    try {
+      logger.info(`[${requestId}] Using Redis queue for ${createdDocuments.length} documents`)
 
-    const jobPromises = createdDocuments.map((doc) =>
-      queue.addJob<DocumentJobData>('process-document', {
-        knowledgeBaseId,
-        documentId: doc.documentId,
-        docData: {
-          filename: doc.filename,
-          fileUrl: doc.fileUrl,
-          fileSize: doc.fileSize,
-          mimeType: doc.mimeType,
-        },
-        processingOptions,
-        requestId,
-      })
-    )
+      const jobPromises = createdDocuments.map((doc) =>
+        queue.addJob<DocumentJobData>('process-document', {
+          knowledgeBaseId,
+          documentId: doc.documentId,
+          docData: {
+            filename: doc.filename,
+            fileUrl: doc.fileUrl,
+            fileSize: doc.fileSize,
+            mimeType: doc.mimeType,
+          },
+          processingOptions,
+          requestId,
+        })
+      )
 
-    await Promise.all(jobPromises)
+      await Promise.all(jobPromises)
 
-    queue
-      .processJobs(async (job) => {
-        const data = job.data as DocumentJobData
-        const { knowledgeBaseId, documentId, docData, processingOptions } = data
-        await processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions)
-      })
-      .catch((error) => {
-        logger.error(`[${requestId}] Error in Redis queue processing:`, error)
-      })
+      queue
+        .processJobs(async (job) => {
+          const data = job.data as DocumentJobData
+          const { knowledgeBaseId, documentId, docData, processingOptions } = data
+          await processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions)
+        })
+        .catch((error) => {
+          logger.error(`[${requestId}] Error in Redis queue processing:`, error)
+          // Don't throw here - let the processing continue with fallback if needed
+        })
 
-    logger.info(`[${requestId}] All documents queued for Redis processing`)
-    return
+      logger.info(`[${requestId}] All documents queued for Redis processing`)
+      return
+    } catch (error) {
+      logger.warn(`[${requestId}] Redis queue failed, falling back to in-memory processing:`, error)
+    }
   }
 
-  logger.info(`[${requestId}] Redis not available, using fallback processing`)
+  logger.info(`[${requestId}] Using fallback in-memory processing (Redis not available or failed)`)
   await processDocumentsWithConcurrencyControl(
     createdDocuments,
     knowledgeBaseId,

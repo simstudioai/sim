@@ -718,6 +718,7 @@ export function KnowledgeBase({
                     value={searchQuery}
                     onChange={handleSearchChange}
                     placeholder='Search documents...'
+                    isLoading={isLoadingDocuments}
                   />
 
                   <div className='flex items-center gap-3'>

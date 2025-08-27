@@ -78,9 +78,15 @@ export class DocumentProcessingQueue {
   }
 
   private async processRedisJobs(processor: (job: QueueJob) => Promise<void>) {
-    const redis = getRedisClient()!
+    const redis = getRedisClient()
+    if (!redis) {
+      logger.warn('Redis client not available, falling back to in-memory processing')
+      await this.processFallbackJobs(processor)
+      return
+    }
 
     const processJobsContinuously = async () => {
+      let consecutiveErrors = 0
       while (true) {
         if (this.processing.size >= this.config.maxConcurrent) {
           await new Promise((resolve) => setTimeout(resolve, 100)) // Wait before checking again
@@ -88,8 +94,16 @@ export class DocumentProcessingQueue {
         }
 
         try {
-          const result = await redis.brpop('document-queue', 1)
+          const currentRedis = getRedisClient()
+          if (!currentRedis) {
+            logger.warn('Redis connection lost, switching to fallback processing')
+            await this.processFallbackJobs(processor)
+            return
+          }
+
+          const result = await currentRedis.brpop('document-queue', 1)
           if (!result || !result[1]) {
+            consecutiveErrors = 0 // Reset error counter on successful operation
             continue // Continue polling for jobs
           }
 
@@ -101,10 +115,29 @@ export class DocumentProcessingQueue {
             this.processing.delete(job.id)
           })
 
+          consecutiveErrors = 0 // Reset error counter on success
           // Don't await here - let it process in background while we get next job
-        } catch (error) {
+        } catch (error: any) {
+          consecutiveErrors++
+
+          if (
+            error.message?.includes('Connection is closed') ||
+            error.message?.includes('ECONNREFUSED') ||
+            error.code === 'ECONNREFUSED' ||
+            consecutiveErrors >= 5
+          ) {
+            logger.warn(
+              `Redis connection failed (${consecutiveErrors} consecutive errors), switching to fallback processing:`,
+              error.message
+            )
+            await this.processFallbackJobs(processor)
+            return
+          }
+
           logger.error('Error processing Redis job:', error)
-          await new Promise((resolve) => setTimeout(resolve, 1000)) // Wait before retrying
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.min(1000 * consecutiveErrors, 5000))
+          ) // Exponential backoff
         }
       }
     }
