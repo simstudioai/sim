@@ -24,20 +24,26 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import {
+  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+  Switch,
+  Textarea,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { CopilotSlider } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components/copilot-slider'
 import { useCopilotStore } from '@/stores/copilot/store'
-import { CopilotSlider as Slider } from './components/copilot-slider'
+
+const logger = createLogger('CopilotUserInput')
 
 export interface MessageFileAttachment {
   id: string
@@ -191,7 +197,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       const userId = session?.user?.id
 
       if (!userId) {
-        console.error('User ID not available for file upload')
+        logger.error('User ID not available for file upload')
         return
       }
 
@@ -237,8 +243,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
           const presignedData = await presignedResponse.json()
 
-          // Upload file using presigned URL
-          console.log('Uploading file:', presignedData.presignedUrl)
+          logger.info(`Uploading file: ${presignedData.presignedUrl}`)
           const uploadHeaders = presignedData.uploadHeaders || {}
           const uploadResponse = await fetch(presignedData.presignedUrl, {
             method: 'PUT',
@@ -249,11 +254,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             body: file,
           })
 
-          console.log('Upload response status:', uploadResponse.status)
+          logger.info(`Upload response status: ${uploadResponse.status}`)
 
           if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text()
-            console.error('Upload failed:', errorText)
+            logger.error(`Upload failed: ${errorText}`)
             throw new Error(`Failed to upload file: ${uploadResponse.status} ${errorText}`)
           }
 
@@ -271,7 +276,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             )
           )
         } catch (error) {
-          console.error('File upload failed:', error)
+          logger.error(`File upload failed: ${error}`)
           // Remove failed upload
           setAttachedFiles((prev) => prev.filter((f) => f.id !== tempFile.id))
         }
@@ -285,10 +290,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       // Check for failed uploads and show user feedback
       const failedUploads = attachedFiles.filter((f) => !f.uploading && !f.key)
       if (failedUploads.length > 0) {
-        console.error(
-          'Some files failed to upload:',
-          failedUploads.map((f) => f.name)
-        )
+        logger.error(`Some files failed to upload: ${failedUploads.map((f) => f.name).join(', ')}`)
       }
 
       // Convert attached files to the format expected by the API
@@ -721,7 +723,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             </div>
                           </div>
                           <div className='relative'>
-                            <Slider
+                            <CopilotSlider
                               min={0}
                               max={3}
                               step={1}

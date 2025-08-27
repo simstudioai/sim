@@ -128,7 +128,6 @@ async function handleCloudProxy(
     if (isKBFile) {
       fileBuffer = await downloadKBFile(cloudKey)
     } else if (bucketType === 'copilot') {
-      // Download from copilot-specific bucket using provider-agnostic method
       const storageProvider = getStorageProvider()
 
       if (storageProvider === 's3') {
