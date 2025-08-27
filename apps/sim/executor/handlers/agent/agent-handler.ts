@@ -759,14 +759,6 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private processRegularResponse(result: any, responseFormat: any): BlockOutput {
-    logger.info('Provider response received', {
-      contentLength: result.content ? result.content.length : 0,
-      model: result.model,
-      hasTokens: !!result.tokens,
-      hasToolCalls: !!result.toolCalls,
-      toolCallsCount: result.toolCalls?.length || 0,
-    })
-
     if (responseFormat) {
       return this.processStructuredResponse(result, responseFormat)
     }

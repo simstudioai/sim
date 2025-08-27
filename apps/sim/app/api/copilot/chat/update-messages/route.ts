@@ -28,7 +28,7 @@ const UpdateMessagesSchema = z.object({
         .array(
           z.object({
             id: z.string(),
-            s3_key: z.string(),
+            key: z.string(),
             filename: z.string(),
             media_type: z.string(),
             size: z.number(),
