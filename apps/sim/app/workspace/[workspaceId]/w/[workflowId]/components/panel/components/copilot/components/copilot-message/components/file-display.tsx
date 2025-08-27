@@ -1,8 +1,9 @@
 import { memo, useState } from 'react'
 import { FileText, Image } from 'lucide-react'
+import type { MessageFileAttachment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
 
 interface FileAttachmentDisplayProps {
-  fileAttachments: any[]
+  fileAttachments: MessageFileAttachment[]
 }
 
 export const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayProps) => {
@@ -29,7 +30,7 @@ export const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDi
     return <FileText className='h-5 w-5 text-muted-foreground' />
   }
 
-  const getFileUrl = (file: any) => {
+  const getFileUrl = (file: MessageFileAttachment) => {
     const cacheKey = file.key
     if (fileUrls[cacheKey]) {
       return fileUrls[cacheKey]
@@ -40,7 +41,7 @@ export const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDi
     return url
   }
 
-  const handleFileClick = (file: any) => {
+  const handleFileClick = (file: MessageFileAttachment) => {
     const serveUrl = getFileUrl(file)
     window.open(serveUrl, '_blank')
   }
