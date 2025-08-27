@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm'
+import { htmlToText } from 'html-to-text'
 import { nanoid } from 'nanoid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
@@ -85,62 +86,16 @@ export interface OutlookWebhookPayload {
  */
 function convertHtmlToPlainText(html: string): string {
   if (!html) return ''
-
-  let working = html
-
-  // Remove script and style content
-  working = working.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-  working = working.replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
-
-  // Line breaks for common block-level tags
-  working = working
-    .replace(/<br\s*\/?>(?=\s|$)/gi, '\n')
-    .replace(/<\/(p|div|li|h[1-6]|tr)>/gi, '\n')
-    .replace(/<(p|div|li|h[1-6]|tr)[^>]*>/gi, '')
-    .replace(/<\/(td|th)>/gi, '\t')
-
-  // Remove all remaining tags
-  working = working.replace(/<[^>]+>/g, '')
-
-  // Decode common HTML entities
-  const entityMap: Record<string, string> = {
-    '&nbsp;': ' ',
-    '&amp;': '&',
-    '&lt;': '<',
-    '&gt;': '>',
-    '&quot;': '"',
-    '&#39;': "'",
-  }
-  for (const [entity, char] of Object.entries(entityMap)) {
-    working = working.split(entity).join(char)
-  }
-  // Numeric entities (decimal)
-  working = working.replace(/&#(\d+);/g, (_, dec: string) => {
-    const code = Number(dec)
-    return Number.isFinite(code) ? String.fromCharCode(code) : _
+  return htmlToText(html, {
+    wordwrap: false,
+    selectors: [
+      { selector: 'a', options: { hideLinkHrefIfSameAsText: true, noAnchorUrl: true } },
+      { selector: 'img', format: 'skip' },
+      { selector: 'script', format: 'skip' },
+      { selector: 'style', format: 'skip' },
+    ],
+    preserveNewlines: true,
   })
-  // Numeric entities (hex)
-  working = working.replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => {
-    const code = Number.parseInt(hex, 16)
-    return Number.isFinite(code) ? String.fromCharCode(code) : _
-  })
-
-  // Normalize whitespace
-  working = working
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-    .replace(/\t/g, '  ')
-    .replace(/\u00A0/g, ' ')
-
-  // Collapse excessive blank lines and trim
-  working = working
-    .split('\n')
-    .map((line) => line.trimEnd())
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-
-  return working
 }
 
 export async function pollOutlookWebhooks() {
