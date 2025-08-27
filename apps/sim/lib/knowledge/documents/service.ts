@@ -877,7 +877,12 @@ export async function bulkDocumentOperation(
 ): Promise<{
   success: boolean
   successCount: number
-  updatedDocuments: Array<{ id: string; enabled?: boolean; deletedAt?: Date | null }>
+  updatedDocuments: Array<{
+    id: string
+    enabled?: boolean
+    deletedAt?: Date | null
+    processingStatus?: string
+  }>
 }> {
   logger.info(
     `[${requestId}] Starting bulk ${operation} operation on ${documentIds.length} documents in knowledge base ${knowledgeBaseId}`
@@ -908,8 +913,12 @@ export async function bulkDocumentOperation(
     )
   }
 
-  // Perform the bulk operation
-  let updateResult: Array<{ id: string; enabled?: boolean; deletedAt?: Date | null }>
+  let updateResult: Array<{
+    id: string
+    enabled?: boolean
+    deletedAt?: Date | null
+    processingStatus?: string
+  }>
 
   if (operation === 'delete') {
     // Handle bulk soft delete
@@ -1114,7 +1123,8 @@ export async function updateDocument(
     tag6: string | null
     tag7: string | null
   }> = {}
-  const TAG_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7']
+  const TAG_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
+  type TagSlot = (typeof TAG_SLOTS)[number]
 
   // Regular field updates
   if (updateData.filename !== undefined) dbUpdateData.filename = updateData.filename
@@ -1128,18 +1138,16 @@ export async function updateDocument(
   if (updateData.processingError !== undefined)
     dbUpdateData.processingError = updateData.processingError
 
-  // Tag field updates
-  TAG_SLOTS.forEach((slot) => {
-    if ((updateData as any)[slot] !== undefined) {
-      dbUpdateData[slot] = (updateData as any)[slot]
+  TAG_SLOTS.forEach((slot: TagSlot) => {
+    const updateValue = (updateData as any)[slot]
+    if (updateValue !== undefined) {
+      ;(dbUpdateData as any)[slot] = updateValue
     }
   })
 
   await db.transaction(async (tx) => {
-    // Update the document
     await tx.update(document).set(dbUpdateData).where(eq(document.id, documentId))
 
-    // If any tag fields were updated, also update the embeddings
     const hasTagUpdates = TAG_SLOTS.some((field) => (updateData as any)[field] !== undefined)
 
     if (hasTagUpdates) {
@@ -1157,7 +1165,6 @@ export async function updateDocument(
     }
   })
 
-  // Fetch the updated document
   const updatedDocument = await db
     .select()
     .from(document)

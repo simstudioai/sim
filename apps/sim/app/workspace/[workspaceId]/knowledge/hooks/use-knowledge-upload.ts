@@ -83,11 +83,11 @@ class ProcessingError extends KnowledgeUploadError {
   }
 }
 
-// Upload configuration constants
 const UPLOAD_CONFIG = {
-  BATCH_SIZE: 8, // Reduced from 15 to 8 files in parallel to reduce API pressure
-  MAX_RETRIES: 3, // Retry failed uploads up to 3 times
-  RETRY_DELAY: 1000, // Initial retry delay in ms
+  BATCH_SIZE: 15, // Upload files in parallel - this is fast and not the bottleneck
+  MAX_RETRIES: 3, // Standard retry count
+  RETRY_DELAY: 2000, // Initial retry delay in ms (2 seconds)
+  RETRY_MULTIPLIER: 2, // Standard exponential backoff (2s, 4s, 8s)
   CHUNK_SIZE: 5 * 1024 * 1024,
   VERCEL_MAX_BODY_SIZE: 4.5 * 1024 * 1024, // Vercel's 4.5MB limit
   DIRECT_UPLOAD_THRESHOLD: 4 * 1024 * 1024, // Files > 4MB must use presigned URLs
@@ -204,7 +204,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           // Use presigned URLs for all uploads when cloud storage is available
           // Check if file needs multipart upload for large files
           if (file.size > UPLOAD_CONFIG.LARGE_FILE_THRESHOLD) {
-            return await uploadFileInChunks(file, presignedData, fileIndex)
+            return await uploadFileInChunks(file, presignedData)
           }
           return await uploadFileDirectly(file, presignedData, fileIndex)
         }
@@ -232,13 +232,16 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       // Retry logic
       if (retryCount < UPLOAD_CONFIG.MAX_RETRIES) {
-        const delay = UPLOAD_CONFIG.RETRY_DELAY * 2 ** retryCount // Exponential backoff
-        // Only log essential info for debugging
+        const delay = UPLOAD_CONFIG.RETRY_DELAY * UPLOAD_CONFIG.RETRY_MULTIPLIER ** retryCount // More aggressive exponential backoff
         if (isTimeout || isNetwork) {
-          logger.warn(`Upload failed (${isTimeout ? 'timeout' : 'network'}), retrying...`, {
-            attempt: retryCount + 1,
-            fileSize: file.size,
-          })
+          logger.warn(
+            `Upload failed (${isTimeout ? 'timeout' : 'network'}), retrying in ${delay / 1000}s...`,
+            {
+              attempt: retryCount + 1,
+              fileSize: file.size,
+              delay: delay,
+            }
+          )
         }
 
         // Reset progress to 0 before retry to indicate restart
@@ -363,11 +366,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   /**
    * Upload large file in chunks (multipart upload)
    */
-  const uploadFileInChunks = async (
-    file: File,
-    presignedData: any,
-    fileIndex?: number
-  ): Promise<UploadedFile> => {
+  const uploadFileInChunks = async (file: File, presignedData: any): Promise<UploadedFile> => {
     logger.info(
       `Uploading large file ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB) using multipart upload`
     )

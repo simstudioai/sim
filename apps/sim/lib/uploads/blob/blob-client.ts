@@ -137,8 +137,6 @@ export async function uploadToBlob(
     fileSize = configOrSize ?? file.length
   }
 
-  // Create a unique filename with timestamp to prevent collisions
-  // Use a simple timestamp without directory structure
   const safeFileName = fileName.replace(/\s+/g, '-') // Replace spaces with hyphens
   const uniqueKey = `${Date.now()}-${safeFileName}`
 
@@ -146,7 +144,6 @@ export async function uploadToBlob(
   const containerClient = blobServiceClient.getContainerClient(config.containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(uniqueKey)
 
-  // Upload the file to Azure Blob Storage
   await blockBlobClient.upload(file, fileSize, {
     blobHTTPHeaders: {
       blobContentType: contentType,
@@ -157,7 +154,6 @@ export async function uploadToBlob(
     },
   })
 
-  // Create a path for API to serve the file
   const servePath = `/api/files/serve/blob/${encodeURIComponent(uniqueKey)}`
 
   return {
@@ -180,7 +176,6 @@ export async function getPresignedUrl(key: string, expiresIn = 3600) {
   const containerClient = blobServiceClient.getContainerClient(BLOB_CONFIG.containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
-  // Generate SAS token for the blob
   const sasOptions = {
     containerName: BLOB_CONFIG.containerName,
     blobName: key,
@@ -215,7 +210,6 @@ export async function getPresignedUrlWithConfig(
   customConfig: CustomBlobConfig,
   expiresIn = 3600
 ) {
-  // Create a temporary client for the custom config
   let tempBlobServiceClient: BlobServiceClient
 
   if (customConfig.connectionString) {
@@ -238,7 +232,6 @@ export async function getPresignedUrlWithConfig(
   const containerClient = tempBlobServiceClient.getContainerClient(customConfig.containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
-  // Generate SAS token for the blob
   const sasOptions = {
     containerName: customConfig.containerName,
     blobName: key,
@@ -284,7 +277,6 @@ export async function downloadFromBlob(
   let containerName: string
 
   if (customConfig) {
-    // Use custom configuration
     if (customConfig.connectionString) {
       blobServiceClient = BlobServiceClient.fromConnectionString(customConfig.connectionString)
     } else if (customConfig.accountName && customConfig.accountKey) {
@@ -301,7 +293,6 @@ export async function downloadFromBlob(
     }
     containerName = customConfig.containerName
   } else {
-    // Use default configuration
     blobServiceClient = getBlobServiceClient()
     containerName = BLOB_CONFIG.containerName
   }
@@ -336,7 +327,6 @@ export async function deleteFromBlob(key: string, customConfig?: CustomBlobConfi
   let containerName: string
 
   if (customConfig) {
-    // Use custom configuration
     if (customConfig.connectionString) {
       blobServiceClient = BlobServiceClient.fromConnectionString(customConfig.connectionString)
     } else if (customConfig.accountName && customConfig.accountKey) {
@@ -353,7 +343,6 @@ export async function deleteFromBlob(key: string, customConfig?: CustomBlobConfi
     }
     containerName = customConfig.containerName
   } else {
-    // Use default configuration
     blobServiceClient = getBlobServiceClient()
     containerName = BLOB_CONFIG.containerName
   }
