@@ -223,7 +223,15 @@ export function ConditionInput({
     updateNodeInternals,
     isReady,
     isPreview,
-    shouldPersistRef.current,
+    }, [
+    conditionalBlocks,
+    blockId,
+    subBlockId,
+    setStoreValue,
+    updateNodeInternals,
+    isReady,
+    isPreview,
+  ])
   ])
 
   // Cleanup when component unmounts
