@@ -109,7 +109,9 @@ export async function PUT(request: NextRequest) {
             // If we can't decrypt the existing value, treat as changed and re-encrypt
             logger.warn(
               `[${requestId}] Could not decrypt existing variable ${key}, re-encrypting`,
-              { error: decryptError }
+              {
+                error: decryptError,
+              }
             )
             variablesToEncrypt[key] = newValue
             updatedVariables.push(key)

@@ -1,6 +1,7 @@
 import { existsSync } from 'fs'
 import * as XLSX from 'xlsx'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
+import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('XlsxParser')
@@ -61,21 +62,22 @@ export class XlsxParser implements FileParser {
       sheets[sheetName] = sheetData
       totalRows += sheetData.length
 
-      // Add sheet content to the overall content string
-      content += `Sheet: ${sheetName}\n`
-      content += `=${'='.repeat(sheetName.length + 6)}\n\n`
+      // Add sheet content to the overall content string (clean sheet name)
+      const cleanSheetName = sanitizeTextForUTF8(sheetName)
+      content += `Sheet: ${cleanSheetName}\n`
+      content += `=${'='.repeat(cleanSheetName.length + 6)}\n\n`
 
       if (sheetData.length > 0) {
         // Process each row
         sheetData.forEach((row: unknown, rowIndex: number) => {
           if (Array.isArray(row) && row.length > 0) {
-            // Convert row to string, handling undefined/null values
+            // Convert row to string, handling undefined/null values and cleaning non-UTF8 characters
             const rowString = row
               .map((cell) => {
                 if (cell === null || cell === undefined) {
                   return ''
                 }
-                return String(cell)
+                return sanitizeTextForUTF8(String(cell))
               })
               .join('\t')
 
@@ -91,8 +93,11 @@ export class XlsxParser implements FileParser {
 
     logger.info(`XLSX parsing completed: ${sheetNames.length} sheets, ${totalRows} total rows`)
 
+    // Final cleanup of the entire content to ensure UTF-8 compatibility
+    const cleanContent = sanitizeTextForUTF8(content).trim()
+
     return {
-      content: content.trim(),
+      content: cleanContent,
       metadata: {
         sheetCount: sheetNames.length,
         sheetNames: sheetNames,

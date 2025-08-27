@@ -1,5 +1,5 @@
-import { isRetryableError, retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
+import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('EmbeddingUtils')
@@ -104,7 +104,7 @@ async function callEmbeddingAPI(inputs: string[], config: EmbeddingConfig): Prom
 }
 
 /**
- * Generate embeddings for multiple texts with batching
+ * Generate embeddings for multiple texts with simple batching
  */
 export async function generateEmbeddings(
   texts: string[],

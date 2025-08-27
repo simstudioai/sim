@@ -1,10 +1,10 @@
 import fs from 'fs/promises'
 import path from 'path'
-import { TextChunker } from '@/lib/documents/chunker'
-import type { DocChunk, DocsChunkerOptions, HeaderInfo } from '@/lib/documents/types'
+import { generateEmbeddings } from '@/lib/embeddings/utils'
 import { isDev } from '@/lib/environment'
+import { TextChunker } from '@/lib/knowledge/documents/chunker'
+import type { DocChunk, DocsChunkerOptions, HeaderInfo } from '@/lib/knowledge/documents/types'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateEmbeddings } from '@/app/api/knowledge/utils'
 
 interface Frontmatter {
   title?: string

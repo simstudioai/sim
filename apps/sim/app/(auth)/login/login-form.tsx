@@ -49,15 +49,12 @@ const PASSWORD_VALIDATIONS = {
   },
 }
 
-// Validate callback URL to prevent open redirect vulnerabilities
 const validateCallbackUrl = (url: string): boolean => {
   try {
-    // If it's a relative URL, it's safe
     if (url.startsWith('/')) {
       return true
     }
 
-    // If absolute URL, check if it belongs to the same origin
     const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
     if (url.startsWith(currentOrigin)) {
       return true
@@ -70,7 +67,6 @@ const validateCallbackUrl = (url: string): boolean => {
   }
 }
 
-// Validate password and return array of error messages
 const validatePassword = (passwordValue: string): string[] => {
   const errors: string[] = []
 
@@ -521,9 +517,7 @@ export default function LoginPage({
             </div>
             {resetStatus.type && (
               <div
-                className={`text-sm ${
-                  resetStatus.type === 'success' ? 'text-[#4CAF50]' : 'text-red-500'
-                }`}
+                className={`text-sm ${resetStatus.type === 'success' ? 'text-[#4CAF50]' : 'text-red-500'}`}
               >
                 {resetStatus.message}
               </div>

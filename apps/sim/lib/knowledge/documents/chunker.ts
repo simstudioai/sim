@@ -26,7 +26,7 @@ export interface Chunk {
 
 /**
  * Lightweight text chunker optimized for RAG applications
- * Uses hierarchical splitting with smart token estimation
+ * Uses hierarchical splitting with simple character-based token estimation
  */
 export class TextChunker {
   private readonly chunkSize: number
@@ -62,39 +62,20 @@ export class TextChunker {
   }
 
   /**
-   * Estimate token count - optimized for common tokenizers
+   * Simple token estimation using character count
    */
   private estimateTokens(text: string): number {
     // Handle empty or whitespace-only text
     if (!text?.trim()) return 0
 
-    const words = text.trim().split(/\s+/)
-    let tokenCount = 0
-
-    for (const word of words) {
-      if (word.length === 0) continue
-
-      // Short words (1-4 chars) are usually 1 token
-      if (word.length <= 4) {
-        tokenCount += 1
-      }
-      // Medium words (5-8 chars) are usually 1-2 tokens
-      else if (word.length <= 8) {
-        tokenCount += Math.ceil(word.length / 5)
-      }
-      // Long words get split more by subword tokenization
-      else {
-        tokenCount += Math.ceil(word.length / 4)
-      }
-    }
-
-    return tokenCount
+    // Simple estimation: ~4 characters per token
+    return Math.ceil(text.length / 4)
   }
 
   /**
    * Split text recursively using hierarchical separators
    */
-  private splitRecursively(text: string, separatorIndex = 0): string[] {
+  private async splitRecursively(text: string, separatorIndex = 0): Promise<string[]> {
     const tokenCount = this.estimateTokens(text)
 
     // If chunk is small enough, return it
@@ -121,7 +102,7 @@ export class TextChunker {
 
     // If no split occurred, try next separator
     if (parts.length <= 1) {
-      return this.splitRecursively(text, separatorIndex + 1)
+      return await this.splitRecursively(text, separatorIndex + 1)
     }
 
     const chunks: string[] = []
@@ -141,7 +122,7 @@ export class TextChunker {
         // Start new chunk with current part
         // If part itself is too large, split it further
         if (this.estimateTokens(part) > this.chunkSize) {
-          chunks.push(...this.splitRecursively(part, separatorIndex + 1))
+          chunks.push(...(await this.splitRecursively(part, separatorIndex + 1)))
           currentChunk = ''
         } else {
           currentChunk = part
@@ -212,14 +193,14 @@ export class TextChunker {
     const cleanedText = this.cleanText(text)
 
     // Split into chunks
-    let chunks = this.splitRecursively(cleanedText)
+    let chunks = await this.splitRecursively(cleanedText)
 
     // Add overlap if configured
     chunks = this.addOverlap(chunks)
 
     // Convert to Chunk objects with metadata
     let previousEndIndex = 0
-    return chunks.map((chunkText, index) => {
+    const chunkPromises = chunks.map(async (chunkText, index) => {
       let startIndex: number
       let actualContentLength: number
 
@@ -256,5 +237,7 @@ export class TextChunker {
       previousEndIndex = endIndexSafe
       return chunk
     })
+
+    return await Promise.all(chunkPromises)
   }
 }

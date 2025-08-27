@@ -1,13 +1,11 @@
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { TAG_SLOTS } from '@/lib/constants/knowledge'
+import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
-import { db } from '@/db'
-import { knowledgeBaseTagDefinitions } from '@/db/schema'
 import { calculateCost } from '@/providers/utils'
 import {
   generateSearchEmbedding,
@@ -94,13 +92,7 @@ export async function POST(request: NextRequest) {
         try {
           // Fetch tag definitions for the first accessible KB (since we're using single KB now)
           const kbId = accessibleKbIds[0]
-          const tagDefs = await db
-            .select({
-              tagSlot: knowledgeBaseTagDefinitions.tagSlot,
-              displayName: knowledgeBaseTagDefinitions.displayName,
-            })
-            .from(knowledgeBaseTagDefinitions)
-            .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, kbId))
+          const tagDefs = await getDocumentTagDefinitions(kbId)
 
           logger.debug(`[${requestId}] Found tag definitions:`, tagDefs)
           logger.debug(`[${requestId}] Original filters:`, validatedData.filters)
@@ -224,13 +216,7 @@ export async function POST(request: NextRequest) {
       const tagDefinitionsMap: Record<string, Record<string, string>> = {}
       for (const kbId of accessibleKbIds) {
         try {
-          const tagDefs = await db
-            .select({
-              tagSlot: knowledgeBaseTagDefinitions.tagSlot,
-              displayName: knowledgeBaseTagDefinitions.displayName,
-            })
-            .from(knowledgeBaseTagDefinitions)
-            .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, kbId))
+          const tagDefs = await getDocumentTagDefinitions(kbId)
 
           tagDefinitionsMap[kbId] = {}
           tagDefs.forEach((def) => {

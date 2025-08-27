@@ -1,11 +1,8 @@
-import { and, count, eq, isNotNull, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { db } from '@/db'
-import { document, knowledgeBase, permissions } from '@/db/schema'
 
 const logger = createLogger('KnowledgeBaseAPI')
 
@@ -41,60 +38,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check for workspace filtering
     const { searchParams } = new URL(req.url)
     const workspaceId = searchParams.get('workspaceId')
 
-    // Get knowledge bases that user can access through direct ownership OR workspace permissions
-    const knowledgeBasesWithCounts = await db
-      .select({
-        id: knowledgeBase.id,
-        name: knowledgeBase.name,
-        description: knowledgeBase.description,
-        tokenCount: knowledgeBase.tokenCount,
-        embeddingModel: knowledgeBase.embeddingModel,
-        embeddingDimension: knowledgeBase.embeddingDimension,
-        chunkingConfig: knowledgeBase.chunkingConfig,
-        createdAt: knowledgeBase.createdAt,
-        updatedAt: knowledgeBase.updatedAt,
-        workspaceId: knowledgeBase.workspaceId,
-        docCount: count(document.id),
-      })
-      .from(knowledgeBase)
-      .leftJoin(
-        document,
-        and(eq(document.knowledgeBaseId, knowledgeBase.id), isNull(document.deletedAt))
-      )
-      .leftJoin(
-        permissions,
-        and(
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, knowledgeBase.workspaceId),
-          eq(permissions.userId, session.user.id)
-        )
-      )
-      .where(
-        and(
-          isNull(knowledgeBase.deletedAt),
-          workspaceId
-            ? // When filtering by workspace
-              or(
-                // Knowledge bases belonging to the specified workspace (user must have workspace permissions)
-                and(eq(knowledgeBase.workspaceId, workspaceId), isNotNull(permissions.userId)),
-                // Fallback: User-owned knowledge bases without workspace (legacy)
-                and(eq(knowledgeBase.userId, session.user.id), isNull(knowledgeBase.workspaceId))
-              )
-            : // When not filtering by workspace, use original logic
-              or(
-                // User owns the knowledge base directly
-                eq(knowledgeBase.userId, session.user.id),
-                // User has permissions on the knowledge base's workspace
-                isNotNull(permissions.userId)
-              )
-        )
-      )
-      .groupBy(knowledgeBase.id)
-      .orderBy(knowledgeBase.createdAt)
+    const knowledgeBasesWithCounts = await getKnowledgeBases(session.user.id, workspaceId)
 
     return NextResponse.json({
       success: true,
@@ -121,49 +68,16 @@ export async function POST(req: NextRequest) {
     try {
       const validatedData = CreateKnowledgeBaseSchema.parse(body)
 
-      // If creating in a workspace, check if user has write/admin permissions
-      if (validatedData.workspaceId) {
-        const userPermission = await getUserEntityPermissions(
-          session.user.id,
-          'workspace',
-          validatedData.workspaceId
-        )
-        if (userPermission !== 'write' && userPermission !== 'admin') {
-          logger.warn(
-            `[${requestId}] User ${session.user.id} denied permission to create knowledge base in workspace ${validatedData.workspaceId}`
-          )
-          return NextResponse.json(
-            { error: 'Insufficient permissions to create knowledge base in this workspace' },
-            { status: 403 }
-          )
-        }
-      }
-
-      const id = crypto.randomUUID()
-      const now = new Date()
-
-      const newKnowledgeBase = {
-        id,
+      const createData = {
+        ...validatedData,
         userId: session.user.id,
-        workspaceId: validatedData.workspaceId || null,
-        name: validatedData.name,
-        description: validatedData.description || null,
-        tokenCount: 0,
-        embeddingModel: validatedData.embeddingModel,
-        embeddingDimension: validatedData.embeddingDimension,
-        chunkingConfig: validatedData.chunkingConfig || {
-          maxSize: 1024,
-          minSize: 100,
-          overlap: 200,
-        },
-        docCount: 0,
-        createdAt: now,
-        updatedAt: now,
       }
 
-      await db.insert(knowledgeBase).values(newKnowledgeBase)
+      const newKnowledgeBase = await createKnowledgeBase(createData, requestId)
 
-      logger.info(`[${requestId}] Knowledge base created: ${id} for user ${session.user.id}`)
+      logger.info(
+        `[${requestId}] Knowledge base created: ${newKnowledgeBase.id} for user ${session.user.id}`
+      )
 
       return NextResponse.json({
         success: true,

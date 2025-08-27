@@ -109,7 +109,7 @@ Read data from a Microsoft Excel spreadsheet
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet to read from |
-| `range` | string | No | The range of cells to read from |
+| `range` | string | No | The range of cells to read from. Accepts "SheetName!A1:B2" for explicit ranges or just "SheetName" to read the used range of that sheet. If omitted, reads the used range of the first sheet. |
 
 #### Output
 

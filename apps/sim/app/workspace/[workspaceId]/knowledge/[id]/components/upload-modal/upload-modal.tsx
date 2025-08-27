@@ -166,12 +166,6 @@ export function UploadModal({
     return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
   }
 
-  // Calculate progress percentage
-  const progressPercentage =
-    uploadProgress.totalFiles > 0
-      ? Math.round((uploadProgress.filesCompleted / uploadProgress.totalFiles) * 100)
-      : 0
-
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className='flex max-h-[95vh] max-w-2xl flex-col overflow-hidden'>
@@ -296,23 +290,26 @@ export function UploadModal({
         </div>
 
         {/* Footer */}
-        <div className='flex justify-end gap-3 border-t pt-4'>
-          <Button variant='outline' onClick={handleClose} disabled={isUploading}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleUpload}
-            disabled={files.length === 0 || isUploading}
-            className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
-          >
-            {isUploading
-              ? uploadProgress.stage === 'uploading'
-                ? `Uploading ${uploadProgress.filesCompleted + 1}/${uploadProgress.totalFiles}...`
-                : uploadProgress.stage === 'processing'
-                  ? 'Processing...'
-                  : 'Uploading...'
-              : `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`}
-          </Button>
+        <div className='flex justify-between border-t pt-4'>
+          <div className='flex gap-3' />
+          <div className='flex gap-3'>
+            <Button variant='outline' onClick={handleClose} disabled={isUploading}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpload}
+              disabled={files.length === 0 || isUploading}
+              className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+            >
+              {isUploading
+                ? uploadProgress.stage === 'uploading'
+                  ? `Uploading ${uploadProgress.filesCompleted + 1}/${uploadProgress.totalFiles}...`
+                  : uploadProgress.stage === 'processing'
+                    ? 'Processing...'
+                    : 'Uploading...'
+                : `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

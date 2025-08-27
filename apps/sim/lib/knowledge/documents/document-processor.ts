@@ -1,9 +1,14 @@
-import { type Chunk, TextChunker } from '@/lib/documents/chunker'
-import { retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
 import { parseBuffer, parseFile } from '@/lib/file-parsers'
+import { type Chunk, TextChunker } from '@/lib/knowledge/documents/chunker'
+import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getPresignedUrlWithConfig, getStorageProvider, uploadFile } from '@/lib/uploads'
+import {
+  type CustomStorageConfig,
+  getPresignedUrlWithConfig,
+  getStorageProvider,
+  uploadFile,
+} from '@/lib/uploads'
 import { BLOB_KB_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/setup'
 import { mistralParserTool } from '@/tools/mistral/parser'
 
@@ -14,19 +19,33 @@ const TIMEOUTS = {
   MISTRAL_OCR_API: 90000,
 } as const
 
-type S3Config = {
-  bucket: string
-  region: string
+type OCRResult = {
+  success: boolean
+  error?: string
+  output?: {
+    content?: string
+  }
 }
 
-type BlobConfig = {
-  containerName: string
-  accountName: string
-  accountKey?: string
-  connectionString?: string
+type OCRPage = {
+  markdown?: string
 }
 
-const getKBConfig = (): S3Config | BlobConfig => {
+type OCRRequestBody = {
+  model: string
+  document: {
+    type: string
+    document_url: string
+  }
+  include_image_base64: boolean
+}
+
+type AzureOCRResponse = {
+  pages?: OCRPage[]
+  [key: string]: unknown
+}
+
+const getKBConfig = (): CustomStorageConfig => {
   const provider = getStorageProvider()
   return provider === 'blob'
     ? {
@@ -148,8 +167,8 @@ async function handleFileForOCR(fileUrl: string, filename: string, mimeType: str
   validateCloudConfig(kbConfig)
 
   try {
-    const cloudResult = await uploadFile(buffer, filename, mimeType, kbConfig as any)
-    const httpsUrl = await getPresignedUrlWithConfig(cloudResult.key, kbConfig as any, 900)
+    const cloudResult = await uploadFile(buffer, filename, mimeType, kbConfig)
+    const httpsUrl = await getPresignedUrlWithConfig(cloudResult.key, kbConfig, 900)
     logger.info(`Successfully uploaded for OCR: ${cloudResult.key}`)
     return { httpsUrl, cloudUrl: httpsUrl }
   } catch (uploadError) {
@@ -199,28 +218,26 @@ async function downloadFileForBase64(fileUrl: string): Promise<Buffer> {
   return fs.readFile(fileUrl)
 }
 
-function validateCloudConfig(kbConfig: S3Config | BlobConfig) {
+function validateCloudConfig(kbConfig: CustomStorageConfig) {
   const provider = getStorageProvider()
 
   if (provider === 'blob') {
-    const config = kbConfig as BlobConfig
     if (
-      !config.containerName ||
-      (!config.connectionString && (!config.accountName || !config.accountKey))
+      !kbConfig.containerName ||
+      (!kbConfig.connectionString && (!kbConfig.accountName || !kbConfig.accountKey))
     ) {
       throw new Error(
         'Azure Blob configuration missing. Set AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY + AZURE_KB_CONTAINER_NAME'
       )
     }
   } else {
-    const config = kbConfig as S3Config
-    if (!config.bucket || !config.region) {
+    if (!kbConfig.bucket || !kbConfig.region) {
       throw new Error('S3 configuration missing. Set AWS_REGION and S3_KB_BUCKET_NAME')
     }
   }
 }
 
-function processOCRContent(result: any, filename: string): string {
+function processOCRContent(result: OCRResult, filename: string): string {
   if (!result.success) {
     throw new Error(`OCR processing failed: ${result.error || 'Unknown error'}`)
   }
@@ -245,7 +262,7 @@ function validateOCRConfig(
   if (!modelName) throw new Error(`${service} model name required`)
 }
 
-function extractPageContent(pages: any[]): string {
+function extractPageContent(pages: OCRPage[]): string {
   if (!pages?.length) return ''
 
   return pages
@@ -254,7 +271,11 @@ function extractPageContent(pages: any[]): string {
     .join('\n\n')
 }
 
-async function makeOCRRequest(endpoint: string, headers: Record<string, string>, body: any) {
+async function makeOCRRequest(
+  endpoint: string,
+  headers: Record<string, string>,
+  body: OCRRequestBody
+): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.MISTRAL_OCR_API)
 
@@ -309,7 +330,7 @@ async function parseWithAzureMistralOCR(fileUrl: string, filename: string, mimeT
             Authorization: `Bearer ${env.OCR_AZURE_API_KEY}`,
           },
           {
-            model: env.OCR_AZURE_MODEL_NAME,
+            model: env.OCR_AZURE_MODEL_NAME!,
             document: {
               type: 'document_url',
               document_url: dataUri,
@@ -320,8 +341,8 @@ async function parseWithAzureMistralOCR(fileUrl: string, filename: string, mimeT
       { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 10000 }
     )
 
-    const ocrResult = await response.json()
-    const content = extractPageContent(ocrResult.pages) || JSON.stringify(ocrResult, null, 2)
+    const ocrResult = (await response.json()) as AzureOCRResponse
+    const content = extractPageContent(ocrResult.pages || []) || JSON.stringify(ocrResult, null, 2)
 
     if (!content.trim()) {
       throw new Error('Azure Mistral OCR returned empty content')
@@ -365,13 +386,13 @@ async function parseWithMistralOCR(fileUrl: string, filename: string, mimeType: 
             ? mistralParserTool.request!.headers(params)
             : mistralParserTool.request!.headers
 
-        const requestBody = mistralParserTool.request!.body!(params)
+        const requestBody = mistralParserTool.request!.body!(params) as OCRRequestBody
         return makeOCRRequest(url, headers as Record<string, string>, requestBody)
       },
       { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 10000 }
     )
 
-    const result = await mistralParserTool.transformResponse!(response, params)
+    const result = (await mistralParserTool.transformResponse!(response, params)) as OCRResult
     const content = processOCRContent(result, filename)
 
     return { content, processingMethod: 'mistral-ocr' as const, cloudUrl }

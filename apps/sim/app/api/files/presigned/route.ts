@@ -16,6 +16,7 @@ import {
   S3_COPILOT_CONFIG,
   S3_KB_CONFIG,
 } from '@/lib/uploads/setup'
+import { validateFileType } from '@/lib/uploads/validation'
 import { createErrorResponse, createOptionsResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('PresignedUploadAPI')
@@ -95,6 +96,13 @@ export async function POST(request: NextRequest) {
           : uploadTypeParam === 'copilot'
             ? 'copilot'
             : 'general'
+
+    if (uploadType === 'knowledge-base') {
+      const fileValidationError = validateFileType(fileName, contentType)
+      if (fileValidationError) {
+        throw new ValidationError(`${fileValidationError.message}`)
+      }
+    }
 
     // Evaluate user id from session for copilot uploads
     const sessionUserId = session.user.id
