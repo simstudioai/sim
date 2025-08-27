@@ -482,8 +482,8 @@ async function handleInternalRequest(
         const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo)
 
         logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
-          status: (errorToTransform as any).status,
-          errorData: (errorToTransform as any).data,
+          status: errorInfo?.status,
+          errorData: errorInfo?.data,
         })
 
         throw errorToTransform
@@ -515,8 +515,8 @@ async function handleInternalRequest(
       const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo)
 
       logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
-        status: (errorToTransform as any).status,
-        errorData: (errorToTransform as any).data,
+        status: errorInfo?.status,
+        errorData: errorInfo?.data,
       })
 
       throw errorToTransform
