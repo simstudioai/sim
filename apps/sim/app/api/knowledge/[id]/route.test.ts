@@ -16,14 +16,12 @@ mockKnowledgeSchemas()
 mockDrizzleOrm()
 mockConsoleLogger()
 
-// Mock the service functions
 vi.mock('@/lib/knowledge/service', () => ({
   getKnowledgeBaseById: vi.fn(),
   updateKnowledgeBase: vi.fn(),
   deleteKnowledgeBase: vi.fn(),
 }))
 
-// Mock the utils functions
 vi.mock('@/app/api/knowledge/utils', () => ({
   checkKnowledgeBaseAccess: vi.fn(),
   checkKnowledgeBaseWriteAccess: vi.fn(),
@@ -32,7 +30,6 @@ vi.mock('@/app/api/knowledge/utils', () => ({
 describe('Knowledge Base By ID API Route', () => {
   const mockAuth$ = mockAuth()
 
-  // Import the mocked functions
   let mockGetKnowledgeBaseById: any
   let mockUpdateKnowledgeBase: any
   let mockDeleteKnowledgeBase: any
@@ -83,7 +80,6 @@ describe('Knowledge Base By ID API Route', () => {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),
     })
 
-    // Get the mocked functions
     const knowledgeService = await import('@/lib/knowledge/service')
     const knowledgeUtils = await import('@/app/api/knowledge/utils')
 
@@ -104,13 +100,11 @@ describe('Knowledge Base By ID API Route', () => {
     it('should retrieve knowledge base successfully for authenticated user', async () => {
       mockAuth$.mockAuthenticatedUser()
 
-      // Mock successful access check
       mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
         hasAccess: true,
         knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
-      // Mock successful knowledge base retrieval
       mockGetKnowledgeBaseById.mockResolvedValueOnce(mockKnowledgeBase)
 
       const req = createMockRequest('GET')
@@ -141,7 +135,6 @@ describe('Knowledge Base By ID API Route', () => {
     it('should return not found for non-existent knowledge base', async () => {
       mockAuth$.mockAuthenticatedUser()
 
-      // Mock access check indicating knowledge base not found
       mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
         hasAccess: false,
         notFound: true,
@@ -159,7 +152,6 @@ describe('Knowledge Base By ID API Route', () => {
     it('should return unauthorized for knowledge base owned by different user', async () => {
       mockAuth$.mockAuthenticatedUser()
 
-      // Mock access check indicating no access but knowledge base exists
       mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
         hasAccess: false,
         notFound: false,
@@ -177,13 +169,11 @@ describe('Knowledge Base By ID API Route', () => {
     it('should return not found when service returns null', async () => {
       mockAuth$.mockAuthenticatedUser()
 
-      // Mock successful access check
       mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
         hasAccess: true,
         knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
-      // Mock service returning null (knowledge base not found)
       mockGetKnowledgeBaseById.mockResolvedValueOnce(null)
 
       const req = createMockRequest('GET')
@@ -198,7 +188,6 @@ describe('Knowledge Base By ID API Route', () => {
     it('should handle database errors', async () => {
       mockAuth$.mockAuthenticatedUser()
 
-      // Mock access check throwing an error
       mockCheckKnowledgeBaseAccess.mockRejectedValueOnce(new Error('Database error'))
 
       const req = createMockRequest('GET')
@@ -223,13 +212,11 @@ describe('Knowledge Base By ID API Route', () => {
 
       resetMocks()
 
-      // Mock successful write access check
       mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
         hasAccess: true,
         knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
-      // Mock successful update
       const updatedKnowledgeBase = { ...mockKnowledgeBase, ...validUpdateData }
       mockUpdateKnowledgeBase.mockResolvedValueOnce(updatedKnowledgeBase)
 
@@ -270,7 +257,6 @@ describe('Knowledge Base By ID API Route', () => {
 
       resetMocks()
 
-      // Mock write access check indicating knowledge base not found
       mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
         hasAccess: false,
         notFound: true,
@@ -290,7 +276,6 @@ describe('Knowledge Base By ID API Route', () => {
 
       resetMocks()
 
-      // Mock successful write access check
       mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
         hasAccess: true,
         knowledgeBase: { id: 'kb-123', userId: 'user-123' },
@@ -319,7 +304,6 @@ describe('Knowledge Base By ID API Route', () => {
         knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
-      // Mock update function throwing an error
       mockUpdateKnowledgeBase.mockRejectedValueOnce(new Error('Database error'))
 
       const req = createMockRequest('PUT', validUpdateData)
@@ -340,13 +324,11 @@ describe('Knowledge Base By ID API Route', () => {
 
       resetMocks()
 
-      // Mock successful write access check
       mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
         hasAccess: true,
         knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
-      // Mock successful delete (returns void)
       mockDeleteKnowledgeBase.mockResolvedValueOnce(undefined)
 
       const req = createMockRequest('DELETE')
@@ -378,7 +360,6 @@ describe('Knowledge Base By ID API Route', () => {
 
       resetMocks()
 
-      // Mock write access check indicating knowledge base not found
       mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
         hasAccess: false,
         notFound: true,
@@ -398,7 +379,6 @@ describe('Knowledge Base By ID API Route', () => {
 
       resetMocks()
 
-      // Mock write access check indicating no access but knowledge base exists
       mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
         hasAccess: false,
         notFound: false,
@@ -416,13 +396,11 @@ describe('Knowledge Base By ID API Route', () => {
     it('should handle database errors during delete', async () => {
       mockAuth$.mockAuthenticatedUser()
 
-      // Mock successful write access check
       mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
         hasAccess: true,
         knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
-      // Mock delete function throwing an error
       mockDeleteKnowledgeBase.mockRejectedValueOnce(new Error('Database error'))
 
       const req = createMockRequest('DELETE')

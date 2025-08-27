@@ -72,7 +72,6 @@ export async function POST(request: NextRequest) {
             ? 'copilot'
             : 'general'
 
-    // Validate files
     const MAX_FILE_SIZE = 100 * 1024 * 1024
     for (const file of files) {
       if (!file.fileName?.trim()) {
@@ -97,7 +96,6 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Validate file type for knowledge-base uploads
       if (uploadType === 'knowledge-base') {
         const fileValidationError = validateFileType(file.fileName, file.contentType)
         if (fileValidationError) {

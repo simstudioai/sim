@@ -40,13 +40,13 @@ export class CsvParser implements FileParser {
             // Convert CSV data to a formatted string representation
             let content = ''
 
-            // Add headers (sanitized)
+            // Add headers
             if (headers.length > 0) {
               const cleanHeaders = headers.map((h) => sanitizeTextForUTF8(String(h)))
               content += `${cleanHeaders.join(', ')}\n`
             }
 
-            // Add rows (sanitized)
+            // Add rows
             results.forEach((row) => {
               const cleanValues = Object.values(row).map((v) =>
                 sanitizeTextForUTF8(String(v || ''))
@@ -103,13 +103,13 @@ export class CsvParser implements FileParser {
             // Convert CSV data to a formatted string representation
             let content = ''
 
-            // Add headers (sanitized)
+            // Add headers
             if (headers.length > 0) {
               const cleanHeaders = headers.map((h) => sanitizeTextForUTF8(String(h)))
               content += `${cleanHeaders.join(', ')}\n`
             }
 
-            // Add rows (sanitized)
+            // Add rows
             results.forEach((row) => {
               const cleanValues = Object.values(row).map((v) =>
                 sanitizeTextForUTF8(String(v || ''))

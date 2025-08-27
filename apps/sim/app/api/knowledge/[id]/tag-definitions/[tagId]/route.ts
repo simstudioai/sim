@@ -27,13 +27,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user has access to the knowledge base
     const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, session.user.id)
     if (!accessCheck.hasAccess) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Use the comprehensive service to delete the tag definition with cleanup
     const deletedTag = await deleteTagDefinition(tagId, requestId)
 
     return NextResponse.json({

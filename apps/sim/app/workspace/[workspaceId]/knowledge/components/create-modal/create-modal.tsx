@@ -305,15 +305,12 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       const newKnowledgeBase = result.data
 
       if (files.length > 0) {
-        // Update the document count to show expected files
         newKnowledgeBase.docCount = files.length
 
-        // Call the callback with updated doc count
         if (onKnowledgeBaseCreated) {
           onKnowledgeBaseCreated(newKnowledgeBase)
         }
 
-        // Start uploads - modal will stay open to show progress
         const uploadedFiles = await uploadFiles(files, newKnowledgeBase.id, {
           chunkSize: data.maxChunkSize,
           minCharactersPerChunk: data.minChunkSize,
@@ -324,17 +321,14 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
         logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
         logger.info(`Started processing ${uploadedFiles.length} documents in the background`)
       } else {
-        // No files to upload, call callback immediately
         if (onKnowledgeBaseCreated) {
           onKnowledgeBaseCreated(newKnowledgeBase)
         }
       }
 
-      // Clean up file previews and close modal after uploads complete
       files.forEach((file) => URL.revokeObjectURL(file.preview))
       setFiles([])
 
-      // Close modal after uploads are complete - processing continues in background
       onOpenChange(false)
     } catch (error) {
       logger.error('Error creating knowledge base:', error)

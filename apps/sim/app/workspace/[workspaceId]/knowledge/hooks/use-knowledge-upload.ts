@@ -421,7 +421,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       // Step 4: Upload parts in parallel (batch them to avoid overwhelming the browser)
       const uploadedParts: Array<{ ETag: string; PartNumber: number }> = []
-      const PARALLEL_UPLOADS = 2 // Reduced from 3 to 2 parts at a time
+      const PARALLEL_UPLOADS = 3 // Upload 3 parts at a time
 
       for (let i = 0; i < presignedUrls.length; i += PARALLEL_UPLOADS) {
         const batch = presignedUrls.slice(i, i + PARALLEL_UPLOADS)
@@ -618,7 +618,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         })
       })
 
-      // Process all uploads with concurrency control - TRUE PARALLEL PROCESSING
+      // Process all uploads with concurrency control
       for (let i = 0; i < allUploads.length; i += UPLOAD_CONFIG.BATCH_SIZE) {
         const concurrentBatch = allUploads.slice(i, i + UPLOAD_CONFIG.BATCH_SIZE)
 

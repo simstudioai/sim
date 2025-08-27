@@ -26,13 +26,12 @@ export interface Chunk {
 
 /**
  * Lightweight text chunker optimized for RAG applications
- * Uses hierarchical splitting with accurate tiktoken token counting
+ * Uses hierarchical splitting with simple character-based token estimation
  */
 export class TextChunker {
   private readonly chunkSize: number
   private readonly minChunkSize: number
   private readonly overlap: number
-  private encoder: any = null
 
   // Hierarchical separators ordered from largest to smallest semantic units
   private readonly separators = [
@@ -60,16 +59,6 @@ export class TextChunker {
     this.chunkSize = options.chunkSize ?? 512
     this.minChunkSize = options.minChunkSize ?? 1
     this.overlap = options.overlap ?? 0
-  }
-
-  /**
-   * Simple token estimation without tiktoken dependency
-   */
-  private async getEncoder() {
-    if (!this.encoder) {
-      this.encoder = 'fallback'
-    }
-    return this.encoder
   }
 
   /**

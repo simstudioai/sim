@@ -35,7 +35,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const nextAvailableSlot = await getNextAvailableSlot(knowledgeBaseId, fieldType)
 
-    // Get existing tag definitions to provide complete slot information
     const existingDefinitions = await getTagDefinitions(knowledgeBaseId)
     const usedSlots = existingDefinitions
       .filter((def) => def.fieldType === fieldType)
@@ -45,12 +44,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       `[${requestId}] Next available slot for fieldType ${fieldType}: ${nextAvailableSlot}`
     )
 
-    // Format the response with complete slot information
     const result = {
       nextAvailableSlot,
       fieldType,
       usedSlots,
-      totalSlots: 7, // Total available slots (tag1-tag7)
+      totalSlots: 7,
       availableSlots: nextAvailableSlot ? 7 - usedSlots.length : 0,
     }
 

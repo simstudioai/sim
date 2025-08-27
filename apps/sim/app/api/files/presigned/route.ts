@@ -97,7 +97,6 @@ export async function POST(request: NextRequest) {
             ? 'copilot'
             : 'general'
 
-    // Validate file type for knowledge-base uploads
     if (uploadType === 'knowledge-base') {
       const fileValidationError = validateFileType(fileName, contentType)
       if (fileValidationError) {
