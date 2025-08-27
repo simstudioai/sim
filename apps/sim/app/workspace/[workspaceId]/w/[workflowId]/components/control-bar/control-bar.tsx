@@ -736,20 +736,18 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
       setIsAutoLayouting(true)
       try {
-        // Use the shared auto layout utility for immediate frontend updates
-        const { applyAutoLayoutAndUpdateStore } = await import('../../utils/auto-layout')
+        // Use the LOCAL auto layout implementation for immediate frontend updates
+        const { applyLocalAutoLayoutAndUpdateStore } = await import('../../utils/local-auto-layout')
 
-        const result = await applyAutoLayoutAndUpdateStore(activeWorkflowId!)
+        const result = await applyLocalAutoLayoutAndUpdateStore(activeWorkflowId!)
 
         if (result.success) {
           logger.info('Auto layout completed successfully')
         } else {
           logger.error('Auto layout failed:', result.error)
-          // You could add a toast notification here if available
         }
       } catch (error) {
         logger.error('Auto layout error:', error)
-        // You could add a toast notification here if available
       } finally {
         setIsAutoLayouting(false)
       }
