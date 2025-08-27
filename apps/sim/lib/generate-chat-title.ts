@@ -1,5 +1,25 @@
-import OpenAI from 'openai'
+import OpenAI, { AzureOpenAI } from 'openai'
 import { env } from '@/lib/env'
+
+const azureApiKey = env.AZURE_OPENAI_API_KEY
+const azureEndpoint = env.AZURE_OPENAI_ENDPOINT
+const azureApiVersion = env.AZURE_OPENAI_API_VERSION
+const chatTitleModelName = env.WAND_OPENAI_MODEL_NAME || 'gpt-4o'
+const openaiApiKey = env.OPENAI_API_KEY
+
+const useChatTitleAzure = azureApiKey && azureEndpoint && azureApiVersion
+
+const client = useChatTitleAzure
+  ? new AzureOpenAI({
+      apiKey: azureApiKey,
+      apiVersion: azureApiVersion,
+      endpoint: azureEndpoint,
+    })
+  : openaiApiKey
+    ? new OpenAI({
+        apiKey: openaiApiKey,
+      })
+    : null
 
 /**
  * Generates a short title for a chat based on the first message
@@ -7,17 +27,13 @@ import { env } from '@/lib/env'
  * @returns A short title or null if API key is not available
  */
 export async function generateChatTitle(message: string): Promise<string | null> {
-  const apiKey = env.OPENAI_API_KEY
-
-  if (!apiKey) {
+  if (!client) {
     return null
   }
 
   try {
-    const openai = new OpenAI({ apiKey })
-
-    const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+    const response = await client.chat.completions.create({
+      model: useChatTitleAzure ? chatTitleModelName : 'gpt-4o',
       messages: [
         {
           role: 'system',
@@ -30,7 +46,7 @@ export async function generateChatTitle(message: string): Promise<string | null>
         },
       ],
       max_tokens: 20,
-      temperature: 0.7,
+      temperature: 0.2,
     })
 
     const title = response.choices[0]?.message?.content?.trim() || null
