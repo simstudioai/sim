@@ -136,3 +136,19 @@ export interface CleanedOutlookMessage {
 }
 
 export type OutlookResponse = OutlookReadResponse | OutlookSendResponse | OutlookDraftResponse
+
+export interface OutlookForwardParams {
+  accessToken: string
+  messageId: string
+  to: string
+  comment?: string
+}
+
+export interface OutlookForwardResponse extends ToolResponse {
+  output: {
+    message: string
+    results: any
+  }
+}
+
+export type OutlookExtendedResponse = OutlookResponse | OutlookForwardResponse

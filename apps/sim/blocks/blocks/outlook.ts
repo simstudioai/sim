@@ -22,6 +22,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         { label: 'Send Email', id: 'send_outlook' },
         { label: 'Draft Email', id: 'draft_outlook' },
         { label: 'Read Email', id: 'read_outlook' },
+        { label: 'Forward Email', id: 'forward_outlook' },
       ],
       value: () => 'send_outlook',
     },
@@ -51,8 +52,29 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Recipient email address',
-      condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      condition: {
+        field: 'operation',
+        value: ['send_outlook', 'draft_outlook', 'forward_outlook'],
+      },
       required: true,
+    },
+    {
+      id: 'messageId',
+      title: 'Message ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Message ID to forward',
+      condition: { field: 'operation', value: ['forward_outlook'] },
+      required: true,
+    },
+    {
+      id: 'comment',
+      title: 'Comment',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Optional comment to include when forwarding',
+      condition: { field: 'operation', value: ['forward_outlook'] },
+      required: false,
     },
     {
       id: 'subject',
@@ -157,7 +179,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     },
   ],
   tools: {
-    access: ['outlook_send', 'outlook_draft', 'outlook_read'],
+    access: ['outlook_send', 'outlook_draft', 'outlook_read', 'outlook_forward'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -167,6 +189,8 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
             return 'outlook_read'
           case 'draft_outlook':
             return 'outlook_draft'
+          case 'forward_outlook':
+            return 'outlook_forward'
           default:
             throw new Error(`Invalid Outlook operation: ${params.operation}`)
         }
@@ -197,6 +221,9 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email content' },
+    // Forward operation inputs
+    messageId: { type: 'string', description: 'Message ID to forward' },
+    comment: { type: 'string', description: 'Optional comment for forwarding' },
     // Read operation inputs
     folder: { type: 'string', description: 'Email folder' },
     manualFolder: { type: 'string', description: 'Manual folder name' },

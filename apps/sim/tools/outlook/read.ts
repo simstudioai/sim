@@ -127,9 +127,7 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Email read operation success status' },
-    messageCount: { type: 'number', description: 'Number of emails retrieved' },
-    messages: { type: 'array', description: 'Array of email message objects' },
     message: { type: 'string', description: 'Success or status message' },
+    results: { type: 'array', description: 'Array of email message objects' },
   },
 }
