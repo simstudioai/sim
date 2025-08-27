@@ -10,6 +10,7 @@ import {
   getProcessingConfig,
   processDocumentsWithQueue,
 } from '@/lib/knowledge/documents/service'
+import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
@@ -82,6 +83,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const search = url.searchParams.get('search') || undefined
     const limit = Number.parseInt(url.searchParams.get('limit') || '50')
     const offset = Number.parseInt(url.searchParams.get('offset') || '0')
+    const sortByParam = url.searchParams.get('sortBy')
+    const sortOrderParam = url.searchParams.get('sortOrder')
+
+    // Validate sort parameters
+    const validSortFields: DocumentSortField[] = [
+      'filename',
+      'fileSize',
+      'tokenCount',
+      'chunkCount',
+      'uploadedAt',
+      'processingStatus',
+    ]
+    const validSortOrders: SortOrder[] = ['asc', 'desc']
+
+    const sortBy =
+      sortByParam && validSortFields.includes(sortByParam as DocumentSortField)
+        ? (sortByParam as DocumentSortField)
+        : undefined
+    const sortOrder =
+      sortOrderParam && validSortOrders.includes(sortOrderParam as SortOrder)
+        ? (sortOrderParam as SortOrder)
+        : undefined
 
     const result = await getDocuments(
       knowledgeBaseId,
@@ -90,6 +113,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         search,
         limit,
         offset,
+        ...(sortBy && { sortBy }),
+        ...(sortOrder && { sortOrder }),
       },
       requestId
     )

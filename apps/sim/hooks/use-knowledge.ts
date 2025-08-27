@@ -45,7 +45,13 @@ const DEFAULT_PAGE_SIZE = 50
 
 export function useKnowledgeBaseDocuments(
   knowledgeBaseId: string,
-  options?: { search?: string; limit?: number; offset?: number }
+  options?: {
+    search?: string
+    limit?: number
+    offset?: number
+    sortBy?: string
+    sortOrder?: string
+  }
 ) {
   const { getDocuments, getCachedDocuments, loadingDocuments, updateDocument, refreshDocuments } =
     useKnowledgeStore()
@@ -55,10 +61,12 @@ export function useKnowledgeBaseDocuments(
   const documentsCache = getCachedDocuments(knowledgeBaseId)
   const isLoading = loadingDocuments.has(knowledgeBaseId)
 
-  // Load documents with server-side pagination and search
+  // Load documents with server-side pagination, search, and sorting
   const requestLimit = options?.limit || DEFAULT_PAGE_SIZE
   const requestOffset = options?.offset || 0
   const requestSearch = options?.search
+  const requestSortBy = options?.sortBy
+  const requestSortOrder = options?.sortOrder
 
   useEffect(() => {
     if (!knowledgeBaseId || isLoading) return
@@ -72,6 +80,8 @@ export function useKnowledgeBaseDocuments(
           search: requestSearch,
           limit: requestLimit,
           offset: requestOffset,
+          sortBy: requestSortBy,
+          sortOrder: requestSortOrder,
         })
       } catch (err) {
         if (isMounted) {
@@ -85,7 +95,16 @@ export function useKnowledgeBaseDocuments(
     return () => {
       isMounted = false
     }
-  }, [knowledgeBaseId, isLoading, getDocuments, requestSearch, requestLimit, requestOffset])
+  }, [
+    knowledgeBaseId,
+    isLoading,
+    getDocuments,
+    requestSearch,
+    requestLimit,
+    requestOffset,
+    requestSortBy,
+    requestSortOrder,
+  ])
 
   // Use server-side filtered and paginated results directly
   const documents = documentsCache?.documents || []
@@ -103,11 +122,21 @@ export function useKnowledgeBaseDocuments(
         search: requestSearch,
         limit: requestLimit,
         offset: requestOffset,
+        sortBy: requestSortBy,
+        sortOrder: requestSortOrder,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refresh documents')
     }
-  }, [knowledgeBaseId, refreshDocuments, requestSearch, requestLimit, requestOffset])
+  }, [
+    knowledgeBaseId,
+    refreshDocuments,
+    requestSearch,
+    requestLimit,
+    requestOffset,
+    requestSortBy,
+    requestSortOrder,
+  ])
 
   const updateDocumentLocal = useCallback(
     (documentId: string, updates: Partial<DocumentData>) => {

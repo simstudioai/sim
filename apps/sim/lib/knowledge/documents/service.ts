@@ -1,5 +1,5 @@
 import crypto, { randomUUID } from 'crypto'
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { getSlotsForFieldType, type TAG_SLOT_CONFIG } from '@/lib/constants/knowledge'
 import { generateEmbeddings } from '@/lib/embeddings/utils'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
@@ -9,6 +9,7 @@ import { getRedisClient } from '@/lib/redis'
 import { db } from '@/db'
 import { document, embedding, knowledgeBaseTagDefinitions } from '@/db/schema'
 import { DocumentProcessingQueue } from './queue'
+import type { DocumentSortField, SortOrder } from './types'
 
 const logger = createLogger('DocumentService')
 
@@ -596,6 +597,8 @@ export async function getDocuments(
     search?: string
     limit?: number
     offset?: number
+    sortBy?: DocumentSortField
+    sortOrder?: SortOrder
   },
   requestId: string
 ): Promise<{
@@ -629,7 +632,14 @@ export async function getDocuments(
     hasMore: boolean
   }
 }> {
-  const { includeDisabled = false, search, limit = 50, offset = 0 } = options
+  const {
+    includeDisabled = false,
+    search,
+    limit = 50,
+    offset = 0,
+    sortBy = 'uploadedAt',
+    sortOrder = 'desc',
+  } = options
 
   // Build where conditions
   const whereConditions = [
@@ -659,6 +669,28 @@ export async function getDocuments(
   const total = totalResult[0]?.count || 0
   const hasMore = offset + limit < total
 
+  // Create dynamic order by clause
+  const getOrderByColumn = () => {
+    switch (sortBy) {
+      case 'filename':
+        return document.filename
+      case 'fileSize':
+        return document.fileSize
+      case 'tokenCount':
+        return document.tokenCount
+      case 'chunkCount':
+        return document.chunkCount
+      case 'uploadedAt':
+        return document.uploadedAt
+      case 'processingStatus':
+        return document.processingStatus
+      default:
+        return document.uploadedAt
+    }
+  }
+
+  const orderByClause = sortOrder === 'asc' ? asc(getOrderByColumn()) : desc(getOrderByColumn())
+
   const documents = await db
     .select({
       id: document.id,
@@ -686,7 +718,7 @@ export async function getDocuments(
     })
     .from(document)
     .where(and(...whereConditions))
-    .orderBy(desc(document.uploadedAt))
+    .orderBy(orderByClause)
     .limit(limit)
     .offset(offset)
 
