@@ -3,9 +3,7 @@
 import { useEffect } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { AlertCircle, History, RotateCcw } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
+import { Button, ScrollArea, Separator } from '@/components/ui'
 import { useCopilotStore } from '@/stores/copilot/store'
 
 export function CheckpointPanel() {

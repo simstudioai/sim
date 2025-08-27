@@ -1,12 +1,12 @@
 export interface FileAttachment {
   id: string
-  s3_key: string
+  key: string
   filename: string
   media_type: string
   size: number
 }
 
-export interface AnthropicMessageContent {
+export interface MessageContent {
   type: 'text' | 'image' | 'document'
   text?: string
   source?: {
@@ -17,7 +17,7 @@ export interface AnthropicMessageContent {
 }
 
 /**
- * Mapping of MIME types to Anthropic content types
+ * Mapping of MIME types to content types
  */
 export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document'> = {
   // Images
@@ -47,14 +47,14 @@ export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document'> = {
 }
 
 /**
- * Get the Anthropic content type for a given MIME type
+ * Get the content type for a given MIME type
  */
-export function getAnthropicContentType(mimeType: string): 'image' | 'document' | null {
+export function getContentType(mimeType: string): 'image' | 'document' | null {
   return MIME_TYPE_MAPPING[mimeType.toLowerCase()] || null
 }
 
 /**
- * Check if a MIME type is supported by Anthropic
+ * Check if a MIME type is supported
  */
 export function isSupportedFileType(mimeType: string): boolean {
   return mimeType.toLowerCase() in MIME_TYPE_MAPPING
@@ -68,13 +68,10 @@ export function bufferToBase64(buffer: Buffer): string {
 }
 
 /**
- * Create Anthropic message content from file data
+ * Create message content from file data
  */
-export function createAnthropicFileContent(
-  fileBuffer: Buffer,
-  mimeType: string
-): AnthropicMessageContent | null {
-  const contentType = getAnthropicContentType(mimeType)
+export function createFileContent(fileBuffer: Buffer, mimeType: string): MessageContent | null {
+  const contentType = getContentType(mimeType)
   if (!contentType) {
     return null
   }

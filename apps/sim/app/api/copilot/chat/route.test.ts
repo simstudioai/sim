@@ -225,7 +225,6 @@ describe('Copilot Chat API Route', () => {
             streamToolCalls: true,
             mode: 'agent',
             depth: 0,
-            origin: 'http://localhost:3000',
           }),
         })
       )
@@ -288,7 +287,6 @@ describe('Copilot Chat API Route', () => {
             streamToolCalls: true,
             mode: 'agent',
             depth: 0,
-            origin: 'http://localhost:3000',
           }),
         })
       )
@@ -298,7 +296,6 @@ describe('Copilot Chat API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Mock new chat creation
       const newChat = {
         id: 'chat-123',
         userId: 'user-123',
@@ -306,8 +303,6 @@ describe('Copilot Chat API Route', () => {
         messages: [],
       }
       mockReturning.mockResolvedValue([newChat])
-
-      // Mock sim agent response
 
       ;(global.fetch as any).mockResolvedValue({
         ok: true,
@@ -343,7 +338,6 @@ describe('Copilot Chat API Route', () => {
             streamToolCalls: true,
             mode: 'agent',
             depth: 0,
-            origin: 'http://localhost:3000',
           }),
         })
       )
@@ -353,10 +347,7 @@ describe('Copilot Chat API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Mock new chat creation
       mockReturning.mockResolvedValue([{ id: 'chat-123', messages: [] }])
-
-      // Mock sim agent error
 
       ;(global.fetch as any).mockResolvedValue({
         ok: false,
@@ -403,10 +394,7 @@ describe('Copilot Chat API Route', () => {
       const authMocks = mockAuth()
       authMocks.setAuthenticated()
 
-      // Mock new chat creation
       mockReturning.mockResolvedValue([{ id: 'chat-123', messages: [] }])
-
-      // Mock sim agent response
 
       ;(global.fetch as any).mockResolvedValue({
         ok: true,
@@ -438,7 +426,6 @@ describe('Copilot Chat API Route', () => {
             streamToolCalls: true,
             mode: 'ask',
             depth: 0,
-            origin: 'http://localhost:3000',
           }),
         })
       )

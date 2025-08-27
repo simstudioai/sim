@@ -102,16 +102,45 @@ export async function uploadFile(
  * @param key File key/name
  * @returns File buffer
  */
-export async function downloadFile(key: string): Promise<Buffer> {
+export async function downloadFile(key: string): Promise<Buffer>
+
+/**
+ * Download a file from the configured storage provider with custom configuration
+ * @param key File key/name
+ * @param customConfig Custom storage configuration
+ * @returns File buffer
+ */
+export async function downloadFile(key: string, customConfig: CustomStorageConfig): Promise<Buffer>
+
+export async function downloadFile(
+  key: string,
+  customConfig?: CustomStorageConfig
+): Promise<Buffer> {
   if (USE_BLOB_STORAGE) {
     logger.info(`Downloading file from Azure Blob Storage: ${key}`)
     const { downloadFromBlob } = await import('@/lib/uploads/blob/blob-client')
+    if (customConfig) {
+      const blobConfig: CustomBlobConfig = {
+        containerName: customConfig.containerName!,
+        accountName: customConfig.accountName!,
+        accountKey: customConfig.accountKey,
+        connectionString: customConfig.connectionString,
+      }
+      return downloadFromBlob(key, blobConfig)
+    }
     return downloadFromBlob(key)
   }
 
   if (USE_S3_STORAGE) {
     logger.info(`Downloading file from S3: ${key}`)
     const { downloadFromS3 } = await import('@/lib/uploads/s3/s3-client')
+    if (customConfig) {
+      const s3Config: CustomS3Config = {
+        bucket: customConfig.bucket!,
+        region: customConfig.region!,
+      }
+      return downloadFromS3(key, s3Config)
+    }
     return downloadFromS3(key)
   }
 
