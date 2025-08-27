@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm'
+import { htmlToText } from 'html-to-text'
 import { nanoid } from 'nanoid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
@@ -77,6 +78,24 @@ export interface OutlookWebhookPayload {
   email: SimplifiedOutlookEmail
   timestamp: string
   rawEmail?: OutlookEmail // Only included when includeRawEmail is true
+}
+
+/**
+ * Convert HTML content to a readable plain-text representation.
+ * Keeps reasonable newlines and decodes common HTML entities.
+ */
+function convertHtmlToPlainText(html: string): string {
+  if (!html) return ''
+  return htmlToText(html, {
+    wordwrap: false,
+    selectors: [
+      { selector: 'a', options: { hideLinkHrefIfSameAsText: true, noAnchorUrl: true } },
+      { selector: 'img', format: 'skip' },
+      { selector: 'script', format: 'skip' },
+      { selector: 'style', format: 'skip' },
+    ],
+    preserveNewlines: true,
+  })
 }
 
 export async function pollOutlookWebhooks() {
@@ -357,7 +376,18 @@ async function processOutlookEmails(
         to: email.toRecipients?.map((r) => r.emailAddress.address).join(', ') || '',
         cc: email.ccRecipients?.map((r) => r.emailAddress.address).join(', ') || '',
         date: email.receivedDateTime,
-        bodyText: email.bodyPreview || '',
+        bodyText: (() => {
+          const content = email.body?.content || ''
+          const type = (email.body?.contentType || '').toLowerCase()
+          if (!content) {
+            return email.bodyPreview || ''
+          }
+          if (type === 'text' || type === 'text/plain') {
+            return content
+          }
+          // Default to converting HTML or unknown types
+          return convertHtmlToPlainText(content)
+        })(),
         bodyHtml: email.body?.content || '',
         hasAttachments: email.hasAttachments,
         isRead: email.isRead,

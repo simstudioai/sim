@@ -109,7 +109,12 @@ import {
 } from '@/tools/notion'
 import { onedriveCreateFolderTool, onedriveListTool, onedriveUploadTool } from '@/tools/onedrive'
 import { imageTool, embeddingsTool as openAIEmbeddings } from '@/tools/openai'
-import { outlookDraftTool, outlookReadTool, outlookSendTool } from '@/tools/outlook'
+import {
+  outlookDraftTool,
+  outlookForwardTool,
+  outlookReadTool,
+  outlookSendTool,
+} from '@/tools/outlook'
 import { parallelSearchTool } from '@/tools/parallel'
 import { perplexityChatTool } from '@/tools/perplexity'
 import {
@@ -302,6 +307,7 @@ export const tools: Record<string, ToolConfig> = {
   outlook_read: outlookReadTool,
   outlook_send: outlookSendTool,
   outlook_draft: outlookDraftTool,
+  outlook_forward: outlookForwardTool,
   linear_read_issues: linearReadIssuesTool,
   linear_create_issue: linearCreateIssueTool,
   onedrive_create_folder: onedriveCreateFolderTool,
