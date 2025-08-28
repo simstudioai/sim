@@ -889,7 +889,7 @@ export function DebugPanel() {
                         {filteredOutputVariables.map(({ ref, value, resolved }) => {
                           const fieldKey = `ref-${ref}`
                           const isExpanded = expandedFields.has(fieldKey)
-                          const valueStr = JSON.stringify(value, null, 2)
+                          const valueStr = value !== undefined ? JSON.stringify(value, null, 2) : 'undefined'
                           const shouldTruncate = valueStr.length > 600
                           
                           return (
@@ -976,7 +976,7 @@ export function DebugPanel() {
                       {Object.entries(workflowVars).map(([key, value]) => {
                         const fieldKey = `workflow-${key}`
                         const isExpanded = expandedFields.has(fieldKey)
-                        const valueStr = JSON.stringify(value, null, 2)
+                        const valueStr = value !== undefined && value !== null ? JSON.stringify(value, null, 2) : String(value)
                         const shouldTruncate = valueStr.length > 100
                         
                         return (
@@ -1039,7 +1039,7 @@ export function DebugPanel() {
                       {Object.entries(envVars).map(([key, value]) => {
                         const fieldKey = `env-${key}`
                         const isExpanded = expandedFields.has(fieldKey)
-                        const valueStr = JSON.stringify(value, null, 2)
+                        const valueStr = value !== undefined && value !== null ? JSON.stringify(value, null, 2) : String(value)
                         const shouldTruncate = valueStr.length > 100
                         
                         return (
