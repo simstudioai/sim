@@ -151,12 +151,14 @@ export async function getOrganizationBillingData(
     // This ensures organizations pay for their seat capacity regardless of utilization
     const minimumBillingAmount = licensedSeats * pricePerSeat
 
-    // Total usage limit represents the minimum amount the team will be billed
-    // This is based on licensed seats, not individual member limits (which are personal controls)
-    // Total usage limit: org-configured cap if present; otherwise minimum billing amount
-    const totalUsageLimit = organizationData.orgUsageLimit
+    // Total usage limit: never below the minimum based on licensed seats
+    const configuredLimit = organizationData.orgUsageLimit
       ? Number.parseFloat(organizationData.orgUsageLimit)
-      : minimumBillingAmount
+      : null
+    const totalUsageLimit =
+      configuredLimit !== null
+        ? Math.max(configuredLimit, minimumBillingAmount)
+        : minimumBillingAmount
 
     const averageUsagePerMember = members.length > 0 ? totalCurrentUsage / members.length : 0
 

@@ -413,11 +413,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                     }
                   }}
                 />
-              ) : (
-                <span className='text-muted-foreground text-xs tabular-nums'>
-                  ${usage.current.toFixed(2)} / ${usage.limit}
-                </span>
-              )
+              ) : undefined
             }
             progressValue={Math.min(Math.round(usage.percentUsed), 100)}
           />

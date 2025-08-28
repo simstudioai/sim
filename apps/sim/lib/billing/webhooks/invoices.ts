@@ -195,12 +195,15 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
   }
 }
 
-export async function handleInvoiceCreated(event: Stripe.Event) {
+/**
+ * Handle base invoice finalized → create a separate overage-only invoice
+ */
+export async function handleInvoiceFinalized(event: Stripe.Event) {
   try {
     const invoice = event.data.object as Stripe.Invoice
-
-    // Only handle subscription renewal invoices (start of new period)
-    if (!invoice.subscription || invoice.billing_reason !== 'subscription_cycle') return
+    // Only run for subscription renewal invoices (cycle boundary)
+    if (!invoice.subscription) return
+    if (invoice.billing_reason && invoice.billing_reason !== 'subscription_cycle') return
 
     const stripeSubscriptionId = String(invoice.subscription)
     const records = await db
@@ -209,39 +212,16 @@ export async function handleInvoiceCreated(event: Stripe.Event) {
       .where(eq(subscriptionTable.stripeSubscriptionId, stripeSubscriptionId))
       .limit(1)
 
-    if (records.length === 0) {
-      logger.warn('No matching internal subscription for upcoming invoice', {
-        stripeSubscriptionId,
-      })
-      return
-    }
-
+    if (records.length === 0) return
     const sub = records[0]
 
-    // Helper to add an overage invoice item with idempotency
-    async function addOverageItem(
-      customerId: string,
-      subscriptionId: string,
-      amountDollars: number,
-      metadata: Record<string, string>
-    ) {
-      const stripe = requireStripeClient()
-      const periodEnd = invoice.lines?.data?.[0]?.period?.end || Math.floor(Date.now() / 1000)
-      const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
-      await stripe.invoiceItems.create(
-        {
-          customer: customerId,
-          subscription: subscriptionId,
-          amount: Math.round(amountDollars * 100),
-          currency: 'usd',
-          description: `Overage for ${billingPeriod}`,
-          metadata: { type: 'overage_billing', billingPeriod, ...metadata },
-        },
-        { idempotencyKey: `${customerId}:${subscriptionId}:${billingPeriod}:overage` }
-      )
-    }
+    const stripe = requireStripeClient()
+    const periodEnd =
+      invoice.lines?.data?.[0]?.period?.end || invoice.period_end || Math.floor(Date.now() / 1000)
+    const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
 
-    // Organization: sum member usage; Individual: single user
+    // Compute overage
+    let totalOverage = 0
     if (sub.plan === 'team' || sub.plan === 'enterprise') {
       const members = await db
         .select({ userId: member.userId })
@@ -254,45 +234,104 @@ export async function handleInvoiceCreated(event: Stripe.Event) {
         totalTeamUsage += usage.currentUsage
       }
 
-      const licensedSeats = sub.seats || 1
       const { getPlanPricing } = await import('@/lib/billing/core/billing')
       const { basePrice } = getPlanPricing(sub.plan, sub)
-      const baseSubscriptionAmount = licensedSeats * basePrice
-      const totalOverage = Math.max(0, totalTeamUsage - baseSubscriptionAmount)
-
-      logger.info('Invoice upcoming overage calculation (org)', {
-        organizationId: sub.referenceId,
-        totalTeamUsage,
-        licensedSeats,
-        basePricePerSeat: basePrice,
-        baseSubscriptionAmount,
-        totalOverage,
-      })
-
-      if (totalOverage > 0) {
-        await addOverageItem(invoice.customer as string, stripeSubscriptionId, totalOverage, {
-          organizationId: sub.referenceId,
-        })
-      }
-      // Reset usage for the new period
-      await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
+      const baseSubscriptionAmount = (sub.seats || 1) * basePrice
+      totalOverage = Math.max(0, totalTeamUsage - baseSubscriptionAmount)
     } else {
       const usage = await getUserUsageData(sub.referenceId)
       const { getPlanPricing } = await import('@/lib/billing/core/billing')
       const { basePrice } = getPlanPricing(sub.plan, sub)
-      const overage = Math.max(0, usage.currentUsage - basePrice)
+      totalOverage = Math.max(0, usage.currentUsage - basePrice)
+    }
 
-      if (overage > 0) {
-        await addOverageItem(invoice.customer as string, stripeSubscriptionId, overage, {
-          userId: sub.referenceId,
+    // Always reset usage at cycle end, regardless of whether overage > 0
+    await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
+
+    if (totalOverage <= 0) return
+
+    const customerId = String(invoice.customer)
+    const cents = Math.round(totalOverage * 100)
+    const itemIdemKey = `overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
+    const invoiceIdemKey = `overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
+
+    // Inherit billing settings from the Stripe subscription/customer for autopay
+    const getPaymentMethodId = (
+      pm: string | Stripe.PaymentMethod | null | undefined
+    ): string | undefined => (typeof pm === 'string' ? pm : pm?.id)
+
+    let collectionMethod: 'charge_automatically' | 'send_invoice' = 'charge_automatically'
+    let defaultPaymentMethod: string | undefined
+    try {
+      const stripeSub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+      if (stripeSub.collection_method === 'send_invoice') {
+        collectionMethod = 'send_invoice'
+      }
+      const subDpm = getPaymentMethodId(stripeSub.default_payment_method)
+      if (subDpm) {
+        defaultPaymentMethod = subDpm
+      } else if (collectionMethod === 'charge_automatically') {
+        const custObj = await stripe.customers.retrieve(customerId)
+        if (custObj && !('deleted' in custObj)) {
+          const cust = custObj as Stripe.Customer
+          const custDpm = getPaymentMethodId(cust.invoice_settings?.default_payment_method)
+          if (custDpm) defaultPaymentMethod = custDpm
+        }
+      }
+    } catch (e) {
+      logger.error('Failed to retrieve subscription or customer', { error: e })
+    }
+
+    // Create a draft invoice first so we can attach the item directly
+    const overageInvoice = await stripe.invoices.create(
+      {
+        customer: customerId,
+        collection_method: collectionMethod,
+        auto_advance: false,
+        ...(defaultPaymentMethod ? { default_payment_method: defaultPaymentMethod } : {}),
+        metadata: {
+          type: 'overage_billing',
+          billingPeriod,
+          subscriptionId: stripeSubscriptionId,
+        },
+      },
+      { idempotencyKey: invoiceIdemKey }
+    )
+
+    // Attach the item to this invoice
+    await stripe.invoiceItems.create(
+      {
+        customer: customerId,
+        invoice: overageInvoice.id,
+        amount: cents,
+        currency: 'usd',
+        description: `Usage Based Overage – ${billingPeriod}`,
+        metadata: {
+          type: 'overage_billing',
+          billingPeriod,
+          subscriptionId: stripeSubscriptionId,
+        },
+      },
+      { idempotencyKey: itemIdemKey }
+    )
+
+    // Finalize to trigger autopay (if charge_automatically and a PM is present)
+    const finalized = await stripe.invoices.finalizeInvoice(overageInvoice.id)
+    // Some manual invoices may remain open after finalize; ensure we pay immediately when possible
+    if (collectionMethod === 'charge_automatically' && finalized.status === 'open') {
+      try {
+        await stripe.invoices.pay(finalized.id, {
+          payment_method: defaultPaymentMethod,
+        })
+      } catch (payError) {
+        logger.error('Failed to auto-pay overage invoice', {
+          error: payError,
+          invoiceId: finalized.id,
         })
       }
-
-      // Reset usage for the new period
-      await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
     }
   } catch (error) {
-    logger.error('Failed to handle invoice created', { error })
+    logger.error('Failed to handle invoice finalized', { error })
     throw error
   }
 }

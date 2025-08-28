@@ -63,21 +63,22 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
         ? Number.parseFloat(stats.currentUsageLimit)
         : getFreeTierLimit()
     } else {
-      // Team/Enterprise: Use organization limit (single source of truth)
+      // Team/Enterprise: Use organization limit but never below minimum (seats × cost per seat)
       const orgData = await db
         .select({ orgUsageLimit: organization.orgUsageLimit })
         .from(organization)
         .where(eq(organization.id, subscription.referenceId))
         .limit(1)
 
+      const { getPlanPricing } = await import('@/lib/billing/core/billing')
+      const { basePrice } = getPlanPricing(subscription.plan, subscription)
+      const minimum = (subscription.seats || 1) * basePrice
+
       if (orgData.length > 0 && orgData[0].orgUsageLimit) {
-        // Use the org's configured limit
-        limit = Number.parseFloat(orgData[0].orgUsageLimit)
+        const configured = Number.parseFloat(orgData[0].orgUsageLimit)
+        limit = Math.max(configured, minimum)
       } else {
-        // If org hasn't set a custom limit, use the minimum (seats × cost per seat)
-        const { getPlanPricing } = await import('@/lib/billing/core/billing')
-        const { basePrice } = getPlanPricing(subscription.plan, subscription)
-        limit = (subscription.seats || 1) * basePrice
+        limit = minimum
       }
     }
 
@@ -142,16 +143,17 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
         .where(eq(organization.id, subscription.referenceId))
         .limit(1)
 
+      const { getPlanPricing } = await import('@/lib/billing/core/billing')
+      const { basePrice } = getPlanPricing(subscription.plan, subscription)
+      const minimum = (subscription.seats || 1) * basePrice
+
       if (orgData.length > 0 && orgData[0].orgUsageLimit) {
-        currentLimit = Number.parseFloat(orgData[0].orgUsageLimit)
-        minimumLimit = currentLimit // For org plans, current is minimum
+        const configured = Number.parseFloat(orgData[0].orgUsageLimit)
+        currentLimit = Math.max(configured, minimum)
       } else {
-        // If org hasn't set limit, use calculated minimum
-        const { getPlanPricing } = await import('@/lib/billing/core/billing')
-        const { basePrice } = getPlanPricing(subscription.plan, subscription)
-        currentLimit = (subscription.seats || 1) * basePrice
-        minimumLimit = currentLimit
+        currentLimit = minimum
       }
+      minimumLimit = minimum
       canEdit = false // Team/enterprise members cannot edit limits
     }
 
@@ -319,7 +321,7 @@ export async function getUserUsageLimit(userId: string): Promise<number> {
 
     return Number.parseFloat(userStatsQuery[0].currentUsageLimit)
   }
-  // Team/Enterprise: Use organization limit
+  // Team/Enterprise: Use organization limit but never below minimum
   const orgData = await db
     .select({ orgUsageLimit: organization.orgUsageLimit })
     .from(organization)
@@ -331,7 +333,11 @@ export async function getUserUsageLimit(userId: string): Promise<number> {
   }
 
   if (orgData[0].orgUsageLimit) {
-    return Number.parseFloat(orgData[0].orgUsageLimit)
+    const configured = Number.parseFloat(orgData[0].orgUsageLimit)
+    const { getPlanPricing } = await import('@/lib/billing/core/billing')
+    const { basePrice } = getPlanPricing(subscription.plan, subscription)
+    const minimum = (subscription.seats || 1) * basePrice
+    return Math.max(configured, minimum)
   }
 
   // If org hasn't set a custom limit, use minimum (seats × cost per seat)
