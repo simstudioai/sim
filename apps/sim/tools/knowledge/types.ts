@@ -1,8 +1,7 @@
 export interface KnowledgeSearchResult {
-  id: string
-  content: string
   documentId: string
   documentName: string
+  content: string
   chunkIndex: number
   metadata: Record<string, any>
   similarity: number
@@ -41,7 +40,7 @@ export interface KnowledgeSearchParams {
 }
 
 export interface KnowledgeUploadChunkResult {
-  id: string
+  chunkId: string
   chunkIndex: number
   content: string
   contentLength: number
@@ -84,8 +83,8 @@ export interface KnowledgeUploadChunkParams {
 }
 
 export interface KnowledgeCreateDocumentResult {
-  id: string
-  name: string
+  documentId: string
+  documentName: string
   type: string
   enabled: boolean
   createdAt: string
@@ -97,7 +96,6 @@ export interface KnowledgeCreateDocumentResponse {
   output: {
     data: KnowledgeCreateDocumentResult
     message: string
-    documentId: string
   }
   error?: string
 }
