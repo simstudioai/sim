@@ -27,7 +27,8 @@ import {
   Circle,
   AlertCircle,
   Check,
-  X
+  X,
+  ChevronRight
 } from 'lucide-react'
 
 export function DebugPanel() {
@@ -38,8 +39,22 @@ export function DebugPanel() {
 
   const [chatMessage, setChatMessage] = useState('')
   const [scopedVariables, setScopedVariables] = useState(true)
+  const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set())
   const hasStartedRef = useRef(false)
   const lastFocusedIdRef = useRef<string | null>(null)
+
+  // Helper to toggle field expansion
+  const toggleFieldExpansion = (fieldKey: string) => {
+    setExpandedFields(prev => {
+      const next = new Set(prev)
+      if (next.has(fieldKey)) {
+        next.delete(fieldKey)
+      } else {
+        next.add(fieldKey)
+      }
+      return next
+    })
+  }
 
   // Helper to consistently resolve a human-readable block name
   const getDisplayName = (block: any | null | undefined): string => {
@@ -588,12 +603,101 @@ export function DebugPanel() {
 
             <TabsContent value='input' className='flex-1 overflow-auto p-3 m-0'>
               {Object.keys(visibleSubblockValues).length > 0 ? (
-                <div className='rounded-lg border border-border/50 bg-muted/20'>
-                  <ScrollArea className='h-full'>
-                    <pre className='p-3 text-[11px] font-mono leading-relaxed text-foreground/90 whitespace-pre-wrap break-words'>
-{JSON.stringify(visibleSubblockValues, null, 2)}
-                    </pre>
-                  </ScrollArea>
+                <div className='h-full overflow-y-scroll overflow-x-hidden'>
+                  <table className='w-full table-fixed'>
+                    <colgroup>
+                      <col className='w-[30%] min-w-[120px]' />
+                      <col className='w-[70%]' />
+                    </colgroup>
+                    <thead className='sticky top-0 bg-background z-10'>
+                      <tr className='border-b border-border/50'>
+                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Field</th>
+                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(visibleSubblockValues).map(([key, value]) => {
+                        const fieldKey = `input-${key}`
+                        const isExpanded = expandedFields.has(fieldKey)
+                        
+                        return (
+                          <tr key={key} className='border-b border-border/30 hover:bg-muted/20'>
+                            <td className='px-3 py-2 align-top'>
+                              <code className='font-mono text-[11px] text-foreground/80 break-words'>{key}</code>
+                            </td>
+                            <td className='px-3 py-2'>
+                              <div className='w-full overflow-hidden'>
+                                {typeof value === 'object' && value !== null ? (
+                                  <div 
+                                    className='cursor-pointer flex items-start gap-1'
+                                    onClick={() => toggleFieldExpansion(fieldKey)}
+                                  >
+                                    <ChevronRight 
+                                      className={cn(
+                                        'h-3 w-3 mt-0.5 text-muted-foreground transition-transform flex-shrink-0',
+                                        isExpanded && 'rotate-90'
+                                      )}
+                                    />
+                                    <div className='min-w-0 flex-1'>
+                                      {isExpanded ? (
+                                        <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+{JSON.stringify(value, null, 2)}
+                                        </pre>
+                                      ) : (
+                                        <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
+                                          {JSON.stringify(value).slice(0, 100)}...
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : typeof value === 'boolean' ? (
+                                  <span className={cn(
+                                    'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium',
+                                    value ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
+                                  )}>
+                                    {String(value)}
+                                  </span>
+                                ) : typeof value === 'number' ? (
+                                  <code className='rounded bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 font-mono text-[11px] text-blue-700 dark:text-blue-400'>
+                                    {value}
+                                  </code>
+                                ) : value === null || value === undefined ? (
+                                  <span className='text-[11px] text-muted-foreground italic'>null</span>
+                                ) : String(value).length > 100 ? (
+                                  <div
+                                    className='cursor-pointer flex items-start gap-1'
+                                    onClick={() => toggleFieldExpansion(fieldKey)}
+                                  >
+                                    <ChevronRight 
+                                      className={cn(
+                                        'h-3 w-3 mt-0.5 text-muted-foreground transition-transform flex-shrink-0',
+                                        isExpanded && 'rotate-90'
+                                      )}
+                                    />
+                                    <div className='min-w-0 flex-1'>
+                                      {isExpanded ? (
+                                        <span className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
+                                          {String(value)}
+                                        </span>
+                                      ) : (
+                                        <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
+                                          {String(value).slice(0, 100)}...
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className='text-[11px] font-mono text-foreground/70 break-words'>
+                                    {String(value)}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               ) : (
                 <div className='flex h-32 items-center justify-center rounded-lg border border-dashed border-border/50'>
@@ -604,12 +708,103 @@ export function DebugPanel() {
 
             <TabsContent value='output' className='flex-1 overflow-auto p-3 m-0'>
               {resolvedOutputKVs && Object.keys(resolvedOutputKVs).length > 0 ? (
-                <div className='rounded-lg border border-border/50 bg-muted/20'>
-                  <ScrollArea className='h-full'>
-                    <pre className='p-3 text-[11px] font-mono leading-relaxed text-foreground/90 whitespace-pre-wrap break-words'>
-{JSON.stringify(resolvedOutputKVs, null, 2)}
-                    </pre>
-                  </ScrollArea>
+                <div className='h-full overflow-y-scroll overflow-x-hidden'>
+                  <table className='w-full table-fixed'>
+                    <colgroup>
+                      <col className='w-[30%] min-w-[120px]' />
+                      <col className='w-[70%]' />
+                    </colgroup>
+                    <thead className='sticky top-0 bg-background z-10'>
+                      <tr className='border-b border-border/50'>
+                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Field</th>
+                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(resolvedOutputKVs).map(([key, value]) => {
+                        const fieldKey = `output-${key}`
+                        const isExpanded = expandedFields.has(fieldKey)
+                        
+                        return (
+                          <tr key={key} className='border-b border-border/30 hover:bg-muted/20'>
+                            <td className='px-3 py-2 align-top'>
+                              <code className='font-mono text-[11px] text-foreground/80 break-words'>{key}</code>
+                            </td>
+                            <td className='px-3 py-2'>
+                              <div className='w-full overflow-hidden'>
+                                {typeof value === 'object' && value !== null ? (
+                                  <div 
+                                    className='cursor-pointer flex items-start gap-1'
+                                    onClick={() => toggleFieldExpansion(fieldKey)}
+                                  >
+                                    <ChevronRight 
+                                      className={cn(
+                                        'h-3 w-3 mt-0.5 text-muted-foreground transition-transform flex-shrink-0',
+                                        isExpanded && 'rotate-90'
+                                      )}
+                                    />
+                                    <div className='min-w-0 flex-1'>
+                                      {isExpanded ? (
+                                        <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+{JSON.stringify(value, null, 2)}
+                                        </pre>
+                                      ) : (
+                                        <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
+                                          {JSON.stringify(value).slice(0, 100)}...
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : typeof value === 'boolean' ? (
+                                  <span className={cn(
+                                    'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium',
+                                    value ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
+                                  )}>
+                                    {String(value)}
+                                  </span>
+                                ) : typeof value === 'number' ? (
+                                  <code className='rounded bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 font-mono text-[11px] text-blue-700 dark:text-blue-400'>
+                                    {value}
+                                  </code>
+                                ) : value === null || value === undefined ? (
+                                  <span className='text-[11px] text-muted-foreground italic'>
+                                    {value === null ? 'null' : 'undefined'}
+                                  </span>
+                                ) : String(value).length > 100 ? (
+                                  <div
+                                    className='cursor-pointer flex items-start gap-1'
+                                    onClick={() => toggleFieldExpansion(fieldKey)}
+                                  >
+                                    <ChevronRight 
+                                      className={cn(
+                                        'h-3 w-3 mt-0.5 text-muted-foreground transition-transform flex-shrink-0',
+                                        isExpanded && 'rotate-90'
+                                      )}
+                                    />
+                                    <div className='min-w-0 flex-1'>
+                                      {isExpanded ? (
+                                        <span className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
+                                          {String(value)}
+                                        </span>
+                                      ) : (
+                                        <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
+                                          {String(value).slice(0, 100)}...
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className='text-[11px] font-mono text-foreground/70 break-words'>
+                                    {String(value)}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               ) : (
                 <div className='flex h-32 items-center justify-center rounded-lg border border-dashed border-border/50'>
