@@ -64,6 +64,7 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
           updatedAt: data.updatedAt,
         },
         documentId: data.documentId,
+        documentName: data.documentName,
         cost: data.cost,
       },
     }
@@ -91,6 +92,10 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
     documentId: {
       type: 'string',
       description: 'ID of the document the chunk was added to',
+    },
+    documentName: {
+      type: 'string',
+      description: 'Name of the document the chunk was added to',
     },
     cost: {
       type: 'object',

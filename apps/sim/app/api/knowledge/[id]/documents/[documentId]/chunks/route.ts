@@ -187,6 +187,8 @@ export async function POST(
         success: true,
         data: {
           ...newChunk,
+          documentId,
+          documentName: doc.filename,
           ...(cost
             ? {
                 cost: {

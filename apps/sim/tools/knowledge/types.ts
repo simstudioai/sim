@@ -56,6 +56,7 @@ export interface KnowledgeUploadChunkResponse {
     data: KnowledgeUploadChunkResult
     message: string
     documentId: string
+    documentName: string
     cost?: {
       input: number
       output: number
