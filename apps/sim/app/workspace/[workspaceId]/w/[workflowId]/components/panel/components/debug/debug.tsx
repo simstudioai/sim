@@ -20,6 +20,7 @@ import { getTool } from '@/tools/utils'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import { 
   Play, 
   FastForward, 
@@ -200,6 +201,11 @@ export function DebugPanel() {
 
   const envVars = debugContext?.environmentVariables || {}
   const workflowVars = debugContext?.workflowVariables || {}
+
+  // Get workflow variables from the variables store
+  const workflowVariablesFromStore = useVariablesStore((state) => 
+    activeWorkflowId ? state.getVariablesByWorkflowId(activeWorkflowId) : []
+  )
 
   const isFocusedExecuted = debugContext ? !!debugContext?.blockStates.get(focusedBlockId || '')?.executed : false
   const isStarterFocused = focusedBlock?.metadata?.id === 'starter' || focusedBlock?.type === 'starter'
@@ -505,13 +511,19 @@ export function DebugPanel() {
     const referencedVars = new Set<string>()
     let match
     while ((match = referencePattern.exec(inputValuesStr)) !== null) {
-      referencedVars.add(match[0]) // Add the full reference including < >
+      const fullMatch = match[0] // Full reference including < >
+      const innerContent = match[1] // Content between < >
+      
+      // Exclude workflow variable references (pattern: variable.something)
+      if (!innerContent.startsWith('variable.')) {
+        referencedVars.add(fullMatch)
+      }
     }
     
     // Build the final list with both resolved and unresolved variables
     const result: Array<{ ref: string; value: any; resolved: boolean }> = []
     
-    // Add all referenced variables
+    // Add all referenced variables (excluding workflow variables)
     for (const ref of referencedVars) {
       const available = availableVarsMap.get(ref)
       if (available) {
@@ -532,6 +544,135 @@ export function DebugPanel() {
     })
     return result
   }, [outputVariableEntries, scopedVariables, visibleSubblockValues, executionVersion, allPossibleVariableRefs])
+
+  // Filter workflow variables based on whether they're referenced in the input
+  const filteredWorkflowVariables = useMemo(() => {
+    // Get all workflow variables from the store
+    const storeVariables = workflowVariablesFromStore
+    
+    if (!scopedVariables) {
+      // Show all workflow variables from the store
+      return storeVariables.map(variable => ({
+        id: variable.id,
+        name: variable.name,
+        value: variable.value,
+        type: variable.type
+      }))
+    }
+    
+    // For scoped view, look at the entire focused block's data
+    // This includes all subBlocks values, not just the visible ones
+    if (!focusedBlock) {
+      return []
+    }
+    
+    // Get all subblock values from the store for this block
+    const allSubBlockValues: Record<string, any> = {}
+    if (focusedBlockId && activeWorkflowId) {
+      const allBlocks = useWorkflowStore.getState().blocks
+      const merged = mergeSubblockState(allBlocks, activeWorkflowId, focusedBlockId)[focusedBlockId]
+      const stateToUse = merged?.subBlocks || {}
+      
+      // Extract all values from subBlocks
+      for (const [key, subBlock] of Object.entries(stateToUse)) {
+        if (subBlock && typeof subBlock === 'object' && 'value' in subBlock) {
+          allSubBlockValues[key] = subBlock.value
+        }
+      }
+    }
+    
+    // Search for workflow variable references in all subblock values
+    const blockDataStr = JSON.stringify(allSubBlockValues)
+    
+    // Extract workflow variable references using pattern <variable.name>
+    const variablePattern = /<variable\.([^>]+)>/g
+    const referencedVarNames = new Set<string>()
+    let match
+    while ((match = variablePattern.exec(blockDataStr)) !== null) {
+      referencedVarNames.add(match[1]) // Add just the variable name part
+    }
+    
+    // Filter workflow variables to only those referenced
+    return storeVariables.filter(variable => {
+      // Normalize the variable name (remove spaces) to match how it's referenced
+      const normalizedName = (variable.name || '').replace(/\s+/g, '')
+      return referencedVarNames.has(normalizedName)
+    }).map(variable => ({
+      id: variable.id,
+      name: variable.name,
+      value: variable.value,
+      type: variable.type
+    }))
+  }, [workflowVariablesFromStore, scopedVariables, focusedBlock, focusedBlockId, activeWorkflowId])
+
+  // Filter environment variables based on whether they're referenced in the input
+  const filteredEnvVariables = useMemo(() => {
+    if (!scopedVariables) {
+      // Show all environment variables that are referenced anywhere in the workflow
+      // Extract all env var references from all blocks
+      const allEnvVarRefs = new Set<string>()
+      for (const block of blocksList) {
+        // Check all block properties, including subBlocks
+        if (activeWorkflowId) {
+          const allBlocks = useWorkflowStore.getState().blocks
+          const merged = mergeSubblockState(allBlocks, activeWorkflowId, block.id)[block.id]
+          const stateToUse = merged?.subBlocks || {}
+          
+          // Extract all values and search for env var references
+          const blockValues: any[] = []
+          for (const [key, subBlock] of Object.entries(stateToUse)) {
+            if (subBlock && typeof subBlock === 'object' && 'value' in subBlock) {
+              blockValues.push(subBlock.value)
+            }
+          }
+          
+          const blockStr = JSON.stringify(blockValues)
+          const envPattern = /\{\{([^}]+)\}\}/g
+          let match
+          while ((match = envPattern.exec(blockStr)) !== null) {
+            allEnvVarRefs.add(match[1])
+          }
+        }
+      }
+      // Return only env vars that are referenced somewhere in the workflow
+      return Object.entries(envVars).filter(([key]) => allEnvVarRefs.has(key))
+    }
+    
+    // For scoped view, look at the entire focused block's data
+    // This includes all subBlocks values, not just the visible ones
+    if (!focusedBlock) {
+      return []
+    }
+    
+    // Get all subblock values from the store for this block
+    const allSubBlockValues: Record<string, any> = {}
+    if (focusedBlockId && activeWorkflowId) {
+      const allBlocks = useWorkflowStore.getState().blocks
+      const merged = mergeSubblockState(allBlocks, activeWorkflowId, focusedBlockId)[focusedBlockId]
+      const stateToUse = merged?.subBlocks || {}
+      
+      // Extract all values from subBlocks
+      for (const [key, subBlock] of Object.entries(stateToUse)) {
+        if (subBlock && typeof subBlock === 'object' && 'value' in subBlock) {
+          allSubBlockValues[key] = subBlock.value
+        }
+      }
+    }
+    
+    // Search for env var references in all subblock values
+    const blockDataStr = JSON.stringify(allSubBlockValues)
+    
+    // Extract environment variable references using pattern {{VAR_NAME}}
+    const envPattern = /\{\{([^}]+)\}\}/g
+    const referencedEnvVars = new Set<string>()
+    let match
+    while ((match = envPattern.exec(blockDataStr)) !== null) {
+      referencedEnvVars.add(match[1]) // Add just the variable name part
+    }
+    
+    // Filter environment variables to only those referenced
+    return Object.entries(envVars).filter(([key]) => referencedEnvVars.has(key))
+  }, [envVars, scopedVariables, focusedBlock, focusedBlockId, activeWorkflowId, blocksList])
 
   // Reset hasStartedRef when debug mode is deactivated
   useEffect(() => {
@@ -616,7 +757,7 @@ export function DebugPanel() {
     <div className='flex h-full flex-col'>
       {/* Header Section - Single Line */}
       <div className='border-b border-border/50 px-3 py-2.5'>
-        <div className='flex items-center justify-between'>
+      <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2 min-w-0'>
             <span className='font-semibold text-sm truncate'>
               {getDisplayName(focusedBlock) || 'No block selected'}
@@ -629,7 +770,7 @@ export function DebugPanel() {
                 </span>
               </>
             )}
-          </div>
+        </div>
           <div className='flex items-center gap-1.5 flex-shrink-0'>
             {getStatusIcon()}
             <span className='text-muted-foreground text-xs'>{getStatusText()}</span>
@@ -639,7 +780,7 @@ export function DebugPanel() {
 
       {/* Controls Section */}
       <div className='border-b border-border/50 p-3'>
-        {isChatMode && !hasStartedRef.current && (
+          {isChatMode && !hasStartedRef.current && (
           <div className='mb-3'>
             <Textarea
               placeholder='Enter message to start debugging...'
@@ -647,12 +788,12 @@ export function DebugPanel() {
               onChange={(e) => setChatMessage(e.target.value)}
               className='min-h-[60px] resize-none border-border/50 bg-background/50 placeholder:text-muted-foreground/50'
             />
-          </div>
+        </div>
         )}
         <div className='flex items-center gap-2'>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
                 <Button
                   size='sm'
                   variant='outline'
@@ -661,29 +802,29 @@ export function DebugPanel() {
                 >
                   <Play className='h-3.5 w-3.5' />
                   Step
-                </Button>
-              </TooltipTrigger>
+              </Button>
+            </TooltipTrigger>
               <TooltipContent>Execute next step</TooltipContent>
-            </Tooltip>
+          </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
                   size='sm'
                   variant='outline'
-                  onClick={handleResumeDebug}
-                  disabled={!hasStartedRef.current || pendingBlocks.length === 0}
+                onClick={handleResumeDebug}
+                disabled={!hasStartedRef.current || pendingBlocks.length === 0}
                   className='gap-2 border-border/50 hover:bg-muted/50 disabled:opacity-40'
-                >
+              >
                   <FastForward className='h-3.5 w-3.5' />
                   Resume
-                </Button>
-              </TooltipTrigger>
+              </Button>
+            </TooltipTrigger>
               <TooltipContent>Continue execution</TooltipContent>
-            </Tooltip>
+          </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
+          <Tooltip>
+            <TooltipTrigger asChild>
                 <Button
                   size='sm'
                   variant='outline'
@@ -692,12 +833,12 @@ export function DebugPanel() {
                 >
                   <Square className='h-3.5 w-3.5' />
                   Stop
-                </Button>
-              </TooltipTrigger>
+              </Button>
+            </TooltipTrigger>
               <TooltipContent>Stop debugging</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
       </div>
 
       {/* Main Content Area - Split into two sections */}
@@ -711,19 +852,19 @@ export function DebugPanel() {
                   value='input'
                   className='h-10 rounded-none border-b-2 border-transparent px-0 pb-2.5 pt-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
                 >
-                  Input
-                </TabsTrigger>
+                    Input
+                  </TabsTrigger>
                 <TabsTrigger
                   value='output'
                   className='h-10 rounded-none border-b-2 border-transparent px-0 pb-2.5 pt-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
                 >
-                  Output
-                </TabsTrigger>
-              </TabsList>
-            </div>
+                    Output
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
             <TabsContent value='input' className='flex-1 overflow-auto p-3 m-0'>
-              {Object.keys(visibleSubblockValues).length > 0 ? (
+                {Object.keys(visibleSubblockValues).length > 0 ? (
                 <div className='h-full overflow-y-scroll overflow-x-hidden'>
                   <table className='w-full table-fixed'>
                     <colgroup>
@@ -763,7 +904,7 @@ export function DebugPanel() {
                                       {isExpanded ? (
                                         <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
 {JSON.stringify(value, null, 2)}
-                                        </pre>
+                    </pre>
                                       ) : (
                                         <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
                                           {JSON.stringify(value).slice(0, 100)}...
@@ -824,11 +965,11 @@ export function DebugPanel() {
                 <div className='flex h-32 items-center justify-center rounded-lg border border-dashed border-border/50'>
                   <p className='text-muted-foreground/60 text-xs'>No input data available</p>
                 </div>
-              )}
-            </TabsContent>
+                )}
+              </TabsContent>
 
             <TabsContent value='output' className='flex-1 overflow-auto p-3 m-0'>
-              {resolvedOutputKVs && Object.keys(resolvedOutputKVs).length > 0 ? (
+                {resolvedOutputKVs && Object.keys(resolvedOutputKVs).length > 0 ? (
                 <div className='h-full overflow-y-scroll overflow-x-hidden'>
                   <table className='w-full table-fixed'>
                     <colgroup>
@@ -868,7 +1009,7 @@ export function DebugPanel() {
                                       {isExpanded ? (
                                         <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
 {JSON.stringify(value, null, 2)}
-                                        </pre>
+                    </pre>
                                       ) : (
                                         <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
                                           {JSON.stringify(value).slice(0, 100)}...
@@ -931,15 +1072,15 @@ export function DebugPanel() {
                 <div className='flex h-32 items-center justify-center rounded-lg border border-dashed border-border/50'>
                   <p className='text-muted-foreground/60 text-xs'>No output data available</p>
                 </div>
-              )}
-            </TabsContent>
-          </Tabs>
-        </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
 
         {/* Bottom Section - Variables Tables */}
         <div className='flex-1 min-h-0'>
           <Tabs defaultValue='reference' className='flex h-full flex-col'>
-            <div className='border-b border-border/50 px-3'>
+            <div className='border-b border-border/50 px-3 flex items-center justify-between'>
               <TabsList className='h-10 bg-transparent p-0 gap-6'>
                 <TabsTrigger
                   value='reference'
@@ -956,7 +1097,7 @@ export function DebugPanel() {
                 >
                   Workflow Variables
                   <span className='ml-1.5 text-[10px] text-muted-foreground'>
-                    ({Object.keys(workflowVars).length})
+                    ({filteredWorkflowVariables.length})
                   </span>
                 </TabsTrigger>
                 <TabsTrigger
@@ -965,23 +1106,23 @@ export function DebugPanel() {
                 >
                   Environment Variables
                   <span className='ml-1.5 text-[10px] text-muted-foreground'>
-                    ({Object.keys(envVars).length})
+                    ({filteredEnvVariables.length})
                   </span>
                 </TabsTrigger>
               </TabsList>
-            </div>
+              <label className='flex items-center gap-2 cursor-pointer text-xs'>
+                <Checkbox 
+                  checked={scopedVariables}
+                  onCheckedChange={(checked) => setScopedVariables(checked as boolean)}
+                  className='h-3.5 w-3.5'
+                />
+                <span className='text-muted-foreground'>Scoped</span>
+              </label>
+        </div>
 
             <TabsContent value='reference' className='flex-1 overflow-auto m-0'>
               <div className='flex flex-col h-full'>
                 <div className='flex items-center justify-between px-3 py-2 border-b border-border/50'>
-                  <label className='flex items-center gap-2 cursor-pointer text-xs'>
-                    <Checkbox 
-                      checked={scopedVariables}
-                      onCheckedChange={(checked) => setScopedVariables(checked as boolean)}
-                      className='h-3.5 w-3.5'
-                    />
-                    <span className='text-muted-foreground'>Scoped</span>
-                  </label>
                   <div className='flex items-center gap-1.5'>
                     {scopedVariables && filteredOutputVariables.length > 0 && getResolutionIcon()}
                     <span className='text-[10px] text-muted-foreground'>
@@ -991,7 +1132,7 @@ export function DebugPanel() {
                         `${outputVariableEntries.length}`
                       )} variables
                     </span>
-                  </div>
+                          </div>
                 </div>
                 {filteredOutputVariables.length > 0 ? (
                   <div className='flex-1 overflow-y-scroll overflow-x-hidden'>
@@ -1047,9 +1188,9 @@ export function DebugPanel() {
                                       <div className='min-w-0 flex-1'>
                                         <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
 {isExpanded ? valueStr : `${valueStr.slice(0, 600)}...`}
-                                        </pre>
-                                      </div>
-                                    </div>
+                          </pre>
+                        </div>
+                    </div>
                                   ) : (
                                     <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
 {valueStr}
@@ -1066,7 +1207,7 @@ export function DebugPanel() {
                         })}
                       </tbody>
                     </table>
-                  </div>
+              </div>
                 ) : (
                   <div className='flex flex-1 items-center justify-center'>
                     <p className='text-muted-foreground/60 text-xs'>
@@ -1080,7 +1221,7 @@ export function DebugPanel() {
             </TabsContent>
 
             <TabsContent value='workflow' className='flex-1 overflow-auto m-0'>
-              {Object.keys(workflowVars).length > 0 ? (
+              {filteredWorkflowVariables.length > 0 ? (
                 <div className='h-full overflow-y-scroll overflow-x-hidden'>
                   <table className='w-full table-fixed'>
                     <colgroup>
@@ -1094,16 +1235,17 @@ export function DebugPanel() {
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.entries(workflowVars).map(([key, value]) => {
-                        const fieldKey = `workflow-${key}`
+                      {filteredWorkflowVariables.map((variable) => {
+                        const fieldKey = `workflow-${variable.id}`
                         const isExpanded = expandedFields.has(fieldKey)
+                        const value = variable.value
                         const valueStr = value !== undefined && value !== null ? JSON.stringify(value, null, 2) : String(value)
                         const shouldTruncate = valueStr.length > 100
                         
                         return (
-                          <tr key={key} className='border-b border-border/30 hover:bg-muted/20'>
+                          <tr key={variable.id} className='border-b border-border/30 hover:bg-muted/20'>
                             <td className='px-3 py-2 align-top'>
-                              <code className='font-mono text-[11px] text-foreground/80 break-words'>{key}</code>
+                              <code className='font-mono text-[11px] text-foreground/80 break-words'>{variable.name}</code>
                             </td>
                             <td className='px-3 py-2'>
                               {shouldTruncate ? (
@@ -1120,7 +1262,7 @@ export function DebugPanel() {
                                   <div className='min-w-0 flex-1'>
                                     <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
 {isExpanded ? valueStr : `${valueStr.slice(0, 100)}...`}
-                                    </pre>
+                    </pre>
                                   </div>
                                 </div>
                               ) : (
@@ -1134,16 +1276,20 @@ export function DebugPanel() {
                       })}
                     </tbody>
                   </table>
-                </div>
+              </div>
               ) : (
                 <div className='flex h-full items-center justify-center'>
-                  <p className='text-muted-foreground/60 text-xs'>No workflow variables</p>
+                  <p className='text-muted-foreground/60 text-xs'>
+                    {scopedVariables && workflowVariablesFromStore.length > 0
+                      ? 'No workflow variables referenced in input'
+                      : 'No workflow variables'}
+                  </p>
                 </div>
               )}
             </TabsContent>
 
             <TabsContent value='environment' className='flex-1 overflow-auto m-0'>
-              {Object.keys(envVars).length > 0 ? (
+              {filteredEnvVariables.length > 0 ? (
                 <div className='h-full overflow-y-scroll overflow-x-hidden'>
                   <table className='w-full table-fixed'>
                     <colgroup>
@@ -1157,7 +1303,7 @@ export function DebugPanel() {
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.entries(envVars).map(([key, value]) => {
+                      {filteredEnvVariables.map(([key, value]) => {
                         const fieldKey = `env-${key}`
                         const isExpanded = expandedFields.has(fieldKey)
                         const valueStr = value !== undefined && value !== null ? JSON.stringify(value, null, 2) : String(value)
@@ -1183,7 +1329,7 @@ export function DebugPanel() {
                                   <div className='min-w-0 flex-1'>
                                     <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
 {isExpanded ? valueStr : `${valueStr.slice(0, 100)}...`}
-                                    </pre>
+                    </pre>
                                   </div>
                                 </div>
                               ) : (
@@ -1197,11 +1343,15 @@ export function DebugPanel() {
                       })}
                     </tbody>
                   </table>
-                </div>
+              </div>
               ) : (
                 <div className='flex h-full items-center justify-center'>
-                  <p className='text-muted-foreground/60 text-xs'>No environment variables</p>
-                </div>
+                  <p className='text-muted-foreground/60 text-xs'>
+                    {scopedVariables && Object.keys(envVars).length > 0
+                      ? 'No environment variables referenced in input'
+                      : 'No environment variables'}
+                  </p>
+          </div>
               )}
             </TabsContent>
           </Tabs>
