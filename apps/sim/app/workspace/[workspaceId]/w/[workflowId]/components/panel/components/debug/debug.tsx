@@ -952,48 +952,74 @@ export function DebugPanel() {
 
   // Resume-until-breakpoint handler
   const handleResumeUntilBreakpoint = async () => {
-    // If no breakpoint or missing executor/context, fall back to normal resume
-    if (!breakpointId || !executor || !debugContext) {
-      await handleResumeDebug()
-      return
+    // If not started yet, initialize the executor (same as first Step)
+    if (!useExecutionStore.getState().debugContext && !hasStartedRef.current) {
+      hasStartedRef.current = true
+      if (isChatMode) {
+        const text = chatMessage.trim()
+        if (!text) {
+          hasStartedRef.current = false
+          return
+        }
+        await handleRunWorkflow({ input: text, conversationId: crypto.randomUUID() }, true)
+      } else {
+        await handleRunWorkflow(undefined, true)
+      }
+      // Wait for initialization to populate executor/debugContext/pendingBlocks
+      const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+      let attempts = 0
+      while (attempts < 40) { // ~2s max
+        const st = useExecutionStore.getState()
+        if (st.executor && st.debugContext && Array.isArray(st.pendingBlocks)) break
+        await wait(50)
+        attempts++
+      }
     }
 
+    // Use freshest store state after init
+    let exec = useExecutionStore.getState().executor
+    let ctx = useExecutionStore.getState().debugContext
+    let pend = [...useExecutionStore.getState().pendingBlocks]
+
+    if (!exec || !ctx) return
+
     try {
-      // Create working copies
-      let currentContext = { ...debugContext }
-      let currentPending = [...pendingBlocks]
       let iteration = 0
       const maxIterations = 1000
+      const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
       while (iteration < maxIterations) {
-        // Compute executable set excluding breakpoint (so that branch pauses there)
-        const executable = currentPending.filter((id) => id !== breakpointId)
-        if (executable.length === 0) break // only breakpoint (or none) remains
+        // Refresh latest state each iteration to avoid stale refs
+        const st = useExecutionStore.getState()
+        exec = st.executor
+        ctx = st.debugContext
+        pend = [...st.pendingBlocks]
+        if (!exec || !ctx) break
+
+        // Determine executable set
+        const executable = breakpointId ? pend.filter((id) => id !== breakpointId) : pend
+        if (executable.length === 0) break
 
         setExecutingBlockIds(new Set(executable))
-        const result = await executor.continueExecution(executable, currentContext)
+        const result = await exec.continueExecution(executable, ctx)
         setExecutingBlockIds(new Set())
 
         if (result?.metadata?.context) {
-          currentContext = result.metadata.context
           setDebugContext(result.metadata.context)
         }
-
         if (result?.metadata?.pendingBlocks) {
-          currentPending = result.metadata.pendingBlocks
           setPendingBlocks(result.metadata.pendingBlocks)
         } else {
           break
         }
-
-        // If debug session ended, stop
         if (!result?.metadata?.isDebugSession) break
 
         iteration++
+        // allow UI/state to settle
+        await wait(10)
       }
     } catch (e) {
-      // On error, fall back to normal resume behavior
-      await handleResumeDebug()
+      // Swallow to avoid double error surfaces in UI
     }
   }
 
@@ -1090,7 +1116,7 @@ export function DebugPanel() {
                   size='sm'
                   variant='outline'
                   onClick={handleResumeUntilBreakpoint}
-                  disabled={!hasStartedRef.current || pendingBlocks.length === 0}
+                  disabled={isChatMode ? (!hasStartedRef.current && chatMessage.trim() === '') : false}
                   className='gap-2 border-border/50 hover:bg-muted/50 disabled:opacity-40'
                 >
                   <FastForward className='h-3.5 w-3.5' />
