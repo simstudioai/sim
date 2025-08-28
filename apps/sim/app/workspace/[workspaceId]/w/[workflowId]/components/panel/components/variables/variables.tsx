@@ -38,15 +38,8 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 const logger = createLogger('Variables')
 
 export function Variables() {
-  const { activeWorkflowId, workflows } = useWorkflowRegistry()
-  const {
-    variables: storeVariables,
-    addVariable,
-    updateVariable,
-    deleteVariable,
-    duplicateVariable,
-    getVariablesByWorkflowId,
-  } = useVariablesStore()
+  const { activeWorkflowId } = useWorkflowRegistry()
+  const { getVariablesByWorkflowId } = useVariablesStore()
   const {
     collaborativeUpdateVariable,
     collaborativeAddVariable,

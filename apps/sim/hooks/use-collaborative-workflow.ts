@@ -60,6 +60,10 @@ export function useCollaborativeWorkflow() {
     cancelOperationsForVariable,
   } = useOperationQueue()
 
+  const isInActiveRoom = useCallback(() => {
+    return !!currentWorkflowId && activeWorkflowId === currentWorkflowId
+  }, [currentWorkflowId, activeWorkflowId])
+
   // Clear position timestamps when switching workflows
   // Note: Workflow joining is now handled automatically by socket connect event based on URL
   useEffect(() => {
@@ -470,6 +474,16 @@ export function useCollaborativeWorkflow() {
         return
       }
 
+      if (!isInActiveRoom()) {
+        logger.debug('Skipping operation - not in active workflow', {
+          currentWorkflowId,
+          activeWorkflowId,
+          operation,
+          target,
+        })
+        return
+      }
+
       const operationId = crypto.randomUUID()
 
       addToQueue({
@@ -485,7 +499,14 @@ export function useCollaborativeWorkflow() {
 
       localAction()
     },
-    [addToQueue, session?.user?.id, isShowingDiff]
+    [
+      addToQueue,
+      session?.user?.id,
+      isShowingDiff,
+      activeWorkflowId,
+      isInActiveRoom,
+      currentWorkflowId,
+    ]
   )
 
   const executeQueuedDebouncedOperation = useCallback(
@@ -497,11 +518,21 @@ export function useCollaborativeWorkflow() {
         return
       }
 
+      if (!isInActiveRoom()) {
+        logger.debug('Skipping debounced operation - not in active workflow', {
+          currentWorkflowId,
+          activeWorkflowId,
+          operation,
+          target,
+        })
+        return
+      }
+
       localAction()
 
       emitWorkflowOperation(operation, target, payload)
     },
-    [emitWorkflowOperation, isShowingDiff]
+    [emitWorkflowOperation, isShowingDiff, isInActiveRoom, currentWorkflowId, activeWorkflowId]
   )
 
   const collaborativeAddBlock = useCallback(
@@ -518,6 +549,14 @@ export function useCollaborativeWorkflow() {
       // Skip socket operations when in diff mode
       if (isShowingDiff) {
         logger.debug('Skipping collaborative add block in diff mode')
+        return
+      }
+
+      if (!isInActiveRoom()) {
+        logger.debug('Skipping collaborative add block - not in active workflow', {
+          currentWorkflowId,
+          activeWorkflowId,
+        })
         return
       }
 
@@ -647,7 +686,15 @@ export function useCollaborativeWorkflow() {
         workflowStore.addEdge(autoConnectEdge)
       }
     },
-    [workflowStore, emitWorkflowOperation, addToQueue, session?.user?.id, isShowingDiff]
+    [
+      workflowStore,
+      activeWorkflowId,
+      addToQueue,
+      session?.user?.id,
+      isShowingDiff,
+      isInActiveRoom,
+      currentWorkflowId,
+    ]
   )
 
   const collaborativeRemoveBlock = useCallback(
@@ -674,14 +721,7 @@ export function useCollaborativeWorkflow() {
         workflowStore.updateBlockName(id, name)
       })
     },
-    [
-      executeQueuedOperation,
-      workflowStore,
-      addToQueue,
-      subBlockStore,
-      activeWorkflowId,
-      session?.user?.id,
-    ]
+    [executeQueuedOperation, workflowStore]
   )
 
   const collaborativeToggleBlockEnabled = useCallback(
@@ -795,7 +835,7 @@ export function useCollaborativeWorkflow() {
         return
       }
 
-      if (!currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
+      if (!isInActiveRoom()) {
         logger.debug('Skipping subblock update - not in active workflow', {
           currentWorkflowId,
           activeWorkflowId,
@@ -847,12 +887,12 @@ export function useCollaborativeWorkflow() {
     },
     [
       subBlockStore,
-      emitSubblockUpdate,
       currentWorkflowId,
       activeWorkflowId,
       addToQueue,
       session?.user?.id,
       isShowingDiff,
+      isInActiveRoom,
     ]
   )
 
@@ -861,7 +901,7 @@ export function useCollaborativeWorkflow() {
     (blockId: string, subblockId: string, value: any) => {
       if (isApplyingRemoteChange.current) return
 
-      if (!currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
+      if (!isInActiveRoom()) {
         logger.debug('Skipping tag selection - not in active workflow', {
           currentWorkflowId,
           activeWorkflowId,
@@ -884,16 +924,32 @@ export function useCollaborativeWorkflow() {
           target: 'subblock',
           payload: { blockId, subblockId, value },
         },
-        workflowId: activeWorkflowId,
+        workflowId: activeWorkflowId || '',
         userId: session?.user?.id || 'unknown',
         immediate: true,
       })
     },
-    [subBlockStore, addToQueue, currentWorkflowId, activeWorkflowId, session?.user?.id]
+    [
+      subBlockStore,
+      addToQueue,
+      currentWorkflowId,
+      activeWorkflowId,
+      session?.user?.id,
+      isInActiveRoom,
+    ]
   )
 
   const collaborativeDuplicateBlock = useCallback(
     (sourceId: string) => {
+      if (!isInActiveRoom()) {
+        logger.debug('Skipping duplicate block - not in active workflow', {
+          currentWorkflowId,
+          activeWorkflowId,
+          sourceId,
+        })
+        return
+      }
+
       const sourceBlock = workflowStore.blocks[sourceId]
       if (!sourceBlock) return
 
@@ -995,7 +1051,14 @@ export function useCollaborativeWorkflow() {
         }
       })
     },
-    [executeQueuedOperation, workflowStore, subBlockStore, activeWorkflowId]
+    [
+      executeQueuedOperation,
+      workflowStore,
+      subBlockStore,
+      activeWorkflowId,
+      isInActiveRoom,
+      currentWorkflowId,
+    ]
   )
 
   const collaborativeUpdateLoopType = useCallback(

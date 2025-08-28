@@ -1,30 +1,11 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
-import { API_ENDPOINTS } from '@/stores/constants'
 import type { Variable, VariablesStore } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('VariablesStore')
-// Track which workflows have already been loaded
-const loadedWorkflows = new Set<string>()
-// Track recently added variable IDs with timestamps
-const recentlyAddedVariables = new Map<string, number>()
-// Time window in ms to consider a variable as "recently added" (3 seconds)
-const RECENT_VARIABLE_WINDOW = 3000
-
-// Clear a workspace from the loaded tracking when switching workspaces
-export function clearWorkflowVariablesTracking() {
-  loadedWorkflows.clear()
-  // Also clear any old entries from recentlyAddedVariables
-  const now = Date.now()
-  recentlyAddedVariables.forEach((timestamp, id) => {
-    if (now - timestamp > RECENT_VARIABLE_WINDOW * 2) {
-      recentlyAddedVariables.delete(id)
-    }
-  })
-}
 
 /**
  * Check if variable format is valid according to type without modifying it
@@ -168,9 +149,6 @@ export const useVariablesStore = create<VariablesStore>()(
       if (validationError) {
         newVariable.validationError = validationError
       }
-
-      // Mark this variable as recently added with current timestamp
-      recentlyAddedVariables.set(id, Date.now())
 
       set((state) => ({
         variables: {
@@ -335,9 +313,6 @@ export const useVariablesStore = create<VariablesStore>()(
         nameIndex++
       }
 
-      // Mark this duplicated variable as recently added
-      recentlyAddedVariables.set(newId, Date.now())
-
       set((state) => ({
         variables: {
           ...state.variables,
@@ -354,220 +329,8 @@ export const useVariablesStore = create<VariablesStore>()(
       return newId
     },
 
-    loadVariables: async (workflowId) => {
-      // Skip if already loaded to prevent redundant API calls, but ensure
-      // we check for the special case of recently added variables first
-      if (loadedWorkflows.has(workflowId)) {
-        // Even if workflow is loaded, check if we have recent variables to protect
-        const workflowVariables = Object.values(get().variables).filter(
-          (v) => v.workflowId === workflowId
-        )
-
-        const now = Date.now()
-        const hasRecentVariables = workflowVariables.some(
-          (v) =>
-            recentlyAddedVariables.has(v.id) &&
-            now - (recentlyAddedVariables.get(v.id) || 0) < RECENT_VARIABLE_WINDOW
-        )
-
-        // No force reload needed if no recent variables and we've already loaded
-        if (!hasRecentVariables) {
-          return
-        }
-
-        // Otherwise continue and do a full load+merge to protect recent variables
-      }
-
-      try {
-        set({ isLoading: true, error: null })
-
-        const response = await fetch(`${API_ENDPOINTS.WORKFLOWS}/${workflowId}/variables`)
-
-        // Capture current variables for this workflow before we modify anything
-        const currentWorkflowVariables = Object.values(get().variables)
-          .filter((v) => v.workflowId === workflowId)
-          .reduce(
-            (acc, v) => {
-              acc[v.id] = v
-              return acc
-            },
-            {} as Record<string, Variable>
-          )
-
-        // Check which variables were recently added (within the last few seconds)
-        const now = Date.now()
-        const protectedVariableIds = new Set<string>()
-
-        // Identify variables that should be protected from being overwritten
-        Object.keys(currentWorkflowVariables).forEach((id) => {
-          // Protect recently added variables
-          if (
-            recentlyAddedVariables.has(id) &&
-            now - (recentlyAddedVariables.get(id) || 0) < RECENT_VARIABLE_WINDOW
-          ) {
-            protectedVariableIds.add(id)
-          }
-        })
-
-        // Handle 404 workflow not found gracefully
-        if (response.status === 404) {
-          logger.info(`No variables found for workflow ${workflowId}, initializing empty set`)
-          set((state) => {
-            // Keep variables from other workflows
-            const otherVariables = Object.values(state.variables).reduce(
-              (acc, variable) => {
-                if (variable.workflowId !== workflowId) {
-                  acc[variable.id] = variable
-                }
-                return acc
-              },
-              {} as Record<string, Variable>
-            )
-
-            // Add back protected variables that should not be removed
-            Object.keys(currentWorkflowVariables).forEach((id) => {
-              if (protectedVariableIds.has(id)) {
-                otherVariables[id] = currentWorkflowVariables[id]
-              }
-            })
-
-            // Mark this workflow as loaded to prevent further attempts
-            loadedWorkflows.add(workflowId)
-
-            return {
-              variables: otherVariables,
-              isLoading: false,
-            }
-          })
-          return
-        }
-
-        // Handle unauthorized (401) or forbidden (403) gracefully
-        if (response.status === 401 || response.status === 403) {
-          logger.warn(`No permission to access variables for workflow ${workflowId}`)
-          set((state) => {
-            // Keep variables from other workflows
-            const otherVariables = Object.values(state.variables).reduce(
-              (acc, variable) => {
-                if (variable.workflowId !== workflowId) {
-                  acc[variable.id] = variable
-                }
-                return acc
-              },
-              {} as Record<string, Variable>
-            )
-
-            // Mark this workflow as loaded but with access issues
-            loadedWorkflows.add(workflowId)
-
-            return {
-              variables: otherVariables,
-              isLoading: false,
-              error: 'You do not have permission to access these variables',
-            }
-          })
-          return
-        }
-
-        if (!response.ok) {
-          throw new Error(`Failed to load workflow variables: ${response.statusText}`)
-        }
-
-        const { data } = await response.json()
-
-        if (data && typeof data === 'object') {
-          set((state) => {
-            // Migrate any 'string' type variables to 'plain'
-            const migratedData: Record<string, Variable> = {}
-            for (const [id, variable] of Object.entries(data)) {
-              migratedData[id] = migrateStringToPlain(variable as Variable)
-            }
-
-            // Merge with existing variables from other workflows
-            const otherVariables = Object.values(state.variables).reduce(
-              (acc, variable) => {
-                if (variable.workflowId !== workflowId) {
-                  acc[variable.id] = variable
-                }
-                return acc
-              },
-              {} as Record<string, Variable>
-            )
-
-            // Create the final variables object, prioritizing protected variables
-            const finalVariables = { ...otherVariables, ...migratedData }
-
-            // Restore any protected variables that shouldn't be overwritten
-            Object.keys(currentWorkflowVariables).forEach((id) => {
-              if (protectedVariableIds.has(id)) {
-                finalVariables[id] = currentWorkflowVariables[id]
-              }
-            })
-
-            // Mark this workflow as loaded
-            loadedWorkflows.add(workflowId)
-
-            return {
-              variables: finalVariables,
-              isLoading: false,
-            }
-          })
-        } else {
-          set((state) => {
-            // Keep variables from other workflows
-            const otherVariables = Object.values(state.variables).reduce(
-              (acc, variable) => {
-                if (variable.workflowId !== workflowId) {
-                  acc[variable.id] = variable
-                }
-                return acc
-              },
-              {} as Record<string, Variable>
-            )
-
-            // Add back protected variables that should not be removed
-            Object.keys(currentWorkflowVariables).forEach((id) => {
-              if (protectedVariableIds.has(id)) {
-                otherVariables[id] = currentWorkflowVariables[id]
-              }
-            })
-
-            // Mark this workflow as loaded
-            loadedWorkflows.add(workflowId)
-
-            return {
-              variables: otherVariables,
-              isLoading: false,
-            }
-          })
-        }
-      } catch (error) {
-        logger.error('Error loading workflow variables:', {
-          error,
-          workflowId,
-        })
-        set({
-          error: error instanceof Error ? error.message : 'Unknown error',
-          isLoading: false,
-        })
-      }
-    },
-
     getVariablesByWorkflowId: (workflowId) => {
       return Object.values(get().variables).filter((variable) => variable.workflowId === workflowId)
-    },
-
-    // Reset the loaded workflow tracking
-    resetLoaded: () => {
-      loadedWorkflows.clear()
-
-      // Clean up stale entries from recentlyAddedVariables
-      const now = Date.now()
-      recentlyAddedVariables.forEach((timestamp, id) => {
-        if (now - timestamp > RECENT_VARIABLE_WINDOW * 2) {
-          recentlyAddedVariables.delete(id)
-        }
-      })
     },
   }))
 )

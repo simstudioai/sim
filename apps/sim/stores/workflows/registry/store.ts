@@ -3,7 +3,7 @@ import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateCreativeWorkflowName } from '@/lib/naming'
 import { API_ENDPOINTS } from '@/stores/constants'
-import { clearWorkflowVariablesTracking, useVariablesStore } from '@/stores/panel/variables/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import type {
   DeploymentStatus,
   WorkflowMetadata,
@@ -145,14 +145,15 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
         },
       }))
 
-      // Update variables store with workflow variables (if any)
       if (variables && typeof variables === 'object') {
-        useVariablesStore.setState((state) => ({
-          variables: {
-            ...state.variables,
-            ...variables,
-          },
-        }))
+        useVariablesStore.setState((state) => {
+          const withoutWorkflow = Object.fromEntries(
+            Object.entries(state.variables).filter(([, v]: any) => v.workflowId !== id)
+          )
+          return {
+            variables: { ...withoutWorkflow, ...variables },
+          }
+        })
       }
     })
 
@@ -201,9 +202,6 @@ const TRANSITION_TIMEOUT = 5000 // 5 seconds maximum for workspace transitions
 
 // Resets workflow and subblock stores to prevent data leakage between workspaces
 function resetWorkflowStores() {
-  // Reset variable tracking to prevent stale API calls
-  clearWorkflowVariablesTracking()
-
   // Reset the workflow store to prevent data leakage between workspaces
   useWorkflowStore.setState({
     blocks: {},
