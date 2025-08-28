@@ -268,12 +268,11 @@ export async function POST(request: NextRequest) {
             })
 
             return {
-              id: result.id,
-              content: result.content,
               documentId: result.documentId,
               documentName: documentNameMap[result.documentId] || undefined,
+              content: result.content,
               chunkIndex: result.chunkIndex,
-              tags, // Clean display name mapped tags
+              metadata: tags, // Clean display name mapped tags
               similarity: hasQuery ? 1 - result.distance : 1, // Perfect similarity for tag-only searches
             }
           }),
