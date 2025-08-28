@@ -161,5 +161,6 @@ export const KnowledgeBlock: BlockConfig = {
     results: { type: 'json', description: 'Search results' },
     query: { type: 'string', description: 'Query used' },
     totalResults: { type: 'number', description: 'Total results count' },
+    documentName: { type: 'string', description: 'Document name (for upload_chunk operations)' },
   },
 }

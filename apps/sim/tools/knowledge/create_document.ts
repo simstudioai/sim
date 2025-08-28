@@ -160,43 +160,38 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
     return {
       success: true,
       output: {
-        data: {
-          id: firstDocument?.documentId || firstDocument?.id || '',
-          name: uploadCount > 1 ? `${uploadCount} documents` : firstDocument?.filename || 'Unknown',
-          type: 'document',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          enabled: true,
-        },
         message:
           uploadCount > 1
-            ? `Successfully created ${uploadCount} documents in knowledge base`
-            : `Successfully created document in knowledge base`,
-        documentId: firstDocument?.documentId || firstDocument?.id || '',
+            ? `Successfully created ${uploadCount} documents`
+            : `Successfully created document`,
+        data: {
+          documentId: firstDocument?.documentId || firstDocument?.id || '',
+          name: uploadCount > 1 ? `${uploadCount} documents` : firstDocument?.filename || 'Unknown',
+          type: 'document',
+          enabled: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
       },
     }
   },
 
   outputs: {
+    message: {
+      type: 'string',
+      description: 'Success or error message describing the operation result',
+    },
     data: {
       type: 'object',
       description: 'Information about the created document',
       properties: {
-        id: { type: 'string', description: 'Document ID' },
+        documentId: { type: 'string', description: 'Document ID' },
         name: { type: 'string', description: 'Document name' },
         type: { type: 'string', description: 'Document type' },
         enabled: { type: 'boolean', description: 'Whether the document is enabled' },
         createdAt: { type: 'string', description: 'Creation timestamp' },
         updatedAt: { type: 'string', description: 'Last update timestamp' },
       },
-    },
-    message: {
-      type: 'string',
-      description: 'Success or error message describing the operation result',
-    },
-    documentId: {
-      type: 'string',
-      description: 'ID of the created document',
     },
   },
 }

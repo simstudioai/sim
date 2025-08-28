@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { embedding } from '@/db/schema'
+import { document, embedding } from '@/db/schema'
 
 const logger = createLogger('KnowledgeSearchUtils')
 
@@ -31,6 +31,33 @@ export interface SearchParams {
 
 // Use shared embedding utility
 export { generateSearchEmbedding } from '@/lib/embeddings/utils'
+
+/**
+ * Fetch document names by document IDs
+ */
+export async function getDocumentNamesByIds(
+  documentIds: string[]
+): Promise<Record<string, string>> {
+  if (documentIds.length === 0) {
+    return {}
+  }
+
+  const uniqueIds = [...new Set(documentIds)]
+  const documents = await db
+    .select({
+      id: document.id,
+      filename: document.filename,
+    })
+    .from(document)
+    .where(inArray(document.id, uniqueIds))
+
+  const documentNameMap: Record<string, string> = {}
+  documents.forEach((doc) => {
+    documentNameMap[doc.id] = doc.filename
+  })
+
+  return documentNameMap
+}
 
 function getTagFilters(filters: Record<string, string>, embedding: any) {
   return Object.entries(filters).map(([key, value]) => {

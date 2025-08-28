@@ -52,8 +52,9 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
     return {
       success: true,
       output: {
+        message: `Successfully uploaded chunk to document`,
         data: {
-          id: data.id,
+          chunkId: data.id,
           chunkIndex: data.chunkIndex || 0,
           content: data.content,
           contentLength: data.contentLength || data.content?.length || 0,
@@ -62,19 +63,22 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
           createdAt: data.createdAt,
           updatedAt: data.updatedAt,
         },
-        message: `Successfully uploaded chunk to document`,
-        documentId: data.documentId,
+        documentName: data.documentName,
         cost: data.cost,
       },
     }
   },
 
   outputs: {
+    message: {
+      type: 'string',
+      description: 'Success or error message describing the operation result',
+    },
     data: {
       type: 'object',
       description: 'Information about the uploaded chunk',
       properties: {
-        id: { type: 'string', description: 'Chunk ID' },
+        chunkId: { type: 'string', description: 'Chunk ID' },
         chunkIndex: { type: 'number', description: 'Index of the chunk within the document' },
         content: { type: 'string', description: 'Content of the chunk' },
         contentLength: { type: 'number', description: 'Length of the content in characters' },
@@ -84,13 +88,9 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
         updatedAt: { type: 'string', description: 'Last update timestamp' },
       },
     },
-    message: {
+    documentName: {
       type: 'string',
-      description: 'Success or error message describing the operation result',
-    },
-    documentId: {
-      type: 'string',
-      description: 'ID of the document the chunk was added to',
+      description: 'Name of the document the chunk was added to',
     },
     cost: {
       type: 'object',

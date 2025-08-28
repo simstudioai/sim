@@ -65,12 +65,14 @@ const mockHandleVectorOnlySearch = vi.fn()
 const mockHandleTagAndVectorSearch = vi.fn()
 const mockGetQueryStrategy = vi.fn()
 const mockGenerateSearchEmbedding = vi.fn()
+const mockGetDocumentNamesByIds = vi.fn()
 vi.mock('./utils', () => ({
   handleTagOnlySearch: mockHandleTagOnlySearch,
   handleVectorOnlySearch: mockHandleVectorOnlySearch,
   handleTagAndVectorSearch: mockHandleTagAndVectorSearch,
   getQueryStrategy: mockGetQueryStrategy,
   generateSearchEmbedding: mockGenerateSearchEmbedding,
+  getDocumentNamesByIds: mockGetDocumentNamesByIds,
   APIError: class APIError extends Error {
     public status: number
     constructor(message: string, status: number) {
@@ -106,16 +108,30 @@ describe('Knowledge Search API Route', () => {
       content: 'This is a test chunk',
       documentId: 'doc-1',
       chunkIndex: 0,
-      metadata: { title: 'Test Document' },
+      tag1: null,
+      tag2: null,
+      tag3: null,
+      tag4: null,
+      tag5: null,
+      tag6: null,
+      tag7: null,
       distance: 0.2,
+      knowledgeBaseId: 'kb-123',
     },
     {
       id: 'chunk-2',
       content: 'Another test chunk',
       documentId: 'doc-2',
       chunkIndex: 1,
-      metadata: { title: 'Another Document' },
+      tag1: null,
+      tag2: null,
+      tag3: null,
+      tag4: null,
+      tag5: null,
+      tag6: null,
+      tag7: null,
       distance: 0.3,
+      knowledgeBaseId: 'kb-123',
     },
   ]
 
@@ -146,6 +162,10 @@ describe('Knowledge Search API Route', () => {
       singleQueryOptimized: true,
     })
     mockGenerateSearchEmbedding.mockClear().mockResolvedValue([0.1, 0.2, 0.3, 0.4, 0.5])
+    mockGetDocumentNamesByIds.mockClear().mockResolvedValue({
+      'doc-1': 'Test Document.pdf',
+      'doc-2': 'Another Document.pdf',
+    })
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),
@@ -665,6 +685,11 @@ describe('Knowledge Search API Route', () => {
         chunkIndex: 0,
         tag1: 'api',
         tag2: 'high',
+        tag3: null,
+        tag4: null,
+        tag5: null,
+        tag6: null,
+        tag7: null,
         distance: 0,
         knowledgeBaseId: 'kb-123',
       },
@@ -675,6 +700,11 @@ describe('Knowledge Search API Route', () => {
         chunkIndex: 1,
         tag1: 'docs',
         tag2: 'medium',
+        tag3: null,
+        tag4: null,
+        tag5: null,
+        tag6: null,
+        tag7: null,
         distance: 0,
         knowledgeBaseId: 'kb-123',
       },

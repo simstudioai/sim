@@ -110,9 +110,9 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       items: {
         type: 'object',
         properties: {
-          id: { type: 'string' },
-          content: { type: 'string' },
           documentId: { type: 'string' },
+          documentName: { type: 'string' },
+          content: { type: 'string' },
           chunkIndex: { type: 'number' },
           similarity: { type: 'number' },
           metadata: { type: 'object' },

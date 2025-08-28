@@ -9,6 +9,7 @@ import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { calculateCost } from '@/providers/utils'
 import {
   generateSearchEmbedding,
+  getDocumentNamesByIds,
   getQueryStrategy,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
@@ -212,6 +213,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Fetch document names for the results
+      const documentIds = results.map((result) => result.documentId)
+      const documentNameMap = await getDocumentNamesByIds(documentIds)
+
       // Fetch tag definitions for display name mapping (reuse the same fetch from filtering)
       const tagDefinitionsMap: Record<string, Record<string, string>> = {}
       for (const kbId of accessibleKbIds) {
@@ -257,11 +262,11 @@ export async function POST(request: NextRequest) {
             })
 
             return {
-              id: result.id,
-              content: result.content,
               documentId: result.documentId,
+              documentName: documentNameMap[result.documentId] || 'Unknown',
+              content: result.content,
               chunkIndex: result.chunkIndex,
-              tags, // Clean display name mapped tags
+              metadata: tags, // Clean display name mapped tags
               similarity: hasQuery ? 1 - result.distance : 1, // Perfect similarity for tag-only searches
             }
           }),
