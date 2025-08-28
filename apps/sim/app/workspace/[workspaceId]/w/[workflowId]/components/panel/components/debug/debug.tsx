@@ -29,11 +29,24 @@ import {
   Circle,
   AlertCircle,
   Check,
-  X
+  X,
+  CircleDot
 } from 'lucide-react'
 
 export function DebugPanel() {
-  const { isDebugging, pendingBlocks, debugContext, activeBlockIds, setActiveBlocks, setPanelFocusedBlockId, panelFocusedBlockId } = useExecutionStore()
+  const {
+    isDebugging,
+    pendingBlocks,
+    debugContext,
+    executor,
+    activeBlockIds,
+    setActiveBlocks,
+    setPanelFocusedBlockId,
+    panelFocusedBlockId,
+    setExecutingBlockIds,
+    setDebugContext,
+    setPendingBlocks,
+  } = useExecutionStore()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
   const { handleStepDebug, handleResumeDebug, handleCancelDebug, handleRunWorkflow } = useWorkflowExecution()
   const currentWorkflow = useCurrentWorkflow()
@@ -43,6 +56,8 @@ export function DebugPanel() {
   const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set())
   const hasStartedRef = useRef(false)
   const lastFocusedIdRef = useRef<string | null>(null)
+  // Breakpoint state
+  const [breakpointId, setBreakpointId] = useState<string | null>(null)
 
   // Track bottom variables tab and row highlighting for navigation from tokens
   const [bottomTab, setBottomTab] = useState<'reference' | 'workflow' | 'environment'>('reference')
@@ -899,28 +914,87 @@ export function DebugPanel() {
   // Step handler: handles both initial and subsequent steps
   const handleStep = async () => {
     if (!hasStartedRef.current && !debugContext) {
-      // First step: initialize the executor which will execute the Start block
-      // and return the next blocks as pending
-      hasStartedRef.current = true // Set this first to prevent re-entry
-      
+      hasStartedRef.current = true
       if (isChatMode) {
         const text = chatMessage.trim()
         if (!text) {
-          hasStartedRef.current = false // Reset if no input
+          hasStartedRef.current = false
           return
         }
-        // Initialize with chat input - this will execute Start and return next blocks
         await handleRunWorkflow({ input: text, conversationId: crypto.randomUUID() }, true)
       } else {
-        // Initialize without input - this will execute Start and return next blocks
         await handleRunWorkflow(undefined, true)
       }
-      // The Start block has been executed and next blocks are now pending
       return
     }
 
-    // All subsequent steps - execute the pending blocks
     await handleStepDebug()
+  }
+
+  // Restart handler: reset to initial state without starting execution
+  const handleRestart = async () => {
+    // Do not toggle debug mode off; just reset execution/debug state
+    hasStartedRef.current = false
+    lastFocusedIdRef.current = null
+    setBreakpointId(null)
+    setExecutingBlockIds(new Set())
+    setActiveBlocks(new Set())
+    setPendingBlocks([])
+    setDebugContext(null)
+    setPanelFocusedBlockId(starterId || null)
+    // Ensure executor is cleared so next Step re-initializes fresh
+    useExecutionStore.getState().setExecutor(null)
+    // Mark starter as current pending for UI so it shows as Current (no execution started)
+    if (starterId) {
+      setPendingBlocks([starterId])
+    }
+  }
+
+  // Resume-until-breakpoint handler
+  const handleResumeUntilBreakpoint = async () => {
+    // If no breakpoint or missing executor/context, fall back to normal resume
+    if (!breakpointId || !executor || !debugContext) {
+      await handleResumeDebug()
+      return
+    }
+
+    try {
+      // Create working copies
+      let currentContext = { ...debugContext }
+      let currentPending = [...pendingBlocks]
+      let iteration = 0
+      const maxIterations = 1000
+
+      while (iteration < maxIterations) {
+        // Compute executable set excluding breakpoint (so that branch pauses there)
+        const executable = currentPending.filter((id) => id !== breakpointId)
+        if (executable.length === 0) break // only breakpoint (or none) remains
+
+        setExecutingBlockIds(new Set(executable))
+        const result = await executor.continueExecution(executable, currentContext)
+        setExecutingBlockIds(new Set())
+
+        if (result?.metadata?.context) {
+          currentContext = result.metadata.context
+          setDebugContext(result.metadata.context)
+        }
+
+        if (result?.metadata?.pendingBlocks) {
+          currentPending = result.metadata.pendingBlocks
+          setPendingBlocks(result.metadata.pendingBlocks)
+        } else {
+          break
+        }
+
+        // If debug session ended, stop
+        if (!result?.metadata?.isDebugSession) break
+
+        iteration++
+      }
+    } catch (e) {
+      // On error, fall back to normal resume behavior
+      await handleResumeDebug()
+    }
   }
 
   const getStatusIcon = () => {
@@ -955,7 +1029,7 @@ export function DebugPanel() {
     <div className='flex h-full flex-col'>
       {/* Header Section - Single Line */}
       <div className='border-b border-border/50 px-3 py-2.5'>
-      <div className='flex items-center justify-between'>
+        <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2 min-w-0'>
             <span className='font-semibold text-sm truncate'>
               {getDisplayName(focusedBlock) || 'No block selected'}
@@ -966,9 +1040,14 @@ export function DebugPanel() {
                 <span className='text-muted-foreground text-xs'>
                   {focusedBlock.type}
                 </span>
+                {breakpointId === focusedBlockId && (
+                  <span className='ml-1 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 text-[10px]'>
+                    Breakpoint
+                  </span>
+                )}
               </>
             )}
-        </div>
+          </div>
           <div className='flex items-center gap-1.5 flex-shrink-0'>
             {getStatusIcon()}
             <span className='text-muted-foreground text-xs'>{getStatusText()}</span>
@@ -978,7 +1057,7 @@ export function DebugPanel() {
 
       {/* Controls Section */}
       <div className='border-b border-border/50 p-3'>
-          {isChatMode && !hasStartedRef.current && (
+        {isChatMode && !hasStartedRef.current && (
           <div className='mb-3'>
             <Textarea
               placeholder='Enter message to start debugging...'
@@ -986,12 +1065,12 @@ export function DebugPanel() {
               onChange={(e) => setChatMessage(e.target.value)}
               className='min-h-[60px] resize-none border-border/50 bg-background/50 placeholder:text-muted-foreground/50'
             />
-        </div>
+          </div>
         )}
         <div className='flex items-center gap-2'>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
                 <Button
                   size='sm'
                   variant='outline'
@@ -1000,29 +1079,64 @@ export function DebugPanel() {
                 >
                   <Play className='h-3.5 w-3.5' />
                   Step
-              </Button>
-            </TooltipTrigger>
+                </Button>
+              </TooltipTrigger>
               <TooltipContent>Execute next step</TooltipContent>
-          </Tooltip>
+            </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
                   size='sm'
                   variant='outline'
-                onClick={handleResumeDebug}
-                disabled={!hasStartedRef.current || pendingBlocks.length === 0}
+                  onClick={handleResumeUntilBreakpoint}
+                  disabled={!hasStartedRef.current || pendingBlocks.length === 0}
                   className='gap-2 border-border/50 hover:bg-muted/50 disabled:opacity-40'
-              >
+                >
                   <FastForward className='h-3.5 w-3.5' />
                   Resume
-              </Button>
-            </TooltipTrigger>
-              <TooltipContent>Continue execution</TooltipContent>
-          </Tooltip>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {breakpointId ? 'Continue until breakpoint' : 'Continue execution'}
+              </TooltipContent>
+            </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  onClick={handleRestart}
+                  className='gap-2 border-border/50 hover:bg-muted/50'
+                >
+                  <Circle className='h-3.5 w-3.5' />
+                  Restart
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Restart from the beginning</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size='sm'
+                  variant={breakpointId === focusedBlockId ? 'default' : 'outline'}
+                  onClick={() => setBreakpointId(breakpointId === focusedBlockId ? null : (focusedBlockId || null))}
+                  disabled={!focusedBlockId}
+                  className='gap-2 border-border/50 hover:bg-muted/50 disabled:opacity-40'
+                >
+                  <CircleDot className={cn('h-3.5 w-3.5', breakpointId === focusedBlockId ? 'text-amber-600' : '')} />
+                  Breakpoint
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {breakpointId === focusedBlockId ? 'Remove breakpoint' : 'Set breakpoint at current block'}
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
                 <Button
                   size='sm'
                   variant='outline'
@@ -1031,12 +1145,12 @@ export function DebugPanel() {
                 >
                   <Square className='h-3.5 w-3.5' />
                   Stop
-              </Button>
-            </TooltipTrigger>
+                </Button>
+              </TooltipTrigger>
               <TooltipContent>Stop debugging</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </div>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       </div>
 
       {/* Main Content Area - Split into two sections */}
