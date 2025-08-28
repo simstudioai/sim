@@ -1,11 +1,14 @@
 import crypto, { randomUUID } from 'crypto'
+import { tasks } from '@trigger.dev/sdk'
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { getSlotsForFieldType, type TAG_SLOT_CONFIG } from '@/lib/constants/knowledge'
 import { generateEmbeddings } from '@/lib/embeddings/utils'
+import { env } from '@/lib/env'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { getNextAvailableSlot } from '@/lib/knowledge/tags/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
+import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
 import { db } from '@/db'
 import { document, embedding, knowledgeBaseTagDefinitions } from '@/db/schema'
 import { DocumentProcessingQueue } from './queue'
@@ -181,7 +184,7 @@ export async function processDocumentTags(
 }
 
 /**
- * Process documents with Redis queue when available, fallback to concurrency control
+ * Process documents with best available method: Trigger.dev > Redis queue > in-memory concurrency control
  */
 export async function processDocumentsWithQueue(
   createdDocuments: DocumentData[],
@@ -189,6 +192,47 @@ export async function processDocumentsWithQueue(
   processingOptions: ProcessingOptions,
   requestId: string
 ): Promise<void> {
+  // Priority 1: Trigger.dev
+  if (isTriggerAvailable()) {
+    try {
+      logger.info(
+        `[${requestId}] Using Trigger.dev background processing for ${createdDocuments.length} documents`
+      )
+
+      const triggerPayloads = createdDocuments.map((doc) => ({
+        knowledgeBaseId,
+        documentId: doc.documentId,
+        docData: {
+          filename: doc.filename,
+          fileUrl: doc.fileUrl,
+          fileSize: doc.fileSize,
+          mimeType: doc.mimeType,
+        },
+        processingOptions: {
+          chunkSize: processingOptions.chunkSize || 1024,
+          minCharactersPerChunk: processingOptions.minCharactersPerChunk || 1,
+          recipe: processingOptions.recipe || 'default',
+          lang: processingOptions.lang || 'en',
+          chunkOverlap: processingOptions.chunkOverlap || 200,
+        },
+        requestId,
+      }))
+
+      const result = await processDocumentsWithTrigger(triggerPayloads, requestId)
+
+      if (result.success) {
+        logger.info(
+          `[${requestId}] Successfully triggered background processing: ${result.message}`
+        )
+        return
+      }
+      logger.warn(`[${requestId}] Trigger.dev failed: ${result.message}, falling back to Redis`)
+    } catch (error) {
+      logger.warn(`[${requestId}] Trigger.dev processing failed, falling back to Redis:`, error)
+    }
+  }
+
+  // Priority 2: Redis queue
   const queue = getDocumentQueue()
   const redisClient = getRedisClient()
 
@@ -213,6 +257,7 @@ export async function processDocumentsWithQueue(
 
       await Promise.all(jobPromises)
 
+      // Start Redis background processing
       queue
         .processJobs(async (job) => {
           const data = job.data as DocumentJobData
@@ -221,7 +266,6 @@ export async function processDocumentsWithQueue(
         })
         .catch((error) => {
           logger.error(`[${requestId}] Error in Redis queue processing:`, error)
-          // Don't throw here - let the processing continue with fallback if needed
         })
 
       logger.info(`[${requestId}] All documents queued for Redis processing`)
@@ -231,7 +275,10 @@ export async function processDocumentsWithQueue(
     }
   }
 
-  logger.info(`[${requestId}] Using fallback in-memory processing (Redis not available or failed)`)
+  // Priority 3: In-memory processing
+  logger.info(
+    `[${requestId}] Using fallback in-memory processing (neither Trigger.dev nor Redis available)`
+  )
   await processDocumentsWithConcurrencyControl(
     createdDocuments,
     knowledgeBaseId,
@@ -501,6 +548,51 @@ export async function processDocumentAsync(
 }
 
 /**
+ * Check if Trigger.dev is available and configured
+ */
+export function isTriggerAvailable(): boolean {
+  return !!(env.TRIGGER_SECRET_KEY && env.TRIGGER_DEV_ENABLED !== false)
+}
+
+/**
+ * Process documents using Trigger.dev
+ */
+export async function processDocumentsWithTrigger(
+  documents: DocumentProcessingPayload[],
+  requestId: string
+): Promise<{ success: boolean; message: string; jobIds?: string[] }> {
+  if (!isTriggerAvailable()) {
+    throw new Error('Trigger.dev is not configured - TRIGGER_SECRET_KEY missing')
+  }
+
+  try {
+    logger.info(`[${requestId}] Triggering background processing for ${documents.length} documents`)
+
+    const jobPromises = documents.map(async (document) => {
+      const job = await tasks.trigger('knowledge-process-document', document)
+      return job.id
+    })
+
+    const jobIds = await Promise.all(jobPromises)
+
+    logger.info(`[${requestId}] Triggered ${jobIds.length} document processing jobs`)
+
+    return {
+      success: true,
+      message: `${documents.length} document processing jobs triggered`,
+      jobIds,
+    }
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to trigger document processing jobs:`, error)
+
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to trigger background jobs',
+    }
+  }
+}
+
+/**
  * Create document records in database with tags
  */
 export async function createDocumentRecords(
@@ -644,8 +736,8 @@ export async function getDocuments(
     search,
     limit = 50,
     offset = 0,
-    sortBy = 'uploadedAt',
-    sortOrder = 'desc',
+    sortBy = 'filename',
+    sortOrder = 'asc',
   } = options
 
   // Build where conditions
@@ -696,7 +788,10 @@ export async function getDocuments(
     }
   }
 
-  const orderByClause = sortOrder === 'asc' ? asc(getOrderByColumn()) : desc(getOrderByColumn())
+  // Use stable secondary sort to prevent shifting when primary values are identical
+  const primaryOrderBy = sortOrder === 'asc' ? asc(getOrderByColumn()) : desc(getOrderByColumn())
+  const secondaryOrderBy =
+    sortBy === 'filename' ? desc(document.uploadedAt) : asc(document.filename)
 
   const documents = await db
     .select({
@@ -725,7 +820,7 @@ export async function getDocuments(
     })
     .from(document)
     .where(and(...whereConditions))
-    .orderBy(orderByClause)
+    .orderBy(primaryOrderBy, secondaryOrderBy)
     .limit(limit)
     .offset(offset)
 
