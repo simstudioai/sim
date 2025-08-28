@@ -346,7 +346,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
   // Handle message submission
   const handleSubmit = useCallback(
-    async (query: string, fileAttachments?: MessageFileAttachment[]) => {
+    async (query: string, fileAttachments?: MessageFileAttachment[], contexts?: any[]) => {
       if (!query || isSendingMessage || !activeWorkflowId) return
 
       // Clear todos when sending a new message
@@ -356,7 +356,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       }
 
       try {
-        await sendMessage(query, { stream: true, fileAttachments })
+        await sendMessage(query, { stream: true, fileAttachments, contexts })
         logger.info(
           'Sent message:',
           query,

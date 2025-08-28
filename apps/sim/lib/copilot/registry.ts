@@ -22,6 +22,14 @@ export const ToolIds = z.enum([
   'list_gdrive_files',
   'read_gdrive_file',
   'reason',
+  // New tools
+  'list_user_workflows',
+  'get_workflow_from_name',
+  // New variable tools
+  'get_global_workflow_variables',
+  'set_global_workflow_variables',
+  // New
+  'oauth_request_access',
 ])
 export type ToolId = z.infer<typeof ToolIds>
 
@@ -45,6 +53,23 @@ const NumberOptional = z.number().optional()
 // Tool argument schemas (per SSE examples provided)
 export const ToolArgSchemas = {
   get_user_workflow: z.object({}),
+  // New tools
+  list_user_workflows: z.object({}),
+  get_workflow_from_name: z.object({ workflow_name: z.string() }),
+  // New variable tools
+  get_global_workflow_variables: z.object({}),
+  set_global_workflow_variables: z.object({
+    operations: z.array(
+      z.object({
+        operation: z.enum(['add', 'delete', 'edit']),
+        name: z.string(),
+        type: z.enum(['plain', 'number', 'boolean', 'array', 'object']).optional(),
+        value: z.string().optional(),
+      })
+    ),
+  }),
+  // New
+  oauth_request_access: z.object({}),
 
   build_workflow: z.object({
     yamlContent: z.string(),
@@ -152,6 +177,21 @@ function toolCallSSEFor<TName extends ToolId, TArgs extends z.ZodTypeAny>(
 
 export const ToolSSESchemas = {
   get_user_workflow: toolCallSSEFor('get_user_workflow', ToolArgSchemas.get_user_workflow),
+  // New tools
+  list_user_workflows: toolCallSSEFor('list_user_workflows', ToolArgSchemas.list_user_workflows),
+  get_workflow_from_name: toolCallSSEFor(
+    'get_workflow_from_name',
+    ToolArgSchemas.get_workflow_from_name
+  ),
+  // New variable tools
+  get_global_workflow_variables: toolCallSSEFor(
+    'get_global_workflow_variables',
+    ToolArgSchemas.get_global_workflow_variables
+  ),
+  set_global_workflow_variables: toolCallSSEFor(
+    'set_global_workflow_variables',
+    ToolArgSchemas.set_global_workflow_variables
+  ),
   build_workflow: toolCallSSEFor('build_workflow', ToolArgSchemas.build_workflow),
   edit_workflow: toolCallSSEFor('edit_workflow', ToolArgSchemas.edit_workflow),
   run_workflow: toolCallSSEFor('run_workflow', ToolArgSchemas.run_workflow),
@@ -187,11 +227,13 @@ export const ToolSSESchemas = {
   ),
   gdrive_request_access: toolCallSSEFor(
     'gdrive_request_access',
-    ToolArgSchemas.gdrive_request_access
+    ToolArgSchemas.gdrive_request_access as any
   ),
   list_gdrive_files: toolCallSSEFor('list_gdrive_files', ToolArgSchemas.list_gdrive_files),
   read_gdrive_file: toolCallSSEFor('read_gdrive_file', ToolArgSchemas.read_gdrive_file),
   reason: toolCallSSEFor('reason', ToolArgSchemas.reason),
+  // New
+  oauth_request_access: toolCallSSEFor('oauth_request_access', ToolArgSchemas.oauth_request_access),
 } as const
 export type ToolSSESchemaMap = typeof ToolSSESchemas
 
@@ -225,6 +267,25 @@ const ExecutionEntry = z.object({
 
 export const ToolResultSchemas = {
   get_user_workflow: z.object({ yamlContent: z.string() }).or(z.string()),
+  // New tools
+  list_user_workflows: z.object({ workflow_names: z.array(z.string()) }),
+  get_workflow_from_name: z
+    .object({ yamlContent: z.string() })
+    .or(z.object({ userWorkflow: z.string() }))
+    .or(z.string()),
+  // New variable tools
+  get_global_workflow_variables: z
+    .object({ variables: z.record(z.any()) })
+    .or(z.array(z.object({ name: z.string(), value: z.any() }))),
+  set_global_workflow_variables: z
+    .object({ variables: z.record(z.any()) })
+    .or(z.object({ message: z.any().optional(), data: z.any().optional() })),
+  // New
+  oauth_request_access: z.object({
+    granted: z.boolean().optional(),
+    message: z.string().optional(),
+  }),
+
   build_workflow: BuildOrEditWorkflowResult,
   edit_workflow: BuildOrEditWorkflowResult,
   run_workflow: z.object({

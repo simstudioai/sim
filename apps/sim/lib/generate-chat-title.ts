@@ -38,7 +38,7 @@ export async function generateChatTitle(message: string): Promise<string | null>
         {
           role: 'system',
           content:
-            'Generate a very short title (3-5 words max) for a chat that starts with this message. The title should be concise and descriptive.',
+            'Generate a very short title (3-5 words max) for a chat that starts with this message. The title should be concise and descriptive. Do not wrap the title in quotes.',
         },
         {
           role: 'user',

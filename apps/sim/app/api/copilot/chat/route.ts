@@ -39,7 +39,7 @@ const ChatMessageSchema = z.object({
   chatId: z.string().optional(),
   workflowId: z.string().min(1, 'Workflow ID is required'),
   mode: z.enum(['ask', 'agent']).optional().default('agent'),
-  depth: z.number().int().min(-2).max(3).optional().default(0),
+  depth: z.number().int().min(0).max(3).optional().default(0),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
@@ -47,6 +47,19 @@ const ChatMessageSchema = z.object({
   fileAttachments: z.array(FileAttachmentSchema).optional(),
   provider: z.string().optional().default('openai'),
   conversationId: z.string().optional(),
+  contexts: z
+    .array(
+      z.object({
+        kind: z.enum(['past_chat', 'workflow', 'blocks', 'logs', 'knowledge', 'templates']),
+        label: z.string(),
+        chatId: z.string().optional(),
+        workflowId: z.string().optional(),
+        knowledgeId: z.string().optional(),
+        blockId: z.string().optional(),
+        templateId: z.string().optional(),
+      })
+    )
+    .optional(),
 })
 
 /**
@@ -81,7 +94,38 @@ export async function POST(req: NextRequest) {
       fileAttachments,
       provider,
       conversationId,
+      contexts,
     } = ChatMessageSchema.parse(body)
+    try {
+      logger.info(`[${tracker.requestId}] Received chat POST`, {
+        hasContexts: Array.isArray(contexts),
+        contextsCount: Array.isArray(contexts) ? contexts.length : 0,
+        contextsPreview: Array.isArray(contexts)
+          ? contexts.map((c: any) => ({
+              kind: c?.kind,
+              chatId: c?.chatId,
+              workflowId: c?.workflowId,
+              label: c?.label,
+            }))
+          : undefined,
+      })
+    } catch {}
+    // Preprocess contexts server-side
+    let agentContexts: Array<{ type: string; content: string }> = []
+    if (Array.isArray(contexts) && contexts.length > 0) {
+      try {
+        const { processContextsServer } = await import('@/lib/copilot/process-contents')
+        const processed = await processContextsServer(contexts as any, authenticatedUserId)
+        agentContexts = processed
+        logger.info(`[${tracker.requestId}] Contexts processed for request`, {
+          processedCount: agentContexts.length,
+          kinds: agentContexts.map((c) => c.type),
+          lengthPreview: agentContexts.map((c) => c.content?.length ?? 0),
+        })
+      } catch (e) {
+        logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
+      }
+    }
 
     // Consolidation mapping: map negative depths to base depth with prefetch=true
     let effectiveDepth: number | undefined = typeof depth === 'number' ? depth : undefined
@@ -312,7 +356,14 @@ export async function POST(req: NextRequest) {
       ...(typeof effectiveDepth === 'number' ? { depth: effectiveDepth } : {}),
       ...(typeof effectivePrefetch === 'boolean' ? { prefetch: effectivePrefetch } : {}),
       ...(session?.user?.name && { userName: session.user.name }),
+      ...(agentContexts.length > 0 && { context: agentContexts }),
     }
+
+    try {
+      logger.info(`[${tracker.requestId}] About to call Sim Agent with context`, {
+        context: (requestPayload as any).context,
+      })
+    } catch {}
 
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
@@ -350,6 +401,11 @@ export async function POST(req: NextRequest) {
         content: message,
         timestamp: new Date().toISOString(),
         ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
+        ...(Array.isArray(contexts) && contexts.length > 0 && { contexts }),
+        ...(Array.isArray(contexts) &&
+          contexts.length > 0 && {
+            contentBlocks: [{ type: 'contexts', contexts: contexts as any, timestamp: Date.now() }],
+          }),
       }
 
       // Create a pass-through stream that captures the response
@@ -683,6 +739,11 @@ export async function POST(req: NextRequest) {
         content: message,
         timestamp: new Date().toISOString(),
         ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
+        ...(Array.isArray(contexts) && contexts.length > 0 && { contexts }),
+        ...(Array.isArray(contexts) &&
+          contexts.length > 0 && {
+            contentBlocks: [{ type: 'contexts', contexts: contexts as any, timestamp: Date.now() }],
+          }),
       }
 
       const assistantMessage = {
