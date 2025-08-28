@@ -293,6 +293,16 @@ const WorkflowContent = React.memo(() => {
     )
   }, [])
 
+  // Temporary suppression of auto-pan (e.g., around wide-mode toggles)
+  const suppressAutoPanUntilRef = useRef<number>(0)
+  useEffect(() => {
+    const handleLayoutChange = () => {
+      suppressAutoPanUntilRef.current = Date.now() + 400 // brief suppression window
+    }
+    window.addEventListener('workflow-layout-change', handleLayoutChange)
+    return () => window.removeEventListener('workflow-layout-change', handleLayoutChange)
+  }, [])
+
   // Compute the absolute position of a node's source anchor (right-middle)
   const getNodeAnchorPosition = useCallback(
     (nodeId: string): { x: number; y: number } => {
@@ -1126,7 +1136,12 @@ const WorkflowContent = React.memo(() => {
           // Only pan when content grows beyond what is visible,
           // or when not focused in an editable element
           const didContentGrow = maxY > previousMaxY
-          if (overflowBottom > overflowThreshold && (didContentGrow || !editingFocused)) {
+          const isSuppressed = Date.now() < suppressAutoPanUntilRef.current
+          if (
+            overflowBottom > overflowThreshold &&
+            (didContentGrow || !editingFocused) &&
+            !isSuppressed
+          ) {
             // Pan just enough to include the overflow, and force a repaint with an epsilon jiggle
             const targetY = vpY - overflowBottom * zoom
             const epsilon = 0.5
@@ -1191,7 +1206,8 @@ const WorkflowContent = React.memo(() => {
             prevContentMaxYRef.current = maxY
             const editingFocused = isEditableElementFocused()
             const didContentGrow = maxY > previousMaxY
-            if (overflowBottom > 10 && (didContentGrow || !editingFocused)) {
+            const isSuppressed = Date.now() < suppressAutoPanUntilRef.current
+            if (overflowBottom > 10 && (didContentGrow || !editingFocused) && !isSuppressed) {
               const targetY = vpY - overflowBottom * zoom
               const epsilon = 0.5
               setViewport({ x: vpX, y: targetY + epsilon, zoom }, { duration: 0 })
