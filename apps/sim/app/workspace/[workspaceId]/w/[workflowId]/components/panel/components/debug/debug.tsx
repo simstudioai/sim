@@ -12,6 +12,11 @@ import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { getBlock } from '@/blocks'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { BlockPathCalculator } from '@/lib/block-path-calculator'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
+import { getTrigger, getTriggersByProvider } from '@/triggers'
+import { getTool } from '@/tools/utils'
 
 export function DebugPanel() {
   const { isDebugging, pendingBlocks, debugContext, activeBlockIds, setActiveBlocks, setPanelFocusedBlockId, panelFocusedBlockId } = useExecutionStore()
@@ -22,6 +27,12 @@ export function DebugPanel() {
   const [chatMessage, setChatMessage] = useState('')
   const hasStartedRef = useRef(false)
   const lastFocusedIdRef = useRef<string | null>(null)
+
+  // Helper to consistently resolve a human-readable block name
+  const getDisplayName = (block: any | null | undefined): string => {
+    if (!block) return ''
+    return block.name || block.metadata?.name || block.type || block.id || ''
+  }
 
   // Always use current workflow blocks as the source of truth
   // This ensures consistency whether debugContext exists or not
@@ -182,6 +193,143 @@ export function DebugPanel() {
     return result
   }, [focusedBlock, focusedBlockId, debugContext?.blockStates])
 
+  // Compute accessible output variables for the focused block with tag-style references
+  const outputVariableEntries = useMemo(() => {
+    if (!focusedBlockId) return [] as Array<{ ref: string; value: any }>
+
+    const normalizeBlockName = (name: string) => (name || '').replace(/\s+/g, '').toLowerCase()
+    const getSubBlockValue = (blockId: string, property: string): any => {
+      return useSubBlockStore.getState().getValue(blockId, property)
+    }
+    const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[] => {
+      const paths: string[] = []
+      for (const [key, value] of Object.entries(outputs || {})) {
+        const current = prefix ? `${prefix}.${key}` : key
+        if (typeof value === 'string') {
+          paths.push(current)
+        } else if (value && typeof value === 'object') {
+          if ('type' in value && typeof (value as any).type === 'string') {
+            paths.push(current)
+            if ((value as any).type === 'object' && (value as any).properties) {
+              paths.push(...generateOutputPaths((value as any).properties, current))
+            } else if ((value as any).type === 'array' && (value as any).items?.properties) {
+              paths.push(...generateOutputPaths((value as any).items.properties, current))
+            }
+          } else {
+            paths.push(...generateOutputPaths(value as Record<string, any>, current))
+          }
+        } else {
+          paths.push(current)
+        }
+      }
+      return paths
+    }
+
+    const getAccessiblePathsForBlock = (blockId: string): string[] => {
+      const blk = blockById.get(blockId)
+      if (!blk) return []
+      const cfg = getBlock(blk.type)
+      if (!cfg) return []
+
+      // Response format overrides
+      const responseFormatValue = getSubBlockValue(blockId, 'responseFormat')
+      const responseFormat = parseResponseFormatSafely(responseFormatValue, blockId)
+      if (responseFormat) {
+        const fields = extractFieldsFromSchema(responseFormat)
+        if (fields.length > 0) return fields.map((f: any) => f.name)
+      }
+
+      if (blk.type === 'evaluator') {
+        const metricsValue = getSubBlockValue(blockId, 'metrics')
+        if (metricsValue && Array.isArray(metricsValue) && metricsValue.length > 0) {
+          const valid = metricsValue.filter((m: { name?: string }) => m?.name)
+          return valid.map((m: { name: string }) => m.name.toLowerCase())
+        }
+        return generateOutputPaths(cfg.outputs || {})
+      }
+
+      if (blk.type === 'starter') {
+        const startWorkflowValue = getSubBlockValue(blockId, 'startWorkflow')
+        if (startWorkflowValue === 'chat') {
+          return ['input', 'conversationId', 'files']
+        }
+        const inputFormatValue = getSubBlockValue(blockId, 'inputFormat')
+        if (inputFormatValue && Array.isArray(inputFormatValue)) {
+          return inputFormatValue
+            .filter((f: { name?: string }) => f.name && f.name.trim() !== '')
+            .map((f: { name: string }) => f.name)
+        }
+        return []
+      }
+
+      if (blk.triggerMode && cfg.triggers?.enabled) {
+        const triggerId = cfg?.triggers?.available?.[0]
+        const firstTrigger = triggerId ? getTrigger(triggerId) : getTriggersByProvider(blk.type)[0]
+        if (firstTrigger?.outputs) {
+          return generateOutputPaths(firstTrigger.outputs)
+        }
+      }
+
+      const operationValue = getSubBlockValue(blockId, 'operation')
+      if (operationValue && cfg?.tools?.config?.tool) {
+        try {
+          const toolId = cfg.tools.config.tool({ operation: operationValue })
+          const toolConfig = toolId ? getTool(toolId) : null
+          if (toolConfig?.outputs) return generateOutputPaths(toolConfig.outputs)
+        } catch {}
+      }
+
+      return generateOutputPaths(cfg.outputs || {})
+    }
+
+    const edges = currentWorkflow.edges || []
+    const accessibleIds = new Set<string>(BlockPathCalculator.findAllPathNodes(edges, focusedBlockId))
+
+    // Always allow referencing the starter block
+    if (starterId && starterId !== focusedBlockId) accessibleIds.add(starterId)
+
+    const entries: Array<{ ref: string; value: any }> = []
+
+    for (const id of accessibleIds) {
+      const blk = blockById.get(id)
+      if (!blk) continue
+
+      const allowedPathsSet = new Set<string>(getAccessiblePathsForBlock(id))
+      if (allowedPathsSet.size === 0) continue
+
+      const displayName = getDisplayName(blk)
+      const normalizedName = normalizeBlockName(displayName)
+
+      const executedOutput = debugContext?.blockStates.get(id)?.output || {}
+
+      // Flatten executed outputs and include only those matching allowed paths
+      const flatten = (obj: any, prefix = ''): Array<{ path: string; value: any }> => {
+        if (obj == null || typeof obj !== 'object') return []
+        const items: Array<{ path: string; value: any }> = []
+        for (const [k, v] of Object.entries(obj)) {
+          const current = prefix ? `${prefix}.${k}` : k
+          if (v && typeof v === 'object' && !Array.isArray(v)) {
+            // include the object level only if explicitly allowed
+            if (allowedPathsSet.has(current)) items.push({ path: current, value: v })
+            items.push(...flatten(v, current))
+          } else {
+            if (allowedPathsSet.has(current)) items.push({ path: current, value: v })
+          }
+        }
+        return items
+      }
+
+      const executedPairs = flatten(executedOutput)
+      for (const { path, value } of executedPairs) {
+        entries.push({ ref: `<${normalizedName}.${path}>`, value })
+      }
+    }
+
+    // Sort for stable UI (by ref)
+    entries.sort((a, b) => a.ref.localeCompare(b.ref))
+    return entries
+  }, [focusedBlockId, currentWorkflow.edges, starterId, blockById, debugContext?.blockStates])
+
   // Reset hasStartedRef when debug mode is deactivated
   useEffect(() => {
     if (!isDebugging) {
@@ -230,11 +378,11 @@ export function DebugPanel() {
       {/* Header with block title and status */}
       <div className='flex items-center justify-between'>
         <div className='min-w-0 truncate font-medium text-sm'>
-          {focusedBlock?.metadata?.name || focusedBlock?.id || '—'}
+          {getDisplayName(focusedBlock) || '—'}
         </div>
         <div className='flex items-center gap-2'>
           <Badge variant='outline' className='text-[10px]'>
-            {focusedBlock?.metadata?.id}
+            {focusedBlock?.type}
           </Badge>
           <Badge variant='secondary' className='text-[10px]'>
             {isFocusedPending ? 'Current' : isFocusedExecuted ? 'Executed' : 'Not in execution path'}
@@ -293,24 +441,33 @@ export function DebugPanel() {
         </section>
       </div>
 
-      {/* Expandable Variables */}
-      <details className='rounded-[10px] border p-3'>
-        <summary className='cursor-pointer list-none font-medium text-sm'>Variables</summary>
-        <div className='mt-2 grid grid-cols-2 gap-2'>
-          <div>
-            <div className='mb-1 text-xs text-muted-foreground'>Environment</div>
-            {envVars && Object.keys(envVars).length > 0 ? (
-              <ScrollArea className='h-24 rounded border'>
-                <pre className='p-2 text-[11px]'>
-{JSON.stringify(envVars, null, 2)}
-                </pre>
+      {/* Variables: three collapsible subsections */}
+      <div className='space-y-2'>
+        <details className='rounded-[10px] border p-3'>
+          <summary className='cursor-pointer list-none font-medium text-sm'>Output variables</summary>
+          <div className='mt-2'>
+            {outputVariableEntries.length > 0 ? (
+              <ScrollArea className='h-32 rounded border'>
+                <div className='divide-y'>
+                  {outputVariableEntries.map(({ ref, value }) => (
+                    <div key={ref} className='px-2 py-1.5'>
+                      <div className='mb-1 font-mono text-[11px] text-muted-foreground'>{ref}</div>
+                      <pre className='m-0 whitespace-pre-wrap break-words text-[11px]'>
+{JSON.stringify(value, null, 2)}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
               </ScrollArea>
             ) : (
               <div className='text-muted-foreground text-xs'>None</div>
             )}
           </div>
-          <div>
-            <div className='mb-1 text-xs text-muted-foreground'>Workflow</div>
+        </details>
+
+        <details className='rounded-[10px] border p-3'>
+          <summary className='cursor-pointer list-none font-medium text-sm'>Workflow variables</summary>
+          <div className='mt-2'>
             {workflowVars && Object.keys(workflowVars).length > 0 ? (
               <ScrollArea className='h-24 rounded border'>
                 <pre className='p-2 text-[11px]'>
@@ -321,8 +478,23 @@ export function DebugPanel() {
               <div className='text-muted-foreground text-xs'>None</div>
             )}
           </div>
-        </div>
-      </details>
+        </details>
+
+        <details className='rounded-[10px] border p-3'>
+          <summary className='cursor-pointer list-none font-medium text-sm'>Environment variables</summary>
+          <div className='mt-2'>
+            {envVars && Object.keys(envVars).length > 0 ? (
+              <ScrollArea className='h-24 rounded border'>
+                <pre className='p-2 text-[11px]'>
+{JSON.stringify(envVars, null, 2)}
+                </pre>
+              </ScrollArea>
+            ) : (
+              <div className='text-muted-foreground text-xs'>None</div>
+            )}
+          </div>
+        </details>
+      </div>
     </div>
   )
 } 
