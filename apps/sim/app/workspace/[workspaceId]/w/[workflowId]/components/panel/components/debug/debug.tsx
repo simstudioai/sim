@@ -25,7 +25,9 @@ import {
   FastForward, 
   Square, 
   Circle,
-  AlertCircle
+  AlertCircle,
+  Check,
+  X
 } from 'lucide-react'
 
 export function DebugPanel() {
@@ -186,7 +188,7 @@ export function DebugPanel() {
 
   const isFocusedExecuted = debugContext ? !!debugContext?.blockStates.get(focusedBlockId || '')?.executed : false
   const isStarterFocused = focusedBlock?.metadata?.id === 'starter' || focusedBlock?.type === 'starter'
-  const isFocusedPending = pendingBlocks.includes(focusedBlockId || '')
+  const isFocusedCurrent = pendingBlocks.includes(focusedBlockId || '')
 
   // Resolved output key-value pairs: keys from schema (or actual output if schema empty),
   // values from debugContext if available, else null
@@ -343,16 +345,49 @@ export function DebugPanel() {
 
   // Filter output variables based on whether they're referenced in the input
   const filteredOutputVariables = useMemo(() => {
-    if (!scopedVariables) return outputVariableEntries
+    if (!scopedVariables) {
+      // When not scoped, return all available variables (all resolved)
+      return outputVariableEntries.map(entry => ({ ...entry, resolved: true }))
+    }
     
     // Get the JSON string of visible subblock values to search for references
     const inputValuesStr = JSON.stringify(visibleSubblockValues)
     
-    // Filter to only variables whose reference tags appear in the input
-    return outputVariableEntries.filter(({ ref }) => {
-      // Check if the reference tag appears in the input values
-      return inputValuesStr.includes(ref)
+    // Extract all variable references from the input using regex
+    // Matches patterns like <blockname.property> or <blockname.nested.property>
+    const referencePattern = /<([^>]+)>/g
+    const referencedVars = new Set<string>()
+    let match
+    while ((match = referencePattern.exec(inputValuesStr)) !== null) {
+      referencedVars.add(match[0]) // Add the full reference including < >
+    }
+    
+    // Create a map of available variables for quick lookup
+    const availableVarsMap = new Map(outputVariableEntries.map(entry => [entry.ref, entry]))
+    
+    // Build the final list with both resolved and unresolved variables
+    const result: Array<{ ref: string; value: any; resolved: boolean }> = []
+    
+    // Add all referenced variables
+    for (const ref of referencedVars) {
+      const available = availableVarsMap.get(ref)
+      if (available) {
+        // Variable is resolved (has a value)
+        result.push({ ...available, resolved: true })
+      } else {
+        // Variable is unresolved (referenced but no value yet)
+        result.push({ ref, value: undefined, resolved: false })
+      }
+    }
+    
+    // Sort: resolved first, then unresolved, then alphabetically by ref
+    result.sort((a, b) => {
+      if (a.resolved !== b.resolved) {
+        return a.resolved ? -1 : 1
+      }
+      return a.ref.localeCompare(b.ref)
     })
+    return result
   }, [outputVariableEntries, scopedVariables, visibleSubblockValues])
 
   // Reset hasStartedRef when debug mode is deactivated
@@ -407,15 +442,31 @@ export function DebugPanel() {
   }
 
   const getStatusIcon = () => {
-    if (isFocusedPending) return <Circle className='h-2 w-2 fill-emerald-500 text-emerald-500' />
+    if (isFocusedCurrent) return <Circle className='h-2 w-2 fill-emerald-500 text-emerald-500' />
     if (isFocusedExecuted) return <Circle className='h-2 w-2 fill-blue-500 text-blue-500' />
     return <Circle className='h-2 w-2 fill-muted-foreground/40 text-muted-foreground/40' />
   }
 
   const getStatusText = () => {
-    if (isFocusedPending) return 'Pending'
+    if (isFocusedCurrent) return 'Current'
     if (isFocusedExecuted) return 'Executed'
-    return 'Not in path'
+    return 'Pending'
+  }
+
+  const getResolutionIcon = () => {
+    const resolvedCount = filteredOutputVariables.filter(v => v.resolved).length
+    const unresolvedCount = filteredOutputVariables.filter(v => !v.resolved).length
+    
+    if (unresolvedCount === 0) {
+      // All resolved - green check
+      return <Check className='h-3 w-3 text-emerald-500' />
+    } else if (isFocusedCurrent) {
+      // Current block with unresolved variables - red X
+      return <X className='h-3 w-3 text-destructive' />
+    } else {
+      // Not current but has unresolved variables - yellow dot
+      return <Circle className='h-3 w-3 fill-yellow-500 text-yellow-500' />
+    }
   }
 
   return (
@@ -608,9 +659,16 @@ export function DebugPanel() {
                     />
                     <span className='text-muted-foreground'>Scoped</span>
                   </label>
-                  <span className='text-[10px] text-muted-foreground'>
-                    {scopedVariables ? `${filteredOutputVariables.length} of ${outputVariableEntries.length}` : outputVariableEntries.length} variables
-                  </span>
+                  <div className='flex items-center gap-1.5'>
+                    {scopedVariables && filteredOutputVariables.length > 0 && getResolutionIcon()}
+                    <span className='text-[10px] text-muted-foreground'>
+                      {scopedVariables ? (
+                        `${filteredOutputVariables.filter(v => v.resolved).length} of ${filteredOutputVariables.length}`
+                      ) : (
+                        `${outputVariableEntries.length}`
+                      )} variables
+                    </span>
+                  </div>
                 </div>
                 {filteredOutputVariables.length > 0 ? (
                   <div className='flex-1 overflow-auto'>
@@ -622,17 +680,34 @@ export function DebugPanel() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredOutputVariables.map(({ ref, value }) => (
-                          <tr key={ref} className='border-b border-border/30 hover:bg-muted/20'>
+                        {filteredOutputVariables.map(({ ref, value, resolved }) => (
+                          <tr 
+                            key={ref} 
+                            className={cn(
+                              'border-b border-border/30',
+                              resolved ? 'hover:bg-muted/20' : 'opacity-50'
+                            )}
+                          >
                             <td className='px-3 py-2 align-top'>
-                              <code className='rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-foreground/80'>
+                              <code className={cn(
+                                'rounded px-1.5 py-0.5 font-mono text-[11px]',
+                                resolved 
+                                  ? 'bg-muted/50 text-foreground/80' 
+                                  : 'bg-muted/30 text-muted-foreground'
+                              )}>
                                 {ref}
                               </code>
                             </td>
                             <td className='px-3 py-2'>
-                              <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
+                              {resolved ? (
+                                <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
 {JSON.stringify(value, null, 2)}
-                              </pre>
+                                </pre>
+                              ) : (
+                                <span className='text-[11px] font-mono text-muted-foreground italic'>
+                                  Unresolved
+                                </span>
+                              )}
                             </td>
                           </tr>
                         ))}
