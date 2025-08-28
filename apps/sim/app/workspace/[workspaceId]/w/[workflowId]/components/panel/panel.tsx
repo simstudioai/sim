@@ -18,6 +18,7 @@ import { Chat } from './components/chat/chat'
 import { Console } from './components/console/console'
 import { Copilot } from './components/copilot/copilot'
 import { Variables } from './components/variables/variables'
+import { DebugPanel } from './components/debug/debug'
 
 export function Panel() {
   const [chatMessage, setChatMessage] = useState<string>('')
@@ -216,7 +217,7 @@ export function Panel() {
   )
 
   // Handle tab clicks - no loading, just switch tabs
-  const handleTabClick = async (tab: 'chat' | 'console' | 'variables' | 'copilot') => {
+  const handleTabClick = async (tab: 'chat' | 'console' | 'variables' | 'copilot' | 'debug') => {
     setActiveTab(tab)
     if (!isOpen) {
       togglePanel()
@@ -319,6 +320,14 @@ export function Panel() {
           }`}
         >
           Variables
+        </button>
+        <button
+          onClick={() => handleTabClick('debug')}
+          className={`panel-tab-base inline-flex flex-1 cursor-pointer items-center justify-center rounded-[10px] border border-transparent py-1 font-[450] text-sm outline-none transition-colors duration-200 ${
+            isOpen && activeTab === 'debug' ? 'panel-tab-active' : 'panel-tab-inactive'
+          }`}
+        >
+          Debug
         </button>
       </div>
 
@@ -511,6 +520,9 @@ export function Panel() {
             </div>
             <div style={{ display: activeTab === 'variables' ? 'block' : 'none', height: '100%' }}>
               <Variables />
+            </div>
+            <div style={{ display: activeTab === 'debug' ? 'block' : 'none', height: '100%' }}>
+              <DebugPanel />
             </div>
           </div>
         </div>

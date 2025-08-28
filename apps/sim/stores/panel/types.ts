@@ -1,4 +1,4 @@
-export type PanelTab = 'console' | 'variables' | 'chat' | 'copilot'
+export type PanelTab = 'console' | 'variables' | 'chat' | 'copilot' | 'debug'
 
 export interface PanelStore {
   isOpen: boolean

@@ -22,6 +22,8 @@ import { useCurrentWorkflow } from '../../hooks'
 import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
 import { SubBlock } from './components/sub-block/sub-block'
+import { usePanelStore } from '@/stores/panel/store'
+import { useGeneralStore } from '@/stores/settings/general/store'
 
 interface WorkflowBlockProps {
   type: string
@@ -580,6 +582,27 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     type === 'schedule' && !isLoadingScheduleInfo && scheduleInfo !== null
   const userPermissions = useUserPermissionsContext()
 
+  // Debug mode and active selection
+  const isDebugModeEnabled = useGeneralStore((s) => s.isDebugModeEnabled)
+  const activeBlockIds = useExecutionStore((s) => s.activeBlockIds)
+  const panelFocusedBlockId = useExecutionStore((s) => s.panelFocusedBlockId)
+  const setPanelFocusedBlockId = useExecutionStore((s) => s.setPanelFocusedBlockId)
+  const setActiveBlocks = useExecutionStore((s) => s.setActiveBlocks)
+  const setActiveTab = usePanelStore((s) => s.setActiveTab)
+
+  const handleDebugOpen = (e: React.MouseEvent) => {
+    if (!isDebugModeEnabled) return
+    e.stopPropagation()
+    setActiveBlocks(new Set([id]))
+    setActiveTab('debug')
+    // Always select this block for the debug panel focus
+    setPanelFocusedBlockId(id)
+  }
+
+  // In debug mode, pending blocks are "Current" (what will execute on next Step)
+  const isCurrentBlock = isDebugModeEnabled && isPending
+  const isPanelFocused = isDebugModeEnabled && panelFocusedBlockId === id
+
   return (
     <div className='group relative'>
       <Card
@@ -589,8 +612,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           'transition-block-bg transition-ring',
           displayIsWide ? 'w-[480px]' : 'w-[320px]',
           !isEnabled && 'shadow-sm',
-          isActive && 'animate-pulse-ring ring-2 ring-blue-500',
-          isPending && 'ring-2 ring-amber-500',
+          // Panel-focused block highlight
+          isPanelFocused && 'bg-amber-50 dark:bg-amber-900/10',
+          // Pending blocks show as "Current" with green border
+          isCurrentBlock && 'ring-2 ring-green-500',
           // Diff highlighting
           diffStatus === 'new' && 'bg-green-50/50 ring-2 ring-green-500 dark:bg-green-900/10',
           diffStatus === 'edited' && 'bg-orange-50/50 ring-2 ring-orange-500 dark:bg-orange-900/10',
@@ -598,11 +623,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           isDeletedBlock && 'bg-red-50/50 ring-2 ring-red-500 dark:bg-red-900/10',
           'z-[20]'
         )}
+        onClick={handleDebugOpen}
       >
-        {/* Show debug indicator for pending blocks */}
-        {isPending && (
-          <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-amber-500 px-2 py-0.5 text-white text-xs'>
-            Next Step
+        {/* Show debug indicator for current blocks (pending execution) */}
+        {isCurrentBlock && (
+          <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-green-500 px-2 py-0.5 text-white text-xs'>
+            Current
           </div>
         )}
 
