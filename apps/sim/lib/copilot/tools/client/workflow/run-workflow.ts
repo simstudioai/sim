@@ -24,7 +24,7 @@ export class RunWorkflowClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing to run your workflow', icon: Play },
+      [ClientToolCallState.generating]: { text: 'Preparing to run your workflow', icon: Loader2 },
       [ClientToolCallState.pending]: { text: 'Run this workflow?', icon: Play },
       [ClientToolCallState.executing]: { text: 'Running your workflow', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Workflow executed', icon: Play },

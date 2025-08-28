@@ -10,17 +10,24 @@ import {
 } from 'react'
 import {
   ArrowUp,
+  AtSign,
+  Blocks,
+  Bot,
   Brain,
   BrainCircuit,
   Check,
+  ChevronRight,
   FileText,
   Image,
   Infinity as InfinityIcon,
   Info,
+  LibraryBig,
   Loader2,
   MessageCircle,
   Package,
   Paperclip,
+  Shapes,
+  Workflow,
   X,
   Zap,
 } from 'lucide-react'
@@ -42,6 +49,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { CopilotSlider } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components/copilot-slider'
 import { useCopilotStore } from '@/stores/copilot/store'
+import type { ChatContext } from '@/stores/copilot/types'
 
 const logger = createLogger('CopilotUserInput')
 
@@ -65,7 +73,11 @@ interface AttachedFile {
 }
 
 interface UserInputProps {
-  onSubmit: (message: string, fileAttachments?: MessageFileAttachment[]) => void
+  onSubmit: (
+    message: string,
+    fileAttachments?: MessageFileAttachment[],
+    contexts?: ChatContext[]
+  ) => void
   onAbort?: () => void
   disabled?: boolean
   isLoading?: boolean
@@ -90,7 +102,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       disabled = false,
       isLoading = false,
       isAborting = false,
-      placeholder = 'How can I help you today?',
+      placeholder,
       className,
       mode = 'agent',
       onModeChange,
@@ -106,9 +118,50 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const [dragCounter, setDragCounter] = useState(0)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const [showMentionMenu, setShowMentionMenu] = useState(false)
+    const mentionMenuRef = useRef<HTMLDivElement>(null)
+    const submenuRef = useRef<HTMLDivElement>(null)
+    const menuListRef = useRef<HTMLDivElement>(null)
+    const [mentionActiveIndex, setMentionActiveIndex] = useState(0)
+    const mentionOptions = ['Chats', 'Workflows', 'Blocks', 'Knowledge', 'Templates']
+    const [openSubmenuFor, setOpenSubmenuFor] = useState<string | null>(null)
+    const [submenuActiveIndex, setSubmenuActiveIndex] = useState(0)
+    const [inAggregated, setInAggregated] = useState(false)
+    const isSubmenu = (v: 'Chats' | 'Workflows' | 'Knowledge' | 'Blocks' | 'Templates') =>
+      openSubmenuFor === v
+    const [pastChats, setPastChats] = useState<
+      Array<{ id: string; title: string | null; workflowId: string | null; updatedAt?: string }>
+    >([])
+    const [isLoadingPastChats, setIsLoadingPastChats] = useState(false)
+    // Removed explicit submenu query inputs; we derive query from the text typed after '@'
+    const [selectedContexts, setSelectedContexts] = useState<ChatContext[]>([])
+    const [workflows, setWorkflows] = useState<Array<{ id: string; name: string; color?: string }>>(
+      []
+    )
+    const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(false)
+    const [knowledgeBases, setKnowledgeBases] = useState<Array<{ id: string; name: string }>>([])
+    const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false)
+    const [blocksList, setBlocksList] = useState<
+      Array<{ id: string; name: string; iconComponent?: any; bgColor?: string }>
+    >([])
+    const [isLoadingBlocks, setIsLoadingBlocks] = useState(false)
+    const [templatesList, setTemplatesList] = useState<
+      Array<{ id: string; name: string; stars: number }>
+    >([])
+    const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
+    // const [templatesQuery, setTemplatesQuery] = useState('')
 
     const { data: session } = useSession()
     const { currentChat, workflowId } = useCopilotStore()
+
+    // Determine placeholder based on mode
+    const effectivePlaceholder =
+      placeholder ||
+      (mode === 'ask' ? 'Ask, plan, understand workflows' : 'Build, edit, debug workflows')
+
+    // Track submenu query anchor and aggregate mode
+    const [submenuQueryStart, setSubmenuQueryStart] = useState<number | null>(null)
+    const [aggregatedActive, setAggregatedActive] = useState(false)
 
     // Expose focus method to parent
     useImperativeHandle(
@@ -138,6 +191,148 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }, [message])
 
+    // Close mention menu on outside click
+    useEffect(() => {
+      if (!showMentionMenu) return
+      const handleClickOutside = (e: MouseEvent) => {
+        const target = e.target as Node | null
+        if (
+          mentionMenuRef.current &&
+          !mentionMenuRef.current.contains(target) &&
+          (!submenuRef.current || !submenuRef.current.contains(target)) &&
+          textareaRef.current &&
+          !textareaRef.current.contains(target as Node)
+        ) {
+          setShowMentionMenu(false)
+          setOpenSubmenuFor(null)
+        }
+      }
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [showMentionMenu])
+
+    const ensurePastChatsLoaded = async () => {
+      if (isLoadingPastChats || pastChats.length > 0) return
+      try {
+        setIsLoadingPastChats(true)
+        const resp = await fetch('/api/copilot/chats')
+        if (!resp.ok) throw new Error(`Failed to load chats: ${resp.status}`)
+        const data = await resp.json()
+        const items = Array.isArray(data?.chats) ? data.chats : []
+        setPastChats(
+          items.map((c: any) => ({
+            id: c.id,
+            title: c.title ?? null,
+            workflowId: c.workflowId ?? null,
+            updatedAt: c.updatedAt,
+          }))
+        )
+      } catch {
+      } finally {
+        setIsLoadingPastChats(false)
+      }
+    }
+
+    const ensureWorkflowsLoaded = async () => {
+      if (isLoadingWorkflows || workflows.length > 0) return
+      try {
+        setIsLoadingWorkflows(true)
+        const resp = await fetch('/api/workflows/sync')
+        if (!resp.ok) throw new Error(`Failed to load workflows: ${resp.status}`)
+        const data = await resp.json()
+        const items = Array.isArray(data?.data) ? data.data : []
+        // Sort by last modified/updated (newest first), matching sidebar behavior
+        const sorted = [...items].sort((a: any, b: any) => {
+          const ta = new Date(a.lastModified || a.updatedAt || a.createdAt || 0).getTime()
+          const tb = new Date(b.lastModified || b.updatedAt || b.createdAt || 0).getTime()
+          return tb - ta
+        })
+        setWorkflows(
+          sorted.map((w: any) => ({
+            id: w.id,
+            name: w.name || 'Untitled Workflow',
+            color: w.color,
+          }))
+        )
+      } catch {
+      } finally {
+        setIsLoadingWorkflows(false)
+      }
+    }
+
+    const ensureKnowledgeLoaded = async () => {
+      if (isLoadingKnowledge || knowledgeBases.length > 0) return
+      try {
+        setIsLoadingKnowledge(true)
+        const resp = await fetch('/api/knowledge')
+        if (!resp.ok) throw new Error(`Failed to load knowledge bases: ${resp.status}`)
+        const data = await resp.json()
+        const items = Array.isArray(data?.data) ? data.data : []
+        // Sort by updatedAt desc
+        const sorted = [...items].sort((a: any, b: any) => {
+          const ta = new Date(a.updatedAt || a.createdAt || 0).getTime()
+          const tb = new Date(b.updatedAt || b.createdAt || 0).getTime()
+          return tb - ta
+        })
+        setKnowledgeBases(sorted.map((k: any) => ({ id: k.id, name: k.name || 'Untitled' })))
+      } catch {
+      } finally {
+        setIsLoadingKnowledge(false)
+      }
+    }
+
+    const ensureBlocksLoaded = async () => {
+      if (isLoadingBlocks || blocksList.length > 0) return
+      try {
+        setIsLoadingBlocks(true)
+        const { getAllBlocks } = await import('@/blocks')
+        const all = getAllBlocks()
+        const regularBlocks = all
+          .filter((b: any) => b.type !== 'starter' && !b.hideFromToolbar && b.category === 'blocks')
+          .map((b: any) => ({
+            id: b.type,
+            name: b.name || b.type,
+            iconComponent: b.icon,
+            bgColor: b.bgColor,
+          }))
+          .sort((a: any, b: any) => a.name.localeCompare(b.name))
+
+        const toolBlocks = all
+          .filter((b: any) => b.type !== 'starter' && !b.hideFromToolbar && b.category === 'tools')
+          .map((b: any) => ({
+            id: b.type,
+            name: b.name || b.type,
+            iconComponent: b.icon,
+            bgColor: b.bgColor,
+          }))
+          .sort((a: any, b: any) => a.name.localeCompare(b.name))
+
+        const mapped = [...regularBlocks, ...toolBlocks]
+        setBlocksList(mapped)
+      } catch {
+      } finally {
+        setIsLoadingBlocks(false)
+      }
+    }
+
+    const ensureTemplatesLoaded = async () => {
+      if (isLoadingTemplates || templatesList.length > 0) return
+      try {
+        setIsLoadingTemplates(true)
+        const resp = await fetch('/api/templates?limit=50&offset=0')
+        if (!resp.ok) throw new Error(`Failed to load templates: ${resp.status}`)
+        const data = await resp.json()
+        const items = Array.isArray(data?.data) ? data.data : []
+        const mapped = items
+          .map((t: any) => ({ id: t.id, name: t.name || 'Untitled Template', stars: t.stars || 0 }))
+          .sort((a: any, b: any) => b.stars - a.stars)
+        setTemplatesList(mapped)
+      } catch {
+      } finally {
+        setIsLoadingTemplates(false)
+      }
+    }
+
     // Cleanup preview URLs on unmount
     useEffect(() => {
       return () => {
@@ -148,6 +343,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         })
       }
     }, [])
+
+    // Helper to read current caret position for filtering
+    const getCaretPos = () => textareaRef.current?.selectionStart ?? message.length
 
     // Drag and drop handlers
     const handleDragEnter = (e: React.DragEvent) => {
@@ -304,7 +502,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           size: f.size,
         }))
 
-      onSubmit(trimmedMessage, fileAttachments)
+      onSubmit(trimmedMessage, fileAttachments, selectedContexts)
 
       // Clean up preview URLs before clearing
       attachedFiles.forEach((f) => {
@@ -320,6 +518,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         setInternalMessage('')
       }
       setAttachedFiles([])
+      setSelectedContexts([])
+      setOpenSubmenuFor(null)
+      setShowMentionMenu(false)
     }
 
     const handleAbort = () => {
@@ -329,10 +530,575 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
 
     const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Escape' && showMentionMenu) {
+        e.preventDefault()
+        if (openSubmenuFor) {
+          setOpenSubmenuFor(null)
+          setSubmenuQueryStart(null)
+        } else {
+          setShowMentionMenu(false)
+          // Reset all mention states so @ is treated as regular text
+          setOpenSubmenuFor(null)
+          setSubmenuQueryStart(null)
+          setMentionActiveIndex(0)
+          setSubmenuActiveIndex(0)
+          setInAggregated(false)
+        }
+        return
+      }
+      if (showMentionMenu && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+        e.preventDefault()
+        const caretPos = getCaretPos()
+        const active = getActiveMentionQueryAtPosition(caretPos)
+        const mainQ = (!openSubmenuFor ? active?.query || '' : '').toLowerCase()
+        const filteredMain = !openSubmenuFor
+          ? mentionOptions.filter((o) => o.toLowerCase().includes(mainQ))
+          : []
+        const isAggregate = !openSubmenuFor && mainQ.length > 0 && filteredMain.length === 0
+        const aggregatedList =
+          !openSubmenuFor && mainQ.length > 0
+            ? [
+                ...workflows
+                  .filter((w) => (w.name || 'Untitled Workflow').toLowerCase().includes(mainQ))
+                  .map((w) => ({ type: 'Workflows' as const, value: w })),
+                ...blocksList
+                  .filter((b) => (b.name || b.id).toLowerCase().includes(mainQ))
+                  .map((b) => ({ type: 'Blocks' as const, value: b })),
+                ...knowledgeBases
+                  .filter((k) => (k.name || 'Untitled').toLowerCase().includes(mainQ))
+                  .map((k) => ({ type: 'Knowledge' as const, value: k })),
+                ...templatesList
+                  .filter((t) => (t.name || 'Untitled Template').toLowerCase().includes(mainQ))
+                  .map((t) => ({ type: 'Templates' as const, value: t })),
+                ...pastChats
+                  .filter((c) => (c.title || 'Untitled Chat').toLowerCase().includes(mainQ))
+                  .map((c) => ({ type: 'Chats' as const, value: c })),
+              ]
+            : []
+
+        if (openSubmenuFor === 'Chats' && pastChats.length > 0) {
+          const q = getSubmenuQuery().toLowerCase()
+          const filtered = pastChats.filter((c) =>
+            (c.title || 'Untitled Chat').toLowerCase().includes(q)
+          )
+          setSubmenuActiveIndex((prev) => {
+            const last = Math.max(0, filtered.length - 1)
+            let next = prev
+            if (filtered.length === 0) next = 0
+            else if (e.key === 'ArrowDown') next = prev >= last ? 0 : prev + 1
+            else next = prev <= 0 ? last : prev - 1
+            requestAnimationFrame(() => scrollActiveItemIntoView(next))
+            return next
+          })
+        } else if (openSubmenuFor === 'Workflows' && workflows.length > 0) {
+          const q = getSubmenuQuery().toLowerCase()
+          const filtered = workflows.filter((w) =>
+            (w.name || 'Untitled Workflow').toLowerCase().includes(q)
+          )
+          setSubmenuActiveIndex((prev) => {
+            const last = Math.max(0, filtered.length - 1)
+            let next = prev
+            if (filtered.length === 0) next = 0
+            else if (e.key === 'ArrowDown') next = prev >= last ? 0 : prev + 1
+            else next = prev <= 0 ? last : prev - 1
+            requestAnimationFrame(() => scrollActiveItemIntoView(next))
+            return next
+          })
+        } else if (openSubmenuFor === 'Knowledge' && knowledgeBases.length > 0) {
+          const q = getSubmenuQuery().toLowerCase()
+          const filtered = knowledgeBases.filter((k) =>
+            (k.name || 'Untitled').toLowerCase().includes(q)
+          )
+          setSubmenuActiveIndex((prev) => {
+            const last = Math.max(0, filtered.length - 1)
+            let next = prev
+            if (filtered.length === 0) next = 0
+            else if (e.key === 'ArrowDown') next = prev >= last ? 0 : prev + 1
+            else next = prev <= 0 ? last : prev - 1
+            requestAnimationFrame(() => scrollActiveItemIntoView(next))
+            return next
+          })
+        } else if (openSubmenuFor === 'Blocks' && blocksList.length > 0) {
+          const q = getSubmenuQuery().toLowerCase()
+          const filtered = blocksList.filter((b) => (b.name || b.id).toLowerCase().includes(q))
+          setSubmenuActiveIndex((prev) => {
+            const last = Math.max(0, filtered.length - 1)
+            let next = prev
+            if (filtered.length === 0) next = 0
+            else if (e.key === 'ArrowDown') next = prev >= last ? 0 : prev + 1
+            else next = prev <= 0 ? last : prev - 1
+            requestAnimationFrame(() => scrollActiveItemIntoView(next))
+            return next
+          })
+        } else if (openSubmenuFor === 'Templates' && templatesList.length > 0) {
+          const q = getSubmenuQuery().toLowerCase()
+          const filtered = templatesList.filter((t) =>
+            (t.name || 'Untitled Template').toLowerCase().includes(q)
+          )
+          setSubmenuActiveIndex((prev) => {
+            const last = Math.max(0, filtered.length - 1)
+            let next = prev
+            if (filtered.length === 0) next = 0
+            else if (e.key === 'ArrowDown') next = prev >= last ? 0 : prev + 1
+            else next = prev <= 0 ? last : prev - 1
+            requestAnimationFrame(() => scrollActiveItemIntoView(next))
+            return next
+          })
+        } else if (isAggregate) {
+          const q = mainQ
+          const aggregated = [
+            ...workflows
+              .filter((w) => (w.name || 'Untitled Workflow').toLowerCase().includes(q))
+              .map((w) => ({ type: 'Workflows' as const, value: w })),
+            ...blocksList
+              .filter((b) => (b.name || b.id).toLowerCase().includes(q))
+              .map((b) => ({ type: 'Blocks' as const, value: b })),
+            ...knowledgeBases
+              .filter((k) => (k.name || 'Untitled').toLowerCase().includes(q))
+              .map((k) => ({ type: 'Knowledge' as const, value: k })),
+            ...templatesList
+              .filter((t) => (t.name || 'Untitled Template').toLowerCase().includes(q))
+              .map((t) => ({ type: 'Templates' as const, value: t })),
+            ...pastChats
+              .filter((c) => (c.title || 'Untitled Chat').toLowerCase().includes(q))
+              .map((c) => ({ type: 'Chats' as const, value: c })),
+          ]
+          setInAggregated(true)
+          setSubmenuActiveIndex((prev) => {
+            const last = Math.max(0, aggregated.length - 1)
+            let next = prev
+            if (aggregated.length === 0) next = 0
+            else if (e.key === 'ArrowDown') next = prev >= last ? 0 : prev + 1
+            else next = prev <= 0 ? last : prev - 1
+            requestAnimationFrame(() => scrollActiveItemIntoView(next))
+            return next
+          })
+        } else {
+          // Navigate through main options, then into aggregated matches
+          if (!inAggregated) {
+            const lastMain = Math.max(0, filteredMain.length - 1)
+            if (filteredMain.length === 0) {
+              // jump straight into aggregated if any
+              if (aggregatedList.length > 0) {
+                setInAggregated(true)
+                setSubmenuActiveIndex(0)
+                requestAnimationFrame(() => scrollActiveItemIntoView(0))
+              }
+            } else if (e.key === 'ArrowDown' && mentionActiveIndex >= lastMain) {
+              if (aggregatedList.length > 0) {
+                setInAggregated(true)
+                setSubmenuActiveIndex(0)
+                requestAnimationFrame(() => scrollActiveItemIntoView(0))
+              } else {
+                setMentionActiveIndex(0)
+                requestAnimationFrame(() => scrollActiveItemIntoView(0))
+              }
+            } else if (
+              e.key === 'ArrowUp' &&
+              mentionActiveIndex <= 0 &&
+              aggregatedList.length > 0
+            ) {
+              setInAggregated(true)
+              setSubmenuActiveIndex(Math.max(0, aggregatedList.length - 1))
+              requestAnimationFrame(() =>
+                scrollActiveItemIntoView(Math.max(0, aggregatedList.length - 1))
+              )
+            } else {
+              setMentionActiveIndex((prev) => {
+                const last = lastMain
+                let next = prev
+                if (filteredMain.length === 0) next = 0
+                else if (e.key === 'ArrowDown') next = prev >= last ? last : prev + 1
+                else next = prev <= 0 ? 0 : prev - 1
+                requestAnimationFrame(() => scrollActiveItemIntoView(next))
+                return next
+              })
+            }
+          } else {
+            // inside aggregated list
+            setSubmenuActiveIndex((prev) => {
+              const last = Math.max(0, aggregatedList.length - 1)
+              let next = prev
+              if (aggregatedList.length === 0) next = 0
+              else if (e.key === 'ArrowDown') {
+                if (prev >= last) {
+                  // wrap to main
+                  setInAggregated(false)
+                  requestAnimationFrame(() => scrollActiveItemIntoView(0))
+                  return prev
+                }
+                next = prev + 1
+              } else {
+                if (prev <= 0) {
+                  // move to main last
+                  setInAggregated(false)
+                  setMentionActiveIndex(Math.max(0, filteredMain.length - 1))
+                  requestAnimationFrame(() =>
+                    scrollActiveItemIntoView(Math.max(0, filteredMain.length - 1))
+                  )
+                  return prev
+                }
+                next = prev - 1
+              }
+              requestAnimationFrame(() => scrollActiveItemIntoView(next))
+              return next
+            })
+          }
+        }
+        return
+      }
+      if (showMentionMenu && e.key === 'ArrowRight') {
+        e.preventDefault()
+        if (inAggregated) return
+        const caretPos = getCaretPos()
+        const active = getActiveMentionQueryAtPosition(caretPos)
+        const mainQ = (active?.query || '').toLowerCase()
+        const filteredMain = mentionOptions.filter((o) => o.toLowerCase().includes(mainQ))
+        const selected = filteredMain[mentionActiveIndex]
+        if (selected === 'Chats') {
+          resetActiveMentionQuery()
+          setOpenSubmenuFor('Chats')
+          setSubmenuActiveIndex(0)
+          setSubmenuQueryStart(getCaretPos())
+          void ensurePastChatsLoaded()
+        } else if (selected === 'Workflows') {
+          resetActiveMentionQuery()
+          setOpenSubmenuFor('Workflows')
+          setSubmenuActiveIndex(0)
+          setSubmenuQueryStart(getCaretPos())
+          void ensureWorkflowsLoaded()
+        } else if (selected === 'Knowledge') {
+          resetActiveMentionQuery()
+          setOpenSubmenuFor('Knowledge')
+          setSubmenuActiveIndex(0)
+          setSubmenuQueryStart(getCaretPos())
+          void ensureKnowledgeLoaded()
+        } else if (selected === 'Blocks') {
+          resetActiveMentionQuery()
+          setOpenSubmenuFor('Blocks')
+          setSubmenuActiveIndex(0)
+          setSubmenuQueryStart(getCaretPos())
+          void ensureBlocksLoaded()
+        } else if (selected === 'Templates') {
+          resetActiveMentionQuery()
+          setOpenSubmenuFor('Templates')
+          setSubmenuActiveIndex(0)
+          setSubmenuQueryStart(getCaretPos())
+          void ensureTemplatesLoaded()
+        }
+        return
+      }
+      if (showMentionMenu && e.key === 'ArrowLeft') {
+        if (openSubmenuFor) {
+          e.preventDefault()
+          setOpenSubmenuFor(null)
+          setSubmenuQueryStart(null)
+          return
+        }
+        if (inAggregated) {
+          e.preventDefault()
+          setInAggregated(false)
+          return
+        }
+      }
+
+      // Mention token behavior (outside of menus)
+      const textarea = textareaRef.current
+      const selStart = textarea?.selectionStart ?? 0
+      const selEnd = textarea?.selectionEnd ?? selStart
+      const selectionLength = Math.abs(selEnd - selStart)
+
+      // Backspace: delete entire token if cursor is inside or right after token
+      if (!showMentionMenu && e.key === 'Backspace') {
+        const pos = selStart
+        const ranges = computeMentionRanges()
+        // If there is a selection intersecting a token, delete those tokens
+        const target =
+          selectionLength > 0
+            ? ranges.find((r) => !(selEnd <= r.start || selStart >= r.end))
+            : ranges.find((r) => pos > r.start && pos <= r.end)
+        if (target) {
+          e.preventDefault()
+          deleteRange(target)
+          return
+        }
+      }
+
+      // Delete: if at start of token, delete whole token
+      if (!showMentionMenu && e.key === 'Delete') {
+        const pos = selStart
+        const ranges = computeMentionRanges()
+        const target = ranges.find((r) => pos >= r.start && pos < r.end)
+        if (target) {
+          e.preventDefault()
+          deleteRange(target)
+          return
+        }
+      }
+
+      // Arrow navigation: jump over mention tokens, never land inside
+      if (
+        !showMentionMenu &&
+        selectionLength === 0 &&
+        (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
+      ) {
+        const textarea = textareaRef.current
+        if (textarea) {
+          if (e.key === 'ArrowLeft') {
+            const nextPos = Math.max(0, selStart - 1)
+            const r = findRangeContaining(nextPos)
+            if (r) {
+              e.preventDefault()
+              const target = r.start
+              requestAnimationFrame(() => textarea.setSelectionRange(target, target))
+              return
+            }
+          } else if (e.key === 'ArrowRight') {
+            const nextPos = Math.min(message.length, selStart + 1)
+            const r = findRangeContaining(nextPos)
+            if (r) {
+              e.preventDefault()
+              const target = r.end
+              requestAnimationFrame(() => textarea.setSelectionRange(target, target))
+              return
+            }
+          }
+        }
+      }
+
+      // Prevent typing inside token
+      if (!showMentionMenu && (e.key.length === 1 || e.key === 'Space')) {
+        const pos = selStart
+        const ranges = computeMentionRanges()
+        // Only block when caret is strictly inside a token with no selection
+        const blocked =
+          selectionLength === 0 && !!findRangeContaining(pos) && !!findRangeContaining(pos)?.label
+        if (blocked) {
+          e.preventDefault()
+          // Move caret to end of the token
+          const r = findRangeContaining(pos)
+          if (r && textarea) {
+            requestAnimationFrame(() => {
+              textarea.setSelectionRange(r.end, r.end)
+            })
+          }
+          return
+        }
+      }
+
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
-        handleSubmit()
+        if (!showMentionMenu) {
+          handleSubmit()
+        } else {
+          const caretPos = getCaretPos()
+          const active = getActiveMentionQueryAtPosition(caretPos)
+          const mainQ = (active?.query || '').toLowerCase()
+          const filteredMain = mentionOptions.filter((o) => o.toLowerCase().includes(mainQ))
+          const isAggregate = !openSubmenuFor && mainQ.length > 0 && filteredMain.length === 0
+          const selected = filteredMain[mentionActiveIndex]
+          if (inAggregated) {
+            const q = mainQ
+            const aggregated = [
+              ...workflows
+                .filter((w) => (w.name || 'Untitled Workflow').toLowerCase().includes(q))
+                .map((w) => ({ type: 'Workflows' as const, value: w })),
+              ...blocksList
+                .filter((b) => (b.name || b.id).toLowerCase().includes(q))
+                .map((b) => ({ type: 'Blocks' as const, value: b })),
+              ...knowledgeBases
+                .filter((k) => (k.name || 'Untitled').toLowerCase().includes(q))
+                .map((k) => ({ type: 'Knowledge' as const, value: k })),
+              ...templatesList
+                .filter((t) => (t.name || 'Untitled Template').toLowerCase().includes(q))
+                .map((t) => ({ type: 'Templates' as const, value: t })),
+              ...pastChats
+                .filter((c) => (c.title || 'Untitled Chat').toLowerCase().includes(q))
+                .map((c) => ({ type: 'Chats' as const, value: c })),
+            ]
+            const idx = Math.max(0, Math.min(submenuActiveIndex, aggregated.length - 1))
+            const chosen = aggregated[idx]
+            if (chosen) {
+              if (chosen.type === 'Chats') insertPastChatMention(chosen.value as any)
+              else if (chosen.type === 'Workflows') insertWorkflowMention(chosen.value as any)
+              else if (chosen.type === 'Knowledge') insertKnowledgeMention(chosen.value as any)
+              else if (chosen.type === 'Blocks') insertBlockMention(chosen.value as any)
+              else if (chosen.type === 'Templates') insertTemplateMention(chosen.value as any)
+            }
+          } else if (!openSubmenuFor && selected === 'Chats') {
+            resetActiveMentionQuery()
+            setOpenSubmenuFor('Chats')
+            setSubmenuActiveIndex(0)
+            setSubmenuQueryStart(getCaretPos())
+            void ensurePastChatsLoaded()
+          } else if (openSubmenuFor === 'Chats') {
+            const q = getSubmenuQuery().toLowerCase()
+            const filtered = pastChats.filter((c) =>
+              (c.title || 'Untitled Chat').toLowerCase().includes(q)
+            )
+            if (filtered.length > 0) {
+              const chosen =
+                filtered[Math.max(0, Math.min(submenuActiveIndex, filtered.length - 1))]
+              insertPastChatMention(chosen)
+              setSubmenuQueryStart(null)
+            }
+          } else if (!openSubmenuFor && selected === 'Workflows') {
+            resetActiveMentionQuery()
+            setOpenSubmenuFor('Workflows')
+            setSubmenuActiveIndex(0)
+            setSubmenuQueryStart(getCaretPos())
+            void ensureWorkflowsLoaded()
+          } else if (openSubmenuFor === 'Workflows') {
+            const q = getSubmenuQuery().toLowerCase()
+            const filtered = workflows.filter((w) =>
+              (w.name || 'Untitled Workflow').toLowerCase().includes(q)
+            )
+            if (filtered.length > 0) {
+              const chosen =
+                filtered[Math.max(0, Math.min(submenuActiveIndex, filtered.length - 1))]
+              insertWorkflowMention(chosen)
+              setSubmenuQueryStart(null)
+            }
+          } else if (!openSubmenuFor && selected === 'Knowledge') {
+            resetActiveMentionQuery()
+            setOpenSubmenuFor('Knowledge')
+            setSubmenuActiveIndex(0)
+            setSubmenuQueryStart(getCaretPos())
+            void ensureKnowledgeLoaded()
+          } else if (openSubmenuFor === 'Knowledge') {
+            const q = getSubmenuQuery().toLowerCase()
+            const filtered = knowledgeBases.filter((k) =>
+              (k.name || 'Untitled').toLowerCase().includes(q)
+            )
+            if (filtered.length > 0) {
+              const chosen =
+                filtered[Math.max(0, Math.min(submenuActiveIndex, filtered.length - 1))]
+              insertKnowledgeMention(chosen)
+              setSubmenuQueryStart(null)
+            }
+          } else if (!openSubmenuFor && selected === 'Blocks') {
+            resetActiveMentionQuery()
+            setOpenSubmenuFor('Blocks')
+            setSubmenuActiveIndex(0)
+            setSubmenuQueryStart(getCaretPos())
+            void ensureBlocksLoaded()
+          } else if (openSubmenuFor === 'Blocks') {
+            const q = getSubmenuQuery().toLowerCase()
+            const filtered = blocksList.filter((b) => (b.name || b.id).toLowerCase().includes(q))
+            if (filtered.length > 0) {
+              const chosen =
+                filtered[Math.max(0, Math.min(submenuActiveIndex, filtered.length - 1))]
+              insertBlockMention(chosen)
+              setSubmenuQueryStart(null)
+            }
+          } else if (!openSubmenuFor && selected === 'Templates') {
+            resetActiveMentionQuery()
+            setOpenSubmenuFor('Templates')
+            setSubmenuActiveIndex(0)
+            setSubmenuQueryStart(getCaretPos())
+            void ensureTemplatesLoaded()
+          } else if (openSubmenuFor === 'Templates') {
+            const q = getSubmenuQuery().toLowerCase()
+            const filtered = templatesList.filter((t) =>
+              (t.name || 'Untitled Template').toLowerCase().includes(q)
+            )
+            if (filtered.length > 0) {
+              const chosen =
+                filtered[Math.max(0, Math.min(submenuActiveIndex, filtered.length - 1))]
+              insertTemplateMention(chosen)
+              setSubmenuQueryStart(null)
+            }
+          } else if (isAggregate || inAggregated) {
+            const q = mainQ
+            const aggregated = [
+              ...workflows
+                .filter((w) => (w.name || 'Untitled Workflow').toLowerCase().includes(q))
+                .map((w) => ({ type: 'Workflows' as const, value: w })),
+              ...blocksList
+                .filter((b) => (b.name || b.id).toLowerCase().includes(q))
+                .map((b) => ({ type: 'Blocks' as const, value: b })),
+              ...knowledgeBases
+                .filter((k) => (k.name || 'Untitled').toLowerCase().includes(q))
+                .map((k) => ({ type: 'Knowledge' as const, value: k })),
+              ...templatesList
+                .filter((t) => (t.name || 'Untitled Template').toLowerCase().includes(q))
+                .map((t) => ({ type: 'Templates' as const, value: t })),
+              ...pastChats
+                .filter((c) => (c.title || 'Untitled Chat').toLowerCase().includes(q))
+                .map((c) => ({ type: 'Chats' as const, value: c })),
+            ]
+            const idx = Math.max(0, Math.min(submenuActiveIndex, aggregated.length - 1))
+            const chosen = aggregated[idx]
+            if (chosen) {
+              if (chosen.type === 'Chats') insertPastChatMention(chosen.value)
+              else if (chosen.type === 'Workflows') insertWorkflowMention(chosen.value)
+              else if (chosen.type === 'Knowledge') insertKnowledgeMention(chosen.value)
+              else if (chosen.type === 'Blocks') insertBlockMention(chosen.value)
+              else if (chosen.type === 'Templates') insertTemplateMention(chosen.value)
+            }
+          }
+        }
       }
+    }
+
+    const getActiveMentionQueryAtPosition = (pos: number, textOverride?: string) => {
+      const text = textOverride ?? message
+      const before = text.slice(0, pos)
+      const atIndex = before.lastIndexOf('@')
+      if (atIndex === -1) return null
+      // Ensure '@' starts a token (start or whitespace before)
+      if (atIndex > 0 && !/\s/.test(before.charAt(atIndex - 1))) return null
+      // If this '@' falls anywhere inside an existing mention token, ignore.
+      // This also covers labels that themselves contain '@' characters.
+      if (selectedContexts.length > 0) {
+        const labels = selectedContexts.map((c) => c.label).filter(Boolean) as string[]
+        for (const label of labels) {
+          const token = `@${label}`
+          let fromIndex = 0
+          while (fromIndex <= text.length) {
+            const idx = text.indexOf(token, fromIndex)
+            if (idx === -1) break
+            const end = idx + token.length
+            if (atIndex >= idx && atIndex < end) {
+              return null
+            }
+            fromIndex = end
+          }
+        }
+      }
+      const segment = before.slice(atIndex + 1)
+      // Close the popup if user types space immediately after @ (just "@ " with nothing between)
+      // This means they want to use @ as a regular character, not as a mention trigger
+      if (segment.length > 0 && /^\s/.test(segment)) {
+        return null
+      }
+      // Keep the popup open for valid queries
+      return { query: segment, start: atIndex, end: pos }
+    }
+
+    const getSubmenuQuery = () => {
+      const pos = getCaretPos()
+      if (submenuQueryStart == null) return ''
+      return message.slice(submenuQueryStart, pos)
+    }
+
+    const resetActiveMentionQuery = () => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+      const pos = textarea.selectionStart ?? message.length
+      const active = getActiveMentionQueryAtPosition(pos)
+      if (!active) return
+      // Keep the '@' but clear everything typed after it
+      const before = message.slice(0, active.start + 1)
+      const after = message.slice(active.end)
+      const next = `${before}${after}`
+      if (controlledValue !== undefined) onControlledChange?.(next)
+      else setInternalMessage(next)
+      requestAnimationFrame(() => {
+        const caretPos = before.length
+        textarea.setSelectionRange(caretPos, caretPos)
+        textarea.focus()
+      })
     }
 
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -342,6 +1108,145 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       } else {
         setInternalMessage(newValue)
       }
+      const caret = e.target.selectionStart ?? newValue.length
+      const active = getActiveMentionQueryAtPosition(caret, newValue)
+      if (active) {
+        setShowMentionMenu(true)
+        setInAggregated(false)
+        if (openSubmenuFor) {
+          setSubmenuActiveIndex(0)
+          requestAnimationFrame(() => scrollActiveItemIntoView(0))
+        } else {
+          setMentionActiveIndex(0)
+          setSubmenuActiveIndex(0) // ensure aggregated lists also default to first
+          requestAnimationFrame(() => scrollActiveItemIntoView(0))
+        }
+      } else {
+        setShowMentionMenu(false)
+        setOpenSubmenuFor(null)
+        setSubmenuQueryStart(null)
+      }
+    }
+
+    const handleSelectAdjust = () => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+      const pos = textarea.selectionStart ?? 0
+      const r = findRangeContaining(pos)
+      if (r) {
+        // Snap caret to token boundary to avoid typing inside
+        const snapPos = pos - r.start < r.end - pos ? r.start : r.end
+        requestAnimationFrame(() => {
+          textarea.setSelectionRange(snapPos, snapPos)
+        })
+      }
+    }
+
+    const insertAtCursor = (text: string) => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+      const start = textarea.selectionStart ?? message.length
+      const end = textarea.selectionEnd ?? message.length
+      let before = message.slice(0, start)
+      const after = message.slice(end)
+      // Avoid duplicate '@' if user typed trigger
+      if (before.endsWith('@') && text.startsWith('@')) {
+        before = before.slice(0, -1)
+      }
+      const next = `${before}${text}${after}`
+      if (controlledValue !== undefined) {
+        onControlledChange?.(next)
+      } else {
+        setInternalMessage(next)
+      }
+      // Move cursor to after inserted text
+      setTimeout(() => {
+        const pos = before.length + text.length
+        textarea.setSelectionRange(pos, pos)
+        textarea.focus()
+      }, 0)
+    }
+
+    const replaceActiveMentionWith = (label: string) => {
+      const textarea = textareaRef.current
+      if (!textarea) return false
+      const pos = textarea.selectionStart ?? message.length
+      const active = getActiveMentionQueryAtPosition(pos)
+      if (!active) return false
+      const before = message.slice(0, active.start)
+      const after = message.slice(active.end)
+      const next = `${before}@${label} ${after}`
+      if (controlledValue !== undefined) onControlledChange?.(next)
+      else setInternalMessage(next)
+      requestAnimationFrame(() => {
+        const caretPos = `${before}@${label} `.length
+        textarea.setSelectionRange(caretPos, caretPos)
+        textarea.focus()
+      })
+      return true
+    }
+
+    const insertPastChatMention = (chat: { id: string; title: string | null }) => {
+      const label = chat.title || 'Untitled Chat'
+      const token = `@${label}`
+      if (!replaceActiveMentionWith(label)) insertAtCursor(`${token} `)
+      setSelectedContexts((prev) => {
+        // Avoid duplicate contexts for same chat
+        if (prev.some((c) => c.kind === 'past_chat' && (c as any).chatId === chat.id)) return prev
+        return [...prev, { kind: 'past_chat', chatId: chat.id, label } as ChatContext]
+      })
+      setShowMentionMenu(false)
+      setOpenSubmenuFor(null)
+    }
+
+    const insertWorkflowMention = (wf: { id: string; name: string }) => {
+      const label = wf.name || 'Untitled Workflow'
+      const token = `@${label}`
+      if (!replaceActiveMentionWith(label)) insertAtCursor(`${token} `)
+      setSelectedContexts((prev) => {
+        if (prev.some((c) => c.kind === 'workflow' && (c as any).workflowId === wf.id)) return prev
+        return [...prev, { kind: 'workflow', workflowId: wf.id, label } as ChatContext]
+      })
+      setShowMentionMenu(false)
+      setOpenSubmenuFor(null)
+    }
+
+    const insertKnowledgeMention = (kb: { id: string; name: string }) => {
+      const label = kb.name || 'Untitled'
+      const token = `@${label}`
+      if (!replaceActiveMentionWith(label)) insertAtCursor(`${token} `)
+      setSelectedContexts((prev) => {
+        if (prev.some((c) => c.kind === 'knowledge' && (c as any).knowledgeId === kb.id))
+          return prev
+        return [...prev, { kind: 'knowledge', knowledgeId: kb.id, label } as any]
+      })
+      setShowMentionMenu(false)
+      setOpenSubmenuFor(null)
+    }
+
+    const insertBlockMention = (blk: { id: string; name: string }) => {
+      const label = blk.name || blk.id
+      const token = `@${label}`
+      if (!replaceActiveMentionWith(label)) insertAtCursor(`${token} `)
+      setSelectedContexts((prev) => {
+        if (prev.some((c) => c.kind === 'blocks' && (c as any).blockId === blk.id)) return prev
+        return [...prev, { kind: 'blocks', blockId: blk.id, label } as any]
+      })
+      setShowMentionMenu(false)
+      setOpenSubmenuFor(null)
+    }
+
+    const insertTemplateMention = (tpl: { id: string; name: string }) => {
+      const label = tpl.name || 'Untitled Template'
+      const token = `@${label}`
+      if (!replaceActiveMentionWith(label)) insertAtCursor(`${token} `)
+      setSelectedContexts((prev) => {
+        if (prev.some((c) => c.kind === 'templates' && (c as any).templateId === tpl.id))
+          return prev
+        return [...prev, { kind: 'templates', templateId: tpl.id, label } as any]
+      })
+      setShowMentionMenu(false)
+      setOpenSubmenuFor(null)
     }
 
     const handleFileSelect = () => {
@@ -410,6 +1315,102 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
       return <FileText className='h-5 w-5 text-muted-foreground' />
     }
+
+    // Mention token utilities
+    const computeMentionRanges = () => {
+      const ranges: Array<{ start: number; end: number; label: string }> = []
+      if (!message || selectedContexts.length === 0) return ranges
+      // Build labels map for quick search
+      const labels = selectedContexts.map((c) => c.label).filter(Boolean)
+      if (labels.length === 0) return ranges
+      // For each label, find all occurrences of @label (case-sensitive)
+      for (const label of labels) {
+        const token = `@${label}`
+        let fromIndex = 0
+        while (fromIndex <= message.length) {
+          const idx = message.indexOf(token, fromIndex)
+          if (idx === -1) break
+          ranges.push({ start: idx, end: idx + token.length, label })
+          fromIndex = idx + token.length
+        }
+      }
+      // Sort by start
+      ranges.sort((a, b) => a.start - b.start)
+      return ranges
+    }
+
+    const findRangeContaining = (pos: number) => {
+      const ranges = computeMentionRanges()
+      // Consider strictly inside the token; allow typing at boundaries
+      return ranges.find((r) => pos > r.start && pos < r.end)
+    }
+
+    const deleteRange = (range: { start: number; end: number; label: string }) => {
+      const before = message.slice(0, range.start)
+      const after = message.slice(range.end)
+      const next = `${before}${after}`.replace(/\s{2,}/g, ' ')
+      if (controlledValue !== undefined) {
+        onControlledChange?.(next)
+      } else {
+        setInternalMessage(next)
+      }
+      // Remove corresponding context by label
+      setSelectedContexts((prev) => prev.filter((c) => c.label !== range.label))
+      // Place cursor at range.start
+      requestAnimationFrame(() => {
+        const textarea = textareaRef.current
+        if (textarea) {
+          textarea.setSelectionRange(range.start, range.start)
+          textarea.focus()
+        }
+      })
+    }
+
+    // Keep selected contexts in sync with the text so replacing selections works gracefully
+    useEffect(() => {
+      if (!message) {
+        if (selectedContexts.length > 0) setSelectedContexts([])
+        return
+      }
+      const presentLabels = new Set<string>()
+      const ranges = computeMentionRanges()
+      for (const r of ranges) presentLabels.add(r.label)
+      setSelectedContexts((prev) => prev.filter((c) => !!c.label && presentLabels.has(c.label!)))
+    }, [message])
+
+    // Manage aggregate mode and preloading when needed
+    useEffect(() => {
+      if (!showMentionMenu || openSubmenuFor) {
+        setAggregatedActive(false)
+        setInAggregated(false)
+        return
+      }
+      const q = (getActiveMentionQueryAtPosition(getCaretPos())?.query || '').trim().toLowerCase()
+      const filteredMain = mentionOptions.filter((o) => o.toLowerCase().includes(q))
+      const needAggregate = q.length > 0 && filteredMain.length === 0
+      setAggregatedActive(needAggregate)
+      // Prefetch all lists whenever there is any query so the Matches section has data
+      if (q.length > 0) {
+        void ensurePastChatsLoaded()
+        void ensureWorkflowsLoaded()
+        void ensureKnowledgeLoaded()
+        void ensureBlocksLoaded()
+        void ensureTemplatesLoaded()
+      }
+      if (needAggregate) {
+        setSubmenuActiveIndex(0)
+        requestAnimationFrame(() => scrollActiveItemIntoView(0))
+      }
+    }, [showMentionMenu, openSubmenuFor, message])
+
+    // When switching into a submenu, select the first item and scroll to it
+    useEffect(() => {
+      if (openSubmenuFor) {
+        setInAggregated(false)
+        setSubmenuActiveIndex(0)
+        requestAnimationFrame(() => scrollActiveItemIntoView(0))
+      }
+    }, [openSubmenuFor])
 
     const canSubmit = message.trim().length > 0 && !disabled && !isLoading
     const showAbortButton = isLoading && onAbort
@@ -485,6 +1486,43 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const getDepthIcon = () => getDepthIconFor(agentDepth)
 
+    const scrollActiveItemIntoView = (index: number) => {
+      const container = menuListRef.current
+      if (!container) return
+      const item = container.querySelector(`[data-idx="${index}"]`) as HTMLElement | null
+      if (!item) return
+      const tolerance = 8
+      const itemTop = item.offsetTop
+      const itemBottom = itemTop + item.offsetHeight
+      const viewTop = container.scrollTop
+      const viewBottom = viewTop + container.clientHeight
+      const needsScrollUp = itemTop < viewTop + tolerance
+      const needsScrollDown = itemBottom > viewBottom - tolerance
+      if (needsScrollUp || needsScrollDown) {
+        if (needsScrollUp) {
+          container.scrollTop = Math.max(0, itemTop - tolerance)
+        } else {
+          container.scrollTop = itemBottom + tolerance - container.clientHeight
+        }
+      }
+    }
+
+    const handleOpenMentionMenuWithAt = () => {
+      if (disabled || isLoading) return
+      const textarea = textareaRef.current
+      if (!textarea) return
+      textarea.focus()
+      const pos = textarea.selectionStart ?? message.length
+      const needsSpaceBefore = pos > 0 && !/\s/.test(message.charAt(pos - 1))
+      insertAtCursor(needsSpaceBefore ? ' @' : '@')
+      // Open the menu at top level
+      setShowMentionMenu(true)
+      setOpenSubmenuFor(null)
+      setMentionActiveIndex(0)
+      setSubmenuActiveIndex(0)
+      requestAnimationFrame(() => scrollActiveItemIntoView(0))
+    }
+
     return (
       <div className={cn('relative flex-none pb-4', className)}>
         <div
@@ -559,17 +1597,676 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           )}
 
           {/* Textarea Field */}
-          <Textarea
-            ref={textareaRef}
-            value={message}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder={isDragging ? 'Drop files here...' : placeholder}
-            disabled={disabled}
-            rows={1}
-            className='mb-2 min-h-[32px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent px-[2px] py-1 text-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
-            style={{ height: 'auto' }}
-          />
+          <div className='relative'>
+            {/* Highlight overlay */}
+            <div className='pointer-events-none absolute inset-0 z-[1] px-[2px] py-1'>
+              <pre className='whitespace-pre-wrap font-sans text-foreground text-sm leading-[1.25rem]'>
+                {(() => {
+                  const elements: React.ReactNode[] = []
+                  const remaining = message
+                  const contexts = selectedContexts
+                  if (contexts.length === 0 || !remaining) return remaining
+                  // Build regex for all labels
+                  const labels = contexts.map((c) => c.label).filter(Boolean)
+                  const pattern = new RegExp(
+                    `@(${labels.map((l) => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
+                    'g'
+                  )
+                  let lastIndex = 0
+                  let match: RegExpExecArray | null
+                  while ((match = pattern.exec(remaining)) !== null) {
+                    const i = match.index
+                    const before = remaining.slice(lastIndex, i)
+                    if (before) elements.push(before)
+                    const mentionText = match[0]
+                    elements.push(
+                      <span
+                        key={`${mentionText}-${i}-${lastIndex}`}
+                        className='rounded-[6px] bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)]'
+                      >
+                        {mentionText}
+                      </span>
+                    )
+                    lastIndex = i + mentionText.length
+                  }
+                  const tail = remaining.slice(lastIndex)
+                  if (tail) elements.push(tail)
+                  return elements
+                })()}
+              </pre>
+            </div>
+            <Textarea
+              ref={textareaRef}
+              value={message}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              onSelect={handleSelectAdjust}
+              onMouseUp={handleSelectAdjust}
+              placeholder={isDragging ? 'Drop files here...' : effectivePlaceholder}
+              disabled={disabled}
+              rows={1}
+              className='relative z-[2] mb-2 min-h-[32px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent px-[2px] py-1 font-sans text-sm text-transparent leading-[1.25rem] caret-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+              style={{ height: 'auto' }}
+            />
+            {showMentionMenu && (
+              <>
+                <div
+                  ref={mentionMenuRef}
+                  className={cn(
+                    'absolute bottom-full left-0 z-50 mb-1 flex max-h-64 flex-col overflow-hidden rounded-[8px] border bg-popover p-1 text-foreground shadow-md',
+                    openSubmenuFor === 'Blocks'
+                      ? 'w-80'
+                      : openSubmenuFor === 'Templates'
+                        ? 'w-96'
+                        : 'w-56'
+                  )}
+                >
+                  {openSubmenuFor ? (
+                    <>
+                      <div className='px-2 py-1.5 text-muted-foreground text-xs'>
+                        {openSubmenuFor === 'Chats'
+                          ? 'Chats'
+                          : openSubmenuFor === 'Workflows'
+                            ? 'Workflows'
+                            : openSubmenuFor === 'Knowledge'
+                              ? 'Knowledge Bases'
+                              : openSubmenuFor === 'Blocks'
+                                ? 'Blocks'
+                                : 'Templates'}
+                      </div>
+                      <div ref={menuListRef} className='flex-1 overflow-auto overscroll-contain'>
+                        {isSubmenu('Chats') && (
+                          <>
+                            {isLoadingPastChats ? (
+                              <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                Loading...
+                              </div>
+                            ) : pastChats.length === 0 ? (
+                              <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                No past chats
+                              </div>
+                            ) : (
+                              pastChats
+                                .filter((c) =>
+                                  (c.title || 'Untitled Chat')
+                                    .toLowerCase()
+                                    .includes(getSubmenuQuery().toLowerCase())
+                                )
+                                .map((chat, idx) => (
+                                  <div
+                                    key={chat.id}
+                                    data-idx={idx}
+                                    className={cn(
+                                      'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                      submenuActiveIndex === idx && 'bg-muted'
+                                    )}
+                                    role='menuitem'
+                                    aria-selected={submenuActiveIndex === idx}
+                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                    onClick={() => {
+                                      insertPastChatMention(chat)
+                                      setSubmenuQueryStart(null)
+                                    }}
+                                  >
+                                    <div className='flex h-4 w-4 flex-shrink-0 items-center justify-center'>
+                                      <Bot
+                                        className='h-3.5 w-3.5 text-muted-foreground'
+                                        strokeWidth={1.5}
+                                      />
+                                    </div>
+                                    <span className='truncate'>
+                                      {chat.title || 'Untitled Chat'}
+                                    </span>
+                                  </div>
+                                ))
+                            )}
+                          </>
+                        )}
+                        {isSubmenu('Workflows') && (
+                          <>
+                            {isLoadingWorkflows ? (
+                              <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                Loading...
+                              </div>
+                            ) : workflows.length === 0 ? (
+                              <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                No workflows
+                              </div>
+                            ) : (
+                              workflows
+                                .filter((w) =>
+                                  (w.name || 'Untitled Workflow')
+                                    .toLowerCase()
+                                    .includes(getSubmenuQuery().toLowerCase())
+                                )
+                                .map((wf, idx) => (
+                                  <div
+                                    key={wf.id}
+                                    data-idx={idx}
+                                    className={cn(
+                                      'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                      submenuActiveIndex === idx && 'bg-muted'
+                                    )}
+                                    role='menuitem'
+                                    aria-selected={submenuActiveIndex === idx}
+                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                    onClick={() => {
+                                      insertWorkflowMention(wf)
+                                      setSubmenuQueryStart(null)
+                                    }}
+                                  >
+                                    <div
+                                      className='h-3.5 w-3.5 flex-shrink-0 rounded'
+                                      style={{ backgroundColor: wf.color || '#3972F6' }}
+                                    />
+                                    <span className='truncate'>
+                                      {wf.name || 'Untitled Workflow'}
+                                    </span>
+                                  </div>
+                                ))
+                            )}
+                          </>
+                        )}
+                        {isSubmenu('Knowledge') && (
+                          <>
+                            {isLoadingKnowledge ? (
+                              <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                Loading...
+                              </div>
+                            ) : knowledgeBases.length === 0 ? (
+                              <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                No knowledge bases
+                              </div>
+                            ) : (
+                              knowledgeBases
+                                .filter((k) =>
+                                  (k.name || 'Untitled')
+                                    .toLowerCase()
+                                    .includes(getSubmenuQuery().toLowerCase())
+                                )
+                                .map((kb, idx) => (
+                                  <div
+                                    key={kb.id}
+                                    data-idx={idx}
+                                    className={cn(
+                                      'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                      submenuActiveIndex === idx && 'bg-muted'
+                                    )}
+                                    role='menuitem'
+                                    aria-selected={submenuActiveIndex === idx}
+                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                    onClick={() => {
+                                      insertKnowledgeMention(kb)
+                                      setSubmenuQueryStart(null)
+                                    }}
+                                  >
+                                    <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
+                                    <span className='truncate'>{kb.name || 'Untitled'}</span>
+                                  </div>
+                                ))
+                            )}
+                          </>
+                        )}
+                        {isSubmenu('Blocks') && (
+                          <>
+                            {isLoadingBlocks ? (
+                              <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                Loading...
+                              </div>
+                            ) : blocksList.length === 0 ? (
+                              <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                No blocks found
+                              </div>
+                            ) : (
+                              blocksList
+                                .filter((b) =>
+                                  (b.name || b.id)
+                                    .toLowerCase()
+                                    .includes(getSubmenuQuery().toLowerCase())
+                                )
+                                .map((blk, idx) => (
+                                  <div
+                                    key={blk.id}
+                                    data-idx={idx}
+                                    className={cn(
+                                      'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                      submenuActiveIndex === idx && 'bg-muted'
+                                    )}
+                                    role='menuitem'
+                                    aria-selected={submenuActiveIndex === idx}
+                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                    onClick={() => {
+                                      insertBlockMention(blk)
+                                      setSubmenuQueryStart(null)
+                                    }}
+                                  >
+                                    <div
+                                      className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
+                                      style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+                                    >
+                                      {blk.iconComponent && (
+                                        <blk.iconComponent className='!h-3 !w-3 text-white' />
+                                      )}
+                                    </div>
+                                    <span className='truncate'>{blk.name || blk.id}</span>
+                                  </div>
+                                ))
+                            )}
+                          </>
+                        )}
+                        {isSubmenu('Templates') && (
+                          <>
+                            {isLoadingTemplates ? (
+                              <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                Loading...
+                              </div>
+                            ) : templatesList.length === 0 ? (
+                              <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                No templates found
+                              </div>
+                            ) : (
+                              templatesList
+                                .filter((t) =>
+                                  (t.name || 'Untitled Template')
+                                    .toLowerCase()
+                                    .includes(getSubmenuQuery().toLowerCase())
+                                )
+                                .map((tpl, idx) => (
+                                  <div
+                                    key={tpl.id}
+                                    data-idx={idx}
+                                    className={cn(
+                                      'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                      submenuActiveIndex === idx && 'bg-muted'
+                                    )}
+                                    role='menuitem'
+                                    aria-selected={submenuActiveIndex === idx}
+                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                    onClick={() => {
+                                      insertTemplateMention(tpl)
+                                      setSubmenuQueryStart(null)
+                                    }}
+                                  >
+                                    <div className='flex h-4 w-4 items-center justify-center'>
+                                      ★
+                                    </div>
+                                    <span className='truncate'>{tpl.name}</span>
+                                    <span className='ml-auto text-muted-foreground text-xs'>
+                                      {tpl.stars}
+                                    </span>
+                                  </div>
+                                ))
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {(() => {
+                        const q = (
+                          getActiveMentionQueryAtPosition(getCaretPos())?.query || ''
+                        ).toLowerCase()
+                        const filtered = mentionOptions.filter((label) =>
+                          label.toLowerCase().includes(q)
+                        )
+                        if (q.length > 0 && filtered.length === 0) {
+                          // Aggregated search view
+                          const aggregated = [
+                            ...workflows
+                              .filter((w) =>
+                                (w.name || 'Untitled Workflow').toLowerCase().includes(q)
+                              )
+                              .map((w) => ({
+                                type: 'Workflows' as const,
+                                id: w.id,
+                                value: w,
+                                onClick: () => insertWorkflowMention(w),
+                              })),
+                            ...blocksList
+                              .filter((b) => (b.name || b.id).toLowerCase().includes(q))
+                              .map((b) => ({
+                                type: 'Blocks' as const,
+                                id: b.id,
+                                value: b,
+                                onClick: () => insertBlockMention(b),
+                              })),
+                            ...knowledgeBases
+                              .filter((k) => (k.name || 'Untitled').toLowerCase().includes(q))
+                              .map((k) => ({
+                                type: 'Knowledge' as const,
+                                id: k.id,
+                                value: k,
+                                onClick: () => insertKnowledgeMention(k),
+                              })),
+                            ...templatesList
+                              .filter((t) =>
+                                (t.name || 'Untitled Template').toLowerCase().includes(q)
+                              )
+                              .map((t) => ({
+                                type: 'Templates' as const,
+                                id: t.id,
+                                value: t,
+                                onClick: () => insertTemplateMention(t),
+                              })),
+                            ...pastChats
+                              .filter((c) => (c.title || 'Untitled Chat').toLowerCase().includes(q))
+                              .map((c) => ({
+                                type: 'Chats' as const,
+                                id: c.id,
+                                value: c,
+                                onClick: () => insertPastChatMention(c),
+                              })),
+                          ]
+                          return (
+                            <div
+                              ref={menuListRef}
+                              className='flex-1 overflow-auto overscroll-contain'
+                            >
+                              {aggregated.length === 0 ? (
+                                <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                  No matches
+                                </div>
+                              ) : (
+                                aggregated.map((item, idx) => (
+                                  <div
+                                    key={`${item.type}-${item.id}`}
+                                    data-idx={idx}
+                                    className={cn(
+                                      'flex cursor-default items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                      submenuActiveIndex === idx && 'bg-muted'
+                                    )}
+                                    role='menuitem'
+                                    aria-selected={submenuActiveIndex === idx}
+                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                    onClick={() => item.onClick()}
+                                  >
+                                    {item.type === 'Chats' ? (
+                                      <>
+                                        <div className='flex h-4 w-4 flex-shrink-0 items-center justify-center'>
+                                          <Bot
+                                            className='h-3.5 w-3.5 text-muted-foreground'
+                                            strokeWidth={1.5}
+                                          />
+                                        </div>
+                                        <span className='truncate'>
+                                          {(item.value as any).title || 'Untitled Chat'}
+                                        </span>
+                                      </>
+                                    ) : item.type === 'Workflows' ? (
+                                      <>
+                                        <div
+                                          className='h-3.5 w-3.5 flex-shrink-0 rounded'
+                                          style={{
+                                            backgroundColor: (item.value as any).color || '#3972F6',
+                                          }}
+                                        />
+                                        <span className='truncate'>
+                                          {(item.value as any).name || 'Untitled Workflow'}
+                                        </span>
+                                      </>
+                                    ) : item.type === 'Knowledge' ? (
+                                      <>
+                                        <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
+                                        <span className='truncate'>
+                                          {(item.value as any).name || 'Untitled'}
+                                        </span>
+                                      </>
+                                    ) : item.type === 'Blocks' ? (
+                                      <>
+                                        <div
+                                          className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
+                                          style={{
+                                            backgroundColor:
+                                              (item.value as any).bgColor || '#6B7280',
+                                          }}
+                                        >
+                                          {(() => {
+                                            const Icon = (item.value as any).iconComponent
+                                            return Icon ? (
+                                              <Icon className='!h-3 !w-3 text-white' />
+                                            ) : null
+                                          })()}
+                                        </div>
+                                        <span className='truncate'>
+                                          {(item.value as any).name || (item.value as any).id}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <div className='flex h-4 w-4 items-center justify-center'>
+                                          ★
+                                        </div>
+                                        <span className='truncate'>
+                                          {(item.value as any).name || 'Untitled Template'}
+                                        </span>
+                                        {typeof (item.value as any).stars === 'number' && (
+                                          <span className='ml-auto text-muted-foreground text-xs'>
+                                            {(item.value as any).stars}
+                                          </span>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )
+                        }
+                        // Filtered top-level options view
+                        return (
+                          <div
+                            ref={menuListRef}
+                            className='flex-1 overflow-auto overscroll-contain'
+                          >
+                            {filtered.map((label, idx) => (
+                              <div
+                                key={label}
+                                data-idx={idx}
+                                className={cn(
+                                  'flex cursor-default items-center justify-between gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                  !inAggregated && mentionActiveIndex === idx && 'bg-muted'
+                                )}
+                                role='menuitem'
+                                aria-selected={!inAggregated && mentionActiveIndex === idx}
+                                onMouseEnter={() => {
+                                  setInAggregated(false)
+                                  setMentionActiveIndex(idx)
+                                }}
+                                onClick={() => {
+                                  if (label === 'Chats') {
+                                    resetActiveMentionQuery()
+                                    setOpenSubmenuFor('Chats')
+                                    setSubmenuActiveIndex(0)
+                                    setSubmenuQueryStart(getCaretPos())
+                                    void ensurePastChatsLoaded()
+                                  } else if (label === 'Workflows') {
+                                    resetActiveMentionQuery()
+                                    setOpenSubmenuFor('Workflows')
+                                    setSubmenuActiveIndex(0)
+                                    setSubmenuQueryStart(getCaretPos())
+                                    void ensureWorkflowsLoaded()
+                                  } else if (label === 'Knowledge') {
+                                    resetActiveMentionQuery()
+                                    setOpenSubmenuFor('Knowledge')
+                                    setSubmenuActiveIndex(0)
+                                    setSubmenuQueryStart(getCaretPos())
+                                    void ensureKnowledgeLoaded()
+                                  } else if (label === 'Blocks') {
+                                    resetActiveMentionQuery()
+                                    setOpenSubmenuFor('Blocks')
+                                    setSubmenuActiveIndex(0)
+                                    setSubmenuQueryStart(getCaretPos())
+                                    void ensureBlocksLoaded()
+                                  } else if (label === 'Templates') {
+                                    resetActiveMentionQuery()
+                                    setOpenSubmenuFor('Templates')
+                                    setSubmenuActiveIndex(0)
+                                    setSubmenuQueryStart(getCaretPos())
+                                    void ensureTemplatesLoaded()
+                                  }
+                                }}
+                              >
+                                <div className='flex items-center gap-2'>
+                                  {label === 'Chats' ? (
+                                    <Bot className='h-3.5 w-3.5 text-muted-foreground' />
+                                  ) : label === 'Workflows' ? (
+                                    <Workflow className='h-3.5 w-3.5 text-muted-foreground' />
+                                  ) : label === 'Blocks' ? (
+                                    <Blocks className='h-3.5 w-3.5 text-muted-foreground' />
+                                  ) : label === 'Knowledge' ? (
+                                    <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
+                                  ) : label === 'Templates' ? (
+                                    <Shapes className='h-3.5 w-3.5 text-muted-foreground' />
+                                  ) : (
+                                    <div className='h-3.5 w-3.5' />
+                                  )}
+                                  <span>{label}</span>
+                                </div>
+                                <ChevronRight className='h-3.5 w-3.5 text-muted-foreground' />
+                              </div>
+                            ))}
+
+                            {(() => {
+                              const aq = q
+                              const aggregated = [
+                                ...workflows
+                                  .filter((w) =>
+                                    (w.name || 'Untitled Workflow').toLowerCase().includes(aq)
+                                  )
+                                  .map((w) => ({ type: 'Workflows' as const, value: w })),
+                                ...blocksList
+                                  .filter((b) => (b.name || b.id).toLowerCase().includes(aq))
+                                  .map((b) => ({ type: 'Blocks' as const, value: b })),
+                                ...knowledgeBases
+                                  .filter((k) => (k.name || 'Untitled').toLowerCase().includes(aq))
+                                  .map((k) => ({ type: 'Knowledge' as const, value: k })),
+                                ...templatesList
+                                  .filter((t) =>
+                                    (t.name || 'Untitled Template').toLowerCase().includes(aq)
+                                  )
+                                  .map((t) => ({ type: 'Templates' as const, value: t })),
+                                ...pastChats
+                                  .filter((c) =>
+                                    (c.title || 'Untitled Chat').toLowerCase().includes(aq)
+                                  )
+                                  .map((c) => ({ type: 'Chats' as const, value: c })),
+                              ]
+                              if (!aq || aq.length === 0 || aggregated.length === 0) return null
+                              return (
+                                <>
+                                  <div className='my-1 h-px bg-border/70' />
+                                  <div className='px-2 py-1 text-[11px] text-muted-foreground'>
+                                    Matches
+                                  </div>
+                                  {aggregated.map((item, idx) => (
+                                    <div
+                                      key={`${item.type}-${(item.value as any).id}`}
+                                      data-idx={filtered.length + idx}
+                                      className={cn(
+                                        'flex cursor-default items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                        inAggregated && submenuActiveIndex === idx && 'bg-muted'
+                                      )}
+                                      role='menuitem'
+                                      aria-selected={inAggregated && submenuActiveIndex === idx}
+                                      onMouseEnter={() => {
+                                        setInAggregated(true)
+                                        setSubmenuActiveIndex(idx)
+                                      }}
+                                      onClick={() => {
+                                        if (item.type === 'Chats')
+                                          insertPastChatMention(item.value as any)
+                                        else if (item.type === 'Workflows')
+                                          insertWorkflowMention(item.value as any)
+                                        else if (item.type === 'Knowledge')
+                                          insertKnowledgeMention(item.value as any)
+                                        else if (item.type === 'Blocks')
+                                          insertBlockMention(item.value as any)
+                                        else if (item.type === 'Templates')
+                                          insertTemplateMention(item.value as any)
+                                      }}
+                                    >
+                                      {item.type === 'Chats' ? (
+                                        <>
+                                          <div className='flex h-4 w-4 flex-shrink-0 items-center justify-center'>
+                                            <Bot
+                                              className='h-3.5 w-3.5 text-muted-foreground'
+                                              strokeWidth={1.5}
+                                            />
+                                          </div>
+                                          <span className='truncate'>
+                                            {(item.value as any).title || 'Untitled Chat'}
+                                          </span>
+                                        </>
+                                      ) : item.type === 'Workflows' ? (
+                                        <>
+                                          <div
+                                            className='h-3.5 w-3.5 flex-shrink-0 rounded'
+                                            style={{
+                                              backgroundColor:
+                                                (item.value as any).color || '#3972F6',
+                                            }}
+                                          />
+                                          <span className='truncate'>
+                                            {(item.value as any).name || 'Untitled Workflow'}
+                                          </span>
+                                        </>
+                                      ) : item.type === 'Knowledge' ? (
+                                        <>
+                                          <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
+                                          <span className='truncate'>
+                                            {(item.value as any).name || 'Untitled'}
+                                          </span>
+                                        </>
+                                      ) : item.type === 'Blocks' ? (
+                                        <>
+                                          <div
+                                            className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
+                                            style={{
+                                              backgroundColor:
+                                                (item.value as any).bgColor || '#6B7280',
+                                            }}
+                                          >
+                                            {(() => {
+                                              const Icon = (item.value as any).iconComponent
+                                              return Icon ? (
+                                                <Icon className='!h-3 !w-3 text-white' />
+                                              ) : null
+                                            })()}
+                                          </div>
+                                          <span className='truncate'>
+                                            {(item.value as any).name || (item.value as any).id}
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <div className='flex h-4 w-4 items-center justify-center'>
+                                            ★
+                                          </div>
+                                          <span className='truncate'>
+                                            {(item.value as any).name || 'Untitled Template'}
+                                          </span>
+                                          {typeof (item.value as any).stars === 'number' && (
+                                            <span className='ml-auto text-muted-foreground text-xs'>
+                                              {(item.value as any).stars}
+                                            </span>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  ))}
+                                </>
+                              )
+                            })()}
+                          </div>
+                        )
+                      })()}
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Bottom Row: Mode Selector + Attach Button + Send Button */}
           <div className='flex items-center justify-between'>
@@ -746,6 +2443,16 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   </DropdownMenuContent>
                 </DropdownMenu>
               }
+              <Button
+                variant='ghost'
+                size='icon'
+                onClick={handleOpenMentionMenuWithAt}
+                disabled={disabled || isLoading}
+                className='h-4 w-4 text-muted-foreground hover:text-foreground'
+                title='Insert @'
+              >
+                <AtSign className='h-1.5 w-1.5' strokeWidth={1.25} />
+              </Button>
             </div>
 
             {/* Right side: Attach Button + Send Button */}
