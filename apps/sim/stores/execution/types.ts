@@ -10,6 +10,7 @@ export interface ExecutionState {
   debugContext: ExecutionContext | null
   autoPanDisabled: boolean
   panelFocusedBlockId?: string | null
+  executingBlockIds: Set<string>
 }
 
 export interface ExecutionActions {
@@ -21,6 +22,7 @@ export interface ExecutionActions {
   setDebugContext: (context: ExecutionContext | null) => void
   setAutoPanDisabled: (disabled: boolean) => void
   setPanelFocusedBlockId: (id: string | null) => void
+  setExecutingBlockIds: (ids: Set<string>) => void
   reset: () => void
 }
 
@@ -33,6 +35,7 @@ export const initialState: ExecutionState = {
   debugContext: null,
   autoPanDisabled: false,
   panelFocusedBlockId: null,
+  executingBlockIds: new Set(),
 }
 
 // Types for panning functionality

@@ -587,6 +587,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const activeBlockIds = useExecutionStore((s) => s.activeBlockIds)
   const panelFocusedBlockId = useExecutionStore((s) => s.panelFocusedBlockId)
   const setPanelFocusedBlockId = useExecutionStore((s) => s.setPanelFocusedBlockId)
+  const executingBlockIds = useExecutionStore((s) => s.executingBlockIds)
   const setActiveBlocks = useExecutionStore((s) => s.setActiveBlocks)
   const setActiveTab = usePanelStore((s) => s.setActiveTab)
 
@@ -599,7 +600,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     setPanelFocusedBlockId(id)
   }
 
-  // In debug mode, pending blocks are "Current" (what will execute on next Step)
+  // In debug mode, use executingBlockIds to detect actual executing blocks (not selection);
+  // outside debug, fall back to activeBlockIds driven by the executor
+  const isExecutingNow = isDebugModeEnabled ? executingBlockIds.has(id) : activeBlockIds.has(id)
   const isCurrentBlock = isDebugModeEnabled && isPending
   const isPanelFocused = isDebugModeEnabled && panelFocusedBlockId === id
 
@@ -614,8 +617,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           !isEnabled && 'shadow-sm',
           // Panel-focused block highlight
           isPanelFocused && 'bg-amber-50 dark:bg-amber-900/10',
-          // Pending blocks show as "Current" with green border
-          isCurrentBlock && 'ring-2 ring-green-500',
+          // Executing blocks match staging: pulsing blue ring
+          isExecutingNow && 'animate-pulse-ring ring-2 ring-blue-500',
+          // Pending blocks show green border when not executing
+          !isExecutingNow && isCurrentBlock && 'ring-2 ring-green-500',
           // Diff highlighting
           diffStatus === 'new' && 'bg-green-50/50 ring-2 ring-green-500 dark:bg-green-900/10',
           diffStatus === 'edited' && 'bg-orange-50/50 ring-2 ring-orange-500 dark:bg-orange-900/10',
@@ -625,8 +630,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         )}
         onClick={handleDebugOpen}
       >
-        {/* Show debug indicator for current blocks (pending execution) */}
-        {isCurrentBlock && (
+        {/* Show debug indicator for current blocks in debug mode (pending or executing) */}
+        {isDebugModeEnabled && (isPending || executingBlockIds.has(id)) && (
           <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-green-500 px-2 py-0.5 text-white text-xs'>
             Current
           </div>
