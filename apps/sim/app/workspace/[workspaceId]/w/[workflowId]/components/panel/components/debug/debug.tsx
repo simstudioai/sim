@@ -190,6 +190,13 @@ export function DebugPanel() {
   const isStarterFocused = focusedBlock?.metadata?.id === 'starter' || focusedBlock?.type === 'starter'
   const isFocusedCurrent = pendingBlocks.includes(focusedBlockId || '')
 
+  // Bump when execution progresses to refresh dependent memos
+  const executionVersion = useMemo(() => {
+    const logsCount = debugContext?.blockLogs?.length || 0
+    const statesCount = debugContext?.blockStates?.size || 0
+    return logsCount + statesCount
+  }, [debugContext?.blockLogs?.length, debugContext?.blockStates?.size])
+
   // Resolved output key-value pairs: keys from schema (or actual output if schema empty),
   // values from debugContext if available, else null
   const resolvedOutputKVs = useMemo(() => {
@@ -204,11 +211,11 @@ export function DebugPanel() {
       result[k] = Object.prototype.hasOwnProperty.call(stateOutput, k) ? stateOutput[k] : null
     })
     return result
-  }, [focusedBlock, focusedBlockId, debugContext?.blockStates])
+  }, [focusedBlock, focusedBlockId, executionVersion])
 
   // Compute accessible output variables for the focused block with tag-style references
   const outputVariableEntries = useMemo(() => {
-    if (!focusedBlockId) return [] as Array<{ ref: string; value: any; resolved: boolean }>
+    if (!focusedBlockId) return [] as Array<{ ref: string; value: any }>
 
     const normalizeBlockName = (name: string) => (name || '').replace(/\s+/g, '').toLowerCase()
     const getSubBlockValue = (blockId: string, property: string): any => {
@@ -301,58 +308,53 @@ export function DebugPanel() {
     // Always allow referencing the starter block
     if (starterId && starterId !== focusedBlockId) accessibleIds.add(starterId)
 
-    const entries: Array<{ ref: string; value: any; resolved: boolean }> = []
+    const entries: Array<{ ref: string; value: any }> = []
 
     for (const id of accessibleIds) {
       const blk = blockById.get(id)
       if (!blk) continue
 
-      const allowedPaths = getAccessiblePathsForBlock(id)
-      if (allowedPaths.length === 0) continue
+      const allowedPathsSet = new Set<string>(getAccessiblePathsForBlock(id))
+      if (allowedPathsSet.size === 0) continue
 
       const displayName = getDisplayName(blk)
       const normalizedName = normalizeBlockName(displayName)
 
       const executedOutput = debugContext?.blockStates.get(id)?.output || {}
-      const isExecuted = debugContext?.blockStates.get(id)?.executed || false
 
-      // For each allowed path, create an entry
-      for (const path of allowedPaths) {
-        const ref = `<${normalizedName}.${path}>`
-        
-        // Try to get the value from executed output
-        const getValue = (obj: any, pathStr: string): { value: any; found: boolean } => {
-          const parts = pathStr.split('.')
-          let current = obj
-          for (const part of parts) {
-            if (current && typeof current === 'object' && part in current) {
-              current = current[part]
-            } else {
-              return { value: undefined, found: false }
-            }
+      // Flatten executed outputs and include only those matching allowed paths
+      const flatten = (obj: any, prefix = ''): Array<{ path: string; value: any }> => {
+        if (obj == null || typeof obj !== 'object') return []
+        const items: Array<{ path: string; value: any }> = []
+        for (const [k, v] of Object.entries(obj)) {
+          const current = prefix ? `${prefix}.${k}` : k
+          if (v && typeof v === 'object' && !Array.isArray(v)) {
+            // include the object level only if explicitly allowed
+            if (allowedPathsSet.has(current)) items.push({ path: current, value: v })
+            items.push(...flatten(v, current))
+          } else {
+            if (allowedPathsSet.has(current)) items.push({ path: current, value: v })
           }
-          return { value: current, found: true }
         }
+        return items
+      }
 
-        const { value, found } = getValue(executedOutput, path)
-        entries.push({ 
-          ref, 
-          value: found ? value : undefined,
-          resolved: isExecuted && found
-        })
+      const executedPairs = flatten(executedOutput)
+      for (const { path, value } of executedPairs) {
+        entries.push({ ref: `<${normalizedName}.${path}>`, value })
       }
     }
 
     // Sort for stable UI (by ref)
     entries.sort((a, b) => a.ref.localeCompare(b.ref))
     return entries
-  }, [focusedBlockId, currentWorkflow.edges, starterId, blockById, debugContext?.blockStates])
+  }, [focusedBlockId, currentWorkflow.edges, starterId, blockById, executionVersion])
 
   // Filter output variables based on whether they're referenced in the input
   const filteredOutputVariables = useMemo(() => {
     if (!scopedVariables) {
-      // When not scoped, return all available variables from outputVariableEntries
-      return outputVariableEntries
+      // When not scoped, return all available variables (all resolved)
+      return outputVariableEntries.map(entry => ({ ...entry, resolved: true }))
     }
     
     // Get the JSON string of visible subblock values to search for references
@@ -377,10 +379,10 @@ export function DebugPanel() {
     for (const ref of referencedVars) {
       const available = availableVarsMap.get(ref)
       if (available) {
-        // Variable exists in accessible scope
-        result.push(available)
+        // Variable is resolved (has a value)
+        result.push({ ...available, resolved: true })
       } else {
-        // Variable is referenced but not in accessible scope (shouldn't reach this block)
+        // Variable is unresolved (referenced but no value yet)
         result.push({ ref, value: undefined, resolved: false })
       }
     }
@@ -393,7 +395,7 @@ export function DebugPanel() {
       return a.ref.localeCompare(b.ref)
     })
     return result
-  }, [outputVariableEntries, scopedVariables, visibleSubblockValues])
+  }, [outputVariableEntries, scopedVariables, visibleSubblockValues, executionVersion])
 
   // Reset hasStartedRef when debug mode is deactivated
   useEffect(() => {
