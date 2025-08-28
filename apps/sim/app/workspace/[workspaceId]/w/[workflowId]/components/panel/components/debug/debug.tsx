@@ -21,6 +21,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { 
   Play, 
   FastForward, 
@@ -201,6 +202,31 @@ export function DebugPanel() {
 
   const envVars = debugContext?.environmentVariables || {}
   const workflowVars = debugContext?.workflowVariables || {}
+
+  // Get environment variables from the store (for before execution starts)
+  const envVarsFromStore = useEnvironmentStore((state) => state.getAllVariables())
+  const loadEnvironmentVariables = useEnvironmentStore((state) => state.loadEnvironmentVariables)
+  
+  // Load environment variables when component mounts
+  useEffect(() => {
+    loadEnvironmentVariables()
+  }, [loadEnvironmentVariables])
+  
+  // Use debugContext env vars if available (during execution), otherwise use store
+  const allEnvVars = useMemo(() => {
+    // If we have debugContext with env vars, use those (they're decrypted)
+    if (debugContext && Object.keys(envVars).length > 0) {
+      return envVars
+    }
+    
+    // Otherwise, use the env vars from the store
+    // Convert from store format to simple key-value pairs
+    const storeVars: Record<string, string> = {}
+    Object.entries(envVarsFromStore).forEach(([key, variable]) => {
+      storeVars[key] = variable.value
+    })
+    return storeVars
+  }, [debugContext, envVars, envVarsFromStore])
 
   // Get workflow variables from the variables store
   const workflowVariablesFromStore = useVariablesStore((state) => 
@@ -607,72 +633,109 @@ export function DebugPanel() {
 
   // Filter environment variables based on whether they're referenced in the input
   const filteredEnvVariables = useMemo(() => {
+    // Helper function to recursively extract env var references from any value
+    const extractEnvVarReferences = (value: any, fieldName?: string): Set<string> => {
+      const refs = new Set<string>()
+      
+      if (typeof value === 'string') {
+        // Check if this is an API key field (by field name)
+        const isApiKeyField = fieldName && (
+          fieldName.toLowerCase().includes('apikey') ||
+          fieldName.toLowerCase().includes('api_key') ||
+          fieldName.toLowerCase().includes('secretkey') ||
+          fieldName.toLowerCase().includes('secret_key') ||
+          fieldName.toLowerCase().includes('accesskey') ||
+          fieldName.toLowerCase().includes('access_key') ||
+          fieldName.toLowerCase().includes('token')
+        )
+        
+        // Check if entire string is just {{ENV_VAR}}
+        const isExplicitEnvVar = value.trim().match(/^\{\{[^{}]+\}\}$/)
+        
+        // Check for env vars in specific contexts (Bearer tokens, URLs, headers, etc.)
+        const hasProperContext = 
+          /Bearer\s+\{\{[^{}]+\}\}/i.test(value) ||
+          /Authorization:\s+Bearer\s+\{\{[^{}]+\}\}/i.test(value) ||
+          /Authorization:\s+\{\{[^{}]+\}\}/i.test(value) ||
+          /[?&]api[_-]?key=\{\{[^{}]+\}\}/i.test(value) ||
+          /[?&]key=\{\{[^{}]+\}\}/i.test(value) ||
+          /[?&]token=\{\{[^{}]+\}\}/i.test(value) ||
+          /X-API-Key:\s+\{\{[^{}]+\}\}/i.test(value) ||
+          /api[_-]?key:\s+\{\{[^{}]+\}\}/i.test(value)
+        
+        // Extract env vars if this field should be processed
+        if (isApiKeyField || isExplicitEnvVar || hasProperContext) {
+          const envPattern = /\{\{([^}]+)\}\}/g
+          let match
+          while ((match = envPattern.exec(value)) !== null) {
+            refs.add(match[1])
+          }
+        }
+      } else if (Array.isArray(value)) {
+        // Recursively process arrays
+        value.forEach((item, index) => {
+          const itemRefs = extractEnvVarReferences(item, fieldName ? `${fieldName}[${index}]` : undefined)
+          itemRefs.forEach(ref => refs.add(ref))
+        })
+      } else if (value && typeof value === 'object') {
+        // Recursively process objects
+        Object.entries(value).forEach(([key, val]) => {
+          const itemRefs = extractEnvVarReferences(val, key)
+          itemRefs.forEach(ref => refs.add(ref))
+        })
+      }
+      
+      return refs
+    }
+    
     if (!scopedVariables) {
       // Show all environment variables that are referenced anywhere in the workflow
-      // Extract all env var references from all blocks
       const allEnvVarRefs = new Set<string>()
+      
       for (const block of blocksList) {
-        // Check all block properties, including subBlocks
         if (activeWorkflowId) {
           const allBlocks = useWorkflowStore.getState().blocks
           const merged = mergeSubblockState(allBlocks, activeWorkflowId, block.id)[block.id]
           const stateToUse = merged?.subBlocks || {}
           
-          // Extract all values and search for env var references
-          const blockValues: any[] = []
+          // Process each subblock value with its field name
           for (const [key, subBlock] of Object.entries(stateToUse)) {
             if (subBlock && typeof subBlock === 'object' && 'value' in subBlock) {
-              blockValues.push(subBlock.value)
+              const refs = extractEnvVarReferences(subBlock.value, key)
+              refs.forEach(ref => allEnvVarRefs.add(ref))
             }
-          }
-          
-          const blockStr = JSON.stringify(blockValues)
-          const envPattern = /\{\{([^}]+)\}\}/g
-          let match
-          while ((match = envPattern.exec(blockStr)) !== null) {
-            allEnvVarRefs.add(match[1])
           }
         }
       }
+      
       // Return only env vars that are referenced somewhere in the workflow
-      return Object.entries(envVars).filter(([key]) => allEnvVarRefs.has(key))
+      return Object.entries(allEnvVars).filter(([key]) => allEnvVarRefs.has(key))
     }
     
     // For scoped view, look at the entire focused block's data
-    // This includes all subBlocks values, not just the visible ones
     if (!focusedBlock) {
       return []
     }
     
     // Get all subblock values from the store for this block
-    const allSubBlockValues: Record<string, any> = {}
+    const blockEnvVarRefs = new Set<string>()
     if (focusedBlockId && activeWorkflowId) {
       const allBlocks = useWorkflowStore.getState().blocks
       const merged = mergeSubblockState(allBlocks, activeWorkflowId, focusedBlockId)[focusedBlockId]
       const stateToUse = merged?.subBlocks || {}
       
-      // Extract all values from subBlocks
+      // Process each subblock value with its field name
       for (const [key, subBlock] of Object.entries(stateToUse)) {
         if (subBlock && typeof subBlock === 'object' && 'value' in subBlock) {
-          allSubBlockValues[key] = subBlock.value
+          const refs = extractEnvVarReferences(subBlock.value, key)
+          refs.forEach(ref => blockEnvVarRefs.add(ref))
         }
       }
     }
     
-    // Search for env var references in all subblock values
-    const blockDataStr = JSON.stringify(allSubBlockValues)
-    
-    // Extract environment variable references using pattern {{VAR_NAME}}
-    const envPattern = /\{\{([^}]+)\}\}/g
-    const referencedEnvVars = new Set<string>()
-    let match
-    while ((match = envPattern.exec(blockDataStr)) !== null) {
-      referencedEnvVars.add(match[1]) // Add just the variable name part
-    }
-    
     // Filter environment variables to only those referenced
-    return Object.entries(envVars).filter(([key]) => referencedEnvVars.has(key))
-  }, [envVars, scopedVariables, focusedBlock, focusedBlockId, activeWorkflowId, blocksList])
+    return Object.entries(allEnvVars).filter(([key]) => blockEnvVarRefs.has(key))
+  }, [allEnvVars, scopedVariables, focusedBlock, focusedBlockId, activeWorkflowId, blocksList])
 
   // Reset hasStartedRef when debug mode is deactivated
   useEffect(() => {
@@ -1347,7 +1410,7 @@ export function DebugPanel() {
               ) : (
                 <div className='flex h-full items-center justify-center'>
                   <p className='text-muted-foreground/60 text-xs'>
-                    {scopedVariables && Object.keys(envVars).length > 0
+                    {scopedVariables && Object.keys(allEnvVars).length > 0
                       ? 'No environment variables referenced in input'
                       : 'No environment variables'}
                   </p>
