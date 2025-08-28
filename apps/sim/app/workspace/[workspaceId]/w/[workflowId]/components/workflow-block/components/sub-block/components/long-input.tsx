@@ -427,7 +427,8 @@ export function LongInput({
           disabled={isPreview || disabled}
           style={{
             // Explicit font properties for perfect alignment
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+            fontFamily:
+              '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
             fontSize: '14px',
             fontWeight: '400',
             // Match the fixed pixel line-height used on the textarea
@@ -450,7 +451,7 @@ export function LongInput({
           style={{
             // Position exactly over the textarea content area
             top: '0',
-            left: '0', 
+            left: '0',
             // width is set dynamically to match textarea clientWidth to ensure identical wrapping
             // right is disabled to avoid conflicts with explicit width
             right: 'auto',
@@ -461,7 +462,8 @@ export function LongInput({
             paddingRight: '12px',
             // No border; border would shrink content width under border-box and break wrapping parity
             // Exact same font properties as textarea
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+            fontFamily:
+              '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
             fontSize: '14px',
             fontWeight: '400',
             lineHeight: '21px', // Use fixed pixel line-height to prevent subpixel rounding drift with overlay
