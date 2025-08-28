@@ -44,6 +44,142 @@ export function DebugPanel() {
   const hasStartedRef = useRef(false)
   const lastFocusedIdRef = useRef<string | null>(null)
 
+  // Track bottom variables tab and row highlighting for navigation from tokens
+  const [bottomTab, setBottomTab] = useState<'reference' | 'workflow' | 'environment'>('reference')
+  const workflowVarRowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map())
+  const envVarRowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map())
+  const [highlightedWorkflowVar, setHighlightedWorkflowVar] = useState<string | null>(null)
+  const [highlightedEnvVar, setHighlightedEnvVar] = useState<string | null>(null)
+  const refVarRowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map())
+  const [highlightedRefVar, setHighlightedRefVar] = useState<string | null>(null)
+
+  // Helper to format strings with clickable var/env tokens
+  const renderWithTokens = (
+    text: string,
+    options?: { truncateAt?: number }
+  ) => {
+    const truncateAt = options?.truncateAt
+    let displayText = text
+    let truncated = false
+    if (typeof truncateAt === 'number' && text.length > truncateAt) {
+      displayText = text.slice(0, truncateAt) + '...'
+      truncated = true
+    }
+
+    // Build combined matches for env ({{VAR}}), workflow vars (<variable.name>), and references (<block.path>)
+    const matches: Array<{ start: number; end: number; type: 'env' | 'var' | 'ref'; value: string; raw?: string }> = []
+
+    const envRe = /\{\{([^{}]+)\}\}/g
+    const varRe = /<variable\.([^>]+)>/g
+    const refRe = /<([^>]+)>/g
+
+    let m: RegExpExecArray | null
+    while ((m = envRe.exec(displayText)) !== null) {
+      matches.push({ start: m.index, end: m.index + m[0].length, type: 'env', value: m[1], raw: m[0] })
+    }
+    while ((m = varRe.exec(displayText)) !== null) {
+      matches.push({ start: m.index, end: m.index + m[0].length, type: 'var', value: m[1], raw: m[0] })
+    }
+    while ((m = refRe.exec(displayText)) !== null) {
+      const inner = m[1]
+      // Skip workflow variable tokens since already captured
+      if (inner.startsWith('variable.')) continue
+      matches.push({ start: m.index, end: m.index + m[0].length, type: 'ref', value: inner, raw: m[0] })
+    }
+
+    if (matches.length === 0) {
+      return (
+        <span className='text-[11px] font-mono text-foreground/70 break-words'>
+          {displayText}
+        </span>
+      )
+    }
+
+    // Sort by start index
+    matches.sort((a, b) => a.start - b.start)
+
+    const parts: React.ReactNode[] = []
+    let cursor = 0
+
+    const handleTokenClick = (kind: 'env' | 'var' | 'ref', rawName: string, rawToken?: string) => {
+      if (kind === 'env') {
+        setBottomTab('environment')
+        // Scroll and highlight
+        requestAnimationFrame(() => {
+          const row = envVarRowRefs.current.get(rawName)
+          if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          setHighlightedEnvVar(rawName)
+          setTimeout(() => setHighlightedEnvVar((prev) => (prev === rawName ? null : prev)), 1500)
+        })
+      } else {
+        if (kind === 'var') {
+          const normalized = (rawName || '').replace(/\s+/g, '')
+          setBottomTab('workflow')
+          requestAnimationFrame(() => {
+            const row = workflowVarRowRefs.current.get(normalized)
+            if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            setHighlightedWorkflowVar(normalized)
+            setTimeout(
+              () => setHighlightedWorkflowVar((prev) => (prev === normalized ? null : prev)),
+              1500
+            )
+          })
+        } else {
+          // Reference variable token
+          const refKey = rawToken || `<${rawName}>`
+          setBottomTab('reference')
+          // Keep current scoped state to match the same set user is seeing
+          requestAnimationFrame(() => {
+            const row = refVarRowRefs.current.get(refKey)
+            if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            setHighlightedRefVar(refKey)
+            setTimeout(
+              () => setHighlightedRefVar((prev) => (prev === refKey ? null : prev)),
+              1500
+            )
+          })
+        }
+      }
+    }
+
+    for (const match of matches) {
+      if (match.start > cursor) {
+        parts.push(
+          <span key={`t-${cursor}`} className='text-[11px] font-mono text-foreground/70 break-words'>
+            {displayText.slice(cursor, match.start)}
+          </span>
+        )
+      }
+
+      const chip = (
+        <button
+          key={`m-${match.start}`}
+          type='button'
+          className='rounded bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 font-mono text-[11px] text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors'
+          onClick={(e) => {
+            e.stopPropagation()
+            handleTokenClick(match.type as any, match.value, match.raw)
+          }}
+        >
+          {match.type === 'env' ? `{{${match.value}}}` : match.type === 'var' ? `<variable.${match.value}>` : `<${match.value}>`}
+        </button>
+      )
+
+      parts.push(chip)
+      cursor = match.end
+    }
+
+    if (cursor < displayText.length) {
+      parts.push(
+        <span key={`t-end`} className='text-[11px] font-mono text-foreground/70 break-words'>
+          {displayText.slice(cursor)}
+        </span>
+      )
+    }
+
+    return <span className='break-words'>{parts}</span>
+  }
+
   // Helper to toggle field expansion
   const toggleFieldExpansion = (fieldKey: string) => {
     setExpandedFields(prev => {
@@ -982,17 +1118,17 @@ export function DebugPanel() {
                                   >
                                     {isExpanded ? (
                                       <span className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
-                                        {String(value)}
+                                        {renderWithTokens(String(value))}
                                       </span>
                                     ) : (
                                       <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
-                                        {String(value).slice(0, 100)}...
+                                        {renderWithTokens(String(value), { truncateAt: 100 })}
                                       </span>
                                     )}
                                   </div>
                                 ) : (
                                   <span className='text-[11px] font-mono text-foreground/70 break-words'>
-                                    {String(value)}
+                                    {renderWithTokens(String(value))}
                                   </span>
                                 )}
                               </div>
@@ -1069,17 +1205,17 @@ export function DebugPanel() {
                                   >
                                     {isExpanded ? (
                                       <span className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
-                                        {String(value)}
+                                        {renderWithTokens(String(value))}
                                       </span>
                                     ) : (
                                       <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
-                                        {String(value).slice(0, 100)}...
+                                        {renderWithTokens(String(value), { truncateAt: 100 })}
                                       </span>
                                     )}
                                   </div>
                                 ) : (
                                   <span className='text-[11px] font-mono text-foreground/70 break-words'>
-                                    {String(value)}
+                                    {renderWithTokens(String(value))}
                                   </span>
                                 )}
                               </div>
@@ -1101,7 +1237,7 @@ export function DebugPanel() {
 
         {/* Bottom Section - Variables Tables */}
         <div className='flex-1 min-h-0'>
-          <Tabs defaultValue='reference' className='flex h-full flex-col'>
+          <Tabs value={bottomTab} onValueChange={(v) => setBottomTab(v as any)} className='flex h-full flex-col'>
             <div className='border-b border-border/50 px-3 flex items-center justify-between'>
               <TabsList className='h-10 bg-transparent p-0 gap-6'>
                 <TabsTrigger
@@ -1145,6 +1281,14 @@ export function DebugPanel() {
             <TabsContent value='reference' className='flex-1 overflow-auto m-0'>
               <div className='flex flex-col h-full'>
                 <div className='flex items-center justify-between px-3 py-2 border-b border-border/50'>
+                  <label className='flex items-center gap-2 cursor-pointer text-xs'>
+                    <Checkbox 
+                      checked={scopedVariables}
+                      onCheckedChange={(checked) => setScopedVariables(checked as boolean)}
+                      className='h-3.5 w-3.5'
+                    />
+                    <span className='text-muted-foreground'>Scoped</span>
+                  </label>
                   <div className='flex items-center gap-1.5'>
                     {scopedVariables && filteredOutputVariables.length > 0 && getResolutionIcon()}
                     <span className='text-[10px] text-muted-foreground'>
@@ -1177,11 +1321,15 @@ export function DebugPanel() {
                           const shouldTruncate = valueStr.length > 600
                           
                           return (
-                            <tr 
-                              key={ref} 
+                            <tr
+                              key={ref}
+                              ref={(el) => {
+                                if (el) refVarRowRefs.current.set(ref, el)
+                              }}
                               className={cn(
                                 'border-b border-border/30',
-                                resolved ? 'hover:bg-muted/20' : 'opacity-50'
+                                resolved ? 'hover:bg-muted/20' : 'opacity-50',
+                                highlightedRefVar === ref && 'bg-amber-100 dark:bg-amber-900/30'
                               )}
                             >
                               <td className='px-3 py-2 align-top'>
@@ -1250,6 +1398,7 @@ export function DebugPanel() {
                     </thead>
                     <tbody>
                       {filteredWorkflowVariables.map((variable) => {
+                        const normalizedName = (variable.name || '').replace(/\s+/g, '')
                         const fieldKey = `workflow-${variable.id}`
                         const isExpanded = expandedFields.has(fieldKey)
                         const value = variable.value
@@ -1257,7 +1406,16 @@ export function DebugPanel() {
                         const shouldTruncate = valueStr.length > 100
                         
                         return (
-                          <tr key={variable.id} className='border-b border-border/30 hover:bg-muted/20'>
+                          <tr
+                            key={variable.id}
+                            ref={(el) => {
+                              if (el) workflowVarRowRefs.current.set(normalizedName, el)
+                            }}
+                            className={cn(
+                              'border-b border-border/30 hover:bg-muted/20',
+                              highlightedWorkflowVar === normalizedName && 'bg-amber-100 dark:bg-amber-900/30'
+                            )}
+                          >
                             <td className='px-3 py-2 align-top'>
                               <code className='font-mono text-[11px] text-foreground/80 break-words'>{variable.name}</code>
                             </td>
@@ -1267,13 +1425,15 @@ export function DebugPanel() {
                                   className='cursor-pointer'
                                   onClick={() => toggleFieldExpansion(fieldKey)}
                                 >
-                                  <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
-{isExpanded ? valueStr : `${valueStr.slice(0, 100)}...`}
-                    </pre>
+                                  <div className='min-w-0 flex-1'>
+                                    <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+                                      {isExpanded ? valueStr : `${valueStr.slice(0, 100)}...`}
+                                    </pre>
+                                  </div>
                                 </div>
                               ) : (
                                 <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
-{valueStr}
+                                  {valueStr}
                                 </pre>
                               )}
                             </td>
@@ -1316,7 +1476,16 @@ export function DebugPanel() {
                         const shouldTruncate = valueStr.length > 100
                         
                         return (
-                          <tr key={key} className='border-b border-border/30 hover:bg-muted/20'>
+                          <tr
+                            key={key}
+                            ref={(el) => {
+                              if (el) envVarRowRefs.current.set(key, el)
+                            }}
+                            className={cn(
+                              'border-b border-border/30 hover:bg-muted/20',
+                              highlightedEnvVar === key && 'bg-amber-100 dark:bg-amber-900/30'
+                            )}
+                          >
                             <td className='px-3 py-2 align-top'>
                               <code className='font-mono text-[11px] text-foreground/80 break-words'>{key}</code>
                             </td>
@@ -1326,9 +1495,11 @@ export function DebugPanel() {
                                   className='cursor-pointer'
                                   onClick={() => toggleFieldExpansion(fieldKey)}
                                 >
-                                  <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+                                  <div className='min-w-0 flex-1'>
+                                    <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
 {isExpanded ? valueStr : `${valueStr.slice(0, 100)}...`}
                     </pre>
+                                  </div>
                                 </div>
                               ) : (
                                 <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
