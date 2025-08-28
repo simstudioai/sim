@@ -43,6 +43,7 @@ export const buildTimeCSPDirectives: CSPDirectives = {
   'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
 
   'img-src': [
+    'https://agentics.epiqglobal.com',
     "'self'",
     'data:',
     'blob:',
