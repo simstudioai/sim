@@ -383,6 +383,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       if (height !== blockHeight) {
         updateBlockHeight(id, height)
         updateNodeInternals(id)
+        try {
+          const evt = new CustomEvent('workflow-node-resized', {
+            detail: { id, height },
+          })
+          window.dispatchEvent(evt)
+        } catch {}
       }
     }, 100)
 
