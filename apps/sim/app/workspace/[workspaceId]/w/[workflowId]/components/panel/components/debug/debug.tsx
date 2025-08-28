@@ -873,46 +873,76 @@ export function DebugPanel() {
                   </div>
                 </div>
                 {filteredOutputVariables.length > 0 ? (
-                  <div className='flex-1 overflow-auto'>
-                    <table className='w-full'>
-                      <thead className='sticky top-0 bg-background'>
+                  <div className='flex-1 overflow-y-scroll overflow-x-hidden'>
+                    <table className='w-full table-fixed'>
+                      <colgroup>
+                        <col className='w-[35%] min-w-[150px]' />
+                        <col className='w-[65%]' />
+                      </colgroup>
+                      <thead className='sticky top-0 bg-background z-10'>
                         <tr className='border-b border-border/50'>
-                          <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Reference</th>
-                          <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Value</th>
+                          <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Reference</th>
+                          <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Value</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredOutputVariables.map(({ ref, value, resolved }) => (
-                          <tr 
-                            key={ref} 
-                            className={cn(
-                              'border-b border-border/30',
-                              resolved ? 'hover:bg-muted/20' : 'opacity-50'
-                            )}
-                          >
-                            <td className='px-3 py-2 align-top'>
-                              <code className={cn(
-                                'rounded px-1.5 py-0.5 font-mono text-[11px]',
-                                resolved 
-                                  ? 'bg-muted/50 text-foreground/80' 
-                                  : 'bg-muted/30 text-muted-foreground'
-                              )}>
-                                {ref}
-                              </code>
-                            </td>
-                            <td className='px-3 py-2'>
-                              {resolved ? (
-                                <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
-{JSON.stringify(value, null, 2)}
-                                </pre>
-                              ) : (
-                                <span className='text-[11px] font-mono text-muted-foreground italic'>
-                                  Unresolved
-                                </span>
+                        {filteredOutputVariables.map(({ ref, value, resolved }) => {
+                          const fieldKey = `ref-${ref}`
+                          const isExpanded = expandedFields.has(fieldKey)
+                          const valueStr = JSON.stringify(value, null, 2)
+                          const shouldTruncate = valueStr.length > 600
+                          
+                          return (
+                            <tr 
+                              key={ref} 
+                              className={cn(
+                                'border-b border-border/30',
+                                resolved ? 'hover:bg-muted/20' : 'opacity-50'
                               )}
-                            </td>
-                          </tr>
-                        ))}
+                            >
+                              <td className='px-3 py-2 align-top'>
+                                <code className={cn(
+                                  'rounded px-1.5 py-0.5 font-mono text-[11px] break-words',
+                                  resolved 
+                                    ? 'bg-muted/50 text-foreground/80' 
+                                    : 'bg-muted/30 text-muted-foreground'
+                                )}>
+                                  {ref}
+                                </code>
+                              </td>
+                              <td className='px-3 py-2'>
+                                {resolved ? (
+                                  shouldTruncate ? (
+                                    <div
+                                      className='cursor-pointer flex items-start gap-1'
+                                      onClick={() => toggleFieldExpansion(fieldKey)}
+                                    >
+                                      <ChevronRight 
+                                        className={cn(
+                                          'h-3 w-3 mt-0.5 text-muted-foreground transition-transform flex-shrink-0',
+                                          isExpanded && 'rotate-90'
+                                        )}
+                                      />
+                                      <div className='min-w-0 flex-1'>
+                                        <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+{isExpanded ? valueStr : `${valueStr.slice(0, 600)}...`}
+                                        </pre>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+{valueStr}
+                                    </pre>
+                                  )
+                                ) : (
+                                  <span className='text-[11px] font-mono text-muted-foreground italic'>
+                                    Unresolved
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -930,27 +960,57 @@ export function DebugPanel() {
 
             <TabsContent value='workflow' className='flex-1 overflow-auto m-0'>
               {Object.keys(workflowVars).length > 0 ? (
-                <div className='h-full'>
-                  <table className='w-full'>
-                    <thead>
+                <div className='h-full overflow-y-scroll overflow-x-hidden'>
+                  <table className='w-full table-fixed'>
+                    <colgroup>
+                      <col className='w-[35%] min-w-[150px]' />
+                      <col className='w-[65%]' />
+                    </colgroup>
+                    <thead className='sticky top-0 bg-background z-10'>
                       <tr className='border-b border-border/50'>
-                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Variable</th>
-                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Value</th>
+                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Variable</th>
+                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Value</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.entries(workflowVars).map(([key, value]) => (
-                        <tr key={key} className='border-b border-border/30 hover:bg-muted/20'>
-                          <td className='px-3 py-2 align-top'>
-                            <code className='font-mono text-[11px] text-foreground/80'>{key}</code>
-                          </td>
-                          <td className='px-3 py-2'>
-                            <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
-{JSON.stringify(value, null, 2)}
-                            </pre>
-                          </td>
-                        </tr>
-                      ))}
+                      {Object.entries(workflowVars).map(([key, value]) => {
+                        const fieldKey = `workflow-${key}`
+                        const isExpanded = expandedFields.has(fieldKey)
+                        const valueStr = JSON.stringify(value, null, 2)
+                        const shouldTruncate = valueStr.length > 100
+                        
+                        return (
+                          <tr key={key} className='border-b border-border/30 hover:bg-muted/20'>
+                            <td className='px-3 py-2 align-top'>
+                              <code className='font-mono text-[11px] text-foreground/80 break-words'>{key}</code>
+                            </td>
+                            <td className='px-3 py-2'>
+                              {shouldTruncate ? (
+                                <div
+                                  className='cursor-pointer flex items-start gap-1'
+                                  onClick={() => toggleFieldExpansion(fieldKey)}
+                                >
+                                  <ChevronRight 
+                                    className={cn(
+                                      'h-3 w-3 mt-0.5 text-muted-foreground transition-transform flex-shrink-0',
+                                      isExpanded && 'rotate-90'
+                                    )}
+                                  />
+                                  <div className='min-w-0 flex-1'>
+                                    <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+{isExpanded ? valueStr : `${valueStr.slice(0, 100)}...`}
+                                    </pre>
+                                  </div>
+                                </div>
+                              ) : (
+                                <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+{valueStr}
+                                </pre>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -963,27 +1023,57 @@ export function DebugPanel() {
 
             <TabsContent value='environment' className='flex-1 overflow-auto m-0'>
               {Object.keys(envVars).length > 0 ? (
-                <div className='h-full'>
-                  <table className='w-full'>
-                    <thead>
+                <div className='h-full overflow-y-scroll overflow-x-hidden'>
+                  <table className='w-full table-fixed'>
+                    <colgroup>
+                      <col className='w-[35%] min-w-[150px]' />
+                      <col className='w-[65%]' />
+                    </colgroup>
+                    <thead className='sticky top-0 bg-background z-10'>
                       <tr className='border-b border-border/50'>
-                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Variable</th>
-                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Value</th>
+                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Variable</th>
+                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Value</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.entries(envVars).map(([key, value]) => (
-                        <tr key={key} className='border-b border-border/30 hover:bg-muted/20'>
-                          <td className='px-3 py-2 align-top'>
-                            <code className='font-mono text-[11px] text-foreground/80'>{key}</code>
-                          </td>
-                          <td className='px-3 py-2'>
-                            <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
-{JSON.stringify(value, null, 2)}
-                            </pre>
-                          </td>
-                        </tr>
-                      ))}
+                      {Object.entries(envVars).map(([key, value]) => {
+                        const fieldKey = `env-${key}`
+                        const isExpanded = expandedFields.has(fieldKey)
+                        const valueStr = JSON.stringify(value, null, 2)
+                        const shouldTruncate = valueStr.length > 100
+                        
+                        return (
+                          <tr key={key} className='border-b border-border/30 hover:bg-muted/20'>
+                            <td className='px-3 py-2 align-top'>
+                              <code className='font-mono text-[11px] text-foreground/80 break-words'>{key}</code>
+                            </td>
+                            <td className='px-3 py-2'>
+                              {shouldTruncate ? (
+                                <div
+                                  className='cursor-pointer flex items-start gap-1'
+                                  onClick={() => toggleFieldExpansion(fieldKey)}
+                                >
+                                  <ChevronRight 
+                                    className={cn(
+                                      'h-3 w-3 mt-0.5 text-muted-foreground transition-transform flex-shrink-0',
+                                      isExpanded && 'rotate-90'
+                                    )}
+                                  />
+                                  <div className='min-w-0 flex-1'>
+                                    <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+{isExpanded ? valueStr : `${valueStr.slice(0, 100)}...`}
+                                    </pre>
+                                  </div>
+                                </div>
+                              ) : (
+                                <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+{valueStr}
+                                </pre>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
