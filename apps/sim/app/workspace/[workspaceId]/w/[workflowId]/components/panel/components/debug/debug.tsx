@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
@@ -34,6 +35,7 @@ export function DebugPanel() {
   const currentWorkflow = useCurrentWorkflow()
 
   const [chatMessage, setChatMessage] = useState('')
+  const [scopedVariables, setScopedVariables] = useState(true)
   const hasStartedRef = useRef(false)
   const lastFocusedIdRef = useRef<string | null>(null)
 
@@ -339,6 +341,20 @@ export function DebugPanel() {
     return entries
   }, [focusedBlockId, currentWorkflow.edges, starterId, blockById, debugContext?.blockStates])
 
+  // Filter output variables based on whether they're referenced in the input
+  const filteredOutputVariables = useMemo(() => {
+    if (!scopedVariables) return outputVariableEntries
+    
+    // Get the JSON string of visible subblock values to search for references
+    const inputValuesStr = JSON.stringify(visibleSubblockValues)
+    
+    // Filter to only variables whose reference tags appear in the input
+    return outputVariableEntries.filter(({ ref }) => {
+      // Check if the reference tag appears in the input values
+      return inputValuesStr.includes(ref)
+    })
+  }, [outputVariableEntries, scopedVariables, visibleSubblockValues])
+
   // Reset hasStartedRef when debug mode is deactivated
   useEffect(() => {
     if (!isDebugging) {
@@ -557,7 +573,7 @@ export function DebugPanel() {
                 >
                   Reference Variables
                   <span className='ml-1.5 text-[10px] text-muted-foreground'>
-                    ({outputVariableEntries.length})
+                    ({filteredOutputVariables.length})
                   </span>
                 </TabsTrigger>
                 <TabsTrigger
@@ -582,38 +598,57 @@ export function DebugPanel() {
             </div>
 
             <TabsContent value='reference' className='flex-1 overflow-auto m-0'>
-              {outputVariableEntries.length > 0 ? (
-                <div className='h-full'>
-                  <table className='w-full'>
-                    <thead>
-                      <tr className='border-b border-border/50'>
-                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Reference</th>
-                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Value</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {outputVariableEntries.map(({ ref, value }) => (
-                        <tr key={ref} className='border-b border-border/30 hover:bg-muted/20'>
-                          <td className='px-3 py-2 align-top'>
-                            <code className='rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-foreground/80'>
-                              {ref}
-                            </code>
-                          </td>
-                          <td className='px-3 py-2'>
-                            <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
-{JSON.stringify(value, null, 2)}
-                            </pre>
-                          </td>
+              <div className='flex flex-col h-full'>
+                <div className='flex items-center justify-between px-3 py-2 border-b border-border/50'>
+                  <label className='flex items-center gap-2 cursor-pointer text-xs'>
+                    <Checkbox 
+                      checked={scopedVariables}
+                      onCheckedChange={(checked) => setScopedVariables(checked as boolean)}
+                      className='h-3.5 w-3.5'
+                    />
+                    <span className='text-muted-foreground'>Scoped</span>
+                  </label>
+                  <span className='text-[10px] text-muted-foreground'>
+                    {scopedVariables ? `${filteredOutputVariables.length} of ${outputVariableEntries.length}` : outputVariableEntries.length} variables
+                  </span>
+                </div>
+                {filteredOutputVariables.length > 0 ? (
+                  <div className='flex-1 overflow-auto'>
+                    <table className='w-full'>
+                      <thead className='sticky top-0 bg-background'>
+                        <tr className='border-b border-border/50'>
+                          <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Reference</th>
+                          <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Value</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className='flex h-full items-center justify-center'>
-                  <p className='text-muted-foreground/60 text-xs'>No reference variables available</p>
-                </div>
-              )}
+                      </thead>
+                      <tbody>
+                        {filteredOutputVariables.map(({ ref, value }) => (
+                          <tr key={ref} className='border-b border-border/30 hover:bg-muted/20'>
+                            <td className='px-3 py-2 align-top'>
+                              <code className='rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-foreground/80'>
+                                {ref}
+                              </code>
+                            </td>
+                            <td className='px-3 py-2'>
+                              <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
+{JSON.stringify(value, null, 2)}
+                              </pre>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className='flex flex-1 items-center justify-center'>
+                    <p className='text-muted-foreground/60 text-xs'>
+                      {scopedVariables && outputVariableEntries.length > 0 
+                        ? 'No variables referenced in input' 
+                        : 'No reference variables available'}
+                    </p>
+                  </div>
+                )}
+              </div>
             </TabsContent>
 
             <TabsContent value='workflow' className='flex-1 overflow-auto m-0'>
