@@ -109,7 +109,7 @@ export function DebugPanel() {
           const row = envVarRowRefs.current.get(rawName)
           if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' })
           setHighlightedEnvVar(rawName)
-          setTimeout(() => setHighlightedEnvVar((prev) => (prev === rawName ? null : prev)), 1500)
+          setTimeout(() => setHighlightedEnvVar((prev) => (prev === rawName ? null : prev)), 2500)
         })
       } else {
         if (kind === 'var') {
@@ -121,7 +121,7 @@ export function DebugPanel() {
             setHighlightedWorkflowVar(normalized)
             setTimeout(
               () => setHighlightedWorkflowVar((prev) => (prev === normalized ? null : prev)),
-              1500
+              2500
             )
           })
         } else {
@@ -135,7 +135,7 @@ export function DebugPanel() {
             setHighlightedRefVar(refKey)
             setTimeout(
               () => setHighlightedRefVar((prev) => (prev === refKey ? null : prev)),
-              1500
+              4000
             )
           })
         }
