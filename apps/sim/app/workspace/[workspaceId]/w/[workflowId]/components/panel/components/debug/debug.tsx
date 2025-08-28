@@ -365,11 +365,135 @@ export function DebugPanel() {
     return entries
   }, [focusedBlockId, currentWorkflow.edges, starterId, blockById, executionVersion])
 
+  // Compute all possible refs from accessible blocks regardless of execution state
+  const allPossibleVariableRefs = useMemo(() => {
+    if (!focusedBlockId) return new Set<string>()
+
+    const normalizeBlockName = (name: string) => (name || '').replace(/\s+/g, '').toLowerCase()
+    const edges = currentWorkflow.edges || []
+    const accessibleIds = new Set<string>(BlockPathCalculator.findAllPathNodes(edges, focusedBlockId))
+    if (starterId && starterId !== focusedBlockId) accessibleIds.add(starterId)
+
+    const refs = new Set<string>()
+
+    const getAccessiblePathsForBlock = (blockId: string): string[] => {
+      const blk = blockById.get(blockId)
+      if (!blk) return []
+      const cfg = getBlock(blk.type)
+      if (!cfg) return []
+
+      const getSubBlockValue = (id: string, property: string): any => {
+        return useSubBlockStore.getState().getValue(id, property)
+      }
+
+      const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[] => {
+        const paths: string[] = []
+        for (const [key, value] of Object.entries(outputs || {})) {
+          const current = prefix ? `${prefix}.${key}` : key
+          if (typeof value === 'string') {
+            paths.push(current)
+          } else if (value && typeof value === 'object') {
+            if ('type' in value && typeof (value as any).type === 'string') {
+              paths.push(current)
+              if ((value as any).type === 'object' && (value as any).properties) {
+                paths.push(...generateOutputPaths((value as any).properties, current))
+              } else if ((value as any).type === 'array' && (value as any).items?.properties) {
+                paths.push(...generateOutputPaths((value as any).items.properties, current))
+              }
+            } else {
+              paths.push(...generateOutputPaths(value as Record<string, any>, current))
+            }
+          } else {
+            paths.push(current)
+          }
+        }
+        return paths
+      }
+
+      // Response format overrides
+      const responseFormatValue = getSubBlockValue(blockId, 'responseFormat')
+      const responseFormat = parseResponseFormatSafely(responseFormatValue, blockId)
+      if (responseFormat) {
+        const fields = extractFieldsFromSchema(responseFormat)
+        if (fields.length > 0) return fields.map((f: any) => f.name)
+      }
+
+      if (blk.type === 'evaluator') {
+        const metricsValue = getSubBlockValue(blockId, 'metrics')
+        if (metricsValue && Array.isArray(metricsValue) && metricsValue.length > 0) {
+          const valid = metricsValue.filter((m: { name?: string }) => m?.name)
+          return valid.map((m: { name: string }) => m.name.toLowerCase())
+        }
+        return generateOutputPaths(cfg.outputs || {})
+      }
+
+      if (blk.type === 'starter') {
+        const startWorkflowValue = getSubBlockValue(blockId, 'startWorkflow')
+        if (startWorkflowValue === 'chat') {
+          return ['input', 'conversationId', 'files']
+        }
+        const inputFormatValue = getSubBlockValue(blockId, 'inputFormat')
+        if (inputFormatValue && Array.isArray(inputFormatValue)) {
+          return inputFormatValue
+            .filter((f: { name?: string }) => f.name && f.name.trim() !== '')
+            .map((f: { name: string }) => f.name)
+        }
+        return []
+      }
+
+      if (blk.triggerMode && cfg.triggers?.enabled) {
+        const triggerId = cfg?.triggers?.available?.[0]
+        const firstTrigger = triggerId ? getTrigger(triggerId) : getTriggersByProvider(blk.type)[0]
+        if (firstTrigger?.outputs) {
+          return generateOutputPaths(firstTrigger.outputs)
+        }
+      }
+
+      const operationValue = getSubBlockValue(blockId, 'operation')
+      if (operationValue && cfg?.tools?.config?.tool) {
+        try {
+          const toolId = cfg.tools.config.tool({ operation: operationValue })
+          const toolConfig = toolId ? getTool(toolId) : null
+          if (toolConfig?.outputs) return generateOutputPaths(toolConfig.outputs)
+        } catch {}
+      }
+
+      return generateOutputPaths(cfg.outputs || {})
+    }
+
+    for (const id of accessibleIds) {
+      const blk = blockById.get(id)
+      if (!blk) continue
+      const displayName = getDisplayName(blk)
+      const normalizedName = normalizeBlockName(displayName)
+      const paths = getAccessiblePathsForBlock(id)
+      for (const path of paths) refs.add(`<${normalizedName}.${path}>`)
+    }
+
+    return refs
+  }, [focusedBlockId, currentWorkflow.edges, starterId, blockById])
+
   // Filter output variables based on whether they're referenced in the input
   const filteredOutputVariables = useMemo(() => {
+    // Build map of available executed entries for quick lookup
+    const availableVarsMap = new Map(outputVariableEntries.map(entry => [entry.ref, entry]))
+
     if (!scopedVariables) {
-      // When not scoped, return all available variables (all resolved)
-      return outputVariableEntries.map(entry => ({ ...entry, resolved: true }))
+      // Show all possible upstream refs; mark as resolved if present in executed outputs
+      const result: Array<{ ref: string; value: any; resolved: boolean }> = []
+      allPossibleVariableRefs.forEach(ref => {
+        const available = availableVarsMap.get(ref)
+        if (available) {
+          result.push({ ...available, resolved: true })
+        } else {
+          result.push({ ref, value: undefined, resolved: false })
+        }
+      })
+      result.sort((a, b) => {
+        if (a.resolved !== b.resolved) return a.resolved ? -1 : 1
+        return a.ref.localeCompare(b.ref)
+      })
+      return result
     }
     
     // Get the JSON string of visible subblock values to search for references
@@ -383,9 +507,6 @@ export function DebugPanel() {
     while ((match = referencePattern.exec(inputValuesStr)) !== null) {
       referencedVars.add(match[0]) // Add the full reference including < >
     }
-    
-    // Create a map of available variables for quick lookup
-    const availableVarsMap = new Map(outputVariableEntries.map(entry => [entry.ref, entry]))
     
     // Build the final list with both resolved and unresolved variables
     const result: Array<{ ref: string; value: any; resolved: boolean }> = []
@@ -410,7 +531,7 @@ export function DebugPanel() {
       return a.ref.localeCompare(b.ref)
     })
     return result
-  }, [outputVariableEntries, scopedVariables, visibleSubblockValues, executionVersion])
+  }, [outputVariableEntries, scopedVariables, visibleSubblockValues, executionVersion, allPossibleVariableRefs])
 
   // Reset hasStartedRef when debug mode is deactivated
   useEffect(() => {
