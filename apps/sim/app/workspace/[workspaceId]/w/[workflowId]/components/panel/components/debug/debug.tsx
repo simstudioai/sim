@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -17,6 +16,16 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import { getTrigger, getTriggersByProvider } from '@/triggers'
 import { getTool } from '@/tools/utils'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
+import { 
+  Play, 
+  FastForward, 
+  Square, 
+  Circle,
+  AlertCircle
+} from 'lucide-react'
 
 export function DebugPanel() {
   const { isDebugging, pendingBlocks, debugContext, activeBlockIds, setActiveBlocks, setPanelFocusedBlockId, panelFocusedBlockId } = useExecutionStore()
@@ -340,8 +349,16 @@ export function DebugPanel() {
 
   if (!isDebugging) {
     return (
-      <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
-        Debug inactive
+      <div className='flex h-full flex-col items-center justify-center px-6'>
+        <div className='flex flex-col items-center gap-3'>
+          <div className='rounded-full bg-muted/50 p-4'>
+            <AlertCircle className='h-8 w-8 text-muted-foreground/60' />
+          </div>
+          <p className='text-muted-foreground text-sm font-medium'>Debug mode inactive</p>
+          <p className='text-center text-muted-foreground/70 text-xs'>
+            Enable debug mode to step through workflow execution
+          </p>
+        </div>
       </div>
     )
   }
@@ -373,127 +390,299 @@ export function DebugPanel() {
     await handleStepDebug()
   }
 
+  const getStatusIcon = () => {
+    if (isFocusedPending) return <Circle className='h-2 w-2 fill-emerald-500 text-emerald-500' />
+    if (isFocusedExecuted) return <Circle className='h-2 w-2 fill-blue-500 text-blue-500' />
+    return <Circle className='h-2 w-2 fill-muted-foreground/40 text-muted-foreground/40' />
+  }
+
+  const getStatusText = () => {
+    if (isFocusedPending) return 'Pending'
+    if (isFocusedExecuted) return 'Executed'
+    return 'Not in path'
+  }
+
   return (
-    <div className='flex h-full flex-col gap-3 pt-2 pl-[1px]'>
-      {/* Header with block title and status */}
-      <div className='flex items-center justify-between'>
-        <div className='min-w-0 truncate font-medium text-sm'>
-          {getDisplayName(focusedBlock) || '—'}
-        </div>
-        <div className='flex items-center gap-2'>
-          <Badge variant='outline' className='text-[10px]'>
-            {focusedBlock?.type}
-          </Badge>
-          <Badge variant='secondary' className='text-[10px]'>
-            {isFocusedPending ? 'Current' : isFocusedExecuted ? 'Executed' : 'Not in execution path'}
-          </Badge>
+    <div className='flex h-full flex-col'>
+      {/* Header Section - Single Line */}
+      <div className='border-b border-border/50 px-3 py-2.5'>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-2 min-w-0'>
+            <span className='font-semibold text-sm truncate'>
+              {getDisplayName(focusedBlock) || 'No block selected'}
+            </span>
+            {focusedBlock && (
+              <>
+                <span className='text-muted-foreground/50'>•</span>
+                <span className='text-muted-foreground text-xs'>
+                  {focusedBlock.type}
+                </span>
+              </>
+            )}
+          </div>
+          <div className='flex items-center gap-1.5 flex-shrink-0'>
+            {getStatusIcon()}
+            <span className='text-muted-foreground text-xs'>{getStatusText()}</span>
+          </div>
         </div>
       </div>
 
-      {/* Inline debug controls + chat input for chat-mode before first step */}
-      <div className='flex items-center gap-2'>
+      {/* Controls Section */}
+      <div className='border-b border-border/50 p-3'>
         {isChatMode && !hasStartedRef.current && (
-          <div className='flex flex-1 items-center gap-2'>
+          <div className='mb-3'>
             <Textarea
-              placeholder='Workflow input (message)'
+              placeholder='Enter message to start debugging...'
               value={chatMessage}
               onChange={(e) => setChatMessage(e.target.value)}
+              className='min-h-[60px] resize-none border-border/50 bg-background/50 placeholder:text-muted-foreground/50'
             />
           </div>
         )}
-        <Button size='sm' className='h-8' onClick={handleStep}>
-          Step
-        </Button>
-        <Button size='sm' className='h-8' onClick={handleResumeDebug} disabled={!hasStartedRef.current || pendingBlocks.length === 0}>
-          Resume
-        </Button>
-        <Button size='sm' variant='outline' className='h-8' onClick={handleCancelDebug}>
-          Cancel
-        </Button>
+        <div className='flex items-center gap-2'>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  onClick={handleStep}
+                  className='gap-2 border-border/50 hover:bg-muted/50'
+                >
+                  <Play className='h-3.5 w-3.5' />
+                  Step
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Execute next step</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  onClick={handleResumeDebug}
+                  disabled={!hasStartedRef.current || pendingBlocks.length === 0}
+                  className='gap-2 border-border/50 hover:bg-muted/50 disabled:opacity-40'
+                >
+                  <FastForward className='h-3.5 w-3.5' />
+                  Resume
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Continue execution</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  onClick={handleCancelDebug}
+                  className='gap-2 border-border/50 hover:bg-destructive/10 hover:text-destructive'
+                >
+                  <Square className='h-3.5 w-3.5' />
+                  Stop
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Stop debugging</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       </div>
 
-      {/* Top half: Input/Output */}
-      <div className='grid min-h-0 flex-1 grid-rows-2 gap-3'>
-        <section className='min-h-0 rounded-[10px] border p-3'>
-          <div className='mb-1 font-medium text-sm text-muted-foreground'>Input</div>
-          {Object.keys(visibleSubblockValues).length > 0 ? (
-            <ScrollArea className='h-full rounded border'>
-              <pre className='p-2 text-[11px]'>
+      {/* Main Content Area - Split into two sections */}
+      <div className='flex flex-1 flex-col overflow-hidden'>
+        {/* Top Section - Input/Output */}
+        <div className='flex-1 min-h-0 border-b border-border/50'>
+          <Tabs defaultValue='input' className='flex h-full flex-col'>
+            <div className='border-b border-border/50 px-3'>
+              <TabsList className='h-10 bg-transparent p-0 gap-6'>
+                <TabsTrigger
+                  value='input'
+                  className='h-10 rounded-none border-b-2 border-transparent px-0 pb-2.5 pt-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
+                >
+                  Input
+                </TabsTrigger>
+                <TabsTrigger
+                  value='output'
+                  className='h-10 rounded-none border-b-2 border-transparent px-0 pb-2.5 pt-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
+                >
+                  Output
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value='input' className='flex-1 overflow-auto p-3 m-0'>
+              {Object.keys(visibleSubblockValues).length > 0 ? (
+                <div className='rounded-lg border border-border/50 bg-muted/20'>
+                  <ScrollArea className='h-full'>
+                    <pre className='p-3 text-[11px] font-mono leading-relaxed text-foreground/90 whitespace-pre-wrap break-words'>
 {JSON.stringify(visibleSubblockValues, null, 2)}
-              </pre>
-            </ScrollArea>
-          ) : (
-            <div className='text-muted-foreground text-xs'>No inputs available</div>
-          )}
-        </section>
-
-        <section className='min-h-0 rounded-[10px] border p-3'>
-          <div className='mb-1 font-medium text-sm text-muted-foreground'>Output</div>
-          {resolvedOutputKVs && Object.keys(resolvedOutputKVs).length > 0 ? (
-            <ScrollArea className='h-full rounded border'>
-              <pre className='p-2 text-[11px]'>
-{JSON.stringify(resolvedOutputKVs, null, 2)}
-              </pre>
-            </ScrollArea>
-          ) : (
-            <div className='text-muted-foreground text-xs'>No outputs</div>
-          )}
-        </section>
-      </div>
-
-      {/* Variables: three collapsible subsections */}
-      <div className='space-y-2'>
-        <details className='rounded-[10px] border p-3'>
-          <summary className='cursor-pointer list-none font-medium text-sm'>Output variables</summary>
-          <div className='mt-2'>
-            {outputVariableEntries.length > 0 ? (
-              <ScrollArea className='h-32 rounded border'>
-                <div className='divide-y'>
-                  {outputVariableEntries.map(({ ref, value }) => (
-                    <div key={ref} className='px-2 py-1.5'>
-                      <div className='mb-1 font-mono text-[11px] text-muted-foreground'>{ref}</div>
-                      <pre className='m-0 whitespace-pre-wrap break-words text-[11px]'>
-{JSON.stringify(value, null, 2)}
-                      </pre>
-                    </div>
-                  ))}
+                    </pre>
+                  </ScrollArea>
                 </div>
-              </ScrollArea>
-            ) : (
-              <div className='text-muted-foreground text-xs'>None</div>
-            )}
-          </div>
-        </details>
+              ) : (
+                <div className='flex h-32 items-center justify-center rounded-lg border border-dashed border-border/50'>
+                  <p className='text-muted-foreground/60 text-xs'>No input data available</p>
+                </div>
+              )}
+            </TabsContent>
 
-        <details className='rounded-[10px] border p-3'>
-          <summary className='cursor-pointer list-none font-medium text-sm'>Workflow variables</summary>
-          <div className='mt-2'>
-            {workflowVars && Object.keys(workflowVars).length > 0 ? (
-              <ScrollArea className='h-24 rounded border'>
-                <pre className='p-2 text-[11px]'>
-{JSON.stringify(workflowVars, null, 2)}
-                </pre>
-              </ScrollArea>
-            ) : (
-              <div className='text-muted-foreground text-xs'>None</div>
-            )}
-          </div>
-        </details>
+            <TabsContent value='output' className='flex-1 overflow-auto p-3 m-0'>
+              {resolvedOutputKVs && Object.keys(resolvedOutputKVs).length > 0 ? (
+                <div className='rounded-lg border border-border/50 bg-muted/20'>
+                  <ScrollArea className='h-full'>
+                    <pre className='p-3 text-[11px] font-mono leading-relaxed text-foreground/90 whitespace-pre-wrap break-words'>
+{JSON.stringify(resolvedOutputKVs, null, 2)}
+                    </pre>
+                  </ScrollArea>
+                </div>
+              ) : (
+                <div className='flex h-32 items-center justify-center rounded-lg border border-dashed border-border/50'>
+                  <p className='text-muted-foreground/60 text-xs'>No output data available</p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
 
-        <details className='rounded-[10px] border p-3'>
-          <summary className='cursor-pointer list-none font-medium text-sm'>Environment variables</summary>
-          <div className='mt-2'>
-            {envVars && Object.keys(envVars).length > 0 ? (
-              <ScrollArea className='h-24 rounded border'>
-                <pre className='p-2 text-[11px]'>
-{JSON.stringify(envVars, null, 2)}
-                </pre>
-              </ScrollArea>
-            ) : (
-              <div className='text-muted-foreground text-xs'>None</div>
-            )}
-          </div>
-        </details>
+        {/* Bottom Section - Variables Tables */}
+        <div className='flex-1 min-h-0'>
+          <Tabs defaultValue='reference' className='flex h-full flex-col'>
+            <div className='border-b border-border/50 px-3'>
+              <TabsList className='h-10 bg-transparent p-0 gap-6'>
+                <TabsTrigger
+                  value='reference'
+                  className='h-10 rounded-none border-b-2 border-transparent px-0 pb-2.5 pt-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
+                >
+                  Reference Variables
+                  <span className='ml-1.5 text-[10px] text-muted-foreground'>
+                    ({outputVariableEntries.length})
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value='workflow'
+                  className='h-10 rounded-none border-b-2 border-transparent px-0 pb-2.5 pt-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
+                >
+                  Workflow Variables
+                  <span className='ml-1.5 text-[10px] text-muted-foreground'>
+                    ({Object.keys(workflowVars).length})
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value='environment'
+                  className='h-10 rounded-none border-b-2 border-transparent px-0 pb-2.5 pt-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
+                >
+                  Environment Variables
+                  <span className='ml-1.5 text-[10px] text-muted-foreground'>
+                    ({Object.keys(envVars).length})
+                  </span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value='reference' className='flex-1 overflow-auto m-0'>
+              {outputVariableEntries.length > 0 ? (
+                <div className='h-full'>
+                  <table className='w-full'>
+                    <thead>
+                      <tr className='border-b border-border/50'>
+                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Reference</th>
+                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {outputVariableEntries.map(({ ref, value }) => (
+                        <tr key={ref} className='border-b border-border/30 hover:bg-muted/20'>
+                          <td className='px-3 py-2 align-top'>
+                            <code className='rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-foreground/80'>
+                              {ref}
+                            </code>
+                          </td>
+                          <td className='px-3 py-2'>
+                            <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
+{JSON.stringify(value, null, 2)}
+                            </pre>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className='flex h-full items-center justify-center'>
+                  <p className='text-muted-foreground/60 text-xs'>No reference variables available</p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value='workflow' className='flex-1 overflow-auto m-0'>
+              {Object.keys(workflowVars).length > 0 ? (
+                <div className='h-full'>
+                  <table className='w-full'>
+                    <thead>
+                      <tr className='border-b border-border/50'>
+                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Variable</th>
+                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(workflowVars).map(([key, value]) => (
+                        <tr key={key} className='border-b border-border/30 hover:bg-muted/20'>
+                          <td className='px-3 py-2 align-top'>
+                            <code className='font-mono text-[11px] text-foreground/80'>{key}</code>
+                          </td>
+                          <td className='px-3 py-2'>
+                            <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
+{JSON.stringify(value, null, 2)}
+                            </pre>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className='flex h-full items-center justify-center'>
+                  <p className='text-muted-foreground/60 text-xs'>No workflow variables</p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value='environment' className='flex-1 overflow-auto m-0'>
+              {Object.keys(envVars).length > 0 ? (
+                <div className='h-full'>
+                  <table className='w-full'>
+                    <thead>
+                      <tr className='border-b border-border/50'>
+                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Variable</th>
+                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground'>Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(envVars).map(([key, value]) => (
+                        <tr key={key} className='border-b border-border/30 hover:bg-muted/20'>
+                          <td className='px-3 py-2 align-top'>
+                            <code className='font-mono text-[11px] text-foreground/80'>{key}</code>
+                          </td>
+                          <td className='px-3 py-2'>
+                            <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
+{JSON.stringify(value, null, 2)}
+                            </pre>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className='flex h-full items-center justify-center'>
+                  <p className='text-muted-foreground/60 text-xs'>No environment variables</p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </div>
   )
