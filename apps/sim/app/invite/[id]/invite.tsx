@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { BotIcon, CheckCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Mail, UserPlus, Users2 } from 'lucide-react'
+import Image from 'next/image'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingAgent } from '@/components/ui/loading-agent'
 import { client, useSession } from '@/lib/auth-client'
+import { useBrandConfig } from '@/lib/branding/branding'
 
 export default function Invite() {
   const router = useRouter()
@@ -14,6 +15,7 @@ export default function Invite() {
   const inviteId = params.id as string
   const searchParams = useSearchParams()
   const { data: session, isPending } = useSession()
+  const brandConfig = useBrandConfig()
   const [invitationDetails, setInvitationDetails] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -174,28 +176,46 @@ export default function Invite() {
     const callbackUrl = encodeURIComponent(getCallbackUrl())
 
     return (
-      <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
-        <Card className='w-full max-w-md p-6'>
-          <CardHeader className='px-0 pt-0 text-center'>
-            <CardTitle>You've been invited to join a workspace</CardTitle>
-            <CardDescription>
-              {isNewUser
-                ? 'Create an account to join this workspace on Sim'
-                : 'Sign in to your account to accept this invitation'}
-            </CardDescription>
-          </CardHeader>
-          <CardFooter className='flex flex-col space-y-2 px-0'>
+      <div className='flex min-h-screen flex-col items-center justify-center bg-white px-4 dark:bg-black'>
+        <div className='mb-8'>
+          <Image
+            src={brandConfig.logoUrl || '/logo/b&w/medium.png'}
+            alt='Sim Logo'
+            width={120}
+            height={67}
+            className='dark:invert'
+            priority
+          />
+        </div>
+
+        <div className='flex w-full max-w-md flex-col items-center text-center'>
+          <div className='mb-6 rounded-full bg-blue-50 p-3 dark:bg-blue-950/20'>
+            <UserPlus className='h-8 w-8 text-blue-500 dark:text-blue-400' />
+          </div>
+
+          <h1 className='mb-2 font-semibold text-black text-xl dark:text-white'>
+            You've been invited!
+          </h1>
+
+          <p className='mb-6 text-gray-600 text-sm leading-relaxed dark:text-gray-300'>
+            {isNewUser
+              ? 'Create an account to join this workspace on Sim'
+              : 'Sign in to your account to accept this invitation'}
+          </p>
+
+          <div className='flex w-full flex-col gap-3'>
             {isNewUser ? (
               <>
                 <Button
                   className='w-full'
+                  style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
                   onClick={() => router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true`)}
                 >
                   Create an account
                 </Button>
                 <Button
                   variant='outline'
-                  className='w-full'
+                  className='w-full border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white'
                   onClick={() => router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`)}
                 >
                   I already have an account
@@ -205,13 +225,14 @@ export default function Invite() {
               <>
                 <Button
                   className='w-full'
+                  style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
                   onClick={() => router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`)}
                 >
                   Sign in
                 </Button>
                 <Button
                   variant='outline'
-                  className='w-full'
+                  className='w-full border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white'
                   onClick={() =>
                     router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true&new=true`)
                   }
@@ -220,8 +241,23 @@ export default function Invite() {
                 </Button>
               </>
             )}
-          </CardFooter>
-        </Card>
+
+            <Button
+              className='w-full'
+              style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
+              onClick={() => router.push('/')}
+            >
+              Return to Home
+            </Button>
+          </div>
+        </div>
+
+        <footer className='mt-8 text-center text-gray-500 text-xs'>
+          Need help?{' '}
+          <a href='mailto:help@sim.ai' className='text-blue-400 hover:text-blue-300'>
+            Contact support
+          </a>
+        </footer>
       </div>
     )
   }
@@ -229,9 +265,26 @@ export default function Invite() {
   // Show loading state
   if (isLoading || isPending) {
     return (
-      <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
+      <div className='flex min-h-screen flex-col items-center justify-center bg-white px-4 dark:bg-black'>
+        <div className='mb-8'>
+          <Image
+            src={brandConfig.logoUrl || '/logo/b&w/medium.png'}
+            alt='Sim Logo'
+            width={120}
+            height={67}
+            className='dark:invert'
+            priority
+          />
+        </div>
         <LoadingAgent size='lg' />
-        <p className='mt-4 text-muted-foreground text-sm'>Loading invitation...</p>
+        <p className='mt-4 text-gray-400 text-sm'>Loading invitation...</p>
+
+        <footer className='mt-8 text-center text-gray-500 text-xs'>
+          Need help?{' '}
+          <a href='mailto:help@sim.ai' className='text-blue-400 hover:text-blue-300'>
+            Contact support
+          </a>
+        </footer>
       </div>
     )
   }
@@ -239,14 +292,41 @@ export default function Invite() {
   // Show error state
   if (error) {
     return (
-      <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
-        <Card className='max-w-md space-y-2 p-6 text-center'>
-          <div className='flex justify-center'>
-            <BotIcon className='h-16 w-16 text-muted-foreground' />
+      <div className='flex min-h-screen flex-col items-center justify-center bg-white px-4 dark:bg-black'>
+        <div className='mb-8'>
+          <Image
+            src={brandConfig.logoUrl || '/logo/b&w/medium.png'}
+            alt='Sim Logo'
+            width={120}
+            height={67}
+            className='dark:invert'
+            priority
+          />
+        </div>
+        <div className='flex w-full max-w-md flex-col items-center text-center'>
+          <div className='mb-6 rounded-full bg-red-50 p-3 dark:bg-red-950/20'>
+            <AlertCircle className='h-8 w-8 text-red-500 dark:text-red-400' />
           </div>
-          <h3 className='font-semibold text-lg'>Invitation Error</h3>
-          <p className='text-muted-foreground'>{error}</p>
-        </Card>
+          <h1 className='mb-2 font-semibold text-black text-xl dark:text-white'>
+            Invitation Error
+          </h1>
+          <p className='mb-6 text-gray-600 text-sm leading-relaxed dark:text-gray-300'>{error}</p>
+
+          <Button
+            className='w-full'
+            style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
+            onClick={() => router.push('/')}
+          >
+            Return to Home
+          </Button>
+        </div>
+
+        <footer className='mt-8 text-center text-gray-500 text-xs'>
+          Need help?{' '}
+          <a href='mailto:help@sim.ai' className='text-blue-400 hover:text-blue-300'>
+            Contact support
+          </a>
+        </footer>
       </div>
     )
   }
@@ -254,41 +334,113 @@ export default function Invite() {
   // Show success state
   if (accepted) {
     return (
-      <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
-        <Card className='max-w-md space-y-2 p-6 text-center'>
-          <div className='flex justify-center'>
-            <CheckCircle className='h-16 w-16 text-green-500' />
+      <div className='flex min-h-screen flex-col items-center justify-center bg-white px-4 dark:bg-black'>
+        <div className='mb-8'>
+          <Image
+            src={brandConfig.logoUrl || '/logo/b&w/medium.png'}
+            alt='Sim Logo'
+            width={120}
+            height={67}
+            className='dark:invert'
+            priority
+          />
+        </div>
+        <div className='flex w-full max-w-md flex-col items-center text-center'>
+          <div className='mb-6 rounded-full bg-green-50 p-3 dark:bg-green-950/20'>
+            <CheckCircle2 className='h-8 w-8 text-green-500 dark:text-green-400' />
           </div>
-          <h3 className='font-semibold text-lg'>Invitation Accepted</h3>
-          <p className='text-muted-foreground'>
+          <h1 className='mb-2 font-semibold text-black text-xl dark:text-white'>Welcome!</h1>
+          <p className='mb-6 text-gray-600 text-sm leading-relaxed dark:text-gray-300'>
             You have successfully joined {invitationDetails?.name || 'the workspace'}. Redirecting
             to your workspace...
           </p>
-        </Card>
+
+          <Button
+            className='w-full'
+            style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
+            onClick={() => router.push('/')}
+          >
+            Return to Home
+          </Button>
+        </div>
+
+        <footer className='mt-8 text-center text-gray-500 text-xs'>
+          Need help?{' '}
+          <a href='mailto:help@sim.ai' className='text-blue-400 hover:text-blue-300'>
+            Contact support
+          </a>
+        </footer>
       </div>
     )
   }
 
   // Show invitation details
   return (
-    <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
-      <Card className='w-full max-w-md'>
-        <CardHeader className='text-center'>
-          <CardTitle className='mb-1'>Workspace Invitation</CardTitle>
-          <CardDescription className='text-md'>
-            You've been invited to join{' '}
-            <span className='font-medium'>{invitationDetails?.name || 'a workspace'}</span>
-          </CardDescription>
-          <p className='mt-2 text-md text-muted-foreground'>
-            Click the accept below to join the workspace.
-          </p>
-        </CardHeader>
-        <CardFooter className='flex justify-center'>
-          <Button onClick={handleAcceptInvitation} disabled={isAccepting} className='w-full'>
-            <span className='ml-2'>{isAccepting ? '' : ''}Accept Invitation</span>
+    <div className='flex min-h-screen flex-col items-center justify-center bg-white px-4 dark:bg-black'>
+      <div className='mb-8'>
+        <Image
+          src='/logo/b&w/medium.png'
+          alt='Sim Logo'
+          width={120}
+          height={67}
+          className='dark:invert'
+          priority
+        />
+      </div>
+
+      <div className='flex w-full max-w-md flex-col items-center text-center'>
+        <div className='mb-6 rounded-full bg-blue-50 p-3 dark:bg-blue-950/20'>
+          {invitationType === 'organization' ? (
+            <Users2 className='h-8 w-8 text-blue-500 dark:text-blue-400' />
+          ) : (
+            <Mail className='h-8 w-8 text-blue-500 dark:text-blue-400' />
+          )}
+        </div>
+
+        <h1 className='mb-2 font-semibold text-black text-xl dark:text-white'>
+          {invitationType === 'organization' ? 'Organization Invitation' : 'Workspace Invitation'}
+        </h1>
+
+        <p className='mb-6 text-gray-600 text-sm leading-relaxed dark:text-gray-300'>
+          You've been invited to join{' '}
+          <span className='font-medium text-black dark:text-white'>
+            {invitationDetails?.name || `a ${invitationType}`}
+          </span>
+          . Click accept below to join.
+        </p>
+
+        <div className='flex w-full flex-col gap-3'>
+          <Button
+            onClick={handleAcceptInvitation}
+            disabled={isAccepting}
+            className='w-full'
+            style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
+          >
+            {isAccepting ? (
+              <>
+                <LoadingAgent size='sm' />
+                Accepting...
+              </>
+            ) : (
+              'Accept Invitation'
+            )}
           </Button>
-        </CardFooter>
-      </Card>
+          <Button
+            variant='ghost'
+            className='w-full text-gray-600 hover:bg-gray-200 hover:text-black dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
+            onClick={() => router.push('/')}
+          >
+            Return to Home
+          </Button>
+        </div>
+      </div>
+
+      <footer className='mt-8 text-center text-gray-500 text-xs'>
+        Need help?{' '}
+        <a href='mailto:help@sim.ai' className='text-blue-400 hover:text-blue-300'>
+          Contact support
+        </a>
+      </footer>
     </div>
   )
 }

@@ -190,6 +190,11 @@ export async function PUT(
       )
     }
 
+    // Prevent admins from changing other admins' roles - only owners can modify admin roles
+    if (targetMember[0].role === 'admin' && userMember[0].role !== 'owner') {
+      return NextResponse.json({ error: 'Only owners can change admin roles' }, { status: 403 })
+    }
+
     // Update member role
     const updatedMember = await db
       .update(member)
