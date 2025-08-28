@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { client } from '@/lib/auth-client'
+import { client, useSession } from '@/lib/auth-client'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
@@ -82,6 +82,7 @@ function SignupFormContent({
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { refetch: refetchSession } = useSession()
   const [isLoading, setIsLoading] = useState(false)
   const [, setMounted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -328,6 +329,15 @@ function SignupFormContent({
       if (!response || response.error) {
         setIsLoading(false)
         return
+      }
+
+      // Refresh session to get the new user data immediately after signup
+      try {
+        await refetchSession()
+        logger.info('Session refreshed after successful signup')
+      } catch (sessionError) {
+        logger.error('Failed to refresh session after signup:', sessionError)
+        // Continue anyway - the verification flow will handle this
       }
 
       // For new signups, always require verification
