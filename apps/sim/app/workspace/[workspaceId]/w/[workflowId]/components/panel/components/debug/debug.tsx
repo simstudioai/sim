@@ -29,8 +29,7 @@ import {
   Circle,
   AlertCircle,
   Check,
-  X,
-  ChevronRight
+  X
 } from 'lucide-react'
 
 export function DebugPanel() {
@@ -954,26 +953,18 @@ export function DebugPanel() {
                               <div className='w-full overflow-hidden'>
                                 {typeof value === 'object' && value !== null ? (
                                   <div 
-                                    className='cursor-pointer flex items-start gap-1'
+                                    className='cursor-pointer'
                                     onClick={() => toggleFieldExpansion(fieldKey)}
                                   >
-                                    <ChevronRight 
-                                      className={cn(
-                                        'h-3 w-3 mt-0.5 text-muted-foreground transition-transform flex-shrink-0',
-                                        isExpanded && 'rotate-90'
-                                      )}
-                                    />
-                                    <div className='min-w-0 flex-1'>
-                                      {isExpanded ? (
-                                        <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+                                    {isExpanded ? (
+                                      <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
 {JSON.stringify(value, null, 2)}
                     </pre>
-                                      ) : (
-                                        <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
-                                          {JSON.stringify(value).slice(0, 100)}...
-                                        </span>
-                                      )}
-                                    </div>
+                                    ) : (
+                                      <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
+                                        {JSON.stringify(value).slice(0, 100)}...
+                                      </span>
+                                    )}
                                   </div>
                                 ) : typeof value === 'boolean' ? (
                                   <span className={cn(
@@ -982,34 +973,22 @@ export function DebugPanel() {
                                   )}>
                                     {String(value)}
                                   </span>
-                                ) : typeof value === 'number' ? (
-                                  <code className='rounded bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 font-mono text-[11px] text-blue-700 dark:text-blue-400'>
-                                    {value}
-                                  </code>
                                 ) : value === null || value === undefined ? (
                                   <span className='text-[11px] text-muted-foreground italic'>null</span>
                                 ) : String(value).length > 100 ? (
                                   <div
-                                    className='cursor-pointer flex items-start gap-1'
+                                    className='cursor-pointer'
                                     onClick={() => toggleFieldExpansion(fieldKey)}
                                   >
-                                    <ChevronRight 
-                                      className={cn(
-                                        'h-3 w-3 mt-0.5 text-muted-foreground transition-transform flex-shrink-0',
-                                        isExpanded && 'rotate-90'
-                                      )}
-                                    />
-                                    <div className='min-w-0 flex-1'>
-                                      {isExpanded ? (
-                                        <span className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
-                                          {String(value)}
-                                        </span>
-                                      ) : (
-                                        <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
-                                          {String(value).slice(0, 100)}...
-                                        </span>
-                                      )}
-                                    </div>
+                                    {isExpanded ? (
+                                      <span className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
+                                        {String(value)}
+                                      </span>
+                                    ) : (
+                                      <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
+                                        {String(value).slice(0, 100)}...
+                                      </span>
+                                    )}
                                   </div>
                                 ) : (
                                   <span className='text-[11px] font-mono text-foreground/70 break-words'>
@@ -1059,26 +1038,18 @@ export function DebugPanel() {
                               <div className='w-full overflow-hidden'>
                                 {typeof value === 'object' && value !== null ? (
                                   <div 
-                                    className='cursor-pointer flex items-start gap-1'
+                                    className='cursor-pointer'
                                     onClick={() => toggleFieldExpansion(fieldKey)}
                                   >
-                                    <ChevronRight 
-                                      className={cn(
-                                        'h-3 w-3 mt-0.5 text-muted-foreground transition-transform flex-shrink-0',
-                                        isExpanded && 'rotate-90'
-                                      )}
-                                    />
-                                    <div className='min-w-0 flex-1'>
-                                      {isExpanded ? (
-                                        <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+                                    {isExpanded ? (
+                                      <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
 {JSON.stringify(value, null, 2)}
                     </pre>
-                                      ) : (
-                                        <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
-                                          {JSON.stringify(value).slice(0, 100)}...
-                                        </span>
-                                      )}
-                                    </div>
+                                    ) : (
+                                      <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
+                                        {JSON.stringify(value).slice(0, 100)}...
+                                      </span>
+                                    )}
                                   </div>
                                 ) : typeof value === 'boolean' ? (
                                   <span className={cn(
@@ -1087,36 +1058,24 @@ export function DebugPanel() {
                                   )}>
                                     {String(value)}
                                   </span>
-                                ) : typeof value === 'number' ? (
-                                  <code className='rounded bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 font-mono text-[11px] text-blue-700 dark:text-blue-400'>
-                                    {value}
-                                  </code>
                                 ) : value === null || value === undefined ? (
                                   <span className='text-[11px] text-muted-foreground italic'>
                                     {value === null ? 'null' : 'undefined'}
                                   </span>
                                 ) : String(value).length > 100 ? (
                                   <div
-                                    className='cursor-pointer flex items-start gap-1'
+                                    className='cursor-pointer'
                                     onClick={() => toggleFieldExpansion(fieldKey)}
                                   >
-                                    <ChevronRight 
-                                      className={cn(
-                                        'h-3 w-3 mt-0.5 text-muted-foreground transition-transform flex-shrink-0',
-                                        isExpanded && 'rotate-90'
-                                      )}
-                                    />
-                                    <div className='min-w-0 flex-1'>
-                                      {isExpanded ? (
-                                        <span className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
-                                          {String(value)}
-                                        </span>
-                                      ) : (
-                                        <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
-                                          {String(value).slice(0, 100)}...
-                                        </span>
-                                      )}
-                                    </div>
+                                    {isExpanded ? (
+                                      <span className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
+                                        {String(value)}
+                                      </span>
+                                    ) : (
+                                      <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
+                                        {String(value).slice(0, 100)}...
+                                      </span>
+                                    )}
                                   </div>
                                 ) : (
                                   <span className='text-[11px] font-mono text-foreground/70 break-words'>
@@ -1239,21 +1198,13 @@ export function DebugPanel() {
                                 {resolved ? (
                                   shouldTruncate ? (
                                     <div
-                                      className='cursor-pointer flex items-start gap-1'
+                                      className='cursor-pointer'
                                       onClick={() => toggleFieldExpansion(fieldKey)}
                                     >
-                                      <ChevronRight 
-                                        className={cn(
-                                          'h-3 w-3 mt-0.5 text-muted-foreground transition-transform flex-shrink-0',
-                                          isExpanded && 'rotate-90'
-                                        )}
-                                      />
-                                      <div className='min-w-0 flex-1'>
-                                        <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+                                      <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
 {isExpanded ? valueStr : `${valueStr.slice(0, 600)}...`}
                           </pre>
                         </div>
-                    </div>
                                   ) : (
                                     <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
 {valueStr}
@@ -1313,20 +1264,12 @@ export function DebugPanel() {
                             <td className='px-3 py-2'>
                               {shouldTruncate ? (
                                 <div
-                                  className='cursor-pointer flex items-start gap-1'
+                                  className='cursor-pointer'
                                   onClick={() => toggleFieldExpansion(fieldKey)}
                                 >
-                                  <ChevronRight 
-                                    className={cn(
-                                      'h-3 w-3 mt-0.5 text-muted-foreground transition-transform flex-shrink-0',
-                                      isExpanded && 'rotate-90'
-                                    )}
-                                  />
-                                  <div className='min-w-0 flex-1'>
-                                    <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+                                  <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
 {isExpanded ? valueStr : `${valueStr.slice(0, 100)}...`}
                     </pre>
-                                  </div>
                                 </div>
                               ) : (
                                 <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
@@ -1380,20 +1323,12 @@ export function DebugPanel() {
                             <td className='px-3 py-2'>
                               {shouldTruncate ? (
                                 <div
-                                  className='cursor-pointer flex items-start gap-1'
+                                  className='cursor-pointer'
                                   onClick={() => toggleFieldExpansion(fieldKey)}
                                 >
-                                  <ChevronRight 
-                                    className={cn(
-                                      'h-3 w-3 mt-0.5 text-muted-foreground transition-transform flex-shrink-0',
-                                      isExpanded && 'rotate-90'
-                                    )}
-                                  />
-                                  <div className='min-w-0 flex-1'>
-                                    <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+                                  <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
 {isExpanded ? valueStr : `${valueStr.slice(0, 100)}...`}
                     </pre>
-                                  </div>
                                 </div>
                               ) : (
                                 <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
