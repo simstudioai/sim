@@ -21,6 +21,7 @@ const getCurrentOllamaModels = () => {
 }
 
 import { useOllamaStore } from '@/stores/ollama/store'
+import { useOpenRouterStore } from '@/stores/openrouter/store'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgentBlock')
@@ -159,8 +160,9 @@ Create a system prompt appropriately detailed for the request, using clear langu
       required: true,
       options: () => {
         const ollamaModels = useOllamaStore.getState().models
+        const openrouterModels = useOpenRouterStore.getState().models
         const baseModels = Object.keys(getBaseModelProviders())
-        const allModels = [...baseModels, ...ollamaModels]
+        const allModels = Array.from(new Set([...baseModels, ...ollamaModels, ...openrouterModels]))
 
         return allModels.map((model) => {
           const icon = getProviderIcon(model)

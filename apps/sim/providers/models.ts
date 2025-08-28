@@ -62,6 +62,16 @@ export interface ProviderDefinition {
  * Comprehensive provider definitions, single source of truth
  */
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
+  openrouter: {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    description: 'Unified access to many models via OpenRouter',
+    defaultModel: '',
+    modelPatterns: [/^openrouter\//],
+    // Use OpenAIIcon for now; can add a specific OpenRouter icon later
+    icon: OpenAIIcon,
+    models: [],
+  },
   openai: {
     id: 'openai',
     name: 'OpenAI',
@@ -849,6 +859,21 @@ export function supportsToolUsageControl(providerId: string): boolean {
  */
 export function updateOllamaModels(models: string[]): void {
   PROVIDER_DEFINITIONS.ollama.models = models.map((modelId) => ({
+    id: modelId,
+    pricing: {
+      input: 0,
+      output: 0,
+      updatedAt: new Date().toISOString().split('T')[0],
+    },
+    capabilities: {},
+  }))
+}
+
+/**
+ * Update OpenRouter models dynamically
+ */
+export function updateOpenRouterModels(models: string[]): void {
+  PROVIDER_DEFINITIONS.openrouter.models = models.map((modelId) => ({
     id: modelId,
     pricing: {
       input: 0,

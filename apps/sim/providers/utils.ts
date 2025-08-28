@@ -26,6 +26,7 @@ import {
 } from '@/providers/models'
 import { ollamaProvider } from '@/providers/ollama'
 import { openaiProvider } from '@/providers/openai'
+import { openRouterProvider } from '@/providers/openrouter'
 import type { ProviderConfig, ProviderId, ProviderToolConfig } from '@/providers/types'
 import { xAIProvider } from '@/providers/xai'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
@@ -88,6 +89,11 @@ export const providers: Record<
     models: getProviderModelsFromDefinitions('azure-openai'),
     modelPatterns: PROVIDER_DEFINITIONS['azure-openai'].modelPatterns,
   },
+  openrouter: {
+    ...openRouterProvider,
+    models: getProviderModelsFromDefinitions('openrouter'),
+    modelPatterns: PROVIDER_DEFINITIONS.openrouter.modelPatterns,
+  },
   ollama: {
     ...ollamaProvider,
     models: getProviderModelsFromDefinitions('ollama'),
@@ -110,6 +116,12 @@ Object.entries(providers).forEach(([id, provider]) => {
 export function updateOllamaProviderModels(models: string[]): void {
   updateOllamaModelsInDefinitions(models)
   providers.ollama.models = getProviderModelsFromDefinitions('ollama')
+}
+
+export function updateOpenRouterProviderModels(models: string[]): void {
+  const { updateOpenRouterModels } = require('@/providers/models')
+  updateOpenRouterModels(models)
+  providers.openrouter.models = getProviderModelsFromDefinitions('openrouter')
 }
 
 export function getBaseModelProviders(): Record<string, ProviderId> {
