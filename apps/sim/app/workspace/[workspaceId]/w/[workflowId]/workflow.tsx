@@ -281,6 +281,18 @@ const WorkflowContent = React.memo(() => {
     [getNodes]
   )
 
+  // Helper to detect if the user is actively editing inside an input/editor
+  const isEditableElementFocused = useCallback((): boolean => {
+    if (typeof document === 'undefined') return false
+    const activeElement = document.activeElement as Element | null
+    if (!activeElement) return false
+    return (
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement ||
+      activeElement.hasAttribute('contenteditable')
+    )
+  }, [])
+
   // Compute the absolute position of a node's source anchor (right-middle)
   const getNodeAnchorPosition = useCallback(
     (nodeId: string): { x: number; y: number } => {
@@ -1064,6 +1076,8 @@ const WorkflowContent = React.memo(() => {
     if (nodes.length === 0) return
     // Skip adjustments while user is dragging a node to avoid jitter
     if (draggedNodeId) return
+    // Avoid viewport jumps while user is editing text unless content grows
+    const editingFocused = isEditableElementFocused()
 
     // Resize all loops to fit their children
     resizeLoopNodesWrapper()
@@ -1100,13 +1114,19 @@ const WorkflowContent = React.memo(() => {
 
           const paddingFlow = 120
           const overflowBottom = maxY + paddingFlow - visibleBottomFlow
+          const previousMaxY = prevContentMaxYRef.current
+          // Update previous max Y for next cycle
+          prevContentMaxYRef.current = maxY
           const now = Date.now()
           // Throttle refresh to avoid rapid consecutive calls
           if (now - lastRefreshAtRef.current < 120) return
 
           // Only act when we are actually overflowing the visible bottom
           const overflowThreshold = 10
-          if (overflowBottom > overflowThreshold) {
+          // Only pan when content grows beyond what is visible,
+          // or when not focused in an editable element
+          const didContentGrow = maxY > previousMaxY
+          if (overflowBottom > overflowThreshold && (didContentGrow || !editingFocused)) {
             // Pan just enough to include the overflow, and force a repaint with an epsilon jiggle
             const targetY = vpY - overflowBottom * zoom
             const epsilon = 0.5
@@ -1130,6 +1150,8 @@ const WorkflowContent = React.memo(() => {
     setViewport,
     getNodes,
     getNodeAbsolutePositionWrapper,
+    isEditableElementFocused,
+    draggedNodeId,
   ])
 
   // Also react explicitly when any node reports a height change (post-paste expansion)
@@ -1164,7 +1186,12 @@ const WorkflowContent = React.memo(() => {
 
             const paddingFlow = 120
             const overflowBottom = maxY + paddingFlow - visibleBottomFlow
-            if (overflowBottom > 10) {
+            const previousMaxY = prevContentMaxYRef.current
+            // Update previous max Y for next cycle
+            prevContentMaxYRef.current = maxY
+            const editingFocused = isEditableElementFocused()
+            const didContentGrow = maxY > previousMaxY
+            if (overflowBottom > 10 && (didContentGrow || !editingFocused)) {
               const targetY = vpY - overflowBottom * zoom
               const epsilon = 0.5
               setViewport({ x: vpX, y: targetY + epsilon, zoom }, { duration: 0 })
@@ -1179,7 +1206,7 @@ const WorkflowContent = React.memo(() => {
 
     window.addEventListener('workflow-node-resized', handleNodeResized)
     return () => window.removeEventListener('workflow-node-resized', handleNodeResized)
-  }, [getNodes, getNodeAbsolutePositionWrapper, getViewport, setViewport])
+  }, [getNodes, getNodeAbsolutePositionWrapper, getViewport, setViewport, isEditableElementFocused])
 
   // Special effect to handle cleanup after node deletion
   useEffect(() => {
