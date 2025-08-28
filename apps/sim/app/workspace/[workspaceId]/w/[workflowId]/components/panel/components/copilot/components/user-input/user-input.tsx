@@ -31,6 +31,7 @@ import {
   X,
   Zap,
 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import {
   Button,
   DropdownMenu,
@@ -153,6 +154,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const { data: session } = useSession()
     const { currentChat, workflowId } = useCopilotStore()
+    const params = useParams()
+    const workspaceId = params.workspaceId as string
 
     // Determine placeholder based on mode
     const effectivePlaceholder =
@@ -219,8 +222,19 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         if (!resp.ok) throw new Error(`Failed to load chats: ${resp.status}`)
         const data = await resp.json()
         const items = Array.isArray(data?.chats) ? data.chats : []
+
+        if (workflows.length === 0) {
+          await ensureWorkflowsLoaded()
+        }
+
+        const workspaceWorkflowIds = new Set(workflows.map((w) => w.id))
+
+        const workspaceChats = items.filter(
+          (c: any) => !c.workflowId || workspaceWorkflowIds.has(c.workflowId)
+        )
+
         setPastChats(
-          items.map((c: any) => ({
+          workspaceChats.map((c: any) => ({
             id: c.id,
             title: c.title ?? null,
             workflowId: c.workflowId ?? null,
@@ -241,8 +255,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         if (!resp.ok) throw new Error(`Failed to load workflows: ${resp.status}`)
         const data = await resp.json()
         const items = Array.isArray(data?.data) ? data.data : []
+        // Filter workflows by workspace (same as sidebar)
+        const workspaceFiltered = items.filter(
+          (w: any) => w.workspaceId === workspaceId || !w.workspaceId
+        )
         // Sort by last modified/updated (newest first), matching sidebar behavior
-        const sorted = [...items].sort((a: any, b: any) => {
+        const sorted = [...workspaceFiltered].sort((a: any, b: any) => {
           const ta = new Date(a.lastModified || a.updatedAt || a.createdAt || 0).getTime()
           const tb = new Date(b.lastModified || b.updatedAt || b.createdAt || 0).getTime()
           return tb - ta
@@ -264,7 +282,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       if (isLoadingKnowledge || knowledgeBases.length > 0) return
       try {
         setIsLoadingKnowledge(true)
-        const resp = await fetch('/api/knowledge')
+        // Filter by workspace like the Knowledge page does
+        const resp = await fetch(`/api/knowledge?workspaceId=${workspaceId}`)
         if (!resp.ok) throw new Error(`Failed to load knowledge bases: ${resp.status}`)
         const data = await resp.json()
         const items = Array.isArray(data?.data) ? data.data : []
