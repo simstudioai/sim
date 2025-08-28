@@ -1239,11 +1239,6 @@ const WorkflowContent = React.memo(() => {
     validateNestedSubflows()
   }, [blocks, validateNestedSubflows])
 
-  // Validate nested subflows whenever blocks change
-  useEffect(() => {
-    validateNestedSubflows()
-  }, [blocks, validateNestedSubflows])
-
   // Update edges
   const onEdgesChange = useCallback(
     (changes: any) => {
