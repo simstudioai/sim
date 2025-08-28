@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Mail, RefreshCw } from 'lucide-react'
+import { Mail, RotateCcw, ShieldX } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -59,6 +59,7 @@ export default function InviteError() {
   const displayMessage = errorMessage || 'Loading error details...'
 
   const isEmailVerificationError = reason === 'email-not-verified'
+
   const isExpiredError = reason === 'expired'
 
   return (
@@ -76,8 +77,8 @@ export default function InviteError() {
       </div>
 
       <div className='flex w-full max-w-md flex-col items-center text-center'>
-        <div className='mb-6 rounded-full bg-amber-100 p-3 dark:bg-amber-900/20'>
-          <AlertTriangle className='h-8 w-8 text-amber-600 dark:text-amber-500' />
+        <div className='mb-6 rounded-full bg-red-50 p-3 dark:bg-red-950/20'>
+          <ShieldX className='h-8 w-8 text-red-500 dark:text-red-400' />
         </div>
 
         <h1 className='mb-2 font-semibold text-black text-xl dark:text-white'>Invitation Error</h1>
@@ -108,7 +109,7 @@ export default function InviteError() {
               asChild
             >
               <Link href='/'>
-                <RefreshCw className='mr-2 h-4 w-4' />
+                <RotateCcw className='mr-2 h-4 w-4' />
                 Request New Invitation
               </Link>
             </Button>

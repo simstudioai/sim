@@ -258,18 +258,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Get user data to check email verification status
-    const postUserData = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1)
+    const userData = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1)
 
-    if (postUserData.length === 0) {
+    if (userData.length === 0) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
     // Check if user's email is verified
-    if (!postUserData[0].emailVerified) {
+    if (!userData[0].emailVerified) {
       return NextResponse.json(
         {
           error: 'Email not verified',
-          message: `You must verify your email address (${postUserData[0].email}) before accepting invitations.`,
+          message: `You must verify your email address (${userData[0].email}) before accepting invitations.`,
         },
         { status: 403 }
       )

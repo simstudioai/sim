@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { BotIcon, CheckCircle, Mail, Users } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Mail, UserPlus, Users2 } from 'lucide-react'
 import Image from 'next/image'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -189,8 +189,8 @@ export default function Invite() {
         </div>
 
         <div className='flex w-full max-w-md flex-col items-center text-center'>
-          <div className='mb-6 rounded-full bg-blue-100 p-3 dark:bg-blue-900/20'>
-            <Mail className='h-8 w-8 text-blue-600 dark:text-blue-500' />
+          <div className='mb-6 rounded-full bg-blue-50 p-3 dark:bg-blue-950/20'>
+            <UserPlus className='h-8 w-8 text-blue-500 dark:text-blue-400' />
           </div>
 
           <h1 className='mb-2 font-semibold text-black text-xl dark:text-white'>
@@ -304,8 +304,8 @@ export default function Invite() {
           />
         </div>
         <div className='flex w-full max-w-md flex-col items-center text-center'>
-          <div className='mb-6 rounded-full bg-red-100 p-3 dark:bg-red-900/20'>
-            <BotIcon className='h-8 w-8 text-red-600 dark:text-red-500' />
+          <div className='mb-6 rounded-full bg-red-50 p-3 dark:bg-red-950/20'>
+            <AlertCircle className='h-8 w-8 text-red-500 dark:text-red-400' />
           </div>
           <h1 className='mb-2 font-semibold text-black text-xl dark:text-white'>
             Invitation Error
@@ -346,8 +346,8 @@ export default function Invite() {
           />
         </div>
         <div className='flex w-full max-w-md flex-col items-center text-center'>
-          <div className='mb-6 rounded-full bg-green-100 p-3 dark:bg-green-900/20'>
-            <CheckCircle className='h-8 w-8 text-green-600 dark:text-green-500' />
+          <div className='mb-6 rounded-full bg-green-50 p-3 dark:bg-green-950/20'>
+            <CheckCircle2 className='h-8 w-8 text-green-500 dark:text-green-400' />
           </div>
           <h1 className='mb-2 font-semibold text-black text-xl dark:text-white'>Welcome!</h1>
           <p className='mb-6 text-gray-600 text-sm leading-relaxed dark:text-gray-300'>
@@ -389,11 +389,11 @@ export default function Invite() {
       </div>
 
       <div className='flex w-full max-w-md flex-col items-center text-center'>
-        <div className='mb-6 rounded-full bg-blue-100 p-3 dark:bg-blue-900/20'>
+        <div className='mb-6 rounded-full bg-blue-50 p-3 dark:bg-blue-950/20'>
           {invitationType === 'organization' ? (
-            <Users className='h-8 w-8 text-blue-600 dark:text-blue-500' />
+            <Users2 className='h-8 w-8 text-blue-500 dark:text-blue-400' />
           ) : (
-            <Mail className='h-8 w-8 text-blue-600 dark:text-blue-500' />
+            <Mail className='h-8 w-8 text-blue-500 dark:text-blue-400' />
           )}
         </div>
 
