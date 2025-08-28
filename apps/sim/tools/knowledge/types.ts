@@ -2,6 +2,7 @@ export interface KnowledgeSearchResult {
   id: string
   content: string
   documentId: string
+  documentName: string
   chunkIndex: number
   metadata: Record<string, any>
   similarity: number

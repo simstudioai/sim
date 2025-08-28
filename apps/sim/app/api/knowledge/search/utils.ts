@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { embedding } from '@/db/schema'
+import { document, embedding } from '@/db/schema'
 
 const logger = createLogger('KnowledgeSearchUtils')
 
@@ -9,6 +9,7 @@ export interface SearchResult {
   id: string
   content: string
   documentId: string
+  documentName: string | null
   chunkIndex: number
   tag1: string | null
   tag2: string | null
@@ -130,6 +131,7 @@ async function executeVectorSearchOnIds(
       id: embedding.id,
       content: embedding.content,
       documentId: embedding.documentId,
+      documentName: document.filename,
       chunkIndex: embedding.chunkIndex,
       tag1: embedding.tag1,
       tag2: embedding.tag2,
@@ -142,6 +144,7 @@ async function executeVectorSearchOnIds(
       knowledgeBaseId: embedding.knowledgeBaseId,
     })
     .from(embedding)
+    .innerJoin(document, eq(embedding.documentId, document.id))
     .where(
       and(
         inArray(embedding.id, embeddingIds),
@@ -173,6 +176,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
           id: embedding.id,
           content: embedding.content,
           documentId: embedding.documentId,
+          documentName: document.filename,
           chunkIndex: embedding.chunkIndex,
           tag1: embedding.tag1,
           tag2: embedding.tag2,
@@ -185,6 +189,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
           knowledgeBaseId: embedding.knowledgeBaseId,
         })
         .from(embedding)
+        .innerJoin(document, eq(embedding.documentId, document.id))
         .where(
           and(
             eq(embedding.knowledgeBaseId, kbId),
@@ -204,6 +209,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
       id: embedding.id,
       content: embedding.content,
       documentId: embedding.documentId,
+      documentName: document.filename,
       chunkIndex: embedding.chunkIndex,
       tag1: embedding.tag1,
       tag2: embedding.tag2,
@@ -216,6 +222,7 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
       knowledgeBaseId: embedding.knowledgeBaseId,
     })
     .from(embedding)
+    .innerJoin(document, eq(embedding.documentId, document.id))
     .where(
       and(
         inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
@@ -247,6 +254,7 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
           id: embedding.id,
           content: embedding.content,
           documentId: embedding.documentId,
+          documentName: document.filename,
           chunkIndex: embedding.chunkIndex,
           tag1: embedding.tag1,
           tag2: embedding.tag2,
@@ -259,6 +267,7 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
           knowledgeBaseId: embedding.knowledgeBaseId,
         })
         .from(embedding)
+        .innerJoin(document, eq(embedding.documentId, document.id))
         .where(
           and(
             eq(embedding.knowledgeBaseId, kbId),
@@ -280,6 +289,7 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
       id: embedding.id,
       content: embedding.content,
       documentId: embedding.documentId,
+      documentName: document.filename,
       chunkIndex: embedding.chunkIndex,
       tag1: embedding.tag1,
       tag2: embedding.tag2,
@@ -292,6 +302,7 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
       knowledgeBaseId: embedding.knowledgeBaseId,
     })
     .from(embedding)
+    .innerJoin(document, eq(embedding.documentId, document.id))
     .where(
       and(
         inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
