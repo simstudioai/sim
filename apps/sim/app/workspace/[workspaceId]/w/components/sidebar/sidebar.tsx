@@ -1008,10 +1008,9 @@ export function Sidebar() {
           style={{ bottom: `${navigationBottom + SIDEBAR_HEIGHTS.NAVIGATION + SIDEBAR_GAP}px` }} // Navigation height + gap
         >
           <UsageIndicator
-            onClick={(badgeType) => {
+            onClick={() => {
               const isBlocked = useSubscriptionStore.getState().getBillingStatus() === 'blocked'
-
-              if (isBlocked || badgeType === 'add') {
+              if (isBlocked) {
                 if (typeof window !== 'undefined') {
                   window.dispatchEvent(
                     new CustomEvent('open-settings', { detail: { tab: 'subscription' } })
