@@ -13,8 +13,6 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore } from '@/stores/execution/store'
-import { usePanelStore } from '@/stores/panel/store'
-import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -582,71 +580,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     type === 'schedule' && !isLoadingScheduleInfo && scheduleInfo !== null
   const userPermissions = useUserPermissionsContext()
 
-  // Debug mode and active selection
-  const isDebugModeEnabled = useGeneralStore((s) => s.isDebugModeEnabled)
-  const activeBlockIds = useExecutionStore((s) => s.activeBlockIds)
-  const panelFocusedBlockId = useExecutionStore((s) => s.panelFocusedBlockId)
-  const setPanelFocusedBlockId = useExecutionStore((s) => s.setPanelFocusedBlockId)
-  const executingBlockIds = useExecutionStore((s) => s.executingBlockIds)
-  const setActiveBlocks = useExecutionStore((s) => s.setActiveBlocks)
-  const setActiveTab = usePanelStore((s) => s.setActiveTab)
-  const breakpointId = useExecutionStore((s) => s.breakpointId)
-  const debugContext = useExecutionStore((s) => s.debugContext)
-
-  const handleDebugOpen = (e: React.MouseEvent) => {
-    if (!isDebugModeEnabled) return
-    e.stopPropagation()
-    setActiveBlocks(new Set([id]))
-    setActiveTab('debug')
-    // Always select this block for the debug panel focus
-    setPanelFocusedBlockId(id)
-  }
-
-  // In debug mode, use executingBlockIds to detect actual executing blocks (not selection);
-  // outside debug, fall back to activeBlockIds driven by the executor
-  const isExecutingNow = isDebugModeEnabled ? executingBlockIds.has(id) : activeBlockIds.has(id)
-  const isCurrentBlock = isDebugModeEnabled && isPending
-  const isPanelFocused = isDebugModeEnabled && panelFocusedBlockId === id
-
-  // Check if block has errored during debug execution
-  const hasError =
-    isDebugModeEnabled && debugContext
-      ? (() => {
-          // Check direct block state for error
-          const directState = debugContext.blockStates?.get(id)
-          if (
-            directState?.output &&
-            typeof directState.output === 'object' &&
-            'error' in directState.output
-          ) {
-            return true
-          }
-          // Check virtual executions for errors (for blocks inside parallels)
-          for (const [key, state] of debugContext.blockStates?.entries() || []) {
-            // Check if this is a virtual ID for our block
-            if (typeof key === 'string' && key.startsWith(`${id}_parallel_`)) {
-              if (state?.output && typeof state.output === 'object' && 'error' in state.output) {
-                return true
-              }
-            }
-          }
-          // Also check block logs for this block
-          const hasErrorLog = debugContext.blockLogs?.some((log: any) => {
-            if (log.blockId === id && !log.success) return true
-            // Check if log is for a virtual version of this block
-            if (
-              typeof log.blockId === 'string' &&
-              log.blockId.startsWith(`${id}_parallel_`) &&
-              !log.success
-            ) {
-              return true
-            }
-            return false
-          })
-          return hasErrorLog || false
-        })()
-      : false
-
   return (
     <div className='group relative'>
       <Card
@@ -656,45 +589,20 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           'transition-block-bg transition-ring',
           displayIsWide ? 'w-[480px]' : 'w-[320px]',
           !isEnabled && 'shadow-sm',
-          // Error state - highest priority (only border, no background)
-          hasError && 'ring-2 ring-red-500',
-          // Panel-focused block highlight (unless errored)
-          !hasError && isPanelFocused && 'bg-blue-50/60 dark:bg-blue-900/5',
-          // Executing blocks match staging: pulsing blue ring
-          !hasError && isExecutingNow && 'animate-pulse-ring ring-2 ring-blue-500',
-          // Pending blocks show blue border when not executing
-          !hasError && !isExecutingNow && isCurrentBlock && 'ring-2 ring-blue-500',
-          // Diff highlighting (only if not in debug error state)
-          !hasError &&
-            diffStatus === 'new' &&
-            'bg-green-50/50 ring-2 ring-green-500 dark:bg-green-900/10',
-          !hasError &&
-            diffStatus === 'edited' &&
-            'bg-orange-50/50 ring-2 ring-orange-500 dark:bg-orange-900/10',
+          isActive && 'animate-pulse-ring ring-2 ring-blue-500',
+          isPending && 'ring-2 ring-amber-500',
+          // Diff highlighting
+          diffStatus === 'new' && 'bg-green-50/50 ring-2 ring-green-500 dark:bg-green-900/10',
+          diffStatus === 'edited' && 'bg-orange-50/50 ring-2 ring-orange-500 dark:bg-orange-900/10',
           // Deleted block highlighting (in original workflow)
           isDeletedBlock && 'bg-red-50/50 ring-2 ring-red-500 dark:bg-red-900/10',
           'z-[20]'
         )}
-        onClick={handleDebugOpen}
       >
-        {/* Show error indicator for errored blocks */}
-        {hasError && (
-          <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-red-500 px-2 py-0.5 text-white text-xs'>
-            Error
-          </div>
-        )}
-
-        {/* Show debug indicator for current blocks in debug mode (pending or executing) - but not if errored */}
-        {!hasError && isDebugModeEnabled && (isPending || executingBlockIds.has(id)) && (
-          <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-blue-500 px-2 py-0.5 text-white text-xs'>
-            Current
-          </div>
-        )}
-
-        {/* Show breakpoint indicator */}
-        {isDebugModeEnabled && breakpointId === id && (
-          <div className='-bottom-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-b-md bg-red-500 px-2 py-0.5 text-white text-xs'>
-            Breakpoint
+        {/* Show debug indicator for pending blocks */}
+        {isPending && (
+          <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-amber-500 px-2 py-0.5 text-white text-xs'>
+            Next Step
           </div>
         )}
 

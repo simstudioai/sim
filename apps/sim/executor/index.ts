@@ -746,7 +746,7 @@ export class Executor {
     Object.entries(this.initialBlockStates).forEach(([blockId, output]) => {
       context.blockStates.set(blockId, {
         output: output as NormalizedBlockOutput,
-        executed: false,
+        executed: true,
         executionTime: 0,
       })
     })
