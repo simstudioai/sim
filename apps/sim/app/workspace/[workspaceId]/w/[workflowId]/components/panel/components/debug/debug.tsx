@@ -1420,15 +1420,7 @@ export function DebugPanel() {
 
             <TabsContent value='reference' className='flex-1 overflow-auto m-0'>
               <div className='flex flex-col h-full'>
-                <div className='flex items-center justify-between px-3 py-2 border-b border-border/50'>
-                  <label className='flex items-center gap-2 cursor-pointer text-xs'>
-                    <Checkbox 
-                      checked={scopedVariables}
-                      onCheckedChange={(checked) => setScopedVariables(checked as boolean)}
-                      className='h-3.5 w-3.5'
-                    />
-                    <span className='text-muted-foreground'>Scoped</span>
-                  </label>
+                <div className='flex items-center justify-end px-3 py-2 border-b border-border/50'>
                   <div className='flex items-center gap-1.5'>
                     {scopedVariables && filteredOutputVariables.length > 0 && getResolutionIcon()}
                     <span className='text-[10px] text-muted-foreground'>
