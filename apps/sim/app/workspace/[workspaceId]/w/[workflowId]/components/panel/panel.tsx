@@ -14,6 +14,7 @@ import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useExecutionStore } from '@/stores/execution/store'
 import { Chat } from './components/chat/chat'
 import { Console } from './components/console/console'
 import { Copilot } from './components/copilot/copilot'
@@ -44,6 +45,9 @@ export function Panel() {
   const clearChat = useChatStore((state) => state.clearChat)
   const exportChatCSV = useChatStore((state) => state.exportChatCSV)
   const { activeWorkflowId } = useWorkflowRegistry()
+  
+  // Get debug state
+  const isDebugging = useExecutionStore((state) => state.isDebugging)
 
   // Copilot store for chat management
   const {
@@ -218,6 +222,10 @@ export function Panel() {
 
   // Handle tab clicks - no loading, just switch tabs
   const handleTabClick = async (tab: 'chat' | 'console' | 'variables' | 'copilot' | 'debug') => {
+    // Don't allow clicking debug tab if not debugging
+    if (tab === 'debug' && !isDebugging) {
+      return
+    }
     setActiveTab(tab)
     if (!isOpen) {
       togglePanel()
@@ -285,10 +293,27 @@ export function Panel() {
     }
   }, [activeWorkflowId, copilotWorkflowId, ensureCopilotDataLoaded])
 
+  // When debug mode ends, switch to a different tab if debug was active
+  useEffect(() => {
+    if (!isDebugging && activeTab === 'debug') {
+      setActiveTab('console')
+    }
+  }, [isDebugging, activeTab, setActiveTab])
+
+  // When debug mode starts, automatically open the debug panel
+  useEffect(() => {
+    if (isDebugging) {
+      setActiveTab('debug')
+      if (!isOpen) {
+        togglePanel()
+      }
+    }
+  }, [isDebugging, setActiveTab, isOpen, togglePanel])
+
   return (
     <>
       {/* Tab Selector - Always visible */}
-      <div className='fixed top-[76px] right-4 z-20 flex h-9 w-[308px] items-center gap-1 rounded-[14px] border bg-card px-[2.5px] py-1 shadow-xs'>
+      <div className='fixed top-[76px] right-4 z-20 flex h-9 items-center gap-1 rounded-[14px] border bg-card px-[2.5px] py-1 shadow-xs' style={{ width: isDebugging ? '380px' : '308px' }}>
         <button
           onClick={() => handleTabClick('chat')}
           className={`panel-tab-base inline-flex flex-1 cursor-pointer items-center justify-center rounded-[10px] border border-transparent py-1 font-[450] text-sm outline-none transition-colors duration-200 ${
@@ -321,14 +346,16 @@ export function Panel() {
         >
           Variables
         </button>
-        <button
-          onClick={() => handleTabClick('debug')}
-          className={`panel-tab-base inline-flex flex-1 cursor-pointer items-center justify-center rounded-[10px] border border-transparent py-1 font-[450] text-sm outline-none transition-colors duration-200 ${
-            isOpen && activeTab === 'debug' ? 'panel-tab-active' : 'panel-tab-inactive'
-          }`}
-        >
-          Debug
-        </button>
+        {isDebugging && (
+          <button
+            onClick={() => handleTabClick('debug')}
+            className={`panel-tab-base inline-flex flex-1 cursor-pointer items-center justify-center rounded-[10px] border border-transparent py-1 font-[450] text-sm outline-none transition-colors duration-200 ${
+              isOpen && activeTab === 'debug' ? 'panel-tab-active' : 'panel-tab-inactive'
+            }`}
+          >
+            Debug
+          </button>
+        )}
       </div>
 
       {/* Panel Content - Only visible when isOpen is true */}

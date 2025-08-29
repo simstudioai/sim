@@ -1205,7 +1205,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       {isExpanded && renderPublishButton()}
       {renderDeleteButton()}
       {renderDuplicateButton()}
-      {!isDebugging && renderDebugModeToggle()}
+      {renderDebugModeToggle()}
       {renderDeployButton()}
       {isDebugging ? renderDebugControlsBar() : renderRunButton()}
 
