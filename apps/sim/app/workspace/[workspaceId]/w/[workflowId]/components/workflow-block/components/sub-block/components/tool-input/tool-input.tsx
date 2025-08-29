@@ -1457,19 +1457,19 @@ export function ToolInput({
                               {tool.usageControl === 'auto' && (
                                 <span>
                                   {' '}
-                                  <span className='font-medium'>Auto:</span> Let the model decide
+                                  <span className='font-medium'> Auto:</span> Let the model decide
                                   when to use the tool
                                 </span>
                               )}
                               {tool.usageControl === 'force' && (
                                 <span>
-                                  <span className='font-medium'>Force:</span> Always use this tool
+                                  <span className='font-medium'> Force:</span> Always use this tool
                                   in the response
                                 </span>
                               )}
                               {tool.usageControl === 'none' && (
                                 <span>
-                                  <span className='font-medium'>Deny:</span> Never use this tool
+                                  <span className='font-medium'> Deny:</span> Never use this tool
                                 </span>
                               )}
                             </p>

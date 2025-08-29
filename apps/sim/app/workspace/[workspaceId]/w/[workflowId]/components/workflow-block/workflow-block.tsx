@@ -1087,6 +1087,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                               : undefined
                         }
                         allowExpandInPreview={currentWorkflow.isDiffMode}
+                        isWide={displayIsWide}
                       />
                     </div>
                   ))}

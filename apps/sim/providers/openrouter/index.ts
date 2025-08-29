@@ -128,12 +128,14 @@ export const openRouterProvider: ProviderConfig = {
     }
 
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
+    let hasActiveTools = false
     if (tools?.length) {
       preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'openrouter')
       const { tools: filteredTools, toolChoice } = preparedTools
       if (filteredTools?.length && toolChoice) {
         payload.tools = filteredTools
         payload.tool_choice = toolChoice
+        hasActiveTools = true
       }
     }
 
@@ -141,7 +143,7 @@ export const openRouterProvider: ProviderConfig = {
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
-      if (request.stream && (!tools || tools.length === 0)) {
+      if (request.stream && (!tools || tools.length === 0 || !hasActiveTools)) {
         const streamResponse = await client.chat.completions.create({
           ...payload,
           stream: true,

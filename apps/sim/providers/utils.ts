@@ -550,6 +550,26 @@ export function getHostedModels(): string[] {
 }
 
 /**
+ * Determine if model usage should be billed to the user
+ *
+ * @param model The model name
+ * @param userProvidedApiKey Whether the user provided their own API key
+ * @returns true if the usage should be billed to the user
+ */
+export function shouldBillModelUsage(model: string, userProvidedApiKey?: string): boolean {
+  const hostedModels = getHostedModels()
+  if (!hostedModels.includes(model)) {
+    return false
+  }
+
+  if (userProvidedApiKey && userProvidedApiKey.trim() !== '') {
+    return false
+  }
+
+  return true
+}
+
+/**
  * Get an API key for a specific provider, handling rotation and fallbacks
  * For use server-side only
  */

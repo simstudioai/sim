@@ -6,13 +6,12 @@ import {
   getAllModelProviders,
   getBaseModelProviders,
   getHostedModels,
+  getMaxTemperature,
   getProviderIcon,
-  MODELS_TEMP_RANGE_0_1,
-  MODELS_TEMP_RANGE_0_2,
   MODELS_WITH_REASONING_EFFORT,
-  MODELS_WITH_TEMPERATURE_SUPPORT,
   MODELS_WITH_VERBOSITY,
   providers,
+  supportsTemperature,
 } from '@/providers/utils'
 
 // Get current Ollama models dynamically
@@ -177,10 +176,15 @@ Create a system prompt appropriately detailed for the request, using clear langu
       layout: 'half',
       min: 0,
       max: 1,
-      condition: {
+      condition: () => ({
         field: 'model',
-        value: MODELS_TEMP_RANGE_0_1,
-      },
+        value: (() => {
+          const allModels = Object.keys(getAllModelProviders())
+          return allModels.filter(
+            (model) => supportsTemperature(model) && getMaxTemperature(model) === 1
+          )
+        })(),
+      }),
     },
     {
       id: 'temperature',
@@ -189,30 +193,15 @@ Create a system prompt appropriately detailed for the request, using clear langu
       layout: 'half',
       min: 0,
       max: 2,
-      condition: {
+      condition: () => ({
         field: 'model',
-        value: MODELS_TEMP_RANGE_0_2,
-      },
-    },
-    {
-      id: 'temperature',
-      title: 'Temperature',
-      type: 'slider',
-      layout: 'full',
-      min: 0,
-      max: 2,
-      condition: {
-        field: 'model',
-        value: [...MODELS_TEMP_RANGE_0_1, ...MODELS_TEMP_RANGE_0_2],
-        not: true,
-        and: {
-          field: 'model',
-          value: Object.keys(getBaseModelProviders()).filter(
-            (model) => !MODELS_WITH_TEMPERATURE_SUPPORT.includes(model)
-          ),
-          not: true,
-        },
-      },
+        value: (() => {
+          const allModels = Object.keys(getAllModelProviders())
+          return allModels.filter(
+            (model) => supportsTemperature(model) && getMaxTemperature(model) === 2
+          )
+        })(),
+      }),
     },
     {
       id: 'reasoningEffort',
