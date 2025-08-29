@@ -36,7 +36,7 @@ export function getSubscriptionPermissions(
     canUpgradeToTeam: isFree || (isPro && !isTeam),
     canViewEnterprise: !isEnterprise && !(isTeam && !isTeamAdmin), // Don't show to enterprise users or team members
     canManageTeam: isTeam && isTeamAdmin,
-    canEditUsageLimit: (isFree || (isPro && !isTeam)) && !isEnterprise, // Free users see upgrade badge, Pro (non-team) users see pencil
+    canEditUsageLimit: (isFree || (isPro && !isTeam) || (isTeam && isTeamAdmin)) && !isEnterprise, // Free users see upgrade badge, Pro (non-team) users and team admins see pencil
     canCancelSubscription: isPaid && !isEnterprise && !(isTeam && !isTeamAdmin), // Team members can't cancel
     showTeamMemberView: isTeam && !isTeamAdmin,
     showUpgradePlans: isFree || (isPro && !isTeam) || (isTeam && isTeamAdmin), // Free users, Pro users, Team owners see plans

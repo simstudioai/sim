@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { client } from '@/lib/auth-client'
+import { client, useSession } from '@/lib/auth-client'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
@@ -82,6 +82,7 @@ function SignupFormContent({
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { refetch: refetchSession } = useSession()
   const [isLoading, setIsLoading] = useState(false)
   const [, setMounted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -330,6 +331,15 @@ function SignupFormContent({
         return
       }
 
+      // Refresh session to get the new user data immediately after signup
+      try {
+        await refetchSession()
+        logger.info('Session refreshed after successful signup')
+      } catch (sessionError) {
+        logger.error('Failed to refresh session after signup:', sessionError)
+        // Continue anyway - the verification flow will handle this
+      }
+
       // For new signups, always require verification
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('verificationEmail', emailValue)
@@ -505,6 +515,23 @@ function SignupFormContent({
             className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
           >
             Sign in
+          </Link>
+        </div>
+
+        <div className='text-center text-neutral-500/80 text-xs leading-relaxed'>
+          By creating an account, you agree to our{' '}
+          <Link
+            href='/terms'
+            className='text-neutral-400 underline-offset-4 transition hover:text-neutral-300 hover:underline'
+          >
+            Terms of Service
+          </Link>{' '}
+          and{' '}
+          <Link
+            href='/privacy'
+            className='text-neutral-400 underline-offset-4 transition hover:text-neutral-300 hover:underline'
+          >
+            Privacy Policy
           </Link>
         </div>
       </div>

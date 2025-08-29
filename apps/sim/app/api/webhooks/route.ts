@@ -495,7 +495,9 @@ async function createAirtableWebhookSubscription(
     } else {
       logger.info(
         `[${requestId}] Successfully created webhook in Airtable for webhook ${webhookData.id}.`,
-        { airtableWebhookId: responseBody.id }
+        {
+          airtableWebhookId: responseBody.id,
+        }
       )
       // Store the airtableWebhookId (responseBody.id) within the providerConfig
       try {

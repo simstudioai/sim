@@ -48,6 +48,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const { activeOrganization } = useOrganizationStore()
   const hasLoadedInitialData = useRef(false)
   const environmentCloseHandler = useRef<((open: boolean) => void) | null>(null)
+  const credentialsCloseHandler = useRef<((open: boolean) => void) | null>(null)
 
   useEffect(() => {
     async function loadAllSettings() {
@@ -100,6 +101,8 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const handleDialogOpenChange = (newOpen: boolean) => {
     if (!newOpen && activeSection === 'environment' && environmentCloseHandler.current) {
       environmentCloseHandler.current(newOpen)
+    } else if (!newOpen && activeSection === 'credentials' && credentialsCloseHandler.current) {
+      credentialsCloseHandler.current(newOpen)
     } else {
       onOpenChange(newOpen)
     }
@@ -139,7 +142,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               <Account onOpenChange={onOpenChange} />
             </div>
             <div className={cn('h-full', activeSection === 'credentials' ? 'block' : 'hidden')}>
-              <Credentials onOpenChange={onOpenChange} />
+              <Credentials
+                onOpenChange={onOpenChange}
+                registerCloseHandler={(handler) => {
+                  credentialsCloseHandler.current = handler
+                }}
+              />
             </div>
             <div className={cn('h-full', activeSection === 'apikeys' ? 'block' : 'hidden')}>
               <ApiKeys onOpenChange={onOpenChange} />

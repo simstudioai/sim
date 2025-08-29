@@ -24,6 +24,8 @@ interface SlackChannelSelectorProps {
   credential: string
   label?: string
   disabled?: boolean
+  workflowId?: string
+  isForeignCredential?: boolean
 }
 
 export function SlackChannelSelector({
@@ -32,6 +34,8 @@ export function SlackChannelSelector({
   credential,
   label = 'Select Slack channel',
   disabled = false,
+  workflowId,
+  isForeignCredential = false,
 }: SlackChannelSelectorProps) {
   const [channels, setChannels] = useState<SlackChannelInfo[]>([])
   const [loading, setLoading] = useState(false)
@@ -51,7 +55,7 @@ export function SlackChannelSelector({
       const res = await fetch('/api/tools/slack/channels', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential }),
+        body: JSON.stringify({ credential, workflowId }),
       })
 
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
@@ -125,6 +129,7 @@ export function SlackChannelSelector({
           aria-expanded={open}
           className='relative w-full justify-between'
           disabled={disabled || !credential}
+          title={isForeignCredential ? 'Using a shared account' : undefined}
         >
           <div className='flex max-w-[calc(100%-20px)] items-center gap-2 overflow-hidden'>
             <SlackIcon className='h-4 w-4 text-[#611f69]' />
@@ -132,6 +137,11 @@ export function SlackChannelSelector({
               <>
                 {getChannelIcon(selectedChannel)}
                 <span className='truncate font-normal'>{formatChannelName(selectedChannel)}</span>
+              </>
+            ) : value ? (
+              <>
+                <Hash className='h-1.5 w-1.5' />
+                <span className='truncate font-normal'>{value}</span>
               </>
             ) : (
               <span className='truncate text-muted-foreground'>{label}</span>

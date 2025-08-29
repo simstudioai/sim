@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useTagSelection } from '@/hooks/use-tag-selection'
+import { useOperationQueueStore } from '@/stores/operation-queue/store'
 
 const logger = createLogger('ShortInput')
 
@@ -329,6 +330,9 @@ export function ShortInput({
         onBlur={() => {
           setIsFocused(false)
           setShowEnvVars(false)
+          try {
+            useOperationQueueStore.getState().flushDebouncedForBlock(blockId)
+          } catch {}
         }}
         onDrop={handleDrop}
         onDragOver={handleDragOver}

@@ -22,7 +22,7 @@ const PLAN_NAMES = {
 } as const
 
 interface UsageIndicatorProps {
-  onClick?: (badgeType: 'add' | 'upgrade') => void
+  onClick?: () => void
 }
 
 export function UsageIndicator({ onClick }: UsageIndicatorProps) {
@@ -39,7 +39,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   // Show skeleton while loading
   if (isLoading) {
     return (
-      <div className={CONTAINER_STYLES} onClick={() => onClick?.('upgrade')}>
+      <div className={CONTAINER_STYLES} onClick={() => onClick?.()}>
         <div className='space-y-2'>
           {/* Plan and usage info skeleton */}
           <div className='flex items-center justify-between'>
@@ -67,12 +67,12 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         : 'free'
 
   // Determine badge to show
-  const showAddBadge = planType !== 'free' && usage.percentUsed >= 50
-  const badgeText = planType === 'free' ? 'Upgrade' : 'Add'
-  const badgeType = planType === 'free' ? 'upgrade' : 'add'
+  const billingStatus = useSubscriptionStore.getState().getBillingStatus()
+  const isBlocked = billingStatus === 'blocked'
+  const badgeText = isBlocked ? 'Payment Failed' : planType === 'free' ? 'Upgrade' : undefined
 
   return (
-    <div className={CONTAINER_STYLES} onClick={() => onClick?.(badgeType)}>
+    <div className={CONTAINER_STYLES} onClick={() => onClick?.()}>
       <div className='space-y-2'>
         {/* Plan and usage info */}
         <div className='flex items-center justify-between'>
@@ -85,17 +85,15 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
             >
               {PLAN_NAMES[planType]}
             </span>
-            {(showAddBadge || planType === 'free') && (
-              <Badge className={GRADIENT_BADGE_STYLES}>{badgeText}</Badge>
-            )}
+            {badgeText ? <Badge className={GRADIENT_BADGE_STYLES}>{badgeText}</Badge> : null}
           </div>
           <span className='text-muted-foreground text-xs tabular-nums'>
-            ${usage.current.toFixed(2)} / ${usage.limit}
+            {isBlocked ? 'Payment required' : `$${usage.current.toFixed(2)} / $${usage.limit}`}
           </span>
         </div>
 
-        {/* Progress Bar */}
-        <Progress value={progressPercentage} className='h-2' />
+        {/* Progress Bar with color: yellow for warning, red for full/blocked */}
+        <Progress value={isBlocked ? 100 : progressPercentage} className='h-2' />
       </div>
     </div>
   )

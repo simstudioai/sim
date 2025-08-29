@@ -99,6 +99,8 @@ export interface DocumentsCache {
   documents: DocumentData[]
   pagination: DocumentsPagination
   searchQuery?: string
+  sortBy?: string
+  sortOrder?: string
   lastFetchTime: number
 }
 
@@ -120,7 +122,13 @@ interface KnowledgeStore {
   getKnowledgeBase: (id: string) => Promise<KnowledgeBaseData | null>
   getDocuments: (
     knowledgeBaseId: string,
-    options?: { search?: string; limit?: number; offset?: number }
+    options?: {
+      search?: string
+      limit?: number
+      offset?: number
+      sortBy?: string
+      sortOrder?: string
+    }
   ) => Promise<DocumentData[]>
   getChunks: (
     knowledgeBaseId: string,
@@ -130,7 +138,13 @@ interface KnowledgeStore {
   getKnowledgeBasesList: (workspaceId?: string) => Promise<KnowledgeBaseData[]>
   refreshDocuments: (
     knowledgeBaseId: string,
-    options?: { search?: string; limit?: number; offset?: number }
+    options?: {
+      search?: string
+      limit?: number
+      offset?: number
+      sortBy?: string
+      sortOrder?: string
+    }
   ) => Promise<DocumentData[]>
   refreshChunks: (
     knowledgeBaseId: string,
@@ -257,7 +271,13 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
 
   getDocuments: async (
     knowledgeBaseId: string,
-    options?: { search?: string; limit?: number; offset?: number }
+    options?: {
+      search?: string
+      limit?: number
+      offset?: number
+      sortBy?: string
+      sortOrder?: string
+    }
   ) => {
     const state = get()
 
@@ -266,12 +286,16 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
     const requestLimit = options?.limit || 50
     const requestOffset = options?.offset || 0
     const requestSearch = options?.search
+    const requestSortBy = options?.sortBy
+    const requestSortOrder = options?.sortOrder
 
     if (
       cached &&
       cached.searchQuery === requestSearch &&
       cached.pagination.limit === requestLimit &&
-      cached.pagination.offset === requestOffset
+      cached.pagination.offset === requestOffset &&
+      cached.sortBy === requestSortBy &&
+      cached.sortOrder === requestSortOrder
     ) {
       return cached.documents
     }
@@ -289,6 +313,8 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       // Build query parameters using the same defaults as caching
       const params = new URLSearchParams()
       if (requestSearch) params.set('search', requestSearch)
+      if (requestSortBy) params.set('sortBy', requestSortBy)
+      if (requestSortOrder) params.set('sortOrder', requestSortOrder)
       params.set('limit', requestLimit.toString())
       params.set('offset', requestOffset.toString())
 
@@ -317,6 +343,8 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         documents,
         pagination,
         searchQuery: requestSearch,
+        sortBy: requestSortBy,
+        sortOrder: requestSortOrder,
         lastFetchTime: Date.now(),
       }
 
@@ -510,7 +538,13 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
 
   refreshDocuments: async (
     knowledgeBaseId: string,
-    options?: { search?: string; limit?: number; offset?: number }
+    options?: {
+      search?: string
+      limit?: number
+      offset?: number
+      sortBy?: string
+      sortOrder?: string
+    }
   ) => {
     const state = get()
 
@@ -528,9 +562,13 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       const requestLimit = options?.limit || 50
       const requestOffset = options?.offset || 0
       const requestSearch = options?.search
+      const requestSortBy = options?.sortBy
+      const requestSortOrder = options?.sortOrder
 
       const params = new URLSearchParams()
       if (requestSearch) params.set('search', requestSearch)
+      if (requestSortBy) params.set('sortBy', requestSortBy)
+      if (requestSortOrder) params.set('sortOrder', requestSortOrder)
       params.set('limit', requestLimit.toString())
       params.set('offset', requestOffset.toString())
 
@@ -559,6 +597,8 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         documents,
         pagination,
         searchQuery: requestSearch,
+        sortBy: requestSortBy,
+        sortOrder: requestSortOrder,
         lastFetchTime: Date.now(),
       }
 

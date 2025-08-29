@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 
 import path from 'path'
-import { DocsChunker } from '@/lib/documents/docs-chunker'
-import type { DocChunk } from '@/lib/documents/types'
+import { DocsChunker } from '@/lib/knowledge/documents/docs-chunker'
+import type { DocChunk } from '@/lib/knowledge/documents/types'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('ChunkDocsScript')

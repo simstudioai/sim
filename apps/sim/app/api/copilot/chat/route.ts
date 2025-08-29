@@ -1,4 +1,3 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -11,77 +10,36 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/auth'
 import { getCopilotModel } from '@/lib/copilot/config'
-import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
+import type { CopilotProviderConfig } from '@/lib/copilot/types'
 import { env } from '@/lib/env'
+import { generateChatTitle } from '@/lib/generate-chat-title'
 import { createLogger } from '@/lib/logs/console/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
-import { downloadFile } from '@/lib/uploads'
-import { downloadFromS3WithConfig } from '@/lib/uploads/s3/s3-client'
-import { S3_COPILOT_CONFIG, USE_S3_STORAGE } from '@/lib/uploads/setup'
+import { createFileContent, isSupportedFileType } from '@/lib/uploads/file-utils'
+import { S3_COPILOT_CONFIG } from '@/lib/uploads/setup'
+import { downloadFile, getStorageProvider } from '@/lib/uploads/storage-client'
 import { db } from '@/db'
 import { copilotChats } from '@/db/schema'
-import { executeProviderRequest } from '@/providers'
-import { createAnthropicFileContent, isSupportedFileType } from './file-utils'
 
 const logger = createLogger('CopilotChatAPI')
 
-// Sim Agent API configuration
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
-function getRequestOrigin(_req: NextRequest): string {
-  try {
-    // Strictly use configured Better Auth URL
-    return env.BETTER_AUTH_URL || ''
-  } catch (_) {
-    return ''
-  }
-}
-
-function deriveKey(keyString: string): Buffer {
-  return createHash('sha256').update(keyString, 'utf8').digest()
-}
-
-function decryptWithKey(encryptedValue: string, keyString: string): string {
-  const [ivHex, encryptedHex, authTagHex] = encryptedValue.split(':')
-  if (!ivHex || !encryptedHex || !authTagHex) {
-    throw new Error('Invalid encrypted format')
-  }
-  const key = deriveKey(keyString)
-  const iv = Buffer.from(ivHex, 'hex')
-  const decipher = createDecipheriv('aes-256-gcm', key, iv)
-  decipher.setAuthTag(Buffer.from(authTagHex, 'hex'))
-  let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
-  decrypted += decipher.final('utf8')
-  return decrypted
-}
-
-function encryptWithKey(plaintext: string, keyString: string): string {
-  const key = deriveKey(keyString)
-  const iv = randomBytes(16)
-  const cipher = createCipheriv('aes-256-gcm', key, iv)
-  let encrypted = cipher.update(plaintext, 'utf8', 'hex')
-  encrypted += cipher.final('hex')
-  const authTag = cipher.getAuthTag().toString('hex')
-  return `${iv.toString('hex')}:${encrypted}:${authTag}`
-}
-
-// Schema for file attachments
 const FileAttachmentSchema = z.object({
   id: z.string(),
-  s3_key: z.string(),
+  key: z.string(),
   filename: z.string(),
   media_type: z.string(),
   size: z.number(),
 })
 
-// Schema for chat messages
 const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   userMessageId: z.string().optional(), // ID from frontend for the user message
   chatId: z.string().optional(),
   workflowId: z.string().min(1, 'Workflow ID is required'),
   mode: z.enum(['ask', 'agent']).optional().default('agent'),
-  depth: z.number().int().min(-2).max(3).optional().default(0),
+  depth: z.number().int().min(0).max(3).optional().default(0),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
@@ -89,90 +47,20 @@ const ChatMessageSchema = z.object({
   fileAttachments: z.array(FileAttachmentSchema).optional(),
   provider: z.string().optional().default('openai'),
   conversationId: z.string().optional(),
-})
-
-/**
- * Generate a chat title using LLM
- */
-async function generateChatTitle(userMessage: string): Promise<string> {
-  try {
-    const { provider, model } = getCopilotModel('title')
-
-    // Get the appropriate API key for the provider
-    let apiKey: string | undefined
-    if (provider === 'anthropic') {
-      // Use rotating API key for Anthropic
-      const { getRotatingApiKey } = require('@/lib/utils')
-      try {
-        apiKey = getRotatingApiKey('anthropic')
-        logger.debug(`Using rotating API key for Anthropic title generation`)
-      } catch (e) {
-        // If rotation fails, let the provider handle it
-        logger.warn(`Failed to get rotating API key for Anthropic:`, e)
-      }
-    }
-
-    const response = await executeProviderRequest(provider, {
-      model,
-      systemPrompt: TITLE_GENERATION_SYSTEM_PROMPT,
-      context: TITLE_GENERATION_USER_PROMPT(userMessage),
-      temperature: 0.3,
-      maxTokens: 50,
-      apiKey: apiKey || '',
-      stream: false,
-    })
-
-    if (typeof response === 'object' && 'content' in response) {
-      return response.content?.trim() || 'New Chat'
-    }
-
-    return 'New Chat'
-  } catch (error) {
-    logger.error('Failed to generate chat title:', error)
-    return 'New Chat'
-  }
-}
-
-/**
- * Generate chat title asynchronously and update the database
- */
-async function generateChatTitleAsync(
-  chatId: string,
-  userMessage: string,
-  requestId: string,
-  streamController?: ReadableStreamDefaultController<Uint8Array>
-): Promise<void> {
-  try {
-    // logger.info(`[${requestId}] Starting async title generation for chat ${chatId}`)
-
-    const title = await generateChatTitle(userMessage)
-
-    // Update the chat with the generated title
-    await db
-      .update(copilotChats)
-      .set({
-        title,
-        updatedAt: new Date(),
+  contexts: z
+    .array(
+      z.object({
+        kind: z.enum(['past_chat', 'workflow', 'blocks', 'logs', 'knowledge', 'templates']),
+        label: z.string(),
+        chatId: z.string().optional(),
+        workflowId: z.string().optional(),
+        knowledgeId: z.string().optional(),
+        blockId: z.string().optional(),
+        templateId: z.string().optional(),
       })
-      .where(eq(copilotChats.id, chatId))
-
-    // Send title_updated event to client if streaming
-    if (streamController) {
-      const encoder = new TextEncoder()
-      const titleEvent = `data: ${JSON.stringify({
-        type: 'title_updated',
-        title: title,
-      })}\n\n`
-      streamController.enqueue(encoder.encode(titleEvent))
-      logger.debug(`[${requestId}] Sent title_updated event to client: "${title}"`)
-    }
-
-    // logger.info(`[${requestId}] Generated title for chat ${chatId}: "${title}"`)
-  } catch (error) {
-    logger.error(`[${requestId}] Failed to generate title for chat ${chatId}:`, error)
-    // Don't throw - this is a background operation
-  }
-}
+    )
+    .optional(),
+})
 
 /**
  * POST /api/copilot/chat
@@ -206,14 +94,37 @@ export async function POST(req: NextRequest) {
       fileAttachments,
       provider,
       conversationId,
+      contexts,
     } = ChatMessageSchema.parse(body)
-
-    // Derive request origin for downstream service
-    const requestOrigin = getRequestOrigin(req)
-
-    if (!requestOrigin) {
-      logger.error(`[${tracker.requestId}] Missing required configuration: BETTER_AUTH_URL`)
-      return createInternalServerErrorResponse('Missing required configuration: BETTER_AUTH_URL')
+    try {
+      logger.info(`[${tracker.requestId}] Received chat POST`, {
+        hasContexts: Array.isArray(contexts),
+        contextsCount: Array.isArray(contexts) ? contexts.length : 0,
+        contextsPreview: Array.isArray(contexts)
+          ? contexts.map((c: any) => ({
+              kind: c?.kind,
+              chatId: c?.chatId,
+              workflowId: c?.workflowId,
+              label: c?.label,
+            }))
+          : undefined,
+      })
+    } catch {}
+    // Preprocess contexts server-side
+    let agentContexts: Array<{ type: string; content: string }> = []
+    if (Array.isArray(contexts) && contexts.length > 0) {
+      try {
+        const { processContextsServer } = await import('@/lib/copilot/process-contents')
+        const processed = await processContextsServer(contexts as any, authenticatedUserId)
+        agentContexts = processed
+        logger.info(`[${tracker.requestId}] Contexts processed for request`, {
+          processedCount: agentContexts.length,
+          kinds: agentContexts.map((c) => c.type),
+          lengthPreview: agentContexts.map((c) => c.content?.length ?? 0),
+        })
+      } catch (e) {
+        logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
+      }
     }
 
     // Consolidation mapping: map negative depths to base depth with prefetch=true
@@ -228,22 +139,6 @@ export async function POST(req: NextRequest) {
         effectivePrefetch = true
       }
     }
-
-    // logger.info(`[${tracker.requestId}] Processing copilot chat request`, {
-    //   userId: authenticatedUserId,
-    //   workflowId,
-    //   chatId,
-    //   mode,
-    //   stream,
-    //   createNewChat,
-    //   messageLength: message.length,
-    //   hasImplicitFeedback: !!implicitFeedback,
-    //   provider: provider || 'openai',
-    //   hasConversationId: !!conversationId,
-    //   depth,
-    //   prefetch,
-    //   origin: requestOrigin,
-    // })
 
     // Handle chat context
     let currentChat: any = null
@@ -285,8 +180,6 @@ export async function POST(req: NextRequest) {
     // Process file attachments if present
     const processedFileContents: any[] = []
     if (fileAttachments && fileAttachments.length > 0) {
-      // logger.info(`[${tracker.requestId}] Processing ${fileAttachments.length} file attachments`)
-
       for (const attachment of fileAttachments) {
         try {
           // Check if file type is supported
@@ -295,23 +188,30 @@ export async function POST(req: NextRequest) {
             continue
           }
 
-          // Download file from S3
-          // logger.info(`[${tracker.requestId}] Downloading file: ${attachment.s3_key}`)
+          const storageProvider = getStorageProvider()
           let fileBuffer: Buffer
-          if (USE_S3_STORAGE) {
-            fileBuffer = await downloadFromS3WithConfig(attachment.s3_key, S3_COPILOT_CONFIG)
+
+          if (storageProvider === 's3') {
+            fileBuffer = await downloadFile(attachment.key, {
+              bucket: S3_COPILOT_CONFIG.bucket,
+              region: S3_COPILOT_CONFIG.region,
+            })
+          } else if (storageProvider === 'blob') {
+            const { BLOB_COPILOT_CONFIG } = await import('@/lib/uploads/setup')
+            fileBuffer = await downloadFile(attachment.key, {
+              containerName: BLOB_COPILOT_CONFIG.containerName,
+              accountName: BLOB_COPILOT_CONFIG.accountName,
+              accountKey: BLOB_COPILOT_CONFIG.accountKey,
+              connectionString: BLOB_COPILOT_CONFIG.connectionString,
+            })
           } else {
-            // Fallback to generic downloadFile for other storage providers
-            fileBuffer = await downloadFile(attachment.s3_key)
+            fileBuffer = await downloadFile(attachment.key)
           }
 
-          // Convert to Anthropic format
-          const fileContent = createAnthropicFileContent(fileBuffer, attachment.media_type)
+          // Convert to format
+          const fileContent = createFileContent(fileBuffer, attachment.media_type)
           if (fileContent) {
             processedFileContents.push(fileContent)
-            // logger.info(
-            //   `[${tracker.requestId}] Processed file: ${attachment.filename} (${attachment.media_type})`
-            // )
           }
         } catch (error) {
           logger.error(
@@ -336,14 +236,26 @@ export async function POST(req: NextRequest) {
         for (const attachment of msg.fileAttachments) {
           try {
             if (isSupportedFileType(attachment.media_type)) {
+              const storageProvider = getStorageProvider()
               let fileBuffer: Buffer
-              if (USE_S3_STORAGE) {
-                fileBuffer = await downloadFromS3WithConfig(attachment.s3_key, S3_COPILOT_CONFIG)
+
+              if (storageProvider === 's3') {
+                fileBuffer = await downloadFile(attachment.key, {
+                  bucket: S3_COPILOT_CONFIG.bucket,
+                  region: S3_COPILOT_CONFIG.region,
+                })
+              } else if (storageProvider === 'blob') {
+                const { BLOB_COPILOT_CONFIG } = await import('@/lib/uploads/setup')
+                fileBuffer = await downloadFile(attachment.key, {
+                  containerName: BLOB_COPILOT_CONFIG.containerName,
+                  accountName: BLOB_COPILOT_CONFIG.accountName,
+                  accountKey: BLOB_COPILOT_CONFIG.accountKey,
+                  connectionString: BLOB_COPILOT_CONFIG.connectionString,
+                })
               } else {
-                // Fallback to generic downloadFile for other storage providers
-                fileBuffer = await downloadFile(attachment.s3_key)
+                fileBuffer = await downloadFile(attachment.key)
               }
-              const fileContent = createAnthropicFileContent(fileBuffer, attachment.media_type)
+              const fileContent = createFileContent(fileBuffer, attachment.media_type)
               if (fileContent) {
                 content.push(fileContent)
               }
@@ -399,8 +311,31 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    const defaults = getCopilotModel('chat')
+    const modelToUse = env.COPILOT_MODEL || defaults.model
+
+    let providerConfig: CopilotProviderConfig | undefined
+    const providerEnv = env.COPILOT_PROVIDER as any
+
+    if (providerEnv) {
+      if (providerEnv === 'azure-openai') {
+        providerConfig = {
+          provider: 'azure-openai',
+          model: modelToUse,
+          apiKey: env.AZURE_OPENAI_API_KEY,
+          apiVersion: 'preview',
+          endpoint: env.AZURE_OPENAI_ENDPOINT,
+        }
+      } else {
+        providerConfig = {
+          provider: providerEnv,
+          model: modelToUse,
+          apiKey: env.COPILOT_API_KEY,
+        }
+      }
+    }
+
     // Determine provider and conversationId to use for this request
-    const providerToUse = provider || 'openai'
     const effectiveConversationId =
       (currentChat?.conversationId as string | undefined) || conversationId
 
@@ -416,15 +351,19 @@ export async function POST(req: NextRequest) {
       stream: stream,
       streamToolCalls: true,
       mode: mode,
-      provider: providerToUse,
+      ...(providerConfig ? { provider: providerConfig } : {}),
       ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
       ...(typeof effectiveDepth === 'number' ? { depth: effectiveDepth } : {}),
       ...(typeof effectivePrefetch === 'boolean' ? { prefetch: effectivePrefetch } : {}),
       ...(session?.user?.name && { userName: session.user.name }),
-      ...(requestOrigin ? { origin: requestOrigin } : {}),
+      ...(agentContexts.length > 0 && { context: agentContexts }),
     }
 
-    // Log the payload being sent to the streaming endpoint (logs currently disabled)
+    try {
+      logger.info(`[${tracker.requestId}] About to call Sim Agent with context`, {
+        context: (requestPayload as any).context,
+      })
+    } catch {}
 
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
@@ -455,8 +394,6 @@ export async function POST(req: NextRequest) {
 
     // If streaming is requested, forward the stream and update chat later
     if (stream && simAgentResponse.body) {
-      // logger.info(`[${tracker.requestId}] Streaming response from sim agent`)
-
       // Create user message to save
       const userMessage = {
         id: userMessageId || crypto.randomUUID(), // Use frontend ID if provided
@@ -464,6 +401,11 @@ export async function POST(req: NextRequest) {
         content: message,
         timestamp: new Date().toISOString(),
         ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
+        ...(Array.isArray(contexts) && contexts.length > 0 && { contexts }),
+        ...(Array.isArray(contexts) &&
+          contexts.length > 0 && {
+            contentBlocks: [{ type: 'contexts', contexts: contexts as any, timestamp: Date.now() }],
+          }),
       }
 
       // Create a pass-through stream that captures the response
@@ -495,30 +437,30 @@ export async function POST(req: NextRequest) {
 
           // Start title generation in parallel if needed
           if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
-            // logger.info(`[${tracker.requestId}] Starting title generation with stream updates`, {
-            //   chatId: actualChatId,
-            //   hasTitle: !!currentChat?.title,
-            //   conversationLength: conversationHistory.length,
-            //   message: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
-            // })
-            generateChatTitleAsync(actualChatId, message, tracker.requestId, controller).catch(
-              (error) => {
+            generateChatTitle(message)
+              .then(async (title) => {
+                if (title) {
+                  await db
+                    .update(copilotChats)
+                    .set({
+                      title,
+                      updatedAt: new Date(),
+                    })
+                    .where(eq(copilotChats.id, actualChatId!))
+
+                  const titleEvent = `data: ${JSON.stringify({
+                    type: 'title_updated',
+                    title: title,
+                  })}\n\n`
+                  controller.enqueue(encoder.encode(titleEvent))
+                  logger.info(`[${tracker.requestId}] Generated and saved title: ${title}`)
+                }
+              })
+              .catch((error) => {
                 logger.error(`[${tracker.requestId}] Title generation failed:`, error)
-              }
-            )
+              })
           } else {
-            // logger.debug(`[${tracker.requestId}] Skipping title generation`, {
-            //   chatId: actualChatId,
-            //   hasTitle: !!currentChat?.title,
-            //   conversationLength: conversationHistory.length,
-            //   reason: !actualChatId
-            //     ? 'no chatId'
-            //     : currentChat?.title
-            //       ? 'already has title'
-            //       : conversationHistory.length > 0
-            //         ? 'not first message'
-            //         : 'unknown',
-            // })
+            logger.debug(`[${tracker.requestId}] Skipping title generation`)
           }
 
           // Forward the sim agent stream and capture assistant response
@@ -529,7 +471,6 @@ export async function POST(req: NextRequest) {
             while (true) {
               const { done, value } = await reader.read()
               if (done) {
-                // logger.info(`[${tracker.requestId}] Stream reading completed`)
                 break
               }
 
@@ -539,13 +480,9 @@ export async function POST(req: NextRequest) {
                 controller.enqueue(value)
               } catch (error) {
                 // Client disconnected - stop reading from sim agent
-                // logger.info(
-                //   `[${tracker.requestId}] Client disconnected, stopping stream processing`
-                // )
                 reader.cancel() // Stop reading from sim agent
                 break
               }
-              const chunkSize = value.byteLength
 
               // Decode and parse SSE events for logging and capturing content
               const decodedChunk = decoder.decode(value, { stream: true })
@@ -581,22 +518,12 @@ export async function POST(req: NextRequest) {
                         break
 
                       case 'reasoning':
-                        // Treat like thinking: do not add to assistantContent to avoid leaking
                         logger.debug(
                           `[${tracker.requestId}] Reasoning chunk received (${(event.data || event.content || '').length} chars)`
                         )
                         break
 
                       case 'tool_call':
-                        // logger.info(
-                        //   `[${tracker.requestId}] Tool call ${event.data?.partial ? '(partial)' : '(complete)'}:`,
-                        //   {
-                        //     id: event.data?.id,
-                        //     name: event.data?.name,
-                        //     arguments: event.data?.arguments,
-                        //     blockIndex: event.data?._blockIndex,
-                        //   }
-                        // )
                         if (!event.data?.partial) {
                           toolCalls.push(event.data)
                           if (event.data?.id) {
@@ -606,23 +533,12 @@ export async function POST(req: NextRequest) {
                         break
 
                       case 'tool_generating':
-                        // logger.info(`[${tracker.requestId}] Tool generating:`, {
-                        //   toolCallId: event.toolCallId,
-                        //   toolName: event.toolName,
-                        // })
                         if (event.toolCallId) {
                           startedToolExecutionIds.add(event.toolCallId)
                         }
                         break
 
                       case 'tool_result':
-                        // logger.info(`[${tracker.requestId}] Tool result received:`, {
-                        //   toolCallId: event.toolCallId,
-                        //   toolName: event.toolName,
-                        //   success: event.success,
-                        //   result: `${JSON.stringify(event.result).substring(0, 200)}...`,
-                        //   resultSize: JSON.stringify(event.result).length,
-                        // })
                         if (event.toolCallId) {
                           completedToolExecutionIds.add(event.toolCallId)
                         }
@@ -823,6 +739,11 @@ export async function POST(req: NextRequest) {
         content: message,
         timestamp: new Date().toISOString(),
         ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
+        ...(Array.isArray(contexts) && contexts.length > 0 && { contexts }),
+        ...(Array.isArray(contexts) &&
+          contexts.length > 0 && {
+            contentBlocks: [{ type: 'contexts', contexts: contexts as any, timestamp: Date.now() }],
+          }),
       }
 
       const assistantMessage = {
@@ -837,9 +758,22 @@ export async function POST(req: NextRequest) {
       // Start title generation in parallel if this is first message (non-streaming)
       if (actualChatId && !currentChat.title && conversationHistory.length === 0) {
         logger.info(`[${tracker.requestId}] Starting title generation for non-streaming response`)
-        generateChatTitleAsync(actualChatId, message, tracker.requestId).catch((error) => {
-          logger.error(`[${tracker.requestId}] Title generation failed:`, error)
-        })
+        generateChatTitle(message)
+          .then(async (title) => {
+            if (title) {
+              await db
+                .update(copilotChats)
+                .set({
+                  title,
+                  updatedAt: new Date(),
+                })
+                .where(eq(copilotChats.id, actualChatId!))
+              logger.info(`[${tracker.requestId}] Generated and saved title: ${title}`)
+            }
+          })
+          .catch((error) => {
+            logger.error(`[${tracker.requestId}] Title generation failed:`, error)
+          })
       }
 
       // Update chat in database immediately (without blocking for title)

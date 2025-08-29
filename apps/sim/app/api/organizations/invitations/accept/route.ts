@@ -5,7 +5,7 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { invitation, member, permissions, workspaceInvitation } from '@/db/schema'
+import { invitation, member, permissions, user, workspaceInvitation } from '@/db/schema'
 
 const logger = createLogger('OrganizationInvitationAcceptanceAPI')
 
@@ -70,11 +70,33 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    // Get user data to check email verification status
+    const userData = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1)
+
+    if (userData.length === 0) {
+      return NextResponse.redirect(
+        new URL(
+          '/invite/invite-error?reason=user-not-found',
+          env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+        )
+      )
+    }
+
+    // Check if user's email is verified
+    if (!userData[0].emailVerified) {
+      return NextResponse.redirect(
+        new URL(
+          `/invite/invite-error?reason=email-not-verified&details=${encodeURIComponent(`You must verify your email address (${userData[0].email}) before accepting invitations.`)}`,
+          env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+        )
+      )
+    }
+
     // Verify the email matches the current user
     if (orgInvitation.email !== session.user.email) {
       return NextResponse.redirect(
         new URL(
-          '/invite/invite-error?reason=email-mismatch',
+          `/invite/invite-error?reason=email-mismatch&details=${encodeURIComponent(`Invitation was sent to ${orgInvitation.email}, but you're logged in as ${userData[0].email}`)}`,
           env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
         )
       )
@@ -233,6 +255,24 @@ export async function POST(req: NextRequest) {
 
     if (orgInvitation.status !== 'pending') {
       return NextResponse.json({ error: 'Invitation already processed' }, { status: 400 })
+    }
+
+    // Get user data to check email verification status
+    const userData = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1)
+
+    if (userData.length === 0) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    // Check if user's email is verified
+    if (!userData[0].emailVerified) {
+      return NextResponse.json(
+        {
+          error: 'Email not verified',
+          message: `You must verify your email address (${userData[0].email}) before accepting invitations.`,
+        },
+        { status: 403 }
+      )
     }
 
     if (orgInvitation.email !== session.user.email) {

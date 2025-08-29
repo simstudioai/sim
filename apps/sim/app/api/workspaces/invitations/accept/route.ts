@@ -11,7 +11,6 @@ export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token')
 
   if (!token) {
-    // Redirect to a page explaining the error
     return NextResponse.redirect(
       new URL(
         '/invite/invite-error?reason=missing-token',
@@ -68,40 +67,39 @@ export async function GET(req: NextRequest) {
     const userEmail = session.user.email.toLowerCase()
     const invitationEmail = invitation.email.toLowerCase()
 
-    // Check if the logged-in user's email matches the invitation
-    // We'll use exact matching as the primary check
-    const isExactMatch = userEmail === invitationEmail
+    // Get user data to check email verification status and for error messages
+    const userData = await db
+      .select()
+      .from(user)
+      .where(eq(user.id, session.user.id))
+      .then((rows) => rows[0])
 
-    // For SSO or company email variants, check domain and normalized username
-    // This handles cases like john.doe@company.com vs john@company.com
-    const normalizeUsername = (email: string): string => {
-      return email
-        .split('@')[0]
-        .replace(/[^a-zA-Z0-9]/g, '')
-        .toLowerCase()
-    }
-
-    const isSameDomain = userEmail.split('@')[1] === invitationEmail.split('@')[1]
-    const normalizedUserEmail = normalizeUsername(userEmail)
-    const normalizedInvitationEmail = normalizeUsername(invitationEmail)
-    const isSimilarUsername =
-      normalizedUserEmail === normalizedInvitationEmail ||
-      normalizedUserEmail.includes(normalizedInvitationEmail) ||
-      normalizedInvitationEmail.includes(normalizedUserEmail)
-
-    const isValidMatch = isExactMatch || (isSameDomain && isSimilarUsername)
-
-    if (!isValidMatch) {
-      // Get user info to include in the error message
-      const userData = await db
-        .select()
-        .from(user)
-        .where(eq(user.id, session.user.id))
-        .then((rows) => rows[0])
-
+    if (!userData) {
       return NextResponse.redirect(
         new URL(
-          `/invite/invite-error?reason=email-mismatch&details=${encodeURIComponent(`Invitation was sent to ${invitation.email}, but you're logged in as ${userData?.email || session.user.email}`)}`,
+          '/invite/invite-error?reason=user-not-found',
+          env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+        )
+      )
+    }
+
+    // Check if user's email is verified
+    if (!userData.emailVerified) {
+      return NextResponse.redirect(
+        new URL(
+          `/invite/invite-error?reason=email-not-verified&details=${encodeURIComponent(`You must verify your email address (${userData.email}) before accepting invitations.`)}`,
+          env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+        )
+      )
+    }
+
+    // Check if the logged-in user's email matches the invitation
+    const isValidMatch = userEmail === invitationEmail
+
+    if (!isValidMatch) {
+      return NextResponse.redirect(
+        new URL(
+          `/invite/invite-error?reason=email-mismatch&details=${encodeURIComponent(`Invitation was sent to ${invitation.email}, but you're logged in as ${userData.email}`)}`,
           env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
         )
       )

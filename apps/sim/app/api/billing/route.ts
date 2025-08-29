@@ -5,7 +5,7 @@ import { getSimplifiedBillingSummary } from '@/lib/billing/core/billing'
 import { getOrganizationBillingData } from '@/lib/billing/core/organization-billing'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { member } from '@/db/schema'
+import { member, userStats } from '@/db/schema'
 
 const logger = createLogger('UnifiedBillingAPI')
 
@@ -45,6 +45,16 @@ export async function GET(request: NextRequest) {
     if (context === 'user') {
       // Get user billing (may include organization if they're part of one)
       billingData = await getSimplifiedBillingSummary(session.user.id, contextId || undefined)
+      // Attach billingBlocked status for the current user
+      const stats = await db
+        .select({ blocked: userStats.billingBlocked })
+        .from(userStats)
+        .where(eq(userStats.userId, session.user.id))
+        .limit(1)
+      billingData = {
+        ...billingData,
+        billingBlocked: stats.length > 0 ? !!stats[0].blocked : false,
+      }
     } else {
       // Get user role in organization for permission checks first
       const memberRecord = await db
@@ -78,8 +88,10 @@ export async function GET(request: NextRequest) {
         subscriptionStatus: rawBillingData.subscriptionStatus,
         totalSeats: rawBillingData.totalSeats,
         usedSeats: rawBillingData.usedSeats,
+        seatsCount: rawBillingData.seatsCount,
         totalCurrentUsage: rawBillingData.totalCurrentUsage,
         totalUsageLimit: rawBillingData.totalUsageLimit,
+        minimumBillingAmount: rawBillingData.minimumBillingAmount,
         averageUsagePerMember: rawBillingData.averageUsagePerMember,
         billingPeriodStart: rawBillingData.billingPeriodStart?.toISOString() || null,
         billingPeriodEnd: rawBillingData.billingPeriodEnd?.toISOString() || null,
@@ -92,11 +104,25 @@ export async function GET(request: NextRequest) {
 
       const userRole = memberRecord[0].role
 
+      // Include the requesting user's blocked flag as well so UI can reflect it
+      const stats = await db
+        .select({ blocked: userStats.billingBlocked })
+        .from(userStats)
+        .where(eq(userStats.userId, session.user.id))
+        .limit(1)
+
+      // Merge blocked flag into data for convenience
+      billingData = {
+        ...billingData,
+        billingBlocked: stats.length > 0 ? !!stats[0].blocked : false,
+      }
+
       return NextResponse.json({
         success: true,
         context,
         data: billingData,
         userRole,
+        billingBlocked: billingData.billingBlocked,
       })
     }
 

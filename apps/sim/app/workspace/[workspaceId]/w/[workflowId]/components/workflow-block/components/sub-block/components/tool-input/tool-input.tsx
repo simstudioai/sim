@@ -876,44 +876,6 @@ export function ToolInput({
     return result
   }
 
-  // Helper function to get credential for channel selector
-  const getCredentialForChannelSelector = (paramId: string): string => {
-    // Look for the tool that contains this parameter
-    const currentToolIndex = selectedTools.findIndex((tool) => {
-      const toolParams = getToolParametersConfig(tool.toolId)
-      return toolParams?.userInputParameters.some((p) => p.id === paramId)
-    })
-
-    if (currentToolIndex === -1) return ''
-
-    const currentTool = selectedTools[currentToolIndex]
-
-    // Enhanced credential detection logic from legacy implementation
-    // Check for bot token first, then OAuth credential
-    const botToken =
-      currentTool.params.botToken || (subBlockStore.getValue(blockId, 'botToken') as string)
-    const oauthCredential =
-      currentTool.params.credential || (subBlockStore.getValue(blockId, 'credential') as string)
-
-    if (botToken?.trim()) {
-      return botToken
-    }
-    if (oauthCredential?.trim()) {
-      return oauthCredential
-    }
-
-    // Fallback: check for other common credential parameter names
-    const credentialKeys = ['accessToken', 'token', 'apiKey', 'authToken']
-    for (const key of credentialKeys) {
-      const value = currentTool.params[key] || (subBlockStore.getValue(blockId, key) as string)
-      if (value?.trim()) {
-        return value
-      }
-    }
-
-    return ''
-  }
-
   // Render the appropriate UI component based on parameter configuration
   const renderParameterInput = (
     param: ToolParameterConfig,
@@ -1023,8 +985,9 @@ export function ToolInput({
               placeholder: uiComponent.placeholder,
             }}
             onChannelSelect={onChange}
-            credential={getCredentialForChannelSelector(param.id)}
             disabled={disabled}
+            isPreview={true}
+            previewValue={value}
           />
         )
 
@@ -1440,16 +1403,12 @@ export function ToolInput({
                                 Auto
                               </span>
                               <span
-                                className={`font-medium text-xs ${
-                                  tool.usageControl === 'force' ? 'block' : 'hidden'
-                                }`}
+                                className={`font-medium text-xs ${tool.usageControl === 'force' ? 'block' : 'hidden'}`}
                               >
                                 Force
                               </span>
                               <span
-                                className={`font-medium text-xs ${
-                                  tool.usageControl === 'none' ? 'block' : 'hidden'
-                                }`}
+                                className={`font-medium text-xs ${tool.usageControl === 'none' ? 'block' : 'hidden'}`}
                               >
                                 None
                               </span>
@@ -1461,19 +1420,19 @@ export function ToolInput({
                               {tool.usageControl === 'auto' && (
                                 <span>
                                   {' '}
-                                  <span className='font-medium'>Auto:</span> Let the model decide
+                                  <span className='font-medium'> Auto:</span> Let the model decide
                                   when to use the tool
                                 </span>
                               )}
                               {tool.usageControl === 'force' && (
                                 <span>
-                                  <span className='font-medium'>Force:</span> Always use this tool
+                                  <span className='font-medium'> Force:</span> Always use this tool
                                   in the response
                                 </span>
                               )}
                               {tool.usageControl === 'none' && (
                                 <span>
-                                  <span className='font-medium'>Deny:</span> Never use this tool
+                                  <span className='font-medium'> Deny:</span> Never use this tool
                                 </span>
                               )}
                             </p>

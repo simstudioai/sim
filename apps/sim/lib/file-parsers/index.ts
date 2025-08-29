@@ -77,6 +77,13 @@ function getParserInstances(): Record<string, FileParser> {
       }
 
       try {
+        const { DocParser } = require('@/lib/file-parsers/doc-parser')
+        parserInstances.doc = new DocParser()
+      } catch (error) {
+        logger.error('Failed to load DOC parser:', error)
+      }
+
+      try {
         const { TxtParser } = require('@/lib/file-parsers/txt-parser')
         parserInstances.txt = new TxtParser()
       } catch (error) {
@@ -102,7 +109,6 @@ function getParserInstances(): Record<string, FileParser> {
     }
   }
 
-  logger.info('Available parsers:', Object.keys(parserInstances))
   return parserInstances
 }
 
