@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import {
   AlertCircle,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Circle,
   CircleOff,
   FileText,
@@ -29,6 +31,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   ActionBar,
@@ -47,7 +50,6 @@ import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 
 const logger = createLogger('KnowledgeBase')
 
-// Constants
 const DOCUMENTS_PER_PAGE = 50
 
 interface KnowledgeBaseProps {
@@ -143,6 +145,8 @@ export function KnowledgeBase({
   const [isDeleting, setIsDeleting] = useState(false)
   const [isBulkOperating, setIsBulkOperating] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  const [sortBy, setSortBy] = useState<DocumentSortField>('uploadedAt')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
 
   const {
     knowledgeBase,
@@ -160,6 +164,8 @@ export function KnowledgeBase({
     search: searchQuery || undefined,
     limit: DOCUMENTS_PER_PAGE,
     offset: (currentPage - 1) * DOCUMENTS_PER_PAGE,
+    sortBy,
+    sortOrder,
   })
 
   const router = useRouter()
@@ -193,6 +199,41 @@ export function KnowledgeBase({
       setCurrentPage((prev) => prev - 1)
     }
   }, [hasPrevPage])
+
+  const handleSort = useCallback(
+    (field: DocumentSortField) => {
+      if (sortBy === field) {
+        // Toggle sort order if same field
+        setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+      } else {
+        // Set new field with default desc order
+        setSortBy(field)
+        setSortOrder('desc')
+      }
+      // Reset to first page when sorting changes
+      setCurrentPage(1)
+    },
+    [sortBy, sortOrder]
+  )
+
+  // Helper function to render sortable header
+  const renderSortableHeader = (field: DocumentSortField, label: string, className = '') => (
+    <th className={`px-4 pt-2 pb-3 text-left font-medium ${className}`}>
+      <button
+        type='button'
+        onClick={() => handleSort(field)}
+        className='flex items-center gap-1 text-muted-foreground text-xs leading-none transition-colors hover:text-foreground'
+      >
+        <span>{label}</span>
+        {sortBy === field &&
+          (sortOrder === 'asc' ? (
+            <ChevronUp className='h-3 w-3' />
+          ) : (
+            <ChevronDown className='h-3 w-3' />
+          ))}
+      </button>
+    </th>
+  )
 
   // Auto-refresh documents when there are processing documents
   useEffect(() => {
@@ -677,6 +718,7 @@ export function KnowledgeBase({
                     value={searchQuery}
                     onChange={handleSearchChange}
                     placeholder='Search documents...'
+                    isLoading={isLoadingDocuments}
                   />
 
                   <div className='flex items-center gap-3'>
@@ -732,26 +774,12 @@ export function KnowledgeBase({
                             className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[var(--brand-primary-hex)]/20 data-[state=checked]:border-[var(--brand-primary-hex)] data-[state=checked]:bg-[var(--brand-primary-hex)] [&>*]:h-3 [&>*]:w-3'
                           />
                         </th>
-                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
-                          <span className='text-muted-foreground text-xs leading-none'>Name</span>
-                        </th>
-                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
-                          <span className='text-muted-foreground text-xs leading-none'>Size</span>
-                        </th>
-                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
-                          <span className='text-muted-foreground text-xs leading-none'>Tokens</span>
-                        </th>
-                        <th className='hidden px-4 pt-2 pb-3 text-left font-medium lg:table-cell'>
-                          <span className='text-muted-foreground text-xs leading-none'>Chunks</span>
-                        </th>
-                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
-                          <span className='text-muted-foreground text-xs leading-none'>
-                            Uploaded
-                          </span>
-                        </th>
-                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
-                          <span className='text-muted-foreground text-xs leading-none'>Status</span>
-                        </th>
+                        {renderSortableHeader('filename', 'Name')}
+                        {renderSortableHeader('fileSize', 'Size')}
+                        {renderSortableHeader('tokenCount', 'Tokens')}
+                        {renderSortableHeader('chunkCount', 'Chunks', 'hidden lg:table-cell')}
+                        {renderSortableHeader('uploadedAt', 'Uploaded')}
+                        {renderSortableHeader('processingStatus', 'Status')}
                         <th className='px-4 pt-2 pb-3 text-left font-medium'>
                           <span className='text-muted-foreground text-xs leading-none'>
                             Actions
@@ -865,11 +893,7 @@ export function KnowledgeBase({
                               key={doc.id}
                               className={`border-b transition-colors hover:bg-accent/30 ${
                                 isSelected ? 'bg-accent/30' : ''
-                              } ${
-                                doc.processingStatus === 'completed'
-                                  ? 'cursor-pointer'
-                                  : 'cursor-default'
-                              }`}
+                              } ${doc.processingStatus === 'completed' ? 'cursor-pointer' : 'cursor-default'}`}
                               onClick={() => {
                                 if (doc.processingStatus === 'completed') {
                                   handleDocumentClick(doc.id)

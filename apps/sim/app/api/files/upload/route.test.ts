@@ -186,3 +186,190 @@ describe('File Upload API Route', () => {
     expect(response.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type')
   })
 })
+
+describe('File Upload Security Tests', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+
+    vi.doMock('@/lib/auth', () => ({
+      getSession: vi.fn().mockResolvedValue({
+        user: { id: 'test-user-id' },
+      }),
+    }))
+
+    vi.doMock('@/lib/uploads', () => ({
+      isUsingCloudStorage: vi.fn().mockReturnValue(false),
+      uploadFile: vi.fn().mockResolvedValue({
+        key: 'test-key',
+        path: '/test/path',
+      }),
+    }))
+
+    vi.doMock('@/lib/uploads/setup.server', () => ({}))
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('File Extension Validation', () => {
+    it('should accept allowed file types', async () => {
+      const allowedTypes = [
+        'pdf',
+        'doc',
+        'docx',
+        'txt',
+        'md',
+        'png',
+        'jpg',
+        'jpeg',
+        'gif',
+        'csv',
+        'xlsx',
+        'xls',
+      ]
+
+      for (const ext of allowedTypes) {
+        const formData = new FormData()
+        const file = new File(['test content'], `test.${ext}`, { type: 'application/octet-stream' })
+        formData.append('file', file)
+
+        const req = new Request('http://localhost/api/files/upload', {
+          method: 'POST',
+          body: formData,
+        })
+
+        const { POST } = await import('@/app/api/files/upload/route')
+        const response = await POST(req as any)
+
+        expect(response.status).toBe(200)
+      }
+    })
+
+    it('should reject HTML files to prevent XSS', async () => {
+      const formData = new FormData()
+      const maliciousContent = '<script>alert("XSS")</script>'
+      const file = new File([maliciousContent], 'malicious.html', { type: 'text/html' })
+      formData.append('file', file)
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const { POST } = await import('@/app/api/files/upload/route')
+      const response = await POST(req as any)
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.message).toContain("File type 'html' is not allowed")
+    })
+
+    it('should reject SVG files to prevent XSS', async () => {
+      const formData = new FormData()
+      const maliciousSvg = '<svg onload="alert(\'XSS\')" xmlns="http://www.w3.org/2000/svg"></svg>'
+      const file = new File([maliciousSvg], 'malicious.svg', { type: 'image/svg+xml' })
+      formData.append('file', file)
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const { POST } = await import('@/app/api/files/upload/route')
+      const response = await POST(req as any)
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.message).toContain("File type 'svg' is not allowed")
+    })
+
+    it('should reject JavaScript files', async () => {
+      const formData = new FormData()
+      const maliciousJs = 'alert("XSS")'
+      const file = new File([maliciousJs], 'malicious.js', { type: 'application/javascript' })
+      formData.append('file', file)
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const { POST } = await import('@/app/api/files/upload/route')
+      const response = await POST(req as any)
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.message).toContain("File type 'js' is not allowed")
+    })
+
+    it('should reject files without extensions', async () => {
+      const formData = new FormData()
+      const file = new File(['test content'], 'noextension', { type: 'application/octet-stream' })
+      formData.append('file', file)
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const { POST } = await import('@/app/api/files/upload/route')
+      const response = await POST(req as any)
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.message).toContain("File type 'noextension' is not allowed")
+    })
+
+    it('should handle multiple files with mixed valid/invalid types', async () => {
+      const formData = new FormData()
+
+      // Valid file
+      const validFile = new File(['valid content'], 'valid.pdf', { type: 'application/pdf' })
+      formData.append('file', validFile)
+
+      // Invalid file (should cause rejection of entire request)
+      const invalidFile = new File(['<script>alert("XSS")</script>'], 'malicious.html', {
+        type: 'text/html',
+      })
+      formData.append('file', invalidFile)
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const { POST } = await import('@/app/api/files/upload/route')
+      const response = await POST(req as any)
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.message).toContain("File type 'html' is not allowed")
+    })
+  })
+
+  describe('Authentication Requirements', () => {
+    it('should reject uploads without authentication', async () => {
+      vi.doMock('@/lib/auth', () => ({
+        getSession: vi.fn().mockResolvedValue(null),
+      }))
+
+      const formData = new FormData()
+      const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
+      formData.append('file', file)
+
+      const req = new Request('http://localhost/api/files/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const { POST } = await import('@/app/api/files/upload/route')
+      const response = await POST(req as any)
+
+      expect(response.status).toBe(401)
+      const data = await response.json()
+      expect(data.error).toBe('Unauthorized')
+    })
+  })
+})

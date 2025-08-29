@@ -44,15 +44,8 @@ export interface VariablesStore {
    */
   duplicateVariable: (id: string, providedId?: string) => string
 
-  loadVariables: (workflowId: string) => Promise<void>
-
   /**
    * Returns all variables for a specific workflow
    */
   getVariablesByWorkflowId: (workflowId: string) => Variable[]
-
-  /**
-   * Resets tracking of loaded workflows
-   */
-  resetLoaded: () => void
 }

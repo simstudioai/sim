@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getUserUsageLimitInfo, updateUserUsageLimit } from '@/lib/billing'
-import { updateMemberUsageLimit } from '@/lib/billing/core/organization-billing'
+import { getOrganizationBillingData } from '@/lib/billing/core/organization-billing'
 import { createLogger } from '@/lib/logs/console/logger'
 import { isOrganizationOwnerOrAdmin } from '@/lib/permissions/utils'
 
@@ -9,7 +9,7 @@ const logger = createLogger('UnifiedUsageLimitsAPI')
 
 /**
  * Unified Usage Limits Endpoint
- * GET/PUT /api/usage-limits?context=user|member&userId=<id>&organizationId=<id>
+ * GET/PUT /api/usage-limits?context=user|organization&userId=<id>&organizationId=<id>
  *
  */
 export async function GET(request: NextRequest) {
@@ -26,38 +26,11 @@ export async function GET(request: NextRequest) {
     const organizationId = searchParams.get('organizationId')
 
     // Validate context
-    if (!['user', 'member'].includes(context)) {
+    if (!['user', 'organization'].includes(context)) {
       return NextResponse.json(
-        { error: 'Invalid context. Must be "user" or "member"' },
+        { error: 'Invalid context. Must be "user" or "organization"' },
         { status: 400 }
       )
-    }
-
-    // For member context, require organizationId and check permissions
-    if (context === 'member') {
-      if (!organizationId) {
-        return NextResponse.json(
-          { error: 'Organization ID is required when context=member' },
-          { status: 400 }
-        )
-      }
-
-      // Check if the current user has permission to view member usage info
-      const hasPermission = await isOrganizationOwnerOrAdmin(session.user.id, organizationId)
-      if (!hasPermission) {
-        logger.warn('Unauthorized attempt to view member usage info', {
-          requesterId: session.user.id,
-          targetUserId: userId,
-          organizationId,
-        })
-        return NextResponse.json(
-          {
-            error:
-              'Permission denied. Only organization owners and admins can view member usage information',
-          },
-          { status: 403 }
-        )
-      }
     }
 
     // For user context, ensure they can only view their own info
@@ -69,6 +42,23 @@ export async function GET(request: NextRequest) {
     }
 
     // Get usage limit info
+    if (context === 'organization') {
+      if (!organizationId) {
+        return NextResponse.json(
+          { error: 'Organization ID is required when context=organization' },
+          { status: 400 }
+        )
+      }
+      const org = await getOrganizationBillingData(organizationId)
+      return NextResponse.json({
+        success: true,
+        context,
+        userId,
+        organizationId,
+        data: org,
+      })
+    }
+
     const usageLimitInfo = await getUserUsageLimitInfo(userId)
 
     return NextResponse.json({
@@ -96,12 +86,11 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') || 'user'
-    const userId = searchParams.get('userId') || session.user.id
-    const organizationId = searchParams.get('organizationId')
-
-    const { limit } = await request.json()
+    const body = await request.json()
+    const limit = body?.limit
+    const context = body?.context || 'user'
+    const organizationId = body?.organizationId
+    const userId = session.user.id
 
     if (typeof limit !== 'number' || limit < 0) {
       return NextResponse.json(
@@ -110,52 +99,42 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    if (!['user', 'organization'].includes(context)) {
+      return NextResponse.json(
+        { error: 'Invalid context. Must be "user" or "organization"' },
+        { status: 400 }
+      )
+    }
+
     if (context === 'user') {
       // Update user's own usage limit
-      if (userId !== session.user.id) {
-        return NextResponse.json({ error: "Cannot update other users' limits" }, { status: 403 })
-      }
-
       await updateUserUsageLimit(userId, limit)
-    } else if (context === 'member') {
-      // Update organization member's usage limit
+    } else if (context === 'organization') {
+      // context === 'organization'
       if (!organizationId) {
         return NextResponse.json(
-          { error: 'Organization ID is required when context=member' },
+          { error: 'Organization ID is required when context=organization' },
           { status: 400 }
         )
       }
 
-      // Check if the current user has permission to update member limits
       const hasPermission = await isOrganizationOwnerOrAdmin(session.user.id, organizationId)
       if (!hasPermission) {
-        logger.warn('Unauthorized attempt to update member usage limit', {
-          adminUserId: session.user.id,
-          targetUserId: userId,
-          organizationId,
-        })
-        return NextResponse.json(
-          {
-            error:
-              'Permission denied. Only organization owners and admins can update member usage limits',
-          },
-          { status: 403 }
-        )
+        return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
       }
 
-      logger.info('Authorized member usage limit update', {
-        adminUserId: session.user.id,
-        targetUserId: userId,
-        organizationId,
-        newLimit: limit,
-      })
-
-      await updateMemberUsageLimit(organizationId, userId, limit, session.user.id)
-    } else {
-      return NextResponse.json(
-        { error: 'Invalid context. Must be "user" or "member"' },
-        { status: 400 }
+      // Use the dedicated function to update org usage limit
+      const { updateOrganizationUsageLimit } = await import(
+        '@/lib/billing/core/organization-billing'
       )
+      const result = await updateOrganizationUsageLimit(organizationId, limit)
+
+      if (!result.success) {
+        return NextResponse.json({ error: result.error }, { status: 400 })
+      }
+
+      const updated = await getOrganizationBillingData(organizationId)
+      return NextResponse.json({ success: true, context, userId, organizationId, data: updated })
     }
 
     // Return updated limit info

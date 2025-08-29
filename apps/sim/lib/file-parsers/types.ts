@@ -8,4 +8,4 @@ export interface FileParser {
   parseBuffer?(buffer: Buffer): Promise<FileParseResult>
 }
 
-export type SupportedFileType = 'pdf' | 'csv' | 'docx' | 'xlsx' | 'xls'
+export type SupportedFileType = 'pdf' | 'csv' | 'doc' | 'docx' | 'txt' | 'md' | 'xlsx' | 'xls'

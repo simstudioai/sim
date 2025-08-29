@@ -16,7 +16,8 @@ export const env = createEnv({
 
   server: {
     // Core Database & Authentication
-    DATABASE_URL:                          z.string().url(),                       // Primary database connection string
+    DATABASE_URL:                          z.string().url(),                       // Primary database connection string (without SSL cert)
+    DATABASE_SSL_CERT:                     z.string().optional(),                  // SSL certificate content for database connection
     BETTER_AUTH_URL:                       z.string().url(),                       // Base URL for Better Auth service
     BETTER_AUTH_SECRET:                    z.string().min(32),                     // Secret key for Better Auth JWT signing
     DISABLE_REGISTRATION:                  z.boolean().optional(),                 // Flag to disable new user registration
@@ -24,10 +25,13 @@ export const env = createEnv({
     ALLOWED_LOGIN_DOMAINS:                 z.string().optional(),                  // Comma-separated list of allowed email domains for login
     ENCRYPTION_KEY:                        z.string().min(32),                     // Key for encrypting sensitive data
     INTERNAL_API_SECRET:                   z.string().min(32),                     // Secret for internal API authentication
+
+    // Copilot
+    COPILOT_PROVIDER:                      z.string().optional(),                  // Provider for copilot API calls
+    COPILOT_MODEL:                         z.string().optional(),                  // Model for copilot API calls
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
-    AGENT_API_DB_ENCRYPTION_KEY:           z.string().min(32).optional(),          // Key for encrypting sensitive data for sim agent
-    AGENT_API_NETWORK_ENCRYPTION_KEY:      z.string().min(32).optional(),          // Key for encrypting sensitive data for sim agent
+
 
     // Database & Storage
     POSTGRES_URL:                          z.string().url().optional(),            // Alternative PostgreSQL connection string
@@ -35,7 +39,6 @@ export const env = createEnv({
 
     // Payment & Billing
     STRIPE_SECRET_KEY:                     z.string().min(1).optional(),           // Stripe secret key for payment processing
-    STRIPE_BILLING_WEBHOOK_SECRET:         z.string().min(1).optional(),           // Webhook secret for billing events
     STRIPE_WEBHOOK_SECRET:                 z.string().min(1).optional(),           // General Stripe webhook secret
     STRIPE_FREE_PRICE_ID:                  z.string().min(1).optional(),           // Stripe price ID for free tier
     FREE_TIER_COST_LIMIT:                  z.number().optional(),                  // Cost limit for free tier users

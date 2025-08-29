@@ -160,19 +160,19 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
     return {
       success: true,
       output: {
-        data: {
-          id: firstDocument?.documentId || firstDocument?.id || '',
-          name: uploadCount > 1 ? `${uploadCount} documents` : firstDocument?.filename || 'Unknown',
-          type: 'document',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          enabled: true,
-        },
         message:
           uploadCount > 1
             ? `Successfully created ${uploadCount} documents in knowledge base`
             : `Successfully created document in knowledge base`,
-        documentId: firstDocument?.documentId || firstDocument?.id || '',
+        data: {
+          documentId: firstDocument?.documentId || firstDocument?.id || '',
+          documentName:
+            uploadCount > 1 ? `${uploadCount} documents` : firstDocument?.filename || 'Unknown',
+          type: 'document',
+          enabled: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
       },
     }
   },
@@ -182,8 +182,8 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       type: 'object',
       description: 'Information about the created document',
       properties: {
-        id: { type: 'string', description: 'Document ID' },
-        name: { type: 'string', description: 'Document name' },
+        documentId: { type: 'string', description: 'Document ID' },
+        documentName: { type: 'string', description: 'Document name' },
         type: { type: 'string', description: 'Document type' },
         enabled: { type: 'boolean', description: 'Whether the document is enabled' },
         createdAt: { type: 'string', description: 'Creation timestamp' },

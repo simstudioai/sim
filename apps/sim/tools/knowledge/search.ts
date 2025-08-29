@@ -110,12 +110,12 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       items: {
         type: 'object',
         properties: {
-          id: { type: 'string' },
-          content: { type: 'string' },
-          documentId: { type: 'string' },
-          chunkIndex: { type: 'number' },
-          similarity: { type: 'number' },
-          metadata: { type: 'object' },
+          documentId: { type: 'string', description: 'Document ID' },
+          documentName: { type: 'string', description: 'Document name' },
+          content: { type: 'string', description: 'Content of the result' },
+          chunkIndex: { type: 'number', description: 'Index of the chunk within the document' },
+          similarity: { type: 'number', description: 'Similarity score of the result' },
+          metadata: { type: 'object', description: 'Metadata of the result, including tags' },
         },
       },
     },

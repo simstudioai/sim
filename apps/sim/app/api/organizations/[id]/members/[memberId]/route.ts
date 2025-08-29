@@ -81,7 +81,6 @@ export async function GET(
         .select({
           currentPeriodCost: userStats.currentPeriodCost,
           currentUsageLimit: userStats.currentUsageLimit,
-          usageLimitSetBy: userStats.usageLimitSetBy,
           usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
           lastPeriodCost: userStats.lastPeriodCost,
         })
@@ -188,6 +187,11 @@ export async function PUT(
         { error: 'Only owners can promote members to admin' },
         { status: 403 }
       )
+    }
+
+    // Prevent admins from changing other admins' roles - only owners can modify admin roles
+    if (targetMember[0].role === 'admin' && userMember[0].role !== 'owner') {
+      return NextResponse.json({ error: 'Only owners can change admin roles' }, { status: 403 })
     }
 
     // Update member role

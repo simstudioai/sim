@@ -272,32 +272,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
       // Check if user stats record exists
       const userStatsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
 
-      if (userStatsRecords.length === 0) {
-        // Create new user stats record with trigger-specific counts
-        const triggerCounts = this.getTriggerCounts(trigger)
-
-        await db.insert(userStats).values({
-          id: crypto.randomUUID(),
-          userId: userId,
-          totalManualExecutions: triggerCounts.manual,
-          totalApiCalls: triggerCounts.api,
-          totalWebhookTriggers: triggerCounts.webhook,
-          totalScheduledExecutions: triggerCounts.schedule,
-          totalChatExecutions: triggerCounts.chat,
-          totalTokensUsed: costSummary.totalTokens,
-          totalCost: costToStore.toString(),
-          currentPeriodCost: costToStore.toString(), // Initialize current period usage
-          lastActive: new Date(),
-        })
-
-        logger.debug('Created new user stats record with cost data', {
-          userId,
-          trigger,
-          totalCost: costToStore,
-          totalTokens: costSummary.totalTokens,
-        })
-      } else {
-        // Update existing user stats record with trigger-specific increments
+      if (userStatsRecords.length > 0) {
+        // Update user stats record with trigger-specific increments
         const updateFields: any = {
           totalTokensUsed: sql`total_tokens_used + ${costSummary.totalTokens}`,
           totalCost: sql`total_cost + ${costToStore}`,
@@ -326,12 +302,18 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
         await db.update(userStats).set(updateFields).where(eq(userStats.userId, userId))
 
-        logger.debug('Updated existing user stats record with cost data', {
+        logger.debug('Updated user stats record with cost data', {
           userId,
           trigger,
           addedCost: costToStore,
           addedTokens: costSummary.totalTokens,
         })
+      } else {
+        logger.error('User stats record not found - should be created during onboarding', {
+          userId,
+          trigger,
+        })
+        return // Skip cost tracking if user stats doesn't exist
       }
     } catch (error) {
       logger.error('Error updating user stats with cost information', {
@@ -340,54 +322,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
         costSummary,
       })
       // Don't throw - we want execution to continue even if user stats update fails
-    }
-  }
-
-  /**
-   * Get trigger counts for new user stats records
-   */
-  private getTriggerCounts(trigger: ExecutionTrigger['type']): {
-    manual: number
-    api: number
-    webhook: number
-    schedule: number
-    chat: number
-  } {
-    const counts = { manual: 0, api: 0, webhook: 0, schedule: 0, chat: 0 }
-    switch (trigger) {
-      case 'manual':
-        counts.manual = 1
-        break
-      case 'api':
-        counts.api = 1
-        break
-      case 'webhook':
-        counts.webhook = 1
-        break
-      case 'schedule':
-        counts.schedule = 1
-        break
-      case 'chat':
-        counts.chat = 1
-        break
-    }
-    return counts
-  }
-
-  private getTriggerPrefix(triggerType: ExecutionTrigger['type']): string {
-    switch (triggerType) {
-      case 'api':
-        return 'API'
-      case 'webhook':
-        return 'Webhook'
-      case 'schedule':
-        return 'Scheduled'
-      case 'manual':
-        return 'Manual'
-      case 'chat':
-        return 'Chat'
-      default:
-        return 'Unknown'
     }
   }
 

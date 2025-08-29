@@ -21,11 +21,11 @@ vi.mock('@/lib/env', () => ({
     typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value),
 }))
 
-vi.mock('@/lib/documents/utils', () => ({
+vi.mock('@/lib/knowledge/documents/utils', () => ({
   retryWithExponentialBackoff: (fn: any) => fn(),
 }))
 
-vi.mock('@/lib/documents/document-processor', () => ({
+vi.mock('@/lib/knowledge/documents/document-processor', () => ({
   processDocument: vi.fn().mockResolvedValue({
     chunks: [
       {
@@ -149,12 +149,12 @@ vi.mock('@/db', () => {
   }
 })
 
+import { generateEmbeddings } from '@/lib/embeddings/utils'
+import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 import {
   checkChunkAccess,
   checkDocumentAccess,
   checkKnowledgeBaseAccess,
-  generateEmbeddings,
-  processDocumentAsync,
 } from '@/app/api/knowledge/utils'
 
 describe('Knowledge Utils', () => {

@@ -21,6 +21,7 @@ import {
 import { CheckoffTodoClientTool } from '@/lib/copilot/tools/client/other/checkoff-todo'
 import { MakeApiRequestClientTool } from '@/lib/copilot/tools/client/other/make-api-request'
 import { MarkTodoInProgressClientTool } from '@/lib/copilot/tools/client/other/mark-todo-in-progress'
+import { OAuthRequestAccessClientTool } from '@/lib/copilot/tools/client/other/oauth-request-access'
 import { PlanClientTool } from '@/lib/copilot/tools/client/other/plan'
 import { SearchDocumentationClientTool } from '@/lib/copilot/tools/client/other/search-documentation'
 import { SearchOnlineClientTool } from '@/lib/copilot/tools/client/other/search-online'
@@ -30,11 +31,16 @@ import { GetOAuthCredentialsClientTool } from '@/lib/copilot/tools/client/user/g
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
 import { BuildWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/build-workflow'
 import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
+import { GetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/get-global-workflow-variables'
 import { GetUserWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/get-user-workflow'
 import { GetWorkflowConsoleClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-console'
+import { GetWorkflowFromNameClientTool } from '@/lib/copilot/tools/client/workflow/get-workflow-from-name'
+import { ListUserWorkflowsClientTool } from '@/lib/copilot/tools/client/workflow/list-user-workflows'
 import { RunWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/run-workflow'
+import { SetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/set-global-workflow-variables'
 import { createLogger } from '@/lib/logs/console/logger'
 import type {
+  ChatContext,
   CopilotMessage,
   CopilotStore,
   CopilotToolCall,
@@ -72,9 +78,14 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   checkoff_todo: (id) => new CheckoffTodoClientTool(id),
   mark_todo_in_progress: (id) => new MarkTodoInProgressClientTool(id),
   gdrive_request_access: (id) => new GDriveRequestAccessClientTool(id),
+  oauth_request_access: (id) => new OAuthRequestAccessClientTool(id),
   edit_workflow: (id) => new EditWorkflowClientTool(id),
   build_workflow: (id) => new BuildWorkflowClientTool(id),
   get_user_workflow: (id) => new GetUserWorkflowClientTool(id),
+  list_user_workflows: (id) => new ListUserWorkflowsClientTool(id),
+  get_workflow_from_name: (id) => new GetWorkflowFromNameClientTool(id),
+  get_global_workflow_variables: (id) => new GetGlobalWorkflowVariablesClientTool(id),
+  set_global_workflow_variables: (id) => new SetGlobalWorkflowVariablesClientTool(id),
 }
 
 // Read-only static metadata for class-based tools (no instances)
@@ -98,6 +109,11 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   edit_workflow: (EditWorkflowClientTool as any)?.metadata,
   build_workflow: (BuildWorkflowClientTool as any)?.metadata,
   get_user_workflow: (GetUserWorkflowClientTool as any)?.metadata,
+  list_user_workflows: (ListUserWorkflowsClientTool as any)?.metadata,
+  get_workflow_from_name: (GetWorkflowFromNameClientTool as any)?.metadata,
+  get_global_workflow_variables: (GetGlobalWorkflowVariablesClientTool as any)?.metadata,
+  set_global_workflow_variables: (SetGlobalWorkflowVariablesClientTool as any)?.metadata,
+  oauth_request_access: (OAuthRequestAccessClientTool as any)?.metadata,
 }
 
 function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {
@@ -250,7 +266,19 @@ function abortAllInProgressTools(set: any, get: () => CopilotStore) {
 function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
   try {
     return messages.map((message) => {
-      if (message.role !== 'assistant') return message
+      if (message.role !== 'assistant') {
+        // For user messages (and others), restore contexts from a saved contexts block
+        if (Array.isArray(message.contentBlocks) && message.contentBlocks.length > 0) {
+          const ctxBlock = (message.contentBlocks as any[]).find((b: any) => b?.type === 'contexts')
+          if (ctxBlock && Array.isArray((ctxBlock as any).contexts)) {
+            return {
+              ...message,
+              contexts: (ctxBlock as any).contexts,
+            }
+          }
+        }
+        return message
+      }
 
       // Use existing contentBlocks ordering if present; otherwise only render text content
       const blocks: any[] = Array.isArray(message.contentBlocks)
@@ -393,7 +421,8 @@ class StringBuilder {
 // Helpers
 function createUserMessage(
   content: string,
-  fileAttachments?: MessageFileAttachment[]
+  fileAttachments?: MessageFileAttachment[],
+  contexts?: ChatContext[]
 ): CopilotMessage {
   return {
     id: crypto.randomUUID(),
@@ -401,6 +430,13 @@ function createUserMessage(
     content,
     timestamp: new Date().toISOString(),
     ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
+    ...(contexts && contexts.length > 0 && { contexts }),
+    ...(contexts &&
+      contexts.length > 0 && {
+        contentBlocks: [
+          { type: 'contexts', contexts: contexts as any, timestamp: Date.now() },
+        ] as any,
+      }),
   }
 }
 
@@ -464,6 +500,10 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
         ...(msg.fileAttachments &&
           msg.fileAttachments.length > 0 && {
             fileAttachments: msg.fileAttachments,
+          }),
+        ...((msg as any).contexts &&
+          Array.isArray((msg as any).contexts) && {
+            contexts: (msg as any).contexts,
           }),
       }
     })
@@ -1439,16 +1479,21 @@ export const useCopilotStore = create<CopilotStore>()(
     // Send a message (streaming only)
     sendMessage: async (message: string, options = {}) => {
       const { workflowId, currentChat, mode, revertState } = get()
-      const { stream = true, fileAttachments } = options as {
+      const {
+        stream = true,
+        fileAttachments,
+        contexts,
+      } = options as {
         stream?: boolean
         fileAttachments?: MessageFileAttachment[]
+        contexts?: ChatContext[]
       }
       if (!workflowId) return
 
       const abortController = new AbortController()
       set({ isSendingMessage: true, error: null, abortController })
 
-      const userMessage = createUserMessage(message, fileAttachments)
+      const userMessage = createUserMessage(message, fileAttachments, contexts)
       const streamingMessage = createStreamingMessage()
 
       let newMessages: CopilotMessage[]
@@ -1473,6 +1518,22 @@ export const useCopilotStore = create<CopilotStore>()(
       }
 
       try {
+        // Debug: log contexts presence before sending
+        try {
+          logger.info('sendMessage: preparing request', {
+            hasContexts: Array.isArray(contexts),
+            contextsCount: Array.isArray(contexts) ? contexts.length : 0,
+            contextsPreview: Array.isArray(contexts)
+              ? contexts.map((c: any) => ({
+                  kind: c?.kind,
+                  chatId: (c as any)?.chatId,
+                  workflowId: (c as any)?.workflowId,
+                  label: (c as any)?.label,
+                }))
+              : undefined,
+          })
+        } catch {}
+
         const result = await sendStreamingMessage({
           message,
           userMessageId: userMessage.id,
@@ -1484,6 +1545,7 @@ export const useCopilotStore = create<CopilotStore>()(
           createNewChat: !currentChat,
           stream,
           fileAttachments,
+          contexts,
           abortSignal: abortController.signal,
         })
 
@@ -1494,13 +1556,21 @@ export const useCopilotStore = create<CopilotStore>()(
           if (result.error === 'Request was aborted') {
             return
           }
-          const errorMessage = createErrorMessage(
-            streamingMessage.id,
-            result.error || 'Failed to send message'
-          )
+
+          // Check for specific status codes and provide custom messages
+          let errorContent = result.error || 'Failed to send message'
+          if (result.status === 401) {
+            errorContent =
+              '_Unauthorized request. You need a valid API key to use the copilot. You can get one by going to [sim.ai](https://sim.ai) settings and generating one there._'
+          } else if (result.status === 402) {
+            errorContent =
+              '_Usage limit exceeded. To continue using this service, upgrade your plan or top up on credits._'
+          }
+
+          const errorMessage = createErrorMessage(streamingMessage.id, errorContent)
           set((state) => ({
             messages: state.messages.map((m) => (m.id === streamingMessage.id ? errorMessage : m)),
-            error: result.error || 'Failed to send message',
+            error: errorContent,
             isSendingMessage: false,
             abortController: null,
           }))

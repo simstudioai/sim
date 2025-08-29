@@ -1,290 +1,40 @@
 'use client'
 
-import { type FC, memo, useEffect, useMemo, useRef, useState } from 'react'
+import { type FC, memo, useEffect, useMemo, useState } from 'react'
 import {
+  Blocks,
+  Bot,
   Check,
   Clipboard,
-  FileText,
-  Image,
+  Info,
+  LibraryBig,
   Loader2,
   RotateCcw,
+  Shapes,
   ThumbsDown,
   ThumbsUp,
+  Workflow,
   X,
 } from 'lucide-react'
 import { InlineToolCall } from '@/lib/copilot/inline-tool-call'
 import { createLogger } from '@/lib/logs/console/logger'
+import {
+  FileAttachmentDisplay,
+  SmoothStreamingText,
+  StreamingIndicator,
+  ThinkingBlock,
+  WordWrap,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components'
+import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotMessage as CopilotMessageType } from '@/stores/copilot/types'
-import CopilotMarkdownRenderer from './components/markdown-renderer'
-import { ThinkingBlock } from './components/thinking-block'
 
 const logger = createLogger('CopilotMessage')
 
 interface CopilotMessageProps {
   message: CopilotMessageType
   isStreaming?: boolean
-}
-
-// Memoized streaming indicator component for better performance
-const StreamingIndicator = memo(() => (
-  <div className='flex items-center py-1 text-muted-foreground transition-opacity duration-200 ease-in-out'>
-    <div className='flex space-x-0.5'>
-      <div
-        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
-        style={{ animationDelay: '0ms', animationDuration: '1.2s' }}
-      />
-      <div
-        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
-        style={{ animationDelay: '0.15s', animationDuration: '1.2s' }}
-      />
-      <div
-        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
-        style={{ animationDelay: '0.3s', animationDuration: '1.2s' }}
-      />
-    </div>
-  </div>
-))
-
-StreamingIndicator.displayName = 'StreamingIndicator'
-
-// File attachment display component
-interface FileAttachmentDisplayProps {
-  fileAttachments: any[]
-}
-
-const FileAttachmentDisplay = memo(({ fileAttachments }: FileAttachmentDisplayProps) => {
-  // Cache for file URLs to avoid re-fetching on every render
-  const [fileUrls, setFileUrls] = useState<Record<string, string>>({})
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${Math.round((bytes / k ** i) * 10) / 10} ${sizes[i]}`
-  }
-
-  const getFileIcon = (mediaType: string) => {
-    if (mediaType.startsWith('image/')) {
-      return <Image className='h-5 w-5 text-muted-foreground' />
-    }
-    if (mediaType.includes('pdf')) {
-      return <FileText className='h-5 w-5 text-red-500' />
-    }
-    if (mediaType.includes('text') || mediaType.includes('json') || mediaType.includes('xml')) {
-      return <FileText className='h-5 w-5 text-blue-500' />
-    }
-    return <FileText className='h-5 w-5 text-muted-foreground' />
-  }
-
-  const getFileUrl = (file: any) => {
-    const cacheKey = file.s3_key
-    if (fileUrls[cacheKey]) {
-      return fileUrls[cacheKey]
-    }
-
-    // Generate URL only once and cache it
-    const url = `/api/files/serve/s3/${encodeURIComponent(file.s3_key)}?bucket=copilot`
-    setFileUrls((prev) => ({ ...prev, [cacheKey]: url }))
-    return url
-  }
-
-  const handleFileClick = (file: any) => {
-    // Use cached URL or generate it
-    const serveUrl = getFileUrl(file)
-
-    // Open the file in a new tab
-    window.open(serveUrl, '_blank')
-  }
-
-  const isImageFile = (mediaType: string) => {
-    return mediaType.startsWith('image/')
-  }
-
-  return (
-    <>
-      {fileAttachments.map((file) => (
-        <div
-          key={file.id}
-          className='group relative h-16 w-16 cursor-pointer overflow-hidden rounded-md border border-border/50 bg-muted/20 transition-all hover:bg-muted/40'
-          onClick={() => handleFileClick(file)}
-          title={`${file.filename} (${formatFileSize(file.size)})`}
-        >
-          {isImageFile(file.media_type) ? (
-            // For images, show actual thumbnail
-            <img
-              src={getFileUrl(file)}
-              alt={file.filename}
-              className='h-full w-full object-cover'
-              onError={(e) => {
-                // If image fails to load, replace with icon
-                const target = e.target as HTMLImageElement
-                target.style.display = 'none'
-                const parent = target.parentElement
-                if (parent) {
-                  const iconContainer = document.createElement('div')
-                  iconContainer.className =
-                    'flex items-center justify-center w-full h-full bg-background/50'
-                  iconContainer.innerHTML =
-                    '<svg class="h-5 w-5 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>'
-                  parent.appendChild(iconContainer)
-                }
-              }}
-            />
-          ) : (
-            // For other files, show icon centered
-            <div className='flex h-full w-full items-center justify-center bg-background/50'>
-              {getFileIcon(file.media_type)}
-            </div>
-          )}
-
-          {/* Hover overlay effect */}
-          <div className='pointer-events-none absolute inset-0 bg-black/10 opacity-0 transition-opacity group-hover:opacity-100' />
-        </div>
-      ))}
-    </>
-  )
-})
-
-FileAttachmentDisplay.displayName = 'FileAttachmentDisplay'
-
-// Smooth streaming text component with typewriter effect
-interface SmoothStreamingTextProps {
-  content: string
-  isStreaming: boolean
-}
-
-const SmoothStreamingText = memo(
-  ({ content, isStreaming }: SmoothStreamingTextProps) => {
-    const [displayedContent, setDisplayedContent] = useState('')
-    const contentRef = useRef(content)
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-    const indexRef = useRef(0)
-    const streamingStartTimeRef = useRef<number | null>(null)
-    const isAnimatingRef = useRef(false)
-
-    useEffect(() => {
-      // Update content reference
-      contentRef.current = content
-
-      if (content.length === 0) {
-        setDisplayedContent('')
-        indexRef.current = 0
-        streamingStartTimeRef.current = null
-        return
-      }
-
-      if (isStreaming) {
-        // Start timing when streaming begins
-        if (streamingStartTimeRef.current === null) {
-          streamingStartTimeRef.current = Date.now()
-        }
-
-        // Continue animation if there's more content to show
-        if (indexRef.current < content.length) {
-          const animateText = () => {
-            const currentContent = contentRef.current
-            const currentIndex = indexRef.current
-
-            if (currentIndex < currentContent.length) {
-              // Add characters one by one for true character-by-character streaming
-              const chunkSize = 1
-              const newDisplayed = currentContent.slice(0, currentIndex + chunkSize)
-
-              setDisplayedContent(newDisplayed)
-              indexRef.current = currentIndex + chunkSize
-
-              // Consistent fast speed for all characters
-              const delay = 3 // Consistent fast delay in ms for all characters
-
-              timeoutRef.current = setTimeout(animateText, delay)
-            } else {
-              // Animation complete
-              isAnimatingRef.current = false
-            }
-          }
-
-          // Only start new animation if not already animating
-          if (!isAnimatingRef.current) {
-            // Clear any existing animation
-            if (timeoutRef.current) {
-              clearTimeout(timeoutRef.current)
-            }
-
-            isAnimatingRef.current = true
-            // Continue animation from current position
-            animateText()
-          }
-        }
-      } else {
-        // Not streaming, show all content immediately and reset timing
-        setDisplayedContent(content)
-        indexRef.current = content.length
-        isAnimatingRef.current = false
-        streamingStartTimeRef.current = null
-      }
-
-      // Cleanup on unmount
-      return () => {
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current)
-        }
-        isAnimatingRef.current = false
-      }
-    }, [content, isStreaming])
-
-    return (
-      <div className='relative max-w-full overflow-hidden' style={{ minHeight: '1.25rem' }}>
-        <CopilotMarkdownRenderer content={displayedContent} />
-      </div>
-    )
-  },
-  (prevProps, nextProps) => {
-    // Prevent re-renders during streaming unless content actually changed
-    return (
-      prevProps.content === nextProps.content && prevProps.isStreaming === nextProps.isStreaming
-      // markdownComponents is now memoized so no need to compare
-    )
-  }
-)
-
-SmoothStreamingText.displayName = 'SmoothStreamingText'
-
-// Maximum character length for a word before it's broken up
-const MAX_WORD_LENGTH = 25
-
-const WordWrap = ({ text }: { text: string }) => {
-  if (!text) return null
-
-  // Split text into words, keeping spaces and punctuation
-  const parts = text.split(/(\s+)/g)
-
-  return (
-    <>
-      {parts.map((part, index) => {
-        // If the part is whitespace or shorter than the max length, render it as is
-        if (part.match(/\s+/) || part.length <= MAX_WORD_LENGTH) {
-          return <span key={index}>{part}</span>
-        }
-
-        // For long words, break them up into chunks
-        const chunks = []
-        for (let i = 0; i < part.length; i += MAX_WORD_LENGTH) {
-          chunks.push(part.substring(i, i + MAX_WORD_LENGTH))
-        }
-
-        return (
-          <span key={index} className='break-all'>
-            {chunks.map((chunk, chunkIndex) => (
-              <span key={chunkIndex}>{chunk}</span>
-            ))}
-          </span>
-        )
-      })}
-    </>
-  )
 }
 
 const CopilotMessage: FC<CopilotMessageProps> = memo(
@@ -295,6 +45,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     const [showUpvoteSuccess, setShowUpvoteSuccess] = useState(false)
     const [showDownvoteSuccess, setShowDownvoteSuccess] = useState(false)
     const [showRestoreConfirmation, setShowRestoreConfirmation] = useState(false)
+    const [showAllContexts, setShowAllContexts] = useState(false)
 
     // Get checkpoint functionality from copilot store
     const {
@@ -621,6 +372,78 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             </div>
           )}
 
+          {/* Context chips displayed above the message bubble, independent of inline text */}
+          {(Array.isArray((message as any).contexts) && (message as any).contexts.length > 0) ||
+          (Array.isArray(message.contentBlocks) &&
+            (message.contentBlocks as any[]).some((b: any) => b?.type === 'contexts')) ? (
+            <div className='flex items-center justify-end gap-0'>
+              <div className='min-w-0 max-w-[80%]'>
+                <div className='mb-1 flex flex-wrap justify-end gap-1.5'>
+                  {(() => {
+                    const direct = Array.isArray((message as any).contexts)
+                      ? ((message as any).contexts as any[])
+                      : []
+                    const block = Array.isArray(message.contentBlocks)
+                      ? (message.contentBlocks as any[]).find((b: any) => b?.type === 'contexts')
+                      : null
+                    const fromBlock = Array.isArray((block as any)?.contexts)
+                      ? ((block as any).contexts as any[])
+                      : []
+                    const allContexts = direct.length > 0 ? direct : fromBlock
+                    const MAX_VISIBLE = 4
+                    const visible = showAllContexts
+                      ? allContexts
+                      : allContexts.slice(0, MAX_VISIBLE)
+                    return (
+                      <>
+                        {visible.map((ctx: any, idx: number) => (
+                          <span
+                            key={`ctx-${idx}-${ctx?.label || ctx?.kind}`}
+                            className='inline-flex items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)] px-1.5 py-0.5 text-[11px] text-foreground'
+                            title={ctx?.label || ctx?.kind}
+                          >
+                            {ctx?.kind === 'past_chat' ? (
+                              <Bot className='h-3 w-3 text-muted-foreground' />
+                            ) : ctx?.kind === 'workflow' ? (
+                              <Workflow className='h-3 w-3 text-muted-foreground' />
+                            ) : ctx?.kind === 'blocks' ? (
+                              <Blocks className='h-3 w-3 text-muted-foreground' />
+                            ) : ctx?.kind === 'knowledge' ? (
+                              <LibraryBig className='h-3 w-3 text-muted-foreground' />
+                            ) : ctx?.kind === 'templates' ? (
+                              <Shapes className='h-3 w-3 text-muted-foreground' />
+                            ) : (
+                              <Info className='h-3 w-3 text-muted-foreground' />
+                            )}
+                            <span className='max-w-[140px] truncate'>
+                              {ctx?.label || ctx?.kind}
+                            </span>
+                          </span>
+                        ))}
+                        {allContexts.length > MAX_VISIBLE && (
+                          <button
+                            type='button'
+                            onClick={() => setShowAllContexts((v) => !v)}
+                            className='inline-flex items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_10%,transparent)] px-1.5 py-0.5 text-[11px] text-foreground hover:bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)]'
+                            title={
+                              showAllContexts
+                                ? 'Show less'
+                                : `Show ${allContexts.length - MAX_VISIBLE} more`
+                            }
+                          >
+                            {showAllContexts
+                              ? 'Show less'
+                              : `+${allContexts.length - MAX_VISIBLE} more`}
+                          </button>
+                        )}
+                      </>
+                    )
+                  })()}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className='flex items-center justify-end gap-0'>
             {hasCheckpoints && (
               <div className='mr-1 inline-flex items-center justify-center'>
@@ -672,7 +495,39 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 }}
               >
                 <div className='whitespace-pre-wrap break-words font-normal text-base text-foreground leading-relaxed'>
-                  <WordWrap text={message.content} />
+                  {(() => {
+                    const text = message.content || ''
+                    const contexts: any[] = Array.isArray((message as any).contexts)
+                      ? ((message as any).contexts as any[])
+                      : []
+                    const labels = contexts.map((c) => c?.label).filter(Boolean) as string[]
+                    if (!labels.length) return <WordWrap text={text} />
+
+                    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                    const pattern = new RegExp(`@(${labels.map(escapeRegex).join('|')})`, 'g')
+
+                    const nodes: React.ReactNode[] = []
+                    let lastIndex = 0
+                    let match: RegExpExecArray | null
+                    while ((match = pattern.exec(text)) !== null) {
+                      const i = match.index
+                      const before = text.slice(lastIndex, i)
+                      if (before) nodes.push(before)
+                      const mention = match[0]
+                      nodes.push(
+                        <span
+                          key={`mention-${i}-${lastIndex}`}
+                          className='rounded-[6px] bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)] px-1'
+                        >
+                          {mention}
+                        </span>
+                      )
+                      lastIndex = i + mention.length
+                    }
+                    const tail = text.slice(lastIndex)
+                    if (tail) nodes.push(tail)
+                    return nodes
+                  })()}
                 </div>
               </div>
             </div>

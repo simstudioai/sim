@@ -1,12 +1,10 @@
-import { createHash, randomUUID } from 'crypto'
-import { eq, sql } from 'drizzle-orm'
+import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { deleteChunk, updateChunk } from '@/lib/knowledge/chunks/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { checkChunkAccess } from '@/app/api/knowledge/utils'
-import { db } from '@/db'
-import { document, embedding } from '@/db/schema'
 
 const logger = createLogger('ChunkByIdAPI')
 
@@ -102,33 +100,7 @@ export async function PUT(
     try {
       const validatedData = UpdateChunkSchema.parse(body)
 
-      const updateData: Partial<{
-        content: string
-        contentLength: number
-        tokenCount: number
-        chunkHash: string
-        enabled: boolean
-        updatedAt: Date
-      }> = {}
-
-      if (validatedData.content) {
-        updateData.content = validatedData.content
-        updateData.contentLength = validatedData.content.length
-        // Update token count estimation (rough approximation: 4 chars per token)
-        updateData.tokenCount = Math.ceil(validatedData.content.length / 4)
-        updateData.chunkHash = createHash('sha256').update(validatedData.content).digest('hex')
-      }
-
-      if (validatedData.enabled !== undefined) updateData.enabled = validatedData.enabled
-
-      await db.update(embedding).set(updateData).where(eq(embedding.id, chunkId))
-
-      // Fetch the updated chunk
-      const updatedChunk = await db
-        .select()
-        .from(embedding)
-        .where(eq(embedding.id, chunkId))
-        .limit(1)
+      const updatedChunk = await updateChunk(chunkId, validatedData, requestId)
 
       logger.info(
         `[${requestId}] Chunk updated: ${chunkId} in document ${documentId} in knowledge base ${knowledgeBaseId}`
@@ -136,7 +108,7 @@ export async function PUT(
 
       return NextResponse.json({
         success: true,
-        data: updatedChunk[0],
+        data: updatedChunk,
       })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
@@ -190,37 +162,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Use transaction to atomically delete chunk and update document statistics
-    await db.transaction(async (tx) => {
-      // Get chunk data before deletion for statistics update
-      const chunkToDelete = await tx
-        .select({
-          tokenCount: embedding.tokenCount,
-          contentLength: embedding.contentLength,
-        })
-        .from(embedding)
-        .where(eq(embedding.id, chunkId))
-        .limit(1)
-
-      if (chunkToDelete.length === 0) {
-        throw new Error('Chunk not found')
-      }
-
-      const chunk = chunkToDelete[0]
-
-      // Delete the chunk
-      await tx.delete(embedding).where(eq(embedding.id, chunkId))
-
-      // Update document statistics
-      await tx
-        .update(document)
-        .set({
-          chunkCount: sql`${document.chunkCount} - 1`,
-          tokenCount: sql`${document.tokenCount} - ${chunk.tokenCount}`,
-          characterCount: sql`${document.characterCount} - ${chunk.contentLength}`,
-        })
-        .where(eq(document.id, documentId))
-    })
+    await deleteChunk(chunkId, documentId, requestId)
 
     logger.info(
       `[${requestId}] Chunk deleted: ${chunkId} from document ${documentId} in knowledge base ${knowledgeBaseId}`

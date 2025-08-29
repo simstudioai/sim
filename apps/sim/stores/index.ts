@@ -93,7 +93,10 @@ function handleBeforeUnload(event: BeforeUnloadEvent): void {
     }
   }
 
-  // Note: Socket.IO handles real-time sync automatically
+  try {
+    const { useOperationQueueStore } = require('@/stores/operation-queue/store')
+    useOperationQueueStore.getState().flushAllDebounced()
+  } catch {}
 
   // Standard beforeunload pattern
   event.preventDefault()
@@ -228,7 +231,7 @@ export const resetAllStores = () => {
   useConsoleStore.setState({ entries: [], isOpen: false })
   useCopilotStore.setState({ messages: [], isSendingMessage: false, error: null })
   useCustomToolsStore.setState({ tools: {} })
-  useVariablesStore.getState().resetLoaded() // Reset variables store tracking
+  // Variables store has no tracking to reset; registry hydrates
   useSubscriptionStore.getState().reset() // Reset subscription store
 }
 

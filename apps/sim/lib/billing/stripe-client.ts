@@ -8,11 +8,7 @@ const logger = createLogger('StripeClient')
  * Check if Stripe credentials are valid
  */
 export function hasValidStripeCredentials(): boolean {
-  return !!(
-    env.STRIPE_SECRET_KEY &&
-    env.STRIPE_SECRET_KEY.trim() !== '' &&
-    env.STRIPE_SECRET_KEY !== 'placeholder'
-  )
+  return !!env.STRIPE_SECRET_KEY
 }
 
 /**

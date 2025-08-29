@@ -166,6 +166,15 @@ describe('Model Capabilities', () => {
       expect(supportsTemperature('GPT-4O')).toBe(true)
       expect(supportsTemperature('claude-sonnet-4-0')).toBe(true)
     })
+
+    it.concurrent(
+      'should inherit temperature support from provider for dynamically fetched models',
+      () => {
+        // OpenRouter models should inherit temperature support from provider capabilities
+        expect(supportsTemperature('openrouter/anthropic/claude-3.5-sonnet')).toBe(true)
+        expect(supportsTemperature('openrouter/openai/gpt-4')).toBe(true)
+      }
+    )
   })
 
   describe('getMaxTemperature', () => {
@@ -209,7 +218,7 @@ describe('Model Capabilities', () => {
       expect(getMaxTemperature('azure/o3')).toBeUndefined()
       expect(getMaxTemperature('azure/o4-mini')).toBeUndefined()
       expect(getMaxTemperature('deepseek-r1')).toBeUndefined()
-      // GPT-5 models don't support temperature (removed in our implementation)
+      // GPT-5 models don't support temperature
       expect(getMaxTemperature('gpt-5')).toBeUndefined()
       expect(getMaxTemperature('gpt-5-mini')).toBeUndefined()
       expect(getMaxTemperature('gpt-5-nano')).toBeUndefined()
@@ -224,6 +233,14 @@ describe('Model Capabilities', () => {
       expect(getMaxTemperature('GPT-4O')).toBe(2)
       expect(getMaxTemperature('CLAUDE-SONNET-4-0')).toBe(1)
     })
+
+    it.concurrent(
+      'should inherit max temperature from provider for dynamically fetched models',
+      () => {
+        expect(getMaxTemperature('openrouter/anthropic/claude-3.5-sonnet')).toBe(2)
+        expect(getMaxTemperature('openrouter/openai/gpt-4')).toBe(2)
+      }
+    )
   })
 
   describe('supportsToolUsageControl', () => {

@@ -1,9 +1,3 @@
-export interface SubscriptionFeatures {
-  sharingEnabled: boolean
-  multiplayerEnabled: boolean
-  workspaceCollaborationEnabled: boolean
-}
-
 export interface UsageData {
   current: number
   limit: number
@@ -35,11 +29,11 @@ export interface SubscriptionData {
   metadata: any | null
   stripeSubscriptionId: string | null
   periodEnd: Date | null
-  features: SubscriptionFeatures
   usage: UsageData
+  billingBlocked?: boolean
 }
 
-export type BillingStatus = 'unknown' | 'ok' | 'warning' | 'exceeded'
+export type BillingStatus = 'unknown' | 'ok' | 'warning' | 'exceeded' | 'blocked'
 
 export interface SubscriptionStore {
   subscriptionData: SubscriptionData | null
@@ -54,7 +48,6 @@ export interface SubscriptionStore {
     usageLimitData: UsageLimitData | null
   }>
   updateUsageLimit: (newLimit: number) => Promise<{ success: boolean; error?: string }>
-  cancelSubscription: () => Promise<{ success: boolean; error?: string; periodEnd?: Date }>
   refresh: () => Promise<void>
   clearError: () => void
   reset: () => void
@@ -69,12 +62,10 @@ export interface SubscriptionStore {
     seats: number | null
     metadata: any | null
   }
-  getFeatures: () => SubscriptionFeatures
   getUsage: () => UsageData
   getBillingStatus: () => BillingStatus
   getRemainingBudget: () => number
   getDaysRemainingInPeriod: () => number | null
-  hasFeature: (feature: keyof SubscriptionFeatures) => boolean
   isAtLeastPro: () => boolean
   isAtLeastTeam: () => boolean
   canUpgrade: () => boolean

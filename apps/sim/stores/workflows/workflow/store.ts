@@ -46,7 +46,7 @@ const initialState = {
         isDeployed: false,
         isPublished: false,
       },
-      timestamp: Date.now(),
+      timestamp: 0,
       action: 'Initial state',
       subblockValues: {},
     },

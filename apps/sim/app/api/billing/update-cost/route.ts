@@ -115,52 +115,34 @@ export async function POST(req: NextRequest) {
     const userStatsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
 
     if (userStatsRecords.length === 0) {
-      // Create new user stats record (same logic as ExecutionLogger)
-      await db.insert(userStats).values({
-        id: crypto.randomUUID(),
-        userId: userId,
-        totalManualExecutions: 0,
-        totalApiCalls: 0,
-        totalWebhookTriggers: 0,
-        totalScheduledExecutions: 0,
-        totalChatExecutions: 0,
-        totalTokensUsed: totalTokens,
-        totalCost: costToStore.toString(),
-        currentPeriodCost: costToStore.toString(),
-        // Copilot usage tracking
-        totalCopilotCost: costToStore.toString(),
-        totalCopilotTokens: totalTokens,
-        totalCopilotCalls: 1,
-        lastActive: new Date(),
-      })
-
-      logger.info(`[${requestId}] Created new user stats record`, {
-        userId,
-        totalCost: costToStore,
-        totalTokens,
-      })
-    } else {
-      // Update existing user stats record (same logic as ExecutionLogger)
-      const updateFields = {
-        totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
-        totalCost: sql`total_cost + ${costToStore}`,
-        currentPeriodCost: sql`current_period_cost + ${costToStore}`,
-        // Copilot usage tracking increments
-        totalCopilotCost: sql`total_copilot_cost + ${costToStore}`,
-        totalCopilotTokens: sql`total_copilot_tokens + ${totalTokens}`,
-        totalCopilotCalls: sql`total_copilot_calls + 1`,
-        totalApiCalls: sql`total_api_calls`,
-        lastActive: new Date(),
-      }
-
-      await db.update(userStats).set(updateFields).where(eq(userStats.userId, userId))
-
-      logger.info(`[${requestId}] Updated user stats record`, {
-        userId,
-        addedCost: costToStore,
-        addedTokens: totalTokens,
-      })
+      logger.error(
+        `[${requestId}] User stats record not found - should be created during onboarding`,
+        {
+          userId,
+        }
+      )
+      return NextResponse.json({ error: 'User stats record not found' }, { status: 500 })
     }
+    // Update existing user stats record (same logic as ExecutionLogger)
+    const updateFields = {
+      totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
+      totalCost: sql`total_cost + ${costToStore}`,
+      currentPeriodCost: sql`current_period_cost + ${costToStore}`,
+      // Copilot usage tracking increments
+      totalCopilotCost: sql`total_copilot_cost + ${costToStore}`,
+      totalCopilotTokens: sql`total_copilot_tokens + ${totalTokens}`,
+      totalCopilotCalls: sql`total_copilot_calls + 1`,
+      totalApiCalls: sql`total_api_calls`,
+      lastActive: new Date(),
+    }
+
+    await db.update(userStats).set(updateFields).where(eq(userStats.userId, userId))
+
+    logger.info(`[${requestId}] Updated user stats record`, {
+      userId,
+      addedCost: costToStore,
+      addedTokens: totalTokens,
+    })
 
     const duration = Date.now() - startTime
 

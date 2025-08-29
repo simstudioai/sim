@@ -100,7 +100,9 @@ describe('StreamingResponseFormatProcessor', () => {
         mockStream,
         'block-1',
         ['block-1_username', 'block-1_age'],
-        { schema: { properties: { username: { type: 'string' }, age: { type: 'number' } } } }
+        {
+          schema: { properties: { username: { type: 'string' }, age: { type: 'number' } } },
+        }
       )
 
       const reader = processedStream.getReader()
@@ -132,7 +134,9 @@ describe('StreamingResponseFormatProcessor', () => {
         mockStream,
         'block-1',
         ['block-1_config', 'block-1_count'],
-        { schema: { properties: { config: { type: 'object' }, count: { type: 'number' } } } }
+        {
+          schema: { properties: { config: { type: 'object' }, count: { type: 'number' } } },
+        }
       )
 
       const reader = processedStream.getReader()

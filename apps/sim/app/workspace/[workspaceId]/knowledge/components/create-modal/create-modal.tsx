@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, X } from 'lucide-react'
+import { AlertCircle, Check, Loader2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
@@ -88,9 +89,10 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
 
-  const { uploadFiles } = useKnowledgeUpload({
+  const { uploadFiles, isUploading, uploadProgress } = useKnowledgeUpload({
     onUploadComplete: (uploadedFiles) => {
       logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
+      // Files uploaded and document records created - processing will continue in background
     },
   })
 
@@ -303,6 +305,12 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       const newKnowledgeBase = result.data
 
       if (files.length > 0) {
+        newKnowledgeBase.docCount = files.length
+
+        if (onKnowledgeBaseCreated) {
+          onKnowledgeBaseCreated(newKnowledgeBase)
+        }
+
         const uploadedFiles = await uploadFiles(files, newKnowledgeBase.id, {
           chunkSize: data.maxChunkSize,
           minCharactersPerChunk: data.minChunkSize,
@@ -310,22 +318,17 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
           recipe: 'default',
         })
 
-        // Update the knowledge base object with the correct document count
-        newKnowledgeBase.docCount = uploadedFiles.length
-
+        logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
         logger.info(`Started processing ${uploadedFiles.length} documents in the background`)
+      } else {
+        if (onKnowledgeBaseCreated) {
+          onKnowledgeBaseCreated(newKnowledgeBase)
+        }
       }
 
-      // Clean up file previews
       files.forEach((file) => URL.revokeObjectURL(file.preview))
       setFiles([])
 
-      // Call the callback if provided
-      if (onKnowledgeBaseCreated) {
-        onKnowledgeBaseCreated(newKnowledgeBase)
-      }
-
-      // Close modal immediately - no need for success message
       onOpenChange(false)
     } catch (error) {
       logger.error('Error creating knowledge base:', error)
@@ -557,29 +560,57 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
 
                         {/* File list */}
                         <div className='space-y-2'>
-                          {files.map((file, index) => (
-                            <div
-                              key={index}
-                              className='flex items-center gap-3 rounded-md border p-3'
-                            >
-                              {getFileIcon(file.type, file.name)}
-                              <div className='min-w-0 flex-1'>
-                                <p className='truncate font-medium text-sm'>{file.name}</p>
-                                <p className='text-muted-foreground text-xs'>
-                                  {formatFileSize(file.size)}
-                                </p>
-                              </div>
-                              <Button
-                                type='button'
-                                variant='ghost'
-                                size='sm'
-                                onClick={() => removeFile(index)}
-                                className='h-8 w-8 p-0 text-muted-foreground hover:text-destructive'
+                          {files.map((file, index) => {
+                            const fileStatus = uploadProgress.fileStatuses?.[index]
+                            const isCurrentlyUploading = fileStatus?.status === 'uploading'
+                            const isCompleted = fileStatus?.status === 'completed'
+                            const isFailed = fileStatus?.status === 'failed'
+
+                            return (
+                              <div
+                                key={index}
+                                className='flex items-center gap-3 rounded-md border p-3'
                               >
-                                <X className='h-4 w-4' />
-                              </Button>
-                            </div>
-                          ))}
+                                {getFileIcon(file.type, file.name)}
+                                <div className='min-w-0 flex-1'>
+                                  <div className='flex items-center gap-2'>
+                                    {isCurrentlyUploading && (
+                                      <Loader2 className='h-4 w-4 animate-spin text-[var(--brand-primary-hex)]' />
+                                    )}
+                                    {isCompleted && <Check className='h-4 w-4 text-green-500' />}
+                                    {isFailed && <X className='h-4 w-4 text-red-500' />}
+                                    <p className='truncate font-medium text-sm'>{file.name}</p>
+                                  </div>
+                                  <div className='flex items-center gap-2'>
+                                    <p className='text-muted-foreground text-xs'>
+                                      {formatFileSize(file.size)}
+                                    </p>
+                                    {isCurrentlyUploading && (
+                                      <div className='min-w-0 max-w-32 flex-1'>
+                                        <Progress
+                                          value={fileStatus?.progress || 0}
+                                          className='h-1'
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                  {isFailed && fileStatus?.error && (
+                                    <p className='mt-1 text-red-500 text-xs'>{fileStatus.error}</p>
+                                  )}
+                                </div>
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => removeFile(index)}
+                                  disabled={isUploading}
+                                  className='h-8 w-8 p-0 text-muted-foreground hover:text-destructive'
+                                >
+                                  <X className='h-4 w-4' />
+                                </Button>
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     )}
@@ -606,7 +637,15 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                   disabled={isSubmitting || !nameValue?.trim()}
                   className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50 disabled:hover:shadow-none'
                 >
-                  {isSubmitting ? 'Creating...' : 'Create Knowledge Base'}
+                  {isSubmitting
+                    ? isUploading
+                      ? uploadProgress.stage === 'uploading'
+                        ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
+                        : uploadProgress.stage === 'processing'
+                          ? 'Processing...'
+                          : 'Creating...'
+                      : 'Creating...'
+                    : 'Create Knowledge Base'}
                 </Button>
               </div>
             </div>

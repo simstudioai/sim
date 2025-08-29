@@ -320,23 +320,23 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     try {
-      // Use subscription store to get usage data
-      const { getUsage, refresh } = useSubscriptionStore.getState()
-
-      // Force refresh if requested
-      if (forceRefresh) {
-        await refresh()
+      // Primary: call server-side usage check to mirror backend enforcement
+      const res = await fetch('/api/usage/check', { cache: 'no-store' })
+      if (res.ok) {
+        const payload = await res.json()
+        const usage = payload?.data
+        // Update cache
+        usageDataCache = { data: usage, timestamp: now, expirationMs: usageDataCache.expirationMs }
+        return usage
       }
 
+      // Fallback: use store if API not available
+      const { getUsage, refresh } = useSubscriptionStore.getState()
+      if (forceRefresh) await refresh()
       const usage = getUsage()
 
       // Update cache
-      usageDataCache = {
-        data: usage,
-        timestamp: now,
-        expirationMs: usageDataCache.expirationMs,
-      }
-
+      usageDataCache = { data: usage, timestamp: now, expirationMs: usageDataCache.expirationMs }
       return usage
     } catch (error) {
       logger.error('Error checking usage limits:', { error })

@@ -163,8 +163,7 @@ export function Code({
 
   // State management - useSubBlockValue with explicit streaming control
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
-    debounceMs: 150,
-    isStreaming: isAiStreaming, // Use AI streaming state directly
+    isStreaming: isAiStreaming,
     onStreamingEnd: () => {
       logger.debug('AI streaming ended, value persisted', { blockId, subBlockId })
     },

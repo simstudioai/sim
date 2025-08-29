@@ -9,7 +9,7 @@ import {
 import { createAuthClient } from 'better-auth/react'
 import type { auth } from '@/lib/auth'
 import { env, getEnv } from '@/lib/env'
-import { isDev, isProd } from '@/lib/environment'
+import { isProd } from '@/lib/environment'
 import { SessionContext, type SessionHookResult } from '@/lib/session-context'
 
 export function getBaseURL() {
@@ -59,19 +59,6 @@ export function useSession(): SessionHookResult {
 export const { useActiveOrganization } = client
 
 export const useSubscription = () => {
-  // In development, provide mock implementations
-  if (isDev) {
-    return {
-      list: async () => ({ data: [] }),
-      upgrade: async () => ({
-        error: { message: 'Subscriptions are disabled in development mode' },
-      }),
-      cancel: async () => ({ data: null }),
-      restore: async () => ({ data: null }),
-    }
-  }
-
-  // In production, use the real implementation
   return {
     list: client.subscription?.list,
     upgrade: client.subscription?.upgrade,
