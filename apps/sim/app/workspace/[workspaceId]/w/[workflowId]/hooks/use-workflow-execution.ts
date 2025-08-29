@@ -62,6 +62,7 @@ export function useWorkflowExecution() {
     setExecutor,
     setDebugContext,
     setActiveBlocks,
+    setExecutingBlockIds,
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
 
@@ -93,6 +94,7 @@ export function useWorkflowExecution() {
     setExecutor(null)
     setPendingBlocks([])
     setActiveBlocks(new Set())
+    setExecutingBlockIds(new Set())
 
     // Reset debug mode setting if it was enabled
     if (isDebugModeEnabled) {
@@ -105,6 +107,7 @@ export function useWorkflowExecution() {
     setExecutor,
     setPendingBlocks,
     setActiveBlocks,
+    setExecutingBlockIds,
     isDebugModeEnabled,
   ])
 
@@ -120,7 +123,7 @@ export function useWorkflowExecution() {
   }, [])
 
   /**
-   * Handles debug session completion
+   * Handles debug session completion - keep debug session open for inspection
    */
   const handleDebugSessionComplete = useCallback(
     async (result: ExecutionResult) => {
@@ -130,10 +133,14 @@ export function useWorkflowExecution() {
       // Persist logs
       await persistLogs(uuidv4(), result)
 
-      // Reset debug state
-      resetDebugState()
+      // Keep debug mode open for inspection: stop executing, clear pending
+      setIsExecuting(false)
+      setPendingBlocks([])
+      setExecutingBlockIds(new Set())
+      // Keep debugContext and executor so the panel can inspect state
+      // Do not reset isDebugging
     },
-    [activeWorkflowId, resetDebugState]
+    [activeWorkflowId, setIsExecuting, setPendingBlocks, setExecutingBlockIds]
   )
 
   /**
@@ -157,7 +164,7 @@ export function useWorkflowExecution() {
   )
 
   /**
-   * Handles debug execution errors
+   * Handles debug execution errors - keep debug open for inspection
    */
   const handleDebugExecutionError = useCallback(
     async (error: any, operation: string) => {
@@ -176,10 +183,13 @@ export function useWorkflowExecution() {
       // Persist logs
       await persistLogs(uuidv4(), errorResult)
 
-      // Reset debug state
-      resetDebugState()
+      // Keep debug session open for inspection
+      setIsExecuting(false)
+      setPendingBlocks([])
+      setExecutingBlockIds(new Set())
+      // Keep isDebugging, debugContext, and executor intact
     },
-    [debugContext, activeWorkflowId, resetDebugState]
+    [debugContext, activeWorkflowId, setIsExecuting, setPendingBlocks, setExecutingBlockIds]
   )
 
   const persistLogs = async (
@@ -268,8 +278,8 @@ export function useWorkflowExecution() {
       const isChatExecution =
         workflowInput && typeof workflowInput === 'object' && 'input' in workflowInput
 
-      // For chat executions, we'll use a streaming approach
-      if (isChatExecution) {
+      // For chat executions, use streaming only when NOT debugging
+      if (isChatExecution && !enableDebug) {
         const stream = new ReadableStream({
           async start(controller) {
             const encoder = new TextEncoder()
@@ -448,7 +458,6 @@ export function useWorkflowExecution() {
             } catch (error: any) {
               controller.error(error)
             } finally {
-              controller.close()
               setIsExecuting(false)
               setIsDebugging(false)
               setActiveBlocks(new Set())
@@ -458,7 +467,7 @@ export function useWorkflowExecution() {
         return { success: true, stream }
       }
 
-      // For manual (non-chat) execution
+      // For manual (non-streaming) execution including debug and non-chat
       const executionId = uuidv4()
       try {
         const result = await executeWorkflow(workflowInput, undefined, executionId)
@@ -748,14 +757,19 @@ export function useWorkflowExecution() {
     // Validate debug state
     const validation = validateDebugState()
     if (!validation.isValid) {
-      resetDebugState()
+      // Keep session open for inspection; simply stop executing
+      setIsExecuting(false)
       return
     }
 
     try {
       logger.info('Executing debug step with blocks:', pendingBlocks)
+      // Mark current pending blocks as executing for UI pulse
+      setExecutingBlockIds(new Set(pendingBlocks))
       const result = await executor!.continueExecution(pendingBlocks, debugContext!)
       logger.info('Debug step execution result:', result)
+      // Clear executing state after step returns
+      setExecutingBlockIds(new Set())
 
       if (isDebugSessionComplete(result)) {
         await handleDebugSessionComplete(result)
@@ -763,6 +777,7 @@ export function useWorkflowExecution() {
         handleDebugSessionContinuation(result)
       }
     } catch (error: any) {
+      setExecutingBlockIds(new Set())
       await handleDebugExecutionError(error, 'step')
     }
   }, [
@@ -771,7 +786,8 @@ export function useWorkflowExecution() {
     pendingBlocks,
     activeWorkflowId,
     validateDebugState,
-    resetDebugState,
+    setIsExecuting,
+    setExecutingBlockIds,
     isDebugSessionComplete,
     handleDebugSessionComplete,
     handleDebugSessionContinuation,
@@ -791,7 +807,8 @@ export function useWorkflowExecution() {
     // Validate debug state
     const validation = validateDebugState()
     if (!validation.isValid) {
-      resetDebugState()
+      // Keep session open for inspection; simply stop executing
+      setIsExecuting(false)
       return
     }
 
@@ -819,7 +836,9 @@ export function useWorkflowExecution() {
           `Resume iteration ${iterationCount + 1}, executing ${currentPendingBlocks.length} blocks`
         )
 
+        setExecutingBlockIds(new Set(currentPendingBlocks))
         currentResult = await executor!.continueExecution(currentPendingBlocks, currentContext)
+        setExecutingBlockIds(new Set())
 
         logger.info('Resume iteration result:', {
           success: currentResult.success,
@@ -864,6 +883,7 @@ export function useWorkflowExecution() {
       // Handle completion
       await handleDebugSessionComplete(currentResult)
     } catch (error: any) {
+      setExecutingBlockIds(new Set())
       await handleDebugExecutionError(error, 'resume')
     }
   }, [
@@ -872,7 +892,8 @@ export function useWorkflowExecution() {
     pendingBlocks,
     activeWorkflowId,
     validateDebugState,
-    resetDebugState,
+    setIsExecuting,
+    setExecutingBlockIds,
     handleDebugSessionComplete,
     handleDebugExecutionError,
   ])

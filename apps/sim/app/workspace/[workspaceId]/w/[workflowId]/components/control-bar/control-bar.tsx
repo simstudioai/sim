@@ -8,8 +8,6 @@ import {
   Layers,
   Play,
   RefreshCw,
-  SkipForward,
-  StepForward,
   Store,
   Trash2,
   WifiOff,
@@ -44,6 +42,7 @@ import {
   getKeyboardShortcutText,
   useKeyboardShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
+import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
@@ -111,6 +110,9 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
   const [isAutoLayouting, setIsAutoLayouting] = useState(false)
+  // Remove chat modal state
+  // const [isChatPromptOpen, setIsChatPromptOpen] = useState(false)
+  // const [chatPrompt, setChatPrompt] = useState('')
 
   // Delete workflow state - grouped for better organization
   const [deleteState, setDeleteState] = useState({
@@ -141,6 +143,13 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   // Helper function to open console panel
   const openConsolePanel = useCallback(() => {
     setActiveTab('console')
+    if (!isOpen) {
+      togglePanel()
+    }
+  }, [setActiveTab, isOpen, togglePanel])
+
+  const openDebugPanel = useCallback(() => {
+    setActiveTab('debug')
     if (!isOpen) {
       togglePanel()
     }
@@ -819,15 +828,29 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         return // Do nothing if no executable blocks
       }
 
-      // Start debugging
+      // Determine starter id for focus
+      const starter = Object.values(blocks).find((b) => b.type === 'starter') as any
+      const starterId = starter?.id as string | undefined
+
+      // Enable debug UI but do NOT start execution
       if (!isDebugModeEnabled) {
         toggleDebugMode()
       }
       if (usageExceeded) {
         openSubscriptionSettings()
       } else {
-        openConsolePanel()
-        handleRunWorkflow(undefined, true) // Start in debug mode
+        // Activate debug session state so the panel is active
+        const execStore = useExecutionStore.getState()
+        execStore.setIsExecuting(false)
+        execStore.setIsDebugging(true)
+        // Set the Start block as pending - it will execute on first Step
+        execStore.setPendingBlocks(starterId ? [starterId] : [])
+
+        // Show Debug tab and mark starter as the current block to execute
+        openDebugPanel()
+        if (starterId) {
+          execStore.setActiveBlocks(new Set([starterId]))
+        }
       }
     }
   }, [
@@ -838,8 +861,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     blocks,
     handleCancelDebug,
     toggleDebugMode,
-    handleRunWorkflow,
-    openConsolePanel,
+    openDebugPanel,
   ])
 
   /**
@@ -859,40 +881,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
     return (
       <div className='flex items-center gap-1'>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={() => {
-                openConsolePanel()
-                handleStepDebug()
-              }}
-              className={debugButtonClass}
-              disabled={isControlDisabled}
-            >
-              <StepForward className='h-5 w-5' />
-              <span className='sr-only'>Step Forward</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Step Forward</TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={() => {
-                openConsolePanel()
-                handleResumeDebug()
-              }}
-              className={debugButtonClass}
-              disabled={isControlDisabled}
-            >
-              <SkipForward className='h-5 w-5' />
-              <span className='sr-only'>Resume Until End</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Resume Until End</TooltipContent>
-        </Tooltip>
-
+        {/* Keep only cancel (X) here; step/resume moved to panel */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -1214,7 +1203,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       {isExpanded && renderPublishButton()}
       {renderDeleteButton()}
       {renderDuplicateButton()}
-      {!isDebugging && renderDebugModeToggle()}
+      {renderDebugModeToggle()}
       {renderDeployButton()}
       {isDebugging ? renderDebugControlsBar() : renderRunButton()}
 
@@ -1226,6 +1215,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
           workflowId={activeWorkflowId}
         />
       )}
+
+      {/* Removed chat prompt dialog; chat input now lives in DebugPanel */}
     </div>
   )
 }
