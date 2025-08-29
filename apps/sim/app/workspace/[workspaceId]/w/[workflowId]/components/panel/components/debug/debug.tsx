@@ -1054,50 +1054,40 @@ export function DebugPanel() {
   return (
     <div className='flex h-full flex-col'>
       {/* Header Section - Single Line */}
-      <div className='border-b border-border/50 px-3 py-2.5'>
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2 min-w-0'>
-            {focusedBlockId && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type='button'
-                      onClick={() => setBreakpointId(breakpointId === focusedBlockId ? null : focusedBlockId)}
-                      className='p-0.5 rounded hover:bg-muted/50 transition-colors'
-                    >
-                      <CircleDot 
-                        className={cn(
-                          'h-4 w-4',
-                          breakpointId === focusedBlockId 
-                            ? 'text-red-600 fill-red-600/20' 
-                            : 'text-muted-foreground/50'
-                        )} 
-                      />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {breakpointId === focusedBlockId ? 'Remove breakpoint' : 'Set breakpoint'}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-            <span className='font-semibold text-sm truncate'>
-              {getDisplayName(focusedBlock) || 'No block selected'}
-            </span>
-            {focusedBlock && (
-              <>
-                <span className='text-muted-foreground/50'>•</span>
-                <span className='text-muted-foreground text-xs'>
-                  {focusedBlock.type}
-                </span>
-              </>
-            )}
-          </div>
-          <div className='flex items-center gap-1.5 flex-shrink-0'>
-            {getStatusIcon()}
-            <span className='text-muted-foreground text-xs'>{getStatusText()}</span>
-          </div>
+      <div className='flex items-center justify-between border-b border-border/50 px-3 py-2.5'>
+        <div className='flex items-center gap-2'>
+          <span className='font-semibold text-sm truncate'>
+            {focusedBlock ? getDisplayName(focusedBlock) : 'Debug Panel'}
+          </span>
+          {focusedBlockId && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type='button'
+                    onClick={() => setBreakpointId(breakpointId === focusedBlockId ? null : focusedBlockId)}
+                    className='p-0.5 rounded hover:bg-muted/50 transition-colors'
+                  >
+                    <CircleDot 
+                      className={cn(
+                        'h-4 w-4',
+                        breakpointId === focusedBlockId 
+                          ? 'text-red-600 fill-red-600/20' 
+                          : 'text-muted-foreground/50'
+                      )} 
+                    />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {breakpointId === focusedBlockId ? 'Remove breakpoint' : 'Set breakpoint'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
+        <div className='flex items-center gap-1.5 flex-shrink-0'>
+          {getStatusIcon()}
+          <span className='text-muted-foreground text-xs'>{getStatusText()}</span>
         </div>
       </div>
 
