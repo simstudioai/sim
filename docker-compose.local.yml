@@ -91,5 +91,13 @@ services:
       timeout: 5s
       retries: 5
 
+  mcpo:
+    image: openwebui/mcpo:latest
+    ports:
+      - '8000:8000'
+    volumes:
+      - ./mcpo-config.json:/app/config/config.json
+    command: ['uvx', 'mcpo', '--host', '0.0.0.0', '--port', '8000']
+
 volumes:
   postgres_data:
