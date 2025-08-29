@@ -5,7 +5,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { client } from '@/lib/auth-client'
+import { client, useSession } from '@/lib/auth-client'
 import SignupPage from '@/app/(auth)/signup/signup-form'
 
 vi.mock('next/navigation', () => ({
@@ -22,6 +22,7 @@ vi.mock('@/lib/auth-client', () => ({
       sendVerificationOtp: vi.fn(),
     },
   },
+  useSession: vi.fn(),
 }))
 
 vi.mock('@/app/(auth)/components/social-login-buttons', () => ({
@@ -43,6 +44,9 @@ describe('SignupPage', () => {
     vi.clearAllMocks()
     ;(useRouter as any).mockReturnValue(mockRouter)
     ;(useSearchParams as any).mockReturnValue(mockSearchParams)
+    ;(useSession as any).mockReturnValue({
+      refetch: vi.fn().mockResolvedValue({}),
+    })
     mockSearchParams.get.mockReturnValue(null)
   })
 

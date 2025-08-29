@@ -12,7 +12,6 @@ import {
 import { getEnv, isTruthy } from '@/lib/env'
 import { isHosted } from '@/lib/environment'
 import { cn } from '@/lib/utils'
-import { useSubscriptionStore } from '@/stores/subscription/store'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
@@ -106,9 +105,6 @@ export function SettingsNavigation({
   onSectionChange,
   hasOrganization,
 }: SettingsNavigationProps) {
-  const { getSubscriptionStatus } = useSubscriptionStore()
-  const subscription = getSubscriptionStatus()
-
   const navigationItems = allNavigationItems.filter((item) => {
     if (item.id === 'copilot' && !isHosted) {
       return false
@@ -117,8 +113,8 @@ export function SettingsNavigation({
       return false
     }
 
-    // Hide team tab if user doesn't have team or enterprise subscription
-    if (item.requiresTeam && !subscription.isTeam && !subscription.isEnterprise) {
+    // Hide team tab if user doesn't have an active organization
+    if (item.requiresTeam && !hasOrganization) {
       return false
     }
 

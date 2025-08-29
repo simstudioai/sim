@@ -12,6 +12,61 @@ import {
 
 const logger = createLogger('Tools')
 
+// Extract a concise, meaningful error message from diverse API error shapes
+function getDeepApiErrorMessage(errorInfo?: {
+  status?: number
+  statusText?: string
+  data?: any
+}): string {
+  return (
+    // GraphQL errors (Linear API)
+    errorInfo?.data?.errors?.[0]?.message ||
+    // X/Twitter API specific pattern
+    errorInfo?.data?.errors?.[0]?.detail ||
+    // Generic details array
+    errorInfo?.data?.details?.[0]?.message ||
+    // Hunter API pattern
+    errorInfo?.data?.errors?.[0]?.details ||
+    // Direct errors array (when errors[0] is a string or simple object)
+    (Array.isArray(errorInfo?.data?.errors)
+      ? typeof errorInfo.data.errors[0] === 'string'
+        ? errorInfo.data.errors[0]
+        : errorInfo.data.errors[0]?.message
+      : undefined) ||
+    // Notion/Discord/GitHub/Twilio pattern
+    errorInfo?.data?.message ||
+    // SOAP/XML fault patterns
+    errorInfo?.data?.fault?.faultstring ||
+    errorInfo?.data?.faultstring ||
+    // Microsoft/OAuth error descriptions
+    errorInfo?.data?.error_description ||
+    // Airtable/Google fallback pattern
+    (typeof errorInfo?.data?.error === 'object'
+      ? errorInfo?.data?.error?.message || JSON.stringify(errorInfo?.data?.error)
+      : errorInfo?.data?.error) ||
+    // HTTP status text fallback
+    errorInfo?.statusText ||
+    // Final fallback
+    `Request failed with status ${errorInfo?.status || 'unknown'}`
+  )
+}
+
+// Create an Error instance from errorInfo and attach useful context
+function createTransformedErrorFromErrorInfo(errorInfo?: {
+  status?: number
+  statusText?: string
+  data?: any
+}): Error {
+  const message = getDeepApiErrorMessage(errorInfo)
+  const transformed = new Error(message)
+  Object.assign(transformed, {
+    status: errorInfo?.status,
+    statusText: errorInfo?.statusText,
+    data: errorInfo?.data,
+  })
+  return transformed
+}
+
 /**
  * Process file outputs for a tool result if execution context is available
  * Uses dynamic imports to avoid client-side bundling issues
@@ -410,15 +465,46 @@ async function handleInternalRequest(
 
     const response = await fetch(fullUrl, requestOptions)
 
-    // Parse response data once
+    // For non-OK responses, attempt JSON first; if parsing fails, preserve legacy error expected by tests
+    if (!response.ok) {
+      let errorData: any
+      try {
+        errorData = await response.json()
+      } catch (jsonError) {
+        logger.error(`[${requestId}] JSON parse error for ${toolId}:`, {
+          error: jsonError instanceof Error ? jsonError.message : String(jsonError),
+        })
+        throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
+      }
+
+      const { isError, errorInfo } = isErrorResponse(response, errorData)
+      if (isError) {
+        const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo)
+
+        logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
+          status: errorInfo?.status,
+          errorData: errorInfo?.data,
+        })
+
+        throw errorToTransform
+      }
+    }
+
+    // Parse response data once with guard for empty 202 bodies
     let responseData
-    try {
-      responseData = await response.json()
-    } catch (jsonError) {
-      logger.error(`[${requestId}] JSON parse error for ${toolId}:`, {
-        error: jsonError instanceof Error ? jsonError.message : String(jsonError),
-      })
-      throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
+    const status = response.status
+    if (status === 202) {
+      // Many APIs (e.g., Microsoft Graph) return 202 with empty body
+      responseData = { status }
+    } else {
+      try {
+        responseData = await response.json()
+      } catch (jsonError) {
+        logger.error(`[${requestId}] JSON parse error for ${toolId}:`, {
+          error: jsonError instanceof Error ? jsonError.message : String(jsonError),
+        })
+        throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
+      }
     }
 
     // Check for error conditions
@@ -426,44 +512,7 @@ async function handleInternalRequest(
 
     if (isError) {
       // Handle error case
-      const errorToTransform = new Error(
-        // GraphQL errors (Linear API)
-        errorInfo?.data?.errors?.[0]?.message ||
-          // X/Twitter API specific pattern
-          errorInfo?.data?.errors?.[0]?.detail ||
-          // Generic details array
-          errorInfo?.data?.details?.[0]?.message ||
-          // Hunter API pattern
-          errorInfo?.data?.errors?.[0]?.details ||
-          // Direct errors array (when errors[0] is a string or simple object)
-          (Array.isArray(errorInfo?.data?.errors)
-            ? typeof errorInfo.data.errors[0] === 'string'
-              ? errorInfo.data.errors[0]
-              : errorInfo.data.errors[0]?.message
-            : undefined) ||
-          // Notion/Discord/GitHub/Twilio pattern
-          errorInfo?.data?.message ||
-          // SOAP/XML fault patterns
-          errorInfo?.data?.fault?.faultstring ||
-          errorInfo?.data?.faultstring ||
-          // Microsoft/OAuth error descriptions
-          errorInfo?.data?.error_description ||
-          // Airtable/Google fallback pattern
-          (typeof errorInfo?.data?.error === 'object'
-            ? errorInfo?.data?.error?.message || JSON.stringify(errorInfo?.data?.error)
-            : errorInfo?.data?.error) ||
-          // HTTP status text fallback
-          errorInfo?.statusText ||
-          // Final fallback
-          `Request failed with status ${errorInfo?.status || 'unknown'}`
-      )
-
-      // Add error context
-      Object.assign(errorToTransform, {
-        status: errorInfo?.status,
-        statusText: errorInfo?.statusText,
-        data: errorInfo?.data,
-      })
+      const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo)
 
       logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
         status: errorInfo?.status,

@@ -211,10 +211,27 @@ Read emails from Outlook
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Email read operation success status |
-| `messageCount` | number | Number of emails retrieved |
-| `messages` | array | Array of email message objects |
 | `message` | string | Success or status message |
+| `results` | array | Array of email message objects |
+
+### `outlook_forward`
+
+Forward an existing Outlook message to specified recipients
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Yes | The ID of the message to forward |
+| `to` | string | Yes | Recipient email address\(es\), comma-separated |
+| `comment` | string | No | Optional comment to include with the forwarded message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message |
+| `results` | object | Delivery result details |
 
 
 

@@ -1,16 +1,15 @@
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { TAG_SLOTS } from '@/lib/constants/knowledge'
+import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
-import { db } from '@/db'
-import { knowledgeBaseTagDefinitions } from '@/db/schema'
 import { calculateCost } from '@/providers/utils'
 import {
   generateSearchEmbedding,
+  getDocumentNamesByIds,
   getQueryStrategy,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
@@ -79,14 +78,13 @@ export async function POST(request: NextRequest) {
         ? validatedData.knowledgeBaseIds
         : [validatedData.knowledgeBaseIds]
 
-      // Check access permissions for each knowledge base using proper workspace-based permissions
-      const accessibleKbIds: string[] = []
-      for (const kbId of knowledgeBaseIds) {
-        const accessCheck = await checkKnowledgeBaseAccess(kbId, userId)
-        if (accessCheck.hasAccess) {
-          accessibleKbIds.push(kbId)
-        }
-      }
+      // Check access permissions in parallel for performance
+      const accessChecks = await Promise.all(
+        knowledgeBaseIds.map((kbId) => checkKnowledgeBaseAccess(kbId, userId))
+      )
+      const accessibleKbIds: string[] = knowledgeBaseIds.filter(
+        (_, idx) => accessChecks[idx]?.hasAccess
+      )
 
       // Map display names to tag slots for filtering
       let mappedFilters: Record<string, string> = {}
@@ -94,13 +92,7 @@ export async function POST(request: NextRequest) {
         try {
           // Fetch tag definitions for the first accessible KB (since we're using single KB now)
           const kbId = accessibleKbIds[0]
-          const tagDefs = await db
-            .select({
-              tagSlot: knowledgeBaseTagDefinitions.tagSlot,
-              displayName: knowledgeBaseTagDefinitions.displayName,
-            })
-            .from(knowledgeBaseTagDefinitions)
-            .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, kbId))
+          const tagDefs = await getDocumentTagDefinitions(kbId)
 
           logger.debug(`[${requestId}] Found tag definitions:`, tagDefs)
           logger.debug(`[${requestId}] Original filters:`, validatedData.filters)
@@ -145,7 +137,10 @@ export async function POST(request: NextRequest) {
 
       // Generate query embedding only if query is provided
       const hasQuery = validatedData.query && validatedData.query.trim().length > 0
-      const queryEmbedding = hasQuery ? await generateSearchEmbedding(validatedData.query!) : null
+      // Start embedding generation early and await when needed
+      const queryEmbeddingPromise = hasQuery
+        ? generateSearchEmbedding(validatedData.query!)
+        : Promise.resolve(null)
 
       // Check if any requested knowledge bases were not accessible
       const inaccessibleKbIds = knowledgeBaseIds.filter((id) => !accessibleKbIds.includes(id))
@@ -173,7 +168,7 @@ export async function POST(request: NextRequest) {
         // Tag + Vector search
         logger.debug(`[${requestId}] Executing tag + vector search with filters:`, mappedFilters)
         const strategy = getQueryStrategy(accessibleKbIds.length, validatedData.topK)
-        const queryVector = JSON.stringify(queryEmbedding)
+        const queryVector = JSON.stringify(await queryEmbeddingPromise)
 
         results = await handleTagAndVectorSearch({
           knowledgeBaseIds: accessibleKbIds,
@@ -186,7 +181,7 @@ export async function POST(request: NextRequest) {
         // Vector-only search
         logger.debug(`[${requestId}] Executing vector-only search`)
         const strategy = getQueryStrategy(accessibleKbIds.length, validatedData.topK)
-        const queryVector = JSON.stringify(queryEmbedding)
+        const queryVector = JSON.stringify(await queryEmbeddingPromise)
 
         results = await handleVectorOnlySearch({
           knowledgeBaseIds: accessibleKbIds,
@@ -221,30 +216,32 @@ export async function POST(request: NextRequest) {
       }
 
       // Fetch tag definitions for display name mapping (reuse the same fetch from filtering)
-      const tagDefinitionsMap: Record<string, Record<string, string>> = {}
-      for (const kbId of accessibleKbIds) {
-        try {
-          const tagDefs = await db
-            .select({
-              tagSlot: knowledgeBaseTagDefinitions.tagSlot,
-              displayName: knowledgeBaseTagDefinitions.displayName,
+      const tagDefsResults = await Promise.all(
+        accessibleKbIds.map(async (kbId) => {
+          try {
+            const tagDefs = await getDocumentTagDefinitions(kbId)
+            const map: Record<string, string> = {}
+            tagDefs.forEach((def) => {
+              map[def.tagSlot] = def.displayName
             })
-            .from(knowledgeBaseTagDefinitions)
-            .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, kbId))
+            return { kbId, map }
+          } catch (error) {
+            logger.warn(
+              `[${requestId}] Failed to fetch tag definitions for display mapping:`,
+              error
+            )
+            return { kbId, map: {} as Record<string, string> }
+          }
+        })
+      )
+      const tagDefinitionsMap: Record<string, Record<string, string>> = {}
+      tagDefsResults.forEach(({ kbId, map }) => {
+        tagDefinitionsMap[kbId] = map
+      })
 
-          tagDefinitionsMap[kbId] = {}
-          tagDefs.forEach((def) => {
-            tagDefinitionsMap[kbId][def.tagSlot] = def.displayName
-          })
-          logger.debug(
-            `[${requestId}] Display mapping - KB ${kbId} tag definitions:`,
-            tagDefinitionsMap[kbId]
-          )
-        } catch (error) {
-          logger.warn(`[${requestId}] Failed to fetch tag definitions for display mapping:`, error)
-          tagDefinitionsMap[kbId] = {}
-        }
-      }
+      // Fetch document names for the results
+      const documentIds = results.map((result) => result.documentId)
+      const documentNameMap = await getDocumentNamesByIds(documentIds)
 
       return NextResponse.json({
         success: true,
@@ -271,11 +268,11 @@ export async function POST(request: NextRequest) {
             })
 
             return {
-              id: result.id,
-              content: result.content,
               documentId: result.documentId,
+              documentName: documentNameMap[result.documentId] || undefined,
+              content: result.content,
               chunkIndex: result.chunkIndex,
-              tags, // Clean display name mapped tags
+              metadata: tags, // Clean display name mapped tags
               similarity: hasQuery ? 1 - result.distance : 1, // Perfect similarity for tag-only searches
             }
           }),

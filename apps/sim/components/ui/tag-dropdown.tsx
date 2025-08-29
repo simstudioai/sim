@@ -298,15 +298,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
   const getVariablesByWorkflowId = useVariablesStore((state) => state.getVariablesByWorkflowId)
-  const loadVariables = useVariablesStore((state) => state.loadVariables)
   const variables = useVariablesStore((state) => state.variables)
   const workflowVariables = workflowId ? getVariablesByWorkflowId(workflowId) : []
-
-  useEffect(() => {
-    if (workflowId) {
-      loadVariables(workflowId)
-    }
-  }, [workflowId, loadVariables])
 
   const searchTerm = useMemo(() => {
     const textBeforeCursor = inputValue.slice(0, cursorPosition)

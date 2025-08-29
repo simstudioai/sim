@@ -1,18 +1,11 @@
 import crypto from 'crypto'
-import { and, asc, eq, ilike, inArray, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { batchChunkOperation, createChunk, queryChunks } from '@/lib/knowledge/chunks/service'
 import { createLogger } from '@/lib/logs/console/logger'
-import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { getUserId } from '@/app/api/auth/oauth/utils'
-import {
-  checkDocumentAccess,
-  checkDocumentWriteAccess,
-  generateEmbeddings,
-} from '@/app/api/knowledge/utils'
-import { db } from '@/db'
-import { document, embedding } from '@/db/schema'
+import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('DocumentChunksAPI')
@@ -66,7 +59,6 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if document processing is completed
     const doc = accessCheck.document
     if (!doc) {
       logger.warn(
@@ -89,7 +81,6 @@ export async function GET(
       )
     }
 
-    // Parse query parameters
     const { searchParams } = new URL(req.url)
     const queryParams = GetChunksQuerySchema.parse({
       search: searchParams.get('search') || undefined,
@@ -98,67 +89,12 @@ export async function GET(
       offset: searchParams.get('offset') || undefined,
     })
 
-    // Build query conditions
-    const conditions = [eq(embedding.documentId, documentId)]
-
-    // Add enabled filter
-    if (queryParams.enabled === 'true') {
-      conditions.push(eq(embedding.enabled, true))
-    } else if (queryParams.enabled === 'false') {
-      conditions.push(eq(embedding.enabled, false))
-    }
-
-    // Add search filter
-    if (queryParams.search) {
-      conditions.push(ilike(embedding.content, `%${queryParams.search}%`))
-    }
-
-    // Fetch chunks
-    const chunks = await db
-      .select({
-        id: embedding.id,
-        chunkIndex: embedding.chunkIndex,
-        content: embedding.content,
-        contentLength: embedding.contentLength,
-        tokenCount: embedding.tokenCount,
-        enabled: embedding.enabled,
-        startOffset: embedding.startOffset,
-        endOffset: embedding.endOffset,
-        tag1: embedding.tag1,
-        tag2: embedding.tag2,
-        tag3: embedding.tag3,
-        tag4: embedding.tag4,
-        tag5: embedding.tag5,
-        tag6: embedding.tag6,
-        tag7: embedding.tag7,
-        createdAt: embedding.createdAt,
-        updatedAt: embedding.updatedAt,
-      })
-      .from(embedding)
-      .where(and(...conditions))
-      .orderBy(asc(embedding.chunkIndex))
-      .limit(queryParams.limit)
-      .offset(queryParams.offset)
-
-    // Get total count for pagination
-    const totalCount = await db
-      .select({ count: sql`count(*)` })
-      .from(embedding)
-      .where(and(...conditions))
-
-    logger.info(
-      `[${requestId}] Retrieved ${chunks.length} chunks for document ${documentId} in knowledge base ${knowledgeBaseId}`
-    )
+    const result = await queryChunks(documentId, queryParams, requestId)
 
     return NextResponse.json({
       success: true,
-      data: chunks,
-      pagination: {
-        total: Number(totalCount[0]?.count || 0),
-        limit: queryParams.limit,
-        offset: queryParams.offset,
-        hasMore: chunks.length === queryParams.limit,
-      },
+      data: result.chunks,
+      pagination: result.pagination,
     })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching chunks`, error)
@@ -219,76 +155,27 @@ export async function POST(
     try {
       const validatedData = CreateChunkSchema.parse(searchParams)
 
-      // Generate embedding for the content first (outside transaction for performance)
-      logger.info(`[${requestId}] Generating embedding for manual chunk`)
-      const embeddings = await generateEmbeddings([validatedData.content])
+      const docTags = {
+        tag1: doc.tag1 ?? null,
+        tag2: doc.tag2 ?? null,
+        tag3: doc.tag3 ?? null,
+        tag4: doc.tag4 ?? null,
+        tag5: doc.tag5 ?? null,
+        tag6: doc.tag6 ?? null,
+        tag7: doc.tag7 ?? null,
+      }
 
-      // Calculate accurate token count for both database storage and cost calculation
-      const tokenCount = estimateTokenCount(validatedData.content, 'openai')
+      const newChunk = await createChunk(
+        knowledgeBaseId,
+        documentId,
+        docTags,
+        validatedData,
+        requestId
+      )
 
-      const chunkId = crypto.randomUUID()
-      const now = new Date()
-
-      // Use transaction to atomically get next index and insert chunk
-      const newChunk = await db.transaction(async (tx) => {
-        // Get the next chunk index atomically within the transaction
-        const lastChunk = await tx
-          .select({ chunkIndex: embedding.chunkIndex })
-          .from(embedding)
-          .where(eq(embedding.documentId, documentId))
-          .orderBy(sql`${embedding.chunkIndex} DESC`)
-          .limit(1)
-
-        const nextChunkIndex = lastChunk.length > 0 ? lastChunk[0].chunkIndex + 1 : 0
-
-        const chunkData = {
-          id: chunkId,
-          knowledgeBaseId,
-          documentId,
-          chunkIndex: nextChunkIndex,
-          chunkHash: crypto.createHash('sha256').update(validatedData.content).digest('hex'),
-          content: validatedData.content,
-          contentLength: validatedData.content.length,
-          tokenCount: tokenCount.count, // Use accurate token count
-          embedding: embeddings[0],
-          embeddingModel: 'text-embedding-3-small',
-          startOffset: 0, // Manual chunks don't have document offsets
-          endOffset: validatedData.content.length,
-          // Inherit tags from parent document
-          tag1: doc.tag1,
-          tag2: doc.tag2,
-          tag3: doc.tag3,
-          tag4: doc.tag4,
-          tag5: doc.tag5,
-          tag6: doc.tag6,
-          tag7: doc.tag7,
-          enabled: validatedData.enabled,
-          createdAt: now,
-          updatedAt: now,
-        }
-
-        // Insert the new chunk
-        await tx.insert(embedding).values(chunkData)
-
-        // Update document statistics
-        await tx
-          .update(document)
-          .set({
-            chunkCount: sql`${document.chunkCount} + 1`,
-            tokenCount: sql`${document.tokenCount} + ${chunkData.tokenCount}`,
-            characterCount: sql`${document.characterCount} + ${chunkData.contentLength}`,
-          })
-          .where(eq(document.id, documentId))
-
-        return chunkData
-      })
-
-      logger.info(`[${requestId}] Manual chunk created: ${chunkId} in document ${documentId}`)
-
-      // Calculate cost for the embedding (with fallback if calculation fails)
       let cost = null
       try {
-        cost = calculateCost('text-embedding-3-small', tokenCount.count, 0, false)
+        cost = calculateCost('text-embedding-3-small', newChunk.tokenCount, 0, false)
       } catch (error) {
         logger.warn(`[${requestId}] Failed to calculate cost for chunk upload`, {
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -300,6 +187,8 @@ export async function POST(
         success: true,
         data: {
           ...newChunk,
+          documentId,
+          documentName: doc.filename,
           ...(cost
             ? {
                 cost: {
@@ -307,9 +196,9 @@ export async function POST(
                   output: cost.output,
                   total: cost.total,
                   tokens: {
-                    prompt: tokenCount.count,
+                    prompt: newChunk.tokenCount,
                     completion: 0,
-                    total: tokenCount.count,
+                    total: newChunk.tokenCount,
                   },
                   model: 'text-embedding-3-small',
                   pricing: cost.pricing,
@@ -371,92 +260,16 @@ export async function PATCH(
       const validatedData = BatchOperationSchema.parse(body)
       const { operation, chunkIds } = validatedData
 
-      logger.info(
-        `[${requestId}] Starting batch ${operation} operation on ${chunkIds.length} chunks for document ${documentId}`
-      )
-
-      const results = []
-      let successCount = 0
-      const errorCount = 0
-
-      if (operation === 'delete') {
-        // Handle batch delete with transaction for consistency
-        await db.transaction(async (tx) => {
-          // Get chunks to delete for statistics update
-          const chunksToDelete = await tx
-            .select({
-              id: embedding.id,
-              tokenCount: embedding.tokenCount,
-              contentLength: embedding.contentLength,
-            })
-            .from(embedding)
-            .where(and(eq(embedding.documentId, documentId), inArray(embedding.id, chunkIds)))
-
-          if (chunksToDelete.length === 0) {
-            throw new Error('No valid chunks found to delete')
-          }
-
-          // Delete chunks
-          await tx
-            .delete(embedding)
-            .where(and(eq(embedding.documentId, documentId), inArray(embedding.id, chunkIds)))
-
-          // Update document statistics
-          const totalTokens = chunksToDelete.reduce((sum, chunk) => sum + chunk.tokenCount, 0)
-          const totalCharacters = chunksToDelete.reduce(
-            (sum, chunk) => sum + chunk.contentLength,
-            0
-          )
-
-          await tx
-            .update(document)
-            .set({
-              chunkCount: sql`${document.chunkCount} - ${chunksToDelete.length}`,
-              tokenCount: sql`${document.tokenCount} - ${totalTokens}`,
-              characterCount: sql`${document.characterCount} - ${totalCharacters}`,
-            })
-            .where(eq(document.id, documentId))
-
-          successCount = chunksToDelete.length
-          results.push({
-            operation: 'delete',
-            deletedCount: chunksToDelete.length,
-            chunkIds: chunksToDelete.map((c) => c.id),
-          })
-        })
-      } else {
-        // Handle batch enable/disable
-        const enabled = operation === 'enable'
-
-        // Update chunks in a single query
-        const updateResult = await db
-          .update(embedding)
-          .set({
-            enabled,
-            updatedAt: new Date(),
-          })
-          .where(and(eq(embedding.documentId, documentId), inArray(embedding.id, chunkIds)))
-          .returning({ id: embedding.id })
-
-        successCount = updateResult.length
-        results.push({
-          operation,
-          updatedCount: updateResult.length,
-          chunkIds: updateResult.map((r) => r.id),
-        })
-      }
-
-      logger.info(
-        `[${requestId}] Batch ${operation} operation completed: ${successCount} successful, ${errorCount} errors`
-      )
+      const result = await batchChunkOperation(documentId, operation, chunkIds, requestId)
 
       return NextResponse.json({
         success: true,
         data: {
           operation,
-          successCount,
-          errorCount,
-          results,
+          successCount: result.processed,
+          errorCount: result.errors.length,
+          processed: result.processed,
+          errors: result.errors,
         },
       })
     } catch (validationError) {

@@ -80,13 +80,16 @@ export interface OrganizationBillingData {
   subscriptionStatus: string
   totalSeats: number
   usedSeats: number
+  seatsCount: number
   totalCurrentUsage: number
   totalUsageLimit: number
+  minimumBillingAmount: number
   averageUsagePerMember: number
   billingPeriodStart: string | null
   billingPeriodEnd: string | null
   members?: MemberUsageData[]
   userRole?: string
+  billingBlocked?: boolean
 }
 
 export interface OrganizationState {
@@ -133,7 +136,7 @@ export interface OrganizationState {
 export interface OrganizationStore extends OrganizationState {
   loadData: () => Promise<void>
   loadOrganizationSubscription: (orgId: string) => Promise<void>
-  loadOrganizationBillingData: (organizationId: string) => Promise<void>
+  loadOrganizationBillingData: (organizationId: string, force?: boolean) => Promise<void>
   loadUserWorkspaces: (userId?: string) => Promise<void>
   refreshOrganization: () => Promise<void>
 
@@ -146,11 +149,6 @@ export interface OrganizationStore extends OrganizationState {
   inviteMember: (email: string, workspaceInvitations?: WorkspaceInvitation[]) => Promise<void>
   removeMember: (memberId: string, shouldReduceSeats?: boolean) => Promise<void>
   cancelInvitation: (invitationId: string) => Promise<void>
-  updateMemberUsageLimit: (
-    userId: string,
-    organizationId: string,
-    newLimit: number
-  ) => Promise<{ success: boolean; error?: string }>
 
   // Seat management
   addSeats: (newSeatCount: number) => Promise<void>

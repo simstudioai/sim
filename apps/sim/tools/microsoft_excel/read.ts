@@ -35,7 +35,8 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The range of cells to read from',
+      description:
+        'The range of cells to read from. Accepts "SheetName!A1:B2" for explicit ranges or just "SheetName" to read the used range of that sheet. If omitted, reads the used range of the first sheet.',
     },
   },
 
@@ -53,10 +54,19 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       }
 
       const rangeInput = params.range.trim()
+
+      // If the input contains no '!', treat it as a sheet name only and fetch usedRange
+      if (!rangeInput.includes('!')) {
+        const sheetOnly = encodeURIComponent(rangeInput)
+        return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets('${sheetOnly}')/usedRange(valuesOnly=true)`
+      }
+
       const match = rangeInput.match(/^([^!]+)!(.+)$/)
 
       if (!match) {
-        throw new Error(`Invalid range format: "${params.range}". Use the format "Sheet1!A1:B2"`)
+        throw new Error(
+          `Invalid range format: "${params.range}". Use "Sheet1!A1:B2" or just "Sheet1" to read the whole sheet`
+        )
       }
 
       const sheetName = encodeURIComponent(match[1])
@@ -104,7 +114,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       if (!rangeResp.ok) {
         // Normalize Microsoft Graph sheet/range errors to a friendly message
         throw new Error(
-          'Invalid range provided or worksheet not found. Provide a range like "Sheet1!A1:B2"'
+          'Invalid range provided or worksheet not found. Provide a range like "Sheet1!A1:B2" or just the sheet name to read the whole sheet'
         )
       }
 

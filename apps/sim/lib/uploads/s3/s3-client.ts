@@ -1,12 +1,16 @@
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { env } from '@/lib/env'
-import { S3_CONFIG } from '@/lib/uploads/setup'
+import { S3_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/setup'
 
 // Lazily create a single S3 client instance.
 let _s3Client: S3Client | null = null
@@ -286,4 +290,143 @@ export async function deleteFromS3(key: string, customConfig?: CustomS3Config): 
       Key: key,
     })
   )
+}
+
+// Multipart upload interfaces
+export interface S3MultipartUploadInit {
+  fileName: string
+  contentType: string
+  fileSize: number
+  customConfig?: CustomS3Config
+}
+
+export interface S3PartUploadUrl {
+  partNumber: number
+  url: string
+}
+
+export interface S3MultipartPart {
+  ETag: string
+  PartNumber: number
+}
+
+/**
+ * Initiate a multipart upload for S3
+ */
+export async function initiateS3MultipartUpload(
+  options: S3MultipartUploadInit
+): Promise<{ uploadId: string; key: string }> {
+  const { fileName, contentType, customConfig } = options
+
+  const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
+  const s3Client = getS3Client()
+
+  // Create unique key for the object
+  const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
+  const { v4: uuidv4 } = await import('uuid')
+  const uniqueKey = `kb/${uuidv4()}-${safeFileName}`
+
+  const command = new CreateMultipartUploadCommand({
+    Bucket: config.bucket,
+    Key: uniqueKey,
+    ContentType: contentType,
+    Metadata: {
+      originalName: sanitizeFilenameForMetadata(fileName),
+      uploadedAt: new Date().toISOString(),
+      purpose: 'knowledge-base',
+    },
+  })
+
+  const response = await s3Client.send(command)
+
+  if (!response.UploadId) {
+    throw new Error('Failed to initiate S3 multipart upload')
+  }
+
+  return {
+    uploadId: response.UploadId,
+    key: uniqueKey,
+  }
+}
+
+/**
+ * Generate presigned URLs for uploading parts to S3
+ */
+export async function getS3MultipartPartUrls(
+  key: string,
+  uploadId: string,
+  partNumbers: number[],
+  customConfig?: CustomS3Config
+): Promise<S3PartUploadUrl[]> {
+  const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
+  const s3Client = getS3Client()
+
+  const presignedUrls = await Promise.all(
+    partNumbers.map(async (partNumber) => {
+      const command = new UploadPartCommand({
+        Bucket: config.bucket,
+        Key: key,
+        PartNumber: partNumber,
+        UploadId: uploadId,
+      })
+
+      const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 })
+      return { partNumber, url }
+    })
+  )
+
+  return presignedUrls
+}
+
+/**
+ * Complete multipart upload for S3
+ */
+export async function completeS3MultipartUpload(
+  key: string,
+  uploadId: string,
+  parts: S3MultipartPart[],
+  customConfig?: CustomS3Config
+): Promise<{ location: string; path: string; key: string }> {
+  const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
+  const s3Client = getS3Client()
+
+  const command = new CompleteMultipartUploadCommand({
+    Bucket: config.bucket,
+    Key: key,
+    UploadId: uploadId,
+    MultipartUpload: {
+      Parts: parts.sort((a, b) => a.PartNumber - b.PartNumber),
+    },
+  })
+
+  const response = await s3Client.send(command)
+  const location =
+    response.Location || `https://${config.bucket}.s3.${config.region}.amazonaws.com/${key}`
+  const path = `/api/files/serve/s3/${encodeURIComponent(key)}`
+
+  return {
+    location,
+    path,
+    key,
+  }
+}
+
+/**
+ * Abort multipart upload for S3
+ */
+export async function abortS3MultipartUpload(
+  key: string,
+  uploadId: string,
+  customConfig?: CustomS3Config
+): Promise<void> {
+  const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
+  const s3Client = getS3Client()
+
+  const command = new AbortMultipartUploadCommand({
+    Bucket: config.bucket,
+    Key: key,
+    UploadId: uploadId,
+  })
+
+  await s3Client.send(command)
 }

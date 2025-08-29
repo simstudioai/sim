@@ -1,32 +1,12 @@
-import { createDecipheriv, createHash } from 'crypto'
-import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { copilotApiKeys } from '@/db/schema'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 
 const logger = createLogger('CopilotApiKeys')
 
-function deriveKey(keyString: string): Buffer {
-  return createHash('sha256').update(keyString, 'utf8').digest()
-}
-
-function decryptWithKey(encryptedValue: string, keyString: string): string {
-  const parts = encryptedValue.split(':')
-  if (parts.length !== 3) {
-    throw new Error('Invalid encrypted value format')
-  }
-  const [ivHex, encryptedHex, authTagHex] = parts
-  const key = deriveKey(keyString)
-  const iv = Buffer.from(ivHex, 'hex')
-  const decipher = createDecipheriv('aes-256-gcm', key, iv)
-  decipher.setAuthTag(Buffer.from(authTagHex, 'hex'))
-  let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
-  decrypted += decipher.final('utf8')
-  return decrypted
-}
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,22 +15,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!env.AGENT_API_DB_ENCRYPTION_KEY) {
-      logger.error('AGENT_API_DB_ENCRYPTION_KEY is not set')
-      return NextResponse.json({ error: 'Server not configured' }, { status: 500 })
-    }
-
     const userId = session.user.id
 
-    const rows = await db
-      .select({ id: copilotApiKeys.id, apiKeyEncrypted: copilotApiKeys.apiKeyEncrypted })
-      .from(copilotApiKeys)
-      .where(eq(copilotApiKeys.userId, userId))
+    const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key/get-api-keys`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+      },
+      body: JSON.stringify({ userId }),
+    })
 
-    const keys = rows.map((row) => ({
-      id: row.id,
-      apiKey: decryptWithKey(row.apiKeyEncrypted, env.AGENT_API_DB_ENCRYPTION_KEY as string),
-    }))
+    if (!res.ok) {
+      const errorBody = await res.text().catch(() => '')
+      logger.error('Sim Agent get-api-keys error', { status: res.status, error: errorBody })
+      return NextResponse.json({ error: 'Failed to get keys' }, { status: res.status || 500 })
+    }
+
+    const apiKeys = (await res.json().catch(() => null)) as { id: string; apiKey: string }[] | null
+
+    if (!Array.isArray(apiKeys)) {
+      logger.error('Sim Agent get-api-keys returned invalid payload')
+      return NextResponse.json({ error: 'Invalid response from Sim Agent' }, { status: 500 })
+    }
+
+    const keys = apiKeys
 
     return NextResponse.json({ keys }, { status: 200 })
   } catch (error) {
@@ -73,9 +62,26 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
     }
 
-    await db
-      .delete(copilotApiKeys)
-      .where(and(eq(copilotApiKeys.userId, userId), eq(copilotApiKeys.id, id)))
+    const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key/delete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+      },
+      body: JSON.stringify({ userId, apiKeyId: id }),
+    })
+
+    if (!res.ok) {
+      const errorBody = await res.text().catch(() => '')
+      logger.error('Sim Agent delete key error', { status: res.status, error: errorBody })
+      return NextResponse.json({ error: 'Failed to delete key' }, { status: res.status || 500 })
+    }
+
+    const data = (await res.json().catch(() => null)) as { success?: boolean } | null
+    if (!data?.success) {
+      logger.error('Sim Agent delete key returned invalid payload')
+      return NextResponse.json({ error: 'Invalid response from Sim Agent' }, { status: 500 })
+    }
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

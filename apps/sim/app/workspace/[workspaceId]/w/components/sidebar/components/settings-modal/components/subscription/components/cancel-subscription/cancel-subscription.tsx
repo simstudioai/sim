@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession, useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
@@ -38,8 +39,9 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
 
   const { data: session } = useSession()
   const betterAuthSubscription = useSubscription()
-  const { activeOrganization } = useOrganizationStore()
-  const { getSubscriptionStatus } = useSubscriptionStore()
+  const { activeOrganization, loadOrganizationSubscription, refreshOrganization } =
+    useOrganizationStore()
+  const { getSubscriptionStatus, refresh } = useSubscriptionStore()
 
   // Clear error after 3 seconds
   useEffect(() => {
@@ -67,33 +69,92 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
       const activeOrgId = activeOrganization?.id
 
       let referenceId = session.user.id
+      let subscriptionId: string | undefined
+
       if (subscriptionStatus.isTeam && activeOrgId) {
         referenceId = activeOrgId
+        // Get subscription ID for team/enterprise
+        const orgSubscription = useOrganizationStore.getState().subscriptionData
+        subscriptionId = orgSubscription?.id
       }
 
       logger.info('Canceling subscription', {
         referenceId,
+        subscriptionId,
         isTeam: subscriptionStatus.isTeam,
         activeOrgId,
       })
 
-      const result = await betterAuthSubscription.cancel({
-        returnUrl: window.location.href,
+      if (!betterAuthSubscription.cancel) {
+        throw new Error('Subscription management not available')
+      }
+
+      const returnUrl = window.location.origin + window.location.pathname.split('/w/')[0]
+
+      const cancelParams: any = {
+        returnUrl,
         referenceId,
-      })
+      }
+
+      if (subscriptionId) {
+        cancelParams.subscriptionId = subscriptionId
+      }
+
+      const result = await betterAuthSubscription.cancel(cancelParams)
 
       if (result && 'error' in result && result.error) {
         setError(result.error.message || 'Failed to cancel subscription')
         logger.error('Failed to cancel subscription via Better Auth', { error: result.error })
       } else {
-        // Better Auth cancel redirects to Stripe Billing Portal
-        // So if we reach here without error, the redirect should happen
         logger.info('Redirecting to Stripe Billing Portal for cancellation')
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to cancel subscription'
       setError(errorMessage)
       logger.error('Failed to cancel subscription', { error })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  const handleKeep = async () => {
+    if (!session?.user?.id) return
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const subscriptionStatus = getSubscriptionStatus()
+      const activeOrgId = activeOrganization?.id
+
+      // For team/enterprise plans, get the subscription ID from organization store
+      if ((subscriptionStatus.isTeam || subscriptionStatus.isEnterprise) && activeOrgId) {
+        const orgSubscription = useOrganizationStore.getState().subscriptionData
+
+        if (orgSubscription?.id && orgSubscription?.cancelAtPeriodEnd) {
+          // Restore the organization subscription
+          if (!betterAuthSubscription.restore) {
+            throw new Error('Subscription restore not available')
+          }
+
+          const result = await betterAuthSubscription.restore({
+            referenceId: activeOrgId,
+            subscriptionId: orgSubscription.id,
+          })
+          logger.info('Organization subscription restored successfully', result)
+        }
+      }
+
+      // Refresh state and close
+      await refresh()
+      if (activeOrgId) {
+        await loadOrganizationSubscription(activeOrgId)
+        await refreshOrganization().catch(() => {})
+      }
+      setIsDialogOpen(false)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to keep subscription'
+      setError(errorMessage)
+      logger.error('Failed to keep subscription', { error })
     } finally {
       setIsLoading(false)
     }
@@ -127,14 +188,25 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
 
   const periodEndDate = getPeriodEndDate()
 
+  // Check if subscription is set to cancel at period end
+  const isCancelAtPeriodEnd = (() => {
+    const subscriptionStatus = getSubscriptionStatus()
+    if (subscriptionStatus.isTeam || subscriptionStatus.isEnterprise) {
+      return useOrganizationStore.getState().subscriptionData?.cancelAtPeriodEnd === true
+    }
+    return false
+  })()
+
   return (
     <>
       <div className='flex items-center justify-between'>
         <div>
           <span className='font-medium text-sm'>Manage Subscription</span>
-          <p className='mt-1 text-muted-foreground text-xs'>
-            You'll keep access until {formatDate(periodEndDate)}
-          </p>
+          {isCancelAtPeriodEnd && (
+            <p className='mt-1 text-muted-foreground text-xs'>
+              You'll keep access until {formatDate(periodEndDate)}
+            </p>
+          )}
         </div>
         <Button
           variant='outline'
@@ -154,39 +226,78 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
       <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel {subscription.plan} subscription?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {isCancelAtPeriodEnd ? 'Manage' : 'Cancel'} {subscription.plan} subscription?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              You'll be redirected to Stripe to manage your subscription. You'll keep access until{' '}
-              {formatDate(periodEndDate)}, then downgrade to free plan.
+              {isCancelAtPeriodEnd
+                ? 'Your subscription is set to cancel at the end of the billing period. You can reactivate it or manage other settings.'
+                : `You'll be redirected to Stripe to manage your subscription. You'll keep access until ${formatDate(
+                    periodEndDate
+                  )}, then downgrade to free plan.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <div className='py-2'>
-            <div className='rounded-[8px] bg-muted/50 p-3 text-sm'>
-              <ul className='space-y-1 text-muted-foreground text-xs'>
-                <li>• Keep all features until {formatDate(periodEndDate)}</li>
-                <li>• No more charges</li>
-                <li>• Data preserved</li>
-                <li>• Can reactivate anytime</li>
-              </ul>
+          {!isCancelAtPeriodEnd && (
+            <div className='py-2'>
+              <div className='rounded-[8px] bg-muted/50 p-3 text-sm'>
+                <ul className='space-y-1 text-muted-foreground text-xs'>
+                  <li>• Keep all features until {formatDate(periodEndDate)}</li>
+                  <li>• No more charges</li>
+                  <li>• Data preserved</li>
+                  <li>• Can reactivate anytime</li>
+                </ul>
+              </div>
             </div>
-          </div>
+          )}
 
           <AlertDialogFooter className='flex'>
             <AlertDialogCancel
               className='h-9 w-full rounded-[8px]'
-              onClick={() => setIsDialogOpen(false)}
+              onClick={handleKeep}
               disabled={isLoading}
             >
               Keep Subscription
             </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleCancel}
-              className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
-              disabled={isLoading}
-            >
-              {isLoading ? 'Redirecting...' : 'Continue'}
-            </AlertDialogAction>
+
+            {(() => {
+              const subscriptionStatus = getSubscriptionStatus()
+              if (
+                subscriptionStatus.isPaid &&
+                (activeOrganization?.id
+                  ? useOrganizationStore.getState().subscriptionData?.cancelAtPeriodEnd
+                  : false)
+              ) {
+                return (
+                  <TooltipProvider delayDuration={0}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className='w-full'>
+                          <AlertDialogAction
+                            disabled
+                            className='h-9 w-full cursor-not-allowed rounded-[8px] bg-muted text-muted-foreground opacity-50'
+                          >
+                            Continue
+                          </AlertDialogAction>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side='top'>
+                        <p>Subscription will be cancelled at end of billing period</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )
+              }
+              return (
+                <AlertDialogAction
+                  onClick={handleCancel}
+                  className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Redirecting...' : 'Continue'}
+                </AlertDialogAction>
+              )
+            })()}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

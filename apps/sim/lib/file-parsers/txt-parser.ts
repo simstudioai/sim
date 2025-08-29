@@ -1,5 +1,6 @@
 import { readFile } from 'fs/promises'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
+import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('TxtParser')
@@ -27,8 +28,9 @@ export class TxtParser implements FileParser {
     try {
       logger.info('Parsing buffer, size:', buffer.length)
 
-      // Extract content
-      const result = buffer.toString('utf-8')
+      // Extract content and sanitize for UTF-8 storage
+      const rawContent = buffer.toString('utf-8')
+      const result = sanitizeTextForUTF8(rawContent)
 
       return {
         content: result,

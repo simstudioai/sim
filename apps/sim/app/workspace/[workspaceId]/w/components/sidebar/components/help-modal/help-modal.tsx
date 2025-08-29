@@ -1,13 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import imageCompression from 'browser-image-compression'
-import { AlertCircle, CheckCircle2, Upload, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import Image from 'next/image'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogContent,
@@ -26,8 +25,21 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
+import { cn } from '@/lib/utils'
 
 const logger = createLogger('HelpModal')
+
+// File upload constraints
+const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB maximum upload size
+const TARGET_SIZE_MB = 2 // Target size after compression
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+
+// UI timing constants
+const SCROLL_DELAY_MS = 100
+const SUCCESS_RESET_DELAY_MS = 2000
+
+// Form default values
+const DEFAULT_REQUEST_TYPE = 'bug'
 
 const formSchema = z.object({
   subject: z.string().min(1, 'Subject is required'),
@@ -38,12 +50,6 @@ const formSchema = z.object({
 })
 
 type FormValues = z.infer<typeof formSchema>
-
-// Increased maximum upload size to 20MB
-const MAX_FILE_SIZE = 20 * 1024 * 1024
-// Target size after compression (2MB)
-const TARGET_SIZE_MB = 2
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
 
 interface ImageWithPreview extends File {
   preview: string
@@ -56,6 +62,9 @@ interface HelpModalProps {
 
 export function HelpModal({ open, onOpenChange }: HelpModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const dropZoneRef = useRef<HTMLDivElement>(null)
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
@@ -63,8 +72,6 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
   const [imageError, setImageError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const dropZoneRef = useRef<HTMLDivElement>(null)
 
   const {
     register,
@@ -77,65 +84,61 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
     defaultValues: {
       subject: '',
       message: '',
-      type: 'bug', // Set default value to 'bug'
+      type: DEFAULT_REQUEST_TYPE,
     },
     mode: 'onSubmit',
   })
 
-  // Reset state when modal opens/closes
+  /**
+   * Reset all state when modal opens/closes
+   */
   useEffect(() => {
     if (open) {
-      // Reset states when modal opens
       setSubmitStatus(null)
       setErrorMessage('')
       setImageError(null)
       setImages([])
       setIsDragging(false)
       setIsProcessing(false)
-      // Reset form to default values
       reset({
         subject: '',
         message: '',
-        type: 'bug',
+        type: DEFAULT_REQUEST_TYPE,
       })
     }
   }, [open, reset])
 
-  // Listen for the custom event to open the help modal
+  /**
+   * Set default form value for request type
+   */
   useEffect(() => {
-    const handleOpenHelp = () => {
-      onOpenChange(true)
-    }
-
-    // Add event listener
-    window.addEventListener('open-help', handleOpenHelp as EventListener)
-
-    // Clean up
-    return () => {
-      window.removeEventListener('open-help', handleOpenHelp as EventListener)
-    }
-  }, [onOpenChange])
-
-  // Set default value for type on component mount
-  useEffect(() => {
-    setValue('type', 'bug')
+    setValue('type', DEFAULT_REQUEST_TYPE)
   }, [setValue])
 
-  // Scroll to top when success message appears
-  useEffect(() => {
-    if (submitStatus === 'success' && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' })
-    }
-  }, [submitStatus])
-
-  // Clean up object URLs when component unmounts
+  /**
+   * Clean up image preview URLs to prevent memory leaks
+   */
   useEffect(() => {
     return () => {
       images.forEach((image) => URL.revokeObjectURL(image.preview))
     }
   }, [images])
 
-  // Scroll to bottom when images are added
+  /**
+   * Reset submit status back to normal after showing success for 2 seconds
+   */
+  useEffect(() => {
+    if (submitStatus === 'success') {
+      const timer = setTimeout(() => {
+        setSubmitStatus(null)
+      }, SUCCESS_RESET_DELAY_MS)
+      return () => clearTimeout(timer)
+    }
+  }, [submitStatus])
+
+  /**
+   * Smooth scroll to bottom when new images are added
+   */
   useEffect(() => {
     if (images.length > 0 && scrollContainerRef.current) {
       const scrollContainer = scrollContainerRef.current
@@ -144,11 +147,16 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
           top: scrollContainer.scrollHeight,
           behavior: 'smooth',
         })
-      }, 100) // Small delay to ensure DOM has updated
+      }, SCROLL_DELAY_MS)
     }
   }, [images.length])
 
-  const compressImage = async (file: File): Promise<File> => {
+  /**
+   * Compress image files to reduce upload size while maintaining quality
+   * @param file - The image file to compress
+   * @returns The compressed file or original if compression fails/is unnecessary
+   */
+  const compressImage = useCallback(async (file: File): Promise<File> => {
     // Skip compression for small files or GIFs (which don't compress well)
     if (file.size < TARGET_SIZE_MB * 1024 * 1024 || file.type === 'image/gif') {
       return file
@@ -159,7 +167,6 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
       maxWidthOrHeight: 1920,
       useWebWorker: true,
       fileType: file.type,
-      // Ensure we maintain proper file naming and MIME types
       initialQuality: 0.8,
       alwaysKeepResolution: true,
     }
@@ -167,7 +174,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
     try {
       const compressedFile = await imageCompression(file, options)
 
-      // Create a new File object with the original name and type to ensure compatibility
+      // Preserve original file metadata for compatibility
       return new File([compressedFile], file.name, {
         type: file.type,
         lastModified: Date.now(),
@@ -176,207 +183,208 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
       logger.warn('Image compression failed, using original file:', { error })
       return file
     }
-  }
+  }, [])
 
-  const processFiles = async (files: FileList | File[]) => {
-    setImageError(null)
+  /**
+   * Process uploaded files: validate, compress, and prepare for preview
+   * @param files - FileList or array of files to process
+   */
+  const processFiles = useCallback(
+    async (files: FileList | File[]) => {
+      setImageError(null)
 
-    if (!files || files.length === 0) return
+      if (!files || files.length === 0) return
 
-    setIsProcessing(true)
+      setIsProcessing(true)
 
-    try {
-      const newImages: ImageWithPreview[] = []
-      let hasError = false
+      try {
+        const newImages: ImageWithPreview[] = []
+        let hasError = false
 
-      for (const file of Array.from(files)) {
-        // Check file size
-        if (file.size > MAX_FILE_SIZE) {
-          setImageError(`File ${file.name} is too large. Maximum size is 20MB.`)
-          hasError = true
-          continue
+        for (const file of Array.from(files)) {
+          // Validate file size
+          if (file.size > MAX_FILE_SIZE) {
+            setImageError(`File ${file.name} is too large. Maximum size is 20MB.`)
+            hasError = true
+            continue
+          }
+
+          // Validate file type
+          if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+            setImageError(
+              `File ${file.name} has an unsupported format. Please use JPEG, PNG, WebP, or GIF.`
+            )
+            hasError = true
+            continue
+          }
+
+          // Compress and prepare image
+          const compressedFile = await compressImage(file)
+          const imageWithPreview = Object.assign(compressedFile, {
+            preview: URL.createObjectURL(compressedFile),
+          }) as ImageWithPreview
+
+          newImages.push(imageWithPreview)
         }
 
-        // Check file type
-        if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-          setImageError(
-            `File ${file.name} has an unsupported format. Please use JPEG, PNG, WebP, or GIF.`
-          )
-          hasError = true
-          continue
+        if (!hasError && newImages.length > 0) {
+          setImages((prev) => [...prev, ...newImages])
         }
+      } catch (error) {
+        logger.error('Error processing images:', { error })
+        setImageError('An error occurred while processing images. Please try again.')
+      } finally {
+        setIsProcessing(false)
 
-        // Compress the image (behind the scenes)
-        const compressedFile = await compressImage(file)
-
-        // Create preview URL
-        const imageWithPreview = Object.assign(compressedFile, {
-          preview: URL.createObjectURL(compressedFile),
-        }) as ImageWithPreview
-
-        newImages.push(imageWithPreview)
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
       }
+    },
+    [compressImage]
+  )
 
-      if (!hasError && newImages.length > 0) {
-        setImages((prev) => [...prev, ...newImages])
+  /**
+   * Handle file input change event
+   */
+  const handleFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files) {
+        await processFiles(e.target.files)
       }
-    } catch (error) {
-      logger.error('Error processing images:', { error })
-      setImageError('An error occurred while processing images. Please try again.')
-    } finally {
-      setIsProcessing(false)
+    },
+    [processFiles]
+  )
 
-      // Reset the input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
-    }
-  }
-
-  // Update the existing handleFileChange function to use processFiles
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      await processFiles(e.target.files)
-    }
-  }
-
-  // Handle drag events
-  const handleDragEnter = (e: React.DragEvent) => {
+  /**
+   * Drag and drop event handlers
+   */
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setIsDragging(true)
-  }
+  }, [])
 
-  const handleDragLeave = (e: React.DragEvent) => {
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setIsDragging(false)
-  }
+  }, [])
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-  }
+  }, [])
 
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDragging(false)
 
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      await processFiles(e.dataTransfer.files)
-    }
-  }
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        await processFiles(e.dataTransfer.files)
+      }
+    },
+    [processFiles]
+  )
 
-  const removeImage = (index: number) => {
+  /**
+   * Remove an uploaded image and clean up its preview URL
+   */
+  const removeImage = useCallback((index: number) => {
     setImages((prev) => {
-      // Revoke the URL to avoid memory leaks
       URL.revokeObjectURL(prev[index].preview)
       return prev.filter((_, i) => i !== index)
     })
-  }
+  }, [])
 
-  const onSubmit = async (data: FormValues) => {
-    setIsSubmitting(true)
-    setSubmitStatus(null)
+  /**
+   * Handle form submission with image attachments
+   */
+  const onSubmit = useCallback(
+    async (data: FormValues) => {
+      setIsSubmitting(true)
+      setSubmitStatus(null)
+      setErrorMessage('')
 
-    try {
-      // Create FormData to handle file uploads
-      const formData = new FormData()
+      try {
+        // Prepare form data with images
+        const formData = new FormData()
+        formData.append('subject', data.subject)
+        formData.append('message', data.message)
+        formData.append('type', data.type)
 
-      // Add form fields (email will be retrieved server-side from session)
-      formData.append('subject', data.subject)
-      formData.append('message', data.message)
-      formData.append('type', data.type)
+        // Attach all images to form data
+        images.forEach((image, index) => {
+          formData.append(`image_${index}`, image)
+        })
 
-      // Add images
-      images.forEach((image, index) => {
-        formData.append(`image_${index}`, image)
-      })
+        // Submit to API
+        const response = await fetch('/api/help', {
+          method: 'POST',
+          body: formData,
+        })
 
-      const response = await fetch('/api/help', {
-        method: 'POST',
-        body: formData,
-      })
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to submit help request')
+        }
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to submit help request')
+        // Handle success
+        setSubmitStatus('success')
+        reset()
+
+        // Clean up resources
+        images.forEach((image) => URL.revokeObjectURL(image.preview))
+        setImages([])
+      } catch (error) {
+        logger.error('Error submitting help request:', { error })
+        setSubmitStatus('error')
+        setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred')
+      } finally {
+        setIsSubmitting(false)
       }
+    },
+    [images, reset]
+  )
 
-      setSubmitStatus('success')
-      reset()
-
-      // Clean up image previews
-      images.forEach((image) => URL.revokeObjectURL(image.preview))
-      setImages([])
-    } catch (error) {
-      logger.error('Error submitting help request:', { error })
-      setSubmitStatus('error')
-      setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred')
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleClose = () => {
+  /**
+   * Handle modal close action
+   */
+  const handleClose = useCallback(() => {
     onOpenChange(false)
-  }
+  }, [onOpenChange])
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className='flex h-[75vh] max-h-[75vh] flex-col gap-0 p-0 sm:max-w-[700px]'>
+        {/* Modal Header */}
         <AlertDialogHeader className='flex-shrink-0 px-6 py-5'>
           <AlertDialogTitle className='font-medium text-lg'>Help & Support</AlertDialogTitle>
         </AlertDialogHeader>
 
+        {/* Modal Body */}
         <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
           <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
-            {/* Scrollable Content */}
+            {/* Scrollable Form Content */}
             <div
               ref={scrollContainerRef}
               className='scrollbar-hide min-h-0 flex-1 overflow-y-auto pb-20'
             >
               <div className='px-6'>
-                {submitStatus === 'success' ? (
-                  <Alert className='mb-6 border-border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30'>
-                    <div className='flex items-start gap-4 py-1'>
-                      <div className='mt-[-1.5px] flex-shrink-0'>
-                        <CheckCircle2 className='h-4 w-4 text-green-600 dark:text-green-400' />
-                      </div>
-                      <div className='mr-4 flex-1 space-y-2'>
-                        <AlertTitle className='-mt-0.5 flex items-center justify-between'>
-                          <span className='font-medium text-green-600 dark:text-green-400'>
-                            Success
-                          </span>
-                        </AlertTitle>
-                        <AlertDescription className='text-green-600 dark:text-green-400'>
-                          Your request has been submitted successfully. We'll get back to you soon.
-                        </AlertDescription>
-                      </div>
-                    </div>
-                  </Alert>
-                ) : submitStatus === 'error' ? (
-                  <Alert variant='destructive' className='mb-6'>
-                    <AlertCircle className='h-4 w-4' />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>
-                      {errorMessage ||
-                        'There was an error submitting your request. Please try again.'}
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-
                 <div className='space-y-4'>
-                  <div className='space-y-2'>
+                  {/* Request Type Field */}
+                  <div className='space-y-1'>
                     <Label htmlFor='type'>Request</Label>
                     <Select
-                      defaultValue='bug'
-                      onValueChange={(value) => setValue('type', value as any)}
+                      defaultValue={DEFAULT_REQUEST_TYPE}
+                      onValueChange={(value) => setValue('type', value as FormValues['type'])}
                     >
                       <SelectTrigger
                         id='type'
-                        className={`h-9 rounded-[8px] ${errors.type ? 'border-red-500' : ''}`}
+                        className={cn('h-9 rounded-[8px]', errors.type && 'border-red-500')}
                       >
                         <SelectValue placeholder='Select a request type' />
                       </SelectTrigger>
@@ -392,27 +400,29 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                     )}
                   </div>
 
-                  <div className='space-y-2'>
+                  {/* Subject Field */}
+                  <div className='space-y-1'>
                     <Label htmlFor='subject'>Subject</Label>
                     <Input
                       id='subject'
                       placeholder='Brief description of your request'
                       {...register('subject')}
-                      className={`h-9 rounded-[8px] ${errors.subject ? 'border-red-500' : ''}`}
+                      className={cn('h-9 rounded-[8px]', errors.subject && 'border-red-500')}
                     />
                     {errors.subject && (
                       <p className='mt-1 text-red-500 text-sm'>{errors.subject.message}</p>
                     )}
                   </div>
 
-                  <div className='space-y-2'>
+                  {/* Message Field */}
+                  <div className='space-y-1'>
                     <Label htmlFor='message'>Message</Label>
                     <Textarea
                       id='message'
                       placeholder='Please provide details about your request...'
                       rows={6}
                       {...register('message')}
-                      className={`rounded-[8px] ${errors.message ? 'border-red-500' : ''}`}
+                      className={cn('rounded-[8px]', errors.message && 'border-red-500')}
                     />
                     {errors.message && (
                       <p className='mt-1 text-red-500 text-sm'>{errors.message.message}</p>
@@ -420,7 +430,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                   </div>
 
                   {/* Image Upload Section */}
-                  <div className='mt-6 space-y-2'>
+                  <div className='mt-6 space-y-1'>
                     <Label>Attach Images (Optional)</Label>
                     <div
                       ref={dropZoneRef}
@@ -428,9 +438,10 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                       onDragOver={handleDragOver}
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
-                      className={`cursor-pointer rounded-lg border-2 border-muted-foreground/25 border-dashed p-6 text-center transition-colors hover:bg-muted/50 ${
-                        isDragging ? 'border-primary bg-primary/5' : ''
-                      }`}
+                      className={cn(
+                        'cursor-pointer rounded-lg border-[1.5px] border-muted-foreground/25 border-dashed p-6 text-center transition-colors hover:bg-muted/50',
+                        isDragging && 'border-primary bg-primary/5'
+                      )}
                       onClick={() => fileInputRef.current?.click()}
                     >
                       <input
@@ -441,7 +452,6 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                         className='hidden'
                         multiple
                       />
-                      <Upload className='mx-auto mb-2 h-8 w-8 text-muted-foreground' />
                       <p className='text-sm'>
                         {isDragging ? 'Drop images here!' : 'Drop images here or click to browse'}
                       </p>
@@ -455,9 +465,9 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                     )}
                   </div>
 
-                  {/* Image Preview Section */}
+                  {/* Image Preview Grid */}
                   {images.length > 0 && (
-                    <div className='space-y-2'>
+                    <div className='space-y-1'>
                       <Label>Uploaded Images</Label>
                       <div className='grid grid-cols-2 gap-4'>
                         {images.map((image, index) => (
@@ -489,7 +499,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
               </div>
             </div>
 
-            {/* Overlay Footer */}
+            {/* Fixed Footer with Actions */}
             <div className='absolute inset-x-0 bottom-0 bg-background'>
               <div className='flex w-full items-center justify-between px-6 py-4'>
                 <Button variant='outline' onClick={handleClose} type='button'>
@@ -498,9 +508,25 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
                 <Button
                   type='submit'
                   disabled={isSubmitting || isProcessing}
-                  className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50 disabled:hover:shadow-none'
+                  variant={
+                    submitStatus === 'error' || submitStatus === 'success' ? 'outline' : 'default'
+                  }
+                  className={cn(
+                    'font-[480] transition-all duration-200',
+                    submitStatus === 'error'
+                      ? 'border border-red-500 bg-transparent text-red-500 hover:bg-red-500 hover:text-white dark:border-red-500 dark:text-red-500 dark:hover:bg-red-500'
+                      : submitStatus === 'success'
+                        ? 'border border-green-500 bg-transparent text-green-500 hover:bg-green-500 hover:text-white dark:border-green-500 dark:text-green-500 dark:hover:bg-green-500'
+                        : 'bg-[var(--brand-primary-hex)] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50 disabled:hover:shadow-none'
+                  )}
                 >
-                  {isSubmitting ? 'Submitting...' : 'Submit'}
+                  {isSubmitting
+                    ? 'Submitting...'
+                    : submitStatus === 'error'
+                      ? 'Error'
+                      : submitStatus === 'success'
+                        ? 'Success'
+                        : 'Submit'}
                 </Button>
               </div>
             </div>

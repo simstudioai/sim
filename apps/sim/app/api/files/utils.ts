@@ -70,7 +70,6 @@ export const contentTypeMap: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   gif: 'image/gif',
-  svg: 'image/svg+xml',
   // Archive formats
   zip: 'application/zip',
   // Folder format
@@ -153,10 +152,43 @@ export function extractBlobKey(path: string): string {
  * Extract filename from a serve path
  */
 export function extractFilename(path: string): string {
+  let filename: string
+
   if (path.startsWith('/api/files/serve/')) {
-    return path.substring('/api/files/serve/'.length)
+    filename = path.substring('/api/files/serve/'.length)
+  } else {
+    filename = path.split('/').pop() || path
   }
-  return path.split('/').pop() || path
+
+  filename = filename
+    .replace(/\.\./g, '')
+    .replace(/\/\.\./g, '')
+    .replace(/\.\.\//g, '')
+
+  // Handle cloud storage paths (s3/key, blob/key) - preserve forward slashes for these
+  if (filename.startsWith('s3/') || filename.startsWith('blob/')) {
+    // For cloud paths, only sanitize the key portion after the prefix
+    const parts = filename.split('/')
+    const prefix = parts[0] // 's3' or 'blob'
+    const keyParts = parts.slice(1)
+
+    // Sanitize each part of the key to prevent traversal
+    const sanitizedKeyParts = keyParts
+      .map((part) => part.replace(/\.\./g, '').replace(/^\./g, '').trim())
+      .filter((part) => part.length > 0)
+
+    filename = `${prefix}/${sanitizedKeyParts.join('/')}`
+  } else {
+    // For regular filenames, remove any remaining path separators
+    filename = filename.replace(/[/\\]/g, '')
+  }
+
+  // Additional validation: ensure filename is not empty after sanitization
+  if (!filename || filename.trim().length === 0) {
+    throw new Error('Invalid or empty filename after sanitization')
+  }
+
+  return filename
 }
 
 /**
@@ -174,16 +206,65 @@ export function findLocalFile(filename: string): string | null {
   return null
 }
 
+const SAFE_INLINE_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/gif',
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'application/json',
+])
+
+// File extensions that should always be served as attachment for security
+const FORCE_ATTACHMENT_EXTENSIONS = new Set(['html', 'htm', 'svg', 'js', 'css', 'xml'])
+
 /**
- * Create a file response with appropriate headers
+ * Determines safe content type and disposition for file serving
+ */
+function getSecureFileHeaders(filename: string, originalContentType: string) {
+  const extension = filename.split('.').pop()?.toLowerCase() || ''
+
+  // Force attachment for potentially dangerous file types
+  if (FORCE_ATTACHMENT_EXTENSIONS.has(extension)) {
+    return {
+      contentType: 'application/octet-stream', // Force download
+      disposition: 'attachment',
+    }
+  }
+
+  // Override content type for safety while preserving legitimate use cases
+  let safeContentType = originalContentType
+
+  // Handle potentially dangerous content types
+  if (originalContentType === 'text/html' || originalContentType === 'image/svg+xml') {
+    safeContentType = 'text/plain' // Prevent browser rendering
+  }
+
+  // Use inline only for verified safe content types
+  const disposition = SAFE_INLINE_TYPES.has(safeContentType) ? 'inline' : 'attachment'
+
+  return {
+    contentType: safeContentType,
+    disposition,
+  }
+}
+
+/**
+ * Create a file response with appropriate security headers
  */
 export function createFileResponse(file: FileResponse): NextResponse {
+  const { contentType, disposition } = getSecureFileHeaders(file.filename, file.contentType)
+
   return new NextResponse(file.buffer as BodyInit, {
     status: 200,
     headers: {
-      'Content-Type': file.contentType,
-      'Content-Disposition': `inline; filename="${file.filename}"`,
+      'Content-Type': contentType,
+      'Content-Disposition': `${disposition}; filename="${file.filename}"`,
       'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox;",
     },
   })
 }

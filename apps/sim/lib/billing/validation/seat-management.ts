@@ -1,5 +1,6 @@
 import { and, count, eq } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import type { EnterpriseSubscriptionMetadata } from '@/lib/billing/types'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
@@ -71,11 +72,11 @@ export async function validateSeatAvailability(
     // For enterprise plans, check metadata for custom seat allowances
     if (subscription.plan === 'enterprise' && subscription.metadata) {
       try {
-        const metadata =
+        const metadata: EnterpriseSubscriptionMetadata =
           typeof subscription.metadata === 'string'
             ? JSON.parse(subscription.metadata)
             : subscription.metadata
-        if (metadata.maxSeats) {
+        if (metadata.maxSeats && typeof metadata.maxSeats === 'number') {
           maxSeats = metadata.maxSeats
         }
       } catch (error) {
@@ -166,11 +167,11 @@ export async function getOrganizationSeatInfo(
 
     if (subscription.plan === 'enterprise' && subscription.metadata) {
       try {
-        const metadata =
+        const metadata: EnterpriseSubscriptionMetadata =
           typeof subscription.metadata === 'string'
             ? JSON.parse(subscription.metadata)
             : subscription.metadata
-        if (metadata.maxSeats) {
+        if (metadata.maxSeats && typeof metadata.maxSeats === 'number') {
           maxSeats = metadata.maxSeats
         }
         // Enterprise plans might have fixed seat counts

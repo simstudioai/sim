@@ -15,6 +15,8 @@ interface UsageLimitProps {
   canEdit: boolean
   minimumLimit: number
   onLimitUpdated?: (newLimit: number) => void
+  context?: 'user' | 'organization'
+  organizationId?: string
 }
 
 export interface UsageLimitRef {
@@ -22,7 +24,18 @@ export interface UsageLimitRef {
 }
 
 export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
-  ({ currentLimit, currentUsage, canEdit, minimumLimit, onLimitUpdated }, ref) => {
+  (
+    {
+      currentLimit,
+      currentUsage,
+      canEdit,
+      minimumLimit,
+      onLimitUpdated,
+      context = 'user',
+      organizationId,
+    },
+    ref
+  ) => {
     const [inputValue, setInputValue] = useState(currentLimit.toString())
     const [isSaving, setIsSaving] = useState(false)
     const [hasError, setHasError] = useState(false)
@@ -95,10 +108,28 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       setIsSaving(true)
 
       try {
-        const result = await updateUsageLimit(newLimit)
+        if (context === 'organization') {
+          if (!organizationId) {
+            throw new Error('Organization ID is required')
+          }
 
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to update limit')
+          const response = await fetch('/api/usage-limits', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ context: 'organization', organizationId, limit: newLimit }),
+          })
+
+          const data = await response.json()
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to update limit')
+          }
+        } else {
+          const result = await updateUsageLimit(newLimit)
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to update limit')
+          }
         }
 
         setInputValue(newLimit.toString())
@@ -158,19 +189,19 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
                 handleSubmit()
               }}
               className={cn(
-                'w-[3ch] border-0 bg-transparent p-0 text-xs tabular-nums',
+                'border-0 bg-transparent p-0 text-xs tabular-nums',
                 'outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
                 '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
                 hasError && 'text-red-500'
               )}
               min={minimumLimit}
-              max='999'
               step='1'
               disabled={isSaving}
               autoComplete='off'
               autoCorrect='off'
               autoCapitalize='off'
               spellCheck='false'
+              style={{ width: `${Math.max(3, inputValue.length)}ch` }}
             />
           </>
         ) : (

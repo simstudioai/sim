@@ -122,8 +122,8 @@
     --popover-foreground: 0 0% 98%;
 
     /* Primary Colors */
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 11.2%;
+    --primary: 0 0% 11.2%;
+    --primary-foreground: 0 0% 98%;
 
     /* Secondary Colors */
     --secondary: 0 0% 12.0%;

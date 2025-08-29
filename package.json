@@ -33,7 +33,9 @@
     "@linear/sdk": "40.0.0",
     "@t3-oss/env-nextjs": "0.13.4",
     "@vercel/analytics": "1.5.0",
+    "drizzle-orm": "0.44.5",
     "geist": "^1.4.2",
+    "pg": "8.16.3",
     "react-colorful": "5.6.1",
     "remark-gfm": "4.0.1",
     "socket.io-client": "4.8.1"
@@ -41,6 +43,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.0.0-beta.5",
     "@next/env": "^15.3.2",
+    "@types/word-extractor": "1.0.6",
     "dotenv-cli": "^8.0.0",
     "husky": "9.1.7",
     "lint-staged": "16.0.0",

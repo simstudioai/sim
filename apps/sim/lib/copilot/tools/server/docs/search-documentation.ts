@@ -17,15 +17,14 @@ export const searchDocumentationServerTool: BaseServerTool<DocsSearchParams, any
     const { query, topK = 10, threshold } = params
     if (!query || typeof query !== 'string') throw new Error('query is required')
 
-    logger.info('Executing docs search (new runtime)', { query, topK })
+    logger.info('Executing docs search', { query, topK })
 
     const { getCopilotConfig } = await import('@/lib/copilot/config')
     const config = getCopilotConfig()
     const similarityThreshold = threshold ?? config.rag.similarityThreshold
 
-    const { generateEmbeddings } = await import('@/app/api/knowledge/utils')
-    const embeddings = await generateEmbeddings([query])
-    const queryEmbedding = embeddings[0]
+    const { generateSearchEmbedding } = await import('@/lib/embeddings/utils')
+    const queryEmbedding = await generateSearchEmbedding(query)
     if (!queryEmbedding || queryEmbedding.length === 0) {
       return { results: [], query, totalResults: 0 }
     }

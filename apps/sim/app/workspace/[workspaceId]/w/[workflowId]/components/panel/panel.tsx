@@ -387,15 +387,19 @@ export function Panel() {
                     open={isHistoryDropdownOpen}
                     onOpenChange={handleHistoryDropdownOpen}
                   >
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
-                        style={{ color: 'var(--base-muted-foreground)' }}
-                        title='Chat history'
-                      >
-                        <History className='h-4 w-4' strokeWidth={2} />
-                      </button>
-                    </DropdownMenuTrigger>
+                    <Tooltip>
+                      <DropdownMenuTrigger asChild>
+                        <TooltipTrigger asChild>
+                          <button
+                            className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
+                            style={{ color: 'var(--base-muted-foreground)' }}
+                          >
+                            <History className='h-4 w-4' strokeWidth={2} />
+                          </button>
+                        </TooltipTrigger>
+                      </DropdownMenuTrigger>
+                      <TooltipContent side='bottom'>Chat history</TooltipContent>
+                    </Tooltip>
                     <DropdownMenuContent
                       align='end'
                       className='z-[200] w-48 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
@@ -478,13 +482,18 @@ export function Panel() {
                   <TooltipContent side='bottom'>Clear {activeTab}</TooltipContent>
                 </Tooltip>
               )}
-              <button
-                onClick={handleClosePanel}
-                className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
-                style={{ color: 'var(--base-muted-foreground)' }}
-              >
-                <X className='h-4 w-4' strokeWidth={2} />
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleClosePanel}
+                    className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
+                    style={{ color: 'var(--base-muted-foreground)' }}
+                  >
+                    <X className='h-4 w-4' strokeWidth={2} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side='bottom'>Close panel</TooltipContent>
+              </Tooltip>
             </div>
           </div>
 

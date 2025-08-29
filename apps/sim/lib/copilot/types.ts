@@ -51,6 +51,7 @@ export interface ParsedMessageContent {
   inlineContent?: InlineContent[]
 }
 
+import type { ProviderId } from '@/providers/types'
 // Copilot Tools Type Definitions (from workspace copilot lib)
 import type { CopilotToolCall, ToolState } from '@/stores/copilot/types'
 
@@ -135,3 +136,19 @@ export interface Tool {
   ): Promise<void>
   requiresConfirmation(toolCall: CopilotToolCall): boolean
 }
+
+// Provider configuration for Sim Agent requests
+// This type is only for the `provider` field in requests sent to the Sim Agent
+export type CopilotProviderConfig =
+  | {
+      provider: 'azure-openai'
+      model: string
+      apiKey?: string
+      apiVersion?: string
+      endpoint?: string
+    }
+  | {
+      provider: Exclude<ProviderId, 'azure-openai'>
+      model?: string
+      apiKey?: string
+    }

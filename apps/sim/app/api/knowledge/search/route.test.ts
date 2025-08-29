@@ -65,12 +65,14 @@ const mockHandleVectorOnlySearch = vi.fn()
 const mockHandleTagAndVectorSearch = vi.fn()
 const mockGetQueryStrategy = vi.fn()
 const mockGenerateSearchEmbedding = vi.fn()
+const mockGetDocumentNamesByIds = vi.fn()
 vi.mock('./utils', () => ({
   handleTagOnlySearch: mockHandleTagOnlySearch,
   handleVectorOnlySearch: mockHandleVectorOnlySearch,
   handleTagAndVectorSearch: mockHandleTagAndVectorSearch,
   getQueryStrategy: mockGetQueryStrategy,
   generateSearchEmbedding: mockGenerateSearchEmbedding,
+  getDocumentNamesByIds: mockGetDocumentNamesByIds,
   APIError: class APIError extends Error {
     public status: number
     constructor(message: string, status: number) {
@@ -146,6 +148,10 @@ describe('Knowledge Search API Route', () => {
       singleQueryOptimized: true,
     })
     mockGenerateSearchEmbedding.mockClear().mockResolvedValue([0.1, 0.2, 0.3, 0.4, 0.5])
+    mockGetDocumentNamesByIds.mockClear().mockResolvedValue({
+      doc1: 'Document 1',
+      doc2: 'Document 2',
+    })
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),

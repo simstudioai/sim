@@ -68,7 +68,7 @@ Upload a file to OneDrive
 | `fileName` | string | Yes | The name of the file to upload |
 | `content` | string | Yes | The content of the file to upload |
 | `folderSelector` | string | No | Select the folder to upload the file to |
-| `folderId` | string | No | The ID of the folder to upload the file to \(internal use\) |
+| `manualFolderId` | string | No | Manually entered folder ID \(advanced mode\) |
 
 #### Output
 
@@ -87,7 +87,7 @@ Create a new folder in OneDrive
 | --------- | ---- | -------- | ----------- |
 | `folderName` | string | Yes | Name of the folder to create |
 | `folderSelector` | string | No | Select the parent folder to create the folder in |
-| `folderId` | string | No | ID of the parent folder \(internal use\) |
+| `manualFolderId` | string | No | Manually entered parent folder ID \(advanced mode\) |
 
 #### Output
 
@@ -105,7 +105,7 @@ List files and folders in OneDrive
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `folderSelector` | string | No | Select the folder to list files from |
-| `folderId` | string | No | The ID of the folder to list files from \(internal use\) |
+| `manualFolderId` | string | No | The manually entered folder ID \(advanced mode\) |
 | `query` | string | No | A query to filter the files |
 | `pageSize` | number | No | The number of files to return |
 
