@@ -57,6 +57,7 @@ export function DebugPanel() {
   const [chatMessage, setChatMessage] = useState('')
   const [scopedVariables, setScopedVariables] = useState(true)
   const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set())
+  const [revealedEnvVars, setRevealedEnvVars] = useState<Set<string>>(new Set())
   const hasStartedRef = useRef(false)
   const lastFocusedIdRef = useRef<string | null>(null)
 
@@ -204,6 +205,19 @@ export function DebugPanel() {
         next.delete(fieldKey)
       } else {
         next.add(fieldKey)
+      }
+      return next
+    })
+  }
+
+  // Helper to toggle env var reveal
+  const toggleEnvVarReveal = (key: string) => {
+    setRevealedEnvVars(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
       }
       return next
     })
@@ -1787,10 +1801,9 @@ export function DebugPanel() {
                     </thead>
                     <tbody>
                       {filteredEnvVariables.map(([key, value]) => {
-                        const fieldKey = `env-${key}`
-                        const isExpanded = expandedFields.has(fieldKey)
+                        const isRevealed = revealedEnvVars.has(key)
                         const valueStr = value !== undefined && value !== null ? JSON.stringify(value, null, 2) : String(value)
-                        const shouldTruncate = valueStr.length > 100
+                        const maskedValue = '••••••••'
                         
                         return (
                           <tr
@@ -1807,22 +1820,15 @@ export function DebugPanel() {
                               <code className='font-mono text-[11px] text-foreground/80 break-words'>{key}</code>
                             </td>
                             <td className='px-3 py-2'>
-                              {shouldTruncate ? (
-                                <div
-                                  className='cursor-pointer'
-                                  onClick={() => toggleFieldExpansion(fieldKey)}
-                                >
-                                  <div className='min-w-0 flex-1'>
-                                    <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
-{isExpanded ? valueStr : `${valueStr.slice(0, 100)}...`}
-                    </pre>
-                                  </div>
-                                </div>
-                              ) : (
-                                <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
-{valueStr}
+                              <button
+                                type='button'
+                                onClick={() => toggleEnvVarReveal(key)}
+                                className='text-left w-full group'
+                              >
+                                <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto group-hover:text-foreground transition-colors'>
+                                  {isRevealed ? valueStr : maskedValue}
                                 </pre>
-                              )}
+                              </button>
                             </td>
                           </tr>
                         )
