@@ -61,8 +61,5 @@ export const useExecutionStore = create<ExecutionState & ExecutionActions>()((se
   setExecutor: (executor) => set({ executor }),
   setDebugContext: (debugContext) => set({ debugContext }),
   setAutoPanDisabled: (disabled) => set({ autoPanDisabled: disabled }),
-  setPanelFocusedBlockId: (id) => set({ panelFocusedBlockId: id }),
-  setExecutingBlockIds: (ids) => set({ executingBlockIds: new Set(ids) }),
-  setBreakpointId: (id) => set({ breakpointId: id }),
   reset: () => set(initialState),
 }))
