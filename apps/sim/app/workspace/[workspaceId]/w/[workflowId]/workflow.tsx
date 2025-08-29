@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
   Background,
@@ -9,6 +9,7 @@ import ReactFlow, {
   type EdgeTypes,
   type NodeTypes,
   ReactFlowProvider,
+  type Node as RFNode,
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
@@ -66,6 +67,8 @@ interface BlockData {
 const WorkflowContent = React.memo(() => {
   // State
   const [isWorkflowReady, setIsWorkflowReady] = useState(false)
+  const prevContentMaxYRef = useRef<number>(Number.NEGATIVE_INFINITY)
+  const lastRefreshAtRef = useRef<number>(0)
 
   // State for tracking node dragging
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
@@ -78,7 +81,7 @@ const WorkflowContent = React.memo(() => {
   // Hooks
   const params = useParams()
   const router = useRouter()
-  const { project, getNodes, fitView } = useReactFlow()
+  const { project, getNodes, getViewport, setViewport } = useReactFlow()
 
   // Get workspace ID from the params
   const workspaceId = params.workspaceId as string
@@ -278,10 +281,32 @@ const WorkflowContent = React.memo(() => {
     [getNodes]
   )
 
+  // Helper to detect if the user is actively editing inside an input/editor
+  const isEditableElementFocused = useCallback((): boolean => {
+    if (typeof document === 'undefined') return false
+    const activeElement = document.activeElement as Element | null
+    if (!activeElement) return false
+    return (
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement ||
+      activeElement.hasAttribute('contenteditable')
+    )
+  }, [])
+
+  // Temporary suppression of auto-pan (e.g., around wide-mode toggles)
+  const suppressAutoPanUntilRef = useRef<number>(0)
+  useEffect(() => {
+    const handleLayoutChange = () => {
+      suppressAutoPanUntilRef.current = Date.now() + 400 // brief suppression window
+    }
+    window.addEventListener('workflow-layout-change', handleLayoutChange)
+    return () => window.removeEventListener('workflow-layout-change', handleLayoutChange)
+  }, [])
+
   // Compute the absolute position of a node's source anchor (right-middle)
   const getNodeAnchorPosition = useCallback(
     (nodeId: string): { x: number; y: number } => {
-      const node = getNodes().find((n) => n.id === nodeId)
+      const node = getNodes().find((n: RFNode) => n.id === nodeId)
       const absPos = getNodeAbsolutePositionWrapper(nodeId)
 
       if (!node) {
@@ -407,12 +432,12 @@ const WorkflowContent = React.memo(() => {
     (newNodePosition: { x: number; y: number }): BlockData | null => {
       // Determine if drop is inside a container; if not, exclude child nodes from candidates
       const containerAtPoint = isPointInLoopNodeWrapper(newNodePosition)
-      const nodeIndex = new Map(getNodes().map((n) => [n.id, n]))
+      const nodeIndex = new Map<string, RFNode>(getNodes().map((n: RFNode) => [n.id, n]))
 
       const candidates = Object.entries(blocks)
         .filter(([id, block]) => {
           if (!block.enabled) return false
-          const node = nodeIndex.get(id)
+          const node = nodeIndex.get(id as string)
           if (!node) return false
 
           // If dropping outside containers, ignore blocks that are inside a container
@@ -758,7 +783,7 @@ const WorkflowContent = React.memo(() => {
               }
             } else {
               // No existing children: connect from the container's start handle
-              const containerNode = getNodes().find((n) => n.id === containerInfo.loopId)
+              const containerNode = getNodes().find((n: RFNode) => n.id === containerInfo.loopId)
               const startSourceHandle =
                 (containerNode?.data as any)?.kind === 'loop'
                   ? 'loop-start-source'
@@ -843,7 +868,7 @@ const WorkflowContent = React.memo(() => {
           const containerElement = document.querySelector(`[data-id="${containerInfo.loopId}"]`)
           if (containerElement) {
             // Determine the type of container node for appropriate styling
-            const containerNode = getNodes().find((n) => n.id === containerInfo.loopId)
+            const containerNode = getNodes().find((n: RFNode) => n.id === containerInfo.loopId)
             if (
               containerNode?.type === 'subflowNode' &&
               (containerNode.data as any)?.kind === 'loop'
@@ -1059,13 +1084,145 @@ const WorkflowContent = React.memo(() => {
   useEffect(() => {
     // Skip during initial render when nodes aren't loaded yet
     if (nodes.length === 0) return
+    // Skip adjustments while user is dragging a node to avoid jitter
+    if (draggedNodeId) return
+    // Avoid viewport jumps while user is editing text unless content grows
+    const editingFocused = isEditableElementFocused()
 
     // Resize all loops to fit their children
     resizeLoopNodesWrapper()
 
+    // Defer measurement to the next frames so ReactFlow/dom layout settles
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        try {
+          const containerEl = document.querySelector('.workflow-container') as HTMLElement | null
+          if (!containerEl) return
+
+          const rfNodes = getNodes()
+          if (!rfNodes || rfNodes.length === 0) return
+
+          // Compute maximum Y of content
+          let maxY = Number.NEGATIVE_INFINITY
+          rfNodes.forEach((n: RFNode) => {
+            const abs = getNodeAbsolutePositionWrapper(n.id)
+            const isSubflow = n.type === 'subflowNode'
+            const nodeHeight = isSubflow
+              ? ((n.data as any)?.height ?? 300)
+              : typeof n.height === 'number'
+                ? n.height
+                : 100
+            if (abs.y + nodeHeight > maxY) maxY = abs.y + nodeHeight
+          })
+
+          if (!Number.isFinite(maxY)) return
+
+          // Compare with visible bottom in flow-coordinates
+          const { height: containerHeight } = containerEl.getBoundingClientRect()
+          const { x: vpX, y: vpY, zoom } = getViewport()
+          const visibleBottomFlow = (containerHeight - vpY) / zoom
+
+          const paddingFlow = 120
+          const overflowBottom = maxY + paddingFlow - visibleBottomFlow
+          const previousMaxY = prevContentMaxYRef.current
+          // Update previous max Y for next cycle
+          prevContentMaxYRef.current = maxY
+          const now = Date.now()
+          // Throttle refresh to avoid rapid consecutive calls
+          if (now - lastRefreshAtRef.current < 120) return
+
+          // Only act when we are actually overflowing the visible bottom
+          const overflowThreshold = 10
+          // Only pan when content grows beyond what is visible,
+          // or when not focused in an editable element
+          const didContentGrow = maxY > previousMaxY
+          const isSuppressed = Date.now() < suppressAutoPanUntilRef.current
+          if (
+            overflowBottom > overflowThreshold &&
+            (didContentGrow || !editingFocused) &&
+            !isSuppressed
+          ) {
+            // Pan just enough to include the overflow, and force a repaint with an epsilon jiggle
+            const targetY = vpY - overflowBottom * zoom
+            const epsilon = 0.5
+            setViewport({ x: vpX, y: targetY + epsilon, zoom }, { duration: 0 })
+            requestAnimationFrame(() => {
+              setViewport({ x: vpX, y: targetY, zoom }, { duration: 0 })
+            })
+          }
+
+          lastRefreshAtRef.current = now
+        } catch {}
+      })
+    })
+
     // No need for cleanup with direct function
     return () => {}
-  }, [nodes, resizeLoopNodesWrapper])
+  }, [
+    nodes,
+    resizeLoopNodesWrapper,
+    getViewport,
+    setViewport,
+    getNodes,
+    getNodeAbsolutePositionWrapper,
+    isEditableElementFocused,
+    draggedNodeId,
+  ])
+
+  // Also react explicitly when any node reports a height change (post-paste expansion)
+  useEffect(() => {
+    const handleNodeResized = () => {
+      // Defer to allow DOM/layout to settle after ReactFlow updates
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          try {
+            const containerEl = document.querySelector('.workflow-container') as HTMLElement | null
+            if (!containerEl) return
+
+            const rfNodes = getNodes()
+            if (!rfNodes || rfNodes.length === 0) return
+
+            let maxY = Number.NEGATIVE_INFINITY
+            rfNodes.forEach((n: RFNode) => {
+              const abs = getNodeAbsolutePositionWrapper(n.id)
+              const isSubflow = n.type === 'subflowNode'
+              const nodeHeight = isSubflow
+                ? ((n.data as any)?.height ?? 300)
+                : typeof n.height === 'number'
+                  ? n.height
+                  : 100
+              if (abs.y + nodeHeight > maxY) maxY = abs.y + nodeHeight
+            })
+            if (!Number.isFinite(maxY)) return
+
+            const { height: containerHeight } = containerEl.getBoundingClientRect()
+            const { x: vpX, y: vpY, zoom } = getViewport()
+            const visibleBottomFlow = (containerHeight - vpY) / zoom
+
+            const paddingFlow = 120
+            const overflowBottom = maxY + paddingFlow - visibleBottomFlow
+            const previousMaxY = prevContentMaxYRef.current
+            // Update previous max Y for next cycle
+            prevContentMaxYRef.current = maxY
+            const editingFocused = isEditableElementFocused()
+            const didContentGrow = maxY > previousMaxY
+            const isSuppressed = Date.now() < suppressAutoPanUntilRef.current
+            if (overflowBottom > 10 && (didContentGrow || !editingFocused) && !isSuppressed) {
+              const targetY = vpY - overflowBottom * zoom
+              const epsilon = 0.5
+              setViewport({ x: vpX, y: targetY + epsilon, zoom }, { duration: 0 })
+              requestAnimationFrame(() => {
+                setViewport({ x: vpX, y: targetY, zoom }, { duration: 0 })
+              })
+            }
+          } catch {}
+        })
+      })
+    }
+
+    window.addEventListener('workflow-node-resized', handleNodeResized)
+    return () => window.removeEventListener('workflow-node-resized', handleNodeResized)
+  }, [getNodes, getNodeAbsolutePositionWrapper, getViewport, setViewport, isEditableElementFocused])
 
   // Special effect to handle cleanup after node deletion
   useEffect(() => {
@@ -1098,11 +1255,6 @@ const WorkflowContent = React.memo(() => {
     validateNestedSubflows()
   }, [blocks, validateNestedSubflows])
 
-  // Validate nested subflows whenever blocks change
-  useEffect(() => {
-    validateNestedSubflows()
-  }, [blocks, validateNestedSubflows])
-
   // Update edges
   const onEdgesChange = useCallback(
     (changes: any) => {
@@ -1125,8 +1277,8 @@ const WorkflowContent = React.memo(() => {
         }
 
         // Check if connecting nodes across container boundaries
-        const sourceNode = getNodes().find((n) => n.id === connection.source)
-        const targetNode = getNodes().find((n) => n.id === connection.target)
+        const sourceNode = getNodes().find((n: RFNode) => n.id === connection.source)
+        const targetNode = getNodes().find((n: RFNode) => n.id === connection.target)
 
         if (!sourceNode || !targetNode) return
 
@@ -1235,7 +1387,7 @@ const WorkflowContent = React.memo(() => {
 
       // Find intersections with container nodes using absolute coordinates
       const intersectingNodes = getNodes()
-        .filter((n) => {
+        .filter((n: RFNode) => {
           // Only consider container nodes that aren't the dragged node
           if (n.type !== 'subflowNode' || n.id === node.id) return false
 
@@ -1295,7 +1447,7 @@ const WorkflowContent = React.memo(() => {
           )
         })
         // Add more information for sorting
-        .map((n) => ({
+        .map((n: RFNode) => ({
           container: n,
           depth: getNodeDepthWrapper(n.id),
           // Calculate size for secondary sorting
@@ -1305,14 +1457,19 @@ const WorkflowContent = React.memo(() => {
       // Update potential parent if there's at least one intersecting container node
       if (intersectingNodes.length > 0) {
         // Sort by depth first (deepest/most nested containers first), then by size if same depth
-        const sortedContainers = intersectingNodes.sort((a, b) => {
-          // First try to compare by hierarchy depth
-          if (a.depth !== b.depth) {
-            return b.depth - a.depth // Higher depth (more nested) comes first
+        const sortedContainers = intersectingNodes.sort(
+          (
+            a: { container: RFNode; depth: number; size: number },
+            b: { container: RFNode; depth: number; size: number }
+          ) => {
+            // First try to compare by hierarchy depth
+            if (a.depth !== b.depth) {
+              return b.depth - a.depth // Higher depth (more nested) comes first
+            }
+            // If same depth, use size as secondary criterion
+            return a.size - b.size // Smaller container takes precedence
           }
-          // If same depth, use size as secondary criterion
-          return a.size - b.size // Smaller container takes precedence
-        })
+        )
 
         // Use the most appropriate container (deepest or smallest at same depth)
         const bestContainerMatch = sortedContainers[0]
@@ -1473,7 +1630,7 @@ const WorkflowContent = React.memo(() => {
             }
           } else {
             // No children: connect from the container's start handle to the moved node
-            const containerNode = getNodes().find((n) => n.id === potentialParentId)
+            const containerNode = getNodes().find((n: RFNode) => n.id === potentialParentId)
             const startSourceHandle =
               (containerNode?.data as any)?.kind === 'loop'
                 ? 'loop-start-source'
@@ -1520,8 +1677,8 @@ const WorkflowContent = React.memo(() => {
       event.stopPropagation() // Prevent bubbling
 
       // Determine if edge is inside a loop by checking its source/target nodes
-      const sourceNode = getNodes().find((n) => n.id === edge.source)
-      const targetNode = getNodes().find((n) => n.id === edge.target)
+      const sourceNode = getNodes().find((n: RFNode) => n.id === edge.source)
+      const targetNode = getNodes().find((n: RFNode) => n.id === edge.target)
 
       // An edge is inside a loop if either source or target has a parent
       // If source and target have different parents, prioritize source's parent
@@ -1542,8 +1699,8 @@ const WorkflowContent = React.memo(() => {
   // Transform edges to include improved selection state
   const edgesWithSelection = edgesForDisplay.map((edge) => {
     // Check if this edge connects nodes inside a loop
-    const sourceNode = getNodes().find((n) => n.id === edge.source)
-    const targetNode = getNodes().find((n) => n.id === edge.target)
+    const sourceNode = getNodes().find((n: RFNode) => n.id === edge.source)
+    const targetNode = getNodes().find((n: RFNode) => n.id === edge.target)
     const parentLoopId = sourceNode?.parentId || targetNode?.parentId
     const isInsideLoop = Boolean(parentLoopId)
 
@@ -1690,6 +1847,18 @@ const WorkflowContent = React.memo(() => {
           elevateNodesOnSelect={true}
           autoPanOnConnect={effectivePermissions.canEdit}
           autoPanOnNodeDrag={effectivePermissions.canEdit}
+          onMoveEnd={(_event, viewport) => {
+            try {
+              const epsilon = 0.5
+              setViewport(
+                { x: viewport.x, y: viewport.y + epsilon, zoom: viewport.zoom },
+                { duration: 0 }
+              )
+              requestAnimationFrame(() => {
+                setViewport({ x: viewport.x, y: viewport.y, zoom: viewport.zoom }, { duration: 0 })
+              })
+            } catch {}
+          }}
         >
           <Background
             color='hsl(var(--workflow-dots))'
