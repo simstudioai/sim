@@ -9,8 +9,8 @@ services:
     command: sleep infinity
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
-      - POSTGRES_URL=postgresql://postgres:postgres@db:5432/simstudio
+      - DATABASE_URL=postgresql://postgres:postgres@db:${POSTGRES_PORT:-5432}/simstudio
+      - POSTGRES_URL=postgresql://postgres:postgres@db:${POSTGRES_PORT:-5432}/simstudio
       - BETTER_AUTH_URL=http://localhost:3000
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
       - BUN_INSTALL_CACHE_DIR=/home/bun/.bun/cache
@@ -39,7 +39,7 @@ services:
     command: sleep infinity
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+      - DATABASE_URL=postgresql://postgres:postgres@db:${POSTGRES_PORT:-5432}/simstudio
       - BETTER_AUTH_URL=http://localhost:3000
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
     depends_on:
@@ -60,7 +60,7 @@ services:
       context: ..
       dockerfile: docker/db.Dockerfile
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+      - DATABASE_URL=postgresql://postgres:postgres@db:${POSTGRES_PORT:-5432}/simstudio
     depends_on:
       db:
         condition: service_healthy
@@ -77,7 +77,7 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=simstudio
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
