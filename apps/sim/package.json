@@ -8,6 +8,8 @@
     "node": ">=20.0.0"
   },
   "scripts": {
+    "predev": "bun run scripts/generate-mcpo-config.ts",
+    "prestart": "bun run scripts/generate-mcpo-config.ts",
     "dev": "next dev --turbo --port 3000",
     "dev:classic": "next dev",
     "dev:sockets": "bun run socket-server/index.ts",

@@ -20,19 +20,23 @@ interface McpToolsProps {
 export function McpTools({ onToolClick }: McpToolsProps) {
   const [mcpTools, setMcpTools] = useState<McpTool[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  async function fetchMcpTools() {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const tools = await getMcpTools()
+      setMcpTools(tools)
+    } catch (error) {
+      console.error('Error fetching MCP tools:', error)
+      setError('Failed to load MCP tools. Please ensure the MCPO server is running and the configuration is correct.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
-    async function fetchMcpTools() {
-      try {
-        const tools = await getMcpTools()
-        setMcpTools(tools)
-      } catch (error) {
-        console.error('Error fetching MCP tools:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
     fetchMcpTools()
   }, [])
 
@@ -49,6 +53,20 @@ export function McpTools({ onToolClick }: McpToolsProps) {
 
   if (isLoading) {
     return <div>Loading MCP Tools...</div>
+  }
+
+  if (error) {
+    return (
+      <div className="text-red-500 p-4">
+        <p>{error}</p>
+        <button
+          onClick={fetchMcpTools}
+          className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          Retry
+        </button>
+      </div>
+    )
   }
 
   return (
