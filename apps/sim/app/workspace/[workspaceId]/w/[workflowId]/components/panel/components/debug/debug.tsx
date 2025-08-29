@@ -46,6 +46,8 @@ export function DebugPanel() {
     setExecutingBlockIds,
     setDebugContext,
     setPendingBlocks,
+    breakpointId,
+    setBreakpointId,
   } = useExecutionStore()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
   const { handleStepDebug, handleResumeDebug, handleCancelDebug, handleRunWorkflow } = useWorkflowExecution()
@@ -56,8 +58,6 @@ export function DebugPanel() {
   const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set())
   const hasStartedRef = useRef(false)
   const lastFocusedIdRef = useRef<string | null>(null)
-  // Breakpoint state
-  const [breakpointId, setBreakpointId] = useState<string | null>(null)
 
   // Track bottom variables tab and row highlighting for navigation from tokens
   const [bottomTab, setBottomTab] = useState<'reference' | 'workflow' | 'environment'>('reference')
@@ -1057,6 +1057,31 @@ export function DebugPanel() {
       <div className='border-b border-border/50 px-3 py-2.5'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2 min-w-0'>
+            {focusedBlockId && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type='button'
+                      onClick={() => setBreakpointId(breakpointId === focusedBlockId ? null : focusedBlockId)}
+                      className='p-0.5 rounded hover:bg-muted/50 transition-colors'
+                    >
+                      <CircleDot 
+                        className={cn(
+                          'h-4 w-4',
+                          breakpointId === focusedBlockId 
+                            ? 'text-red-600 fill-red-600/20' 
+                            : 'text-muted-foreground/50'
+                        )} 
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {breakpointId === focusedBlockId ? 'Remove breakpoint' : 'Set breakpoint'}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             <span className='font-semibold text-sm truncate'>
               {getDisplayName(focusedBlock) || 'No block selected'}
             </span>
@@ -1066,11 +1091,6 @@ export function DebugPanel() {
                 <span className='text-muted-foreground text-xs'>
                   {focusedBlock.type}
                 </span>
-                {breakpointId === focusedBlockId && (
-                  <span className='ml-1 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 text-[10px]'>
-                    Breakpoint
-                  </span>
-                )}
               </>
             )}
           </div>
@@ -1141,24 +1161,6 @@ export function DebugPanel() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Restart from the beginning</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size='sm'
-                  variant={breakpointId === focusedBlockId ? 'default' : 'outline'}
-                  onClick={() => setBreakpointId(breakpointId === focusedBlockId ? null : (focusedBlockId || null))}
-                  disabled={!focusedBlockId}
-                  className='gap-2 border-border/50 hover:bg-muted/50 disabled:opacity-40'
-                >
-                  <CircleDot className={cn('h-3.5 w-3.5', breakpointId === focusedBlockId ? 'text-amber-600' : '')} />
-                  Breakpoint
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {breakpointId === focusedBlockId ? 'Remove breakpoint' : 'Set breakpoint at current block'}
-              </TooltipContent>
             </Tooltip>
 
             <Tooltip>

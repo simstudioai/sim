@@ -590,6 +590,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const executingBlockIds = useExecutionStore((s) => s.executingBlockIds)
   const setActiveBlocks = useExecutionStore((s) => s.setActiveBlocks)
   const setActiveTab = usePanelStore((s) => s.setActiveTab)
+  const breakpointId = useExecutionStore((s) => s.breakpointId)
 
   const handleDebugOpen = (e: React.MouseEvent) => {
     if (!isDebugModeEnabled) return
@@ -634,6 +635,13 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         {isDebugModeEnabled && (isPending || executingBlockIds.has(id)) && (
           <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-green-500 px-2 py-0.5 text-white text-xs'>
             Current
+          </div>
+        )}
+        
+        {/* Show breakpoint indicator */}
+        {isDebugModeEnabled && breakpointId === id && (
+          <div className='-bottom-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-b-md bg-red-500 px-2 py-0.5 text-white text-xs'>
+            Breakpoint
           </div>
         )}
 
