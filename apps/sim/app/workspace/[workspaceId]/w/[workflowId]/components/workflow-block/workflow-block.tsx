@@ -617,11 +617,11 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           displayIsWide ? 'w-[480px]' : 'w-[320px]',
           !isEnabled && 'shadow-sm',
           // Panel-focused block highlight
-          isPanelFocused && 'bg-amber-50 dark:bg-amber-900/10',
+          isPanelFocused && 'bg-blue-50/60 dark:bg-blue-900/5',
           // Executing blocks match staging: pulsing blue ring
           isExecutingNow && 'animate-pulse-ring ring-2 ring-blue-500',
           // Pending blocks show green border when not executing
-          !isExecutingNow && isCurrentBlock && 'ring-2 ring-green-500',
+          !isExecutingNow && isCurrentBlock && 'ring-2 ring-blue-500',
           // Diff highlighting
           diffStatus === 'new' && 'bg-green-50/50 ring-2 ring-green-500 dark:bg-green-900/10',
           diffStatus === 'edited' && 'bg-orange-50/50 ring-2 ring-orange-500 dark:bg-orange-900/10',
@@ -633,7 +633,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       >
         {/* Show debug indicator for current blocks in debug mode (pending or executing) */}
         {isDebugModeEnabled && (isPending || executingBlockIds.has(id)) && (
-          <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-green-500 px-2 py-0.5 text-white text-xs'>
+          <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-blue-500 px-2 py-0.5 text-white text-xs'>
             Current
           </div>
         )}

@@ -27,6 +27,7 @@ import {
   FastForward, 
   Square, 
   Circle,
+  RotateCcw,
   AlertCircle,
   Check,
   X,
@@ -1053,6 +1054,86 @@ export function DebugPanel() {
 
   return (
     <div className='flex h-full flex-col'>
+      {/* Controls Section */}
+      <div className='border-b border-border/50 p-3'>
+        {isChatMode && !hasStartedRef.current && (
+          <div className='mb-3'>
+            <Textarea
+              placeholder='Enter message to start debugging...'
+              value={chatMessage}
+              onChange={(e) => setChatMessage(e.target.value)}
+              className='min-h-[60px] resize-none border-border/50 bg-background/50 placeholder:text-muted-foreground/50'
+            />
+          </div>
+        )}
+        <div className='flex items-center gap-2'>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size='icon'
+                  variant='ghost'
+                  onClick={handleStep}
+                  aria-label='Step'
+                  className='h-8 w-8 rounded-md bg-blue-500/10 text-blue-600 hover:bg-blue-500/20'
+                >
+                  <Play className='h-4 w-4' />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Execute next step</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size='icon'
+                  variant='ghost'
+                  onClick={handleResumeUntilBreakpoint}
+                  disabled={isChatMode ? (!hasStartedRef.current && chatMessage.trim() === '') : false}
+                  aria-label='Resume'
+                  className='h-8 w-8 rounded-md bg-indigo-500/10 text-indigo-600 hover:bg-indigo-500/20 disabled:opacity-40'
+                >
+                  <FastForward className='h-4 w-4' />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {breakpointId ? 'Continue until breakpoint' : 'Continue execution'}
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size='icon'
+                  variant='ghost'
+                  onClick={handleRestart}
+                  aria-label='Restart'
+                  className='h-8 w-8 rounded-md bg-amber-500/10 text-amber-600 hover:bg-amber-500/20'
+                >
+                  <RotateCcw className='h-4 w-4' />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Restart from the beginning</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size='icon'
+                  variant='ghost'
+                  onClick={handleCancelDebug}
+                  aria-label='Stop'
+                  className='h-8 w-8 rounded-md bg-red-500/10 text-red-600 hover:bg-red-500/20'
+                >
+                  <Square className='h-4 w-4' />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Stop debugging</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      </div>
+
       {/* Header Section - Single Line */}
       <div className='flex items-center justify-between border-b border-border/50 px-3 py-2.5'>
         <div className='flex items-center gap-2'>
@@ -1088,86 +1169,6 @@ export function DebugPanel() {
         <div className='flex items-center gap-1.5 flex-shrink-0'>
           {getStatusIcon()}
           <span className='text-muted-foreground text-xs'>{getStatusText()}</span>
-        </div>
-      </div>
-
-      {/* Controls Section */}
-      <div className='border-b border-border/50 p-3'>
-        {isChatMode && !hasStartedRef.current && (
-          <div className='mb-3'>
-            <Textarea
-              placeholder='Enter message to start debugging...'
-              value={chatMessage}
-              onChange={(e) => setChatMessage(e.target.value)}
-              className='min-h-[60px] resize-none border-border/50 bg-background/50 placeholder:text-muted-foreground/50'
-            />
-          </div>
-        )}
-        <div className='flex items-center gap-2'>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size='sm'
-                  variant='outline'
-                  onClick={handleStep}
-                  className='gap-2 border-border/50 hover:bg-muted/50'
-                >
-                  <Play className='h-3.5 w-3.5' />
-                  Step
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Execute next step</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size='sm'
-                  variant='outline'
-                  onClick={handleResumeUntilBreakpoint}
-                  disabled={isChatMode ? (!hasStartedRef.current && chatMessage.trim() === '') : false}
-                  className='gap-2 border-border/50 hover:bg-muted/50 disabled:opacity-40'
-                >
-                  <FastForward className='h-3.5 w-3.5' />
-                  Resume
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {breakpointId ? 'Continue until breakpoint' : 'Continue execution'}
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size='sm'
-                  variant='outline'
-                  onClick={handleRestart}
-                  className='gap-2 border-border/50 hover:bg-muted/50'
-                >
-                  <Circle className='h-3.5 w-3.5' />
-                  Restart
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Restart from the beginning</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size='sm'
-                  variant='outline'
-                  onClick={handleCancelDebug}
-                  className='gap-2 border-border/50 hover:bg-destructive/10 hover:text-destructive'
-                >
-                  <Square className='h-3.5 w-3.5' />
-                  Stop
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Stop debugging</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
         </div>
       </div>
 
