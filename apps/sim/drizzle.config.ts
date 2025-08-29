@@ -21,14 +21,8 @@ if (env.DATABASE_SSL_CERT) {
     }
 
     process.once('exit', cleanup)
-    process.once('SIGINT', () => {
-      cleanup()
-      process.exit(0)
-    })
-    process.once('SIGTERM', () => {
-      cleanup()
-      process.exit(0)
-    })
+    process.once('SIGINT', cleanup)
+    process.once('SIGTERM', cleanup)
   } catch {
     // If writing fails, leave sslConfig undefined and allow connection to fail fast
   }
