@@ -486,10 +486,15 @@ export function SubBlock({
               </TooltipContent>
             </Tooltip>
           )}
-          {config.id === 'responseFormat' && !isValidJson && (
+          {config.id === 'responseFormat' && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <AlertTriangle className='h-4 w-4 cursor-pointer text-destructive' />
+                <AlertTriangle
+                  className={cn(
+                    'h-4 w-4 cursor-pointer text-destructive',
+                    !isValidJson ? 'opacity-100' : 'opacity-0'
+                  )}
+                />
               </TooltipTrigger>
               <TooltipContent side='top'>
                 <p>Invalid JSON</p>
