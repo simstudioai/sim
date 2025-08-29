@@ -1,31 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  Skeleton,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui'
+import { Alert, AlertDescription, AlertTitle, Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
+import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateSlug, useOrganizationStore } from '@/stores/organization'
-import { useSubscriptionStore } from '@/stores/subscription/store'
 import {
   MemberInvitationCard,
   NoOrganizationView,
-  OrganizationSettingsTab,
-  PendingInvitationsList,
   RemoveMemberDialog,
-  TeamMembersList,
+  TeamMembers,
   TeamSeats,
   TeamSeatsOverview,
   TeamUsage,
-} from './components'
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/team-management/components'
+import { generateSlug, useOrganizationStore } from '@/stores/organization'
+import { useSubscriptionStore } from '@/stores/subscription/store'
 
 const logger = createLogger('TeamManagement')
 
@@ -37,18 +27,14 @@ export function TeamManagement() {
     activeOrganization,
     subscriptionData,
     userWorkspaces,
-    orgFormData,
     hasTeamPlan,
     hasEnterprisePlan,
     isLoading,
     isLoadingSubscription,
     isCreatingOrg,
     isInviting,
-    isSavingOrgSettings,
     error,
-    orgSettingsError,
     inviteSuccess,
-    orgSettingsSuccess,
     loadData,
     createOrganization,
     setActiveOrganization,
@@ -57,12 +43,10 @@ export function TeamManagement() {
     cancelInvitation,
     addSeats,
     reduceSeats,
-    updateOrganizationSettings,
     loadUserWorkspaces,
     getUserRole,
     isAdminOrOwner,
     getUsedSeats,
-    setOrgFormData,
   } = useOrganizationStore()
 
   const { getSubscriptionStatus } = useSubscriptionStore()
@@ -81,7 +65,6 @@ export function TeamManagement() {
   }>({ open: false, memberId: '', memberName: '', shouldReduceSeats: false })
   const [orgName, setOrgName] = useState('')
   const [orgSlug, setOrgSlug] = useState('')
-  const [activeTab, setActiveTab] = useState('members')
   const [isAddSeatDialogOpen, setIsAddSeatDialogOpen] = useState(false)
   const [newSeatCount, setNewSeatCount] = useState(1)
   const [isUpdatingSeats, setIsUpdatingSeats] = useState(false)
@@ -99,7 +82,6 @@ export function TeamManagement() {
     }
   }, [])
 
-  // Set default organization name for team/enterprise users
   useEffect(() => {
     if ((hasTeamPlan || hasEnterprisePlan) && session?.user?.name && !orgName) {
       const defaultName = `${session.user.name}'s Team`
@@ -108,7 +90,6 @@ export function TeamManagement() {
     }
   }, [hasTeamPlan, hasEnterprisePlan, session?.user?.name, orgName])
 
-  // Load workspaces for admin users
   const activeOrgId = activeOrganization?.id
   useEffect(() => {
     if (session?.user?.id && activeOrgId && adminOrOwner) {
@@ -124,11 +105,39 @@ export function TeamManagement() {
 
   const handleCreateOrganization = useCallback(async () => {
     if (!session?.user || !orgName.trim()) return
-    await createOrganization(orgName.trim(), orgSlug.trim())
-    setCreateOrgDialogOpen(false)
-    setOrgName('')
-    setOrgSlug('')
-  }, [session?.user?.id, orgName, orgSlug])
+
+    try {
+      const response = await fetch('/api/organizations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: orgName.trim(),
+          slug: orgSlug.trim(),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to create organization: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+
+      if (!result.success || !result.organizationId) {
+        throw new Error('Failed to create organization')
+      }
+
+      // Refresh organization data
+      await loadData()
+
+      setCreateOrgDialogOpen(false)
+      setOrgName('')
+      setOrgSlug('')
+    } catch (error) {
+      logger.error('Failed to create organization', error)
+    }
+  }, [session?.user?.id, orgName, orgSlug, loadData])
 
   const handleInviteMember = useCallback(async () => {
     if (!session?.user || !activeOrgId || !inviteEmail.trim()) return
@@ -221,15 +230,6 @@ export function TeamManagement() {
     [subscriptionData?.id, activeOrgId, newSeatCount]
   )
 
-  const handleOrgInputChange = useCallback((field: string, value: string) => {
-    setOrgFormData({ [field]: value })
-  }, [])
-
-  const handleSaveOrgSettings = useCallback(async () => {
-    if (!activeOrgId || !adminOrOwner) return
-    await updateOrganizationSettings()
-  }, [activeOrgId, adminOrOwner])
-
   const confirmTeamUpgrade = useCallback(
     async (seats: number) => {
       if (!session?.user || !activeOrgId) return
@@ -241,10 +241,12 @@ export function TeamManagement() {
 
   if (isLoading && !activeOrganization && !(hasTeamPlan || hasEnterprisePlan)) {
     return (
-      <div className='space-y-2 p-6'>
-        <Skeleton className='h-4 w-full' />
-        <Skeleton className='h-20 w-full' />
-        <Skeleton className='h-4 w-3/4' />
+      <div className='px-6 pt-4 pb-4'>
+        <div className='space-y-4'>
+          <Skeleton className='h-4 w-full' />
+          <Skeleton className='h-20 w-full' />
+          <Skeleton className='h-4 w-3/4' />
+        </div>
       </div>
     )
   }
@@ -269,103 +271,104 @@ export function TeamManagement() {
   }
 
   return (
-    <div className='space-y-4 p-6'>
-      <div className='flex items-center justify-between'>
-        <h3 className='font-medium text-sm'>Team Management</h3>
+    <div className='px-6 pt-4 pb-4'>
+      <div className='flex flex-col gap-6'>
+        {error && (
+          <Alert variant='destructive' className='rounded-[8px]'>
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-        {organizations.length > 1 && (
-          <div className='flex items-center space-x-2'>
-            <select
-              className='h-9 rounded-[8px] border border-input bg-background px-3 py-2 text-xs'
-              value={activeOrganization.id}
-              onChange={(e) => setActiveOrganization(e.target.value)}
-            >
-              {organizations.map((org) => (
-                <option key={org.id} value={org.id}>
-                  {org.name}
-                </option>
-              ))}
-            </select>
+        {/* Team Usage Overview */}
+        <TeamUsage hasAdminAccess={adminOrOwner} />
+
+        {/* Team Billing Information (only show for Team Plan, not Enterprise) */}
+        {hasTeamPlan && !hasEnterprisePlan && (
+          <div className='rounded-[8px] border bg-blue-50/50 p-4 shadow-xs dark:bg-blue-950/20'>
+            <div className='space-y-3'>
+              <h4 className='font-medium text-sm'>How Team Billing Works</h4>
+              <ul className='ml-4 list-disc space-y-2 text-muted-foreground text-xs'>
+                <li>
+                  Your team is billed a minimum of $
+                  {(subscriptionData?.seats || 0) *
+                    (env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT)}
+                  /month for {subscriptionData?.seats || 0} licensed seats
+                </li>
+                <li>All team member usage is pooled together from a shared limit</li>
+                <li>
+                  When pooled usage exceeds the limit, all members are blocked from using the
+                  service
+                </li>
+                <li>You can increase the usage limit to allow for higher usage</li>
+                <li>
+                  Any usage beyond the minimum seat cost is billed as overage at the end of the
+                  billing period
+                </li>
+              </ul>
+            </div>
           </div>
         )}
+
+        {/* Member Invitation Card */}
+        {adminOrOwner && (
+          <MemberInvitationCard
+            inviteEmail={inviteEmail}
+            setInviteEmail={setInviteEmail}
+            isInviting={isInviting}
+            showWorkspaceInvite={showWorkspaceInvite}
+            setShowWorkspaceInvite={setShowWorkspaceInvite}
+            selectedWorkspaces={selectedWorkspaces}
+            userWorkspaces={userWorkspaces}
+            onInviteMember={handleInviteMember}
+            onLoadUserWorkspaces={() => loadUserWorkspaces(session?.user?.id)}
+            onWorkspaceToggle={handleWorkspaceToggle}
+            inviteSuccess={inviteSuccess}
+            availableSeats={Math.max(0, (subscriptionData?.seats || 0) - usedSeats.used)}
+            maxSeats={subscriptionData?.seats || 0}
+          />
+        )}
+
+        {/* Team Seats Overview */}
+        {adminOrOwner && (
+          <TeamSeatsOverview
+            subscriptionData={subscriptionData}
+            isLoadingSubscription={isLoadingSubscription}
+            usedSeats={usedSeats.used}
+            isLoading={isLoading}
+            onConfirmTeamUpgrade={confirmTeamUpgrade}
+            onReduceSeats={handleReduceSeats}
+            onAddSeatDialog={handleAddSeatDialog}
+          />
+        )}
+
+        {/* Team Members */}
+        <TeamMembers
+          organization={activeOrganization}
+          currentUserEmail={session?.user?.email ?? ''}
+          isAdminOrOwner={adminOrOwner}
+          onRemoveMember={handleRemoveMember}
+          onCancelInvitation={cancelInvitation}
+        />
+
+        {/* Team Information Section - at bottom of modal */}
+        <div className='mt-12 border-t pt-6'>
+          <div className='space-y-3 text-xs'>
+            <div className='flex justify-between'>
+              <span className='text-muted-foreground'>Team ID:</span>
+              <span className='font-mono'>{activeOrganization.id}</span>
+            </div>
+            <div className='flex justify-between'>
+              <span className='text-muted-foreground'>Created:</span>
+              <span>{new Date(activeOrganization.createdAt).toLocaleDateString()}</span>
+            </div>
+            <div className='flex justify-between'>
+              <span className='text-muted-foreground'>Your Role:</span>
+              <span className='font-medium capitalize'>{userRole}</span>
+            </div>
+          </div>
+        </div>
       </div>
-
-      {error && (
-        <Alert variant='destructive' className='rounded-[8px]'>
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value='members'>Members</TabsTrigger>
-          <TabsTrigger value='usage'>Usage</TabsTrigger>
-          <TabsTrigger value='settings'>Settings</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value='members' className='mt-4 space-y-4'>
-          {adminOrOwner && (
-            <MemberInvitationCard
-              inviteEmail={inviteEmail}
-              setInviteEmail={setInviteEmail}
-              isInviting={isInviting}
-              showWorkspaceInvite={showWorkspaceInvite}
-              setShowWorkspaceInvite={setShowWorkspaceInvite}
-              selectedWorkspaces={selectedWorkspaces}
-              userWorkspaces={userWorkspaces}
-              onInviteMember={handleInviteMember}
-              onLoadUserWorkspaces={() => loadUserWorkspaces(session?.user?.id)}
-              onWorkspaceToggle={handleWorkspaceToggle}
-              inviteSuccess={inviteSuccess}
-            />
-          )}
-
-          {adminOrOwner && (
-            <TeamSeatsOverview
-              subscriptionData={subscriptionData}
-              isLoadingSubscription={isLoadingSubscription}
-              usedSeats={usedSeats.used}
-              isLoading={isLoading}
-              onConfirmTeamUpgrade={confirmTeamUpgrade}
-              onReduceSeats={handleReduceSeats}
-              onAddSeatDialog={handleAddSeatDialog}
-            />
-          )}
-
-          <TeamMembersList
-            organization={activeOrganization}
-            currentUserEmail={session?.user?.email ?? ''}
-            isAdminOrOwner={adminOrOwner}
-            onRemoveMember={handleRemoveMember}
-          />
-
-          {adminOrOwner && (activeOrganization.invitations?.length ?? 0) > 0 && (
-            <PendingInvitationsList
-              organization={activeOrganization}
-              onCancelInvitation={cancelInvitation}
-            />
-          )}
-        </TabsContent>
-
-        <TabsContent value='usage' className='mt-4 space-y-4'>
-          <TeamUsage hasAdminAccess={adminOrOwner} />
-        </TabsContent>
-
-        <TabsContent value='settings'>
-          <OrganizationSettingsTab
-            organization={activeOrganization}
-            isAdminOrOwner={adminOrOwner}
-            userRole={userRole}
-            orgFormData={orgFormData}
-            onOrgInputChange={handleOrgInputChange}
-            onSaveOrgSettings={handleSaveOrgSettings}
-            isSavingOrgSettings={isSavingOrgSettings}
-            orgSettingsError={orgSettingsError}
-            orgSettingsSuccess={orgSettingsSuccess}
-          />
-        </TabsContent>
-      </Tabs>
 
       <RemoveMemberDialog
         open={removeMemberDialog.open}
@@ -395,7 +398,7 @@ export function TeamManagement() {
         open={isAddSeatDialogOpen}
         onOpenChange={setIsAddSeatDialogOpen}
         title='Add Team Seats'
-        description={`Each seat costs $${env.TEAM_TIER_COST_LIMIT}/month and provides $${env.TEAM_TIER_COST_LIMIT} in monthly inference credits. Adjust the number of licensed seats for your team.`}
+        description={`Each seat costs $${env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT}/month and provides $${env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT} in monthly inference credits. Adjust the number of licensed seats for your team.`}
         currentSeats={subscriptionData?.seats || 1}
         initialSeats={newSeatCount}
         isLoading={isUpdatingSeats}
@@ -405,6 +408,7 @@ export function TeamManagement() {
         }}
         confirmButtonText='Update Seats'
         showCostBreakdown={true}
+        isCancelledAtPeriodEnd={subscriptionData?.cancelAtPeriodEnd}
       />
     </div>
   )

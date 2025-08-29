@@ -81,7 +81,6 @@ export async function GET(
         .select({
           currentPeriodCost: userStats.currentPeriodCost,
           currentUsageLimit: userStats.currentUsageLimit,
-          usageLimitSetBy: userStats.usageLimitSetBy,
           usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
           lastPeriodCost: userStats.lastPeriodCost,
         })

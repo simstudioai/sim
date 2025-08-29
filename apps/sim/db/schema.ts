@@ -441,21 +441,17 @@ export const userStats = pgTable('user_stats', {
   totalChatExecutions: integer('total_chat_executions').notNull().default(0),
   totalTokensUsed: integer('total_tokens_used').notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
-  currentUsageLimit: decimal('current_usage_limit')
-    .notNull()
-    .default(DEFAULT_FREE_CREDITS.toString()), // Default $10 for free plan
-  usageLimitSetBy: text('usage_limit_set_by'), // User ID who set the limit (for team admin tracking)
+  currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $10 for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
   // Billing period tracking
   currentPeriodCost: decimal('current_period_cost').notNull().default('0'), // Usage in current billing period
-  billingPeriodStart: timestamp('billing_period_start').defaultNow(), // When current billing period started
-  billingPeriodEnd: timestamp('billing_period_end'), // When current billing period ends
   lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
   // Copilot usage tracking
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
   totalCopilotTokens: integer('total_copilot_tokens').notNull().default(0),
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
   lastActive: timestamp('last_active').notNull().defaultNow(),
+  billingBlocked: boolean('billing_blocked').notNull().default(false),
 })
 
 export const customTools = pgTable('custom_tools', {
@@ -494,7 +490,7 @@ export const subscription = pgTable(
     ),
     enterpriseMetadataCheck: check(
       'check_enterprise_metadata',
-      sql`plan != 'enterprise' OR (metadata IS NOT NULL AND (metadata->>'perSeatAllowance' IS NOT NULL OR metadata->>'totalAllowance' IS NOT NULL))`
+      sql`plan != 'enterprise' OR metadata IS NOT NULL`
     ),
   })
 )
@@ -552,6 +548,7 @@ export const organization = pgTable('organization', {
   slug: text('slug').notNull(),
   logo: text('logo'),
   metadata: json('metadata'),
+  orgUsageLimit: decimal('org_usage_limit'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })

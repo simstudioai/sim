@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm'
-import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { getPlanPricing } from '@/lib/billing/core/billing'
+import { getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { member, organization, subscription, user, userStats } from '@/db/schema'
@@ -26,6 +26,10 @@ async function getOrganizationSubscription(organizationId: string) {
   }
 }
 
+function roundCurrency(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
 interface OrganizationUsageData {
   organizationId: string
   organizationName: string
@@ -33,8 +37,10 @@ interface OrganizationUsageData {
   subscriptionStatus: string
   totalSeats: number
   usedSeats: number
+  seatsCount: number
   totalCurrentUsage: number
   totalUsageLimit: number
+  minimumBillingAmount: number
   averageUsagePerMember: number
   billingPeriodStart: Date | null
   billingPeriodEnd: Date | null
@@ -104,7 +110,7 @@ export async function getOrganizationBillingData(
     // Process member data
     const members: MemberUsageData[] = membersWithUsage.map((memberRecord) => {
       const currentUsage = Number(memberRecord.currentPeriodCost || 0)
-      const usageLimit = Number(memberRecord.currentUsageLimit || DEFAULT_FREE_CREDITS)
+      const usageLimit = Number(memberRecord.currentUsageLimit || getFreeTierLimit())
       const percentUsed = usageLimit > 0 ? (currentUsage / usageLimit) * 100 : 0
 
       return {
@@ -126,26 +132,33 @@ export async function getOrganizationBillingData(
 
     // Get per-seat pricing for the plan
     const { basePrice: pricePerSeat } = getPlanPricing(subscription.plan, subscription)
-    const licensedSeats = subscription.seats || members.length
+
+    // Use Stripe subscription seats as source of truth
+    // Ensure we always have at least 1 seat (protect against 0 or falsy values)
+    const licensedSeats = Math.max(subscription.seats || 1, 1)
 
     // Validate seat capacity - warn if members exceed licensed seats
-    if (subscription.seats && members.length > subscription.seats) {
+    if (members.length > licensedSeats) {
       logger.warn('Organization has more members than licensed seats', {
         organizationId,
-        licensedSeats: subscription.seats,
+        licensedSeats,
         actualMembers: members.length,
         plan: subscription.plan,
       })
     }
 
-    // Billing is based on licensed seats, not actual member count
+    // Billing is based on licensed seats from Stripe, not actual member count
     // This ensures organizations pay for their seat capacity regardless of utilization
-    const seatsCount = licensedSeats
-    const minimumBillingAmount = seatsCount * pricePerSeat
+    const minimumBillingAmount = licensedSeats * pricePerSeat
 
-    // Total usage limit represents the minimum amount the team will be billed
-    // This is based on licensed seats, not individual member limits (which are personal controls)
-    const totalUsageLimit = minimumBillingAmount
+    // Total usage limit: never below the minimum based on licensed seats
+    const configuredLimit = organizationData.orgUsageLimit
+      ? Number.parseFloat(organizationData.orgUsageLimit)
+      : null
+    const totalUsageLimit =
+      configuredLimit !== null
+        ? Math.max(configuredLimit, minimumBillingAmount)
+        : minimumBillingAmount
 
     const averageUsagePerMember = members.length > 0 ? totalCurrentUsage / members.length : 0
 
@@ -155,14 +168,16 @@ export async function getOrganizationBillingData(
 
     return {
       organizationId,
-      organizationName: organizationData.name,
+      organizationName: organizationData.name || '',
       subscriptionPlan: subscription.plan,
-      subscriptionStatus: subscription.status || 'active',
-      totalSeats: subscription.seats || 1,
+      subscriptionStatus: subscription.status || 'inactive',
+      totalSeats: Math.max(subscription.seats || 1, 1),
       usedSeats: members.length,
-      totalCurrentUsage: Math.round(totalCurrentUsage * 100) / 100,
-      totalUsageLimit: Math.round(totalUsageLimit * 100) / 100,
-      averageUsagePerMember: Math.round(averageUsagePerMember * 100) / 100,
+      seatsCount: licensedSeats,
+      totalCurrentUsage: roundCurrency(totalCurrentUsage),
+      totalUsageLimit: roundCurrency(totalUsageLimit),
+      minimumBillingAmount: roundCurrency(minimumBillingAmount),
+      averageUsagePerMember: roundCurrency(averageUsagePerMember),
       billingPeriodStart,
       billingPeriodEnd,
       members: members.sort((a, b) => b.currentUsage - a.currentUsage), // Sort by usage desc
@@ -174,98 +189,69 @@ export async function getOrganizationBillingData(
 }
 
 /**
- * Update usage limit for a specific organization member
+ * Update organization usage limit (cap)
  */
-export async function updateMemberUsageLimit(
+export async function updateOrganizationUsageLimit(
   organizationId: string,
-  memberId: string,
-  newLimit: number,
-  adminUserId: string
-): Promise<void> {
+  newLimit: number
+): Promise<{ success: boolean; error?: string }> {
   try {
-    // Verify admin has permission to modify limits
-    const adminMemberRecord = await db
+    // Validate the organization exists
+    const orgRecord = await db
       .select()
-      .from(member)
-      .where(and(eq(member.organizationId, organizationId), eq(member.userId, adminUserId)))
+      .from(organization)
+      .where(eq(organization.id, organizationId))
       .limit(1)
 
-    if (adminMemberRecord.length === 0 || !['owner', 'admin'].includes(adminMemberRecord[0].role)) {
-      throw new Error('Insufficient permissions to modify usage limits')
+    if (orgRecord.length === 0) {
+      return { success: false, error: 'Organization not found' }
     }
 
-    // Verify member exists in organization
-    const targetMemberRecord = await db
-      .select()
-      .from(member)
-      .where(and(eq(member.organizationId, organizationId), eq(member.userId, memberId)))
-      .limit(1)
-
-    if (targetMemberRecord.length === 0) {
-      throw new Error('Member not found in organization')
-    }
-
-    // Get organization subscription to validate limit
+    // Get subscription to validate minimum
     const subscription = await getOrganizationSubscription(organizationId)
     if (!subscription) {
-      throw new Error('No active subscription found')
+      return { success: false, error: 'No active subscription found' }
     }
 
-    // Validate minimum limit based on plan
-    const planLimits = {
-      free: DEFAULT_FREE_CREDITS,
-      pro: 20,
-      team: 40,
-      enterprise: 100, // Default, can be overridden by metadata
-    }
+    // Calculate minimum based on seats
+    const { basePrice } = getPlanPricing(subscription.plan, subscription)
+    const minimumLimit = Math.max(subscription.seats || 1, 1) * basePrice
 
-    let minimumLimit =
-      planLimits[subscription.plan as keyof typeof planLimits] || DEFAULT_FREE_CREDITS
-
-    // For enterprise, check metadata for custom limits
-    if (subscription.plan === 'enterprise' && subscription.metadata) {
-      try {
-        const metadata =
-          typeof subscription.metadata === 'string'
-            ? JSON.parse(subscription.metadata)
-            : subscription.metadata
-        if (metadata.perSeatAllowance) {
-          minimumLimit = metadata.perSeatAllowance
-        }
-      } catch (e) {
-        logger.warn('Failed to parse subscription metadata', { error: e })
+    // Validate new limit is not below minimum
+    if (newLimit < minimumLimit) {
+      return {
+        success: false,
+        error: `Usage limit cannot be less than minimum billing amount of $${roundCurrency(minimumLimit).toFixed(2)}`,
       }
     }
 
-    if (newLimit < minimumLimit) {
-      throw new Error(`Usage limit cannot be below $${minimumLimit} for ${subscription.plan} plan`)
-    }
-
-    // Update the member's usage limit
+    // Update the organization usage limit
+    // Convert number to string for decimal column
     await db
-      .update(userStats)
+      .update(organization)
       .set({
-        currentUsageLimit: newLimit.toString(),
-        usageLimitSetBy: adminUserId,
-        usageLimitUpdatedAt: new Date(),
+        orgUsageLimit: roundCurrency(newLimit).toFixed(2),
+        updatedAt: new Date(),
       })
-      .where(eq(userStats.userId, memberId))
+      .where(eq(organization.id, organizationId))
 
-    logger.info('Updated member usage limit', {
+    logger.info('Organization usage limit updated', {
       organizationId,
-      memberId,
       newLimit,
-      adminUserId,
+      minimumLimit,
     })
+
+    return { success: true }
   } catch (error) {
-    logger.error('Failed to update member usage limit', {
+    logger.error('Failed to update organization usage limit', {
       organizationId,
-      memberId,
       newLimit,
-      adminUserId,
       error,
     })
-    throw error
+    return {
+      success: false,
+      error: 'Failed to update usage limit',
+    }
   }
 }
 

@@ -547,6 +547,13 @@
       "when": 1756168384465,
       "tag": "0078_supreme_madrox",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1756246702112,
+      "tag": "0079_shocking_shriek",
+      "breakpoints": true
     }
   ]
 }

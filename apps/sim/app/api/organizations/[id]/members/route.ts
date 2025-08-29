@@ -75,7 +75,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           userEmail: user.email,
           currentPeriodCost: userStats.currentPeriodCost,
           currentUsageLimit: userStats.currentUsageLimit,
-          usageLimitSetBy: userStats.usageLimitSetBy,
           usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
         })
         .from(member)

@@ -32,6 +32,7 @@ import {
   getKeyboardShortcutText,
   useGlobalShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
+import { useSubscriptionStore } from '@/stores/subscription/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -115,7 +116,7 @@ export function Sidebar() {
   const [isTemplatesLoading, setIsTemplatesLoading] = useState(false)
 
   // Refs
-  const workflowScrollAreaRef = useRef<HTMLDivElement>(null)
+  const workflowScrollAreaRef = useRef<HTMLDivElement | null>(null)
   const workspaceIdRef = useRef<string>(workspaceId)
   const routerRef = useRef<ReturnType<typeof useRouter>>(router)
   const isInitializedRef = useRef<boolean>(false)
@@ -930,13 +931,15 @@ export function Sidebar() {
             }`}
           >
             <div className='px-2'>
-              <ScrollArea ref={workflowScrollAreaRef} className='h-[210px]' hideScrollbar={true}>
-                <FolderTree
-                  regularWorkflows={regularWorkflows}
-                  marketplaceWorkflows={tempWorkflows}
-                  isLoading={isLoading}
-                  onCreateWorkflow={handleCreateWorkflow}
-                />
+              <ScrollArea className='h-[210px]' hideScrollbar={true}>
+                <div ref={workflowScrollAreaRef}>
+                  <FolderTree
+                    regularWorkflows={regularWorkflows}
+                    marketplaceWorkflows={tempWorkflows}
+                    isLoading={isLoading}
+                    onCreateWorkflow={handleCreateWorkflow}
+                  />
+                </div>
               </ScrollArea>
             </div>
             {!isLoading && (
@@ -1003,16 +1006,15 @@ export function Sidebar() {
           style={{ bottom: `${navigationBottom + SIDEBAR_HEIGHTS.NAVIGATION + SIDEBAR_GAP}px` }} // Navigation height + gap
         >
           <UsageIndicator
-            onClick={(badgeType) => {
-              if (badgeType === 'add') {
-                // Open settings modal on subscription tab
+            onClick={() => {
+              const isBlocked = useSubscriptionStore.getState().getBillingStatus() === 'blocked'
+              if (isBlocked) {
                 if (typeof window !== 'undefined') {
                   window.dispatchEvent(
                     new CustomEvent('open-settings', { detail: { tab: 'subscription' } })
                   )
                 }
               } else {
-                // Open subscription modal for upgrade
                 setShowSubscriptionModal(true)
               }
             }}

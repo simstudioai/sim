@@ -22,8 +22,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { useSession, useSubscription } from '@/lib/auth-client'
+import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useSubscriptionUpgrade } from '@/lib/subscription/upgrade'
 import { cn } from '@/lib/utils'
 import { useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
@@ -43,7 +44,7 @@ interface PlanFeature {
 
 export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps) {
   const { data: session } = useSession()
-  const betterAuthSubscription = useSubscription()
+  const { handleUpgrade } = useSubscriptionUpgrade()
   const { activeOrganization } = useOrganizationStore()
   const { loadData, getSubscriptionStatus, isLoading } = useSubscriptionStore()
 
@@ -56,40 +57,15 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
 
   const subscription = getSubscriptionStatus()
 
-  const handleUpgrade = useCallback(
+  const handleUpgradeWithErrorHandling = useCallback(
     async (targetPlan: 'pro' | 'team') => {
-      if (!session?.user?.id) return
-
-      const subscriptionData = useSubscriptionStore.getState().subscriptionData
-      const currentSubscriptionId = subscriptionData?.stripeSubscriptionId
-
-      let referenceId = session.user.id
-      if (subscription.isTeam && activeOrganization?.id) {
-        referenceId = activeOrganization.id
-      }
-
-      const currentUrl = window.location.origin + window.location.pathname
-
       try {
-        const upgradeParams: any = {
-          plan: targetPlan,
-          referenceId,
-          successUrl: currentUrl,
-          cancelUrl: currentUrl,
-          seats: targetPlan === 'team' ? 1 : undefined,
-        }
-
-        if (currentSubscriptionId) {
-          upgradeParams.subscriptionId = currentSubscriptionId
-        }
-
-        await betterAuthSubscription.upgrade(upgradeParams)
+        await handleUpgrade(targetPlan)
       } catch (error) {
-        logger.error('Failed to initiate subscription upgrade:', error)
-        alert('Failed to initiate upgrade. Please try again or contact support.')
+        alert(error instanceof Error ? error.message : 'Unknown error occurred')
       }
     },
-    [session?.user?.id, subscription.isTeam, activeOrganization?.id, betterAuthSubscription]
+    [handleUpgrade]
   )
 
   const handleContactUs = () => {
@@ -124,7 +100,7 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
         { text: 'Unlimited log retention', included: true, icon: Database },
       ],
       isActive: subscription.isPro && !subscription.isTeam,
-      action: subscription.isFree ? () => handleUpgrade('pro') : null,
+      action: subscription.isFree ? () => handleUpgradeWithErrorHandling('pro') : null,
     },
     {
       name: 'Team',
@@ -137,7 +113,7 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
         { text: 'Dedicated Slack channel', included: true, icon: MessageSquare },
       ],
       isActive: subscription.isTeam,
-      action: !subscription.isTeam ? () => handleUpgrade('team') : null,
+      action: !subscription.isTeam ? () => handleUpgradeWithErrorHandling('team') : null,
     },
     {
       name: 'Enterprise',
