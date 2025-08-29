@@ -420,6 +420,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
       // Process files one by one
       for (const file of Array.from(fileList)) {
+        // Only accept image files
+        if (!file.type.startsWith('image/')) {
+          logger.warn(`File ${file.name} is not an image. Only image files are allowed.`)
+          continue
+        }
+
         // Create a preview URL for images
         let previewUrl: string | undefined
         if (file.type.startsWith('image/')) {
@@ -2526,7 +2532,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             type='file'
             onChange={handleFileChange}
             className='hidden'
-            accept='.pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.gif'
+            accept='image/*'
             multiple
             disabled={disabled || isLoading}
           />
