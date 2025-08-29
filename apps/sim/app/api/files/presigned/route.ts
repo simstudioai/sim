@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
+import { isImageFileType } from '@/lib/uploads/file-utils'
 // Dynamic imports for storage clients to avoid client-side bundling
 import {
   BLOB_CHAT_CONFIG,
@@ -111,6 +112,12 @@ export async function POST(request: NextRequest) {
     if (uploadType === 'copilot') {
       if (!sessionUserId?.trim()) {
         throw new ValidationError('Authenticated user session is required for copilot uploads')
+      }
+      // Only allow image uploads for copilot
+      if (!isImageFileType(contentType)) {
+        throw new ValidationError(
+          'Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for copilot uploads'
+        )
       }
     }
 

@@ -61,6 +61,21 @@ export function isSupportedFileType(mimeType: string): boolean {
 }
 
 /**
+ * Check if a MIME type is an image type (for copilot uploads)
+ */
+export function isImageFileType(mimeType: string): boolean {
+  const imageTypes = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+  ]
+  return imageTypes.includes(mimeType.toLowerCase())
+}
+
+/**
  * Convert a file buffer to base64
  */
 export function bufferToBase64(buffer: Buffer): string {
