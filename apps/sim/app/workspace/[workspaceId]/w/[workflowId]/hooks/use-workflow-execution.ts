@@ -503,7 +503,8 @@ export function useWorkflowExecution() {
         })
         return errorResult
       }
-    }, [
+    },
+    [
       activeWorkflowId,
       currentWorkflow,
       toggleConsole,
@@ -516,7 +517,8 @@ export function useWorkflowExecution() {
       setExecutor,
       setPendingBlocks,
       setActiveBlocks,
-    ])
+    ]
+  )
 
   const executeWorkflow = async (
     workflowInput?: any,

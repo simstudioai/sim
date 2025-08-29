@@ -8,8 +8,6 @@ import {
   Layers,
   Play,
   RefreshCw,
-  SkipForward,
-  StepForward,
   Store,
   Trash2,
   WifiOff,
@@ -44,6 +42,7 @@ import {
   getKeyboardShortcutText,
   useKeyboardShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
+import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
@@ -52,7 +51,6 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { useExecutionStore } from '@/stores/execution/store'
 
 const logger = createLogger('ControlBar')
 

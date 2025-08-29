@@ -10,16 +10,16 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCopilotStore } from '@/stores/copilot/store'
+import { useExecutionStore } from '@/stores/execution/store'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useExecutionStore } from '@/stores/execution/store'
 import { Chat } from './components/chat/chat'
 import { Console } from './components/console/console'
 import { Copilot } from './components/copilot/copilot'
-import { Variables } from './components/variables/variables'
 import { DebugPanel } from './components/debug/debug'
+import { Variables } from './components/variables/variables'
 
 export function Panel() {
   const [chatMessage, setChatMessage] = useState<string>('')
@@ -45,7 +45,7 @@ export function Panel() {
   const clearChat = useChatStore((state) => state.clearChat)
   const exportChatCSV = useChatStore((state) => state.exportChatCSV)
   const { activeWorkflowId } = useWorkflowRegistry()
-  
+
   // Get debug state
   const isDebugging = useExecutionStore((state) => state.isDebugging)
 
@@ -313,7 +313,10 @@ export function Panel() {
   return (
     <>
       {/* Tab Selector - Always visible */}
-      <div className='fixed top-[76px] right-4 z-20 flex h-9 items-center gap-1 rounded-[14px] border bg-card px-[2.5px] py-1 shadow-xs' style={{ width: isDebugging ? '380px' : '308px' }}>
+      <div
+        className='fixed top-[76px] right-4 z-20 flex h-9 items-center gap-1 rounded-[14px] border bg-card px-[2.5px] py-1 shadow-xs'
+        style={{ width: isDebugging ? '380px' : '308px' }}
+      >
         <button
           onClick={() => handleTabClick('chat')}
           className={`panel-tab-base inline-flex flex-1 cursor-pointer items-center justify-center rounded-[10px] border border-transparent py-1 font-[450] text-sm outline-none transition-colors duration-200 ${

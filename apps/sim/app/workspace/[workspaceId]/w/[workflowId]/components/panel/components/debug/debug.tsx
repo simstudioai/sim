@@ -1,38 +1,37 @@
-"use client"
+'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Checkbox } from '@/components/ui/checkbox'
-import { useExecutionStore } from '@/stores/execution/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
-import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
-import { getBlock } from '@/blocks'
-import { mergeSubblockState } from '@/stores/workflows/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { BlockPathCalculator } from '@/lib/block-path-calculator'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
-import { getTrigger, getTriggersByProvider } from '@/triggers'
-import { getTool } from '@/tools/utils'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { 
-  Play, 
-  FastForward, 
-  Square, 
-  Circle,
-  RotateCcw,
+import {
   AlertCircle,
   Check,
+  Circle,
+  CircleDot,
+  FastForward,
+  Play,
+  RotateCcw,
+  Square,
   X,
-  CircleDot
 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { BlockPathCalculator } from '@/lib/block-path-calculator'
+import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
+import { cn } from '@/lib/utils'
+import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
+import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
+import { getBlock } from '@/blocks'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { getTool } from '@/tools/utils'
+import { getTrigger, getTriggersByProvider } from '@/triggers'
 
 export function DebugPanel() {
   const {
@@ -51,7 +50,8 @@ export function DebugPanel() {
     setBreakpointId,
   } = useExecutionStore()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
-  const { handleStepDebug, handleResumeDebug, handleCancelDebug, handleRunWorkflow } = useWorkflowExecution()
+  const { handleStepDebug, handleResumeDebug, handleCancelDebug, handleRunWorkflow } =
+    useWorkflowExecution()
   const currentWorkflow = useCurrentWorkflow()
 
   const [chatMessage, setChatMessage] = useState('')
@@ -71,20 +71,23 @@ export function DebugPanel() {
   const [highlightedRefVar, setHighlightedRefVar] = useState<string | null>(null)
 
   // Helper to format strings with clickable var/env tokens
-  const renderWithTokens = (
-    text: string,
-    options?: { truncateAt?: number }
-  ) => {
+  const renderWithTokens = (text: string, options?: { truncateAt?: number }) => {
     const truncateAt = options?.truncateAt
     let displayText = text
     let truncated = false
     if (typeof truncateAt === 'number' && text.length > truncateAt) {
-      displayText = text.slice(0, truncateAt) + '...'
+      displayText = `${text.slice(0, truncateAt)}...`
       truncated = true
     }
 
     // Build combined matches for env ({{VAR}}), workflow vars (<variable.name>), and references (<block.path>)
-    const matches: Array<{ start: number; end: number; type: 'env' | 'var' | 'ref'; value: string; raw?: string }> = []
+    const matches: Array<{
+      start: number
+      end: number
+      type: 'env' | 'var' | 'ref'
+      value: string
+      raw?: string
+    }> = []
 
     const envRe = /\{\{([^{}]+)\}\}/g
     const varRe = /<variable\.([^>]+)>/g
@@ -92,23 +95,39 @@ export function DebugPanel() {
 
     let m: RegExpExecArray | null
     while ((m = envRe.exec(displayText)) !== null) {
-      matches.push({ start: m.index, end: m.index + m[0].length, type: 'env', value: m[1], raw: m[0] })
+      matches.push({
+        start: m.index,
+        end: m.index + m[0].length,
+        type: 'env',
+        value: m[1],
+        raw: m[0],
+      })
     }
     while ((m = varRe.exec(displayText)) !== null) {
-      matches.push({ start: m.index, end: m.index + m[0].length, type: 'var', value: m[1], raw: m[0] })
+      matches.push({
+        start: m.index,
+        end: m.index + m[0].length,
+        type: 'var',
+        value: m[1],
+        raw: m[0],
+      })
     }
     while ((m = refRe.exec(displayText)) !== null) {
       const inner = m[1]
       // Skip workflow variable tokens since already captured
       if (inner.startsWith('variable.')) continue
-      matches.push({ start: m.index, end: m.index + m[0].length, type: 'ref', value: inner, raw: m[0] })
+      matches.push({
+        start: m.index,
+        end: m.index + m[0].length,
+        type: 'ref',
+        value: inner,
+        raw: m[0],
+      })
     }
 
     if (matches.length === 0) {
       return (
-        <span className='text-[11px] font-mono text-foreground/70 break-words'>
-          {displayText}
-        </span>
+        <span className='break-words font-mono text-[11px] text-foreground/70'>{displayText}</span>
       )
     }
 
@@ -150,10 +169,7 @@ export function DebugPanel() {
             const row = refVarRowRefs.current.get(refKey)
             if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' })
             setHighlightedRefVar(refKey)
-            setTimeout(
-              () => setHighlightedRefVar((prev) => (prev === refKey ? null : prev)),
-              4000
-            )
+            setTimeout(() => setHighlightedRefVar((prev) => (prev === refKey ? null : prev)), 4000)
           })
         }
       }
@@ -162,7 +178,10 @@ export function DebugPanel() {
     for (const match of matches) {
       if (match.start > cursor) {
         parts.push(
-          <span key={`t-${cursor}`} className='text-[11px] font-mono text-foreground/70 break-words'>
+          <span
+            key={`t-${cursor}`}
+            className='break-words font-mono text-[11px] text-foreground/70'
+          >
             {displayText.slice(cursor, match.start)}
           </span>
         )
@@ -172,13 +191,17 @@ export function DebugPanel() {
         <button
           key={`m-${match.start}`}
           type='button'
-          className='rounded bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 font-mono text-[11px] text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors'
+          className='rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] text-blue-700 transition-colors hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/30'
           onClick={(e) => {
             e.stopPropagation()
             handleTokenClick(match.type as any, match.value, match.raw)
           }}
         >
-          {match.type === 'env' ? `{{${match.value}}}` : match.type === 'var' ? `<variable.${match.value}>` : `<${match.value}>`}
+          {match.type === 'env'
+            ? `{{${match.value}}}`
+            : match.type === 'var'
+              ? `<variable.${match.value}>`
+              : `<${match.value}>`}
         </button>
       )
 
@@ -188,7 +211,7 @@ export function DebugPanel() {
 
     if (cursor < displayText.length) {
       parts.push(
-        <span key={`t-end`} className='text-[11px] font-mono text-foreground/70 break-words'>
+        <span key={`t-end`} className='break-words font-mono text-[11px] text-foreground/70'>
           {displayText.slice(cursor)}
         </span>
       )
@@ -199,7 +222,7 @@ export function DebugPanel() {
 
   // Helper to toggle field expansion
   const toggleFieldExpansion = (fieldKey: string) => {
-    setExpandedFields(prev => {
+    setExpandedFields((prev) => {
       const next = new Set(prev)
       if (next.has(fieldKey)) {
         next.delete(fieldKey)
@@ -212,7 +235,7 @@ export function DebugPanel() {
 
   // Helper to toggle env var reveal
   const toggleEnvVarReveal = (key: string) => {
-    setRevealedEnvVars(prev => {
+    setRevealedEnvVars((prev) => {
       const next = new Set(prev)
       if (next.has(key)) {
         next.delete(key)
@@ -233,7 +256,7 @@ export function DebugPanel() {
   // This ensures consistency whether debugContext exists or not
   const blocksList = useMemo(() => {
     const blocks = Object.values(currentWorkflow.blocks || {}) as any[]
-    return blocks.filter(b => b && b.type) // Filter out invalid blocks
+    return blocks.filter((b) => b?.type) // Filter out invalid blocks
   }, [currentWorkflow.blocks])
 
   const blockById = useMemo(() => {
@@ -258,7 +281,10 @@ export function DebugPanel() {
     return id.startsWith(`${baseId}_parallel_`)
   }
 
-  const starter = useMemo(() => blocksList.find((b: any) => b.metadata?.id === 'starter' || b.type === 'starter'), [blocksList])
+  const starter = useMemo(
+    () => blocksList.find((b: any) => b.metadata?.id === 'starter' || b.type === 'starter'),
+    [blocksList]
+  )
   const starterId = starter?.id || null
 
   // determine if starter is chat mode in editor state (registry/workflow store keeps subblock values)
@@ -341,7 +367,9 @@ export function DebugPanel() {
 
     // Get merged state for conditional evaluation
     const allBlocks = useWorkflowStore.getState().blocks
-    const merged = mergeSubblockState(allBlocks, activeWorkflowId || undefined, focusedBlockId)[focusedBlockId]
+    const merged = mergeSubblockState(allBlocks, activeWorkflowId || undefined, focusedBlockId)[
+      focusedBlockId
+    ]
     const stateToUse: Record<string, any> = merged?.subBlocks || {}
 
     const outputs: Record<string, any> = {}
@@ -357,13 +385,19 @@ export function DebugPanel() {
       }
 
       // Condition evaluation based on current block state
-      const cond = typeof (sb as any).condition === 'function' ? (sb as any).condition() : (sb as any).condition
+      const cond =
+        typeof (sb as any).condition === 'function'
+          ? (sb as any).condition()
+          : (sb as any).condition
       if (cond) {
         const fieldValue = stateToUse[cond.field]?.value
         const andFieldValue = cond.and ? stateToUse[cond.and.field]?.value : undefined
 
         const isValueMatch = Array.isArray(cond.value)
-          ? fieldValue != null && (cond.not ? !(cond.value as any[]).includes(fieldValue) : (cond.value as any[]).includes(fieldValue))
+          ? fieldValue != null &&
+            (cond.not
+              ? !(cond.value as any[]).includes(fieldValue)
+              : (cond.value as any[]).includes(fieldValue))
           : cond.not
             ? fieldValue !== cond.value
             : fieldValue === cond.value
@@ -371,7 +405,10 @@ export function DebugPanel() {
         const isAndValueMatch = !cond.and
           ? true
           : Array.isArray(cond.and.value)
-            ? andFieldValue != null && (cond.and.not ? !(cond.and.value as any[]).includes(andFieldValue) : (cond.and.value as any[]).includes(andFieldValue))
+            ? andFieldValue != null &&
+              (cond.and.not
+                ? !(cond.and.value as any[]).includes(andFieldValue)
+                : (cond.and.value as any[]).includes(andFieldValue))
             : cond.and.not
               ? andFieldValue !== cond.and.value
               : andFieldValue === cond.and.value
@@ -398,8 +435,9 @@ export function DebugPanel() {
 
   // Upstream executed outputs to approximate available inputs for non-executed blocks
   const upstreamExecuted = useMemo(() => {
-    if (!focusedBlockId || !debugContext) return [] as Array<{ id: string; name: string; output: any }>
-    
+    if (!focusedBlockId || !debugContext)
+      return [] as Array<{ id: string; name: string; output: any }>
+
     // Use currentWorkflow.edges for connections (consistent with block source)
     const connections = currentWorkflow.edges || []
     const incoming = connections.filter((c: any) => c.target === focusedBlockId)
@@ -421,19 +459,19 @@ export function DebugPanel() {
   // Get environment variables from the store (for before execution starts)
   const envVarsFromStore = useEnvironmentStore((state) => state.getAllVariables())
   const loadEnvironmentVariables = useEnvironmentStore((state) => state.loadEnvironmentVariables)
-  
+
   // Load environment variables when component mounts
   useEffect(() => {
     loadEnvironmentVariables()
   }, [loadEnvironmentVariables])
-  
+
   // Use debugContext env vars if available (during execution), otherwise use store
   const allEnvVars = useMemo(() => {
     // If we have debugContext with env vars, use those (they're decrypted)
     if (debugContext && Object.keys(envVars).length > 0) {
       return envVars
     }
-    
+
     // Otherwise, use the env vars from the store
     // Convert from store format to simple key-value pairs
     const storeVars: Record<string, string> = {}
@@ -444,46 +482,61 @@ export function DebugPanel() {
   }, [debugContext, envVars, envVarsFromStore])
 
   // Get workflow variables from the variables store
-  const workflowVariablesFromStore = useVariablesStore((state) => 
+  const workflowVariablesFromStore = useVariablesStore((state) =>
     activeWorkflowId ? state.getVariablesByWorkflowId(activeWorkflowId) : []
   )
 
-  const isFocusedExecuted = debugContext ? (() => {
-    const id = focusedBlockId || ''
-    if (!id) return false
-    const direct = debugContext.blockStates.get(id)?.executed
-    if (direct) return true
-    // Consider parallel virtual executions for this block
-    for (const key of debugContext.blockStates.keys()) {
-      if (isVirtualForBlock(String(key), id) && debugContext.blockStates.get(key)?.executed) {
-        return true
-      }
-    }
-    return false
-  })() : false
-  
-  const isFocusedErrored = debugContext ? (() => {
-    const id = focusedBlockId || ''
-    if (!id) return false
-    // Check direct block state for error
-    const directState = debugContext.blockStates.get(id)
-    if (directState?.output && typeof directState.output === 'object' && 'error' in directState.output) {
-      return true
-    }
-    // Check virtual executions for errors
-    for (const [key, state] of debugContext.blockStates.entries()) {
-      if (isVirtualForBlock(String(key), id) && state?.output && typeof state.output === 'object' && 'error' in state.output) {
-        return true
-      }
-    }
-    // Also check block logs for this block
-    const hasErrorLog = debugContext.blockLogs?.some(log => 
-      (log.blockId === id || resolveOriginalBlockId(log.blockId) === id) && !log.success
-    )
-    return hasErrorLog || false
-  })() : false
-  
-  const isStarterFocused = focusedBlock?.metadata?.id === 'starter' || focusedBlock?.type === 'starter'
+  const isFocusedExecuted = debugContext
+    ? (() => {
+        const id = focusedBlockId || ''
+        if (!id) return false
+        const direct = debugContext.blockStates.get(id)?.executed
+        if (direct) return true
+        // Consider parallel virtual executions for this block
+        for (const key of debugContext.blockStates.keys()) {
+          if (isVirtualForBlock(String(key), id) && debugContext.blockStates.get(key)?.executed) {
+            return true
+          }
+        }
+        return false
+      })()
+    : false
+
+  const isFocusedErrored = debugContext
+    ? (() => {
+        const id = focusedBlockId || ''
+        if (!id) return false
+        // Check direct block state for error
+        const directState = debugContext.blockStates.get(id)
+        if (
+          directState?.output &&
+          typeof directState.output === 'object' &&
+          'error' in directState.output
+        ) {
+          return true
+        }
+        // Check virtual executions for errors
+        for (const [key, state] of debugContext.blockStates.entries()) {
+          if (
+            isVirtualForBlock(String(key), id) &&
+            state?.output &&
+            typeof state.output === 'object' &&
+            'error' in state.output
+          ) {
+            return true
+          }
+        }
+        // Also check block logs for this block
+        const hasErrorLog = debugContext.blockLogs?.some(
+          (log) =>
+            (log.blockId === id || resolveOriginalBlockId(log.blockId) === id) && !log.success
+        )
+        return hasErrorLog || false
+      })()
+    : false
+
+  const isStarterFocused =
+    focusedBlock?.metadata?.id === 'starter' || focusedBlock?.type === 'starter'
   const isFocusedCurrent = useMemo(() => {
     const id = focusedBlockId || ''
     if (!id) return false
@@ -512,7 +565,7 @@ export function DebugPanel() {
     const keys = Object.keys(schema).length > 0 ? Object.keys(schema) : Object.keys(stateOutput)
     const result: Record<string, any> = {}
     keys.forEach((k) => {
-      result[k] = Object.prototype.hasOwnProperty.call(stateOutput, k) ? stateOutput[k] : null
+      result[k] = Object.hasOwn(stateOutput, k) ? stateOutput[k] : null
     })
     return result
   }, [focusedBlock, focusedBlockId, executionVersion])
@@ -607,7 +660,9 @@ export function DebugPanel() {
     }
 
     const edges = currentWorkflow.edges || []
-    const accessibleIds = new Set<string>(BlockPathCalculator.findAllPathNodes(edges, focusedBlockId))
+    const accessibleIds = new Set<string>(
+      BlockPathCalculator.findAllPathNodes(edges, focusedBlockId)
+    )
 
     // Always allow referencing the starter block
     if (starterId && starterId !== focusedBlockId) accessibleIds.add(starterId)
@@ -637,7 +692,7 @@ export function DebugPanel() {
     // Add loop/parallel special variables if block is inside a loop or parallel
     const addLoopParallelVariables = () => {
       if (!debugContext) return
-      
+
       // Check if focused block is inside a loop
       for (const [loopId, loop] of Object.entries(currentWorkflow.loops || {})) {
         if ((loop as any).nodes?.includes(focusedBlockId)) {
@@ -645,7 +700,7 @@ export function DebugPanel() {
           const loopItem = debugContext.loopItems?.get(loopId)
           const loopIndex = debugContext.loopIterations?.get(loopId)
           const loopItems = debugContext.loopItems?.get(`${loopId}_items`)
-          
+
           if (loopItem !== undefined) {
             entries.push({ ref: '<loop.item>', value: loopItem })
           }
@@ -655,7 +710,7 @@ export function DebugPanel() {
           if (loopItems !== undefined) {
             entries.push({ ref: '<loop.items>', value: loopItems })
           }
-          
+
           // Also add references for the loop block itself if it has executed
           const loopBlock = blockById.get(loopId)
           if (loopBlock) {
@@ -672,7 +727,7 @@ export function DebugPanel() {
           }
         }
       }
-      
+
       // Check if focused block is inside a parallel
       for (const [parallelId, parallel] of Object.entries(currentWorkflow.parallels || {})) {
         if ((parallel as any).nodes?.includes(focusedBlockId)) {
@@ -686,10 +741,12 @@ export function DebugPanel() {
               if (mapping) {
                 const iterationIndex = mapping.iterationIndex
                 const parallelItems = debugContext.loopItems?.get(`${parallelId}_items`)
-                const parallelItem = parallelItems ? 
-                  (Array.isArray(parallelItems) ? parallelItems[iterationIndex] : Object.values(parallelItems)[iterationIndex]) 
+                const parallelItem = parallelItems
+                  ? Array.isArray(parallelItems)
+                    ? parallelItems[iterationIndex]
+                    : Object.values(parallelItems)[iterationIndex]
                   : undefined
-                
+
                 if (parallelItem !== undefined) {
                   entries.push({ ref: '<parallel.item>', value: parallelItem })
                 }
@@ -697,7 +754,7 @@ export function DebugPanel() {
                 if (parallelItems !== undefined) {
                   entries.push({ ref: '<parallel.items>', value: parallelItems })
                 }
-                
+
                 // Also add references for the parallel block itself
                 const parallelBlock = blockById.get(parallelId)
                 if (parallelBlock) {
@@ -765,7 +822,16 @@ export function DebugPanel() {
     // Sort for stable UI (by ref)
     entries.sort((a, b) => a.ref.localeCompare(b.ref))
     return entries
-  }, [focusedBlockId, currentWorkflow.edges, currentWorkflow.loops, currentWorkflow.parallels, starterId, blockById, executionVersion, debugContext])
+  }, [
+    focusedBlockId,
+    currentWorkflow.edges,
+    currentWorkflow.loops,
+    currentWorkflow.parallels,
+    starterId,
+    blockById,
+    executionVersion,
+    debugContext,
+  ])
 
   // Compute all possible refs from accessible blocks regardless of execution state
   const allPossibleVariableRefs = useMemo(() => {
@@ -773,7 +839,9 @@ export function DebugPanel() {
 
     const normalizeBlockName = (name: string) => (name || '').replace(/\s+/g, '').toLowerCase()
     const edges = currentWorkflow.edges || []
-    const accessibleIds = new Set<string>(BlockPathCalculator.findAllPathNodes(edges, focusedBlockId))
+    const accessibleIds = new Set<string>(
+      BlockPathCalculator.findAllPathNodes(edges, focusedBlockId)
+    )
     if (starterId && starterId !== focusedBlockId) accessibleIds.add(starterId)
 
     const refs = new Set<string>()
@@ -878,12 +946,12 @@ export function DebugPanel() {
   // Filter output variables based on whether they're referenced in the input
   const filteredOutputVariables = useMemo(() => {
     // Build map of available executed entries for quick lookup
-    const availableVarsMap = new Map(outputVariableEntries.map(entry => [entry.ref, entry]))
+    const availableVarsMap = new Map(outputVariableEntries.map((entry) => [entry.ref, entry]))
 
     if (!scopedVariables) {
       // Show all possible upstream refs; mark as resolved if present in executed outputs
       const result: Array<{ ref: string; value: any; resolved: boolean }> = []
-      allPossibleVariableRefs.forEach(ref => {
+      allPossibleVariableRefs.forEach((ref) => {
         const available = availableVarsMap.get(ref)
         if (available) {
           result.push({ ...available, resolved: true })
@@ -897,10 +965,10 @@ export function DebugPanel() {
       })
       return result
     }
-    
+
     // Get the JSON string of visible subblock values to search for references
     const inputValuesStr = JSON.stringify(visibleSubblockValues)
-    
+
     // Extract all variable references from the input using regex
     // Matches patterns like <blockname.property> or <blockname.nested.property>
     const referencePattern = /<([^>]+)>/g
@@ -909,16 +977,16 @@ export function DebugPanel() {
     while ((match = referencePattern.exec(inputValuesStr)) !== null) {
       const fullMatch = match[0] // Full reference including < >
       const innerContent = match[1] // Content between < >
-      
+
       // Exclude workflow variable references (pattern: variable.something)
       if (!innerContent.startsWith('variable.')) {
         referencedVars.add(fullMatch)
       }
     }
-    
+
     // Build the final list with both resolved and unresolved variables
     const result: Array<{ ref: string; value: any; resolved: boolean }> = []
-    
+
     // Add all referenced variables (excluding workflow variables)
     for (const ref of referencedVars) {
       const available = availableVarsMap.get(ref)
@@ -930,7 +998,7 @@ export function DebugPanel() {
         result.push({ ref, value: undefined, resolved: false })
       }
     }
-    
+
     // Sort: resolved first, then unresolved, then alphabetically by ref
     result.sort((a, b) => {
       if (a.resolved !== b.resolved) {
@@ -939,36 +1007,42 @@ export function DebugPanel() {
       return a.ref.localeCompare(b.ref)
     })
     return result
-  }, [outputVariableEntries, scopedVariables, visibleSubblockValues, executionVersion, allPossibleVariableRefs])
+  }, [
+    outputVariableEntries,
+    scopedVariables,
+    visibleSubblockValues,
+    executionVersion,
+    allPossibleVariableRefs,
+  ])
 
   // Filter workflow variables based on whether they're referenced in the input
   const filteredWorkflowVariables = useMemo(() => {
     // Get all workflow variables from the store
     const storeVariables = workflowVariablesFromStore
-    
+
     if (!scopedVariables) {
       // Show all workflow variables from the store
-      return storeVariables.map(variable => ({
+      return storeVariables.map((variable) => ({
         id: variable.id,
         name: variable.name,
         value: variable.value,
-        type: variable.type
+        type: variable.type,
       }))
     }
-    
+
     // For scoped view, look at the entire focused block's data
     // This includes all subBlocks values, not just the visible ones
     if (!focusedBlock) {
       return []
     }
-    
+
     // Get all subblock values from the store for this block
     const allSubBlockValues: Record<string, any> = {}
     if (focusedBlockId && activeWorkflowId) {
       const allBlocks = useWorkflowStore.getState().blocks
       const merged = mergeSubblockState(allBlocks, activeWorkflowId, focusedBlockId)[focusedBlockId]
       const stateToUse = merged?.subBlocks || {}
-      
+
       // Extract all values from subBlocks
       for (const [key, subBlock] of Object.entries(stateToUse)) {
         if (subBlock && typeof subBlock === 'object' && 'value' in subBlock) {
@@ -976,10 +1050,10 @@ export function DebugPanel() {
         }
       }
     }
-    
+
     // Search for workflow variable references in all subblock values
     const blockDataStr = JSON.stringify(allSubBlockValues)
-    
+
     // Extract workflow variable references using pattern <variable.name>
     const variablePattern = /<variable\.([^>]+)>/g
     const referencedVarNames = new Set<string>()
@@ -987,18 +1061,20 @@ export function DebugPanel() {
     while ((match = variablePattern.exec(blockDataStr)) !== null) {
       referencedVarNames.add(match[1]) // Add just the variable name part
     }
-    
+
     // Filter workflow variables to only those referenced
-    return storeVariables.filter(variable => {
-      // Normalize the variable name (remove spaces) to match how it's referenced
-      const normalizedName = (variable.name || '').replace(/\s+/g, '')
-      return referencedVarNames.has(normalizedName)
-    }).map(variable => ({
-      id: variable.id,
-      name: variable.name,
-      value: variable.value,
-      type: variable.type
-    }))
+    return storeVariables
+      .filter((variable) => {
+        // Normalize the variable name (remove spaces) to match how it's referenced
+        const normalizedName = (variable.name || '').replace(/\s+/g, '')
+        return referencedVarNames.has(normalizedName)
+      })
+      .map((variable) => ({
+        id: variable.id,
+        name: variable.name,
+        value: variable.value,
+        type: variable.type,
+      }))
   }, [workflowVariablesFromStore, scopedVariables, focusedBlock, focusedBlockId, activeWorkflowId])
 
   // Filter environment variables based on whether they're referenced in the input
@@ -1006,24 +1082,24 @@ export function DebugPanel() {
     // Helper function to recursively extract env var references from any value
     const extractEnvVarReferences = (value: any, fieldName?: string): Set<string> => {
       const refs = new Set<string>()
-      
+
       if (typeof value === 'string') {
         // Check if this is an API key field (by field name)
-        const isApiKeyField = fieldName && (
-          fieldName.toLowerCase().includes('apikey') ||
-          fieldName.toLowerCase().includes('api_key') ||
-          fieldName.toLowerCase().includes('secretkey') ||
-          fieldName.toLowerCase().includes('secret_key') ||
-          fieldName.toLowerCase().includes('accesskey') ||
-          fieldName.toLowerCase().includes('access_key') ||
-          fieldName.toLowerCase().includes('token')
-        )
-        
+        const isApiKeyField =
+          fieldName &&
+          (fieldName.toLowerCase().includes('apikey') ||
+            fieldName.toLowerCase().includes('api_key') ||
+            fieldName.toLowerCase().includes('secretkey') ||
+            fieldName.toLowerCase().includes('secret_key') ||
+            fieldName.toLowerCase().includes('accesskey') ||
+            fieldName.toLowerCase().includes('access_key') ||
+            fieldName.toLowerCase().includes('token'))
+
         // Check if entire string is just {{ENV_VAR}}
         const isExplicitEnvVar = value.trim().match(/^\{\{[^{}]+\}\}$/)
-        
+
         // Check for env vars in specific contexts (Bearer tokens, URLs, headers, etc.)
-        const hasProperContext = 
+        const hasProperContext =
           /Bearer\s+\{\{[^{}]+\}\}/i.test(value) ||
           /Authorization:\s+Bearer\s+\{\{[^{}]+\}\}/i.test(value) ||
           /Authorization:\s+\{\{[^{}]+\}\}/i.test(value) ||
@@ -1032,7 +1108,7 @@ export function DebugPanel() {
           /[?&]token=\{\{[^{}]+\}\}/i.test(value) ||
           /X-API-Key:\s+\{\{[^{}]+\}\}/i.test(value) ||
           /api[_-]?key:\s+\{\{[^{}]+\}\}/i.test(value)
-        
+
         // Extract env vars if this field should be processed
         if (isApiKeyField || isExplicitEnvVar || hasProperContext) {
           const envPattern = /\{\{([^}]+)\}\}/g
@@ -1044,65 +1120,68 @@ export function DebugPanel() {
       } else if (Array.isArray(value)) {
         // Recursively process arrays
         value.forEach((item, index) => {
-          const itemRefs = extractEnvVarReferences(item, fieldName ? `${fieldName}[${index}]` : undefined)
-          itemRefs.forEach(ref => refs.add(ref))
+          const itemRefs = extractEnvVarReferences(
+            item,
+            fieldName ? `${fieldName}[${index}]` : undefined
+          )
+          itemRefs.forEach((ref) => refs.add(ref))
         })
       } else if (value && typeof value === 'object') {
         // Recursively process objects
         Object.entries(value).forEach(([key, val]) => {
           const itemRefs = extractEnvVarReferences(val, key)
-          itemRefs.forEach(ref => refs.add(ref))
+          itemRefs.forEach((ref) => refs.add(ref))
         })
       }
-      
+
       return refs
     }
-    
+
     if (!scopedVariables) {
       // Show all environment variables that are referenced anywhere in the workflow
       const allEnvVarRefs = new Set<string>()
-      
+
       for (const block of blocksList) {
         if (activeWorkflowId) {
           const allBlocks = useWorkflowStore.getState().blocks
           const merged = mergeSubblockState(allBlocks, activeWorkflowId, block.id)[block.id]
           const stateToUse = merged?.subBlocks || {}
-          
+
           // Process each subblock value with its field name
           for (const [key, subBlock] of Object.entries(stateToUse)) {
             if (subBlock && typeof subBlock === 'object' && 'value' in subBlock) {
               const refs = extractEnvVarReferences(subBlock.value, key)
-              refs.forEach(ref => allEnvVarRefs.add(ref))
+              refs.forEach((ref) => allEnvVarRefs.add(ref))
             }
           }
         }
       }
-      
+
       // Return only env vars that are referenced somewhere in the workflow
       return Object.entries(allEnvVars).filter(([key]) => allEnvVarRefs.has(key))
     }
-    
+
     // For scoped view, look at the entire focused block's data
     if (!focusedBlock) {
       return []
     }
-    
+
     // Get all subblock values from the store for this block
     const blockEnvVarRefs = new Set<string>()
     if (focusedBlockId && activeWorkflowId) {
       const allBlocks = useWorkflowStore.getState().blocks
       const merged = mergeSubblockState(allBlocks, activeWorkflowId, focusedBlockId)[focusedBlockId]
       const stateToUse = merged?.subBlocks || {}
-      
+
       // Process each subblock value with its field name
       for (const [key, subBlock] of Object.entries(stateToUse)) {
         if (subBlock && typeof subBlock === 'object' && 'value' in subBlock) {
           const refs = extractEnvVarReferences(subBlock.value, key)
-          refs.forEach(ref => blockEnvVarRefs.add(ref))
+          refs.forEach((ref) => blockEnvVarRefs.add(ref))
         }
       }
     }
-    
+
     // Filter environment variables to only those referenced
     return Object.entries(allEnvVars).filter(([key]) => blockEnvVarRefs.has(key))
   }, [allEnvVars, scopedVariables, focusedBlock, focusedBlockId, activeWorkflowId, blocksList])
@@ -1122,7 +1201,7 @@ export function DebugPanel() {
           <div className='rounded-full bg-muted/50 p-4'>
             <AlertCircle className='h-8 w-8 text-muted-foreground/60' />
           </div>
-          <p className='text-muted-foreground text-sm font-medium'>Debug mode inactive</p>
+          <p className='font-medium text-muted-foreground text-sm'>Debug mode inactive</p>
           <p className='text-center text-muted-foreground/70 text-xs'>
             Enable debug mode to step through workflow execution
           </p>
@@ -1188,7 +1267,8 @@ export function DebugPanel() {
       // Wait for initialization to populate executor/debugContext/pendingBlocks
       const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
       let attempts = 0
-      while (attempts < 40) { // ~2s max
+      while (attempts < 40) {
+        // ~2s max
         const st = useExecutionStore.getState()
         if (st.executor && st.debugContext && Array.isArray(st.pendingBlocks)) break
         await wait(50)
@@ -1267,25 +1347,25 @@ export function DebugPanel() {
   }
 
   const getResolutionIcon = () => {
-    const resolvedCount = filteredOutputVariables.filter(v => v.resolved).length
-    const unresolvedCount = filteredOutputVariables.filter(v => !v.resolved).length
-    
+    const resolvedCount = filteredOutputVariables.filter((v) => v.resolved).length
+    const unresolvedCount = filteredOutputVariables.filter((v) => !v.resolved).length
+
     if (unresolvedCount === 0) {
       // All resolved - green check
       return <Check className='h-3 w-3 text-emerald-500' />
-    } else if (isFocusedCurrent) {
+    }
+    if (isFocusedCurrent) {
       // Current block with unresolved variables - red X
       return <X className='h-3 w-3 text-destructive' />
-    } else {
-      // Not current but has unresolved variables - yellow dot
-      return <Circle className='h-3 w-3 fill-yellow-500 text-yellow-500' />
     }
+    // Not current but has unresolved variables - yellow dot
+    return <Circle className='h-3 w-3 fill-yellow-500 text-yellow-500' />
   }
 
   return (
     <div className='flex h-full flex-col'>
       {/* Controls Section */}
-      <div className='border-b border-border/50 p-3'>
+      <div className='border-border/50 border-b p-3'>
         {isChatMode && !hasStartedRef.current && (
           <div className='mb-3'>
             <Textarea
@@ -1319,7 +1399,9 @@ export function DebugPanel() {
                   size='icon'
                   variant='ghost'
                   onClick={handleResumeUntilBreakpoint}
-                  disabled={isChatMode ? (!hasStartedRef.current && chatMessage.trim() === '') : false}
+                  disabled={
+                    isChatMode ? !hasStartedRef.current && chatMessage.trim() === '' : false
+                  }
                   aria-label='Resume'
                   className='h-8 w-8 rounded-md bg-indigo-500/10 text-indigo-600 hover:bg-indigo-500/20 disabled:opacity-40'
                 >
@@ -1365,15 +1447,19 @@ export function DebugPanel() {
       </div>
 
       {/* Header Section - Single Line */}
-      <div className={cn(
-        'flex items-center justify-between border-b border-border/50 px-3 py-2.5',
-        isFocusedErrored && 'border-red-500'
-      )}>
+      <div
+        className={cn(
+          'flex items-center justify-between border-border/50 border-b px-3 py-2.5',
+          isFocusedErrored && 'border-red-500'
+        )}
+      >
         <div className='flex items-center gap-2'>
-          <span className={cn(
-            'font-semibold text-sm truncate',
-            isFocusedErrored && 'text-red-600 dark:text-red-400'
-          )}>
+          <span
+            className={cn(
+              'truncate font-semibold text-sm',
+              isFocusedErrored && 'text-red-600 dark:text-red-400'
+            )}
+          >
             {focusedBlock ? getDisplayName(focusedBlock) : 'Debug Panel'}
           </span>
           {focusedBlockId && (
@@ -1382,16 +1468,18 @@ export function DebugPanel() {
                 <TooltipTrigger asChild>
                   <button
                     type='button'
-                    onClick={() => setBreakpointId(breakpointId === focusedBlockId ? null : focusedBlockId)}
-                    className='p-0.5 rounded hover:bg-muted/50 transition-colors'
+                    onClick={() =>
+                      setBreakpointId(breakpointId === focusedBlockId ? null : focusedBlockId)
+                    }
+                    className='rounded p-0.5 transition-colors hover:bg-muted/50'
                   >
-                    <CircleDot 
+                    <CircleDot
                       className={cn(
                         'h-4 w-4',
-                        breakpointId === focusedBlockId 
-                          ? 'text-red-600 fill-red-600/20' 
+                        breakpointId === focusedBlockId
+                          ? 'fill-red-600/20 text-red-600'
                           : 'text-muted-foreground/50'
-                      )} 
+                      )}
                     />
                   </button>
                 </TooltipTrigger>
@@ -1402,7 +1490,7 @@ export function DebugPanel() {
             </TooltipProvider>
           )}
         </div>
-        <div className='flex items-center gap-1.5 flex-shrink-0'>
+        <div className='flex flex-shrink-0 items-center gap-1.5'>
           {getStatusIcon()}
           <span className='text-muted-foreground text-xs'>{getStatusText()}</span>
         </div>
@@ -1410,42 +1498,53 @@ export function DebugPanel() {
 
       {/* Error Display - Right below header */}
       {isFocusedErrored && (
-        <div className='border-b border-red-500 p-3 bg-red-50 dark:bg-red-900/10'>
+        <div className='border-red-500 border-b bg-red-50 p-3 dark:bg-red-900/10'>
           <div className='flex items-start gap-2.5'>
-            <AlertCircle className='h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5' />
-            <div className='flex-1 min-w-0'>
-              <p className='font-medium text-xs text-red-900 dark:text-red-200 mb-1'>
+            <AlertCircle className='mt-0.5 h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
+            <div className='min-w-0 flex-1'>
+              <p className='mb-1 font-medium text-red-900 text-xs dark:text-red-200'>
                 Execution Error
               </p>
-              <div className='text-xs text-red-800 dark:text-red-300'>
+              <div className='text-red-800 text-xs dark:text-red-300'>
                 {(() => {
                   // Get error message from block state or logs
                   const id = focusedBlockId || ''
                   const directState = debugContext?.blockStates.get(id)
-                  if (directState?.output && typeof directState.output === 'object' && 'error' in directState.output) {
+                  if (
+                    directState?.output &&
+                    typeof directState.output === 'object' &&
+                    'error' in directState.output
+                  ) {
                     return (
-                      <pre className='font-mono text-[11px] whitespace-pre-wrap break-words'>
+                      <pre className='whitespace-pre-wrap break-words font-mono text-[11px]'>
                         {String(directState.output.error)}
                       </pre>
                     )
                   }
                   // Check virtual executions
-                  for (const [key, state] of (debugContext?.blockStates?.entries() || [])) {
-                    if (isVirtualForBlock(String(key), id) && state?.output && typeof state.output === 'object' && 'error' in state.output) {
+                  for (const [key, state] of debugContext?.blockStates?.entries() || []) {
+                    if (
+                      isVirtualForBlock(String(key), id) &&
+                      state?.output &&
+                      typeof state.output === 'object' &&
+                      'error' in state.output
+                    ) {
                       return (
-                        <pre className='font-mono text-[11px] whitespace-pre-wrap break-words'>
+                        <pre className='whitespace-pre-wrap break-words font-mono text-[11px]'>
                           {String(state.output.error)}
                         </pre>
                       )
                     }
                   }
                   // Check logs
-                  const errorLog = debugContext?.blockLogs?.find(log => 
-                    (log.blockId === id || resolveOriginalBlockId(log.blockId) === id) && !log.success
+                  const errorLog = debugContext?.blockLogs?.find(
+                    (log) =>
+                      (log.blockId === id || resolveOriginalBlockId(log.blockId) === id) &&
+                      !log.success
                   )
                   if (errorLog?.error) {
                     return (
-                      <pre className='font-mono text-[11px] whitespace-pre-wrap break-words'>
+                      <pre className='whitespace-pre-wrap break-words font-mono text-[11px]'>
                         {String(errorLog.error)}
                       </pre>
                     )
@@ -1461,92 +1560,104 @@ export function DebugPanel() {
       {/* Main Content Area - Split into two sections */}
       <div className='flex flex-1 flex-col overflow-hidden'>
         {/* Top Section - Input/Output */}
-        <div className='flex-1 min-h-0 border-b border-border/50'>
+        <div className='min-h-0 flex-1 border-border/50 border-b'>
           <Tabs defaultValue='input' className='flex h-full flex-col'>
-            <div className='border-b border-border/50 px-3'>
-              <TabsList className='h-10 bg-transparent p-0 gap-6'>
+            <div className='border-border/50 border-b px-3'>
+              <TabsList className='h-10 gap-6 bg-transparent p-0'>
                 <TabsTrigger
                   value='input'
-                  className='h-10 rounded-none border-b-2 border-transparent px-0 pb-2.5 pt-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
+                  className='h-10 rounded-none border-transparent border-b-2 px-0 pt-3 pb-2.5 font-medium text-muted-foreground text-xs transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
                 >
-                    Input
-                  </TabsTrigger>
+                  Input
+                </TabsTrigger>
                 <TabsTrigger
                   value='output'
-                  className='h-10 rounded-none border-b-2 border-transparent px-0 pb-2.5 pt-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
+                  className='h-10 rounded-none border-transparent border-b-2 px-0 pt-3 pb-2.5 font-medium text-muted-foreground text-xs transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
                 >
-                    Output
-                  </TabsTrigger>
-                </TabsList>
-              </div>
+                  Output
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-            <TabsContent value='input' className='flex-1 overflow-auto p-3 m-0'>
-                {Object.keys(visibleSubblockValues).length > 0 ? (
-                <div className='h-full overflow-y-scroll overflow-x-hidden'>
+            <TabsContent value='input' className='m-0 flex-1 overflow-auto p-3'>
+              {Object.keys(visibleSubblockValues).length > 0 ? (
+                <div className='h-full overflow-x-hidden overflow-y-scroll'>
                   <table className='w-full table-fixed'>
                     <colgroup>
                       <col className='w-[30%] min-w-[120px]' />
                       <col className='w-[70%]' />
                     </colgroup>
-                    <thead className='sticky top-0 bg-background z-10'>
-                      <tr className='border-b border-border/50'>
-                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Field</th>
-                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Value</th>
+                    <thead className='sticky top-0 z-10 bg-background'>
+                      <tr className='border-border/50 border-b'>
+                        <th className='bg-background px-3 py-2 text-left font-medium text-muted-foreground text-xs'>
+                          Field
+                        </th>
+                        <th className='bg-background px-3 py-2 text-left font-medium text-muted-foreground text-xs'>
+                          Value
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {Object.entries(visibleSubblockValues).map(([key, value]) => {
                         const fieldKey = `input-${key}`
                         const isExpanded = expandedFields.has(fieldKey)
-                        
+
                         return (
-                          <tr key={key} className='border-b border-border/30 hover:bg-muted/20'>
+                          <tr key={key} className='border-border/30 border-b hover:bg-muted/20'>
                             <td className='px-3 py-2 align-top'>
-                              <code className='font-mono text-[11px] text-foreground/80 break-words'>{key}</code>
+                              <code className='break-words font-mono text-[11px] text-foreground/80'>
+                                {key}
+                              </code>
                             </td>
                             <td className='px-3 py-2'>
                               <div className='w-full overflow-hidden'>
                                 {typeof value === 'object' && value !== null ? (
-                                  <div 
+                                  <div
                                     className='cursor-pointer'
                                     onClick={() => toggleFieldExpansion(fieldKey)}
                                   >
                                     {isExpanded ? (
-                                      <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
-{JSON.stringify(value, null, 2)}
-                    </pre>
+                                      <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-foreground/70'>
+                                        {JSON.stringify(value, null, 2)}
+                                      </pre>
                                     ) : (
-                                      <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
+                                      <span className='block truncate font-mono text-[11px] text-muted-foreground hover:text-foreground'>
                                         {JSON.stringify(value).slice(0, 100)}...
                                       </span>
                                     )}
                                   </div>
                                 ) : typeof value === 'boolean' ? (
-                                  <span className={cn(
-                                    'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium',
-                                    value ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
-                                  )}>
+                                  <span
+                                    className={cn(
+                                      'inline-flex items-center rounded-full px-2 py-0.5 font-medium text-[10px]',
+                                      value
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                        : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
+                                    )}
+                                  >
                                     {String(value)}
                                   </span>
                                 ) : value === null || value === undefined ? (
-                                  <span className='text-[11px] text-muted-foreground italic'>null</span>
+                                  <span className='text-[11px] text-muted-foreground italic'>
+                                    null
+                                  </span>
                                 ) : String(value).length > 100 ? (
                                   <div
                                     className='cursor-pointer'
                                     onClick={() => toggleFieldExpansion(fieldKey)}
                                   >
                                     {isExpanded ? (
-                                      <span className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
+                                      <span className='whitespace-pre-wrap break-words font-mono text-[11px] text-foreground/70'>
                                         {renderWithTokens(String(value))}
                                       </span>
                                     ) : (
-                                      <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
+                                      <span className='block truncate font-mono text-[11px] text-muted-foreground hover:text-foreground'>
                                         {renderWithTokens(String(value), { truncateAt: 100 })}
                                       </span>
                                     )}
                                   </div>
                                 ) : (
-                                  <span className='text-[11px] font-mono text-foreground/70 break-words'>
+                                  <span className='break-words font-mono text-[11px] text-foreground/70'>
                                     {renderWithTokens(String(value))}
                                   </span>
                                 )}
@@ -1559,58 +1670,68 @@ export function DebugPanel() {
                   </table>
                 </div>
               ) : (
-                <div className='flex h-32 items-center justify-center rounded-lg border border-dashed border-border/50'>
+                <div className='flex h-32 items-center justify-center rounded-lg border border-border/50 border-dashed'>
                   <p className='text-muted-foreground/60 text-xs'>No input data available</p>
                 </div>
-                )}
-              </TabsContent>
+              )}
+            </TabsContent>
 
-            <TabsContent value='output' className='flex-1 overflow-auto p-3 m-0'>
-                {resolvedOutputKVs && Object.keys(resolvedOutputKVs).length > 0 ? (
-                <div className='h-full overflow-y-scroll overflow-x-hidden'>
+            <TabsContent value='output' className='m-0 flex-1 overflow-auto p-3'>
+              {resolvedOutputKVs && Object.keys(resolvedOutputKVs).length > 0 ? (
+                <div className='h-full overflow-x-hidden overflow-y-scroll'>
                   <table className='w-full table-fixed'>
                     <colgroup>
                       <col className='w-[30%] min-w-[120px]' />
                       <col className='w-[70%]' />
                     </colgroup>
-                    <thead className='sticky top-0 bg-background z-10'>
-                      <tr className='border-b border-border/50'>
-                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Field</th>
-                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Value</th>
+                    <thead className='sticky top-0 z-10 bg-background'>
+                      <tr className='border-border/50 border-b'>
+                        <th className='bg-background px-3 py-2 text-left font-medium text-muted-foreground text-xs'>
+                          Field
+                        </th>
+                        <th className='bg-background px-3 py-2 text-left font-medium text-muted-foreground text-xs'>
+                          Value
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {Object.entries(resolvedOutputKVs).map(([key, value]) => {
                         const fieldKey = `output-${key}`
                         const isExpanded = expandedFields.has(fieldKey)
-                        
+
                         return (
-                          <tr key={key} className='border-b border-border/30 hover:bg-muted/20'>
+                          <tr key={key} className='border-border/30 border-b hover:bg-muted/20'>
                             <td className='px-3 py-2 align-top'>
-                              <code className='font-mono text-[11px] text-foreground/80 break-words'>{key}</code>
+                              <code className='break-words font-mono text-[11px] text-foreground/80'>
+                                {key}
+                              </code>
                             </td>
                             <td className='px-3 py-2'>
                               <div className='w-full overflow-hidden'>
                                 {typeof value === 'object' && value !== null ? (
-                                  <div 
+                                  <div
                                     className='cursor-pointer'
                                     onClick={() => toggleFieldExpansion(fieldKey)}
                                   >
                                     {isExpanded ? (
-                                      <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
-{JSON.stringify(value, null, 2)}
-                              </pre>
+                                      <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-foreground/70'>
+                                        {JSON.stringify(value, null, 2)}
+                                      </pre>
                                     ) : (
-                                      <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
+                                      <span className='block truncate font-mono text-[11px] text-muted-foreground hover:text-foreground'>
                                         {JSON.stringify(value).slice(0, 100)}...
                                       </span>
                                     )}
                                   </div>
                                 ) : typeof value === 'boolean' ? (
-                                  <span className={cn(
-                                    'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium',
-                                    value ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
-                                  )}>
+                                  <span
+                                    className={cn(
+                                      'inline-flex items-center rounded-full px-2 py-0.5 font-medium text-[10px]',
+                                      value
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                        : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
+                                    )}
+                                  >
                                     {String(value)}
                                   </span>
                                 ) : value === null || value === undefined ? (
@@ -1623,17 +1744,17 @@ export function DebugPanel() {
                                     onClick={() => toggleFieldExpansion(fieldKey)}
                                   >
                                     {isExpanded ? (
-                                      <span className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words'>
+                                      <span className='whitespace-pre-wrap break-words font-mono text-[11px] text-foreground/70'>
                                         {renderWithTokens(String(value))}
                                       </span>
                                     ) : (
-                                      <span className='text-[11px] font-mono text-muted-foreground hover:text-foreground block truncate'>
+                                      <span className='block truncate font-mono text-[11px] text-muted-foreground hover:text-foreground'>
                                         {renderWithTokens(String(value), { truncateAt: 100 })}
                                       </span>
                                     )}
                                   </div>
                                 ) : (
-                                  <span className='text-[11px] font-mono text-foreground/70 break-words'>
+                                  <span className='break-words font-mono text-[11px] text-foreground/70'>
                                     {renderWithTokens(String(value))}
                                   </span>
                                 )}
@@ -1646,22 +1767,26 @@ export function DebugPanel() {
                   </table>
                 </div>
               ) : (
-                <div className='flex h-32 items-center justify-center rounded-lg border border-dashed border-border/50'>
+                <div className='flex h-32 items-center justify-center rounded-lg border border-border/50 border-dashed'>
                   <p className='text-muted-foreground/60 text-xs'>No output data available</p>
                 </div>
-                )}
-              </TabsContent>
-            </Tabs>
-          </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
 
         {/* Bottom Section - Variables Tables */}
-        <div className='flex-1 min-h-0'>
-          <Tabs value={bottomTab} onValueChange={(v) => setBottomTab(v as any)} className='flex h-full flex-col'>
-            <div className='border-b border-border/50 px-3 flex items-center justify-between'>
-              <TabsList className='h-10 bg-transparent p-0 gap-6'>
+        <div className='min-h-0 flex-1'>
+          <Tabs
+            value={bottomTab}
+            onValueChange={(v) => setBottomTab(v as any)}
+            className='flex h-full flex-col'
+          >
+            <div className='flex items-center justify-between border-border/50 border-b px-3'>
+              <TabsList className='h-10 gap-6 bg-transparent p-0'>
                 <TabsTrigger
                   value='reference'
-                  className='h-10 rounded-none border-b-2 border-transparent px-0 pb-2.5 pt-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
+                  className='h-10 rounded-none border-transparent border-b-2 px-0 pt-3 pb-2.5 font-medium text-muted-foreground text-xs transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
                 >
                   Reference Variables
                   <span className='ml-1.5 text-[10px] text-muted-foreground'>
@@ -1670,7 +1795,7 @@ export function DebugPanel() {
                 </TabsTrigger>
                 <TabsTrigger
                   value='workflow'
-                  className='h-10 rounded-none border-b-2 border-transparent px-0 pb-2.5 pt-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
+                  className='h-10 rounded-none border-transparent border-b-2 px-0 pt-3 pb-2.5 font-medium text-muted-foreground text-xs transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
                 >
                   Workflow Variables
                   <span className='ml-1.5 text-[10px] text-muted-foreground'>
@@ -1679,7 +1804,7 @@ export function DebugPanel() {
                 </TabsTrigger>
                 <TabsTrigger
                   value='environment'
-                  className='h-10 rounded-none border-b-2 border-transparent px-0 pb-2.5 pt-3 text-xs font-medium text-muted-foreground transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
+                  className='h-10 rounded-none border-transparent border-b-2 px-0 pt-3 pb-2.5 font-medium text-muted-foreground text-xs transition-all data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none'
                 >
                   Environment Variables
                   <span className='ml-1.5 text-[10px] text-muted-foreground'>
@@ -1687,50 +1812,63 @@ export function DebugPanel() {
                   </span>
                 </TabsTrigger>
               </TabsList>
-              <label className='flex items-center gap-2 cursor-pointer text-xs'>
-                <Checkbox 
+              <div
+                className='flex cursor-pointer items-center gap-2 text-xs'
+                onClick={() => setScopedVariables(!scopedVariables)}
+              >
+                <Checkbox
                   checked={scopedVariables}
                   onCheckedChange={(checked) => setScopedVariables(checked as boolean)}
                   className='h-3.5 w-3.5'
+                  id='scoped-variables-checkbox'
                 />
-                <span className='text-muted-foreground'>Scoped</span>
-              </label>
-        </div>
+                <label
+                  htmlFor='scoped-variables-checkbox'
+                  className='cursor-pointer text-muted-foreground'
+                >
+                  Scoped
+                </label>
+              </div>
+            </div>
 
-            <TabsContent value='reference' className='flex-1 overflow-auto m-0'>
-              <div className='flex flex-col h-full'>
-                <div className='flex items-center justify-end px-3 py-2 border-b border-border/50'>
+            <TabsContent value='reference' className='m-0 flex-1 overflow-auto'>
+              <div className='flex h-full flex-col'>
+                <div className='flex items-center justify-end border-border/50 border-b px-3 py-2'>
                   <div className='flex items-center gap-1.5'>
                     {scopedVariables && filteredOutputVariables.length > 0 && getResolutionIcon()}
                     <span className='text-[10px] text-muted-foreground'>
-                      {scopedVariables ? (
-                        `${filteredOutputVariables.filter(v => v.resolved).length} of ${filteredOutputVariables.length}`
-                      ) : (
-                        `${outputVariableEntries.length}`
-                      )} variables
+                      {scopedVariables
+                        ? `${filteredOutputVariables.filter((v) => v.resolved).length} of ${filteredOutputVariables.length}`
+                        : `${outputVariableEntries.length}`}{' '}
+                      variables
                     </span>
-                          </div>
+                  </div>
                 </div>
                 {filteredOutputVariables.length > 0 ? (
-                  <div className='flex-1 overflow-y-scroll overflow-x-hidden'>
+                  <div className='flex-1 overflow-x-hidden overflow-y-scroll'>
                     <table className='w-full table-fixed'>
                       <colgroup>
                         <col className='w-[35%] min-w-[150px]' />
                         <col className='w-[65%]' />
                       </colgroup>
-                      <thead className='sticky top-0 bg-background z-10'>
-                        <tr className='border-b border-border/50'>
-                          <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Reference</th>
-                          <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Value</th>
+                      <thead className='sticky top-0 z-10 bg-background'>
+                        <tr className='border-border/50 border-b'>
+                          <th className='bg-background px-3 py-2 text-left font-medium text-muted-foreground text-xs'>
+                            Reference
+                          </th>
+                          <th className='bg-background px-3 py-2 text-left font-medium text-muted-foreground text-xs'>
+                            Value
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredOutputVariables.map(({ ref, value, resolved }) => {
                           const fieldKey = `ref-${ref}`
                           const isExpanded = expandedFields.has(fieldKey)
-                          const valueStr = value !== undefined ? JSON.stringify(value, null, 2) : 'undefined'
+                          const valueStr =
+                            value !== undefined ? JSON.stringify(value, null, 2) : 'undefined'
                           const shouldTruncate = valueStr.length > 600
-                          
+
                           return (
                             <tr
                               key={ref}
@@ -1738,18 +1876,20 @@ export function DebugPanel() {
                                 if (el) refVarRowRefs.current.set(ref, el)
                               }}
                               className={cn(
-                                'border-b border-border/30',
+                                'border-border/30 border-b',
                                 resolved ? 'hover:bg-muted/20' : 'opacity-50',
                                 highlightedRefVar === ref && 'bg-amber-100 dark:bg-amber-900/30'
                               )}
                             >
                               <td className='px-3 py-2 align-top'>
-                                <code className={cn(
-                                  'rounded px-1.5 py-0.5 font-mono text-[11px] break-words',
-                                  resolved 
-                                    ? 'bg-muted/50 text-foreground/80' 
-                                    : 'bg-muted/30 text-muted-foreground'
-                                )}>
+                                <code
+                                  className={cn(
+                                    'break-words rounded px-1.5 py-0.5 font-mono text-[11px]',
+                                    resolved
+                                      ? 'bg-muted/50 text-foreground/80'
+                                      : 'bg-muted/30 text-muted-foreground'
+                                  )}
+                                >
                                   {ref}
                                 </code>
                               </td>
@@ -1760,17 +1900,17 @@ export function DebugPanel() {
                                       className='cursor-pointer'
                                       onClick={() => toggleFieldExpansion(fieldKey)}
                                     >
-                                      <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
-{isExpanded ? valueStr : `${valueStr.slice(0, 600)}...`}
-                          </pre>
-                        </div>
+                                      <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-foreground/70'>
+                                        {isExpanded ? valueStr : `${valueStr.slice(0, 600)}...`}
+                                      </pre>
+                                    </div>
                                   ) : (
-                                    <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
-{valueStr}
+                                    <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-foreground/70'>
+                                      {valueStr}
                                     </pre>
                                   )
                                 ) : (
-                                  <span className='text-[11px] font-mono text-muted-foreground italic'>
+                                  <span className='font-mono text-[11px] text-muted-foreground italic'>
                                     Unresolved
                                   </span>
                                 )}
@@ -1780,12 +1920,12 @@ export function DebugPanel() {
                         })}
                       </tbody>
                     </table>
-              </div>
+                  </div>
                 ) : (
                   <div className='flex flex-1 items-center justify-center'>
                     <p className='text-muted-foreground/60 text-xs'>
-                      {scopedVariables && outputVariableEntries.length > 0 
-                        ? 'No variables referenced in input' 
+                      {scopedVariables && outputVariableEntries.length > 0
+                        ? 'No variables referenced in input'
                         : 'No reference variables available'}
                     </p>
                   </div>
@@ -1793,18 +1933,22 @@ export function DebugPanel() {
               </div>
             </TabsContent>
 
-            <TabsContent value='workflow' className='flex-1 overflow-auto m-0'>
+            <TabsContent value='workflow' className='m-0 flex-1 overflow-auto'>
               {filteredWorkflowVariables.length > 0 ? (
-                <div className='h-full overflow-y-scroll overflow-x-hidden'>
+                <div className='h-full overflow-x-hidden overflow-y-scroll'>
                   <table className='w-full table-fixed'>
                     <colgroup>
                       <col className='w-[35%] min-w-[150px]' />
                       <col className='w-[65%]' />
                     </colgroup>
-                    <thead className='sticky top-0 bg-background z-10'>
-                      <tr className='border-b border-border/50'>
-                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Variable</th>
-                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Value</th>
+                    <thead className='sticky top-0 z-10 bg-background'>
+                      <tr className='border-border/50 border-b'>
+                        <th className='bg-background px-3 py-2 text-left font-medium text-muted-foreground text-xs'>
+                          Variable
+                        </th>
+                        <th className='bg-background px-3 py-2 text-left font-medium text-muted-foreground text-xs'>
+                          Value
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1813,9 +1957,12 @@ export function DebugPanel() {
                         const fieldKey = `workflow-${variable.id}`
                         const isExpanded = expandedFields.has(fieldKey)
                         const value = variable.value
-                        const valueStr = value !== undefined && value !== null ? JSON.stringify(value, null, 2) : String(value)
+                        const valueStr =
+                          value !== undefined && value !== null
+                            ? JSON.stringify(value, null, 2)
+                            : String(value)
                         const shouldTruncate = valueStr.length > 100
-                        
+
                         return (
                           <tr
                             key={variable.id}
@@ -1823,12 +1970,15 @@ export function DebugPanel() {
                               if (el) workflowVarRowRefs.current.set(normalizedName, el)
                             }}
                             className={cn(
-                              'border-b border-border/30 hover:bg-muted/20',
-                              highlightedWorkflowVar === normalizedName && 'bg-amber-100 dark:bg-amber-900/30'
+                              'border-border/30 border-b hover:bg-muted/20',
+                              highlightedWorkflowVar === normalizedName &&
+                                'bg-amber-100 dark:bg-amber-900/30'
                             )}
                           >
                             <td className='px-3 py-2 align-top'>
-                              <code className='font-mono text-[11px] text-foreground/80 break-words'>{variable.name}</code>
+                              <code className='break-words font-mono text-[11px] text-foreground/80'>
+                                {variable.name}
+                              </code>
                             </td>
                             <td className='px-3 py-2'>
                               {shouldTruncate ? (
@@ -1837,13 +1987,13 @@ export function DebugPanel() {
                                   onClick={() => toggleFieldExpansion(fieldKey)}
                                 >
                                   <div className='min-w-0 flex-1'>
-                                    <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+                                    <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-foreground/70'>
                                       {isExpanded ? valueStr : `${valueStr.slice(0, 100)}...`}
                                     </pre>
                                   </div>
                                 </div>
                               ) : (
-                                <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto'>
+                                <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-foreground/70'>
                                   {valueStr}
                                 </pre>
                               )}
@@ -1853,7 +2003,7 @@ export function DebugPanel() {
                       })}
                     </tbody>
                   </table>
-              </div>
+                </div>
               ) : (
                 <div className='flex h-full items-center justify-center'>
                   <p className='text-muted-foreground/60 text-xs'>
@@ -1865,26 +2015,33 @@ export function DebugPanel() {
               )}
             </TabsContent>
 
-            <TabsContent value='environment' className='flex-1 overflow-auto m-0'>
+            <TabsContent value='environment' className='m-0 flex-1 overflow-auto'>
               {filteredEnvVariables.length > 0 ? (
-                <div className='h-full overflow-y-scroll overflow-x-hidden'>
+                <div className='h-full overflow-x-hidden overflow-y-scroll'>
                   <table className='w-full table-fixed'>
                     <colgroup>
                       <col className='w-[35%] min-w-[150px]' />
                       <col className='w-[65%]' />
                     </colgroup>
-                    <thead className='sticky top-0 bg-background z-10'>
-                      <tr className='border-b border-border/50'>
-                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Variable</th>
-                        <th className='px-3 py-2 text-left text-xs font-medium text-muted-foreground bg-background'>Value</th>
+                    <thead className='sticky top-0 z-10 bg-background'>
+                      <tr className='border-border/50 border-b'>
+                        <th className='bg-background px-3 py-2 text-left font-medium text-muted-foreground text-xs'>
+                          Variable
+                        </th>
+                        <th className='bg-background px-3 py-2 text-left font-medium text-muted-foreground text-xs'>
+                          Value
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredEnvVariables.map(([key, value]) => {
                         const isRevealed = revealedEnvVars.has(key)
-                        const valueStr = value !== undefined && value !== null ? JSON.stringify(value, null, 2) : String(value)
+                        const valueStr =
+                          value !== undefined && value !== null
+                            ? JSON.stringify(value, null, 2)
+                            : String(value)
                         const maskedValue = '••••••••'
-                        
+
                         return (
                           <tr
                             key={key}
@@ -1892,20 +2049,22 @@ export function DebugPanel() {
                               if (el) envVarRowRefs.current.set(key, el)
                             }}
                             className={cn(
-                              'border-b border-border/30 hover:bg-muted/20',
+                              'border-border/30 border-b hover:bg-muted/20',
                               highlightedEnvVar === key && 'bg-amber-100 dark:bg-amber-900/30'
                             )}
                           >
                             <td className='px-3 py-2 align-top'>
-                              <code className='font-mono text-[11px] text-foreground/80 break-words'>{key}</code>
+                              <code className='break-words font-mono text-[11px] text-foreground/80'>
+                                {key}
+                              </code>
                             </td>
                             <td className='px-3 py-2'>
                               <button
                                 type='button'
                                 onClick={() => toggleEnvVarReveal(key)}
-                                className='text-left w-full group'
+                                className='group w-full text-left'
                               >
-                                <pre className='text-[11px] font-mono text-foreground/70 whitespace-pre-wrap break-words overflow-x-auto group-hover:text-foreground transition-colors'>
+                                <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-foreground/70 transition-colors group-hover:text-foreground'>
                                   {isRevealed ? valueStr : maskedValue}
                                 </pre>
                               </button>
@@ -1915,7 +2074,7 @@ export function DebugPanel() {
                       })}
                     </tbody>
                   </table>
-              </div>
+                </div>
               ) : (
                 <div className='flex h-full items-center justify-center'>
                   <p className='text-muted-foreground/60 text-xs'>
@@ -1923,7 +2082,7 @@ export function DebugPanel() {
                       ? 'No environment variables referenced in input'
                       : 'No environment variables'}
                   </p>
-          </div>
+                </div>
               )}
             </TabsContent>
           </Tabs>
@@ -1931,4 +2090,4 @@ export function DebugPanel() {
       </div>
     </div>
   )
-} 
+}
