@@ -81,7 +81,7 @@ const WorkflowContent = React.memo(() => {
   // Hooks
   const params = useParams()
   const router = useRouter()
-  const { project, getNodes, fitView, getViewport, setViewport } = useReactFlow() as any
+  const { project, getNodes, getViewport, setViewport } = useReactFlow()
 
   // Get workspace ID from the params
   const workspaceId = params.workspaceId as string
