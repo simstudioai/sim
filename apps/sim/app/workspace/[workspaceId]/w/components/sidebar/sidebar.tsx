@@ -1007,8 +1007,11 @@ export function Sidebar() {
         >
           <UsageIndicator
             onClick={() => {
-              const isBlocked = useSubscriptionStore.getState().getBillingStatus() === 'blocked'
-              if (isBlocked) {
+              const subscriptionStore = useSubscriptionStore.getState()
+              const isBlocked = subscriptionStore.getBillingStatus() === 'blocked'
+              const canUpgrade = subscriptionStore.canUpgrade()
+
+              if (isBlocked || !canUpgrade) {
                 if (typeof window !== 'undefined') {
                   window.dispatchEvent(
                     new CustomEvent('open-settings', { detail: { tab: 'subscription' } })
