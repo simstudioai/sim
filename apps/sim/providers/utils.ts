@@ -101,7 +101,6 @@ export const providers: Record<
   },
 }
 
-// Initialize all providers that have initialize method
 Object.entries(providers).forEach(([id, provider]) => {
   if (provider.initialize) {
     provider.initialize().catch((error) => {
@@ -112,14 +111,13 @@ Object.entries(providers).forEach(([id, provider]) => {
   }
 })
 
-// Function to update Ollama provider models
 export function updateOllamaProviderModels(models: string[]): void {
   updateOllamaModelsInDefinitions(models)
   providers.ollama.models = getProviderModelsFromDefinitions('ollama')
 }
 
-export function updateOpenRouterProviderModels(models: string[]): void {
-  const { updateOpenRouterModels } = require('@/providers/models')
+export async function updateOpenRouterProviderModels(models: string[]): Promise<void> {
+  const { updateOpenRouterModels } = await import('@/providers/models')
   updateOpenRouterModels(models)
   providers.openrouter.models = getProviderModelsFromDefinitions('openrouter')
 }
