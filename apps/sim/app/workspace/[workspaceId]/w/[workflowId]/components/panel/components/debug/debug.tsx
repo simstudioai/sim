@@ -22,7 +22,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn } from '@/lib/utils'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { useConsoleStore } from '@/stores/panel/console/store'
 import { 
   Play, 
   FastForward, 
@@ -1368,7 +1367,7 @@ export function DebugPanel() {
       {/* Header Section - Single Line */}
       <div className={cn(
         'flex items-center justify-between border-b border-border/50 px-3 py-2.5',
-        isFocusedErrored && 'bg-red-50 dark:bg-red-900/10 border-red-500'
+        isFocusedErrored && 'border-red-500'
       )}>
         <div className='flex items-center gap-2'>
           <span className={cn(
@@ -1408,6 +1407,56 @@ export function DebugPanel() {
           <span className='text-muted-foreground text-xs'>{getStatusText()}</span>
         </div>
       </div>
+
+      {/* Error Display - Right below header */}
+      {isFocusedErrored && (
+        <div className='border-b border-red-500 p-3 bg-red-50 dark:bg-red-900/10'>
+          <div className='flex items-start gap-2.5'>
+            <AlertCircle className='h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5' />
+            <div className='flex-1 min-w-0'>
+              <p className='font-medium text-xs text-red-900 dark:text-red-200 mb-1'>
+                Execution Error
+              </p>
+              <div className='text-xs text-red-800 dark:text-red-300'>
+                {(() => {
+                  // Get error message from block state or logs
+                  const id = focusedBlockId || ''
+                  const directState = debugContext?.blockStates.get(id)
+                  if (directState?.output && typeof directState.output === 'object' && 'error' in directState.output) {
+                    return (
+                      <pre className='font-mono text-[11px] whitespace-pre-wrap break-words'>
+                        {String(directState.output.error)}
+                      </pre>
+                    )
+                  }
+                  // Check virtual executions
+                  for (const [key, state] of (debugContext?.blockStates?.entries() || [])) {
+                    if (isVirtualForBlock(String(key), id) && state?.output && typeof state.output === 'object' && 'error' in state.output) {
+                      return (
+                        <pre className='font-mono text-[11px] whitespace-pre-wrap break-words'>
+                          {String(state.output.error)}
+                        </pre>
+                      )
+                    }
+                  }
+                  // Check logs
+                  const errorLog = debugContext?.blockLogs?.find(log => 
+                    (log.blockId === id || resolveOriginalBlockId(log.blockId) === id) && !log.success
+                  )
+                  if (errorLog?.error) {
+                    return (
+                      <pre className='font-mono text-[11px] whitespace-pre-wrap break-words'>
+                        {String(errorLog.error)}
+                      </pre>
+                    )
+                  }
+                  return <span className='text-[11px]'>Unknown error occurred</span>
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area - Split into two sections */}
       <div className='flex flex-1 flex-col overflow-hidden'>
@@ -1517,79 +1566,7 @@ export function DebugPanel() {
               </TabsContent>
 
             <TabsContent value='output' className='flex-1 overflow-auto p-3 m-0'>
-                {isFocusedErrored ? (
-                  <div className='rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4'>
-                    <div className='flex items-start gap-3'>
-                      <AlertCircle className='h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5' />
-                      <div className='flex-1 space-y-2'>
-                        <p className='font-medium text-sm text-red-900 dark:text-red-200'>
-                          Execution Error
-                        </p>
-                        <div className='text-sm text-red-800 dark:text-red-300'>
-                          {(() => {
-                            // Get error message from block state or logs
-                            const id = focusedBlockId || ''
-                            
-                            // First check console entries for the most recent error
-                            const consoleEntries = useConsoleStore.getState().entries
-                            const consoleError = consoleEntries
-                              .filter(entry => {
-                                // Match by block ID (handle virtual IDs too)
-                                if (entry.blockId === id) return true
-                                const resolved = resolveOriginalBlockId(entry.blockId)
-                                return resolved === id
-                              })
-                              .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                              .find(entry => entry.error)
-                            
-                            if (consoleError?.error) {
-                              return (
-                                <pre className='font-mono text-xs whitespace-pre-wrap break-words'>
-                                  {consoleError.error}
-                                </pre>
-                              )
-                            }
-                            
-                            // Then check block state
-                            const directState = debugContext?.blockStates.get(id)
-                            if (directState?.output && typeof directState.output === 'object' && 'error' in directState.output) {
-                              return (
-                                <pre className='font-mono text-xs whitespace-pre-wrap break-words'>
-                                  {String(directState.output.error)}
-                                </pre>
-                              )
-                            }
-                            
-                            // Check virtual executions
-                            for (const [key, state] of (debugContext?.blockStates?.entries() || [])) {
-                              if (isVirtualForBlock(String(key), id) && state?.output && typeof state.output === 'object' && 'error' in state.output) {
-                                return (
-                                  <pre className='font-mono text-xs whitespace-pre-wrap break-words'>
-                                    {String(state.output.error)}
-                                  </pre>
-                                )
-                              }
-                            }
-                            
-                            // Check logs
-                            const errorLog = debugContext?.blockLogs?.find(log => 
-                              (log.blockId === id || resolveOriginalBlockId(log.blockId) === id) && !log.success
-                            )
-                            if (errorLog?.error) {
-                              return (
-                                <pre className='font-mono text-xs whitespace-pre-wrap break-words'>
-                                  {String(errorLog.error)}
-                                </pre>
-                              )
-                            }
-                            
-                            return <span className='text-xs'>Unknown error occurred</span>
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : resolvedOutputKVs && Object.keys(resolvedOutputKVs).length > 0 ? (
+                {resolvedOutputKVs && Object.keys(resolvedOutputKVs).length > 0 ? (
                 <div className='h-full overflow-y-scroll overflow-x-hidden'>
                   <table className='w-full table-fixed'>
                     <colgroup>

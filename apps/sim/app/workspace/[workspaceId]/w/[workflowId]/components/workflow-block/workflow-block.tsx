@@ -645,8 +645,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           'transition-block-bg transition-ring',
           displayIsWide ? 'w-[480px]' : 'w-[320px]',
           !isEnabled && 'shadow-sm',
-          // Error state - highest priority
-          hasError && 'bg-red-50 dark:bg-red-900/10 ring-2 ring-red-500',
+          // Error state - highest priority (only border, no background)
+          hasError && 'ring-2 ring-red-500',
           // Panel-focused block highlight (unless errored)
           !hasError && isPanelFocused && 'bg-blue-50/60 dark:bg-blue-900/5',
           // Executing blocks match staging: pulsing blue ring
