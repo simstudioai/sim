@@ -49,6 +49,15 @@ interface RequestBody {
   history?: ChatMessage[]
 }
 
+// Helper: safe stringify for error payloads that may include circular structures
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return '[unserializable]'
+  }
+}
+
 export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
   logger.info(`[${requestId}] Received wand generation request`)
@@ -110,124 +119,101 @@ export async function POST(req: NextRequest) {
           `[${requestId}] About to create stream with model: ${useWandAzure ? wandModelName : 'gpt-4o'}`
         )
 
-        // Add AbortController with timeout
-        const abortController = new AbortController()
-        const timeoutId = setTimeout(() => {
-          abortController.abort('Stream timeout after 30 seconds')
-        }, 30000)
-
-        // Forward request abort signal if available
-        req.signal?.addEventListener('abort', () => {
-          abortController.abort('Request cancelled by client')
+        // Create the stream without AbortController for Node.js runtime compatibility
+        const streamCompletion = await client.chat.completions.create({
+          model: useWandAzure ? wandModelName : 'gpt-4o',
+          messages: messages,
+          temperature: 0.3,
+          max_tokens: 10000,
+          stream: true,
+          stream_options: { include_usage: true },
         })
 
-        const streamCompletion = await client.chat.completions.create(
-          {
-            model: useWandAzure ? wandModelName : 'gpt-4o',
-            messages: messages,
-            temperature: 0.3,
-            max_tokens: 10000,
-            stream: true,
-            stream_options: { include_usage: true },
-          },
-          {
-            signal: abortController.signal, // Add AbortSignal
-          }
-        )
+        logger.info(`[${requestId}] Stream created successfully, starting response`)
 
-        clearTimeout(timeoutId) // Clear timeout after successful creation
-        logger.info(`[${requestId}] Stream created successfully, starting reader pattern`)
+        // Create a TransformStream for Node.js runtime compatibility
+        const encoder = new TextEncoder()
+        const readable = new ReadableStream({
+          async start(controller) {
+            try {
+              logger.info(`[${requestId}] Starting stream processing`)
+              let chunkCount = 0
 
-        logger.debug(`[${requestId}] Stream connection established successfully`)
+              for await (const chunk of streamCompletion) {
+                chunkCount++
 
-        return new Response(
-          new ReadableStream({
-            async start(controller) {
-              const encoder = new TextEncoder()
-
-              try {
-                logger.info(`[${requestId}] Starting streaming with timeout protection`)
-                let chunkCount = 0
-                let hasUsageData = false
-
-                // Use for await with AbortController timeout protection
-                for await (const chunk of streamCompletion) {
-                  chunkCount++
-
-                  if (chunkCount === 1) {
-                    logger.info(`[${requestId}] Received first chunk via for await`)
-                  }
-
-                  // Process the chunk
-                  const content = chunk.choices?.[0]?.delta?.content || ''
-                  if (content) {
-                    // Use SSE format identical to chat streaming
-                    controller.enqueue(
-                      encoder.encode(`data: ${JSON.stringify({ chunk: content })}\n\n`)
-                    )
-                  }
-
-                  // Check for usage data
-                  if (chunk.usage) {
-                    hasUsageData = true
-                    logger.info(
-                      `[${requestId}] Received usage data: ${JSON.stringify(chunk.usage)}`
-                    )
-                  }
-
-                  // Log every 5th chunk to avoid spam
-                  if (chunkCount % 5 === 0) {
-                    logger.debug(`[${requestId}] Processed ${chunkCount} chunks so far`)
-                  }
+                if (chunkCount === 1) {
+                  logger.info(`[${requestId}] Received first chunk`)
                 }
 
-                logger.info(
-                  `[${requestId}] Reader pattern completed. Total chunks: ${chunkCount}, Usage data received: ${hasUsageData}`
-                )
-
-                // Send completion signal in SSE format
-                logger.info(`[${requestId}] Sending completion signal`)
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`))
-
-                logger.info(`[${requestId}] Closing controller`)
-                controller.close()
-
-                logger.info(`[${requestId}] Wand generation streaming completed successfully`)
-              } catch (streamError: any) {
-                if (streamError.name === 'AbortError') {
-                  logger.info(
-                    `[${requestId}] Stream was aborted (timeout or cancel): ${streamError.message}`
-                  )
-                  controller.enqueue(
-                    encoder.encode(
-                      `data: ${JSON.stringify({ error: 'Stream cancelled', done: true })}\n\n`
-                    )
-                  )
-                } else {
-                  logger.error(`[${requestId}] Streaming error`, { error: streamError.message })
-                  controller.enqueue(
-                    encoder.encode(
-                      `data: ${JSON.stringify({ error: 'Streaming failed', done: true })}\n\n`
-                    )
-                  )
+                // Process the chunk
+                const content = chunk.choices?.[0]?.delta?.content || ''
+                if (content) {
+                  // Send data in SSE format
+                  const data = `data: ${JSON.stringify({ chunk: content })}\n\n`
+                  controller.enqueue(encoder.encode(data))
                 }
-                controller.close()
+
+                // Check for usage data
+                if (chunk.usage) {
+                  logger.info(`[${requestId}] Received usage data: ${JSON.stringify(chunk.usage)}`)
+                }
+
+                // Log progress periodically
+                if (chunkCount % 10 === 0) {
+                  logger.debug(`[${requestId}] Processed ${chunkCount} chunks`)
+                }
               }
-            },
-          }),
-          {
-            headers: {
-              'Content-Type': 'text/event-stream',
-              'Cache-Control': 'no-cache',
-              Connection: 'keep-alive',
-              'X-Accel-Buffering': 'no',
-            },
-          }
-        )
+
+              logger.info(`[${requestId}] Stream completed. Total chunks: ${chunkCount}`)
+
+              // Send completion signal
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`))
+              controller.close()
+
+              logger.info(`[${requestId}] Wand generation streaming completed successfully`)
+            } catch (streamError: any) {
+              logger.error(`[${requestId}] Streaming error`, {
+                name: streamError?.name,
+                message: streamError?.message || 'Unknown error',
+                code: streamError?.code,
+                status: streamError?.status,
+                stack: streamError?.stack,
+                useWandAzure,
+                model: useWandAzure ? wandModelName : 'gpt-4o',
+              })
+
+              // Send error to client
+              const errorData = `data: ${JSON.stringify({ error: 'Streaming failed', done: true })}\n\n`
+              controller.enqueue(encoder.encode(errorData))
+              controller.close()
+            }
+          },
+        })
+
+        // Return Response with proper headers for Node.js runtime
+        return new Response(readable, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache, no-transform',
+            Connection: 'keep-alive',
+            'X-Accel-Buffering': 'no', // Disable Nginx buffering
+            'Transfer-Encoding': 'chunked', // Important for Node.js runtime
+          },
+        })
       } catch (error: any) {
-        logger.error(`[${requestId}] Streaming error`, {
-          error: error.message || 'Unknown error',
-          stack: error.stack,
+        logger.error(`[${requestId}] Failed to create stream`, {
+          name: error?.name,
+          message: error?.message || 'Unknown error',
+          code: error?.code,
+          status: error?.status,
+          responseStatus: error?.response?.status,
+          responseData: error?.response?.data ? safeStringify(error.response.data) : undefined,
+          stack: error?.stack,
+          useWandAzure,
+          model: useWandAzure ? wandModelName : 'gpt-4o',
+          endpoint: useWandAzure ? azureEndpoint : 'api.openai.com',
+          apiVersion: useWandAzure ? azureApiVersion : 'N/A',
         })
 
         return NextResponse.json(
@@ -261,8 +247,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, content: generatedContent })
   } catch (error: any) {
     logger.error(`[${requestId}] Wand generation failed`, {
-      error: error.message || 'Unknown error',
-      stack: error.stack,
+      name: error?.name,
+      message: error?.message || 'Unknown error',
+      code: error?.code,
+      status: error?.status,
+      responseStatus: error instanceof OpenAI.APIError ? error.status : error?.response?.status,
+      responseData: (error as any)?.response?.data
+        ? safeStringify((error as any).response.data)
+        : undefined,
+      stack: error?.stack,
+      useWandAzure,
+      model: useWandAzure ? wandModelName : 'gpt-4o',
+      endpoint: useWandAzure ? azureEndpoint : 'api.openai.com',
+      apiVersion: useWandAzure ? azureApiVersion : 'N/A',
     })
 
     let clientErrorMessage = 'Wand generation failed. Please try again later.'
