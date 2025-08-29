@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -44,7 +44,10 @@ export function ChannelSelectorInput({
   const provider = subBlock.provider || 'slack'
   const isSlack = provider === 'slack'
   // Central dependsOn gating
-  const { finalDisabled } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
+  const { finalDisabled, dependsOn, dependencyValues } = useDependsOnGate(blockId, subBlock, {
+    disabled,
+    isPreview,
+  })
 
   // Choose credential strictly based on auth method
   const credential: string =
@@ -65,6 +68,21 @@ export function ChannelSelectorInput({
       setSelectedChannelId(val)
     }
   }, [isPreview, previewValue, storeValue])
+
+  // Clear channel when any declared dependency changes (e.g., authMethod/credential)
+  const prevDepsSigRef = useRef<string>('')
+  useEffect(() => {
+    if (dependsOn.length === 0) return
+    const currentSig = JSON.stringify(dependencyValues)
+    if (prevDepsSigRef.current && prevDepsSigRef.current !== currentSig) {
+      if (!isPreview) {
+        setSelectedChannelId('')
+        setChannelInfo(null)
+        setStoreValue('')
+      }
+    }
+    prevDepsSigRef.current = currentSig
+  }, [dependsOn, dependencyValues, isPreview, setStoreValue])
 
   // Handle channel selection (same pattern as file-selector)
   const handleChannelChange = (channelId: string, info?: SlackChannelInfo) => {
