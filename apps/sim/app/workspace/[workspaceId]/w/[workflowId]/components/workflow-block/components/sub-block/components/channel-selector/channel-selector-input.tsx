@@ -61,7 +61,9 @@ export function ChannelSelectorInput({
   }
 
   // Check if the selected OAuth credential belongs to current user (avoid foreign creds)
-  const { isForeignCredential } = useForeignCredential('slack', connectedCredential as string)
+  const credentialIdForCheck =
+    (authMethod as string) === 'bot_token' ? undefined : credential || undefined
+  const { isForeignCredential } = useForeignCredential(provider, credentialIdForCheck)
 
   // Determine if a valid credential is present to enable the selector
   const hasValidCredential = (() => {
