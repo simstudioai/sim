@@ -7,5 +7,11 @@ export default {
   dialect: 'postgresql',
   dbCredentials: {
     url: env.DATABASE_URL,
+    ssl: env.DATABASE_SSL_CERT
+      ? {
+          rejectUnauthorized: true,
+          ca: env.DATABASE_SSL_CERT,
+        }
+      : undefined,
   },
 } satisfies Config
