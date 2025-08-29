@@ -228,6 +228,22 @@ export function DebugPanel() {
     return map
   }, [blocksList])
 
+  // Helpers for infra/virtual handling (parallel & loop)
+  const isInfraBlockType = (t?: string) => t === 'loop' || t === 'parallel'
+  const resolveOriginalBlockId = (id: string | null): string | null => {
+    if (!id) return null
+    try {
+      const mapping = debugContext?.parallelBlockMapping?.get(id)
+      return mapping?.originalBlockId || id
+    } catch {
+      return id
+    }
+  }
+  const isVirtualForBlock = (id: string, baseId: string) => {
+    // Matches executor virtual id scheme: `${baseId}_parallel_${parallelId}_iteration_${i}`
+    return id.startsWith(`${baseId}_parallel_`)
+  }
+
   const starter = useMemo(() => blocksList.find((b: any) => b.metadata?.id === 'starter' || b.type === 'starter'), [blocksList])
   const starterId = starter?.id || null
 
@@ -248,21 +264,55 @@ export function DebugPanel() {
   // Determine focused block: prefer explicitly panel-focused (clicked) block,
   // else show first pending; when list empties, keep showing the last focused; initial fallback to starter
   const focusedBlockId = useMemo(() => {
-    if (panelFocusedBlockId) return panelFocusedBlockId
-    if (pendingBlocks.length > 0) return pendingBlocks[0]!
-    if (lastFocusedIdRef.current) return lastFocusedIdRef.current
+    const pickResolvedNonInfra = (ids: string[]): string | null => {
+      for (const rawId of ids) {
+        const realId = resolveOriginalBlockId(rawId)
+        const blk = realId ? blockById.get(realId) : null
+        if (blk && !isInfraBlockType(blk.type)) return realId
+      }
+      return null
+    }
+
+    // 1) Prefer explicit focus if it's not infra (resolve virtuals)
+    if (panelFocusedBlockId) {
+      const real = resolveOriginalBlockId(panelFocusedBlockId)
+      const blk = real ? blockById.get(real) : null
+      if (blk && !isInfraBlockType(blk.type)) return real
+    }
+    // 2) Next, choose first pending that resolves to non-infra
+    if (pendingBlocks.length > 0) {
+      const chosen = pickResolvedNonInfra(pendingBlocks)
+      if (chosen) return chosen
+    }
+    // 3) Otherwise keep last focused if still valid
+    if (lastFocusedIdRef.current) {
+      const real = resolveOriginalBlockId(lastFocusedIdRef.current)
+      const blk = real ? blockById.get(real) : null
+      if (blk && !isInfraBlockType(blk.type)) return real
+    }
+    // 4) Fallback to starter
     if (starterId) return starterId
     return null
-  }, [panelFocusedBlockId, pendingBlocks, starterId])
+  }, [panelFocusedBlockId, pendingBlocks, starterId, blockById, debugContext?.parallelBlockMapping])
 
   // Remember last focused and publish highlight when pending list changes
   useEffect(() => {
     if (pendingBlocks.length > 0) {
-      const nextId = pendingBlocks[0]!
-      lastFocusedIdRef.current = nextId
-      setPanelFocusedBlockId(nextId)
+      // Set focus to first non-infra resolved pending if available
+      const nextReal = (() => {
+        for (const rawId of pendingBlocks) {
+          const real = resolveOriginalBlockId(rawId)
+          const blk = real ? blockById.get(real) : null
+          if (blk && !isInfraBlockType(blk.type)) return real
+        }
+        return pendingBlocks[0] || null
+      })()
+      if (nextReal) {
+        lastFocusedIdRef.current = nextReal
+        setPanelFocusedBlockId(nextReal)
+      }
     }
-  }, [pendingBlocks, setPanelFocusedBlockId])
+  }, [pendingBlocks, setPanelFocusedBlockId, blockById])
 
   // Get the focused block from our consistent data source
   const focusedBlock = focusedBlockId ? blockById.get(focusedBlockId) : null
@@ -384,9 +434,29 @@ export function DebugPanel() {
     activeWorkflowId ? state.getVariablesByWorkflowId(activeWorkflowId) : []
   )
 
-  const isFocusedExecuted = debugContext ? !!debugContext?.blockStates.get(focusedBlockId || '')?.executed : false
+  const isFocusedExecuted = debugContext ? (() => {
+    const id = focusedBlockId || ''
+    if (!id) return false
+    const direct = debugContext.blockStates.get(id)?.executed
+    if (direct) return true
+    // Consider parallel virtual executions for this block
+    for (const key of debugContext.blockStates.keys()) {
+      if (isVirtualForBlock(String(key), id) && debugContext.blockStates.get(key)?.executed) {
+        return true
+      }
+    }
+    return false
+  })() : false
   const isStarterFocused = focusedBlock?.metadata?.id === 'starter' || focusedBlock?.type === 'starter'
-  const isFocusedCurrent = pendingBlocks.includes(focusedBlockId || '')
+  const isFocusedCurrent = useMemo(() => {
+    const id = focusedBlockId || ''
+    if (!id) return false
+    return pendingBlocks.some((rawId) => {
+      if (rawId === id) return true
+      const real = resolveOriginalBlockId(rawId)
+      return real === id
+    })
+  }, [pendingBlocks, focusedBlockId, debugContext?.parallelBlockMapping])
 
   // Bump when execution progresses to refresh dependent memos
   const executionVersion = useMemo(() => {
@@ -508,6 +578,109 @@ export function DebugPanel() {
 
     const entries: Array<{ ref: string; value: any }> = []
 
+    // Helper: collect executed outputs including virtual parallel iterations and loop/parallel context items
+    const collectExecutedOutputs = (baseId: string): Record<string, any>[] => {
+      const collected: Record<string, any>[] = []
+      const bs = debugContext?.blockStates
+      if (bs) {
+        const direct = bs.get(baseId)?.output
+        if (direct && typeof direct === 'object') collected.push(direct)
+        // Include virtual executions for parallels
+        try {
+          for (const [key, state] of bs.entries()) {
+            const mapping = debugContext?.parallelBlockMapping?.get(key as any)
+            if (mapping && mapping.originalBlockId === baseId && state?.output) {
+              collected.push(state.output as any)
+            }
+          }
+        } catch {}
+      }
+      return collected
+    }
+
+    // Add loop/parallel special variables if block is inside a loop or parallel
+    const addLoopParallelVariables = () => {
+      if (!debugContext) return
+      
+      // Check if focused block is inside a loop
+      for (const [loopId, loop] of Object.entries(currentWorkflow.loops || {})) {
+        if ((loop as any).nodes?.includes(focusedBlockId)) {
+          // Add loop.item and loop.index references
+          const loopItem = debugContext.loopItems?.get(loopId)
+          const loopIndex = debugContext.loopIterations?.get(loopId)
+          const loopItems = debugContext.loopItems?.get(`${loopId}_items`)
+          
+          if (loopItem !== undefined) {
+            entries.push({ ref: '<loop.item>', value: loopItem })
+          }
+          if (loopIndex !== undefined) {
+            entries.push({ ref: '<loop.index>', value: loopIndex })
+          }
+          if (loopItems !== undefined) {
+            entries.push({ ref: '<loop.items>', value: loopItems })
+          }
+          
+          // Also add references for the loop block itself if it has executed
+          const loopBlock = blockById.get(loopId)
+          if (loopBlock) {
+            const loopName = normalizeBlockName(getDisplayName(loopBlock))
+            if (loopItem !== undefined) {
+              entries.push({ ref: `<${loopName}.item>`, value: loopItem })
+            }
+            if (loopIndex !== undefined) {
+              entries.push({ ref: `<${loopName}.index>`, value: loopIndex })
+            }
+            if (loopItems !== undefined) {
+              entries.push({ ref: `<${loopName}.items>`, value: loopItems })
+            }
+          }
+        }
+      }
+      
+      // Check if focused block is inside a parallel
+      for (const [parallelId, parallel] of Object.entries(currentWorkflow.parallels || {})) {
+        if ((parallel as any).nodes?.includes(focusedBlockId)) {
+          // Check for virtual block execution to get iteration info
+          const parallelState = debugContext.parallelExecutions?.get(parallelId)
+          if (parallelState) {
+            // Get current iteration context
+            const currentVirtualId = debugContext.currentVirtualBlockId
+            if (currentVirtualId) {
+              const mapping = debugContext.parallelBlockMapping?.get(currentVirtualId)
+              if (mapping) {
+                const iterationIndex = mapping.iterationIndex
+                const parallelItems = debugContext.loopItems?.get(`${parallelId}_items`)
+                const parallelItem = parallelItems ? 
+                  (Array.isArray(parallelItems) ? parallelItems[iterationIndex] : Object.values(parallelItems)[iterationIndex]) 
+                  : undefined
+                
+                if (parallelItem !== undefined) {
+                  entries.push({ ref: '<parallel.item>', value: parallelItem })
+                }
+                entries.push({ ref: '<parallel.index>', value: iterationIndex })
+                if (parallelItems !== undefined) {
+                  entries.push({ ref: '<parallel.items>', value: parallelItems })
+                }
+                
+                // Also add references for the parallel block itself
+                const parallelBlock = blockById.get(parallelId)
+                if (parallelBlock) {
+                  const parallelName = normalizeBlockName(getDisplayName(parallelBlock))
+                  if (parallelItem !== undefined) {
+                    entries.push({ ref: `<${parallelName}.item>`, value: parallelItem })
+                  }
+                  entries.push({ ref: `<${parallelName}.index>`, value: iterationIndex })
+                  if (parallelItems !== undefined) {
+                    entries.push({ ref: `<${parallelName}.items>`, value: parallelItems })
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     for (const id of accessibleIds) {
       const blk = blockById.get(id)
       if (!blk) continue
@@ -518,16 +691,17 @@ export function DebugPanel() {
       const displayName = getDisplayName(blk)
       const normalizedName = normalizeBlockName(displayName)
 
-      const executedOutput = debugContext?.blockStates.get(id)?.output || {}
+      // Gather executed outputs (direct and virtual)
+      const executedOutputs = collectExecutedOutputs(id)
 
-      // Flatten executed outputs and include only those matching allowed paths
+      // Flatten helper over multiple outputs with last-wins per path
+      const pathToValue = new Map<string, any>()
       const flatten = (obj: any, prefix = ''): Array<{ path: string; value: any }> => {
         if (obj == null || typeof obj !== 'object') return []
         const items: Array<{ path: string; value: any }> = []
         for (const [k, v] of Object.entries(obj)) {
           const current = prefix ? `${prefix}.${k}` : k
           if (v && typeof v === 'object' && !Array.isArray(v)) {
-            // include the object level only if explicitly allowed
             if (allowedPathsSet.has(current)) items.push({ path: current, value: v })
             items.push(...flatten(v, current))
           } else {
@@ -537,16 +711,25 @@ export function DebugPanel() {
         return items
       }
 
-      const executedPairs = flatten(executedOutput)
-      for (const { path, value } of executedPairs) {
+      for (const out of executedOutputs) {
+        const pairs = flatten(out)
+        for (const { path, value } of pairs) {
+          pathToValue.set(path, value)
+        }
+      }
+
+      for (const [path, value] of pathToValue.entries()) {
         entries.push({ ref: `<${normalizedName}.${path}>`, value })
       }
     }
 
+    // Add loop/parallel context variables
+    addLoopParallelVariables()
+
     // Sort for stable UI (by ref)
     entries.sort((a, b) => a.ref.localeCompare(b.ref))
     return entries
-  }, [focusedBlockId, currentWorkflow.edges, starterId, blockById, executionVersion])
+  }, [focusedBlockId, currentWorkflow.edges, currentWorkflow.loops, currentWorkflow.parallels, starterId, blockById, executionVersion, debugContext])
 
   // Compute all possible refs from accessible blocks regardless of execution state
   const allPossibleVariableRefs = useMemo(() => {
@@ -998,7 +1181,16 @@ export function DebugPanel() {
         if (!exec || !ctx) break
 
         // Determine executable set
-        const executable = breakpointId ? pend.filter((id) => id !== breakpointId) : pend
+        const executable = breakpointId
+          ? pend.filter((id) => {
+              if (id === breakpointId) return false
+              try {
+                const mapping = ctx?.parallelBlockMapping?.get(id)
+                if (mapping && mapping.originalBlockId === breakpointId) return false
+              } catch {}
+              return true
+            })
+          : pend
         if (executable.length === 0) break
 
         setExecutingBlockIds(new Set(executable))
