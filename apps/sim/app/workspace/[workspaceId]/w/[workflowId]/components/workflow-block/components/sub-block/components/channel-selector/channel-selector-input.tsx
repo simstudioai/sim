@@ -110,7 +110,7 @@ export function ChannelSelectorInput({
                 credential={effectiveCredential}
                 workflowId={workflowIdParam}
                 label={subBlock.placeholder || 'Select Slack channel'}
-                disabled={finalDisabled || !hasValidCredential}
+                disabled={finalDisabled}
               />
             </div>
           </TooltipTrigger>
