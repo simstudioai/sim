@@ -45,6 +45,7 @@ interface SubBlockProps {
   disabled?: boolean
   fieldDiffStatus?: FieldDiffStatus
   allowExpandInPreview?: boolean
+  isWide?: boolean
 }
 
 export function SubBlock({
@@ -56,6 +57,7 @@ export function SubBlock({
   disabled = false,
   fieldDiffStatus,
   allowExpandInPreview,
+  isWide = false,
 }: SubBlockProps) {
   const [isValidJson, setIsValidJson] = useState(true)
 
@@ -148,6 +150,7 @@ export function SubBlock({
               disabled={isDisabled}
               isConnecting={isConnecting}
               config={config}
+              isWide={isWide}
             />
           </div>
         )

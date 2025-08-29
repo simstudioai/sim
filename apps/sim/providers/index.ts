@@ -5,6 +5,7 @@ import {
   calculateCost,
   generateStructuredOutputInstructions,
   getProvider,
+  shouldBillModelUsage,
   supportsTemperature,
 } from '@/providers/utils'
 
@@ -85,7 +86,23 @@ export async function executeProviderRequest(
     const { prompt: promptTokens = 0, completion: completionTokens = 0 } = response.tokens
     const useCachedInput = !!request.context && request.context.length > 0
 
-    response.cost = calculateCost(response.model, promptTokens, completionTokens, useCachedInput)
+    if (shouldBillModelUsage(response.model, request.apiKey)) {
+      response.cost = calculateCost(response.model, promptTokens, completionTokens, useCachedInput)
+    } else {
+      response.cost = {
+        input: 0,
+        output: 0,
+        total: 0,
+        pricing: {
+          input: 0,
+          output: 0,
+          updatedAt: new Date().toISOString(),
+        },
+      }
+      logger.debug(
+        `Not billing model usage for ${response.model} - user provided API key or not hosted model`
+      )
+    }
   }
 
   return response
