@@ -986,6 +986,8 @@ export function ToolInput({
             }}
             onChannelSelect={onChange}
             disabled={disabled}
+            isPreview={true}
+            previewValue={value}
           />
         )
 

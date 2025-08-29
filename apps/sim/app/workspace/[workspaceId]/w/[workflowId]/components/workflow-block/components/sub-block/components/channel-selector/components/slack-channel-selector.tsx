@@ -138,6 +138,11 @@ export function SlackChannelSelector({
                 {getChannelIcon(selectedChannel)}
                 <span className='truncate font-normal'>{formatChannelName(selectedChannel)}</span>
               </>
+            ) : value ? (
+              <>
+                <Hash className='h-1.5 w-1.5' />
+                <span className='truncate font-normal'>{value}</span>
+              </>
             ) : (
               <span className='truncate text-muted-foreground'>{label}</span>
             )}
