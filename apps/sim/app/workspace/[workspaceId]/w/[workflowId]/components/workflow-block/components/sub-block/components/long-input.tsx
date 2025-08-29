@@ -88,7 +88,6 @@ export function LongInput({
   const [cursorPosition, setCursorPosition] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
-  const overlayInnerRef = useRef<HTMLDivElement>(null)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -141,35 +140,6 @@ export function LongInput({
     }
   }, [rows])
 
-  // Set overlay width to match textarea clientWidth
-  useLayoutEffect(() => {
-    if (!textareaRef.current || !overlayRef.current) return
-    const textarea = textareaRef.current
-    const overlay = overlayRef.current
-
-    const applyWidth = () => {
-      // Match overlay content width to the inner content area of the textarea
-      overlay.style.width = `${textarea.clientWidth}px`
-    }
-
-    applyWidth()
-
-    const resizeObserver = new ResizeObserver(() => {
-      applyWidth()
-    })
-    resizeObserver.observe(textarea)
-
-    return () => {
-      resizeObserver.disconnect()
-    }
-  }, [])
-
-  // Initialize overlay transform to current scroll
-  useLayoutEffect(() => {
-    // Initialize overlay transform to current scroll
-    syncScrollPositions()
-  }, [])
-
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     // Don't allow changes if disabled or streaming
@@ -202,21 +172,19 @@ export function LongInput({
 
   // Sync scroll position between textarea and overlay
   const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
-    if (!overlayInnerRef.current) return
-    const { scrollTop, scrollLeft } = e.currentTarget
-    overlayInnerRef.current.style.transform = `translate(${-scrollLeft}px, ${-scrollTop}px)`
-  }
-
-  // Force synchronize scroll positions
-  const syncScrollPositions = () => {
-    if (!textareaRef.current || !overlayInnerRef.current) return
-    const { scrollTop, scrollLeft } = textareaRef.current
-    overlayInnerRef.current.style.transform = `translate(${-scrollLeft}px, ${-scrollTop}px)`
+    if (overlayRef.current) {
+      overlayRef.current.scrollTop = e.currentTarget.scrollTop
+      overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
+    }
   }
 
   // Ensure overlay updates when content changes
   useEffect(() => {
-    syncScrollPositions()
+    if (textareaRef.current && overlayRef.current) {
+      // Ensure scrolling is synchronized
+      overlayRef.current.scrollTop = textareaRef.current.scrollTop
+      overlayRef.current.scrollLeft = textareaRef.current.scrollLeft
+    }
   }, [value])
 
   // Handle resize functionality
@@ -240,8 +208,6 @@ export function LongInput({
         if (containerRef.current) {
           containerRef.current.style.height = `${newHeight}px`
         }
-        // Keep overlay aligned with textarea scroll during live resize
-        syncScrollPositions()
       }
     }
 
@@ -254,8 +220,6 @@ export function LongInput({
       isResizing.current = false
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
-      // After resizing completes, re-sync to ensure caret at end remains visually aligned
-      syncScrollPositions()
     }
 
     document.addEventListener('mousemove', handleMouseMove)
@@ -371,7 +335,9 @@ export function LongInput({
     }
 
     // For regular scrolling (without Ctrl/Cmd), let the default behavior happen
-    // No overlay scroll; overlay position is synced via transform on scroll handler
+    if (overlayRef.current) {
+      overlayRef.current.scrollTop = e.currentTarget.scrollTop
+    }
   }
 
   return (
@@ -399,7 +365,6 @@ export function LongInput({
           ref={textareaRef}
           className={cn(
             'allow-scroll min-h-full w-full resize-none text-transparent caret-foreground placeholder:text-muted-foreground/50',
-            '!text-[14px]', // Force override any responsive text sizes from Textarea component
             isConnecting &&
               config?.connectionDroppable !== false &&
               'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500',
@@ -426,69 +391,25 @@ export function LongInput({
           }}
           disabled={isPreview || disabled}
           style={{
-            // Explicit font properties for perfect alignment
-            fontFamily:
-              '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-            fontSize: '14px',
-            fontWeight: '400',
-            // Match the fixed pixel line-height used on the textarea
-            lineHeight: '21px',
-            letterSpacing: 'normal',
+            fontFamily: 'inherit',
+            lineHeight: 'inherit',
             height: `${height}px`,
-            // Text wrapping properties
             wordBreak: 'break-word',
             whiteSpace: 'pre-wrap',
-            overflowWrap: 'break-word',
-            // Box sizing to ensure padding is calculated correctly
-            boxSizing: 'border-box',
-            // Remove text rendering optimizations that can affect layout
-            textRendering: 'auto',
           }}
         />
         <div
           ref={overlayRef}
-          className='pointer-events-none absolute bg-transparent'
+          className='pointer-events-none absolute inset-0 whitespace-pre-wrap break-words bg-transparent px-3 py-2 text-sm'
           style={{
-            // Position exactly over the textarea content area
-            top: '0',
-            left: '0',
-            // width is set dynamically to match textarea clientWidth to ensure identical wrapping
-            // right is disabled to avoid conflicts with explicit width
-            right: 'auto',
-            // Padding: py-2 px-3 = top/bottom: 8px, left/right: 12px
-            paddingTop: '8px',
-            paddingBottom: '8px',
-            paddingLeft: '12px',
-            paddingRight: '12px',
-            // No border; border would shrink content width under border-box and break wrapping parity
-            // Exact same font properties as textarea
-            fontFamily:
-              '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-            fontSize: '14px',
-            fontWeight: '400',
-            lineHeight: '21px', // Use fixed pixel line-height to prevent subpixel rounding drift with overlay
-            letterSpacing: 'normal',
-            // Text wrapping properties - must match textarea exactly
-            wordBreak: 'break-word',
-            whiteSpace: 'pre-wrap',
-            overflowWrap: 'break-word',
-            // Hide overlay scrolling to avoid dual scroll offsets
+            fontFamily: 'inherit',
+            lineHeight: 'inherit',
+            width: '100%',
+            height: `${height}px`,
             overflow: 'hidden',
-            // Box sizing to ensure padding is calculated correctly
-            boxSizing: 'border-box',
-            // Match text rendering
-            textRendering: 'auto',
           }}
         >
-          <div
-            ref={overlayInnerRef}
-            style={{
-              willChange: 'transform',
-              lineHeight: '21px',
-            }}
-          >
-            {formatDisplayText(value?.toString() ?? '', true)}
-          </div>
+          {formatDisplayText(value?.toString() ?? '', true)}
         </div>
 
         {/* Wand Button */}

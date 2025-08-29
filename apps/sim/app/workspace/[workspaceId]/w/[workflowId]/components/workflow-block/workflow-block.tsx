@@ -383,12 +383,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       if (height !== blockHeight) {
         updateBlockHeight(id, height)
         updateNodeInternals(id)
-        try {
-          const evt = new CustomEvent('workflow-node-resized', {
-            detail: { id, height },
-          })
-          window.dispatchEvent(evt)
-        } catch {}
       }
     }, 100)
 
@@ -931,12 +925,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   variant='ghost'
                   size='sm'
                   onClick={() => {
-                    try {
-                      const evt = new CustomEvent('workflow-layout-change', {
-                        detail: { reason: 'wide-toggle', blockId: id },
-                      })
-                      window.dispatchEvent(evt)
-                    } catch {}
                     if (currentWorkflow.isDiffMode) {
                       setDiffIsWide((prev) => !prev)
                     } else if (userPermissions.canEdit) {
