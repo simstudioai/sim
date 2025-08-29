@@ -9,6 +9,7 @@ import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { calculateCost } from '@/providers/utils'
 import {
   generateSearchEmbedding,
+  getDocumentNamesByIds,
   getQueryStrategy,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
@@ -238,6 +239,10 @@ export async function POST(request: NextRequest) {
         tagDefinitionsMap[kbId] = map
       })
 
+      // Fetch document names for the results
+      const documentIds = results.map((result) => result.documentId)
+      const documentNameMap = await getDocumentNamesByIds(documentIds)
+
       return NextResponse.json({
         success: true,
         data: {
@@ -263,12 +268,11 @@ export async function POST(request: NextRequest) {
             })
 
             return {
-              id: result.id,
-              content: result.content,
               documentId: result.documentId,
-              documentName: (result as any).documentName || undefined,
+              documentName: documentNameMap[result.documentId] || undefined,
+              content: result.content,
               chunkIndex: result.chunkIndex,
-              tags, // Clean display name mapped tags
+              metadata: tags, // Clean display name mapped tags
               similarity: hasQuery ? 1 - result.distance : 1, // Perfect similarity for tag-only searches
             }
           }),
