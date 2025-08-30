@@ -56,7 +56,9 @@ function isEnterpriseMetadata(value: unknown): value is EnterpriseSubscriptionMe
   return (
     !!value &&
     typeof (value as any).plan === 'string' &&
-    (value as any).plan.toLowerCase() === 'enterprise'
+    (value as any).plan.toLowerCase() === 'enterprise' &&
+    typeof (value as any).referenceId === 'string' &&
+    typeof (value as any).monthlyPrice === 'number'
   )
 }
 
@@ -110,6 +112,17 @@ async function handleManualEnterpriseSubscription(event: Stripe.Event) {
   const enterpriseMetadata = metadata
   const metadataJson: Record<string, unknown> = { ...enterpriseMetadata }
 
+  // Extract the monthly price from metadata
+  const monthlyPrice = enterpriseMetadata.monthlyPrice
+
+  if (!monthlyPrice || monthlyPrice <= 0) {
+    logger.error('[subscription.created] Invalid or missing monthlyPrice in enterprise metadata', {
+      subscriptionId: stripeSubscription.id,
+      monthlyPrice,
+    })
+    throw new Error('Enterprise subscription must include valid monthlyPrice in metadata')
+  }
+
   const subscriptionRow = {
     id: crypto.randomUUID(),
     plan: 'enterprise',
@@ -159,11 +172,36 @@ async function handleManualEnterpriseSubscription(event: Stripe.Event) {
     await db.insert(schema.subscription).values(subscriptionRow)
   }
 
+  // Update the organization's usage limit to match the monthly price
+  // The referenceId for enterprise plans is the organization ID
+  try {
+    await db
+      .update(schema.organization)
+      .set({
+        orgUsageLimit: monthlyPrice.toFixed(2),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.organization.id, referenceId))
+
+    logger.info('[subscription.created] Updated organization usage limit', {
+      organizationId: referenceId,
+      usageLimit: monthlyPrice,
+    })
+  } catch (error) {
+    logger.error('[subscription.created] Failed to update organization usage limit', {
+      organizationId: referenceId,
+      usageLimit: monthlyPrice,
+      error,
+    })
+    // Don't throw - the subscription was created successfully, just log the error
+  }
+
   logger.info('[subscription.created] Upserted subscription', {
     subscriptionId: subscriptionRow.id,
     referenceId: subscriptionRow.referenceId,
     plan: subscriptionRow.plan,
     status: subscriptionRow.status,
+    monthlyPrice,
   })
 }
 

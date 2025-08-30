@@ -197,6 +197,7 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
 
 /**
  * Handle base invoice finalized → create a separate overage-only invoice
+ * Note: Enterprise plans no longer have overages
  */
 export async function handleInvoiceFinalized(event: Stripe.Event) {
   try {
@@ -215,14 +216,22 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     if (records.length === 0) return
     const sub = records[0]
 
+    // Always reset usage at cycle end for all plans
+    await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
+
+    // Enterprise plans have no overages - skip overage invoice creation
+    if (sub.plan === 'enterprise') {
+      return
+    }
+
     const stripe = requireStripeClient()
     const periodEnd =
       invoice.lines?.data?.[0]?.period?.end || invoice.period_end || Math.floor(Date.now() / 1000)
     const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
 
-    // Compute overage
+    // Compute overage (only for team and pro plans)
     let totalOverage = 0
-    if (sub.plan === 'team' || sub.plan === 'enterprise') {
+    if (sub.plan === 'team') {
       const members = await db
         .select({ userId: member.userId })
         .from(member)
@@ -235,18 +244,15 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
       }
 
       const { getPlanPricing } = await import('@/lib/billing/core/billing')
-      const { basePrice } = getPlanPricing(sub.plan, sub)
+      const { basePrice } = getPlanPricing(sub.plan)
       const baseSubscriptionAmount = (sub.seats || 1) * basePrice
       totalOverage = Math.max(0, totalTeamUsage - baseSubscriptionAmount)
     } else {
       const usage = await getUserUsageData(sub.referenceId)
       const { getPlanPricing } = await import('@/lib/billing/core/billing')
-      const { basePrice } = getPlanPricing(sub.plan, sub)
+      const { basePrice } = getPlanPricing(sub.plan)
       totalOverage = Math.max(0, usage.currentUsage - basePrice)
     }
-
-    // Always reset usage at cycle end, regardless of whether overage > 0
-    await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
 
     if (totalOverage <= 0) return
 

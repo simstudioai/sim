@@ -131,34 +131,37 @@ export async function getOrganizationBillingData(
     const totalCurrentUsage = members.reduce((sum, member) => sum + member.currentUsage, 0)
 
     // Get per-seat pricing for the plan
-    const { basePrice: pricePerSeat } = getPlanPricing(subscription.plan, subscription)
+    const { basePrice: pricePerSeat } = getPlanPricing(subscription.plan)
 
     // Use Stripe subscription seats as source of truth
     // Ensure we always have at least 1 seat (protect against 0 or falsy values)
     const licensedSeats = Math.max(subscription.seats || 1, 1)
 
-    // Validate seat capacity - warn if members exceed licensed seats
-    if (members.length > licensedSeats) {
-      logger.warn('Organization has more members than licensed seats', {
-        organizationId,
-        licensedSeats,
-        actualMembers: members.length,
-        plan: subscription.plan,
-      })
+    // Calculate minimum billing amount
+    let minimumBillingAmount: number
+    let totalUsageLimit: number
+
+    if (subscription.plan === 'enterprise') {
+      // Enterprise has fixed pricing set through custom Stripe product
+      // Their usage limit is configured to match their monthly cost
+      const configuredLimit = organizationData.orgUsageLimit
+        ? Number.parseFloat(organizationData.orgUsageLimit)
+        : 0
+      minimumBillingAmount = configuredLimit // For enterprise, this equals their fixed monthly cost
+      totalUsageLimit = configuredLimit // Same as their monthly cost
+    } else {
+      // Team plan: Billing is based on licensed seats from Stripe
+      minimumBillingAmount = licensedSeats * pricePerSeat
+
+      // Total usage limit: never below the minimum based on licensed seats
+      const configuredLimit = organizationData.orgUsageLimit
+        ? Number.parseFloat(organizationData.orgUsageLimit)
+        : null
+      totalUsageLimit =
+        configuredLimit !== null
+          ? Math.max(configuredLimit, minimumBillingAmount)
+          : minimumBillingAmount
     }
-
-    // Billing is based on licensed seats from Stripe, not actual member count
-    // This ensures organizations pay for their seat capacity regardless of utilization
-    const minimumBillingAmount = licensedSeats * pricePerSeat
-
-    // Total usage limit: never below the minimum based on licensed seats
-    const configuredLimit = organizationData.orgUsageLimit
-      ? Number.parseFloat(organizationData.orgUsageLimit)
-      : null
-    const totalUsageLimit =
-      configuredLimit !== null
-        ? Math.max(configuredLimit, minimumBillingAmount)
-        : minimumBillingAmount
 
     const averageUsagePerMember = members.length > 0 ? totalCurrentUsage / members.length : 0
 
@@ -213,8 +216,24 @@ export async function updateOrganizationUsageLimit(
       return { success: false, error: 'No active subscription found' }
     }
 
-    // Calculate minimum based on seats
-    const { basePrice } = getPlanPricing(subscription.plan, subscription)
+    // Enterprise plans have fixed usage limits that cannot be changed
+    if (subscription.plan === 'enterprise') {
+      return {
+        success: false,
+        error: 'Enterprise plans have fixed usage limits that cannot be changed',
+      }
+    }
+
+    // Only team plans can update their usage limits
+    if (subscription.plan !== 'team') {
+      return {
+        success: false,
+        error: 'Only team organizations can update usage limits',
+      }
+    }
+
+    // Team plans have minimum based on seats
+    const { basePrice } = getPlanPricing(subscription.plan)
     const minimumLimit = Math.max(subscription.seats || 1, 1) * basePrice
 
     // Validate new limit is not below minimum
