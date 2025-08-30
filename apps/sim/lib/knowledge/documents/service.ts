@@ -17,8 +17,8 @@ import type { DocumentSortField, SortOrder } from './types'
 const logger = createLogger('DocumentService')
 
 const TIMEOUTS = {
-  OVERALL_PROCESSING: 600000,
-  EMBEDDINGS_API: 180000,
+  OVERALL_PROCESSING: env.KB_CONFIG_MAX_DURATION * 1000,
+  EMBEDDINGS_API: env.KB_CONFIG_MAX_TIMEOUT * 18,
 } as const
 
 /**
@@ -38,17 +38,17 @@ function withTimeout<T>(
 }
 
 const PROCESSING_CONFIG = {
-  maxConcurrentDocuments: 4,
-  batchSize: 10,
-  delayBetweenBatches: 200,
-  delayBetweenDocuments: 100,
+  maxConcurrentDocuments: Math.max(1, Math.floor(env.KB_CONFIG_CONCURRENCY_LIMIT / 5)) || 4,
+  batchSize: Math.max(1, Math.floor(env.KB_CONFIG_BATCH_SIZE / 2)) || 10,
+  delayBetweenBatches: env.KB_CONFIG_DELAY_BETWEEN_BATCHES * 2,
+  delayBetweenDocuments: env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS * 2,
 }
 
 const REDIS_PROCESSING_CONFIG = {
-  maxConcurrentDocuments: 12,
-  batchSize: 20,
-  delayBetweenBatches: 100,
-  delayBetweenDocuments: 50,
+  maxConcurrentDocuments: env.KB_CONFIG_CONCURRENCY_LIMIT,
+  batchSize: env.KB_CONFIG_BATCH_SIZE,
+  delayBetweenBatches: env.KB_CONFIG_DELAY_BETWEEN_BATCHES,
+  delayBetweenDocuments: env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS,
 }
 
 let documentQueue: DocumentProcessingQueue | null = null
@@ -59,8 +59,8 @@ export function getDocumentQueue(): DocumentProcessingQueue {
     const config = redisClient ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
     documentQueue = new DocumentProcessingQueue({
       maxConcurrent: config.maxConcurrentDocuments,
-      retryDelay: 2000,
-      maxRetries: 5,
+      retryDelay: env.KB_CONFIG_MIN_TIMEOUT,
+      maxRetries: env.KB_CONFIG_MAX_ATTEMPTS,
     })
   }
   return documentQueue
