@@ -31,9 +31,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       const statsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
       const currentUsage =
         statsRecords.length > 0
-          ? Number.parseFloat(
-              statsRecords[0].currentPeriodCost?.toString() || statsRecords[0].totalCost.toString()
-            )
+          ? Number.parseFloat(statsRecords[0].currentPeriodCost?.toString())
           : 0
 
       return {
