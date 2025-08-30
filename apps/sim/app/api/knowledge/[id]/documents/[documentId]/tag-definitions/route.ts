@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { SUPPORTED_FIELD_TYPES } from '@/lib/constants/knowledge'
+import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/consts'
 import {
   cleanupUnusedTagDefinitions,
   createOrUpdateTagDefinitionsBulk,

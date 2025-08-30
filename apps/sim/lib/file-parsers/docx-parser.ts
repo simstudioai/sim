@@ -14,15 +14,12 @@ interface MammothResult {
 export class DocxParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
     try {
-      // Validate input
       if (!filePath) {
         throw new Error('No file path provided')
       }
 
-      // Read the file
       const buffer = await readFile(filePath)
 
-      // Use parseBuffer for consistent implementation
       return this.parseBuffer(buffer)
     } catch (error) {
       logger.error('DOCX file error:', error)
@@ -34,10 +31,8 @@ export class DocxParser implements FileParser {
     try {
       logger.info('Parsing buffer, size:', buffer.length)
 
-      // Extract text with mammoth
       const result = await mammoth.extractRawText({ buffer })
 
-      // Extract HTML for metadata (optional - won't fail if this fails)
       let htmlResult: MammothResult = { value: '', messages: [] }
       try {
         htmlResult = await mammoth.convertToHtml({ buffer })
