@@ -20,7 +20,6 @@ import {
   KnowledgeTags,
   LogsFilters,
   SettingsModal,
-  SubscriptionModal,
   Toolbar,
   UsageIndicator,
   WorkspaceHeader,
@@ -32,7 +31,6 @@ import {
   getKeyboardShortcutText,
   useGlobalShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
-import { useSubscriptionStore } from '@/stores/subscription/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -673,7 +671,6 @@ export function Sidebar() {
   const [showHelp, setShowHelp] = useState(false)
   const [showInviteMembers, setShowInviteMembers] = useState(false)
   const [showSearchModal, setShowSearchModal] = useState(false)
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
 
   // Separate regular workflows from temporary marketplace workflows
   const { regularWorkflows, tempWorkflows } = useMemo(() => {
@@ -1007,15 +1004,11 @@ export function Sidebar() {
         >
           <UsageIndicator
             onClick={() => {
-              const isBlocked = useSubscriptionStore.getState().getBillingStatus() === 'blocked'
-              if (isBlocked) {
-                if (typeof window !== 'undefined') {
-                  window.dispatchEvent(
-                    new CustomEvent('open-settings', { detail: { tab: 'subscription' } })
-                  )
-                }
-              } else {
-                setShowSubscriptionModal(true)
+              // Always open Settings > Subscription tab
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent('open-settings', { detail: { tab: 'subscription' } })
+                )
               }
             }}
           />
@@ -1035,7 +1028,7 @@ export function Sidebar() {
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <HelpModal open={showHelp} onOpenChange={setShowHelp} />
       <InviteModal open={showInviteMembers} onOpenChange={setShowInviteMembers} />
-      <SubscriptionModal open={showSubscriptionModal} onOpenChange={setShowSubscriptionModal} />
+
       <SearchModal
         open={showSearchModal}
         onOpenChange={setShowSearchModal}
