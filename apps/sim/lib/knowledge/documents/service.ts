@@ -17,8 +17,8 @@ import type { DocumentSortField, SortOrder } from './types'
 const logger = createLogger('DocumentService')
 
 const TIMEOUTS = {
-  OVERALL_PROCESSING: env.KB_CONFIG_MAX_DURATION * 1000,
-  EMBEDDINGS_API: env.KB_CONFIG_MAX_TIMEOUT * 18,
+  OVERALL_PROCESSING: (env.KB_CONFIG_MAX_DURATION || 300) * 1000,
+  EMBEDDINGS_API: (env.KB_CONFIG_MAX_TIMEOUT || 10000) * 18,
 } as const
 
 /**
@@ -38,17 +38,17 @@ function withTimeout<T>(
 }
 
 const PROCESSING_CONFIG = {
-  maxConcurrentDocuments: Math.max(1, Math.floor(env.KB_CONFIG_CONCURRENCY_LIMIT / 5)) || 4,
-  batchSize: Math.max(1, Math.floor(env.KB_CONFIG_BATCH_SIZE / 2)) || 10,
-  delayBetweenBatches: env.KB_CONFIG_DELAY_BETWEEN_BATCHES * 2,
-  delayBetweenDocuments: env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS * 2,
+  maxConcurrentDocuments: Math.max(1, Math.floor((env.KB_CONFIG_CONCURRENCY_LIMIT || 20) / 5)) || 4,
+  batchSize: Math.max(1, Math.floor((env.KB_CONFIG_BATCH_SIZE || 20) / 2)) || 10,
+  delayBetweenBatches: (env.KB_CONFIG_DELAY_BETWEEN_BATCHES || 100) * 2,
+  delayBetweenDocuments: (env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS || 50) * 2,
 }
 
 const REDIS_PROCESSING_CONFIG = {
-  maxConcurrentDocuments: env.KB_CONFIG_CONCURRENCY_LIMIT,
-  batchSize: env.KB_CONFIG_BATCH_SIZE,
-  delayBetweenBatches: env.KB_CONFIG_DELAY_BETWEEN_BATCHES,
-  delayBetweenDocuments: env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS,
+  maxConcurrentDocuments: env.KB_CONFIG_CONCURRENCY_LIMIT || 20,
+  batchSize: env.KB_CONFIG_BATCH_SIZE || 20,
+  delayBetweenBatches: env.KB_CONFIG_DELAY_BETWEEN_BATCHES || 100,
+  delayBetweenDocuments: env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS || 50,
 }
 
 let documentQueue: DocumentProcessingQueue | null = null
@@ -59,8 +59,8 @@ export function getDocumentQueue(): DocumentProcessingQueue {
     const config = redisClient ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
     documentQueue = new DocumentProcessingQueue({
       maxConcurrent: config.maxConcurrentDocuments,
-      retryDelay: env.KB_CONFIG_MIN_TIMEOUT,
-      maxRetries: env.KB_CONFIG_MAX_ATTEMPTS,
+      retryDelay: env.KB_CONFIG_MIN_TIMEOUT || 1000,
+      maxRetries: env.KB_CONFIG_MAX_ATTEMPTS || 3,
     })
   }
   return documentQueue

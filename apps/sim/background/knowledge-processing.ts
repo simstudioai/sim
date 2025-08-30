@@ -26,15 +26,15 @@ export type DocumentProcessingPayload = {
 
 export const processDocument = task({
   id: 'knowledge-process-document',
-  maxDuration: env.KB_CONFIG_MAX_DURATION,
+  maxDuration: env.KB_CONFIG_MAX_DURATION || 300,
   retry: {
-    maxAttempts: env.KB_CONFIG_MAX_ATTEMPTS,
-    factor: env.KB_CONFIG_RETRY_FACTOR,
-    minTimeoutInMs: env.KB_CONFIG_MIN_TIMEOUT,
-    maxTimeoutInMs: env.KB_CONFIG_MAX_TIMEOUT,
+    maxAttempts: env.KB_CONFIG_MAX_ATTEMPTS || 3,
+    factor: env.KB_CONFIG_RETRY_FACTOR || 2,
+    minTimeoutInMs: env.KB_CONFIG_MIN_TIMEOUT || 1000,
+    maxTimeoutInMs: env.KB_CONFIG_MAX_TIMEOUT || 10000,
   },
   queue: {
-    concurrencyLimit: env.KB_CONFIG_CONCURRENCY_LIMIT,
+    concurrencyLimit: env.KB_CONFIG_CONCURRENCY_LIMIT || 20,
     name: 'document-processing-queue',
   },
   run: async (payload: DocumentProcessingPayload) => {
