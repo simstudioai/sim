@@ -23,10 +23,6 @@ export {
   updateUserUsageLimit as updateUsageLimit,
 } from '@/lib/billing/core/usage'
 export * from '@/lib/billing/subscriptions/utils'
-export {
-  canEditUsageLimit as canEditLimit,
-  getMinimumUsageLimit as getMinimumLimit,
-  getSubscriptionAllowance as getDefaultLimit,
-} from '@/lib/billing/subscriptions/utils'
+export { canEditUsageLimit as canEditLimit } from '@/lib/billing/subscriptions/utils'
 export * from '@/lib/billing/types'
 export * from '@/lib/billing/validation/seat-management'

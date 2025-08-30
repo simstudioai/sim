@@ -2,12 +2,10 @@ import { and, eq } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import {
-  getEnterpriseTierLimitPerSeat,
   getFreeTierLimit,
   getProTierLimit,
   getTeamTierLimitPerSeat,
 } from '@/lib/billing/subscriptions/utils'
-import type { EnterpriseSubscriptionMetadata } from '@/lib/billing/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { member, subscription, user } from '@/db/schema'
@@ -43,11 +41,8 @@ export async function getOrganizationSubscription(organizationId: string) {
 /**
  * Get plan pricing information
  */
-export function getPlanPricing(
-  plan: string,
-  subscription?: any
-): {
-  basePrice: number // What they pay upfront via Stripe subscription (per seat for team/enterprise)
+export function getPlanPricing(plan: string): {
+  basePrice: number // What they pay upfront via Stripe subscription
 } {
   switch (plan) {
     case 'free':
@@ -55,25 +50,7 @@ export function getPlanPricing(
     case 'pro':
       return { basePrice: getProTierLimit() }
     case 'team':
-      return { basePrice: getTeamTierLimitPerSeat() }
-    case 'enterprise':
-      // Enterprise uses per-seat pricing like Team plans
-      // Custom per-seat price can be set in metadata
-      if (subscription?.metadata) {
-        const metadata: EnterpriseSubscriptionMetadata =
-          typeof subscription.metadata === 'string'
-            ? JSON.parse(subscription.metadata)
-            : subscription.metadata
-
-        const perSeatPrice = metadata.perSeatPrice
-          ? Number.parseFloat(String(metadata.perSeatPrice))
-          : undefined
-        if (perSeatPrice && perSeatPrice > 0 && !Number.isNaN(perSeatPrice)) {
-          return { basePrice: perSeatPrice }
-        }
-      }
-      // Default enterprise per-seat pricing
-      return { basePrice: getEnterpriseTierLimitPerSeat() }
+      return { basePrice: getTeamTierLimitPerSeat() } // Per-seat pricing
     default:
       return { basePrice: 0 }
   }
@@ -103,7 +80,7 @@ export async function calculateUserOverage(userId: string): Promise<{
     }
 
     const plan = subscription?.plan || 'free'
-    const { basePrice } = getPlanPricing(plan, subscription)
+    const { basePrice } = getPlanPricing(plan)
     const actualUsage = usageData.currentUsage
 
     // Calculate overage: any usage beyond what they already paid for
@@ -197,7 +174,7 @@ export async function getSimplifiedBillingSummary(
         .from(member)
         .where(eq(member.organizationId, organizationId))
 
-      const { basePrice: basePricePerSeat } = getPlanPricing(subscription.plan, subscription)
+      const { basePrice: basePricePerSeat } = getPlanPricing(subscription.plan)
       // Use licensed seats from Stripe as source of truth
       const licensedSeats = subscription.seats || 1
       const totalBasePrice = basePricePerSeat * licensedSeats // Based on Stripe subscription
@@ -270,7 +247,7 @@ export async function getSimplifiedBillingSummary(
     }
 
     // Individual billing summary
-    const { basePrice } = getPlanPricing(plan, subscription)
+    const { basePrice } = getPlanPricing(plan)
 
     // For team and enterprise plans, calculate total team usage instead of individual usage
     let currentUsage = usageData.currentUsage

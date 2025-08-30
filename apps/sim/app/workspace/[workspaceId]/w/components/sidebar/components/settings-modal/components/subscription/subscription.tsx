@@ -387,9 +387,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
             }}
             rightContent={
               !subscription.isFree &&
-              (permissions.canEditUsageLimit ||
-                permissions.showTeamMemberView ||
-                subscription.isEnterprise) ? (
+              (permissions.canEditUsageLimit || permissions.showTeamMemberView) ? (
                 <UsageLimit
                   ref={usageLimitRef}
                   currentLimit={
@@ -398,7 +396,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                       : usageLimitData?.currentLimit || usage.limit
                   }
                   currentUsage={usage.current}
-                  canEdit={permissions.canEditUsageLimit && !subscription.isEnterprise}
+                  canEdit={permissions.canEditUsageLimit}
                   minimumLimit={
                     subscription.isTeam && isTeamAdmin
                       ? organizationBillingData?.minimumBillingAmount ||

@@ -71,7 +71,7 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
         .limit(1)
 
       const { getPlanPricing } = await import('@/lib/billing/core/billing')
-      const { basePrice } = getPlanPricing(subscription.plan, subscription)
+      const { basePrice } = getPlanPricing(subscription.plan)
       const minimum = (subscription.seats || 1) * basePrice
 
       if (orgData.length > 0 && orgData[0].orgUsageLimit) {
@@ -144,7 +144,7 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
         .limit(1)
 
       const { getPlanPricing } = await import('@/lib/billing/core/billing')
-      const { basePrice } = getPlanPricing(subscription.plan, subscription)
+      const { basePrice } = getPlanPricing(subscription.plan)
       const minimum = (subscription.seats || 1) * basePrice
 
       if (orgData.length > 0 && orgData[0].orgUsageLimit) {
@@ -335,14 +335,14 @@ export async function getUserUsageLimit(userId: string): Promise<number> {
   if (orgData[0].orgUsageLimit) {
     const configured = Number.parseFloat(orgData[0].orgUsageLimit)
     const { getPlanPricing } = await import('@/lib/billing/core/billing')
-    const { basePrice } = getPlanPricing(subscription.plan, subscription)
+    const { basePrice } = getPlanPricing(subscription.plan)
     const minimum = (subscription.seats || 1) * basePrice
     return Math.max(configured, minimum)
   }
 
   // If org hasn't set a custom limit, use minimum (seats × cost per seat)
   const { getPlanPricing } = await import('@/lib/billing/core/billing')
-  const { basePrice } = getPlanPricing(subscription.plan, subscription)
+  const { basePrice } = getPlanPricing(subscription.plan)
   return (subscription.seats || 1) * basePrice
 }
 
