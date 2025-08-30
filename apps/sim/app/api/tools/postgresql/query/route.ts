@@ -12,7 +12,7 @@ const QuerySchema = z.object({
   database: z.string().min(1, 'Database name is required'),
   username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required'),
-  ssl: z.enum(['disabled', 'required', 'preferred']).default('required'),
+  ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
   query: z.string().min(1, 'Query is required'),
 })
 

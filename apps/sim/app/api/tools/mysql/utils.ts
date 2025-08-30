@@ -6,7 +6,7 @@ export interface MySQLConnectionConfig {
   database: string
   username: string
   password: string
-  ssl?: string
+  ssl?: 'disabled' | 'required' | 'preferred'
 }
 
 export async function createMySQLConnection(config: MySQLConnectionConfig) {
@@ -18,7 +18,9 @@ export async function createMySQLConnection(config: MySQLConnectionConfig) {
     password: config.password,
   }
 
-  if (config.ssl === 'required') {
+  if (config.ssl === 'disabled') {
+    // Don't set ssl property at all to disable SSL
+  } else if (config.ssl === 'required') {
     connectionConfig.ssl = { rejectUnauthorized: true }
   } else if (config.ssl === 'preferred') {
     connectionConfig.ssl = { rejectUnauthorized: false }
