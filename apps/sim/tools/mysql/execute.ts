@@ -64,7 +64,7 @@ export const executeTool: ToolConfig<MySQLExecuteParams, MySQLResponse> = {
       database: params.database,
       username: params.username,
       password: params.password,
-      ssl: params.ssl || 'preferred',
+      ssl: params.ssl || 'required',
       query: params.query,
     }),
   },

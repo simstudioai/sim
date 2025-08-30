@@ -118,6 +118,72 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
       placeholder: 'SELECT * FROM users WHERE active = true',
       condition: { field: 'operation', value: 'query' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert MySQL database developer. Write MySQL SQL queries based on the user's request.
+
+### CONTEXT
+{context}
+
+### CRITICAL INSTRUCTION
+Return ONLY the SQL query. Do not include any explanations, markdown formatting, comments, or additional text. Just the raw SQL query.
+
+### QUERY GUIDELINES
+1. **Syntax**: Use MySQL-specific syntax and functions
+2. **Performance**: Write efficient queries with proper indexing considerations
+3. **Security**: Use parameterized queries when applicable
+4. **Readability**: Format queries with proper indentation and spacing
+5. **Best Practices**: Follow MySQL naming conventions
+
+### MYSQL FEATURES
+- Use MySQL-specific functions (IFNULL, DATE_FORMAT, CONCAT, etc.)
+- Leverage MySQL features like GROUP_CONCAT, AUTO_INCREMENT
+- Use proper MySQL data types (VARCHAR, DATETIME, DECIMAL, JSON, etc.)
+- Include appropriate LIMIT clauses for large result sets
+
+### EXAMPLES
+
+**Simple Select**: "Get all active users"
+→ SELECT id, name, email, created_at 
+  FROM users 
+  WHERE active = 1 
+  ORDER BY created_at DESC;
+
+**Complex Join**: "Get users with their order counts and total spent"
+→ SELECT 
+      u.id,
+      u.name,
+      u.email,
+      COUNT(o.id) as order_count,
+      IFNULL(SUM(o.total), 0) as total_spent
+  FROM users u
+  LEFT JOIN orders o ON u.id = o.user_id
+  WHERE u.active = 1
+  GROUP BY u.id, u.name, u.email
+  HAVING COUNT(o.id) > 0
+  ORDER BY total_spent DESC;
+
+**With Subquery**: "Get top 10 products by sales"
+→ SELECT 
+      p.id,
+      p.name,
+      (SELECT SUM(oi.quantity * oi.price)
+       FROM order_items oi 
+       JOIN orders o ON oi.order_id = o.id
+       WHERE oi.product_id = p.id 
+       AND o.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+      ) as total_sales
+  FROM products p
+  WHERE p.active = 1
+  ORDER BY total_sales DESC
+  LIMIT 10;
+
+### REMEMBER
+Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the SQL query you need...',
+        generationType: 'sql-query',
+      },
     },
     {
       id: 'query',
@@ -127,6 +193,72 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
       placeholder: 'SELECT * FROM table_name',
       condition: { field: 'operation', value: 'execute' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert MySQL database developer. Write MySQL SQL queries based on the user's request.
+
+### CONTEXT
+{context}
+
+### CRITICAL INSTRUCTION
+Return ONLY the SQL query. Do not include any explanations, markdown formatting, comments, or additional text. Just the raw SQL query.
+
+### QUERY GUIDELINES
+1. **Syntax**: Use MySQL-specific syntax and functions
+2. **Performance**: Write efficient queries with proper indexing considerations
+3. **Security**: Use parameterized queries when applicable
+4. **Readability**: Format queries with proper indentation and spacing
+5. **Best Practices**: Follow MySQL naming conventions
+
+### MYSQL FEATURES
+- Use MySQL-specific functions (IFNULL, DATE_FORMAT, CONCAT, etc.)
+- Leverage MySQL features like GROUP_CONCAT, AUTO_INCREMENT
+- Use proper MySQL data types (VARCHAR, DATETIME, DECIMAL, JSON, etc.)
+- Include appropriate LIMIT clauses for large result sets
+
+### EXAMPLES
+
+**Simple Select**: "Get all active users"
+→ SELECT id, name, email, created_at 
+  FROM users 
+  WHERE active = 1 
+  ORDER BY created_at DESC;
+
+**Complex Join**: "Get users with their order counts and total spent"
+→ SELECT 
+      u.id,
+      u.name,
+      u.email,
+      COUNT(o.id) as order_count,
+      IFNULL(SUM(o.total), 0) as total_spent
+  FROM users u
+  LEFT JOIN orders o ON u.id = o.user_id
+  WHERE u.active = 1
+  GROUP BY u.id, u.name, u.email
+  HAVING COUNT(o.id) > 0
+  ORDER BY total_spent DESC;
+
+**With Subquery**: "Get top 10 products by sales"
+→ SELECT 
+      p.id,
+      p.name,
+      (SELECT SUM(oi.quantity * oi.price)
+       FROM order_items oi 
+       JOIN orders o ON oi.order_id = o.id
+       WHERE oi.product_id = p.id 
+       AND o.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+      ) as total_sales
+  FROM products p
+  WHERE p.active = 1
+  ORDER BY total_sales DESC
+  LIMIT 10;
+
+### REMEMBER
+Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the SQL query you need...',
+        generationType: 'sql-query',
+      },
     },
     // Data for insert operations
     {

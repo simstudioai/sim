@@ -70,7 +70,7 @@ export const deleteTool: ToolConfig<MySQLDeleteParams, MySQLResponse> = {
       database: params.database,
       username: params.username,
       password: params.password,
-      ssl: params.ssl || 'preferred',
+      ssl: params.ssl || 'required',
       table: params.table,
       where: params.where,
     }),

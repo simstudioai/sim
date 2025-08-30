@@ -17,6 +17,8 @@ export type GenerationType =
   | 'json-object'
   | 'system-prompt'
   | 'custom-tool-schema'
+  | 'sql-query'
+  | 'postgrest'
 
 // SubBlock types
 export type SubBlockType =

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -36,7 +37,7 @@ const UpdateSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = randomUUID().slice(0, 8)
 
   try {
     const body = await request.json()

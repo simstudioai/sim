@@ -385,7 +385,7 @@ export function Code({
 
       <div
         className={cn(
-          'group relative min-h-[100px] rounded-md border-2 border-border bg-background font-mono text-sm transition-colors',
+          'group relative min-h-[100px] rounded-md border border-input bg-background font-mono text-sm transition-colors',
           isConnecting && 'ring-2 ring-blue-500 ring-offset-2',
           !isValidJson && 'border-destructive bg-destructive/10'
         )}
@@ -394,7 +394,7 @@ export function Code({
         onDrop={handleDrop}
       >
         <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
-          {!isCollapsed && !isAiStreaming && !isPreview && (
+          {wandConfig?.enabled && !isCollapsed && !isAiStreaming && !isPreview && (
             <Button
               variant='ghost'
               size='icon'
