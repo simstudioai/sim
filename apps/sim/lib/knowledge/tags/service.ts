@@ -4,7 +4,7 @@ import {
   getSlotsForFieldType,
   SUPPORTED_FIELD_TYPES,
   type TAG_SLOT_CONFIG,
-} from '@/lib/constants/knowledge'
+} from '@/lib/knowledge/consts'
 import type { BulkTagDefinitionsData, DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type {
   CreateTagDefinitionData,

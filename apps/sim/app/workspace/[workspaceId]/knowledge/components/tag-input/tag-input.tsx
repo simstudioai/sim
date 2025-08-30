@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { TAG_SLOTS, type TagSlot } from '@/lib/constants/knowledge'
+import { TAG_SLOTS, type TagSlot } from '@/lib/knowledge/consts'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 
 export type TagData = {

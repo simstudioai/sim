@@ -10,7 +10,7 @@ import { createAuthClient } from 'better-auth/react'
 import type { auth } from '@/lib/auth'
 import { env, getEnv } from '@/lib/env'
 import { isProd } from '@/lib/environment'
-import { SessionContext, type SessionHookResult } from '@/lib/session-context'
+import { SessionContext, type SessionHookResult } from '@/lib/session/session-context'
 
 export function getBaseURL() {
   let baseURL
