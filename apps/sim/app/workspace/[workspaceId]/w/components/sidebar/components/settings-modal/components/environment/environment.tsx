@@ -351,7 +351,11 @@ export function EnvironmentVariables({
     const isConflict = !!envVar.key && Object.hasOwn(workspaceVars, envVar.key)
     return (
       <>
+<<<<<<< HEAD
         <div className={`${GRID_COLS} items-center`}>
+=======
+        <div key={envVar.id || originalIndex} className={`${GRID_COLS} items-center`}>
+>>>>>>> 3400df56e (feat(env-vars): workspace scoped environment variables)
           <Input
             data-input-type='key'
             value={envVar.key}
