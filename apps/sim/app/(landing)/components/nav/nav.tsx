@@ -11,6 +11,11 @@ function formatStarCount(num: number): string {
 }
 
 async function fetchGitHubStars(): Promise<string> {
+  // Only fetch on server-side to avoid CSP issues
+  if (typeof window !== 'undefined') {
+    return formatStarCount(13000)
+  }
+
   try {
     const token = env.GITHUB_TOKEN
     const response = await fetch('https://api.github.com/repos/simstudioai/sim', {
@@ -21,15 +26,18 @@ async function fetchGitHubStars(): Promise<string> {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       next: { revalidate: 3600 },
+      cache: 'force-cache',
     })
 
     if (!response.ok) {
+      console.warn('GitHub API request failed:', response.status)
       return formatStarCount(13000)
     }
 
     const data = await response.json()
     return formatStarCount(Number(data?.stargazers_count ?? 13000))
-  } catch {
+  } catch (error) {
+    console.warn('Error fetching GitHub stars:', error)
     return formatStarCount(13000)
   }
 }
@@ -39,7 +47,7 @@ export default async function Nav() {
   return (
     <nav
       aria-label='Primary'
-      className={`${soehne.className} flex w-full items-center justify-between px-[70px] pt-[22px] pb-[34px]`}
+      className={`${soehne.className} flex w-full items-center justify-between px-[70px] pt-[20px] pb-[34px]`}
     >
       <div className='flex items-center gap-[50px]'>
         <Link href='/' aria-label='Sim home'>

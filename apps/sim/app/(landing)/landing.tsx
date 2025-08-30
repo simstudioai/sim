@@ -1,10 +1,15 @@
+import Background from '@/app/(landing)/components/hero/components/background'
 import Hero from '@/app/(landing)/components/hero/hero'
+import Nav from '@/app/(landing)/components/nav/nav'
 
 export default function Landing() {
   return (
     <main className='relative'>
       {/* Hero Section */}
-      <Hero />
+      <Background>
+        <Nav />
+        <Hero />
+      </Background>
 
       {/* Templates Section */}
       {/* TODO: Add Templates component */}
