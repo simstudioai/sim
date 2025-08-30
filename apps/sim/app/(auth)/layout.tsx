@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useBrandConfig } from '@/lib/branding/branding'
-import { GridPattern } from '@/app/(landing)/components/grid-pattern'
+import { GridPattern } from '@/app/(landing-2)/components/grid-pattern'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const brand = useBrandConfig()
