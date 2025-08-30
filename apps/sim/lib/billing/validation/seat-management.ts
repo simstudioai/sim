@@ -66,7 +66,8 @@ export async function validateSeatAvailability(
     const currentSeats = memberCount[0]?.count || 0
 
     // Determine seat limits based on subscription
-    // For all plans (team and enterprise), use the seats from Stripe subscription
+    // Team: seats from Stripe subscription quantity
+    // Enterprise: seats from metadata (stored in subscription.seats)
     const maxSeats = subscription.seats || 1
 
     const availableSeats = Math.max(0, maxSeats - currentSeats)
