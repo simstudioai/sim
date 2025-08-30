@@ -1,4 +1,5 @@
 import { task } from '@trigger.dev/sdk'
+import { env } from '@/lib/env'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -25,15 +26,15 @@ export type DocumentProcessingPayload = {
 
 export const processDocument = task({
   id: 'knowledge-process-document',
-  maxDuration: 300,
+  maxDuration: env.KB_CONFIG_MAX_DURATION,
   retry: {
-    maxAttempts: 3,
-    factor: 2,
-    minTimeoutInMs: 1000,
-    maxTimeoutInMs: 10000,
+    maxAttempts: env.KB_CONFIG_MAX_ATTEMPTS,
+    factor: env.KB_CONFIG_RETRY_FACTOR,
+    minTimeoutInMs: env.KB_CONFIG_MIN_TIMEOUT,
+    maxTimeoutInMs: env.KB_CONFIG_MAX_TIMEOUT,
   },
   queue: {
-    concurrencyLimit: 20,
+    concurrencyLimit: env.KB_CONFIG_CONCURRENCY_LIMIT,
     name: 'document-processing-queue',
   },
   run: async (payload: DocumentProcessingPayload) => {
