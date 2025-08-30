@@ -139,6 +139,17 @@ export const env = createEnv({
     RATE_LIMIT_ENTERPRISE_SYNC:            z.string().optional().default('150'),   // Enterprise tier sync API executions per minute
     RATE_LIMIT_ENTERPRISE_ASYNC:           z.string().optional().default('1000'),  // Enterprise tier async API executions per minute
 
+    // Knowledge Base Processing Configuration - Shared across all processing methods
+    KB_CONFIG_MAX_DURATION:                z.number().optional().default(300),     // Max processing duration in s
+    KB_CONFIG_MAX_ATTEMPTS:                z.number().optional().default(3),       // Max retry attempts
+    KB_CONFIG_RETRY_FACTOR:                z.number().optional().default(2),       // Retry backoff factor
+    KB_CONFIG_MIN_TIMEOUT:                 z.number().optional().default(1000),    // Min timeout in ms
+    KB_CONFIG_MAX_TIMEOUT:                 z.number().optional().default(10000),   // Max timeout in ms
+    KB_CONFIG_CONCURRENCY_LIMIT:           z.number().optional().default(20),      // Queue concurrency limit
+    KB_CONFIG_BATCH_SIZE:                  z.number().optional().default(20),      // Processing batch size
+    KB_CONFIG_DELAY_BETWEEN_BATCHES:       z.number().optional().default(100),     // Delay between batches in ms
+    KB_CONFIG_DELAY_BETWEEN_DOCUMENTS:     z.number().optional().default(50),      // Delay between documents in ms
+
     // Real-time Communication
     SOCKET_SERVER_URL:                     z.string().url().optional(),            // WebSocket server URL for real-time features
     SOCKET_PORT:                           z.number().optional(),                  // Port for WebSocket server

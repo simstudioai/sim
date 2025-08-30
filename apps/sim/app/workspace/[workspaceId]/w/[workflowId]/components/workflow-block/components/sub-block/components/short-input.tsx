@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Wand2 } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
+import { Button } from '@/components/ui/button'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
+import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useTagSelection } from '@/hooks/use-tag-selection'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
@@ -40,19 +44,39 @@ export function ShortInput({
   previewValue,
   disabled = false,
 }: ShortInputProps) {
+  // Local state for immediate UI updates during streaming
+  const [localContent, setLocalContent] = useState<string>('')
   const [isFocused, setIsFocused] = useState(false)
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
-  const validatePropValue = (value: any): string => {
-    if (value === undefined || value === null) return ''
-    if (typeof value === 'string') return value
-    try {
-      return String(value)
-    } catch {
-      return ''
-    }
-  }
-  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+
+  // Wand functionality (only if wandConfig is enabled)
+  const wandHook = config.wandConfig?.enabled
+    ? useWand({
+        wandConfig: config.wandConfig,
+        currentValue: localContent,
+        onStreamStart: () => {
+          // Clear the content when streaming starts
+          setLocalContent('')
+        },
+        onStreamChunk: (chunk) => {
+          // Update local content with each chunk as it arrives
+          setLocalContent((current) => current + chunk)
+        },
+        onGeneratedContent: (content) => {
+          // Final content update
+          setLocalContent(content)
+        },
+      })
+    : null
+  // State management - useSubBlockValue with explicit streaming control
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
+    isStreaming: wandHook?.isStreaming || false,
+    onStreamingEnd: () => {
+      logger.debug('Wand streaming ended, value persisted', { blockId, subBlockId })
+    },
+  })
+
   const [searchTerm, setSearchTerm] = useState('')
   const [cursorPosition, setCursorPosition] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -65,7 +89,29 @@ export function ShortInput({
   const reactFlowInstance = useReactFlow()
 
   // Use preview value when in preview mode, otherwise use store value or prop value
-  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
+  const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
+
+  // During streaming, use local content; otherwise use base value
+  const value = wandHook?.isStreaming ? localContent : baseValue
+
+  // Sync local content with base value when not streaming
+  useEffect(() => {
+    if (!wandHook?.isStreaming) {
+      const baseValueString = baseValue?.toString() ?? ''
+      if (baseValueString !== localContent) {
+        setLocalContent(baseValueString)
+      }
+    }
+  }, [baseValue, wandHook?.isStreaming])
+
+  // Update store value during streaming (but won't persist until streaming ends)
+  useEffect(() => {
+    if (wandHook?.isStreaming && localContent !== '') {
+      if (!isPreview && !disabled) {
+        setStoreValue(localContent)
+      }
+    }
+  }, [localContent, wandHook?.isStreaming, isPreview, disabled, setStoreValue])
 
   // Check if this input is API key related
   const isApiKeyField = useMemo(() => {
@@ -297,91 +343,130 @@ export function ShortInput({
   }
 
   return (
-    <div className='relative w-full'>
-      <Input
-        ref={inputRef}
-        className={cn(
-          'allow-scroll w-full overflow-auto text-transparent caret-foreground placeholder:text-muted-foreground/50',
-          isConnecting &&
-            config?.connectionDroppable !== false &&
-            'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
-        )}
-        placeholder={placeholder ?? ''}
-        type='text'
-        value={displayValue}
-        onChange={handleChange}
-        onFocus={() => {
-          setIsFocused(true)
+    <>
+      <WandPromptBar
+        isVisible={wandHook?.isPromptVisible || false}
+        isLoading={wandHook?.isLoading || false}
+        isStreaming={wandHook?.isStreaming || false}
+        promptValue={wandHook?.promptInputValue || ''}
+        onSubmit={(prompt: string) => wandHook?.generateStream({ prompt }) || undefined}
+        onCancel={
+          wandHook?.isStreaming
+            ? wandHook?.cancelGeneration
+            : wandHook?.hidePromptInline || (() => {})
+        }
+        onChange={(value: string) => wandHook?.updatePromptValue?.(value)}
+        placeholder={config.wandConfig?.placeholder || 'Describe what you want to generate...'}
+      />
 
-          // If this is an API key field, automatically show env vars dropdown
-          if (isApiKeyField) {
-            setShowEnvVars(true)
-            setSearchTerm('')
+      <div className='group relative w-full'>
+        <Input
+          ref={inputRef}
+          className={cn(
+            'allow-scroll w-full overflow-auto text-transparent caret-foreground placeholder:text-muted-foreground/50',
+            isConnecting &&
+              config?.connectionDroppable !== false &&
+              'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
+          )}
+          placeholder={placeholder ?? ''}
+          type='text'
+          value={displayValue}
+          onChange={handleChange}
+          onFocus={() => {
+            setIsFocused(true)
 
-            // Set cursor position to the end of the input
-            const inputLength = value?.toString().length ?? 0
-            setCursorPosition(inputLength)
-          } else {
+            // If this is an API key field, automatically show env vars dropdown
+            if (isApiKeyField) {
+              setShowEnvVars(true)
+              setSearchTerm('')
+
+              // Set cursor position to the end of the input
+              const inputLength = value?.toString().length ?? 0
+              setCursorPosition(inputLength)
+            } else {
+              setShowEnvVars(false)
+              setShowTags(false)
+              setSearchTerm('')
+            }
+          }}
+          onBlur={() => {
+            setIsFocused(false)
             setShowEnvVars(false)
-            setShowTags(false)
-            setSearchTerm('')
-          }
-        }}
-        onBlur={() => {
-          setIsFocused(false)
-          setShowEnvVars(false)
-          try {
-            useOperationQueueStore.getState().flushDebouncedForBlock(blockId)
-          } catch {}
-        }}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onScroll={handleScroll}
-        onPaste={handlePaste}
-        onWheel={handleWheel}
-        onKeyDown={handleKeyDown}
-        autoComplete='off'
-        style={{ overflowX: 'auto' }}
-        disabled={disabled}
-      />
-      <div
-        ref={overlayRef}
-        className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-3 text-sm'
-        style={{ overflowX: 'auto' }}
-      >
+            try {
+              useOperationQueueStore.getState().flushDebouncedForBlock(blockId)
+            } catch {}
+          }}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onScroll={handleScroll}
+          onPaste={handlePaste}
+          onWheel={handleWheel}
+          onKeyDown={handleKeyDown}
+          autoComplete='off'
+          style={{ overflowX: 'auto' }}
+          disabled={disabled}
+        />
         <div
-          className='w-full whitespace-pre'
-          style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+          ref={overlayRef}
+          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-3 text-sm'
+          style={{ overflowX: 'auto' }}
         >
-          {password && !isFocused
-            ? '•'.repeat(value?.toString().length ?? 0)
-            : formatDisplayText(value?.toString() ?? '', true)}
+          <div
+            className='w-full whitespace-pre'
+            style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+          >
+            {password && !isFocused
+              ? '•'.repeat(value?.toString().length ?? 0)
+              : formatDisplayText(value?.toString() ?? '', true)}
+          </div>
         </div>
-      </div>
 
-      <EnvVarDropdown
-        visible={showEnvVars}
-        onSelect={handleEnvVarSelect}
-        searchTerm={searchTerm}
-        inputValue={value?.toString() ?? ''}
-        cursorPosition={cursorPosition}
-        onClose={() => {
-          setShowEnvVars(false)
-          setSearchTerm('')
-        }}
-      />
-      <TagDropdown
-        visible={showTags}
-        onSelect={handleEnvVarSelect}
-        blockId={blockId}
-        activeSourceBlockId={activeSourceBlockId}
-        inputValue={value?.toString() ?? ''}
-        cursorPosition={cursorPosition}
-        onClose={() => {
-          setShowTags(false)
-          setActiveSourceBlockId(null)
-        }}
-      />
-    </div>
+        {/* Wand Button */}
+        {wandHook && !isPreview && !wandHook.isStreaming && (
+          <div className='-translate-y-1/2 absolute top-1/2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={
+                wandHook.isPromptVisible ? wandHook.hidePromptInline : wandHook.showPromptInline
+              }
+              disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
+              aria-label='Generate content with AI'
+              className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow'
+            >
+              <Wand2 className='h-4 w-4' />
+            </Button>
+          </div>
+        )}
+
+        {!wandHook?.isStreaming && (
+          <>
+            <EnvVarDropdown
+              visible={showEnvVars}
+              onSelect={handleEnvVarSelect}
+              searchTerm={searchTerm}
+              inputValue={value?.toString() ?? ''}
+              cursorPosition={cursorPosition}
+              onClose={() => {
+                setShowEnvVars(false)
+                setSearchTerm('')
+              }}
+            />
+            <TagDropdown
+              visible={showTags}
+              onSelect={handleEnvVarSelect}
+              blockId={blockId}
+              activeSourceBlockId={activeSourceBlockId}
+              inputValue={value?.toString() ?? ''}
+              cursorPosition={cursorPosition}
+              onClose={() => {
+                setShowTags(false)
+                setActiveSourceBlockId(null)
+              }}
+            />
+          </>
+        )}
+      </div>
+    </>
   )
 }

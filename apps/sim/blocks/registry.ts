@@ -40,12 +40,15 @@ import { MicrosoftExcelBlock } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftPlannerBlock } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
 import { MistralParseBlock } from '@/blocks/blocks/mistral_parse'
+import { MySQLBlock } from '@/blocks/blocks/mysql'
 import { NotionBlock } from '@/blocks/blocks/notion'
 import { OneDriveBlock } from '@/blocks/blocks/onedrive'
 import { OpenAIBlock } from '@/blocks/blocks/openai'
 import { OutlookBlock } from '@/blocks/blocks/outlook'
+import { ParallelBlock } from '@/blocks/blocks/parallel'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
+import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { ResponseBlock } from '@/blocks/blocks/response'
@@ -113,12 +116,15 @@ export const registry: Record<string, BlockConfig> = {
   microsoft_planner: MicrosoftPlannerBlock,
   microsoft_teams: MicrosoftTeamsBlock,
   mistral_parse: MistralParseBlock,
+  mysql: MySQLBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
   outlook: OutlookBlock,
   onedrive: OneDriveBlock,
+  parallel_ai: ParallelBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
+  postgresql: PostgreSQLBlock,
   qdrant: QdrantBlock,
   memory: MemoryBlock,
   reddit: RedditBlock,
