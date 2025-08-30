@@ -4,6 +4,8 @@ description: Search the web with Linkup
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="linkup"
@@ -41,13 +43,7 @@ To implement Linkup in your agent, simply add the tool to your agent's configura
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Linkup Search allows you to search and retrieve up-to-date information from the web with source attribution.
-
-
-
-## Tools
+## Operations
 
 ### `linkup_search`
 
@@ -71,7 +67,202 @@ Search the web for information using Linkup
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `linkup`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When incorporating the Linkup block into your Sim.ai workflows, adhering to established best practices ensures accurate web search results and optimal information retrieval. The Linkup block functions as your workflow's intelligence gateway to real-time web information, providing sourced answers and comprehensive search results that keep your automations current with the latest available data.
+
+**Connection Tag Usage and Data Flow**
+
+Effective connection tag implementation centers around the `<linkup1.answer>` and `<linkup1.sources>` outputs. The `<linkup1.answer>` tag delivers structured, sourced responses ideal for feeding into Agent blocks via `<agent1.systemPrompt>` or `<agent1.userMessage>` connections. This creates knowledge-augmented AI responses grounded in current web data. The `<linkup1.sources>` output provides structured JSON containing source attribution, which connects seamlessly to Function blocks for citation formatting or validation processes.
+
+For input connections, leverage dynamic query construction by connecting `<agent1.content>` or `<webhook1.body.query>` to `<linkup1.q>` for user-driven searches. The depth parameter accepts connections from Function blocks that determine search intensity based on query complexity or user preferences, enabling adaptive search behavior within your workflows.
+
+**Workflow Architecture Patterns**
+
+The most effective Linkup workflows follow research-oriented patterns. The **Agent → Linkup → Agent** pattern excels for fact-checking and knowledge augmentation, where an initial agent analyzes user queries, Linkup retrieves current information, and a final agent synthesizes findings with source attribution. For real-time monitoring systems, implement **Schedule Trigger → Linkup → Function → Notification** patterns that perform periodic searches on trending topics or industry keywords.
+
+Customer support workflows benefit from **Webhook → Function → Linkup → Agent → Response** architectures, where incoming support queries trigger contextual web searches before AI-powered response generation. This ensures support responses incorporate the latest product information, troubleshooting guides, and community discussions. For single agent workfows, you can add the Linkup tool to an agent block, giving the agent access to this search functionality.
+
+**Search Query Optimization and Data Formatting**
+
+Construct search queries strategically using the `q` parameter. Specific, well-formed queries yield superior results compared to broad keywords. When connecting from Agent outputs, instruct agents to generate focused search terms rather than conversational language. For example, "latest cybersecurity vulnerabilities 2024" produces better results than "tell me about recent security issues."
+
+The `depth` parameter significantly impacts result quality and response time. Use "standard" depth for quick factual lookups and FAQ responses, while "deep" depth suits research-intensive tasks requiring comprehensive analysis. Connect this parameter to Function blocks that evaluate query complexity metrics to automatically select appropriate depth levels.
+
+Configure `outputType` based on downstream block requirements. The "sourcedAnswer" option provides structured responses perfect for Agent block consumption, while "searchResults" delivers raw search data ideal for custom processing through Function blocks. This flexibility enables both direct answer delivery and advanced result manipulation.
+
+**Source Attribution and Citation Management**
+
+The `<linkup1.sources>` output contains rich attribution data essential for maintaining information credibility. Each source object includes name, URL, and snippet fields that enable comprehensive citation systems. Connect this output to Function blocks that format citations according to academic standards, create clickable reference lists, or validate source reliability through domain analysis.
+
+Implement source validation patterns by connecting `<linkup1.sources>` to Function blocks that filter results based on domain authority, publication date, or content type. This ensures your workflows prioritize high-quality sources while maintaining transparency about information origins.
+
+**Debugging and Monitoring**
+
+Monitor search performance through systematic logging of the `q` input parameter and corresponding `<linkup1.answer>` quality. Track search query patterns to identify optimization opportunities and ensure API key usage remains within acceptable limits. Failed searches often result from overly broad queries, API key issues, or network connectivity problems.
+
+Implement error handling by connecting Function blocks to validate `<linkup1.answer>` content length and source availability. Empty or malformed responses indicate search failures that require alternative query strategies or fallback information sources. Monitor the `<linkup1.sources>` array length to ensure adequate source diversity for credible information synthesis.
+
+**Security and API Key Management**
+
+Treat Linkup API keys as sensitive credentials requiring secure storage and access controls. Avoid hardcoding API keys within workflow configurations; instead, use Sim.ai's secure credential management features. Regularly rotate API keys and monitor usage patterns for unauthorized access attempts or unusual search volume spikes.
+
+Implement query sanitization through Function blocks that filter potentially sensitive search terms before reaching the Linkup block. This prevents accidental exposure of confidential information through search queries while maintaining search functionality for legitimate use cases.
+
+**Performance Optimization and Rate Limiting**
+
+Optimize search performance by implementing intelligent caching mechanisms through Function blocks that store recent search results based on query similarity. This reduces API calls for frequently requested information while maintaining result freshness through timestamp-based expiration.
+
+Configure search depth strategically based on use case requirements. Reserve "deep" searches for complex research tasks while using "standard" depth for routine information retrieval. This approach balances result quality with response time and API usage efficiency.
+
+Implement query deduplication by connecting Function blocks that compare incoming search queries against recent search history. This prevents redundant API calls within short time windows while ensuring users receive consistent information across multiple workflow executions.
+
+**Advanced Integration Patterns**
+
+For sophisticated knowledge management workflows, implement **Multi-Source Validation** patterns where multiple Linkup blocks search different query formulations simultaneously. Function blocks then cross-reference results to identify consensus information and highlight conflicting data points, providing comprehensive intelligence gathering capabilities.
+
+Consider **Temporal Search Strategies** that adjust search queries based on time-sensitive factors. Connect Schedule Triggers to Function blocks that modify search terms with date ranges, ensuring your workflows capture both current events and historical context as needed for comprehensive analysis.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I add web search capabilities to my Sim.ai workflow using Linkup?">
+
+    To add web search to your workflow, add a **Linkup block** and configure its required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `q` | Your search query | `<start.query>` or `<agent1.content>` |
+    | `depth` | Search depth level | `"standard"` or `"deep"` |
+    | `outputType` | Response format | `"sourcedAnswer"` or `"searchResults"` |
+    | `apiKey` | Your Linkup API key | `<start.apiKey>` or environment variable |
+  </Accordion>
+  <Accordion title="What's the difference between &quot;standard&quot; and &quot;deep&quot; search depth in Linkup?">
+
+    The `depth` parameter controls how comprehensive your search will be:
+
+    #### Search Depth Options
+
+    | Depth | Use Case | Performance | Information Quality |
+    |-------|----------|-------------|-------------------|
+    | `"standard"` | Quick searches, real-time queries | Faster response | Good for basic information |
+    | `"deep"` | Research tasks, comprehensive analysis | Slower response | More thorough, detailed results |
+
+    Set `depth` to match your workflow needs - use `"standard"` for chatbots and `"deep"` for research workflows.
+  </Accordion>
+  <Accordion title="How do I reference Linkup search results in downstream blocks?">
+
+    Every Linkup block exposes outputs that can be referenced using connection tags:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<linkup1.answer>` | String | Generated answer from search results |
+    | `<linkup1.sources>` | Array | Source references with name, url, and snippet |
+
+    #### Example Usage
+    Connect `<linkup1.answer>` to an Agent block's `systemPrompt` to provide current web information for AI processing.
+  </Accordion>
+  <Accordion title="How do I connect an Agent block to search the web with Linkup?">
+
+    To create an AI agent that can search for current information:
+
+    1. **Agent generates search query** → Connect `<agent1.content>` to Linkup's `q` field
+    2. **Linkup searches web** → Set `outputType` to `"sourcedAnswer"`
+    3. **Results feed back to Agent** → Connect `<linkup1.answer>` to another Agent's `userPrompt`
+
+    #### Example Configuration
+
+    ```json
+    {
+      "q": "<agent1.content>",
+      "depth": "standard",
+      "outputType": "sourcedAnswer",
+      "apiKey": "<start.linkupKey>"
+    }
+    ```
+  </Accordion>
+  <Accordion title="Should I use &quot;sourcedAnswer&quot; or &quot;searchResults&quot; for my outputType?">
+
+    Choose based on how you want to process the search information:
+
+    #### Output Type Comparison
+
+    | outputType | Best For | Returns |
+    |------------|----------|---------|
+    | `"sourcedAnswer"` | Direct answers, chatbots, Q&A | Compiled answer with source attribution |
+    | `"searchResults"` | Custom processing, analysis | Raw search results for manual filtering |
+
+    Use `"sourcedAnswer"` when you need a ready-to-use response, and `"searchResults"` when you want to process multiple results programmatically.
+  </Accordion>
+  <Accordion title="Why is my Linkup search returning empty results?">
+
+    Troubleshoot common search issues with this checklist:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Invalid API Key** | Authentication failed | Verify `<start.apiKey>` is correct Linkup key |
+    | **Empty Query** | No search terms provided | Ensure `q` field contains valid search text |
+    | **Wrong Output Type** | Invalid outputType value | Use only `"sourcedAnswer"` or `"searchResults"` |
+    | **Invalid Depth** | Incorrect depth parameter | Use only `"standard"` or `"deep"` |
+    | **Rate Limiting** | Too many requests | Check your Linkup API usage limits |
+  </Accordion>
+  <Accordion title="How do I create a workflow that searches for information and provides sourced answers?">
+
+    Build a research workflow that provides attributed information:
+
+    #### Common Workflow Patterns
+
+    ##### 1. **Webhook → Linkup → Agent**
+    ```
+    User Query → Search Web → Generate Response
+    ```
+    - Connect `<start.message>` to Linkup's `q` field
+    - Use `"sourcedAnswer"` for `outputType`
+    - Connect `<linkup1.answer>` to Agent's `userPrompt`
+
+    ##### 2. **Agent → Linkup → Function**
+    ```
+    AI Question → Web Search → Process Results
+    ```
+    - Agent generates targeted search queries
+    - Linkup retrieves current information
+    - Function processes and formats results
+
+    ##### 3. **Scheduled Trigger → Linkup → Telegram**
+    ```
+    Daily Schedule → Search News → Send Updates
+    ```
+    - Automated searches for trending topics
+    - Connect `<linkup1.answer>` to Telegram's `text` field
+    - Include `<linkup1.sources>` for source attribution
+  </Accordion>
+  <Accordion title="How do I access individual sources from Linkup search results?">
+
+    When using `outputType: "searchResults"`, the `<linkup1.sources>` array contains detailed source information:
+
+    #### Source Object Structure
+
+    Each source in the array contains:
+    - `name`: Source website name
+    - `url`: Direct link to the source
+    - `snippet`: Relevant text excerpt
+
+    #### Processing Sources
+
+    To access specific sources in downstream blocks, you can:
+    1. Use a **Function block** to iterate through `<linkup1.sources>`
+    2. Reference specific array elements if your use case requires it
+    3. Pass the entire sources array to an **Agent block** for summarization
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

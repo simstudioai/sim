@@ -4,39 +4,260 @@ description: Trigger workflow execution on a schedule
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="schedule"
   color="#7B68EE"
   icon={true}
   iconSvg={`<svg className="block-icon"
-      
       xmlns='http://www.w3.org/2000/svg'
-      
-      
       viewBox='0 0 24 24'
       fill='none'
       stroke='currentColor'
-      strokeWidth='2'
+      strokeWidth='2.5'
       strokeLinecap='round'
       strokeLinejoin='round'
     >
+      <rect x='3' y='4' width='18' height='18' rx='2' ry='2' />
+      <path d='M3 10h18' />
       <path d='M8 2v4' />
       <path d='M16 2v4' />
-      <rect   x='3' y='4' rx='2' />
-      <path d='M3 10h18' />
+      <path d='M7 14h.01' />
+      <path d='M10 14h.01' />
+      <path d='M13 14h.01' />
+      <path d='M16 14h.01' />
+      <path d='M7 17h.01' />
+      <path d='M10 17h.01' />
+      <path d='M13 17h.01' />
+      <path d='M16 17h.01' />
     </svg>`}
 />
 
-## Usage Instructions
+{/* MANUAL-CONTENT-START:intro */}
+## Schedule
 
-Configure automated workflow execution with flexible timing options. Set up recurring workflows that run at specific intervals or times.
+Schedule is a trigger block that automatically initiates workflow execution based on predefined timing configurations. This integration enables developers to create automated workflows that run without manual intervention at specified intervals or times.
+
+**Key capabilities include:**
+
+• **Recurring execution** - Set up workflows to run at regular intervals (hourly, daily, weekly, monthly)
+• **Flexible timing options** - Configure precise execution times with customizable schedules
+• **Automated triggering** - Eliminate manual workflow initiation for routine processes
+• **Time-based orchestration** - Coordinate multiple workflows across different schedules
+
+Schedule operates as the entry point for time-driven workflows within the Sim.ai platform, automatically triggering connected blocks when the configured timing conditions are met. The block outputs timing data and execution context that downstream blocks can use for conditional logic or data processing based on when the workflow was triggered.
+{/* MANUAL-CONTENT-END */}
 
 
 
 
+## Best Practices
 
-## Notes
+{/* MANUAL-CONTENT-START:bestPractices */}
+When implementing the Schedule block in your Sim.ai workflows, adhering to best practices ensures reliable automation execution and optimal resource utilization. The Schedule block serves as the foundational timing mechanism for automated workflows, enabling precise control over when and how frequently your automations execute without requiring external triggers.
 
-- Category: `triggers`
-- Type: `schedule`
+**Connection Tag Usage and Data Flow**
+
+The Schedule block operates uniquely as a trigger block, generating output data that downstream blocks can consume through connection tags. The `<schedule1.timestamp>` connection tag provides the exact execution time, which is particularly valuable for logging, data timestamping, and conditional logic in subsequent blocks. Use `<schedule1.executionId>` to track individual workflow runs for debugging and audit purposes.
+
+Unlike data-driven blocks, the Schedule block doesn't consume input connection tags from other blocks—it initiates the workflow execution chain. However, its outputs become critical for downstream processing. Connect `<schedule1.timestamp>` to Function blocks for time-based calculations, or use `<schedule1.executionId>` in Database blocks for maintaining execution logs. This creates traceable workflow execution patterns that support comprehensive monitoring and debugging capabilities.
+
+**Workflow Architecture Patterns**
+
+Successful scheduled workflows follow specific architectural patterns optimized for reliability and maintainability. The **Schedule → Function → Database** pattern enables data processing and storage operations that run consistently without human intervention. This pattern works exceptionally well for data synchronization, report generation, and system maintenance tasks.
+
+For notification systems, implement **Schedule → API → Telegram** patterns where scheduled triggers fetch data from external sources and distribute updates to communication channels. Multi-branch patterns like **Schedule → Function → [Database, Email, Slack]** allow single scheduled triggers to execute multiple parallel operations, maximizing efficiency while maintaining clear data flow paths.
+
+Consider implementing **Schedule → Conditional Logic → Multiple Paths** patterns for complex automation scenarios. Use the `<schedule1.timestamp>` output in Function blocks to determine execution paths based on time-of-day, day-of-week, or other temporal logic. This enables sophisticated scheduling behaviors like weekday-only operations or time-zone-aware processing.
+
+**Message/Data Formatting Excellence**
+
+Schedule block outputs require careful consideration for downstream consumption. The `<schedule1.timestamp>` output follows ISO 8601 format, ensuring consistent date-time handling across your workflows. When connecting to Function blocks, validate timestamp formats and implement appropriate timezone conversions based on your operational requirements.
+
+Structure your scheduled workflows to handle timezone considerations explicitly. Use Function blocks immediately downstream from Schedule blocks to normalize timestamps to your preferred timezone or UTC. This prevents timezone-related errors in subsequent processing steps and ensures consistent behavior across different deployment environments.
+
+For workflows that process batch data, implement standardized naming conventions using schedule outputs. Combine `<schedule1.timestamp>` with static strings in Function blocks to generate unique identifiers, file names, or database keys. This creates predictable data organization patterns that support long-term maintenance and troubleshooting efforts.
+
+**Debugging and Monitoring**
+
+Implement comprehensive logging for all scheduled workflows by connecting `<schedule1.executionId>` and `<schedule1.timestamp>` to dedicated logging blocks early in your workflow chain. This creates audit trails that help identify execution patterns, performance bottlenecks, and failure points. Use Database blocks to store execution logs with proper indexing on timestamp fields for efficient querying.
+
+Monitor schedule execution reliability by tracking the time delta between expected execution times and actual `<schedule1.timestamp>` values. Significant deviations indicate system performance issues or resource constraints that require attention. Implement alerting workflows that trigger when execution delays exceed acceptable thresholds.
+
+Set up separate monitoring workflows that query your execution logs periodically to identify missing scheduled executions. These monitoring workflows should use their own independent schedules to avoid single points of failure. Connect monitoring results to notification blocks to ensure prompt awareness of scheduling failures.
+
+**Security Considerations**
+
+Schedule blocks present minimal direct security risks but require careful consideration in workflow design. Implement proper access controls on any data sources or external systems that scheduled workflows interact with. Use dedicated service accounts with minimal required permissions for scheduled operations, and rotate credentials regularly according to security policies.
+
+For workflows that process sensitive data, implement encryption for any stored intermediate results or logs. Use secure connection methods when scheduled workflows interact with external APIs or databases. Consider implementing workflow-level authentication tokens that expire and refresh automatically to maintain security over long-running scheduled operations.
+
+Avoid storing sensitive configuration data directly in schedule-triggered workflows. Instead, use secure configuration management systems and connect to them through dedicated authentication blocks early in your workflow execution chain.
+
+**Performance Optimization**
+
+Optimize schedule frequency to balance operational requirements with system resource usage. High-frequency schedules (every minute or less) should perform minimal processing and delegate heavy operations to separate, less frequent schedules. Use Function blocks to implement intelligent scheduling logic that adjusts execution patterns based on workload or system conditions.
+
+Implement workflow segmentation for complex scheduled operations. Break large, monolithic scheduled workflows into smaller, focused workflows triggered by separate schedules. This improves maintainability, enables parallel processing, and reduces the impact of individual workflow failures on overall system operations.
+
+For data-intensive scheduled workflows, implement checkpoint and resume patterns using Database blocks to store intermediate state. Connect `<schedule1.executionId>` to these checkpoint systems to enable recovery from partial failures without requiring complete re-execution. This approach significantly improves reliability for long-running batch operations.
+
+Consider implementing adaptive scheduling patterns where workflow execution duration influences subsequent schedule timing. Use historical execution data stored via `<schedule1.timestamp>` tracking to optimize schedule intervals dynamically, ensuring adequate processing time while maintaining desired operational cadence.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I create a workflow that runs on a recurring schedule in Sim.ai?">
+
+    To create scheduled workflows in Sim.ai, add a **Schedule block** as your workflow's trigger. This block automatically initiates workflow execution based on your configured timing:
+
+    1. **Add a Schedule block** as the first block in your workflow
+    2. **Configure timing parameters** in the block settings
+    3. **Connect downstream blocks** that should execute when the schedule triggers
+
+    #### Example Workflow Structure
+    ```
+    Schedule → Agent → API → Telegram
+    ```
+
+    The Schedule block will automatically trigger this sequence at your specified intervals.
+  </Accordion>
+  <Accordion title="What are the different scheduling options available in the Schedule block?">
+
+    The Schedule block supports flexible timing configurations for automated workflow execution:
+
+    #### Common Scheduling Patterns
+
+    | Pattern | Description | Use Case |
+    |---------|-------------|----------|
+    | **Interval-based** | Run every X minutes/hours/days | Regular data sync, periodic checks |
+    | **Cron expressions** | Complex timing with precise control | Business hours only, specific days |
+    | **Fixed time** | Daily execution at specific time | Daily reports, morning briefings |
+    | **Recurring patterns** | Weekly, monthly, or custom cycles | Weekly summaries, monthly analytics |
+
+    Configure these options directly in the Schedule block's settings panel.
+  </Accordion>
+  <Accordion title="How do I reference Schedule block outputs in downstream workflow blocks?">
+
+    Schedule blocks expose timing and execution context through output connection tags:
+
+    #### Available Schedule Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<schedule1.timestamp>` | Number | Unix timestamp when schedule triggered |
+    | `<schedule1.executionId>` | String | Unique identifier for this execution |
+    | `<schedule1.triggerTime>` | String | Human-readable trigger time |
+    | `<schedule1.nextExecution>` | Number | Timestamp of next scheduled run |
+
+    #### Usage Example
+    Connect `<schedule1.timestamp>` to an Agent block's input to include execution time in generated content:
+
+    ```json
+    {
+      "userPrompt": "Generate a daily report for timestamp: <schedule1.timestamp>"
+    }
+    ```
+  </Accordion>
+  <Accordion title="Can I create conditional workflows that only run during business hours using Schedule blocks?">
+
+    Yes! Combine Schedule blocks with Condition blocks to create time-aware automation:
+
+    #### Business Hours Workflow Pattern
+
+    ```
+    Schedule (every hour) → Condition → Agent → Telegram
+    ```
+
+    1. **Schedule block** triggers hourly
+    2. **Condition block** checks if `<schedule1.triggerTime>` falls within business hours
+    3. **Downstream blocks** only execute when condition is met
+
+    #### Example Condition Logic
+    ```javascript
+    const hour = new Date(<schedule1.timestamp> * 1000).getHours();
+    return hour >= 9 && hour <= 17; // 9 AM to 5 PM
+    ```
+  </Accordion>
+  <Accordion title="How do I troubleshoot Schedule blocks that aren't triggering workflows?">
+
+    Common issues preventing scheduled execution and their solutions:
+
+    #### Troubleshooting Checklist
+
+    | Issue | Symptoms | Solution |
+    |-------|----------|----------|
+    | **Workflow Not Active** | No executions in logs | Ensure workflow is published and enabled |
+    | **Invalid Cron Expression** | Schedule shows as invalid | Verify cron syntax using online validators |
+    | **Timezone Issues** | Executions at wrong times | Check workspace timezone settings |
+    | **Resource Limits** | Intermittent failures | Monitor execution quotas and usage |
+    | **Downstream Errors** | Schedule triggers but workflow fails | Check logs for errors in connected blocks |
+
+    #### Verification Steps
+    1. Check the **Workflow Executions** tab for trigger history
+    2. Verify schedule configuration in the block settings
+    3. Test with a simple downstream block (like Function) first
+  </Accordion>
+  <Accordion title="What's the best way to combine Schedule blocks with Agent blocks for automated content generation?">
+
+    Schedule blocks work seamlessly with Agent blocks to create automated AI-powered workflows:
+
+    #### Recommended Integration Pattern
+
+    ```
+    Schedule → Function → Agent → Multiple Outputs
+    ```
+
+    #### Configuration Example
+
+    1. **Schedule block**: Set to daily at 8 AM
+    2. **Function block**: Prepare context data
+       ```javascript
+       return {
+         date: new Date(<schedule1.timestamp> * 1000).toLocaleDateString(),
+         context: "Daily briefing request"
+       };
+       ```
+    3. **Agent block**: Generate content with schedule context
+       ```json
+       {
+         "userPrompt": "Create a daily briefing for <function1.date>",
+         "systemPrompt": "You are a business analyst creating daily reports"
+       }
+       ```
+
+    This pattern ensures consistent, contextually-aware content generation on your schedule.
+  </Accordion>
+  <Accordion title="Can I create multiple schedules in the same workflow or do I need separate workflows?">
+
+    Each workflow should have **one primary Schedule trigger** to maintain clarity and debugging simplicity:
+
+    #### Single Workflow Approach
+    ```
+    Schedule (daily) → Condition → Multiple Branches
+    ```
+    Use conditions to create different behaviors within the same scheduled execution.
+
+    #### Multiple Workflow Approach
+    Create separate workflows for different schedules:
+    - **Daily Report Workflow**: Schedule (daily) → Agent → Email
+    - **Weekly Summary Workflow**: Schedule (weekly) → API → Telegram  
+    - **Monthly Analysis Workflow**: Schedule (monthly) → Database → Agent
+
+    #### When to Use Each Approach
+
+    | Use Single Workflow | Use Multiple Workflows |
+    |-------------------|----------------------|
+    | Related tasks with shared data | Completely different purposes |
+    | Different timing for same process | Different stakeholders/outputs |
+    | Conditional execution branches | Independent error handling needs |
+
+    Separate workflows provide better isolation and easier maintenance for distinct automated processes.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

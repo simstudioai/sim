@@ -4,6 +4,7 @@ description: Use vector search
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
 
 <BlockInfoCard 
   type="knowledge"
@@ -47,13 +48,7 @@ In Sim, the Knowledge Base block enables your agents to perform intelligent sema
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Perform semantic vector search across knowledge bases, upload individual chunks to existing documents, or create new documents from text content. Uses advanced AI embeddings to understand meaning and context for search operations.
-
-
-
-## Tools
+## Operations
 
 ### `knowledge_search`
 
@@ -120,7 +115,213 @@ Create a new document in a knowledge base
 
 
 
-## Notes
+## Best Practices
 
-- Category: `blocks`
-- Type: `knowledge`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When implementing the Knowledge block into your Sim.ai workflows, following established best practices ensures reliable semantic search operations and optimal knowledge base performance. The Knowledge block serves as the intelligent search engine for your workflows, enabling AI-powered document retrieval and knowledge management that understands context and meaning beyond simple keyword matching.
+
+**Connection Tag Usage and Data Flow**
+
+Effective connection tag implementation is essential for maximizing the Knowledge block's search capabilities. Use `<agent1.content>` or `<userInput.message>` to route natural language queries directly to the `<knowledge1.query>` input, creating dynamic search experiences that respond to user questions or AI-generated queries. The `<knowledge1.results>` output provides structured search results that can be mapped to downstream blocks using `<knowledge1.results[0].content>` for the top result or `<knowledge1.results>` for comprehensive result processing.
+
+For advanced filtering scenarios, construct tag filters using Function blocks to create the required array structure with tagName and tagValue properties. Route filtered results through `<function1.output>` to `<knowledge1.tagFilters>` for precise content targeting. The `<knowledge1.totalResults>` output enables conditional logic in workflows, allowing different processing paths based on search result quantity.
+
+**Workflow Architecture Patterns**
+
+Knowledge block workflows excel in several proven architectural patterns. The **Agent → Knowledge → Agent** pattern creates intelligent research assistants where initial AI processing formulates search queries, knowledge retrieval provides context, and final AI processing synthesizes responses. This pattern enables conversational interfaces that provide accurate, source-backed answers.
+
+For content management workflows, implement **Webhook → Knowledge Upload → Notification** patterns where external content triggers document creation or chunk uploads, followed by confirmation notifications. Real-time search interfaces benefit from **User Input → Knowledge Search → Response Formatting** flows that deliver instant, contextually relevant results.
+
+Advanced implementations use **Multi-Stage Search** patterns: **Initial Search → Result Analysis → Refined Search → Final Processing**, where initial broad searches inform more targeted secondary searches for comprehensive knowledge retrieval.
+
+**Message/Data Formatting Excellence**
+
+Structure your knowledge base queries for optimal semantic matching by using complete sentences and natural language rather than keyword fragments. Format the `query` input as conversational questions like "How do I configure SSL certificates for production environments?" instead of "SSL config production" to leverage the vector search capabilities fully.
+
+When creating documents through `<knowledge1.content>`, organize content with clear section headers, consistent formatting, and logical information hierarchy. This improves chunk quality and search result relevance. Use the optional tag parameters (`tag1` through `tag7`) strategically to create filterable categories that enable precise content organization and retrieval.
+
+For chunk uploads via the knowledge_upload_chunk operation, maintain consistent content formatting within documents. Each chunk should contain complete thoughts or concepts to ensure coherent search results and proper context preservation.
+
+**Debugging and Monitoring**
+
+Monitor search performance by tracking the `<knowledge1.totalResults>` output to identify queries that return insufficient results or potential knowledge gaps. Low result counts may indicate the need for additional content or query reformulation. Implement logging for the `<knowledge1.query>` field to analyze search patterns and optimize knowledge base content.
+
+Use the structured `<knowledge1.results>` array to validate search quality by examining result relevance scores and content matching. Set appropriate `topK` values based on your workflow needs—lower values (1-5) for precise answers, higher values (10-50) for comprehensive research or when further AI processing will synthesize multiple results.
+
+For upload operations, monitor the `data` output from both chunk uploads and document creation to verify successful knowledge base updates. Implement error handling for required fields like `knowledgeBaseId`, `documentId`, and `content` to prevent workflow failures.
+
+**Security Considerations**
+
+Validate knowledge base access permissions by ensuring `knowledgeBaseId` values reference only authorized knowledge bases within your Sim.ai environment. Implement input sanitization for user-provided queries to prevent potential injection attacks or malformed search requests that could impact performance.
+
+When uploading sensitive content through knowledge_create_document or knowledge_upload_chunk operations, review tag assignments to prevent unintended data exposure through filtered searches. Use structured `documentTagsData` arrays for complex tagging requirements while maintaining proper access controls.
+
+Store knowledge base IDs securely and avoid hardcoding them in workflows when possible. Instead, use environment variables or secure configuration management to maintain flexibility and security across different deployment environments.
+
+**Performance Optimization**
+
+Optimize search performance by setting appropriate `topK` values based on your downstream processing requirements. Higher values increase processing time and memory usage, so balance comprehensiveness with performance needs. For real-time applications, use lower topK values (1-10) and implement caching strategies for frequently accessed queries.
+
+Leverage tag filters strategically to reduce search scope and improve response times. Pre-filter large knowledge bases using `<knowledge1.tagFilters>` with specific tagName and tagValue combinations rather than searching entire repositories when category-specific results are sufficient.
+
+When building knowledge bases, organize content into focused documents rather than monolithic files to improve chunk quality and search precision. This approach enhances vector embedding quality and enables more accurate semantic matching for user queries.
+
+Batch document creation and chunk upload operations when possible to reduce API overhead. For large-scale content ingestion, implement sequential processing with appropriate delays to maintain system stability and avoid rate limiting issues.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I search for relevant content in my knowledge base using a workflow?">
+    To search your knowledge base in Sim.ai workflows, add a <strong>Knowledge block</strong> and configure the search operation:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `knowledgeBaseId` | Your knowledge base identifier | `<start.knowledgeBaseId>` or static ID |
+    | `query` | Search text to find similar content | `<agent1.content>` or `<start.userQuery>` |
+    | `topK` | Number of results to return (1-100) | `5` or `<start.resultLimit>` |
+    | `tagFilters` | Filter by document tags | `<start.filters>` or JSON array |
+
+    The Knowledge block uses semantic vector search to find contextually similar content, not just keyword matches.
+  </Accordion>
+  <Accordion title="How do I reference Knowledge block search results in other parts of my workflow?">
+    Every Knowledge block exposes structured outputs that can be referenced using connection tags:
+
+    #### Available Search Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<knowledge1.results>` | Array | Complete array of search results with content and metadata |
+    | `<knowledge1.query>` | String | The actual search query that was executed |
+    | `<knowledge1.totalResults>` | Number | Total count of results returned from the search |
+
+    #### Accessing Individual Results
+
+    To use specific search results in downstream blocks:
+    - Connect `<knowledge1.results>` to an Agent's context for AI processing
+    - Use `<knowledge1.results[0].content>` in Function blocks for the top result
+    - Reference `<knowledge1.totalResults>` in Condition blocks to check if results exist
+  </Accordion>
+  <Accordion title="What is the correct way to connect Knowledge search results to an Agent block for contextual responses?">
+    To provide search results as context to an AI agent:
+
+    1. <strong>Configure Knowledge Search</strong> with user's question: `<start.userQuery>`
+    2. <strong>Connect Results to Agent</strong> in the context or system prompt field
+    3. <strong>Structure the Prompt</strong> to utilize the retrieved information
+
+    #### Example Workflow Configuration
+
+    ```
+    Knowledge Block:
+    - knowledgeBaseId: "kb_12345"
+    - query: "<start.userQuery>"
+    - topK: 3
+
+    Agent Block:
+    - systemPrompt: "Answer based on this context: <knowledge1.results>"
+    - userPrompt: "<start.userQuery>"
+    ```
+    This pattern creates a Retrieval-Augmented Generation (RAG) system where the agent answers questions using your specific knowledge base content.
+  </Accordion>
+  <Accordion title="How do I upload new content chunks to existing documents in my knowledge base?">
+    To add content to existing documents using the `knowledge_upload_chunk` operation:
+
+    #### Required Upload Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `knowledgeBaseId` | Target knowledge base ID | `<start.kbId>` or static value |
+    | `documentId` | Existing document identifier | `<start.docId>` or from previous operations |
+    | `content` | Text content to add as new chunk | `<agent1.content>` or `<start.newContent>` |
+
+    #### Example Upload Workflow
+    ```
+    Webhook → Function (prepare content) → Knowledge (upload chunk)
+    ```
+    The uploaded chunk becomes searchable immediately and integrates with your existing document structure.
+  </Accordion>
+  <Accordion title="How do I create new documents with tags in my knowledge base programmatically?">
+    To create documents with the `knowledge_create_document` operation:
+
+    #### Document Creation Inputs
+
+    | Input | Required | Description | Example |
+    |-------|----------|-------------|---------|
+    | `knowledgeBaseId` | Yes | Knowledge base identifier | `<start.kbId>` |
+    | `name` | Yes | Document display name | `<start.docName>` or "Customer FAQ" |
+    | `content` | Yes | Document text content | `<agent1.generatedContent>` |
+    | `tag1` through `tag7` | No | Individual tag values | `<start.category>` or "support" |
+    | `documentTagsData` | No | Structured tag array | Complex tag objects |
+
+    #### Example Creation Workflow
+    ```json
+    {
+      "knowledgeBaseId": "<start.kbId>",
+      "name": "Generated Report - <start.date>",
+      "content": "<agent1.reportContent>",
+      "tag1": "<start.department>",
+      "tag2": "<start.priority>"
+    }
+    ```
+  </Accordion>
+  <Accordion title="Why is my Knowledge block returning empty results or failing to find relevant content?">
+    Troubleshoot search issues with this diagnostic approach:
+
+    #### Common Search Problems
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Empty Query** | No search text provided | Ensure `query` field contains text like `<start.userInput>` |
+    | **Wrong Knowledge Base ID** | Invalid or missing `knowledgeBaseId` | Verify the ID matches your actual knowledge base |
+    | **No Results Found** | Query doesn't match any content | Try broader search terms or check if documents exist |
+    | **Tag Filter Mismatch** | `tagFilters` exclude all documents | Review filter syntax and available tag values |
+    | **Low topK Value** | `topK` set too low (like 1) | Increase to 5-10 for better result coverage |
+
+    #### Debugging Steps
+
+    1. **Check Input Connections**: Verify `<knowledge1.query>` shows expected search text
+    2. **Validate Knowledge Base**: Confirm documents exist in the specified knowledge base
+    3. **Test Without Filters**: Remove `tagFilters` to see if filtering is too restrictive
+    4. **Monitor totalResults**: Use `<knowledge1.totalResults>` to confirm search execution
+  </Accordion>
+  <Accordion title="Can I combine multiple Knowledge blocks to search across different knowledge bases?">
+    Yes! You can search multiple knowledge bases in parallel or sequence:
+
+    #### Parallel Multi-Base Search
+    ```
+    Start → Knowledge Block 1 (KB-A) → Merge Results
+         → Knowledge Block 2 (KB-B) ↗
+    ```
+
+    #### Sequential Search with Fallback
+    ```
+    Knowledge 1 → Condition (check results) → Knowledge 2 (if needed)
+    ```
+
+    #### Example Multi-Base Configuration
+
+    **Knowledge Block 1:**
+    ```json
+    {
+      "knowledgeBaseId": "customer_support_kb",
+      "query": "<start.userQuery>",
+      "topK": 5
+    }
+    ```
+
+    **Knowledge Block 2:**
+    ```json
+    {
+      "knowledgeBaseId": "technical_docs_kb", 
+      "query": "<start.userQuery>",
+      "topK": 5
+    }
+    ```
+    Use a Function block to merge `<knowledge1.results>` and `<knowledge2.results>` before passing to an Agent for comprehensive responses.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

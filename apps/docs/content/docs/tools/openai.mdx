@@ -4,6 +4,8 @@ description: Generate Open AI embeddings
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="openai"
@@ -41,13 +43,7 @@ In Sim, the OpenAI integration enables your agents to leverage these powerful AI
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Convert text into numerical vector representations using OpenAI's embedding models. Transform text data into embeddings for semantic search, clustering, and other vector-based operations.
-
-
-
-## Tools
+## Operations
 
 ### `openai_embeddings`
 
@@ -71,7 +67,188 @@ Generate embeddings from text using OpenAI
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `openai`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When implementing the Embeddings block in your Sim.ai workflows, following established best practices ensures optimal vector generation performance and seamless integration with downstream semantic operations. The Embeddings block serves as a critical data transformation component, converting textual content into numerical vector representations that enable advanced AI operations like semantic search, similarity matching, and content clustering.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation is essential for effective embeddings generation. Use `<textProcessor.cleanedText>` or `<dataExtractor.content>` as inputs to the `<embeddings1.input>` field to ensure clean, well-formatted text reaches the embedding model. The primary output `<embeddings1.embeddings>` contains the vector data that flows to downstream blocks like vector databases or similarity comparison functions.
+
+For multi-step workflows, chain the `<embeddings1.model>` output to subsequent blocks to maintain consistency across operations. The `<embeddings1.usage>` connection tag provides token consumption data that can feed into monitoring or cost-tracking workflows. Always validate input text length before embedding generation, as exceeding model token limits will cause workflow failures.
+
+**Workflow Architecture Patterns**
+
+Successful embeddings workflows typically follow established architectural patterns. The **Data Ingestion → Text Processing → Embeddings → Vector Storage** pattern enables building semantic search systems where documents are processed and stored as searchable vectors. For real-time applications, implement **API Trigger → Text Extraction → Embeddings → Similarity Matching** flows that process incoming queries and find relevant content.
+
+Content classification workflows benefit from **Webhook → Embeddings → Clustering Analysis** patterns, where incoming text automatically gets categorized based on vector similarity. For batch processing, consider **File Reader → Text Chunking → Embeddings → Database Insert** architectures that efficiently process large document collections.
+
+**Message/Data Formatting Excellence**
+
+Text preprocessing significantly impacts embedding quality. Remove unnecessary whitespace, normalize special characters, and ensure consistent formatting before passing content to `<embeddings1.input>`. For long documents, implement chunking strategies that split text into optimal segments, typically 500-1000 tokens, to maximize semantic coherence within each embedding.
+
+Structure your input data validation to handle edge cases like empty strings, special characters, and multilingual content. The embedding model selection through `<embeddings1.model>` should align with your use case - text-embedding-ada-002 for general purposes, while newer models offer improved performance for specific domains. Configure the `<embeddings1.encodingFormat>` parameter based on downstream requirements, choosing between float and base64 encoding.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring using the `<embeddings1.success>` output to track generation success rates and identify failure patterns. Monitor the `<embeddings1.usage>` data to track token consumption and optimize costs, particularly important for high-volume workflows. Log embedding dimensions and verify consistency across workflow executions to prevent downstream processing errors.
+
+Create validation checkpoints that verify embedding vector lengths match expected dimensions (1536 for ada-002). Implement fallback mechanisms for API failures using conditional logic blocks that retry with different parameters or route to alternative processing paths. Monitor response times and implement timeout handlers for workflows processing large text volumes.
+
+**Security Considerations**
+
+Secure API key management is critical for embeddings workflows. Store OpenAI API keys in Sim.ai's secure environment variables rather than hardcoding them in workflow configurations. Implement input sanitization to prevent sensitive data from being inadvertently processed through third-party APIs.
+
+For workflows processing confidential content, consider implementing data masking or anonymization steps before embedding generation. Monitor API usage patterns to detect unusual activity that might indicate compromised credentials. Ensure compliance with data privacy regulations when processing personal or sensitive information through embedding models.
+
+**Performance Optimization**
+
+Optimize embedding generation through strategic batching and caching. Implement text preprocessing to remove redundant content and normalize input formatting, reducing token consumption. Cache frequently requested embeddings using hash-based lookup systems to avoid redundant API calls.
+
+Configure appropriate model selection based on use case requirements - newer models offer better performance but at higher cost. For large-scale operations, implement rate limiting and queue management to stay within API limits while maintaining workflow performance. Use the `<embeddings1.usage>` data to implement dynamic batching that optimizes token efficiency.
+
+Monitor vector generation latency and implement parallel processing patterns for independent text segments. Consider implementing similarity thresholds that filter low-quality inputs before embedding generation, improving both performance and cost efficiency in downstream semantic operations.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I generate embeddings from text in my Sim.ai workflow?">
+
+    To generate embeddings from text, add an **Embeddings block** to your Sim.ai workflow and configure its required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `input` | The text to convert to embeddings | `<start.text>` or `<agent1.content>` |
+    | `apiKey` | Your OpenAI API key | `<start.apiKey>` or environment variable |
+
+    #### Optional Inputs
+
+    | Input | Description | Default |
+    |-------|-------------|---------|
+    | `model` | OpenAI embedding model to use | `text-embedding-ada-002` |
+    | `encodingFormat` | Format for returned embeddings | `float` |
+  </Accordion>
+  <Accordion title="What outputs can I reference from an Embeddings block in my workflow?">
+
+    Every Embeddings block exposes outputs that can be referenced using connection tags:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<openai1.embeddings>` | Array | The generated embedding vectors |
+    | `<openai1.model>` | String | The model used for generation |
+    | `<openai1.usage>` | Object | Token usage statistics |
+    | `<openai1.success>` | Boolean | `true` if embeddings were generated successfully |
+    | `<openai1.output>` | Object | Complete embeddings generation results |
+
+    These values can be connected to downstream blocks for vector operations, similarity calculations, or storage.
+  </Accordion>
+  <Accordion title="How do I connect text from other blocks to generate embeddings?">
+
+    To process text from upstream blocks:
+
+    1. In the Embeddings block's `input` field, type `<>` to open the connection menu
+    2. Select the text source from available connections
+
+    #### Common Connection Patterns
+
+    ```json
+    {
+      "input": "<agent1.content>",
+      "apiKey": "<start.openaiKey>"
+    }
+    ```
+
+    This configuration generates embeddings from an AI agent's response for semantic analysis or vector storage.
+  </Accordion>
+  <Accordion title="How do I use embeddings with vector databases or similarity calculations?">
+
+    Connect Embeddings block outputs to downstream processing blocks:
+
+    #### Example Workflow Patterns
+
+    ##### 1. **Text → Embeddings → Function (Similarity)**
+    ```
+    Agent → Embeddings → Function
+    ```
+    Use `<openai1.embeddings>` in a Function block to calculate cosine similarity between vectors.
+
+    ##### 2. **API → Embeddings → Database Storage**
+    ```
+    API → Embeddings → HTTP
+    ```
+    Store `<openai1.embeddings>` in vector databases like Pinecone or Weaviate using HTTP requests.
+
+    ##### 3. **Webhook → Embeddings → Condition**
+    ```
+    Webhook → Embeddings → Condition
+    ```
+    Generate embeddings and use conditional logic based on vector properties.
+  </Accordion>
+  <Accordion title="Why are my embeddings not generating properly?">
+
+    Troubleshoot common issues with this checklist:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Invalid API Key** | OpenAI authentication failed | Verify `<start.apiKey>` is valid and has embedding permissions |
+    | **Empty Input Text** | No text provided for embedding | Ensure `input` field contains text (e.g., `<agent1.content>`) |
+    | **Model Not Found** | Invalid model specified | Use valid models like `text-embedding-ada-002` or `text-embedding-3-small` |
+    | **Rate Limiting** | Too many API requests | Implement delays between requests or check usage limits |
+    | **Token Limit Exceeded** | Input text too long | Split large texts into smaller chunks before embedding |
+  </Accordion>
+  <Accordion title="How do I process multiple texts for batch embedding generation?">
+
+    For processing multiple texts, use workflow patterns with iteration or multiple Embeddings blocks:
+
+    #### Batch Processing Pattern
+
+    ##### 1. **Function → Multiple Embeddings**
+    Use a Function block to split text into chunks, then process each with separate Embeddings blocks.
+
+    ##### 2. **Webhook Array → Embeddings Loop**
+    ```
+    Webhook → Function (iterate) → Embeddings → Function (collect)
+    ```
+    Process arrays of text inputs by iterating through each item.
+
+    ##### 3. **API Response → Embeddings → Aggregation**
+    ```
+    API → Function (parse) → Embeddings → Function (combine)
+    ```
+    Extract multiple texts from API responses and generate embeddings for each.
+  </Accordion>
+  <Accordion title="Can I use different OpenAI embedding models in my workflow?">
+
+    Yes! Configure the `model` parameter to use different OpenAI embedding models:
+
+    #### Available Models
+
+    | Model | Description | Use Case |
+    |-------|-------------|----------|
+    | `text-embedding-3-small` | Latest small model | Fast, cost-effective embeddings |
+    | `text-embedding-3-large` | Latest large model | High-quality embeddings |
+    | `text-embedding-ada-002` | Previous generation | Legacy applications |
+
+    #### Example Configuration
+    ```json
+    {
+      "input": "<start.text>",
+      "model": "text-embedding-3-small",
+      "apiKey": "<start.openaiKey>"
+    }
+    ```
+
+    Reference the chosen model in downstream blocks using `<openai1.model>` for tracking and validation.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

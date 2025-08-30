@@ -4,6 +4,8 @@ description: Use Pinecone vector database
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="pinecone"
@@ -43,13 +45,7 @@ In Sim, the Pinecone integration enables your agents to leverage vector search c
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Store, search, and retrieve vector embeddings using Pinecone's specialized vector database. Generate embeddings from text and perform semantic similarity searches with customizable filtering options.
-
-
-
-## Tools
+## Operations
 
 ### `pinecone_generate_embeddings`
 
@@ -160,7 +156,184 @@ Fetch vectors by ID from a Pinecone index
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `pinecone`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When implementing the Pinecone block in your Sim.ai workflows, following established vector database best practices ensures optimal search performance and efficient data management. The Pinecone block serves as a bridge between your AI workflows and Pinecone's specialized vector database infrastructure, enabling sophisticated semantic search capabilities and knowledge retrieval systems.
+
+**Connection Tag Usage and Data Flow**
+
+Effective connection tag implementation is crucial for seamless vector operations. The `<pinecone1.data>` output from embeddings generation flows naturally into subsequent upsert operations, creating a unified pipeline for text-to-vector storage. Use `<pinecone1.matches>` for connecting search results to downstream processing blocks, particularly when feeding similarity results into Agent blocks for contextual responses.
+
+For complex workflows, chain multiple Pinecone operations using connection tags: `<function1.processedText>` → `<pinecone1.inputs>` for embedding generation, then `<pinecone1.data>` → `<function2.vectorData>` for preprocessing before upsert operations. The `<pinecone1.upsertedCount>` output provides valuable feedback for validation workflows and error handling logic.
+
+**Workflow Architecture Patterns**
+
+Successful Pinecone implementations typically follow proven architectural patterns. The most common pattern is **Text Processing → Pinecone Embeddings → Pinecone Upsert**, where raw text gets transformed into vectors and stored for future retrieval. For search-driven applications, implement **User Query → Pinecone Search → Agent → Response** flows, enabling semantic search-powered conversational interfaces.
+
+Consider implementing **Batch Processing → Pinecone Upsert → Validation** patterns for large-scale knowledge base ingestion. This approach processes documents in chunks, validates successful storage using `<pinecone1.upsertedCount>`, and maintains data integrity across operations. For real-time search systems, deploy **Webhook → Pinecone Search → Function → External API** patterns that respond to search queries with contextually relevant results.
+
+**Message/Data Formatting Excellence**
+
+Structure your Pinecone inputs for optimal performance and searchability. When preparing records for `pinecone_upsert_text`, ensure each record contains meaningful metadata that enables effective filtering. Format metadata objects with consistent key structures to support complex filter operations in subsequent searches.
+
+For embedding generation, batch text inputs efficiently using the `inputs` array parameter. Group related text segments together to minimize API calls while maintaining semantic coherence. When formatting search queries, use precise language that matches your stored content's terminology and context. Structure filter objects with proper data types and operators that align with your metadata schema design.
+
+Format vector search inputs with appropriate `topK` values based on your use case requirements. Too few results limit contextual richness, while excessive results can introduce noise. Design your `includeMetadata` and `includeValues` parameters strategically - include metadata for filtering and ranking, but exclude vector values when not needed to optimize response times.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring for all Pinecone operations using the block's output fields. Track `<pinecone1.usage>` to monitor embedding generation costs and identify usage patterns. Monitor `<pinecone1.upsertedCount>` against expected record counts to detect partial failures or data loss issues.
+
+For search operations, analyze `<pinecone1.matches>` array lengths and similarity scores to validate search quality. Low similarity scores across all results may indicate embedding model mismatches or insufficient training data. Use the `statusText` output for upsert operations to identify API-level issues and implement appropriate retry logic.
+
+Establish logging for index host URLs and namespace configurations to troubleshoot connectivity issues. Validate that your `indexHost` parameters include the complete URL format required by Pinecone's API. Monitor search latencies by tracking timestamp differences between search initiation and result retrieval to identify performance bottlenecks.
+
+**Security Considerations**
+
+Protect your Pinecone API keys using Sim.ai's secure credential management. Never hardcode API keys in workflow configurations; instead, reference them through environment variables or secure storage mechanisms. Implement namespace-based access controls to isolate different data sets and prevent unauthorized cross-contamination.
+
+Validate and sanitize all text inputs before embedding generation to prevent injection attacks or malicious content storage. Implement proper access controls for your Pinecone indexes at the infrastructure level, ensuring that only authorized workflow executions can perform upsert or search operations. Consider implementing metadata filtering to restrict search results based on user permissions or data classification levels.
+
+**Performance Optimization**
+
+Optimize embedding generation by batching text inputs effectively. The `inputs` array parameter supports multiple text segments in a single API call, significantly reducing network overhead and improving throughput. Balance batch sizes to stay within API limits while maximizing efficiency - typically 50-100 text segments per batch works well for most use cases.
+
+Structure your namespace strategy to optimize search performance. Use consistent namespace naming conventions that align with your data organization and search patterns. Avoid overly granular namespaces that fragment your data, but maintain logical separation for different content types or user contexts.
+
+Implement strategic filtering using metadata to reduce search scope and improve relevance. Well-designed filters can dramatically improve search speed and result quality. Use numeric metadata for range-based filtering and string metadata for exact matches. Consider implementing hierarchical metadata structures that enable multi-level filtering strategies.
+
+Cache frequently accessed search results using Function blocks or external caching systems to reduce Pinecone API calls. Implement vector caching strategies for embedding generation when processing similar content repeatedly. Monitor your index utilization patterns and consider implementing data archiving strategies for infrequently accessed vectors to optimize storage costs and search performance.
+
+For high-throughput scenarios, implement asynchronous processing patterns where possible. Use parallel Function blocks to process multiple text segments simultaneously before feeding them into Pinecone operations. This approach maximizes throughput while respecting API rate limits and maintaining system stability.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I set up a Pinecone block to store text embeddings in my Sim.ai workflow?">
+
+    To store text embeddings using Pinecone, add a **Pinecone block** to your workflow and configure the `pinecone_upsert_text` operation:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `indexHost` | Your Pinecone index host URL | `<start.indexHost>` or `https://your-index-abc123.svc.us-west1-gcp.pinecone.io` |
+    | `namespace` | Target namespace for records | `<start.namespace>` or static value like `documents` |
+    | `records` | Array of records with _id, text, and metadata | `<function1.formattedRecords>` |
+    | `apiKey` | Your Pinecone API key | `<start.apiKey>` or environment variable |
+
+    Each record in the `records` array should contain an `_id` field, `text` field, and optional `metadata` object for storing additional information.
+  </Accordion>
+  <Accordion title="How do I generate embeddings from text before storing them in Pinecone?">
+
+    To generate embeddings from text input, configure a Pinecone block with the `pinecone_generate_embeddings` operation:
+
+    #### Example Workflow Configuration
+    ```
+    Agent → Pinecone (Generate Embeddings) → Pinecone (Upsert)
+    ```
+
+    #### Required Inputs for Embedding Generation
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `model` | Embedding model to use | `<start.model>` or `text-embedding-3-small` |
+    | `inputs` | Array of text strings | `[<agent1.content>]` or `<function1.textArray>` |
+    | `apiKey` | Your Pinecone API key | `<start.apiKey>` |
+
+    The output `<pinecone1.data>` contains the generated embeddings that can be used in downstream blocks.
+  </Accordion>
+  <Accordion title="What is the correct way to reference Pinecone block outputs in my workflow?">
+
+    Every Pinecone block exposes specific outputs based on the operation performed:
+
+    #### Available Output Tags
+
+    | Output Tag | Type | Description | Operations |
+    |------------|------|-------------|------------|
+    | `<pinecone1.matches>` | Array | Search results with ID, score, and metadata | `search_text`, `search_vector`, `fetch` |
+    | `<pinecone1.upsertedCount>` | Number | Number of successfully inserted records | `upsert_text` |
+    | `<pinecone1.data>` | Array | Generated embeddings with values and metadata | `generate_embeddings` |
+    | `<pinecone1.model>` | String | Model used for embedding generation | `generate_embeddings` |
+    | `<pinecone1.vector_type>` | String | Type of vector (dense/sparse) | `generate_embeddings` |
+    | `<pinecone1.usage>` | Object | Usage statistics and token counts | `generate_embeddings` |
+    | `<pinecone1.namespace>` | String | Namespace where operation was performed | `search_vector` |
+  </Accordion>
+  <Accordion title="How do I search for similar text in my Pinecone index from a workflow?">
+
+    To perform semantic search on stored text, configure a Pinecone block with the `pinecone_search_text` operation:
+
+    #### Search Configuration
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `indexHost` | Your Pinecone index host URL | `<start.indexHost>` |
+    | `searchQuery` | Text query to find similar content | `<agent1.content>` or `<start.userQuery>` |
+    | `topK` | Number of results to return | `<start.topK>` or `"10"` |
+    | `namespace` | Optional namespace to search within | `<start.namespace>` |
+    | `filter` | Optional metadata filters | `{"category": "<start.category>"}` |
+    | `apiKey` | Your Pinecone API key | `<start.apiKey>` |
+
+    The search results are available in `<pinecone1.matches>` and can be connected to Agent blocks for processing or response generation.
+  </Accordion>
+  <Accordion title="How do I connect Pinecone search results to an Agent block for processing?">
+
+    To process Pinecone search results with an AI agent:
+
+    1. Configure the Agent block's `context` or `userPrompt` input
+    2. Reference the search results using `<pinecone1.matches>`
+    3. The Agent can analyze, summarize, or answer questions based on the retrieved content
+
+    #### Example Integration Pattern
+    ```json
+    {
+      "userPrompt": "<start.question>",
+      "context": "Based on these search results: <pinecone1.matches>"
+    }
+    ```
+
+    This pattern enables retrieval-augmented generation (RAG) where the agent responds using relevant information from your Pinecone vector database.
+  </Accordion>
+  <Accordion title="Why is my Pinecone operation failing with authentication errors?">
+
+    Troubleshoot common Pinecone authentication and configuration issues:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Invalid API Key** | Incorrect or expired Pinecone API key | Verify `<start.apiKey>` matches your Pinecone console key |
+    | **Wrong Index Host** | Incorrect index host URL format | Ensure `indexHost` includes full URL: `https://index-name-abc123.svc.region.pinecone.io` |
+    | **Namespace Errors** | Namespace doesn't exist or access denied | Create namespace first or use empty string for default |
+    | **Model Not Found** | Embedding model not available | Use supported models like `text-embedding-3-small` |
+    | **Record Format Issues** | Invalid record structure for upsert | Ensure records contain `_id` and `text` fields |
+  </Accordion>
+  <Accordion title="Can I combine multiple Pinecone operations in a single workflow?">
+
+    Yes! You can chain multiple Pinecone operations for complex vector database workflows:
+
+    #### Common Multi-Operation Patterns
+
+    ##### 1. **Generate → Upsert → Search**
+    ```
+    Function (prepare text) → Pinecone (generate_embeddings) → Pinecone (upsert_text) → Pinecone (search_text)
+    ```
+
+    ##### 2. **Search → Fetch → Process**
+    ```
+    Pinecone (search_vector) → Pinecone (fetch) → Agent (process results)
+    ```
+
+    ##### 3. **Webhook → Search → Agent → Response**
+    ```
+    Webhook → Pinecone (search_text) → Agent (analyze) → API Response
+    ```
+
+    Use different Pinecone blocks for each operation, connecting outputs like `<pinecone1.data>` to inputs like `<pinecone2.vector>` to create sophisticated vector database workflows in Sim.ai.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

@@ -4,6 +4,8 @@ description: Send WhatsApp messages
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="whatsapp"
@@ -35,13 +37,75 @@ In Sim, the WhatsApp integration enables your agents to leverage these messaging
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Webhook
 
-Send messages to WhatsApp users using the WhatsApp Business API. Requires WhatsApp Business API configuration.
+Trigger workflows from new WhatsApp messages via the Meta WhatsApp Business Webhook. You can use the WhatsApp block in trigger mode to start a workflow when your WhatsApp Business account receives an incoming message. Click the lightning bolt icon to enable trigger mode, then configure the WhatsApp webhook in the Meta Developer Console to point to your workflow URL.
 
+### Configuration Inputs
 
+| Input | Type | Required | Description |
+|------|------|----------|-------------|
+| `verifyToken` | string | Yes | Token used to verify the webhook during setup (`hub.verify_token`). |
+| `appSecret` | string | No | App secret to validate `X-Hub-Signature-256` for payload integrity. |
+| `includeMessage` | boolean | No | Include parsed message content (from, to, text) in outputs. Defaults to `true`. |
 
-## Tools
+### Outputs
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `payloads` | array | The raw WhatsApp webhook payloads received. |
+| `latestPayload` | object | Convenience object of the latest webhook payload. |
+| `whatsappEvent` | object | Parsed fields (phone_number_id, from, message id, text, type). |
+
+#### `latestPayload` shape
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `entry[].changes[].field` | string | Should be `messages`. |
+| `entry[].changes[].value.metadata.phone_number_id` | string | Business phone number ID. |
+| `entry[].changes[].value.messages[].from` | string | Sender phone number. |
+| `entry[].changes[].value.messages[].id` | string | Message ID. |
+| `entry[].changes[].value.messages[].timestamp` | string | Message timestamp. |
+| `entry[].changes[].value.messages[].text.body` | string | Message text (for text messages). |
+
+### Example webhook event body (raw WhatsApp payload)
+
+```json
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "+1 234 567 8900",
+              "phone_number_id": "123456789012345"
+            },
+            "contacts": [ { "wa_id": "15551234567", "profile": { "name": "Alice" } } ],
+            "messages": [
+              {
+                "from": "15551234567",
+                "id": "wamid.HBgLN...",
+                "timestamp": "1704067200",
+                "type": "text",
+                "text": { "body": "Hello!" }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+Method: `POST`  •  Headers: `Content-Type: application/json`, `X-Hub-Signature-256`
+
+## Operations
 
 ### `whatsapp_send_message`
 
@@ -67,7 +131,214 @@ Send WhatsApp messages
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `whatsapp`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the WhatsApp block into your Sim.ai workflows, following established best practices ensures reliable message delivery and optimal performance within the WhatsApp Business API ecosystem. The WhatsApp block serves as a critical communication gateway for customer engagement, automated notifications, and business process automation through WhatsApp's professional messaging platform.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation is essential for WhatsApp message delivery success. The `<whatsapp1.messageId>` output provides crucial tracking capabilities for subsequent workflow steps, while `<whatsapp1.success>` enables conditional branching based on delivery status. When connecting upstream blocks, ensure phone number formatting through Function blocks using `<function1.result>` to validate and format the `<whatsapp1.phoneNumber>` input with proper country codes.
+
+For message content routing, leverage AI-generated responses with `<agent1.content>` connecting directly to `<whatsapp1.message>`. This pattern enables intelligent, contextual WhatsApp communications. The `<whatsapp1.phoneNumberId>` requires static configuration or dynamic routing through database lookups using `<database1.phoneNumberId>` for multi-tenant applications managing multiple WhatsApp Business accounts.
+
+**Workflow Architecture Patterns**
+
+Successful WhatsApp workflows typically implement **Webhook → Agent → WhatsApp** patterns for conversational AI applications, where incoming messages trigger intelligent responses. For customer service automation, consider **Database → Function → WhatsApp** flows that query customer data, format personalized messages, and deliver targeted communications.
+
+Notification systems benefit from **Schedule → API → WhatsApp** architectures, enabling automated appointment reminders, order updates, and promotional campaigns. For complex customer journeys, implement **WhatsApp → Conditional → Multiple WhatsApp** patterns using `<whatsapp1.success>` and `<whatsapp1.status>` outputs to trigger follow-up messages based on delivery confirmations.
+
+Multi-step verification workflows utilize **WhatsApp → Webhook → Database → WhatsApp** patterns, where initial messages prompt user responses, webhook captures replies, database validation occurs, and confirmation messages complete the interaction cycle.
+
+**Message Formatting Excellence**
+
+WhatsApp Business API enforces strict character limits and formatting requirements. Structure messages for optimal readability by breaking long content into digestible paragraphs. Implement message chunking through Function blocks when AI-generated content exceeds WhatsApp's character limitations, using `<function1.messageChunk1>` and `<function1.messageChunk2>` to split content across multiple sequential WhatsApp blocks.
+
+Phone number formatting requires international format validation. Implement preprocessing functions that ensure `<whatsapp1.phoneNumber>` inputs include proper country codes (e.g., "+1234567890"). Invalid phone number formats result in delivery failures, making validation crucial for workflow reliability.
+
+For dynamic content insertion, use template patterns with Function blocks to merge personalized data: `<function1.personalizedMessage>` combining customer names, order details, and contextual information before connecting to `<whatsapp1.message>`. This approach maintains message personalization while ensuring format consistency.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring using `<whatsapp1.success>`, `<whatsapp1.status>`, and `<whatsapp1.error>` outputs for complete delivery tracking. Create conditional branches that handle failed deliveries by routing `<whatsapp1.error>` to logging systems or alternative communication channels. The `<whatsapp1.timestamp>` output enables performance analysis and delivery time optimization.
+
+Monitor WhatsApp Business API rate limits by tracking `<whatsapp1.status>` responses. Implement retry mechanisms for temporary failures using Delay blocks connected to secondary WhatsApp blocks, triggered when `<whatsapp1.success>` returns false. This pattern ensures message delivery resilience against temporary API unavailability.
+
+Log `<whatsapp1.messageId>` values for correlation with WhatsApp Business API webhooks, enabling end-to-end delivery confirmation and customer engagement tracking. Use Database blocks to store message IDs with customer records for comprehensive communication history management.
+
+**Security Considerations**
+
+WhatsApp Business API credentials require secure configuration through Sim.ai's environment variables. Never hardcode `<whatsapp1.phoneNumberId>` values in workflows; instead, reference secure configuration stores or use Function blocks to retrieve credentials dynamically based on tenant identification.
+
+Implement input validation for `<whatsapp1.phoneNumber>` to prevent injection attacks and ensure only authorized recipients receive messages. Use Function blocks to sanitize and validate phone numbers against approved contact lists before message delivery.
+
+For sensitive information transmission, avoid including confidential data directly in `<whatsapp1.message>` content. Instead, send secure links or reference numbers that recipients can use to access protected information through authenticated channels.
+
+**Performance Optimization**
+
+Optimize WhatsApp delivery performance by implementing parallel processing for bulk messaging. Use multiple WhatsApp blocks with different `<whatsapp1.phoneNumberId>` configurations to distribute message volume across multiple Business API endpoints, reducing individual rate limit impacts.
+
+Cache frequently used phone number validations through Database blocks to minimize preprocessing overhead. Store validated phone numbers with `<database1.validatedPhoneNumber>` outputs that can be reused across multiple workflow executions, reducing Function block processing requirements.
+
+Implement message queuing patterns for high-volume scenarios using Database blocks to store pending messages, then process batches using Schedule triggers that respect WhatsApp Business API rate limits. This approach ensures reliable delivery while maintaining optimal throughput.
+
+Monitor `<whatsapp1.timestamp>` patterns to identify optimal sending times for different customer segments, then use Schedule blocks to time message delivery for maximum engagement rates. Geographic and demographic analysis of delivery times improves overall communication effectiveness.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I send a WhatsApp message from my workflow?">
+
+    To send WhatsApp messages from your workflow, add a **WhatsApp block** to your Sim.ai workflow and configure its required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `phoneNumberId` | Your WhatsApp Business Phone Number ID | `<start.phoneNumberId>` or static ID |
+    | `phoneNumber` | Recipient's phone number with country code | `<start.phoneNumber>` or `+1234567890` |
+    | `message` | The message content to send | `<agent1.content>` or any string |
+  </Accordion>
+  <Accordion title="How do I get the WhatsApp Business Phone Number ID required for this block?">
+
+    The `phoneNumberId` is obtained from your WhatsApp Business API configuration:
+
+    1. **Access Meta Developer Console** and navigate to your WhatsApp Business app
+    2. **Go to WhatsApp > Getting Started** in the left sidebar
+    3. **Copy the Phone Number ID** from the test phone number section
+    4. **Use this ID** in the `phoneNumberId` field of your WhatsApp block
+
+    Store this ID as an environment variable or pass it from your workflow's start block using `<start.phoneNumberId>`.
+  </Accordion>
+  <Accordion title="What is the correct way to reference WhatsApp block outputs in my workflow?">
+
+    Every WhatsApp block exposes outputs that can be referenced using connection tags:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<whatsapp1.success>` | Boolean | `true` if message was delivered successfully |
+    | `<whatsapp1.messageId>` | String | Unique WhatsApp message identifier |
+    | `<whatsapp1.phoneNumber>` | String | Recipient's phone number |
+    | `<whatsapp1.status>` | String | Message delivery status (sent, delivered, read) |
+    | `<whatsapp1.timestamp>` | String | ISO timestamp when message was sent |
+    | `<whatsapp1.from>` | String | Sender's phone number |
+    | `<whatsapp1.to>` | String | Recipient's phone number |
+    | `<whatsapp1.text>` | String | The message content that was sent |
+    | `<whatsapp1.type>` | String | Message type (typically "text") |
+    | `<whatsapp1.error>` | String | Error details if sending failed |
+  </Accordion>
+  <Accordion title="How do I connect an Agent block's response to send via WhatsApp?">
+
+    To route an AI agent's response to WhatsApp:
+
+    1. In the WhatsApp block's `message` field, type `<>` to open the connection menu
+    2. Select `<agent1.content>` from the available connections
+
+    #### Example Configuration
+
+    ```json
+    {
+      "phoneNumberId": "<start.phoneNumberId>",
+      "phoneNumber": "<start.customerPhone>",
+      "message": "<agent1.content>"
+    }
+    ```
+
+    This configuration sends the AI-generated response to the specified customer's WhatsApp number.
+  </Accordion>
+  <Accordion title="How do I create a WhatsApp chatbot that responds to incoming messages?">
+
+    To build a WhatsApp chatbot in Sim.ai:
+
+    1. **Add a Webhook Trigger block** as your workflow's entry point
+    2. **Configure WhatsApp webhook** in your Meta Developer Console to point to your Sim.ai webhook URL
+    3. **Map incoming message data** to process user inputs:
+
+    #### Example Workflow Pattern
+    ```
+    Webhook → Agent → WhatsApp
+    ```
+
+    #### Input Mapping
+    - Connect `<start.entry.changes[0].value.messages[0].text.body>` to Agent's `userPrompt`
+    - Connect `<start.entry.changes[0].value.messages[0].from>` to WhatsApp's `phoneNumber`
+  </Accordion>
+  <Accordion title="Why is my WhatsApp message failing to send?">
+
+    Troubleshoot common WhatsApp integration issues:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Invalid Phone Number ID** | Incorrect WhatsApp Business Phone Number ID | Verify `phoneNumberId` in Meta Developer Console |
+    | **Phone Number Format** | Missing country code or incorrect format | Ensure format like `+1234567890` with country code |
+    | **API Permissions** | WhatsApp Business API not properly configured | Check Meta Business verification status |
+    | **Rate Limiting** | Too many messages sent too quickly | Implement delays between messages |
+    | **Empty Message** | No content in message field | Ensure `message` field is populated |
+    | **Authentication** | Missing or invalid access token | Verify WhatsApp Business API credentials |
+  </Accordion>
+  <Accordion title="Can I send WhatsApp messages based on conditional logic in my workflow?">
+
+    Yes! Use Condition blocks to send different WhatsApp messages based on workflow logic:
+
+    #### Example: Conditional WhatsApp Notifications
+
+    ```
+    API Call → Condition → WhatsApp (Success)
+                       → WhatsApp (Error)
+    ```
+
+    #### Configuration
+    - **If** `<api1.status>` equals `200`: Send success message
+    - **Else**: Send error notification with `<api1.error>` details
+
+    #### Success Message Configuration
+    ```json
+    {
+      "phoneNumber": "<start.adminPhone>",
+      "message": "✅ Process completed successfully: <api1.data.result>"
+    }
+    ```
+
+    #### Error Message Configuration
+    ```json
+    {
+      "phoneNumber": "<start.adminPhone>",
+      "message": "❌ Process failed: <api1.error>"
+    }
+    ```
+  </Accordion>
+  <Accordion title="How do I integrate WhatsApp with scheduled workflows for automated notifications?">
+
+    Create automated WhatsApp notifications using Scheduled Trigger blocks:
+
+    #### Example: Daily Report Automation
+
+    ```
+    Scheduled Trigger → API → Function → WhatsApp
+    ```
+
+    1. **Scheduled Trigger**: Set daily execution time
+    2. **API Block**: Fetch data from your system
+    3. **Function Block**: Format data into readable message
+    4. **WhatsApp Block**: Send formatted report
+
+    #### WhatsApp Configuration
+    ```json
+    {
+      "phoneNumberId": "<start.phoneNumberId>",
+      "phoneNumber": "<start.managerPhone>",
+      "message": "<function1.formattedReport>"
+    }
+    ```
+
+    This pattern enables automated daily reports, alerts, or status updates via WhatsApp.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

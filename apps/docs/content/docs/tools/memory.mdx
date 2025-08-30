@@ -4,6 +4,8 @@ description: Add memory store
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="memory"
@@ -33,13 +35,21 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
     </svg>`}
 />
 
-## Usage Instructions
+{/* MANUAL-CONTENT-START:intro */}
+The Memory integration is a persistent storage service that enables workflows to maintain state and context across multiple execution steps. It provides a centralized data store where information can be written, updated, and retrieved throughout the entire workflow lifecycle.
 
-Create persistent storage for data that needs to be accessed across multiple workflow steps. Store and retrieve information throughout your workflow execution to maintain context and state.
+Key capabilities include:
+
+• **Persistent Data Storage**: Store structured data, variables, and workflow state that persists across different workflow steps and executions
+• **Cross-Step Context Management**: Share data between workflow blocks by writing to memory in one step and reading from it in subsequent operations  
+• **Dynamic State Tracking**: Maintain running totals, counters, flags, and other stateful information that evolves during workflow execution
+• **Structured Data Organization**: Store complex objects, arrays, and nested data structures with key-value organization for easy retrieval
+
+Within the Sim.ai platform, Memory blocks act as centralized data repositories that connect to other workflow components through connection tags. Workflow blocks can write data to memory storage using structured inputs, while downstream blocks retrieve this information to make decisions, perform calculations, or maintain operational context across the entire automation sequence.
+{/* MANUAL-CONTENT-END */}
 
 
-
-## Tools
+## Operations
 
 ### `memory_add`
 
@@ -118,7 +128,206 @@ Delete a specific memory by its ID
 
 
 
-## Notes
+## Best Practices
 
-- Category: `blocks`
-- Type: `memory`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When implementing the Memory block in your Sim.ai workflows, following established best practices ensures reliable data persistence and optimal state management. The Memory block serves as a critical component for maintaining context across multiple workflow steps, enabling sophisticated conversational AI systems and complex multi-step processes that require persistent data storage.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation with the Memory block requires understanding both input and output patterns. Use `<memory1.memories>` to access stored memory arrays in downstream blocks, particularly when feeding conversation history to Agent blocks. The `<memory1.id>` output provides direct access to memory identifiers for conditional logic and branching workflows.
+
+For input connections, leverage dynamic memory IDs using `<webhook1.userId>` or `<function1.sessionId>` to create user-specific or session-specific memory stores. This pattern enables personalized experiences where each user maintains their own conversation history. When adding memories, use `<agent1.content>` for assistant responses and direct string inputs for user messages to build complete conversation threads.
+
+The memory array structure supports agent-compatible formatting, making `<memory1.memories>` ideal for direct connection to Agent blocks' memory inputs. This creates seamless conversation continuity where agents can reference previous exchanges and maintain context across multiple interactions.
+
+**Workflow Architecture Patterns**
+
+Successful Memory block implementations follow several proven architectural patterns. The **Start → Memory Add → Agent → Memory Add** pattern represents the foundation of conversational AI workflows. This sequence simultaneously adds the user query and retrieves existing conversation history, processes new input through an AI agent, and stores the complete exchange for future reference.
+
+For session management, implement **Function → Memory Get All → Filter → Delete** patterns to clean up expired sessions or manage memory storage limits. This prevents memory accumulation and maintains optimal performance in high-volume applications.
+
+Multi-user systems benefit from **Start -> Memeory Get** patterns where `<start.conversationID>` logic determines the appropriate memory store based on user identification. This enables concurrent conversations without cross-contamination of memory data.
+
+For complex workflows requiring temporary state storage, use **Process → Memory Add → Continue → Memory Delete** patterns where intermediate results are temporarily stored and cleaned up after processing completion.
+
+**Memory Data Formatting Excellence**
+
+Structure your memory content following agent-compatible formats for seamless integration. When storing conversation history, maintain consistent role assignments: "user" for human input, "assistant" for AI responses, and "system" for workflow instructions or context.
+
+Format complex data structures as JSON strings within memory content to preserve data integrity across retrieval operations. Use descriptive memory IDs that include relevant context such as "user_123_session", "workflow_temp_data", or "conversation_main" to enable easy identification and management.
+
+When appending to existing memories, ensure content formatting remains consistent. The Memory block's append functionality concatenates new content, so implement proper delimiters or structure your content to maintain readability and parsing compatibility.
+
+For agent memory integration, structure content to include necessary context without overwhelming the AI model. Balance between comprehensive history and focused relevant information to optimize agent performance and response quality.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring using the `<memory1.success>` output to track operation success rates and identify potential storage issues. Monitor the `<memory1.error>` output to capture and log specific failure conditions, enabling rapid troubleshooting of memory-related workflow problems.
+
+Use conditional logic blocks to handle memory operation failures gracefully. Create fallback patterns where failed memory retrieval operations default to empty states rather than breaking workflow execution. This ensures workflow resilience even when memory operations encounter issues.
+
+Track memory growth patterns by monitoring the length and structure of `<memory1.memories>` arrays. Implement alerting when memory stores exceed expected sizes, indicating potential memory leaks or inefficient storage patterns.
+
+For debugging complex memory flows, temporarily log memory content at key workflow points using Function blocks to output memory states. This provides visibility into memory evolution throughout workflow execution and helps identify data corruption or unexpected modifications.
+
+**Security Considerations**
+
+Memory blocks store data persistently, requiring careful consideration of sensitive information handling. Avoid storing personally identifiable information, authentication tokens, or confidential data in memory content unless absolutely necessary for workflow functionality.
+
+Implement memory ID namespacing strategies to prevent accidental access to other users' memory stores. Use UUIDs or properly scoped identifiers rather than predictable patterns that could enable unauthorized access to memory data.
+
+For workflows processing sensitive data, implement memory cleanup patterns using the delete operation to ensure temporary sensitive information doesn't persist beyond its intended lifecycle. Regular cleanup prevents accumulation of potentially sensitive data in memory stores.
+
+Consider implementing memory encryption for highly sensitive use cases, where memory content is encrypted before storage and decrypted upon retrieval using Function blocks with appropriate cryptographic operations.
+
+**Performance Optimization**
+
+Optimize memory retrieval patterns by using specific memory_get operations with known IDs rather than memory_get_all operations followed by filtering. This reduces data transfer and processing overhead, particularly in workflows with extensive memory stores.
+
+Implement memory archival strategies for long-running conversations or processes. Use date-based memory IDs to enable selective retrieval of recent memory while maintaining historical data availability when needed.
+
+Batch memory operations when possible by structuring content to minimize the number of individual memory_add operations. Single operations with structured content perform better than multiple small operations for related data.
+
+Monitor memory_get_all usage and implement pagination or filtering strategies for workflows with large memory stores. Consider implementing custom memory management using Function blocks to handle complex querying requirements efficiently.
+
+Design memory lifecycles with clear retention policies. Implement automated cleanup workflows that delete obsolete memories based on age, usage patterns, or workflow completion status to maintain optimal performance and prevent unlimited memory growth.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I store data in memory that persists throughout my workflow execution?">
+
+    To store persistent data in your Sim.ai workflow, add a **Memory block** and use the `memory_add` operation:
+
+    #### Required Inputs for Adding Memory
+
+    | Input | Description | Example Connection |
+    |-------|-------------|-------------------|
+    | `id` | Unique identifier for the memory entry | `<start.sessionId>` or static value like `"user_123"` |
+    | `role` | Memory role (user, assistant, or system) | `<start.role>` or static value like `"assistant"` |
+    | `content` | The data content to store | `<agent1.content>` or any string data |
+
+    If a memory with the same `id` already exists, new content will be appended to the existing memory rather than overwriting it.
+  </Accordion>
+  <Accordion title="How do I retrieve previously stored memory data in my workflow?">
+
+    To access stored memory data, configure a Memory block with the `memory_get` operation:
+
+    1. **Set the operation** to `memory_get` in the Memory block
+    2. **Connect the ID input** to reference the memory you want to retrieve
+    3. **Use the output** in downstream blocks
+
+    #### Example Configuration
+    ```json
+    {
+      "operation": "memory_get",
+      "id": "<start.userId>"
+    }
+    ```
+
+    The block will return `<memory1.memories>` containing the stored data array for that specific ID.
+  </Accordion>
+  <Accordion title="What are the correct connection tags to reference Memory block outputs?">
+
+    Memory blocks expose several outputs that can be connected to other blocks:
+
+    #### Available Output Tags
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<memory1.success>` | Boolean | `true` if the memory operation completed successfully |
+    | `<memory1.memories>` | Array | Array of memory objects with stored data |
+    | `<memory1.message>` | String | Success or error message from the operation |
+    | `<memory1.error>` | String | Error details if operation failed |
+    | `<memory1.id>` | String | The memory identifier used in the operation |
+
+    Use these tags to connect memory outputs to inputs of other blocks in your workflow.
+  </Accordion>
+  <Accordion title="How do I connect an Agent block to use stored conversation memory?">
+
+    To create persistent conversations with AI agents using memory:
+
+    #### Pattern 1: Store Agent Responses
+    ```
+    Agent → Memory (memory_add)
+    ```
+    Configure Memory inputs:
+    - `id`: `<start.conversationId>`
+    - `role`: `"assistant"`
+    - `content`: `<agent1.content>`
+
+    #### Pattern 2: Retrieve Conversation History
+    ```
+    Memory (memory_get) → Agent
+    ```
+    Connect `<memory1.memories>` to the Agent's context input to maintain conversation history across multiple workflow executions.
+  </Accordion>
+  <Accordion title="How do I handle memory operations that might fail or return empty results?">
+
+    Implement proper error handling for memory operations using conditional logic:
+
+    #### Common Error Scenarios
+
+    | Issue | Cause | Solution |
+    |-------|-------|---------|
+    | **Memory Not Found** | Requesting non-existent ID | Check `<memory1.success>` before using `<memory1.memories>` |
+    | **Invalid Role** | Using role other than user/assistant/system | Ensure role input is one of the valid values |
+    | **Empty Content** | Attempting to store empty string | Validate content before storing |
+    | **Network Issues** | Database connection problems | Use `<memory1.error>` for troubleshooting |
+
+    #### Error Handling Pattern
+    ```
+    Memory → Condition Block
+    ├─ If <memory1.success> = true → Process <memory1.memories>
+    └─ If <memory1.success> = false → Handle <memory1.error>
+    ```
+  </Accordion>
+  <Accordion title="What is the difference between memory_get and memory_get_all operations?">
+
+    The Memory block supports multiple operations for different data retrieval needs:
+
+    #### `memory_get` Operation
+    - **Purpose**: Retrieve specific memory by ID
+    - **Input Required**: `id` parameter
+    - **Output**: `<memory1.memories>` contains array for that specific ID only
+    - **Use Case**: Getting conversation history for a specific user
+
+    #### `memory_get_all` Operation  
+    - **Purpose**: Retrieve all stored memories
+    - **Input Required**: None
+    - **Output**: `<memory1.memories>` contains all memory objects with keys, types, and data
+    - **Use Case**: Admin dashboards, bulk processing, or data analysis
+
+    Choose `memory_get` for targeted retrieval and `memory_get_all` for comprehensive memory access.
+  </Accordion>
+  <Accordion title="Can I use Memory blocks to maintain state across different workflow triggers?">
+
+    Yes! Memory blocks provide persistent storage that survives across multiple workflow executions:
+
+    #### Cross-Execution Patterns
+
+    ##### 1. **User Session Management**
+    ```
+    Webhook Trigger → Memory (memory_get) → Agent → Memory (memory_add)
+    ```
+    Retrieve previous conversation using `<start.userId>`, process with Agent, then store the updated conversation.
+
+    ##### 2. **Incremental Data Processing**
+    ```
+    Scheduled Trigger → Memory (memory_get_all) → Function → Memory (memory_add)
+    ```
+    Load all previous data, process incrementally, then store new results.
+
+    ##### 3. **Multi-Step Workflows**
+    ```
+    Step 1: API → Memory (memory_add)
+    Step 2: Memory (memory_get) → Function → Output
+    ```
+    Store intermediate results in one execution, retrieve them in subsequent workflow runs using the same memory ID.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

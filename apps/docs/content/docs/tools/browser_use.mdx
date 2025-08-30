@@ -4,6 +4,8 @@ description: Run browser automation tasks
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="browser_use"
@@ -48,20 +50,13 @@ With BrowserUse, you can:
 - **Automate web interactions**: Navigate to websites, click buttons, fill forms, and perform other browser actions
 - **Extract data**: Scrape content from websites, including text, images, and structured data
 - **Execute complex workflows**: Chain multiple actions together to complete sophisticated web tasks
-- **Monitor task execution**: Watch browser tasks run in real-time with visual feedback
 - **Process results programmatically**: Receive structured output from web automation tasks
 
 In Sim, the BrowserUse integration allows your agents to interact with the web as if they were human users. This enables scenarios like research, data collection, form submission, and web testing - all through simple natural language instructions. Your agents can gather information from websites, interact with web applications, and perform actions that would typically require manual browsing, expanding their capabilities to include the entire web as a resource.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Execute browser automation tasks with BrowserUse to navigate the web, scrape data, and perform actions as if a real user was interacting with the browser. The task runs asynchronously and the block will poll for completion before returning results.
-
-
-
-## Tools
+## Operations
 
 ### `browser_use_run_task`
 
@@ -89,7 +84,234 @@ Runs a browser automation task using BrowserUse
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `browser_use`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Browser Use block into your Sim.ai workflows, following established best practices ensures reliable browser automation and optimal performance. The Browser Use block serves as a powerful web interaction engine that enables your workflows to navigate websites, extract data, and perform complex user interactions programmatically, bridging the gap between automated processes and web-based resources.
+
+**Connection Tag Usage and Data Flow**
+
+Effective connection tag implementation is crucial for successful browser automation workflows. The `<browserUse1.task>` input should receive clear, specific instructions that define the exact actions the browser agent should perform. Connect this to upstream blocks using patterns like `<agent1.content>` for AI-generated task instructions or `<function1.description>` for dynamically constructed automation tasks.
+
+The `<browserUse1.variables>` input enables secure handling of sensitive data by accepting JSON objects containing credentials, API keys, or user-specific information. Structure this input using `<webhook1.body>` for runtime variables or `<function1.secrets>` for processed credential data. This approach keeps sensitive information flowing securely through your workflow without hardcoding values.
+
+For downstream processing, leverage `<browserUse1.output>` to pass extracted data to subsequent blocks. This JSON output contains the structured results of your browser automation task and integrates seamlessly with Agent blocks for data analysis or Function blocks for further processing. The `<browserUse1.steps>` output provides detailed execution logs that can be routed to monitoring or logging systems using connection tags like `<logger1.events>`.
+
+**Workflow Architecture Patterns**
+
+Successful Browser Use workflows typically follow proven architectural patterns. The **Webhook → Function → Browser Use → Agent** pattern excels for dynamic web scraping, where external triggers initiate targeted data extraction followed by AI analysis. This pattern enables responsive data gathering that adapts to changing requirements.
+
+For scheduled monitoring tasks, implement **Schedule → Browser Use → Function → Notification** flows. This pattern automates regular website checks, processes the results through custom logic, and delivers formatted updates to stakeholders. The automation runs continuously without manual intervention.
+
+Complex workflows benefit from **Agent → Browser Use → Function → Database** patterns, where AI agents generate specific browser tasks based on user queries, execute the automation, process the results, and store findings for future reference. This creates intelligent web research capabilities that scale with your needs.
+
+**Message/Data Formatting Excellence**
+
+The `task` input requires precise, actionable instructions written in natural language. Structure tasks with clear objectives, specific selectors, and expected outcomes. Use descriptive language like "Navigate to the login page, enter credentials from variables, click submit, then extract all product prices from the results table" rather than vague instructions.
+
+Format the `variables` input as properly structured JSON with meaningful key names that correspond to your task instructions. Use consistent naming conventions like `{"username": "user@domain.com", "password": "secure_pass", "search_term": "target_keyword"}` to maintain clarity and prevent errors.
+
+The `format` parameter controls output structure, so specify formats that align with downstream block requirements. Choose formats that facilitate easy parsing by subsequent blocks in your workflow chain.
+
+**Debugging and Monitoring**
+
+Monitor the `<browserUse1.success>` output continuously to track task completion rates and identify automation failures. Implement conditional logic using this boolean value to trigger error handling workflows when browser tasks fail. Connect success monitoring to logging systems using `<logger1.status>` for comprehensive tracking.
+
+Analyze `<browserUse1.steps>` output for detailed execution insights. This JSON array contains each action taken by the browser agent, providing valuable debugging information when tasks don't execute as expected. Route this data to monitoring dashboards or error tracking systems for proactive issue resolution.
+
+Use `<browserUse1.id>` for task correlation and tracking across workflow executions. This identifier enables linking browser automation results with upstream triggers and downstream processing, facilitating end-to-end workflow monitoring.
+
+**Security Considerations**
+
+Implement secure variable handling by routing sensitive data through the `variables` input rather than embedding credentials directly in task descriptions. Use connection tags from secure sources like encrypted database outputs or authenticated API responses to populate authentication variables.
+
+Select appropriate models through the `model` parameter based on your security requirements. Different models may have varying data handling policies, so choose models that align with your organization's data governance standards.
+
+Validate the `apiKey` parameter comes from secure sources using connection tags like `<secrets1.browserUseKey>` rather than hardcoded values. This prevents API key exposure in workflow configurations.
+
+**Performance Optimization**
+
+Optimize task execution by crafting specific, focused instructions that minimize unnecessary browser actions. Avoid broad exploration tasks in favor of targeted operations that accomplish specific objectives efficiently.
+
+Configure `save_browser_data` strategically based on your workflow requirements. Enable this option when subsequent tasks benefit from preserved session data, but disable it for simple, one-off operations to improve performance.
+
+Implement intelligent error handling by monitoring execution time through the `steps` output. Long execution sequences may indicate inefficient task design or website performance issues that require task optimization.
+
+Structure workflows to minimize sequential browser operations when possible. Consider parallel execution patterns where multiple Browser Use blocks can operate simultaneously on different targets, improving overall workflow throughput.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I set up a Browser Use block to automate web tasks in my workflow?">
+
+    To add browser automation to your Sim.ai workflow, configure the **Browser Use block** with these required inputs:
+
+    #### Required Configuration
+
+    | Input | Description | Example Connection |
+    |-------|-------------|-------------------|
+    | `task` | Detailed instructions for what the browser should do | `<start.task>` or "Navigate to example.com and extract all product prices" |
+    | `apiKey` | Your BrowserUse API key for authentication | `<start.apiKey>` or store in environment variables |
+
+    #### Optional Configuration
+
+    | Input | Description | Default | Example |
+    |-------|-------------|---------|---------|
+    | `variables` | JSON object with secrets/variables for the task | `{}` | `{"username": "<start.username>", "password": "<start.password>"}` |
+    | `model` | LLM model for browser decision-making | `gpt-4o` | `gpt-4o-mini` or `claude-3-sonnet` |
+    | `save_browser_data` | Whether to persist browser session data | `false` | `true` for maintaining login sessions |
+  </Accordion>
+  <Accordion title="What outputs can I reference from a Browser Use block in downstream workflow steps?">
+
+    Every Browser Use block provides four key outputs that you can connect to other blocks:
+
+    #### Available Output Tags
+
+    | Output Tag | Type | Description | Usage Example |
+    |------------|------|-------------|---------------|
+    | `<browser_use1.success>` | Boolean | `true` if the browser task completed without errors | Connect to Condition block for error handling |
+    | `<browser_use1.id>` | String | Unique identifier for the browser task execution | Use for logging or task tracking |
+    | `<browser_use1.output>` | JSON | Structured data extracted or results from the browser task | Connect to Agent block for data processing |
+    | `<browser_use1.steps>` | JSON | Detailed log of all browser actions taken during execution | Use for debugging or audit trails |
+
+    The `output` field typically contains the most valuable data for your workflow, such as scraped content, form submission results, or extracted information.
+  </Accordion>
+  <Accordion title="How do I connect a Browser Use block with an Agent block to process web automation results?">
+
+    To create an intelligent web automation workflow that processes browser results:
+
+    1. **Configure Browser Use block** to perform the web task
+    2. **Add an Agent block** after the Browser Use block
+    3. **Connect the outputs** using these connection patterns:
+
+    #### Example Workflow Configuration
+
+    ```
+    Browser Use → Agent → Response
+    ```
+
+    **Browser Use Block:**
+    - `task`: "Go to news website and extract today's top 5 headlines"
+
+    **Agent Block:**
+    - `systemPrompt`: "Analyze the scraped news headlines and summarize the key themes"
+    - `userPrompt`: `<browser_use1.output>`
+
+    This pattern allows the AI agent to intelligently process and analyze whatever data the browser automation extracted from web pages.
+  </Accordion>
+  <Accordion title="Why is my Browser Use task failing and how do I troubleshoot automation errors?">
+
+    Common Browser Use failures and their solutions:
+
+    #### Authentication Issues
+
+    | Error Pattern | Cause | Solution |
+    |--------------|-------|----------|
+    | **API Key Invalid** | Incorrect or expired BrowserUse API key | Verify `<start.apiKey>` is valid and has sufficient credits |
+    | **Rate Limiting** | Too many concurrent browser tasks | Add delays between tasks or upgrade API plan |
+
+    #### Task Configuration Problems
+
+    | Issue | Description | Fix |
+    |-------|-------------|-----|
+    | **Vague Task Instructions** | Task description too generic | Be specific: "Click the login button and enter credentials" vs "login to site" |
+    | **Missing Variables** | Task references undefined variables | Ensure `variables` object contains all referenced keys |
+    | **Timeout Errors** | Browser task exceeds time limits | Break complex tasks into smaller, sequential steps |
+
+    #### Browser Environment Issues
+
+    Check the `<browser_use1.steps>` output to see exactly where the browser automation failed and what actions were attempted.
+  </Accordion>
+  <Accordion title="Can I use variables and secrets securely in Browser Use tasks for login automation?">
+
+    Yes! Use the `variables` input to securely pass sensitive data to your browser automation:
+
+    #### Secure Variable Configuration
+
+    ```json
+    {
+      "variables": {
+        "username": "<start.username>",
+        "password": "<start.password>",
+        "api_token": "<start.api_token>"
+      }
+    }
+    ```
+
+    #### Reference Variables in Task Instructions
+
+    In your `task` field, reference these variables using standard templating:
+
+    **Task Example:**
+    ```
+    "Navigate to login.example.com, enter {`{username}`} and {`{password}`}, then click submit button"
+    ```
+
+    The BrowserUse system automatically substitutes these variables during execution while keeping sensitive data secure.
+  </Accordion>
+  <Accordion title="How do I chain multiple Browser Use blocks together for complex web automation workflows?">
+
+    For complex automation requiring multiple browser sessions or sequential tasks:
+
+    #### Sequential Browser Tasks
+
+    ```
+    Browser Use 1 → Browser Use 2 → Browser Use 3
+    ```
+
+    **Configuration Pattern:**
+
+    **Browser Use 1:**
+    - `task`: "Login to website and navigate to data export page"
+    - `save_browser_data`: `true`
+
+    **Browser Use 2:**
+    - `task`: "Use the logged-in session to download CSV file from {`{export_url}`}"
+    - `variables`: `{"export_url": "<browser_use1.output.export_link>"}`
+
+    **Browser Use 3:**
+    - `task`: "Navigate to confirmation page and verify download completed"
+
+    #### Conditional Browser Workflows
+
+    ```
+    Browser Use → Condition → [Success Path | Error Path]
+    ```
+
+    Use `<browser_use1.success>` in a Condition block to handle different outcomes and retry failed automation tasks.
+  </Accordion>
+  <Accordion title="What are common workflow patterns for integrating Browser Use with other Sim.ai blocks?">
+
+    Popular Browser Use integration patterns:
+
+    #### 1. **Webhook → Browser Use → Telegram**
+    Trigger web automation from external events and notify via Telegram:
+    ```
+    Webhook (form submission) → Browser Use (process data) → Telegram (notify team)
+    ```
+
+    #### 2. **Schedule → Browser Use → Database**
+    Automated data collection and storage:
+    ```
+    Schedule Trigger → Browser Use (scrape prices) → Database (store results)
+    ```
+
+    #### 3. **API → Browser Use → Agent → Email**
+    Intelligent web automation with AI analysis:
+    ```
+    API Call → Browser Use (gather data) → Agent (analyze) → Email (report)
+    ```
+
+    #### 4. **Browser Use → Function → Multiple Outputs**
+    Process browser results and distribute to multiple systems:
+    ```
+    Browser Use → Function (transform data) → [Slack + Database + Webhook]
+    ```
+
+    Each pattern leverages Browser Use's ability to interact with web interfaces that don't have APIs, making it valuable for legacy system integration and comprehensive data collection workflows.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

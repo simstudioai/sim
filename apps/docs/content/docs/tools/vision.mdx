@@ -4,6 +4,8 @@ description: Analyze images with vision models
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="vision"
@@ -45,13 +47,7 @@ In Sim, the Vision integration enables your agents to analyze images with vision
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Process visual content with customizable prompts to extract insights and information from images.
-
-
-
-## Tools
+## Operations
 
 ### `vision_tool`
 
@@ -77,7 +73,205 @@ Process and analyze images using advanced vision models. Capable of understandin
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `vision`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Vision block into your Sim.ai workflows, following established best practices ensures accurate image analysis and optimal performance. The Vision block serves as a sophisticated visual processing component that transforms images into actionable insights, enabling workflows that can understand, analyze, and respond to visual content with human-like comprehension.
+
+**Connection Tag Usage and Data Flow**
+
+Effective Vision block implementation relies on proper connection tag configuration and data flow management. The `<vision1.content>` output contains the primary analysis results and should be connected to downstream blocks that process textual information, such as Agent blocks or Function blocks. When chaining multiple Vision blocks, use `<vision1.model>` to maintain consistency across analyses by referencing the same model in subsequent blocks.
+
+For dynamic image processing workflows, connect external data sources to `<webhook.imageUrl>` or `<api.imageData>`, then route through the Vision block's imageUrl input. This pattern enables real-time image analysis from user uploads, API endpoints, or automated image generation workflows. Always validate that upstream blocks provide publicly accessible URLs, as the Vision block requires direct HTTP access to image resources.
+
+The `<vision1.tokens>` output provides crucial resource tracking information that should be monitored in production workflows. Connect this output to logging or analytics blocks to track usage patterns and optimize costs across multiple vision operations.
+
+**Workflow Architecture Patterns**
+
+Successful Vision workflows typically implement one of several proven architectural patterns. The **Webhook → Vision → Agent** pattern excels for interactive image analysis applications, where users upload images and receive AI-powered insights. This configuration enables the Vision block to extract visual information, which the Agent block then interprets and formats into user-friendly responses.
+
+For document processing workflows, implement **File Upload → Vision → Function → Database** patterns. This architecture processes uploaded documents, extracts text and visual elements, applies business logic, and stores structured results. The Vision block handles OCR functionality and visual understanding, while downstream blocks manage data transformation and storage.
+
+Content moderation workflows benefit from **API Trigger → Vision → Conditional Logic → Action** patterns. Configure the Vision block with specific prompts for content analysis, then use conditional blocks to route results based on detected content types or compliance requirements. This pattern enables automated visual content review at scale.
+
+**Image Analysis and Prompt Engineering Excellence**
+
+Craft detailed, specific prompts to maximize Vision block accuracy and relevance. Instead of generic prompts like "describe this image," use structured instructions such as "Identify all text elements, product brands, and pricing information visible in this retail display image." Specific prompts yield more actionable and consistent results across similar image types.
+
+Optimize imageUrl inputs by ensuring high-resolution, well-lit images with clear subjects. The Vision block performs better with images between 512x512 and 2048x2048 pixels. Compress images appropriately to balance quality with processing speed—overly large files may increase token consumption without proportional accuracy gains.
+
+For text extraction workflows, orient images properly and ensure sufficient contrast between text and background elements. The Vision block can handle rotated text, but optimal orientation reduces processing complexity and improves accuracy rates.
+
+**Model Selection and Performance Optimization**
+
+Choose vision models based on specific use case requirements and performance characteristics. GPT-4o excels at detailed descriptions and complex visual reasoning, while Claude-3-opus-20240229 provides superior accuracy for technical diagram analysis and precise text extraction. Establish model selection criteria based on your workflow's accuracy requirements, processing speed needs, and cost constraints.
+
+Monitor `<vision1.usage>` outputs to track token consumption patterns across different image types and prompt configurations. Large, complex images with detailed prompts consume significantly more tokens than simple visual recognition tasks. Implement token budgeting in production workflows to prevent unexpected costs.
+
+Cache Vision block results for frequently analyzed images or similar visual content patterns. Store `<vision1.content>` outputs with image identifiers to avoid redundant processing of duplicate or near-duplicate images in high-volume workflows.
+
+**Security and Access Control Considerations**
+
+Implement robust imageUrl validation to prevent unauthorized access to internal resources or malicious URL exploitation. Use URL validation functions upstream from Vision blocks to ensure only approved domains and file types reach the vision analysis stage. This prevents potential security vulnerabilities from user-provided image URLs.
+
+Store API keys securely and rotate them regularly according to provider recommendations. Never hardcode API keys in workflow configurations—use environment variables or secure parameter stores. Monitor API key usage through `<vision1.model>` and token tracking to detect unusual access patterns that might indicate compromised credentials.
+
+For sensitive image content, implement data retention policies that automatically purge processed images after analysis completion. The Vision block processes images remotely, so ensure compliance with data privacy regulations by limiting image exposure duration and implementing appropriate access controls.
+
+**Debugging and Error Handling**
+
+Establish comprehensive error monitoring for Vision block operations by implementing fallback patterns when image analysis fails. Common failure points include invalid image URLs, unsupported file formats, and API quota limits. Create conditional logic that handles `<vision1.content>` output validation and provides alternative processing paths for failed analyses.
+
+Debug image processing issues by logging the complete `<vision1.usage>` object alongside input parameters. This data reveals token consumption patterns, model response times, and potential bottlenecks in your vision processing pipeline. Correlate high token usage with specific image characteristics to optimize future processing efficiency.
+
+Monitor vision analysis quality through result validation workflows. Implement spot-checking mechanisms that verify Vision block outputs against expected results for known image types. This helps identify model drift, prompt effectiveness issues, or systematic analysis problems before they impact production workflows.
+
+Test Vision blocks with diverse image samples representing your typical use cases during development. Include edge cases such as low-contrast images, unusual orientations, multilingual text, and various file formats to ensure robust production performance across real-world scenarios.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I analyze images in my workflow using the Vision block?">
+
+    To analyze images with the Vision block in Sim.ai, add a **Vision block** to your workflow and configure these required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `apiKey` | Your model provider's API key | `<start.apiKey>` or environment variable |
+    | `imageUrl` | Publicly accessible URL of the image to analyze | `<start.imageUrl>` or `<webhook.body.image_url>` |
+
+    #### Optional Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `model` | Vision model to use | `gpt-4o` or `claude-3-opus-20240229` |
+    | `prompt` | Custom analysis instructions | `"Describe the objects and text in this image"` |
+  </Accordion>
+  <Accordion title="What outputs can I reference from the Vision block in downstream workflow steps?">
+
+    Every Vision block exposes outputs that can be connected to other blocks using connection tags:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<vision1.content>` | String | The complete analysis and description of the image |
+    | `<vision1.model>` | String | The vision model that performed the analysis |
+    | `<vision1.tokens>` | Number | Total tokens consumed during image processing |
+    | `<vision1.usage>` | Object | Detailed breakdown of token usage and costs |
+
+    These outputs can be dragged into inputs of Agent blocks, Telegram blocks, or any other downstream components.
+  </Accordion>
+  <Accordion title="How do I connect a webhook containing image URLs to the Vision block for automatic processing?">
+
+    To process images from webhook payloads:
+
+    1. **Add a Webhook Trigger block** as your workflow entry point
+    2. **Connect the webhook's image URL** to the Vision block's `imageUrl` input
+    3. **Map the analysis result** to downstream blocks
+
+    #### Example Workflow Configuration
+
+    ```json
+    {
+      "apiKey": "<start.openai_key>",
+      "imageUrl": "<start.image_url>",
+      "prompt": "Extract all text and identify any objects in this image"
+    }
+    ```
+
+    Connect `<vision1.content>` to an Agent block's `userPrompt` for further processing of the analysis results.
+  </Accordion>
+  <Accordion title="Can I combine Vision analysis with AI agents for intelligent image processing workflows?">
+
+    Yes! Vision blocks work seamlessly with Agent blocks to create sophisticated image understanding pipelines:
+
+    #### Common Integration Patterns
+
+    ##### 1. **Webhook → Vision → Agent → Response**
+    Process uploaded images and generate intelligent responses:
+    ```
+    Vision analyzes image → Agent processes findings → Generate structured output
+    ```
+
+    ##### 2. **Vision → Agent → Telegram**
+    Analyze images and send summaries to Telegram:
+    ```
+    Connect: <vision1.content> → Agent's userPrompt
+    Connect: <agent1.content> → Telegram's text
+    ```
+
+    ##### 3. **API → Vision → Function → Database**
+    Fetch images from external APIs, analyze them, and store results:
+    ```
+    API provides imageUrl → Vision processes → Function formats → Store results
+    ```
+  </Accordion>
+  <Accordion title="What should I do when my Vision block fails to process an image?">
+
+    Troubleshoot Vision block issues with this systematic approach:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Invalid API Key** | Authentication failure | Verify `<start.apiKey>` matches your provider's key |
+    | **Inaccessible Image URL** | URL returns 404 or requires authentication | Ensure `<vision1.imageUrl>` is publicly accessible |
+    | **Unsupported Format** | Image format not supported | Convert to JPG, PNG, or WebP format |
+    | **Image Too Large** | File size exceeds model limits | Resize image or use compression |
+    | **Rate Limiting** | API quota exceeded | Implement delays or upgrade plan |
+    | **Invalid Model** | Specified model doesn't exist | Use supported models like `gpt-4o` or `claude-3-opus-20240229` |
+
+    Check workflow logs for specific error messages and API response details.
+  </Accordion>
+  <Accordion title="How do I create custom prompts for specific image analysis tasks?">
+
+    Customize the Vision block's analysis by providing targeted prompts in the `prompt` field:
+
+    #### Effective Prompt Examples
+
+    | Task | Prompt Example |
+    |------|----------------|
+    | **Text Extraction** | `"Extract all visible text from this image, maintaining original formatting"` |
+    | **Object Detection** | `"List all objects visible in this image with their approximate locations"` |
+    | **Safety Analysis** | `"Identify any safety hazards or compliance issues in this workplace image"` |
+    | **Document Processing** | `"Summarize the key information from this document or form"` |
+    | **Quality Control** | `"Assess the quality and condition of the product shown in this image"` |
+
+    Connect dynamic prompts using `<agent1.content>` or `<start.instructions>` for variable analysis requirements.
+  </Accordion>
+  <Accordion title="What are the best practices for integrating Vision blocks with other Sim.ai workflow components?">
+
+    Optimize your Vision-powered workflows with these integration patterns:
+
+    #### 1. **Error Handling Chain**
+    ```
+    Vision → Condition → Success Path / Error Path
+    ```
+    Use `<vision1.content>` in a Condition block to check for successful analysis before proceeding.
+
+    #### 2. **Multi-Model Analysis**
+    ```
+    Vision (Model A) → Agent → Vision (Model B) → Comparison
+    ```
+    Compare results from different vision models for enhanced accuracy.
+
+    #### 3. **Batch Processing**
+    ```
+    Function (split URLs) → Vision → Function (aggregate) → Summary
+    ```
+    Process multiple images and combine results into comprehensive reports.
+
+    #### 4. **Real-time Monitoring**
+    ```
+    Webhook → Vision → Condition → Alert/Archive
+    ```
+    Automatically analyze incoming images and trigger alerts based on content analysis.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

@@ -4,6 +4,8 @@ description: Send messages to Slack or trigger workflows from Slack events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="slack"
@@ -62,13 +64,60 @@ This allows for powerful automation scenarios such as sending notifications, ale
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Webhook
 
-Comprehensive Slack integration with OAuth authentication. Send formatted messages using Slack's mrkdwn syntax or trigger workflows from Slack events like mentions and messages.
+Trigger workflows from new Slack channel messages. You can use the Slack block in trigger mode to start a workflow when your Slack app receives an event (e.g., `message.channels`) via Slack Event Subscriptions. Click the lightning bolt icon to enable trigger mode, then configure your app’s Events to send to your workflow webhook URL.
 
+### Configuration Inputs
 
+| Input | Type | Required | Description |
+|------|------|----------|-------------|
+| `eventType` | string | Yes | Slack event type to handle (e.g., `message.channels`). |
+| `signingSecret` | string | No | Slack app signing secret for signature validation. |
+| `validateSignature` | boolean | No | Validate `X-Slack-Signature` using `X-Slack-Request-Timestamp`. Defaults to `true`. |
 
-## Tools
+### Outputs
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `payloads` | array | The raw Slack event payloads received. |
+| `latestPayload` | object | Convenience object of the latest event payload. |
+| `slackEvent` | object | Parsed event fields (type, channel, user, text, ts). |
+
+#### `latestPayload` shape
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | Envelope type (e.g., `event_callback`). |
+| `team_id` | string | Slack team ID. |
+| `api_app_id` | string | App ID. |
+| `event` | object | The inner event object (e.g., `message`). |
+| `event_id` | string | Unique event ID. |
+| `event_time` | number | Unix timestamp for event. |
+
+### Example webhook event body (raw Slack event payload)
+
+```json
+{
+  "token": "Jhj5dZrVaK7ZwHHjRyZWjbDl",
+  "team_id": "T0001",
+  "api_app_id": "A0FFV41KK",
+  "type": "event_callback",
+  "event_id": "Ev08MFMKH6",
+  "event_time": 1234567890,
+  "event": {
+    "type": "message",
+    "channel": "C2147483705",
+    "user": "U2147483697",
+    "text": "Hello world",
+    "ts": "1355517523.000005"
+  }
+}
+```
+
+Method: `POST`  •  Headers: `Content-Type: application/json`, `X-Slack-Signature`, `X-Slack-Request-Timestamp`
+
+## Operations
 
 ### `slack_message`
 
@@ -136,7 +185,226 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `slack`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Slack block into your Sim.ai workflows, following established best practices ensures reliable message delivery, proper authentication handling, and optimal workspace integration. The Slack block serves as a versatile communication hub that can both send formatted content to Slack channels and read message history, enabling bi-directional workflows between your automated systems and team collaboration spaces.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag usage is essential for seamless Slack integrations. The `<agent1.content>` connection tag provides the most common data flow pattern, routing AI-generated responses directly to the `<slack1.text>` input for immediate delivery. For dynamic channel routing, use `<webhook1.channel>` to populate `<slack1.channel>` based on incoming data. When reading messages, leverage `<slack1.messages>` as input for downstream processing blocks, enabling workflows that respond to conversation history.
+
+For canvas operations, connect structured content through `<function1.markdown>` to `<slack1.content>` while using `<trigger1.title>` for the `<slack1.title>` field. The `<slack1.canvas_id>` output can feed into subsequent canvas update operations or serve as reference data for tracking document creation workflows.
+
+Authentication flows require careful connection tag management. Use `<secrets1.botToken>` to populate `<slack1.botToken>` for custom bot implementations, or rely on OAuth connections established at the workspace level. Never hardcode tokens in workflow configurations.
+
+**Workflow Architecture Patterns**
+
+Successful Slack workflows follow proven architectural patterns tailored to specific use cases. The **Webhook → Agent → Slack** pattern creates intelligent notification systems where external events trigger AI analysis and contextual Slack messages. This pattern works exceptionally well for alert systems, customer support notifications, and automated reporting.
+
+For conversational workflows, implement **Slack Event → Agent → Slack** patterns where message triggers initiate AI processing and automated responses. The `<slack1.user_name>` and `<slack1.channel_name>` outputs provide essential context for personalized responses and proper conversation threading.
+
+Canvas-based workflows benefit from **API → Function → Slack Canvas** patterns, where data aggregation functions compile structured reports into collaborative documents. Use `<api1.data>` → `<function1.process>` → `<slack1.content>` flows to transform raw data into formatted markdown content suitable for team review and collaboration.
+
+For message analysis workflows, deploy **Slack Reader → Function → Database** patterns to process conversation history. Connect `<slack1.messages>` to processing functions that extract insights, sentiment, or action items from team communications.
+
+**Message Formatting Excellence**
+
+Slack's mrkdwn formatting requires specific syntax patterns for optimal presentation. Structure messages using proper heading hierarchies with `*bold*`, `_italic_`, and `~strikethrough~` formatting. Use bullet points with `• item` syntax and numbered lists for structured content. Code blocks require triple backticks for multi-line code or single backticks for inline references.
+
+For dynamic content formatting, implement template patterns within Function blocks before connecting to `<slack1.text>`. Use template literals to construct messages: `"*Alert:* ${data.severity}\n• Issue: ${data.description}\n• Time: ${data.timestamp}"`. This ensures consistent formatting across different data sources and message types.
+
+Canvas content demands markdown formatting expertise. Structure canvas documents with clear headings, tables, and embedded links. Use `<slack1.document_content>` for complex structured content that includes interactive elements, while `<slack1.content>` handles standard markdown formatting. Test canvas formatting thoroughly as rendering differs from standard message formatting.
+
+Channel references require specific formatting patterns. Use `#channel-name` for channel mentions, `@username` for user mentions, and `<!channel>` for channel-wide notifications. These formatting elements ensure proper notification delivery and user engagement.
+
+**Debugging and Monitoring**
+
+Comprehensive monitoring begins with output validation. Monitor `<slack1.ts>` to confirm message delivery success - missing timestamps indicate delivery failures. Track `<slack1.channel>` outputs to verify messages reach intended destinations, especially in dynamic channel routing scenarios.
+
+For canvas operations, validate `<slack1.canvas_id>` outputs to ensure document creation success. Empty canvas IDs typically indicate authentication issues or insufficient permissions. Monitor canvas titles through `<slack1.title>` to confirm proper document naming.
+
+Message reader operations require careful monitoring of `<slack1.messages>` output structure. Empty arrays may indicate channel access issues, invalid channel references, or overly restrictive time range filters. Validate message retrieval by checking array length and examining sample message objects for expected field presence.
+
+Implement error handling for common failure scenarios. Network timeouts, rate limiting, and permission errors represent the most frequent issues. Use conditional logic blocks to check for empty outputs and implement retry mechanisms with exponential backoff for transient failures.
+
+Authentication debugging focuses on token validation and permission verification. Test bot tokens independently and verify workspace OAuth configurations. Missing permissions manifest as empty outputs or specific error responses from the Slack API.
+
+**Security Considerations**
+
+Slack integrations demand rigorous security practices due to workspace access privileges. Store bot tokens in Sim.ai's secure secrets management system, never in workflow configurations or function code. Use `<secrets1.slackToken>` connection patterns exclusively for token access.
+
+Implement channel access validation in workflows that handle sensitive data. Verify channel membership and permissions before sending confidential information. Use private channels for sensitive automated reports and restrict bot access to necessary channels only.
+
+For message reading operations, implement data filtering to prevent sensitive information exposure in downstream processing. Sanitize message content before storing or processing through external systems. Consider user privacy when analyzing conversation history and implement appropriate data retention policies.
+
+OAuth implementations require careful scope management. Request minimal necessary permissions and regularly audit granted scopes. Avoid overly broad permissions that exceed workflow requirements.
+
+**Performance Optimization**
+
+Optimize Slack block performance through strategic message batching and rate limit management. Slack's API enforces rate limits that can impact high-frequency workflows. Implement message queuing patterns for bulk notifications and use time-based triggers to spread API calls across longer intervals.
+
+For message reading operations, optimize performance by setting appropriate `<slack1.limit>` values. Retrieve only necessary message counts to reduce API overhead and processing time. Use `<slack1.oldest>` and `<slack1.latest>` parameters to focus on relevant time ranges rather than scanning entire channel histories.
+
+Canvas operations benefit from content pre-processing. Prepare markdown content completely before canvas creation to minimize API calls. Use Function blocks to aggregate and format content before passing to `<slack1.content>`, reducing processing overhead within the Slack block itself.
+
+Implement intelligent channel routing to reduce unnecessary API calls. Cache channel IDs when possible and validate channel existence before message sending. Use conditional logic to skip operations for inactive or archived channels.
+
+Monitor API response times and implement circuit breaker patterns for workflows that depend heavily on Slack operations. This prevents cascade failures when Slack services experience latency or availability issues.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I send a message from my workflow to a Slack channel?">
+
+    To send messages from your workflow to Slack, add a **Slack block** to your Sim.ai workflow and configure its required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `channel` | Target Slack channel or user | `<start.channel>` or static value like `#general` |
+    | `text` | Message content (supports mrkdwn formatting) | `<agent1.content>` or any string |
+
+    #### Optional Authentication
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `authMethod` | Choose `oauth` or `bot_token` | `oauth` (recommended) |
+    | `botToken` | Bot token if using custom bot | `<start.botToken>` or environment variable |
+  </Accordion>
+  <Accordion title="How do I trigger a workflow when someone mentions my bot in Slack?">
+
+    To create Slack-triggered workflows in Sim.ai:
+
+    1. **Add a Webhook Trigger block** as your workflow's entry point
+    2. **Configure Slack Event Subscriptions** to send events to your webhook URL
+    3. **Map incoming event fields** to downstream blocks:
+
+    #### Example Workflow
+    ```
+    Webhook → Agent → Slack
+    ```
+    Connect `<start.event.text>` to an Agent block's `userPrompt` to process incoming mentions or messages.
+  </Accordion>
+  <Accordion title="What is the correct way to reference Slack block outputs in my workflow?">
+
+    Every Slack block exposes outputs that can be referenced using connection tags based on the operation used:
+
+    #### Message Operation Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<slack1.ts>` | String | Message timestamp from Slack API |
+    | `<slack1.channel>` | String | Channel ID where message was sent |
+
+    #### Canvas Operation Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<slack1.canvas_id>` | String | ID of the created canvas |
+    | `<slack1.channel>` | String | Channel where canvas was created |
+    | `<slack1.title>` | String | Title of the canvas |
+
+    #### Message Reader Operation Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<slack1.messages>` | Array | Array of message objects from the channel |
+  </Accordion>
+  <Accordion title="How do I connect an Agent block's output to a Slack message with formatting?">
+
+    To route an agent's response to Slack with rich formatting:
+
+    1. In the Slack block's `text` field, type `<>` to open the connection menu
+    2. Select `<agent1.content>` from available connections
+    3. Use Slack mrkdwn formatting for enhanced presentation:
+
+    #### Example Configuration
+
+    ```json
+    {
+      "channel": "<start.event.channel>",
+      "text": "*AI Response:*\n\n<agent1.content>\n\n_Generated by Sim.ai workflow_"
+    }
+    ```
+
+    This configuration sends formatted messages with bold headers and italicized footers using Slack's mrkdwn syntax.
+  </Accordion>
+  <Accordion title="How do I read messages from a Slack channel in my workflow?">
+
+    To retrieve channel messages using the `slack_message_reader` operation:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `channel` | Slack channel to read from | `<start.channel>` or `#support` |
+
+    #### Optional Filtering
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `limit` | Number of messages (max 100) | `10` or `<start.messageCount>` |
+    | `oldest` | Start timestamp | `<start.fromTime>` |
+    | `latest` | End timestamp | `<start.toTime>` |
+
+    Access individual messages using `<slack1.messages[0].text>` or iterate through all messages in downstream blocks.
+  </Accordion>
+  <Accordion title="Why is my Slack message not sending or canvas not creating?">
+
+    Troubleshoot common issues with this systematic approach:
+
+    #### Authentication Issues
+
+    | Problem | Solution |
+    |---------|----------|
+    | **OAuth not configured** | Set up Slack app OAuth in workspace settings |
+    | **Invalid bot token** | Verify `<start.botToken>` matches your bot's token |
+    | **Missing scopes** | Ensure bot has `chat:write` and `channels:read` permissions |
+
+    #### Channel and Content Issues
+
+    | Problem | Solution |
+    |---------|----------|
+    | **Channel not found** | Use channel ID or verify `#channel-name` format |
+    | **Bot not in channel** | Invite bot to private channels before sending |
+    | **Empty text field** | Ensure `text` input has content (e.g., `<agent1.content>`) |
+    | **Canvas content missing** | Provide both `title` and `content` for canvas creation |
+
+    #### Workflow Integration Issues
+
+    | Problem | Solution |
+    |---------|----------|
+    | **Connection tag errors** | Verify upstream blocks produce expected outputs |
+    | **Channel mismatch** | Ensure `<start.event.channel>` matches intended destination |
+  </Accordion>
+  <Accordion title="Can I create complex Slack automations with multiple operations?">
+
+    Yes! Slack blocks support multiple operations and integrate seamlessly with other Sim.ai workflow components:
+
+    #### Advanced Workflow Patterns
+
+    ##### 1. **Webhook → Agent → Slack Message + Canvas**
+    Process Slack mentions, generate AI responses, and create documentation canvases simultaneously.
+
+    ##### 2. **API → Function → Slack Message Reader → Condition → Slack**
+    Read channel history, analyze content with external APIs, and send conditional responses.
+
+    ##### 3. **Schedule → Slack Message Reader → Agent → Slack**
+    Daily digest workflows that read channel activity and generate AI-powered summaries.
+
+    ##### 4. **Multi-Channel Broadcasting**
+    ```
+    Agent → Slack (#general)
+          → Slack (#updates)
+          → Slack (#team-alerts)
+    ```
+
+    Use the same agent output to broadcast formatted messages across multiple channels with different styling and context.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

@@ -4,6 +4,8 @@ description: Trigger workflow execution from external webhooks
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="webhook"
@@ -22,11 +24,225 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
     </svg>`}
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+**Webhook** is a trigger block that enables external systems to initiate workflow execution through HTTP requests. It provides a programmatic entry point for integrating third-party services, APIs, and external applications with your Sim.ai workflows.
+
+Key capabilities include:
+
+• **HTTP Request Handling** - Receives and processes incoming POST, GET, PUT, and DELETE requests from external sources
+• **Payload Processing** - Captures and parses request headers, query parameters, and body data for use in downstream blocks
+• **Real-time Triggering** - Instantly activates workflow execution when webhook endpoints receive valid requests
+• **Cross-Platform Integration** - Connects with any system capable of making HTTP requests, including GitHub, Stripe, Slack, and custom applications
+
+Within the Sim.ai platform, Webhook blocks function as the initial trigger point for event-driven workflows. When configured, each webhook generates a unique endpoint URL that external systems can call, automatically passing the received data as outputs to connected blocks through the workflow's connection tags system.
+
+The webhook captures all incoming request data including headers, query strings, and request bodies, making this information available to subsequent blocks in your workflow for processing, validation, or routing decisions.
+{/* MANUAL-CONTENT-END */}
 
 
 
 
-## Notes
+## Best Practices
 
-- Category: `triggers`
-- Type: `webhook`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When implementing the Webhook block as the foundation of your Sim.ai workflows, following established best practices ensures reliable trigger execution and robust data handling. The Webhook block serves as the critical entry point for external systems to initiate workflow automation, making it essential to configure it properly for consistent performance and security.
+
+**Connection Tag Usage and Data Flow**
+
+The Webhook block generates several key connection tags that form the backbone of data flow in triggered workflows. The `<webhook1.body>` connection tag contains the complete payload sent to your webhook endpoint, making it the primary data source for downstream processing. Use `<webhook1.headers>` to access HTTP headers for authentication validation or routing logic, while `<webhook1.method>` provides the HTTP method (GET, POST, PUT, DELETE) for conditional workflow branching.
+
+For complex data extraction, leverage `<webhook1.queryParams>` to access URL parameters and `<webhook1.path>` for dynamic routing based on the webhook endpoint structure. These connection tags enable sophisticated workflow logic where different data elements trigger varied processing paths. Always validate the data type and structure of `<webhook1.body>` before passing it to subsequent blocks, as external systems may send unexpected formats.
+
+**Workflow Architecture Patterns**
+
+Successful webhook-driven workflows follow several proven architectural patterns. The most robust pattern implements **Webhook → Function → Agent → API** chains, where the Function block validates and transforms incoming data before AI processing. This pattern provides data sanitization and error handling between the external trigger and business logic execution.
+
+For high-volume scenarios, consider **Webhook → Function → Multiple Parallel Branches** architectures, where the Function block routes different payload types to specialized processing chains. This pattern maximizes throughput and enables specialized handling based on webhook content. Event-driven notification systems benefit from **Webhook → Conditional Logic → Multiple Output Channels** patterns, where webhook data determines the appropriate notification method (Telegram, email, Slack).
+
+For API integration scenarios, implement **Webhook → Data Transform → External API → Response** workflows that process incoming webhook data and make outbound API calls. This creates powerful integration bridges between different systems through Sim.ai workflows.
+
+**Message/Data Formatting Excellence**
+
+Webhook payloads arrive in various formats, requiring careful handling to ensure reliable processing. Always implement payload validation using Function blocks to check for required fields and proper data types before processing. Structure your validation logic to handle both JSON and form-encoded payloads, as different external systems use different content types.
+
+Create standardized data transformation patterns that convert incoming webhook data into consistent internal formats. This involves parsing nested JSON objects, handling arrays, and converting data types to match downstream block requirements. Use the `<webhook1.headers["content-type"]>` connection tag to implement conditional parsing logic based on the payload format.
+
+For complex webhook integrations, implement schema validation that verifies incoming payloads against expected structures. This prevents workflow failures due to malformed or incomplete data and provides clear error responses to sending systems.
+
+**Debugging and Monitoring**
+
+Comprehensive logging is essential for webhook-triggered workflows due to their external dependency nature. Implement logging blocks immediately after webhook triggers to capture the complete payload, headers, and timestamp for every incoming request. Use `<webhook1.timestamp>` to track processing times and identify performance bottlenecks in your workflow chains.
+
+Create monitoring workflows that track webhook execution frequency, payload sizes, and success rates. Monitor for common failure patterns such as malformed JSON, missing required fields, or unexpected data types. Implement alert mechanisms that notify administrators when webhook failure rates exceed acceptable thresholds.
+
+Use the webhook's built-in error handling to provide meaningful HTTP status codes and error messages to sending systems. This improves integration reliability and helps external developers troubleshoot connection issues. Log all webhook authentication failures and implement rate limiting to prevent abuse.
+
+**Security Considerations**
+
+Webhook security requires multiple layers of protection to prevent unauthorized access and data breaches. Always implement webhook signature verification using shared secrets with sending systems. Use the `<webhook1.headers>` connection tag to access signature headers and validate them against computed signatures of the payload.
+
+Implement IP address whitelisting where possible, restricting webhook access to known source systems. Use HTTPS exclusively for webhook endpoints to ensure encrypted data transmission. Never expose sensitive data in webhook URLs, as these may be logged by intermediate systems.
+
+Create authentication workflows that validate webhook sources before processing payloads. This prevents malicious actors from triggering workflows with crafted payloads. Implement request size limits to prevent denial-of-service attacks through oversized payloads.
+
+For highly sensitive workflows, implement additional authentication layers such as API key validation or OAuth token verification using the headers data. Store all authentication credentials securely and rotate them regularly according to your security policies.
+
+**Performance Optimization**
+
+Optimize webhook performance by implementing efficient payload processing patterns. Use Function blocks for lightweight data transformation before passing data to resource-intensive blocks like AI agents. This reduces processing overhead and improves response times for webhook acknowledgments.
+
+Implement asynchronous processing patterns for long-running workflows by immediately acknowledging webhook receipt and processing data in background workflow chains. This prevents timeout issues with sending systems while ensuring complete data processing.
+
+Cache frequently accessed data to reduce API calls in webhook-triggered workflows. Use conditional logic to avoid unnecessary processing when webhook payloads contain duplicate or unchanged data. Implement batch processing patterns for high-volume webhook scenarios to improve throughput and reduce resource consumption.
+
+Monitor webhook endpoint performance and implement horizontal scaling strategies for high-traffic scenarios. Use workflow branching to distribute processing load across multiple execution paths and prevent bottlenecks in single-threaded processing chains.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I set up a webhook trigger to start my workflow when external events occur?">
+
+    To create a webhook-triggered workflow in Sim.ai:
+
+    1. **Add a Webhook block** as your workflow's first block
+    2. **Deploy your workflow** to generate a unique webhook URL
+    3. **Configure the external service** to send HTTP requests to your webhook URL
+    4. **Map webhook payload fields** to downstream blocks using connection tags
+
+    The Webhook block automatically captures incoming HTTP request data and makes it available to other blocks in your workflow through connection tags.
+  </Accordion>
+  <Accordion title="What data can I access from incoming webhook requests in my workflow?">
+
+    The Webhook block exposes all incoming request data through connection tags:
+
+    #### Available Webhook Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<webhook1.body>` | Object | Complete request body payload |
+    | `<webhook1.headers>` | Object | HTTP headers from the request |
+    | `<webhook1.method>` | String | HTTP method (GET, POST, PUT, etc.) |
+    | `<webhook1.query>` | Object | URL query parameters |
+    | `<webhook1.url>` | String | Full request URL |
+
+    You can access nested fields using dot notation like `<webhook1.body.user.email>` or `<webhook1.headers.authorization>`.
+  </Accordion>
+  <Accordion title="How do I connect webhook data to an Agent block for processing incoming requests?">
+
+    To route webhook payload data to an AI agent:
+
+    1. **Add an Agent block** after your Webhook block
+    2. **Configure the agent's inputs** using webhook connection tags:
+
+    #### Example Configuration
+
+    ```json
+    {
+      "userPrompt": "<webhook1.body.message>",
+      "systemPrompt": "Process this webhook data: <webhook1.body>"
+    }
+    ```
+
+    This allows the AI agent to analyze and respond to incoming webhook requests automatically.
+  </Accordion>
+  <Accordion title="What is the correct way to handle different types of webhook payloads in my workflow?">
+
+    Use Condition blocks to route different webhook data types:
+
+    #### Example Workflow Pattern
+
+    ```
+    Webhook → Condition → Agent (Route A)
+                      → Agent (Route B)
+    ```
+
+    Configure the Condition block to check webhook fields:
+    - **Condition**: `<webhook1.body.event_type>` equals `"user_signup"`
+    - **True path**: Route to user onboarding agent
+    - **False path**: Route to general processing agent
+  </Accordion>
+  <Accordion title="How do I respond back to the webhook sender with data from my workflow?">
+
+    While the Webhook block receives data, you can send responses using HTTP Response blocks:
+
+    #### Response Workflow Pattern
+
+    ```
+    Webhook → Agent → HTTP Response
+    ```
+
+    1. **Process the webhook data** with downstream blocks
+    2. **Add an HTTP Response block** at the end of your workflow
+    3. **Configure response data** using processed outputs:
+
+    ```json
+    {
+      "status": 200,
+      "body": {
+        "result": "<agent1.content>",
+        "processed_at": "<function1.timestamp>"
+      }
+    }
+    ```
+  </Accordion>
+  <Accordion title="Why is my webhook not triggering my workflow?">
+
+    Troubleshoot webhook issues with this checklist:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Workflow Not Deployed** | Webhook URL not active | Deploy your workflow to activate the webhook endpoint |
+    | **Incorrect HTTP Method** | Sender using wrong method | Check if external service matches expected method (POST/GET) |
+    | **Authentication Errors** | Missing or invalid auth | Verify webhook authentication requirements |
+    | **Payload Format Issues** | Malformed request body | Check webhook logs for payload structure |
+    | **Timeout Errors** | Workflow taking too long | Optimize downstream blocks for faster execution |
+    | **URL Mismatch** | Wrong webhook endpoint | Ensure external service uses the exact webhook URL |
+  </Accordion>
+  <Accordion title="Can I use multiple webhook triggers in a single workflow?">
+
+    No, each workflow can only have one trigger block (including Webhook blocks). However, you can create multiple workflows with separate webhook triggers:
+
+    #### Multi-Webhook Architecture
+
+    ##### Workflow 1: User Events
+    ```
+    Webhook (user-events) → Agent → Database
+    ```
+
+    ##### Workflow 2: Payment Events  
+    ```
+    Webhook (payment-events) → Function → Email
+    ```
+
+    Use different webhook URLs for different event types, then coordinate between workflows using API calls or shared data stores if needed.
+  </Accordion>
+  <Accordion title="How do I test my webhook trigger during development?">
+
+    Test your webhook trigger using these methods:
+
+    #### Development Testing Options
+
+    1. **Webhook Testing Tools**
+       - Use tools like Postman or curl to send test requests
+       - Send sample payloads to your webhook URL
+
+    2. **Workflow Logs**
+       - Monitor workflow execution logs for incoming requests
+       - Check payload structure and connection tag values
+
+    3. **Test Payload Example**
+    ```bash
+    curl -X POST https://your-webhook-url \
+      -H "Content-Type: application/json" \
+      -d '{"test": "data", "user": {"id": 123}}'
+    ```
+
+    Reference the test data in your workflow using `<webhook1.body.test>` and `<webhook1.body.user.id>`.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

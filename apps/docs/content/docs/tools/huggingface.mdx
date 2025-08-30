@@ -4,6 +4,8 @@ description: Use Hugging Face Inference API
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="huggingface"
@@ -64,13 +66,7 @@ In Sim, the HuggingFace integration enables your agents to programmatically gene
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Generate completions using Hugging Face Inference API with access to various open-source models. Leverage cutting-edge AI models for chat completions, content generation, and AI-powered conversations with customizable parameters.
-
-
-
-## Tools
+## Operations
 
 ### `huggingface_chat`
 
@@ -97,7 +93,242 @@ Generate completions using Hugging Face Inference API
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `huggingface`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Hugging Face block into your Sim.ai workflows, following established best practices ensures optimal model performance and reliable AI-powered responses. The Hugging Face block serves as a powerful gateway to open-source AI models, enabling sophisticated text generation, conversation capabilities, and content creation through the Hugging Face Inference API.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation is essential for effective Hugging Face block integration. The `<huggingface1.content>` output tag delivers the primary generated response and should be your primary connection point for downstream blocks. When chaining with Agent blocks, use `<agent1.content>` as input to the `<huggingface1.content>` field to create conversational flows. The `<huggingface1.model>` output provides model identification for logging and debugging purposes, while `<huggingface1.usage>` offers crucial token consumption data for cost monitoring and optimization.
+
+For dynamic model selection, connect external data sources or user inputs to the `<huggingface1.model>` field. This enables workflow flexibility where different scenarios trigger different models based on complexity requirements or performance needs. Always validate model availability through your chosen provider before deployment.
+
+**Workflow Architecture Patterns**
+
+Successful Hugging Face workflows follow several proven architectural patterns. The **Webhook → Hugging Face → Response Formatter** pattern works exceptionally well for API-driven content generation, where external requests trigger model inference and formatted outputs. For conversational applications, implement **User Input → Context Processor → Hugging Face → Response Handler** flows that maintain conversation context and deliver coherent multi-turn interactions.
+
+Advanced users benefit from **Router → Multiple Hugging Face Blocks → Aggregator** patterns, where different models handle specialized tasks based on input analysis. This approach leverages model strengths effectively, routing creative tasks to models optimized for creativity while directing analytical tasks to reasoning-focused models.
+
+**System Prompt Engineering Excellence**
+
+The `systemPrompt` parameter serves as the foundation for consistent model behavior. Craft precise system prompts that define role, tone, and output format requirements. Structure system prompts with clear sections: role definition, behavioral guidelines, output format specifications, and constraint declarations. This systematic approach ensures predictable model responses across varying user inputs.
+
+Test system prompt variations systematically using consistent input sets to optimize performance. Document successful prompt patterns for reuse across similar workflow implementations. Remember that different models respond differently to prompt structures, so maintain model-specific prompt libraries when working with multiple providers.
+
+**Parameter Optimization and Model Selection**
+
+Temperature and token configuration directly impact output quality and cost. Use lower temperature values (0.1-0.3) for factual or structured content generation, moderate values (0.5-0.7) for balanced creative-analytical tasks, and higher values (0.8-1.0) for creative or diverse content generation. Never exceed 1.2 unless specifically testing for maximum randomness.
+
+Configure `maxTokens` based on expected output length requirements. Monitor token usage through `<huggingface1.usage>` outputs to optimize cost-performance ratios. Different models have varying context windows and token costs, so select models that align with your specific use case requirements and budget constraints.
+
+**Provider and Model Strategy**
+
+Choose providers based on model availability, performance requirements, and cost considerations. Test multiple providers with identical prompts to identify optimal performance for your specific use cases. Document provider-specific latency patterns and model availability to inform workflow design decisions.
+
+Implement fallback strategies for model unavailability by connecting multiple Hugging Face blocks with different provider configurations. This approach ensures workflow reliability when specific models experience downtime or capacity limitations.
+
+**Debugging and Monitoring**
+
+Monitor the `<huggingface1.success>` output consistently to track inference reliability and identify potential API issues. Implement comprehensive logging for all input parameters including model selection, temperature settings, and prompt content. This data proves invaluable for troubleshooting unexpected outputs or performance degradation.
+
+Track token consumption patterns through `<huggingface1.usage>` outputs to identify cost optimization opportunities. Establish baseline performance metrics for response times and quality scores to detect model or provider performance changes over time. Create alerting mechanisms for failed requests or unusual token consumption patterns.
+
+**Security Considerations**
+
+Protect API keys through secure environment variable management rather than hardcoding values in workflows. Rotate API keys regularly and monitor usage patterns for unauthorized access indicators. Implement input validation to prevent prompt injection attacks that could manipulate model behavior unexpectedly.
+
+Review system prompts and user inputs for sensitive information leakage potential. Establish data handling policies that prevent accidental exposure of confidential information through model responses. Consider implementing content filtering for outputs that may contain inappropriate or sensitive content.
+
+**Performance Optimization**
+
+Optimize workflow performance by batching similar requests when possible and implementing intelligent caching for repeated queries. Monitor response times across different models and providers to identify performance bottlenecks. Use connection tag efficiency by minimizing unnecessary data transformations between blocks.
+
+Implement async processing patterns for non-critical responses to improve overall workflow responsiveness. Consider model warm-up strategies during low-usage periods to reduce cold-start latency for time-sensitive applications. Regularly review and optimize system prompts for clarity and conciseness to reduce processing overhead.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I set up a Hugging Face block to generate text completions in my workflow?">
+
+    To use the Hugging Face block for text generation, add it to your workflow and configure these required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `content` | User message to send to the model | `<start.userMessage>` or static text |
+    | `provider` | API provider (novita, cerebras, etc.) | `<start.provider>` or "novita" |
+    | `model` | Specific model identifier | `<start.model>` or "deepseek/deepseek-v3" |
+    | `apiKey` | Your Hugging Face API token | Environment variable or `<start.apiKey>` |
+
+    #### Optional Parameters
+
+    | Input | Description | Default |
+    |-------|-------------|---------|
+    | `systemPrompt` | System instructions for model behavior | None |
+    | `maxTokens` | Maximum tokens to generate | Model default |
+    | `temperature` | Randomness (0-2, higher = more random) | 0.7 |
+  </Accordion>
+  <Accordion title="What outputs can I reference from a Hugging Face block in downstream workflow steps?">
+
+    The Hugging Face block provides several outputs you can connect to other blocks using connection tags:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<huggingface1.content>` | String | The generated text response from the model |
+    | `<huggingface1.model>` | String | The model identifier that was used |
+    | `<huggingface1.usage>` | JSON | Token usage statistics (input/output tokens) |
+    | `<huggingface1.success>` | Boolean | `true` if the API call completed successfully |
+    | `<huggingface1.output>` | Object | Complete chat completion results object |
+
+    The `content` output is most commonly used to pass generated text to other blocks in your workflow.
+  </Accordion>
+  <Accordion title="How do I connect a Webhook trigger to process user messages with Hugging Face models?">
+
+    Create a webhook-to-AI workflow by connecting the incoming message to the Hugging Face block:
+
+    #### Example Workflow Configuration
+    ```
+    Webhook → Hugging Face → Response
+    ```
+
+    #### Hugging Face Block Setup
+
+    | Field | Connection |
+    |-------|------------|
+    | `content` | `<start.message>` (from webhook payload) |
+    | `provider` | `<start.provider>` or hardcoded "novita" |
+    | `model` | `<start.model>` or "deepseek/deepseek-v3" |
+    | `apiKey` | Environment variable or secure input |
+    | `systemPrompt` | `<start.systemPrompt>` or custom instructions |
+
+    This pattern enables real-time AI responses to incoming webhook requests using open-source models.
+  </Accordion>
+  <Accordion title="How do I use a system prompt to control the Hugging Face model's behavior and responses?">
+
+    The `systemPrompt` input allows you to define the AI's role and response style:
+
+    #### System Prompt Examples
+
+    | Use Case | System Prompt | Connection |
+    |----------|---------------|------------|
+    | **Customer Support** | "You are a helpful customer service assistant" | Static text or `<start.systemPrompt>` |
+    | **Code Assistant** | "You are an expert programmer. Provide clean, documented code" | `<agent1.instructions>` |
+    | **Content Writer** | "Write engaging, SEO-optimized content" | `<function1.prompt>` |
+
+    #### Configuration Example
+    ```json
+    {
+      "systemPrompt": "<start.instructions>",
+      "content": "<start.userQuery>",
+      "model": "deepseek/deepseek-v3",
+      "provider": "novita"
+    }
+    ```
+
+    The system prompt guides the model's personality and output format throughout the conversation.
+  </Accordion>
+  <Accordion title="Why is my Hugging Face block failing and how do I troubleshoot API errors?">
+
+    Common issues and their solutions:
+
+    #### Authentication Issues
+
+    | Error | Cause | Solution |
+    |-------|-------|---------|
+    | **401 Unauthorized** | Invalid API key | Verify `apiKey` input contains valid HF token |
+    | **403 Forbidden** | Insufficient permissions | Check API key has inference permissions |
+
+    #### Model Configuration Issues
+
+    | Error | Cause | Solution |
+    |-------|-------|---------|
+    | **Model not found** | Invalid model identifier | Use format "username/model-name" in `model` field |
+    | **Provider unavailable** | Unsupported provider | Try "novita" or "cerebras" in `provider` field |
+
+    #### Input Validation Errors
+
+    | Error | Cause | Solution |
+    |-------|-------|---------|
+    | **Empty content** | Missing user message | Ensure `content` is populated: `<start.message>` |
+    | **Temperature out of range** | Invalid temperature value | Set `temperature` between 0.0-2.0 |
+
+    Check the `<huggingface1.success>` output to confirm operation status before using generated content.
+  </Accordion>
+  <Accordion title="Can I chain multiple Hugging Face blocks together for multi-step AI processing?">
+
+    Yes! Chain Hugging Face blocks to create complex AI workflows with multiple processing steps:
+
+    #### Sequential Processing Pattern
+    ```
+    Input → HuggingFace1 → HuggingFace2 → Output
+    ```
+
+    #### Example: Content Analysis → Summary
+    | Block | Purpose | Key Connections |
+    |-------|---------|-----------------|
+    | **HuggingFace1** | Analyze content sentiment | `content`: `<start.text>` |
+    | **HuggingFace2** | Generate summary | `content`: `<huggingface1.content>` |
+
+    #### Configuration Example
+
+    **HuggingFace1 (Analysis):**
+    ```json
+    {
+      "systemPrompt": "Analyze the sentiment and key themes",
+      "content": "<start.document>",
+      "model": "deepseek/deepseek-v3"
+    }
+    ```
+
+    **HuggingFace2 (Summary):**
+    ```json
+    {
+      "systemPrompt": "Create a concise summary",
+      "content": "Analysis: <huggingface1.content>. Now summarize the original: <start.document>",
+      "model": "deepseek/deepseek-v3"
+    }
+    ```
+
+    This approach enables sophisticated AI processing pipelines using different models or prompting strategies.
+  </Accordion>
+  <Accordion title="How do I integrate Hugging Face with other Sim.ai blocks for complete automation workflows?">
+
+    Hugging Face blocks work seamlessly with other Sim.ai components:
+
+    #### Common Integration Patterns
+
+    ##### 1. **API → Hugging Face → Telegram**
+    Fetch data, process with AI, and send notifications:
+    ```
+    API call → HF analysis → Telegram message
+    ```
+    Connect `<api1.response>` to HF `content`, then `<huggingface1.content>` to Telegram `text`.
+
+    ##### 2. **Webhook → Condition → Hugging Face**
+    Process messages conditionally:
+    ```json
+    {
+      "content": "<start.message>",
+      "systemPrompt": "<condition1.selectedPrompt>",
+      "model": "<condition1.selectedModel>"
+    }
+    ```
+
+    ##### 3. **Function → Hugging Face → Database**
+    Transform data, generate content, and store results:
+    - Function prepares input: `<function1.formattedText>`
+    - HF generates content: `<huggingface1.content>`
+    - Database stores: `<huggingface1.content>` + `<huggingface1.usage>`
+
+    ##### 4. **Scheduled → API → Hugging Face → Email**
+    Automated report generation and distribution using AI-powered content creation.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

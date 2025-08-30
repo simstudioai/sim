@@ -4,6 +4,7 @@ description: Read, create, and update Airtable
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
 
 <BlockInfoCard 
   type="airtable"
@@ -55,13 +56,84 @@ In Sim, the Airtable integration enables your agents to interact with your Airta
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Webhook
 
-Integrate Airtable functionality to manage table records. List, get, create, 
+Trigger workflows from Airtable record changes. You can use the Airtable block in trigger mode to trigger a workflow when a record is created, updated, or deleted in the specified table. Click the lightining bolt icon to enable trigger mode.
+
+### Configuration Inputs
+
+| Input | Type | Required | Description |
+|------|------|----------|-------------|
+| `baseId` | string | Yes | Airtable Base ID the webhook monitors. |
+| `tableId` | string | Yes | Table ID within the base that the webhook monitors. |
+| `includeCellValues` | boolean | No | Include full record data in the payloads. Defaults to `false`. |
+
+### Outputs
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `payloads` | array | The payloads of the Airtable changes. |
+| `latestPayload` | object | Convenience object of the latest webhook payload. |
+| `airtableChanges` | array | Changes made to the Airtable table. |
+
+#### `latestPayload` shape
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `timestamp` | string | The timestamp of the Airtable change. |
+| `payloadFormat` | object | Format of the Airtable change payload. |
+| `actionMetadata.source` | string | The source of the Airtable change. |
+| `actionMetadata.sourceMetadata.pageId` | string | The page ID that triggered the change. |
+| `actionMetadata.changedTablesById` | object | Map of table IDs to changed record metadata. |
+| `actionMetadata.baseTransactionNumber` | number | Airtable base transaction number. |
+
+### Example webhook event body (raw Airtable payload)
+
+```json
+{
+  "webhook": {
+    "id": "achAbCdEfGhIjKlMn"
+  },
+  "timestamp": "2023-01-01T00:00:00.000Z",
+  "base": {
+    "id": "appXXXXXXXXXXXXXX"
+  },
+  "table": {
+    "id": "tblXXXXXXXXXXXXXX"
+  },
+  "changedTablesById": {
+    "tblXXXXXXXXXXXXXX": {
+      "changedRecordsById": {
+        "recXXXXXXXXXXXXXX": {
+          "current": {
+            "id": "recXXXXXXXXXXXXXX",
+            "createdTime": "2023-01-01T00:00:00.000Z",
+            "fields": {
+              "Name": "Sample Record",
+              "Status": "Active"
+            }
+          },
+          "previous": {
+            "id": "recXXXXXXXXXXXXXX",
+            "createdTime": "2023-01-01T00:00:00.000Z",
+            "fields": {
+              "Name": "Sample Record",
+              "Status": "Inactive"
+            }
+          }
+        }
+      },
+      "createdRecordsById": {},
+      "destroyedRecordIds": []
+    }
+  }
+}
+```
+
+Method: `POST`  •  Headers: `Content-Type: application/json`
 
 
-
-## Tools
+## Operations
 
 ### `airtable_list_records`
 
@@ -160,7 +232,225 @@ Update multiple existing records in an Airtable table
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `airtable`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Airtable block into your Sim.ai workflows, following established best practices ensures reliable data management and optimal performance. The Airtable block serves as a critical data layer between your automated workflows and Airtable's database platform, enabling sophisticated record management, data synchronization, and dynamic workflow decisions based on structured data.
+
+**Connection Tag Usage and Data Flow**
+
+Effective connection tag usage with Airtable blocks requires understanding the data structures and field mappings. Use `<airtable1.records>` to access the full array of retrieved records, while `<airtable1.record>` provides single record access for targeted operations. When chaining operations, leverage `<airtable1.record_id>` from create operations as input for subsequent update or retrieval workflows.
+
+For dynamic base and table management, reference `<airtable1.base_id>` and `<airtable1.table_id>` connection tags to maintain consistency across workflow branches. The `<airtable1.metadata>` output provides essential operation details including record counts and field names, crucial for conditional logic and workflow validation.
+
+When working with webhook-triggered workflows, utilize `<airtable1.event_type>` to determine the appropriate response path, and `<airtable1.changed_fields>` to identify specific data modifications that triggered the workflow. This granular control enables precise workflow branching based on actual data changes.
+
+**Workflow Architecture Patterns**
+
+Successful Airtable workflows typically implement established architectural patterns that maximize data integrity and workflow reliability. The **Webhook → Filter → Airtable Update** pattern captures real-time changes and applies conditional logic before modifying records, preventing unnecessary operations and maintaining data consistency.
+
+For data synchronization scenarios, implement **External API → Transform → Airtable Batch Create** patterns where external data sources populate Airtable tables through structured batch operations. This approach minimizes API calls while ensuring data completeness and maintaining referential integrity across related tables.
+
+The **Form Submission → Validation → Airtable Create → Notification** pattern provides comprehensive data entry workflows with built-in validation and confirmation mechanisms. Use Function blocks to validate field formats and data types before committing to Airtable, preventing data quality issues and reducing manual cleanup requirements.
+
+For complex data relationships, consider **Airtable Read → Process → Multiple Table Updates** patterns where primary record changes trigger cascading updates across related tables, maintaining data consistency in normalized database structures.
+
+**Message/Data Formatting Excellence**
+
+Airtable field formatting requires strict adherence to data types and field constraints. Structure your `fields` objects with exact field names matching your Airtable schema, ensuring proper data type compatibility. Use proper JSON formatting for linked record fields, attachment fields, and multi-select options to prevent operation failures.
+
+When implementing `filterFormula` parameters, follow Airtable's formula syntax precisely. Use single quotes for string values within formulas: `{Status} = 'Active'` and proper field name references with curly braces. Complex filters should combine multiple conditions using AND/OR operators: `AND({Priority} = 'High', {Status} != 'Complete')`.
+
+For batch operations with `airtable_create_records` and `airtable_update_multiple_records`, structure your records array consistently with proper field mapping. Each record object must contain the exact field structure expected by your Airtable base, including proper handling of computed fields and formula-based columns that should be excluded from write operations.
+
+Implement proper error handling for field validation failures by checking field types, required field constraints, and lookup field dependencies before attempting write operations. This prevents partial updates and maintains data integrity across your workflow executions.
+
+**Debugging and Monitoring**
+
+Enable comprehensive monitoring by tracking the `<airtable1.metadata>` output for operation success metrics and record counts. Monitor `<airtable1.timestamp>` for webhook operations to identify processing delays and ensure real-time workflow performance meets requirements.
+
+Implement logging for all Airtable operations using the `<airtable1.record_id>` and `<airtable1.webhook_id>` outputs to create audit trails for data modifications. This enables troubleshooting of data inconsistencies and provides accountability for automated changes.
+
+Use conditional logic blocks to validate `<airtable1.records>` array lengths before processing, preventing downstream errors when queries return unexpected result sets. Implement fallback logic for empty result sets and handle cases where `maxRecords` limits may truncate expected data.
+
+For webhook-driven workflows, monitor `<airtable1.event_type>` patterns to identify potential webhook flooding or recursive trigger scenarios. Implement circuit breakers and rate limiting logic to prevent infinite loops when workflow outputs modify the same Airtable records that trigger the workflow.
+
+**Security Considerations**
+
+Implement proper access control by using dedicated Airtable API keys with minimal required permissions for each workflow. Avoid using personal API keys in production workflows, instead utilizing service accounts or shared workspace credentials with appropriate base-level permissions.
+
+Secure sensitive field data by avoiding logging or storing personally identifiable information from `<airtable1.record_data>` outputs in workflow logs or intermediate processing steps. Implement field-level filtering to exclude sensitive columns from record outputs when full record data isn't required for workflow logic.
+
+When using webhook integrations, validate webhook signatures and implement proper authentication mechanisms to prevent unauthorized workflow triggers. Use the `<airtable1.webhook_id>` for tracking legitimate webhook sources and implement request validation to prevent malicious payload injection.
+
+**Performance Optimization**
+
+Optimize read operations by implementing precise `filterFormula` parameters rather than retrieving large datasets and filtering within workflows. Use `maxRecords` strategically to limit result sets and implement pagination for large data processing workflows to prevent timeout issues.
+
+Batch write operations whenever possible using `airtable_create_records` and `airtable_update_multiple_records` instead of individual record operations. This reduces API call overhead and improves workflow execution speed while respecting Airtable's rate limits.
+
+Cache frequently accessed static data using workflow variables or Function block storage rather than repeatedly querying Airtable for reference data. Implement smart caching strategies that refresh data based on webhook triggers or scheduled intervals rather than on-demand lookups.
+
+Structure your base and table IDs as workflow constants or environment variables rather than dynamic lookups when possible. This reduces the complexity of connection tag resolution and improves workflow reliability by eliminating potential ID resolution failures during execution.
+
+For high-frequency webhook scenarios, implement queuing mechanisms using delay blocks or external queue systems to smooth workflow execution loads and prevent API rate limit violations during traffic spikes.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I connect my Airtable base and table to read records in a workflow?">
+    To read records from an Airtable table, configure the required inputs in your Airtable block:
+
+    #### Required Inputs for List Records
+
+    | Input | Description | Connection Example |
+    |-------|-------------|-------------------|
+    | `baseId` | Your Airtable base ID (found in API docs) | `<start.baseId>` or static value like `"appXXXXXXXXXXXXXX"` |
+    | `tableId` | Table ID or name | `<start.tableId>` or static value like `"tblXXXXXXXXXXXXXX"` |
+    | `maxRecords` | Limit returned records (optional) | `<start.maxRecords>` or number like `100` |
+    | `filterFormula` | Airtable formula to filter results | `<start.filter>` or string like `"{Status} = 'Active'"` |
+
+    The block will output an array of records that you can reference as `<airtable1.records>` in downstream blocks.
+  </Accordion>
+  <Accordion title="What is the correct way to reference Airtable block outputs in my workflow?">
+    Every Airtable block exposes outputs that depend on the operation performed:
+
+    #### List Records Outputs
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<airtable1.records>` | Array | Complete array of retrieved records |
+
+    #### Get Single Record Outputs
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<airtable1.record>` | Object | Single record with id, createdTime, and fields |
+    | `<airtable1.metadata>` | Object | Operation metadata including record count |
+
+    #### Create/Update Record Outputs
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<airtable1.records>` | Array | Created or updated records |
+    | `<airtable1.record>` | Object | Single updated record (for single record operations) |
+    | `<airtable1.metadata>` | Object | Metadata with field names and record counts |
+  </Accordion>
+  <Accordion title="How do I create new records in Airtable from workflow data?">
+    To create records in Airtable, use the create records operation with properly formatted data:
+
+    #### Configuration Example
+
+    ```json
+    {
+      "baseId": "<start.baseId>",
+      "tableId": "tblCustomers", 
+      "records": [
+        {
+          "fields": {
+            "Name": "<agent1.extractedName>",
+            "Email": "<start.userEmail>",
+            "Status": "New Lead"
+          }
+        }
+      ]
+    }
+    ```
+
+    The `records` input must be an array of objects, each containing a `fields` object with your table's field names and values.
+  </Accordion>
+  <Accordion title="How do I connect an Agent block's output to update Airtable records?">
+    To route AI-generated content into Airtable fields:
+
+    1. **For single record updates**, map agent outputs to the `fields` input:
+
+    ```json
+    {
+      "baseId": "<start.baseId>",
+      "tableId": "<start.tableId>",
+      "recordId": "<start.recordId>",
+      "fields": {
+        "AI Summary": "<agent1.content>",
+        "Analysis": "<agent1.analysis>",
+        "Last Updated": "TODAY()"
+      }
+    }
+    ```
+
+    2. **For multiple records**, structure data using a Function block to format the array properly before connecting to Airtable.
+  </Accordion>
+  <Accordion title="Why am I getting &quot;Invalid field name&quot; errors when updating Airtable records?">
+    Common field name issues and solutions:
+
+    #### Field Name Troubleshooting
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Case Sensitivity** | Field names are case-sensitive | Match exact case: `"Email"` not `"email"` |
+    | **Special Characters** | Spaces and symbols in field names | Use exact name: `"Customer ID"` with space |
+    | **Field Type Mismatch** | Wrong data type for field | Check Airtable schema: dates need ISO format |
+    | **Read-Only Fields** | Attempting to update computed fields | Exclude formula fields from updates |
+    | **Missing Required Fields** | Not providing mandatory fields | Include all required fields in `fields` object |
+
+    Verify field names in your Airtable base match exactly what you're using in the workflow.
+  </Accordion>
+  <Accordion title="How do I filter Airtable records based on conditions from other blocks?">
+    Use the `filterFormula` input with Airtable's formula syntax to filter records:
+
+    #### Common Filter Patterns
+
+    ##### 1. **Filter by Status**
+    ```
+    filterFormula: "{Status} = 'Active'"
+    ```
+
+    ##### 2. **Filter by Date Range**
+    ```
+    filterFormula: "AND({Created Date} >= '2024-01-01', {Created Date} <= '2024-12-31')"
+    ```
+
+    ##### 3. **Dynamic Filter from Workflow Data**
+    ```
+    filterFormula: `{Customer ID} = '${<start.customerId>}'`
+    ```
+
+    ##### 4. **Multiple Conditions**
+    ```
+    filterFormula: "AND({Priority} = 'High', {Assigned To} = 'John Doe')"
+    ```
+
+    Connect the filter result to downstream blocks using `<airtable1.records>` for further processing.
+  </Accordion>
+  <Accordion title="Can I combine Airtable operations with webhooks for real-time data sync?">
+    Yes! Airtable blocks integrate seamlessly with webhook triggers and other Sim.ai blocks:
+
+    #### Common Integration Patterns
+
+    ##### 1. **Webhook → Airtable Create**
+    Automatically add new records when external systems send data:
+    ```
+    Webhook → Airtable (create records)
+    ```
+
+    ##### 2. **Airtable List → Agent → Airtable Update**
+    Process existing records with AI and update them:
+    ```
+    Airtable (list) → Agent (analysis) → Airtable (update)
+    ```
+
+    ##### 3. **Scheduled → Airtable → Email**
+    Periodic data exports and notifications:
+    ```
+    Schedule → Airtable (list) → Email (send report)
+    ```
+
+    ##### 4. **API → Function → Airtable**
+    Transform external API data before storing:
+    ```
+    API → Function (format data) → Airtable (create records)
+    ```
+
+    Use `<airtable1.records>` or `<airtable1.record>` outputs to pass data between these workflow components.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

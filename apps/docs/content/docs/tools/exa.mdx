@@ -4,6 +4,8 @@ description: Search with Exa AI
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="exa"
@@ -42,13 +44,7 @@ In Sim, the Exa integration allows your agents to search the web for information
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Search the web, retrieve content, find similar links, and answer questions using Exa's powerful AI search capabilities.
-
-
-
-## Tools
+## Operations
 
 ### `exa_search`
 
@@ -147,7 +143,261 @@ Perform comprehensive research using AI to generate detailed reports with citati
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `exa`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When implementing the Exa block in your Sim.ai workflows, following proven best practices ensures optimal search performance and reliable data integration. The Exa block serves as your gateway to AI-powered web search, content extraction, and research capabilities, transforming raw queries into structured, actionable insights that seamlessly integrate with downstream workflow components.
+
+**Connection Tag Usage and Data Flow**
+
+Effective connection tag usage with the Exa block requires understanding its distinct output structures for each operation type. The `<exa1.results>` connection tag contains structured search data perfect for feeding into Agent blocks via `<agent1.context>`, enabling AI analysis of search findings. For research workflows, connect `<exa1.research>` to Function blocks using `<function1.input>` to process comprehensive findings programmatically.
+
+When chaining Exa operations, leverage the `<exa1.results[0].url>` pattern to extract specific URLs from search results and pipe them into subsequent `exa_get_contents` operations. The `<exa1.answer>` output pairs exceptionally well with `<agent1.systemPrompt>` connections, allowing AI agents to build upon Exa's research findings with additional context and analysis.
+
+For similarity searches, connect `<exa1.similarLinks>` to conditional logic blocks, enabling workflows that automatically filter and categorize related content based on relevance scores or domain patterns.
+
+**Workflow Architecture Patterns**
+
+Successful Exa implementations follow several proven architectural patterns. The **Research Pipeline** pattern combines multiple Exa operations: **Exa Search → Exa Get Contents → Agent Analysis**, where initial searches identify relevant URLs, content extraction retrieves full text, and AI agents synthesize findings into actionable insights.
+
+The **Competitive Intelligence** pattern leverages **Exa Find Similar Links → Content Extraction → Data Aggregation** flows, automatically discovering competitor content and extracting strategic insights. This pattern excels for market research and trend analysis workflows.
+
+For real-time information workflows, implement **Webhook Trigger → Exa Answer → Response Formatting** patterns, where external queries trigger immediate AI-powered answers with citations. This creates powerful Q&A systems backed by current web information.
+
+The **Content Discovery** pattern utilizes **Exa Search → URL Filtering → Batch Content Retrieval**, enabling systematic content collection across multiple domains while maintaining quality control through intermediate filtering steps.
+
+**Message/Data Formatting Excellence**
+
+Optimize Exa query formatting to maximize search relevance and accuracy. Structure research queries using specific terminology and domain expertise rather than generic keywords. For the `useAutoprompt` parameter, enable it for complex, multi-faceted queries where Exa's query enhancement improves result quality, but disable it for precise, technical searches where exact terminology matters.
+
+Configure the `numResults` parameter based on downstream processing capacity. Use lower values (5-10) for Agent processing to prevent context window overflow, and higher values (15-25) for Function blocks that can handle larger datasets efficiently. The `type` parameter should align with your search intent: use "neural" for conceptual searches, "keyword" for exact matches, and "auto" for balanced results.
+
+When formatting `summaryQuery` inputs for content retrieval, provide specific guidance about desired summary focus areas. Instead of generic requests, use targeted queries like "key technical specifications" or "pricing and availability information" to generate more useful summaries.
+
+Structure URL inputs for batch operations using consistent formatting with proper comma separation and validation. Implement error handling for malformed URLs to prevent entire operation failures due to single invalid inputs.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring for Exa operations by tracking result quality metrics and response patterns. Monitor the `<exa1.results>` array length to ensure searches return expected result counts, and implement alerts when result counts drop below baseline thresholds, indicating potential query or API issues.
+
+Track citation quality in `<exa1.citations>` outputs by monitoring source diversity and relevance scores. Low-quality citation patterns often indicate suboptimal query formulation or API configuration issues that require investigation.
+
+For content retrieval operations, monitor text length variations in `<exa1.results>` to identify pages that fail to load properly or return minimal content. Implement retry logic for URLs that consistently return low-quality content or encounter extraction errors.
+
+Use structured logging to track query patterns and result quality over time. This enables identification of degrading search performance and optimization opportunities for query refinement and parameter tuning.
+
+**Security Considerations**
+
+Implement secure API key management by storing Exa API keys in encrypted environment variables rather than hardcoding them in workflow configurations. Use Sim.ai's secure credential management features to protect API keys across development and production environments.
+
+Validate and sanitize all user-provided queries before passing them to Exa operations. Implement input filtering to prevent potential injection attacks or malformed queries that could compromise workflow stability or expose sensitive information.
+
+For workflows processing sensitive research topics, implement result filtering to exclude potentially problematic content sources. Monitor citation domains and implement blocklists for unreliable or inappropriate content sources that don't meet your organization's standards.
+
+Consider rate limiting and usage monitoring to prevent unexpected API quota consumption, especially in workflows triggered by external events or user interactions.
+
+**Performance Optimization**
+
+Optimize Exa block performance through strategic operation selection and parameter tuning. Use `exa_search` with focused queries for initial discovery, then leverage `exa_get_contents` only for the most relevant URLs rather than processing all search results. This reduces API calls and improves overall workflow performance.
+
+Implement intelligent caching strategies for frequently requested content by storing `<exa1.results>` outputs in workflow variables or external storage systems. This prevents redundant API calls for duplicate queries within reasonable time windows.
+
+Configure parallel processing for batch operations when retrieving content from multiple URLs. Structure workflows to process URL batches concurrently while respecting API rate limits and avoiding overwhelming downstream processing components.
+
+Optimize the `text` parameter usage based on downstream requirements. Disable text retrieval when only metadata is needed, and enable it selectively for content that requires full analysis. This reduces bandwidth usage and improves response times.
+
+For research-intensive workflows, implement progressive refinement patterns where initial broad searches inform more targeted subsequent queries, reducing overall API consumption while improving result relevance and quality.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I search the web using the Exa block in my Sim.ai workflow?">
+
+    To search the web with Exa, add an **Exa block** to your workflow and configure the `exa_search` operation with these inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `query` | Your search query | `<start.searchTerm>` or `"latest AI developments"` |
+    | `apiKey` | Your Exa AI API key | `<start.exaApiKey>` or environment variable |
+
+    #### Optional Parameters
+
+    | Input | Default | Description |
+    |-------|---------|-------------|
+    | `numResults` | 10 | Number of results (max 25) |
+    | `useAutoprompt` | false | Improve query with AI |
+    | `type` | auto | Search type: neural, keyword, auto, or fast |
+
+    The block outputs search results in `<exa1.results>` containing titles, URLs, and text snippets.
+  </Accordion>
+  <Accordion title="How do I retrieve the full content of webpages found in my Exa search?">
+
+    To get full webpage content, use the `exa_get_contents` operation by connecting URLs from your search results:
+
+    #### Configuration Example
+    ```json
+    {
+      "urls": "<exa1.results[0].url>,<exa1.results[1].url>",
+      "text": true,
+      "summaryQuery": "<start.summaryQuery>",
+      "apiKey": "<start.exaApiKey>"
+    }
+    ```
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<exa1.results>` | Array | Retrieved content with title, text, and summaries |
+
+    You can reference individual results using `<exa1.results[0].text>` for the first result's content.
+  </Accordion>
+  <Accordion title="What is the correct way to connect Exa search results to an Agent block for analysis?">
+
+    To process Exa search results with an AI agent:
+
+    1. **Connect search results** to the Agent's `userPrompt` or `systemPrompt`
+    2. **Use specific result fields** for targeted analysis
+
+    #### Example Workflow Pattern
+    ```
+    Start → Exa (search) → Agent → Response
+    ```
+
+    #### Agent Configuration
+    ```json
+    {
+      "userPrompt": "Analyze these search results: <exa1.results>",
+      "systemPrompt": "You are analyzing web search results about: <start.topic>"
+    }
+    ```
+
+    This allows the agent to process and synthesize information from multiple web sources.
+  </Accordion>
+  <Accordion title="How do I find websites similar to a specific URL using the Exa block?">
+
+    Use the `exa_find_similar_links` operation to discover related websites:
+
+    #### Required Configuration
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `url` | Target URL to find similar sites | `<start.targetUrl>` or `"https://example.com"` |
+    | `apiKey` | Your Exa AI API key | `<start.exaApiKey>` |
+
+    #### Optional Parameters
+    - `numResults`: Number of similar links (default: 10, max: 25)
+    - `text`: Include full text content of similar pages
+
+    #### Output Usage
+    Access similar links with `<exa1.similarLinks>` and individual results using `<exa1.similarLinks[0].url>`.
+  </Accordion>
+  <Accordion title="How do I get AI-powered answers with citations using the Exa block?">
+
+    The `exa_answer` operation provides direct answers to questions with web citations:
+
+    #### Setup Configuration
+    ```json
+    {
+      "query": "<start.question>",
+      "text": true,
+      "apiKey": "<start.exaApiKey>"
+    }
+    ```
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<exa1.answer>` | String | AI-generated answer to your question |
+    | `<exa1.citations>` | Array | Sources and citations supporting the answer |
+
+    Connect `<exa1.answer>` to downstream blocks for further processing or combine with `<exa1.citations>` for complete responses.
+  </Accordion>
+  <Accordion title="Why is my Exa block returning empty results or failing?">
+
+    Troubleshoot common Exa block issues with this checklist:
+
+    #### Authentication Issues
+    - **Invalid API Key**: Verify `<start.exaApiKey>` contains a valid Exa AI API key
+    - **Key Format**: Ensure no extra spaces or characters in the API key field
+
+    #### Query Problems
+    - **Empty Query**: Ensure `query` field is populated with actual search terms
+    - **Query Too Broad**: Try more specific search terms for better results
+    - **Special Characters**: Avoid problematic characters that might break the search
+
+    #### Configuration Errors
+    - **Invalid URLs**: For `exa_get_contents`, ensure URLs are properly formatted
+    - **Result Limits**: Keep `numResults` between 1-25 for optimal performance
+    - **Network Issues**: Check workflow logs for API connectivity problems
+  </Accordion>
+  <Accordion title="How do I create a comprehensive research workflow using multiple Exa operations?">
+
+    Combine different Exa operations for thorough research automation:
+
+    #### Multi-Stage Research Pattern
+    ```
+    Start → Exa (search) → Exa (get_contents) → Exa (find_similar) → Agent → Output
+    ```
+
+    #### Stage 1: Initial Search
+    ```json
+    {
+      "operation": "exa_search",
+      "query": "<start.researchTopic>",
+      "numResults": 10
+    }
+    ```
+
+    #### Stage 2: Content Retrieval
+    ```json
+    {
+      "operation": "exa_get_contents",
+      "urls": "<exa1.results[0].url>,<exa1.results[1].url>",
+      "summaryQuery": "<start.researchTopic>"
+    }
+    ```
+
+    #### Stage 3: Similar Sources
+    ```json
+    {
+      "operation": "exa_find_similar_links",
+      "url": "<exa1.results[0].url>",
+      "numResults": 5
+    }
+    ```
+
+    This pattern enables comprehensive research by combining search results, full content, and related sources for thorough analysis.
+  </Accordion>
+  <Accordion title="How do I use the Exa research operation for generating detailed reports?">
+
+    The `exa_research` operation provides comprehensive research capabilities:
+
+    #### Configuration
+    ```json
+    {
+      "query": "<start.researchQuery>",
+      "includeText": true,
+      "apiKey": "<start.exaApiKey>"
+    }
+    ```
+
+    #### Output Integration
+    Connect `<exa1.research>` to Agent blocks for report generation:
+    ```json
+    {
+      "userPrompt": "Create a detailed report based on this research: <exa1.research>",
+      "systemPrompt": "You are a research analyst creating comprehensive reports"
+    }
+    ```
+
+    The research output contains findings with citations and summaries, perfect for automated report generation workflows.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

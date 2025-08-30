@@ -4,6 +4,8 @@ description: Search and retrieve content from Wikipedia
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="wikipedia"
@@ -52,13 +54,7 @@ In Sim, the Wikipedia integration enables your agents to programmatically access
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Access Wikipedia articles, search for pages, get summaries, retrieve full content, and discover random articles from the world's largest encyclopedia.
-
-
-
-## Tools
+## Operations
 
 ### `wikipedia_summary`
 
@@ -126,7 +122,224 @@ Get a random Wikipedia page.
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `wikipedia`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Wikipedia block into your Sim.ai workflows, following established best practices ensures reliable data retrieval and optimal content processing. The Wikipedia block serves as a comprehensive knowledge gateway, enabling workflows to access, search, and analyze the world's largest encyclopedia for research, content creation, and information validation purposes.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation is essential for effective Wikipedia data integration. The `<wikipedia1.summary>` connection tag provides structured metadata and concise article overviews, making it ideal for feeding into Agent blocks that need contextual information without overwhelming token limits. Use `<wikipedia1.searchResults>` to pass search data arrays to Function blocks for filtering and processing multiple articles simultaneously.
+
+For content-heavy workflows, the `<wikipedia1.content>` connection tag delivers full HTML content that requires careful handling. Connect this output to HTML parsing functions or Agent blocks equipped to process structured content. The `<wikipedia1.totalHits>` numeric output enables conditional logic in workflows - use it with Decision blocks to handle search scenarios where no results or too many results require different processing paths.
+
+When chaining Wikipedia operations, leverage the `<wikipedia1.randomPage>` output to seed further searches or content analysis. This creates dynamic workflows that can explore related topics by extracting keywords from random articles and feeding them back into search operations.
+
+**Workflow Architecture Patterns**
+
+Successful Wikipedia workflows typically implement layered information processing patterns. The **Search → Filter → Content → Analysis** pattern begins with `wikipedia_search` using query parameters, filters results through Function blocks, retrieves detailed content for selected articles, and processes the information through Agent blocks for summarization or analysis.
+
+For research-intensive workflows, consider the **Multi-Stage Research** pattern: **Wikipedia Search → Agent Filter → Wikipedia Content → Agent Analysis → Output Formatting**. This pattern allows AI agents to evaluate search results, select the most relevant articles, and perform deep content analysis before producing final outputs.
+
+Content validation workflows benefit from the **Cross-Reference Verification** pattern where multiple Wikipedia searches verify information consistency. Implement **Primary Search → Secondary Searches → Content Comparison → Validation Report** flows to ensure information accuracy across multiple sources.
+
+Interactive applications leverage the **Dynamic Exploration** pattern using **Webhook → Wikipedia Random → Keyword Extraction → Wikipedia Search → Content Delivery**, enabling users to discover and explore interconnected topics through automated content discovery.
+
+**Message/Data Formatting Excellence**
+
+Wikipedia block outputs require structured handling to maximize utility. The `summary` output contains nested objects with title, extract, thumbnail, and pageId fields - extract specific properties using dot notation in connection tags like `<wikipedia1.summary.extract>` for clean text content.
+
+When processing `searchResults` arrays, implement proper iteration handling in Function blocks to manage variable result counts. Structure your data processing to handle cases where `searchLimit` parameters return fewer results than requested, indicating limited matching content.
+
+For HTML content from `wikipedia_content` operations, implement content sanitization in downstream Function blocks. Strip unnecessary HTML tags, preserve formatting for headings and lists, and extract clean text while maintaining document structure. This prevents HTML injection issues and improves readability in subsequent processing stages.
+
+Format query inputs using consistent title casing and handle special characters properly. Wikipedia's search algorithm performs better with properly formatted queries - use Function blocks to clean and standardize search terms before passing them to `<wikipedia1.pageTitle>` or `<wikipedia1.query>` inputs.
+
+**Debugging and Monitoring**
+
+Implement comprehensive error handling for Wikipedia block operations by monitoring output data structures. Empty `searchResults` arrays indicate unsuccessful searches - use Decision blocks to check array length and implement fallback logic for zero-result scenarios.
+
+Track the `totalHits` output to monitor search effectiveness over time. Consistently low hit counts may indicate poorly formatted queries or overly specific search terms. Log successful page retrievals by monitoring the presence of required fields in `summary` and `content` outputs.
+
+For content retrieval operations, validate that `pageTitle` inputs match existing Wikipedia articles. Implement fuzzy matching in Function blocks to handle slight title variations, and use search operations to verify page existence before attempting content retrieval.
+
+Monitor API response times and implement timeout handling for large content operations. Wikipedia's content can be extensive - track processing times for `wikipedia_content` operations and implement pagination strategies for workflows processing multiple articles.
+
+**Performance Optimization**
+
+Optimize Wikipedia block performance by implementing intelligent caching strategies. Store frequently accessed article summaries in workflow variables to avoid repeated API calls for the same content. Use the `pageId` from summary outputs as unique identifiers for caching decisions.
+
+Implement strategic search limiting by setting appropriate `searchLimit` values based on downstream processing capacity. Processing 50 search results requires significantly more computational resources than processing 10 results - balance thoroughness with performance requirements.
+
+For content-heavy workflows, implement selective content retrieval. Use summary operations first to evaluate article relevance, then retrieve full content only for articles meeting specific criteria. This reduces bandwidth usage and processing time while maintaining comprehensive coverage.
+
+Batch related Wikipedia operations when possible by grouping searches and content retrievals in parallel processing blocks. This reduces overall workflow execution time and minimizes API request overhead.
+
+**Advanced Integration Patterns**
+
+Implement semantic search enhancement by combining Wikipedia searches with AI agent processing. Use agents to expand search queries with synonyms and related terms, then aggregate results from multiple searches for comprehensive topic coverage.
+
+Create knowledge graph workflows by extracting entity relationships from Wikipedia content. Process article links, categories, and cross-references to build connected knowledge structures that enable advanced research and analysis capabilities.
+
+For multilingual workflows, implement language-specific Wikipedia operations by modifying request parameters appropriately. This enables global content research and cross-cultural information validation within single workflow architectures.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I search for Wikipedia articles in my workflow?">
+
+    To search Wikipedia from your workflow, add a **Wikipedia block** to your Sim.ai workflow and configure the search operation:
+
+    #### Required Inputs for Search
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `query` | Search terms to find Wikipedia pages | `<start.searchTerm>` or `<agent1.content>` |
+    | `searchLimit` | Maximum results to return (1-50) | `10` or `<start.limit>` |
+
+    The block will output an array of matching pages in `<wikipedia1.searchResults>` that you can connect to downstream blocks.
+  </Accordion>
+  <Accordion title="How do I get a summary of a specific Wikipedia page?">
+
+    To retrieve a Wikipedia page summary in Sim.ai:
+
+    1. **Set the operation** to `wikipedia_summary`
+    2. **Connect the page title** to the `pageTitle` input field
+    3. **Reference the summary output** using `<wikipedia1.summary>`
+
+    #### Example Configuration
+    ```
+    pageTitle: <start.articleTitle>
+    ```
+
+    The summary includes page metadata, extract text, and thumbnail images that can be used in Agent blocks or other workflow components.
+  </Accordion>
+  <Accordion title="What is the correct way to reference Wikipedia block outputs in my workflow?">
+
+    Every Wikipedia block exposes different outputs based on the selected operation:
+
+    #### Available Output Tags
+
+    | Output Tag | Operation | Type | Description |
+    |------------|-----------|------|-------------|
+    | `<wikipedia1.summary>` | summary | Object | Page summary and metadata |
+    | `<wikipedia1.searchResults>` | search | Array | Array of matching Wikipedia pages |
+    | `<wikipedia1.totalHits>` | search | Number | Total number of search matches |
+    | `<wikipedia1.content>` | content | Object | Full HTML content and page data |
+    | `<wikipedia1.randomPage>` | random | Object | Random Wikipedia page information |
+
+    Connect these outputs to Agent blocks, Function blocks, or other components for further processing.
+  </Accordion>
+  <Accordion title="How do I connect Wikipedia search results to an Agent block for analysis?">
+
+    To process Wikipedia search results with AI:
+
+    1. **Configure Wikipedia search** with your query: `<start.topic>`
+    2. **Connect search results** to Agent block's context or prompt
+    3. **Reference specific result fields** in your Agent prompt
+
+    #### Example Agent Prompt Configuration
+    ```
+    systemPrompt: "Analyze these Wikipedia search results and provide insights"
+    userPrompt: "Here are the search results: <wikipedia1.searchResults>"
+    ```
+
+    The Agent can then process the article titles, snippets, and URLs to generate comprehensive responses.
+  </Accordion>
+  <Accordion title="How do I get the full content of a Wikipedia page for detailed analysis?">
+
+    To retrieve complete Wikipedia page content in Sim.ai:
+
+    1. **Set operation** to `wikipedia_content`
+    2. **Connect page title** from search results or user input:
+       ```
+       pageTitle: <wikipedia1.searchResults[0].title>
+       ```
+    3. **Use the full content** in downstream blocks:
+       ```
+       <wikipedia1.content>
+       ```
+
+    The content output includes full HTML markup, which can be processed by Function blocks to extract specific sections or clean the text.
+  </Accordion>
+  <Accordion title="Why am I getting empty results from Wikipedia search?">
+
+    Troubleshoot Wikipedia search issues with this checklist:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **No Search Results** | Query returns empty array | Verify `<wikipedia1.totalHits>` > 0, try broader search terms |
+    | **Invalid Page Title** | Page doesn't exist on Wikipedia | Use exact title from search results: `<wikipedia1.searchResults[0].title>` |
+    | **Search Limit Too Low** | Missing relevant results | Increase `searchLimit` parameter (max 50) |
+    | **Special Characters** | Title contains unusual characters | Use URL-encoded titles or search first, then get content |
+    | **Disambiguation Pages** | Multiple pages with same name | Check search results for specific page variants |
+  </Accordion>
+  <Accordion title="Can I create automated Wikipedia research workflows?">
+
+    Yes! Wikipedia blocks integrate seamlessly with other Sim.ai components for research automation:
+
+    #### Common Research Patterns
+
+    ##### 1. **User Input → Wikipedia Search → Agent Analysis**
+    ```
+    Webhook/Start → Wikipedia (search) → Agent → Response
+    ```
+    Users provide topics, Wikipedia finds relevant articles, Agent summarizes findings.
+
+    ##### 2. **Random Article Discovery → Content Analysis**
+    ```
+    Wikipedia (random) → Wikipedia (content) → Function → Agent
+    ```
+    Discover random articles, extract full content, clean HTML, and generate insights.
+
+    ##### 3. **Multi-Article Research Pipeline**
+    ```
+    Start → Wikipedia (search) → Function (iterate) → Wikipedia (content) → Agent
+    ```
+    Search multiple articles, get full content for each, and create comprehensive research summaries.
+
+    ##### 4. **Fact-Checking Workflow**
+    ```
+    Agent (claim) → Wikipedia (search) → Function (extract) → Agent (verify)
+    ```
+    Verify claims against Wikipedia sources and provide evidence-based responses.
+  </Accordion>
+  <Accordion title="How do I handle Wikipedia disambiguation pages and redirects?">
+
+    When Wikipedia returns disambiguation pages or redirects:
+
+    #### Handling Strategies
+
+    1. **Check search results first**:
+       ```
+       query: <start.topic>
+       searchLimit: 5
+       ```
+
+    2. **Use specific titles** from search results:
+       ```
+       pageTitle: <wikipedia1.searchResults[0].title>
+       ```
+
+    3. **Process multiple results** with Function blocks to handle ambiguous topics:
+       ```javascript
+       // In Function block
+       const results = input.searchResults;
+       const specificPage = results.find(page => 
+         page.title.includes(input.specificContext)
+       );
+       ```
+
+    4. **Let Agent blocks choose** the most relevant page:
+       ```
+       systemPrompt: "Choose the most relevant Wikipedia page for this context"
+       userPrompt: "Topic: <start.topic>\nOptions: <wikipedia1.searchResults>"
+       ```
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

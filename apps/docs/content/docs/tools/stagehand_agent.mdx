@@ -4,6 +4,8 @@ description: Autonomous web browsing agent
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="stagehand_agent"
@@ -193,13 +195,7 @@ In Sim, the Stagehand integration enables your agents to seamlessly interact wit
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Use Stagehand to create an autonomous web browsing agent that can navigate across websites, perform tasks, and return structured data.
-
-
-
-## Tools
+## Operations
 
 ### `stagehand_agent`
 
@@ -224,7 +220,188 @@ Run an autonomous web agent to complete tasks and extract structured data
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `stagehand_agent`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Stagehand Agent block into your Sim.ai workflows, following established best practices ensures reliable web automation and consistent data extraction. The Stagehand Agent serves as an autonomous browser that can navigate complex websites, interact with dynamic content, and extract structured information, making it an essential component for web scraping and automated data collection workflows.
+
+**Connection Tag Usage and Data Flow**
+
+Effective connection tag utilization is crucial for Stagehand Agent success. The `<stagehand1.agentResult>` connection tag captures the complete execution result, while `<stagehand1.structuredOutput>` provides cleaned, schema-validated data when you define an `outputSchema`. Use dynamic task construction by connecting upstream block outputs to the task parameter: `<function1.generatedTask>` or `<agent1.taskInstructions>` enables adaptive web automation based on previous workflow results.
+
+For variable substitution, leverage the `variables` input with connection tags like `<webhook1.searchTerm>` mapped to `{"query": "<webhook1.searchTerm>"}`, then reference `%query%` in your task description. This pattern enables parameterized web automation that adapts to different inputs while maintaining consistent execution logic.
+
+**Workflow Architecture Patterns**
+
+Successful Stagehand Agent workflows follow proven architectural patterns. The most effective pattern involves **Webhook → Function → Stagehand Agent → Database**, where incoming requests trigger parameter validation, web automation, and data storage. For continuous monitoring, implement **Scheduler → Stagehand Agent → Notification** patterns that automatically check websites for changes and alert stakeholders.
+
+Multi-step web automation requires **Stagehand Agent → Function → Stagehand Agent** chains, where initial data extraction informs subsequent navigation tasks. Use the `<stagehand1.structuredOutput>` to pass extracted URLs or parameters to downstream Stagehand blocks, creating sophisticated web crawling workflows that adapt based on discovered content.
+
+**Task Definition and Formatting Excellence**
+
+Craft precise, actionable task descriptions that specify exact user interactions and data requirements. Instead of vague instructions like "get product data," use detailed tasks: "Navigate to the product page, click 'View Details', extract the product name, price, description, and availability status from the product information section." This specificity improves execution reliability and reduces ambiguous interpretations.
+
+Define comprehensive `outputSchema` structures using JSON Schema format to ensure consistent data extraction. Specify required fields, data types, and validation rules: `{"type": "object", "properties": {"price": {"type": "number"}, "title": {"type": "string"}}, "required": ["price", "title"]}`. This approach guarantees that `<stagehand1.structuredOutput>` contains validated, properly formatted data for downstream processing.
+
+**Security Considerations**
+
+Implement robust API key management by storing OpenAI credentials in environment variables rather than hardcoding them in workflows. Use connection tags like `<secrets1.openaiKey>` to reference securely stored credentials. Validate all `startUrl` inputs to prevent navigation to malicious websites, especially when accepting URLs from external sources through webhooks or API calls.
+
+Monitor the websites you're automating for terms of service compliance and implement appropriate rate limiting between Stagehand executions. Avoid automating websites that explicitly prohibit bot access, and consider implementing user-agent rotation and request delays to maintain ethical web scraping practices.
+
+**Performance Optimization and Resource Management**
+
+Optimize Stagehand Agent performance by crafting specific, focused tasks that minimize unnecessary page navigation and interaction. Break complex multi-page workflows into discrete Stagehand blocks rather than attempting to accomplish everything in a single execution. This approach improves reliability, enables better error handling, and allows for targeted debugging when issues occur.
+
+Implement intelligent caching by storing frequently accessed data using Function blocks between Stagehand executions. Use `<stagehand1.structuredOutput>` to populate temporary data stores, reducing redundant web requests and improving overall workflow performance. For high-frequency scraping, consider implementing request queuing mechanisms to manage API rate limits and prevent overwhelming target websites.
+
+**Debugging and Monitoring**
+
+Establish comprehensive monitoring by analyzing the `<stagehand1.agentResult>` output for execution details, error messages, and performance metrics. Implement logging workflows that capture task parameters, execution times, and success rates using **Stagehand Agent → Function → Database** patterns to track automation reliability over time.
+
+When debugging failed executions, examine the complete `agentResult` object for browser console errors, network failures, or page load timeouts. Common failure points include dynamic content loading delays, CAPTCHA challenges, and website structure changes. Implement fallback logic using conditional blocks that retry with modified parameters or alternative approaches when initial attempts fail.
+
+Create monitoring dashboards that track `<stagehand1.structuredOutput>` validation success rates and data quality metrics. Set up alerts for schema validation failures or empty result sets, enabling proactive maintenance of your web automation workflows before they impact downstream processes.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I set up a Stagehand Agent to browse a website and extract data?">
+
+    To create an autonomous web browsing workflow with Stagehand Agent, add the **Stagehand Agent block** to your Sim.ai workflow and configure its required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `startUrl` | The webpage URL where the agent begins | `<start.websiteUrl>` or static URL like `https://example.com` |
+    | `task` | Clear instructions for what the agent should accomplish | `<start.userTask>` or "Extract product prices from this page" |
+    | `apiKey` | OpenAI API key for agent execution | `<start.openaiKey>` or environment variable |
+
+    #### Optional Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `variables` | JSON object for task substitution using %key% format | `{"productName": "<start.productName>"}` |
+    | `outputSchema` | JSON schema defining expected return data structure | `{"type": "object", "properties": {"price": {"type": "string"}}}` |
+  </Accordion>
+  <Accordion title="How do I reference the results from a Stagehand Agent in downstream blocks?">
+
+    The Stagehand Agent block provides two main outputs that can be connected to other blocks:
+
+    #### Available Output Tags
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<stagehand_agent1.agentResult>` | Object | Complete execution result from the agent |
+    | `<stagehand_agent1.structuredOutput>` | JSON | Structured data extracted according to your schema |
+
+    Use these connection tags in downstream blocks like Agent blocks, Function blocks, or Webhook responses.
+  </Accordion>
+  <Accordion title="What is the correct way to write tasks for the Stagehand Agent?">
+
+    Write clear, specific instructions that describe the exact actions you want the agent to perform:
+
+    #### Effective Task Examples
+
+    1. **Data Extraction**: "Navigate to the products section and extract the name, price, and availability of all items"
+    2. **Form Completion**: "Fill out the contact form with name: %customerName% and email: %customerEmail%"
+    3. **Search and Filter**: "Search for %searchTerm% and collect the first 5 results with their titles and URLs"
+    4. **Navigation Tasks**: "Click on the 'About' menu, then navigate to the team page and extract all team member names"
+
+    #### Using Variables in Tasks
+    Reference variables using `%variableName%` format and provide them in the `variables` input as JSON:
+    ```json
+    {
+      "customerName": "<start.name>",
+      "searchTerm": "<agent1.extractedKeyword>"
+    }
+    ```
+  </Accordion>
+  <Accordion title="How do I connect a Webhook trigger to a Stagehand Agent for automated web browsing?">
+
+    To create webhook-triggered web automation:
+
+    1. **Start with a Webhook Trigger block** to receive external requests
+    2. **Connect webhook data** to Stagehand Agent inputs:
+
+    #### Example Configuration
+    ```
+    Webhook → Stagehand Agent → Function → Response
+    ```
+
+    Map webhook fields to agent inputs:
+    - `startUrl`: `<start.targetWebsite>`
+    - `task`: `<start.instructions>`
+    - `apiKey`: Environment variable or `<start.apiKey>`
+    - `variables`: `<start.parameters>`
+  </Accordion>
+  <Accordion title="Why is my Stagehand Agent failing or returning incomplete results?">
+
+    Common issues and their solutions:
+
+    #### Authentication and Setup Issues
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Invalid API Key** | OpenAI key is missing or incorrect | Verify `apiKey` input contains valid OpenAI API key |
+    | **URL Access** | Website blocks automated browsing | Check if target site allows bot access |
+    | **Task Complexity** | Instructions are too vague or complex | Break complex tasks into specific, actionable steps |
+
+    #### Task Writing Issues
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Unclear Instructions** | Agent doesn't understand the goal | Use specific action verbs: "click", "extract", "navigate" |
+    | **Missing Variables** | Referenced %variables% not provided | Ensure all %variables% in task have corresponding entries in `variables` input |
+    | **Schema Mismatch** | Output doesn't match expected structure | Align `outputSchema` with actual data available on the page |
+  </Accordion>
+  <Accordion title="How do I structure the output schema for consistent data extraction?">
+
+    Define a JSON schema in the `outputSchema` input to ensure the agent returns data in your desired format:
+
+    #### Example Schema for E-commerce Data
+    ```json
+    {
+      "type": "object",
+      "properties": {
+        "products": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "price": {"type": "string"},
+              "inStock": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    Access structured results using `<stagehand_agent1.structuredOutput>` in subsequent blocks for processing or API responses.
+  </Accordion>
+  <Accordion title="What are common workflow patterns that combine Stagehand Agent with other blocks?">
+
+    Popular integration patterns for web automation:
+
+    #### 1. **Webhook → Stagehand Agent → Agent → Response**
+    Receive external requests, browse websites, analyze data with AI, and return insights.
+
+    #### 2. **Scheduled Trigger → Stagehand Agent → Function → Database**
+    Periodically scrape websites and store data in structured format.
+
+    #### 3. **Agent → Stagehand Agent → Agent**
+    Use AI to generate browsing instructions, execute them with Stagehand, then process results.
+
+    #### 4. **API → Stagehand Agent → Condition → Multiple Actions**
+    Fetch configuration data, perform web actions, then route results based on success/failure conditions.
+
+    Connect outputs like `<stagehand_agent1.structuredOutput>` to Agent blocks' `context` input for AI-powered analysis of extracted web data.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

@@ -4,6 +4,8 @@ description: Read and create tasks in Microsoft Planner
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="microsoft_planner"
@@ -120,13 +122,7 @@ In Sim, the Microsoft Planner integration allows your agents to programmatically
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Integrate Microsoft Planner functionality to manage tasks. Read all user tasks, tasks from specific plans, individual tasks, or create new tasks with various properties like title, description, due date, and assignees using OAuth authentication.
-
-
-
-## Tools
+## Operations
 
 ### `microsoft_planner_read_task`
 
@@ -172,7 +168,212 @@ Create a new task in Microsoft Planner
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `microsoft_planner`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Microsoft Planner block into your Sim.ai workflows, following established best practices ensures reliable task management and seamless collaboration with Microsoft 365 environments. The Microsoft Planner block serves as a critical bridge between automated workflows and project management systems, enabling dynamic task creation, assignment, and monitoring across teams and projects.
+
+**Connection Tag Usage and Data Flow**
+
+Effective use of connection tags is essential for Microsoft Planner integrations. The `<microsoft_planner1.tasks>` connection tag provides comprehensive task arrays that can be processed by subsequent blocks for analysis, filtering, or reporting. When creating tasks, route dynamic content using `<agent1.content>` for AI-generated descriptions or `<webhook1.body.title>` for task titles from external systems.
+
+For read operations, leverage the `<microsoft_planner1.metadata>` tag to capture plan context and URLs, which proves invaluable for creating clickable references in notifications or reports. The `<microsoft_planner1.success>` boolean output enables conditional workflow branching, allowing error handling paths when task operations fail.
+
+Task creation workflows benefit from mapping external data systematically. Use `<function1.planId>` to dynamically select target plans, `<webhook1.body.assignee>` for user assignments, and `<date_formatter1.isoDate>` for properly formatted due dates that comply with Microsoft's ISO 8601 requirements.
+
+**Workflow Architecture Patterns**
+
+Successful Microsoft Planner workflows typically follow established patterns that maximize integration value. The **Webhook → Function → Microsoft Planner** pattern excels for external system integrations, where project management tools or forms trigger task creation with validated data processing in between.
+
+For AI-driven task management, implement **Agent → Microsoft Planner → Teams** flows, where intelligent agents analyze requirements, create structured tasks, and notify relevant team members. This pattern enables natural language task creation that gets converted into actionable Microsoft Planner items.
+
+Monitoring patterns like **Scheduler → Microsoft Planner → Filter → Email** provide automated project oversight, where scheduled reads generate task status reports filtered by criteria like overdue items or completion rates. This creates proactive project management without manual intervention.
+
+Complex approval workflows benefit from **Microsoft Planner → Conditional → Agent → Microsoft Planner** patterns, where task status changes trigger AI evaluation and subsequent task updates or new task creation based on business logic.
+
+**Message/Data Formatting Excellence**
+
+Microsoft Planner requires specific data formatting for optimal integration. Task titles should be concise yet descriptive, typically under 255 characters to ensure visibility across Microsoft 365 interfaces. When using `<agent1.content>` for titles, implement truncation logic to maintain readability.
+
+Due date formatting demands strict ISO 8601 compliance. Use dedicated date formatting blocks or functions to convert natural language dates into proper `dueDateTime` values. Invalid date formats cause task creation failures and workflow disruption.
+
+Task descriptions support rich text but work best with structured formatting. Use markdown-style formatting for consistency, break content into logical paragraphs, and include relevant links or references. This enhances task clarity and reduces miscommunication.
+
+Plan and bucket IDs require exact matching with existing Microsoft Planner structures. Implement validation checks using read operations before attempting task creation. Store frequently used IDs as workflow variables or configuration parameters to reduce errors and improve maintenance.
+
+**Debugging and Monitoring**
+
+Comprehensive monitoring of Microsoft Planner blocks requires attention to both success indicators and data quality. Monitor `<microsoft_planner1.success>` outputs consistently to identify authentication issues, permission problems, or service disruptions. Failed operations often indicate OAuth token expiration or insufficient Microsoft Graph permissions.
+
+Task creation failures typically stem from invalid plan references, malformed date strings, or non-existent assignee user IDs. Implement logging for all input parameters to facilitate troubleshooting. The `<microsoft_planner1.metadata>` output provides essential debugging context, including actual Microsoft Graph response details.
+
+Read operations may return empty arrays for valid requests when plans contain no tasks or access permissions are insufficient. Distinguish between empty results and actual failures by monitoring both the `success` flag and array length of `<microsoft_planner1.tasks>`.
+
+Performance monitoring should track operation completion times, especially for large plans with hundreds of tasks. Microsoft Graph API throttling can impact workflow execution during peak usage periods. Implement retry logic with exponential backoff for production deployments.
+
+**Security Considerations**
+
+Microsoft Planner integrations require robust OAuth 2.0 configuration with appropriate scope permissions. Ensure your Sim.ai Microsoft connection includes necessary Graph API permissions like `Tasks.ReadWrite` and `Group.Read.All` for comprehensive functionality. Regularly audit and rotate OAuth credentials following organizational security policies.
+
+Task assignments should validate user permissions before creation. Attempting to assign tasks to users without plan access causes failures and may expose organizational structure information in error messages. Implement user validation through Microsoft Graph directory queries when processing external assignee requests.
+
+Sensitive information in task descriptions requires careful handling. Avoid including confidential data, passwords, or personal information in task content that may be visible across Microsoft 365 platforms. Consider using generic descriptions with detailed information stored in secure, linked resources.
+
+Plan ID exposure in connection tags and logs should be minimized in production environments. These identifiers can provide unauthorized access to project information if compromised. Use environment variables or secure configuration management for plan references rather than hardcoding values in workflows.
+
+**Performance Optimization**
+
+Optimize Microsoft Planner block performance through strategic data retrieval patterns. When reading tasks, specify `planId` parameters rather than retrieving all user tasks to reduce response times and API quota consumption. Target specific plans for focused operations and better performance.
+
+Batch task creation operations when possible by designing workflows that accumulate task requirements before executing multiple creation blocks sequentially. This approach reduces individual API calls while maintaining data consistency across related tasks.
+
+Cache frequently accessed plan metadata using Sim.ai variables or storage blocks. Plan names, bucket configurations, and team member lists change infrequently but are often needed for task creation workflows. Local caching reduces API dependencies and improves response times.
+
+Implement conditional task creation logic to avoid duplicate tasks. Use read operations with specific criteria to check for existing tasks before creating new ones. This prevents workflow-generated task proliferation and maintains clean project management environments.
+
+Schedule heavy task reading operations during off-peak hours when possible. Large-scale task analysis, reporting, or synchronization workflows perform better outside standard business hours when Microsoft Graph API resources experience lower demand.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I connect Microsoft Planner to read tasks from a specific plan in my workflow?">
+
+    To read tasks from a specific Microsoft Planner plan, add a **Microsoft Planner block** to your Sim.ai workflow and configure the `planId` input:
+
+    #### Required Setup
+    1. Connect the `planId` input using a connection tag like `<start.planId>` or a static plan ID
+    2. Leave `taskId` empty to get all tasks from the plan
+
+    #### Example Configuration
+    ```json
+    {
+      "planId": "<start.planId>"
+    }
+    ```
+
+    The block will return all tasks from the specified plan in the `<microsoft_planner1.tasks>` array output.
+  </Accordion>
+  <Accordion title="What connection tags can I use to reference Microsoft Planner block outputs in downstream blocks?">
+
+    Microsoft Planner blocks expose several outputs that can be referenced using connection tags:
+
+    #### Available Output Tags
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<microsoft_planner1.success>` | Boolean | `true` if the operation completed successfully |
+    | `<microsoft_planner1.tasks>` | Array | Array of task objects with properties like title, status, dueDate |
+    | `<microsoft_planner1.task>` | Object | Single task object (for create operations or single task reads) |
+    | `<microsoft_planner1.metadata>` | Object | Operation metadata including planId, userId, and URLs |
+    | `<microsoft_planner1.metadata.planId>` | String | The ID of the plan that was accessed |
+    | `<microsoft_planner1.metadata.taskId>` | String | The ID of a created or retrieved task |
+
+    These outputs can be connected to downstream blocks for further processing or display.
+  </Accordion>
+  <Accordion title="How do I create a new task in Microsoft Planner with data from other blocks?">
+
+    To create tasks in Microsoft Planner using data from previous blocks in your workflow:
+
+    #### Required Inputs
+    | Input | Connection Example | Description |
+    |-------|------------------|-------------|
+    | `planId` | `<start.planId>` | Target plan identifier |
+    | `title` | `<agent1.content>` or `<start.taskTitle>` | Task title text |
+
+    #### Optional Inputs
+    | Input | Connection Example | Description |
+    |-------|------------------|-------------|
+    | `description` | `<agent1.content>` | Detailed task description |
+    | `dueDateTime` | `<start.dueDate>` | ISO 8601 formatted date string |
+    | `assigneeUserId` | `<start.userId>` | Microsoft user ID to assign task |
+    | `bucketId` | `<start.bucketId>` | Specific bucket within the plan |
+
+    The created task details will be available in `<microsoft_planner1.task>` for downstream use.
+  </Accordion>
+  <Accordion title="How do I authenticate Microsoft Planner with my Sim.ai workflow?">
+
+    Microsoft Planner uses OAuth authentication integrated into Sim.ai:
+
+    #### Authentication Setup
+    1. **Connect Your Account**: Click the authentication button in the Microsoft Planner block configuration
+    2. **Grant Permissions**: Authorize Sim.ai to access your Microsoft Planner data through Microsoft's OAuth flow
+    3. **Verify Access**: The block will automatically use your authenticated credentials for all operations
+
+    #### Required Microsoft Permissions
+    - `Tasks.Read` - to read existing tasks
+    - `Tasks.ReadWrite` - to create and modify tasks
+    - `Group.Read.All` - to access plan information
+
+    No manual token configuration is needed - authentication is handled automatically by Sim.ai.
+  </Accordion>
+  <Accordion title="Can I combine Microsoft Planner with Agent blocks to create AI-generated tasks?">
+
+    Yes! Microsoft Planner blocks integrate seamlessly with Agent blocks for intelligent task creation:
+
+    #### Common Workflow Patterns
+
+    ##### 1. **Webhook → Agent → Microsoft Planner**
+    Process incoming requests and create tasks based on AI analysis:
+    ```
+    Webhook (user request) → Agent (analyze & format) → Microsoft Planner (create task)
+    ```
+    Connect `<agent1.content>` to the Planner's `title` and `description` inputs.
+
+    ##### 2. **Microsoft Planner → Agent → Microsoft Planner**
+    Read existing tasks, analyze with AI, and create follow-up tasks:
+    ```
+    Microsoft Planner (read) → Agent (analyze tasks) → Microsoft Planner (create new)
+    ```
+    Use `<microsoft_planner1.tasks>` as input to the Agent for analysis.
+
+    ##### 3. **Scheduled Trigger → Agent → Microsoft Planner**
+    Create periodic task reviews and automated task generation based on patterns.
+  </Accordion>
+  <Accordion title="Why am I getting authentication errors when using Microsoft Planner?">
+
+    Troubleshoot authentication issues with this systematic approach:
+
+    #### Common Authentication Problems
+
+    | Issue | Symptoms | Solution |
+    |-------|----------|----------|
+    | **Expired Token** | 401 Unauthorized errors | Re-authenticate through block settings |
+    | **Insufficient Permissions** | 403 Forbidden errors | Ensure your Microsoft account has Planner access |
+    | **Invalid Plan ID** | Plan not found errors | Verify `<start.planId>` matches an accessible plan |
+    | **Missing User Assignment** | User not found for assignment | Check `<start.assigneeUserId>` is valid Microsoft user ID |
+    | **Tenant Restrictions** | Access denied errors | Contact admin for organizational Planner permissions |
+
+    #### Debugging Steps
+    1. Check workflow logs for specific error messages
+    2. Verify the `<microsoft_planner1.success>` output is `true`
+    3. Test with a simple read operation before attempting task creation
+  </Accordion>
+  <Accordion title="How do I handle task creation errors and implement retry logic?">
+
+    Implement robust error handling for Microsoft Planner task creation:
+
+    #### Error Detection Pattern
+    ```
+    Microsoft Planner → Condition Block → [Success/Retry Path]
+    ```
+
+    #### Condition Logic
+    - **If** `<microsoft_planner1.success>` equals `true`: Continue with success flow
+    - **Else**: Route to error handling or retry logic
+
+    #### Common Task Creation Failures
+
+    | Error Type | Cause | Prevention |
+    |------------|-------|------------|
+    | **Missing Required Fields** | Empty `title` or `planId` | Validate inputs before creation |
+    | **Invalid Date Format** | Wrong `dueDateTime` format | Use ISO 8601 format (YYYY-MM-DDTHH:mm:ssZ) |
+    | **Plan Access Denied** | User lacks plan permissions | Verify plan membership before creation |
+    | **Bucket Not Found** | Invalid `bucketId` reference | Query plan buckets first or omit bucketId |
+
+    Use `<microsoft_planner1.metadata>` to access detailed error information for debugging and user feedback.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

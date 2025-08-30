@@ -4,6 +4,8 @@ description: Read, write, and update data
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="microsoft_excel"
@@ -92,13 +94,7 @@ In Sim, the Microsoft Excel integration provides seamless access to spreadsheet 
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Integrate Microsoft Excel functionality to manage spreadsheet data. Read data from specific ranges, write new data, update existing cells, and manipulate table data using OAuth authentication. Supports various input and output formats for flexible data handling.
-
-
-
-## Tools
+## Operations
 
 ### `microsoft_excel_read`
 
@@ -163,7 +159,223 @@ Add new rows to a Microsoft Excel table
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `microsoft_excel`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Microsoft Excel block into your Sim.ai workflows, following established best practices ensures reliable data operations and optimal spreadsheet management. The Excel block serves as a comprehensive data bridge between your automated workflows and Microsoft Excel spreadsheets, enabling sophisticated data reading, writing, and table manipulation operations through secure OAuth authentication.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation is essential for seamless Excel data integration. Use `<excel1.data>` to retrieve complete range data objects that contain both cell values and sheet metadata. This output connects effectively to Function blocks for data transformation or Agent blocks for data analysis. For write operations, leverage `<excel1.updatedRange>` and `<excel1.updatedCells>` to chain subsequent operations based on successful data commits.
+
+When working with table operations, the `<excel1.index>` output provides crucial row positioning information for follow-up operations, while `<excel1.values>` delivers the actual inserted data for validation workflows. Structure your data flow to handle the hierarchical nature of Excel data by using nested connection tags like `<excel1.data.values>` to access specific cell arrays within the data object.
+
+For dynamic spreadsheet operations, implement conditional logic using `<excel1.metadata.spreadsheetId>` to validate target spreadsheets before executing write operations. This prevents data corruption and ensures workflow reliability across different Excel documents.
+
+**Workflow Architecture Patterns**
+
+Successful Excel workflows follow proven architectural patterns that maximize data integrity and operational efficiency. The **API → Function → Agent -> Excel Write** pattern enables automated data entry from external systems, where API blocks fetch source data, Function blocks transform and validate the information, and Excel blocks commit structured data to specific ranges or tables.
+
+For data analysis workflows, implement **Excel Read → Function → Agent → Excel Write** patterns, where initial data extraction feeds analytical processing through AI agents, with results written back to summary ranges or new worksheets. This creates comprehensive data processing pipelines that leverage both structured data and intelligent analysis.
+
+Consider **Webhook → Excel Read → Conditional → Multiple Excel Write** patterns for complex data routing scenarios. These workflows enable dynamic spreadsheet updates based on external triggers, with conditional logic determining target ranges, sheets, or tables based on incoming data characteristics.
+
+For reporting automation, establish **Scheduler → Multiple Excel Read → Function → Excel Write** patterns that aggregate data from multiple spreadsheets into consolidated reports. This pattern excels at periodic data compilation and dashboard updates.
+
+**Data Formatting Excellence and Range Management**
+
+Excel block inputs require precise formatting to ensure successful operations. Structure your `values` input as arrays of arrays for range-based writes, where each sub-array represents a complete row of data. For table operations, use arrays of objects where keys correspond to column headers, enabling more intuitive data mapping and validation.
+
+When specifying ranges, use Excel's A1 notation (e.g., "Sheet1!A1:C10") for precise cell targeting, or omit the range parameter to operate on entire sheets. If you want a specific sheet, simply add the sheet name to the range (e.g. Sheet1) to return all the values in that sheet.For dynamic range operations, calculate ranges programmatically using Function blocks to determine optimal data placement based on existing content analysis.
+
+Implement proper data type handling by setting `valueInputOption` parameters appropriately. Use "USER_ENTERED" for formulas and formatted data, or "RAW" for literal values that bypass Excel's automatic formatting. This distinction prevents unintended data transformation during write operations.
+
+For table operations, ensure data consistency by validating column structures before insertion. Use `<excel1.metadata>` outputs to verify table schemas and adjust data formatting accordingly. This prevents structural errors and maintains referential integrity across table operations.
+
+**Debugging and Monitoring Excellence**
+
+Implement comprehensive monitoring using Excel block output fields for operational visibility. Track `<excel1.updatedCells>` and `<excel1.updatedRows>` metrics to validate write operation success and identify potential data truncation issues. Monitor these values against expected data volumes to detect processing anomalies.
+
+Use `<excel1.metadata.spreadsheetId>` validation to confirm target spreadsheet identity before critical operations. This prevents accidental data writes to incorrect documents and enables workflow audit trails. Implement logging functions that capture spreadsheet URLs and modification timestamps for complete operation tracking.
+
+For table operations, monitor `<excel1.index>` outputs to track row insertion positions and detect potential table overflow conditions. Establish alerting mechanisms when index values exceed expected ranges, indicating table capacity or structure issues.
+
+Create error handling workflows that process failed Excel operations gracefully. Use conditional blocks to check for empty `<excel1.data>` outputs in read operations, indicating invalid ranges or access permission issues. Implement retry logic with exponential backoff for transient authentication or network failures.
+
+**Security and Authentication Management**
+
+Microsoft Excel blocks require OAuth authentication tokens that must be managed securely throughout workflow execution. Ensure authentication scopes include necessary permissions for read, write, and table operations on target spreadsheets. Regularly validate token freshness and implement automatic refresh mechanisms to prevent authentication failures during long-running workflows.
+
+Implement spreadsheet ID validation to prevent unauthorized access to sensitive documents. Use Function blocks to verify spreadsheet ownership and access permissions before executing data operations. This adds an additional security layer beyond OAuth authentication.
+
+For sensitive data operations, consider implementing data masking or encryption workflows that process confidential information before Excel storage. Use Hash or encryption functions to protect personally identifiable information while maintaining analytical utility.
+
+Establish audit workflows that track all Excel operations with timestamp and user identification. Store operation logs in separate tracking spreadsheets or external systems to maintain comprehensive data access records for compliance requirements.
+
+**Performance Optimization and Batch Operations**
+
+Optimize Excel block performance by batching multiple data operations into single write transactions. Instead of individual cell updates, accumulate changes and execute bulk range writes using comprehensive `values` arrays. This reduces API call overhead and improves overall workflow execution speed.
+
+For large datasets, implement pagination patterns that process data in manageable chunks. Use Function blocks to segment large arrays into smaller batches, preventing timeout errors and memory constraints during Excel operations. Monitor `<excel1.updatedCells>` outputs to track batch processing progress.
+
+Cache frequently accessed spreadsheet metadata using variable storage to reduce redundant read operations. Store `<excel1.metadata>` objects in workflow variables and reference cached data for subsequent operations on the same spreadsheet.
+
+Implement intelligent range optimization by analyzing existing data patterns before write operations. Use read operations to identify empty ranges and optimal insertion points, minimizing data fragmentation and improving spreadsheet performance. This approach is particularly effective for table operations where row insertion position impacts overall spreadsheet responsiveness.
+
+For high-frequency workflows, consider implementing queue-based processing where Excel operations are batched and executed at scheduled intervals. This prevents API rate limiting and ensures consistent performance across multiple concurrent workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I read data from a Microsoft Excel spreadsheet in my Sim.ai workflow?">
+
+    To read Excel data in your workflow, add a **Microsoft Excel block** and configure the read operation:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `spreadsheetId` | The Excel file ID from OneDrive/SharePoint | `<start.fileId>` or static ID |
+    | `range` | Cell range to read (optional) | `Sheet1!A1:C10` or `<start.range>` |
+
+    The block will output the spreadsheet data as `<microsoft_excel1.data>` which contains cell values and sheet information.
+  </Accordion>
+  <Accordion title="How do I write data to an Excel spreadsheet from my workflow?">
+
+    To write data to Excel using Sim.ai:
+
+    1. **Add a Microsoft Excel block** with write operation
+    2. **Configure the required inputs**:
+
+    #### Input Configuration
+
+    | Input | Type | Description | Example |
+    |-------|------|-------------|---------|
+    | `spreadsheetId` | String | Target Excel file ID | `<start.spreadsheetId>` |
+    | `values` | Array | Data to write (2D array) | `<agent1.tableData>` or `[["Name","Age"],["John",25]]` |
+    | `range` | String | Target cell range | `Sheet1!A1` or `<start.targetRange>` |
+    | `valueInputOption` | String | Data format ("RAW" or "USER_ENTERED") | `USER_ENTERED` |
+
+    The operation returns metadata about the update including `<microsoft_excel1.updatedRows>` and `<microsoft_excel1.updatedCells>`.
+  </Accordion>
+  <Accordion title="What outputs can I reference from a Microsoft Excel block in downstream workflow blocks?">
+
+    Microsoft Excel blocks expose multiple outputs depending on the operation performed:
+
+    #### Read Operation Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<microsoft_excel1.data>` | Object | Complete range data with cell values |
+    | `<microsoft_excel1.metadata>` | Object | Spreadsheet metadata and properties |
+
+    #### Write Operation Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<microsoft_excel1.updatedRange>` | String | The range that was modified |
+    | `<microsoft_excel1.updatedRows>` | Number | Count of rows that were updated |
+    | `<microsoft_excel1.updatedColumns>` | Number | Count of columns that were updated |
+    | `<microsoft_excel1.updatedCells>` | Number | Total cells modified |
+    | `<microsoft_excel1.metadata>` | Object | Spreadsheet information |
+
+    #### Table Add Operation Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<microsoft_excel1.index>` | Number | Starting row index of added data |
+    | `<microsoft_excel1.values>` | Array | The actual rows that were added |
+    | `<microsoft_excel1.metadata>` | Object | Updated table metadata |
+  </Accordion>
+  <Accordion title="How do I add new rows to an Excel table using the table add operation?">
+
+    To append data to an existing Excel table:
+
+    #### Configuration Steps
+
+    1. **Set the operation** to `microsoft_excel_table_add`
+    2. **Configure inputs**:
+
+    | Input | Description | Example Value |
+    |-------|-------------|---------------|
+    | `spreadsheetId` | Excel file containing the table | `<start.fileId>` |
+    | `tableName` | Name of the target table | `EmployeeTable` or `<start.tableName>` |
+    | `values` | Array of row data | `<agent1.processedData>` or `[["John","Manager",50000]]` |
+
+    The operation automatically appends rows to the table and returns the starting index via `<microsoft_excel1.index>`.
+  </Accordion>
+  <Accordion title="How do I connect an Agent block output to write structured data to Excel?">
+
+    To route AI-generated data to Excel spreadsheets:
+
+    #### Example Workflow Pattern
+
+    ```
+    Webhook → Agent → Microsoft Excel
+    ```
+
+    1. **Configure the Agent** to output structured data
+    2. **In the Excel block's `values` input**, connect `<agent1.structuredOutput>`
+    3. **Set the range** to target specific cells: `Sheet1!A2`
+
+    #### Agent Prompt Example
+    ```
+    "Convert this data to a 2D array format suitable for Excel: <start.rawData>"
+    ```
+
+    The agent can format data as JSON arrays that Excel blocks can directly consume.
+  </Accordion>
+  <Accordion title="Why is my Microsoft Excel block failing to authenticate or access files?">
+
+    Authentication issues are common with Microsoft Excel integration:
+
+    #### Common Authentication Problems
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Invalid Spreadsheet ID** | File ID format is incorrect | Use the actual file ID from OneDrive URL |
+    | **Permission Denied** | No access to the Excel file | Ensure the authenticated account has edit permissions |
+    | **OAuth Token Expired** | Authentication credentials expired | Re-authenticate the Microsoft connection in Sim.ai |
+    | **File Not Found** | Spreadsheet doesn't exist | Verify `<start.spreadsheetId>` points to valid file |
+    | **Range Error** | Invalid cell range format | Use standard Excel range notation: `Sheet1!A1:B10` |
+  </Accordion>
+  <Accordion title="Can I combine Microsoft Excel with other Sim.ai blocks for data processing workflows?">
+
+    Yes! Excel blocks integrate seamlessly with other workflow components:
+
+    #### Common Integration Patterns
+
+    ##### 1. **Webhook → Function → Microsoft Excel**
+    Process incoming data and write results to spreadsheets:
+    ```
+    Connect <function1.processedData> to Excel's values input
+    ```
+
+    ##### 2. **Microsoft Excel → Agent → Microsoft Excel**
+    Read data, process with AI, write results back:
+    ```
+    <microsoft_excel1.data> → Agent → <microsoft_excel2.values>
+    ```
+
+    ##### 3. **Schedule → API → Microsoft Excel**
+    Automated data collection and spreadsheet updates:
+    ```
+    Schedule trigger → External API → Excel write operation
+    ```
+
+    ##### 4. **Microsoft Excel → Condition → Multiple Actions**
+    Read spreadsheet data and branch based on values:
+    ```
+    if <microsoft_excel1.data.values[0][0]> > threshold:
+      → Send notification
+    else:
+      → Log warning
+    ```
+
+    This enables sophisticated data workflows combining spreadsheet management with AI processing and external integrations.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

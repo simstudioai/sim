@@ -4,6 +4,8 @@ description: Extract data from websites
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="stagehand"
@@ -189,13 +191,7 @@ In Sim, the Stagehand integration enables your agents to extract structured data
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Use Stagehand to extract structured data from webpages using Browserbase and OpenAI.
-
-
-
-## Tools
+## Operations
 
 ### `stagehand_extract`
 
@@ -218,7 +214,238 @@ Extract structured data from a webpage using Stagehand
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `stagehand`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When implementing the Stagehand Extract block in your Sim.ai workflows, following established best practices ensures reliable data extraction and optimal performance. The Stagehand Extract block serves as a sophisticated web scraping solution that combines browser automation with AI-powered data extraction, enabling precise structured data collection from dynamic websites.
+
+**Connection Tag Usage and Data Flow**
+
+The `<stagehand1.data>` connection tag represents the primary output for routing extracted structured data to downstream blocks. This JSON output maintains the exact structure defined in your schema, making it ideal for connecting to Agent blocks via `<stagehand1.data>` → `<agent1.context>` for AI analysis, or to Function blocks for data transformation using `<function1.input>` mappings.
+
+For dynamic URL extraction, leverage upstream blocks by connecting `<webhook1.query.url>` or `<function1.output.targetUrl>` to the `url` input parameter. This enables flexible workflows that extract data from user-provided URLs or programmatically generated target pages. When chaining multiple extraction operations, use `<stagehand1.data.nextPageUrl>` patterns to implement pagination crawling.
+
+The `apiKey` parameter should reference environment variables through `<env.OPENAI_API_KEY>` connection tags to maintain security best practices. Similarly, dynamic instruction generation can be achieved by connecting Agent outputs: `<agent1.content>` → `instruction` input, enabling context-aware extraction instructions based on previous workflow steps.
+
+**Workflow Architecture Patterns**
+
+Successful Stagehand Extract workflows typically follow established architectural patterns. The most common pattern involves **API Trigger → Stagehand Extract → Agent Analysis → Response**, where external systems provide URLs for data extraction, followed by AI-powered analysis of the extracted content.
+
+For competitive intelligence workflows, implement **Scheduler → Stagehand Extract → Database Storage** patterns that monitor competitor websites at regular intervals. This pattern works exceptionally well when combined with schema evolution, where the extraction schema adapts based on detected website changes.
+
+Content aggregation workflows benefit from **Webhook → Multiple Stagehand Extract → Data Merger → Notification** patterns. This architecture enables parallel extraction from multiple sources, data consolidation, and automated reporting. Use unique block names like `stagehand_news`, `stagehand_pricing`, and `stagehand_reviews` to maintain clear data lineage.
+
+For real-time monitoring, consider **Event Trigger → Stagehand Extract → Conditional Logic → Alert System** flows. This pattern monitors specific webpage elements and triggers notifications when predefined conditions are met, such as price changes or inventory updates.
+
+**Schema Design and Data Formatting Excellence**
+
+Schema design directly impacts extraction accuracy and downstream processing efficiency. Structure your JSON schemas with explicit data types and validation constraints. Use descriptive field names that reflect the extracted content's semantic meaning: `productPrice` instead of `price`, `publicationDate` instead of `date`.
+
+Implement nested schema structures for complex data relationships. For e-commerce extraction, use schemas like:
+```json
+{
+  "products": {
+    "type": "array",
+    "items": {
+      "productName": {"type": "string"},
+      "pricing": {
+        "currentPrice": {"type": "number"},
+        "originalPrice": {"type": "number"},
+        "discount": {"type": "string"}
+      }
+    }
+  }
+}
+```
+
+Design fault-tolerant schemas by including optional fields and default values. This prevents extraction failures when webpage layouts change or elements become temporarily unavailable. Use `"required": false` for non-critical data points and implement fallback extraction patterns.
+
+Instruction crafting requires precision and context awareness. Write extraction instructions that specify exact CSS selectors, element attributes, or visual patterns. Instead of "extract prices," use "extract the numerical price value from elements with class 'price-display', excluding currency symbols and formatting." This specificity improves extraction accuracy and reduces AI model hallucination.
+
+**Debugging and Monitoring**
+
+Monitor the `<stagehand1.data>` output structure to validate successful extractions. Implement data quality checks by connecting the output to Function blocks that verify required fields, validate data types, and detect extraction anomalies. Use conditional logic to retry extractions with modified instructions when initial attempts return incomplete data.
+
+Track extraction performance by implementing timing mechanisms. Connect Stagehand blocks to Function blocks that log extraction duration, success rates, and data quality metrics. This monitoring enables proactive optimization of instruction quality and schema design.
+
+Handle extraction failures gracefully by implementing error detection patterns. When `<stagehand1.data>` returns null or incomplete structures, trigger alternative extraction strategies or human notification workflows. Use Agent blocks to analyze failed extractions and suggest instruction improvements.
+
+Implement rate limiting to prevent website blocking. Space multiple Stagehand Extract operations across time intervals, especially when processing large URL lists. Monitor for HTTP error responses and implement exponential backoff patterns for resilient data collection.
+
+**Security Considerations**
+
+Protect OpenAI API keys by using environment variable connection tags rather than hardcoded values. Implement API key rotation schedules and monitor usage patterns to detect unauthorized access or unexpected consumption spikes.
+
+Validate extracted URLs before processing to prevent server-side request forgery (SSRF) attacks. Use Function blocks to sanitize and validate URLs against allowed domain patterns. Implement URL whitelist filtering for production workflows handling user-provided URLs.
+
+Be mindful of website terms of service and implement respectful scraping practices. Add delays between requests, respect robots.txt directives, and avoid overwhelming target servers with simultaneous extractions. Consider implementing user-agent rotation and session management for large-scale operations.
+
+Store extracted data securely, especially when handling personally identifiable information (PII). Implement data retention policies and consider data anonymization patterns when processing sensitive content.
+
+**Performance Optimization**
+
+Optimize schema complexity based on extraction requirements. Overly complex schemas increase processing time and API costs. Design minimal viable schemas that capture essential data points, then expand incrementally based on actual workflow needs.
+
+Implement intelligent caching patterns for frequently accessed URLs. Use Function blocks to check extraction timestamps and avoid redundant processing of unchanged content. This reduces API consumption and improves workflow response times.
+
+Batch URL processing when extracting from multiple sources. Instead of individual Stagehand Extract blocks for each URL, implement loops that process URL arrays sequentially, reducing workflow complexity and execution overhead.
+
+Monitor OpenAI API usage patterns and implement cost control mechanisms. Track token consumption per extraction operation and optimize instruction length to balance accuracy with cost efficiency. Consider using different OpenAI models based on extraction complexity requirements.
+
+Use targeted extraction instructions that focus on specific page sections rather than full-page processing. This reduces processing time and improves accuracy by eliminating irrelevant content from the extraction context.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I extract structured data from a website using the Stagehand Extract block?">
+
+    To extract data from websites in your Sim.ai workflow, add a **Stagehand Extract block** and configure its required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `url` | Target webpage URL to extract from | `<start.url>` or static URL like `https://example.com` |
+    | `instruction` | Natural language extraction instructions | `"Extract product names, prices, and descriptions from this page"` |
+    | `apiKey` | OpenAI API key for data processing | `<start.openaiKey>` or environment variable |
+    | `schema` | JSON schema defining expected data structure | `{"type": "object", "properties": {"products": {"type": "array"}}}` |
+  </Accordion>
+  <Accordion title="What is the correct way to reference Stagehand Extract block outputs in my workflow?">
+
+    Every Stagehand Extract block exposes outputs that can be referenced using connection tags:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<stagehand1.data>` | Object/JSON | Extracted structured data matching your schema |
+
+    The extracted data structure follows the JSON schema you provided in the `schema` input, making it easy to access specific fields in downstream blocks.
+  </Accordion>
+  <Accordion title="How do I create a JSON schema for data extraction with Stagehand Extract?">
+
+    Define your extraction schema based on the data structure you want to extract:
+
+    #### Example Schemas
+
+    ##### Product Listing Schema
+    ```json
+    {
+      "type": "object",
+      "properties": {
+        "products": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "price": {"type": "string"},
+              "description": {"type": "string"}
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    ##### Contact Information Schema
+    ```json
+    {
+      "type": "object",
+      "properties": {
+        "company": {"type": "string"},
+        "email": {"type": "string"},
+        "phone": {"type": "string"},
+        "address": {"type": "string"}
+      }
+    }
+    ```
+
+    Connect this schema to the `schema` input using `<start.schema>` or define it directly in the block configuration.
+  </Accordion>
+  <Accordion title="How do I connect Stagehand Extract with an Agent block for data processing?">
+
+    To process extracted data with AI, connect the Stagehand Extract output to an Agent block:
+
+    1. **Route extracted data** to the Agent's `userPrompt` or context
+    2. **Reference the data** using `<stagehand1.data>` connection tag
+
+    #### Example Workflow Configuration
+
+    ```json
+    Agent Block Input:
+    {
+      "userPrompt": "Analyze this extracted data and provide insights: <stagehand1.data>",
+      "systemPrompt": "You are a data analyst. Provide actionable insights from website data."
+    }
+    ```
+
+    This pattern enables AI-powered analysis of the structured data extracted from websites.
+  </Accordion>
+  <Accordion title="Why is my Stagehand Extract block failing to extract data?">
+
+    Troubleshoot common extraction issues with this checklist:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Invalid URL** | Webpage not accessible or malformed URL | Verify `<start.url>` is a valid, accessible webpage |
+    | **OpenAI API Error** | API key invalid or quota exceeded | Check `<start.openaiKey>` and OpenAI account status |
+    | **Schema Mismatch** | Extracted data doesn't match schema | Adjust `schema` to match actual webpage structure |
+    | **Complex Pages** | JavaScript-heavy or dynamic content | Ensure instruction is specific about target elements |
+    | **Empty Results** | No data matches extraction criteria | Refine `instruction` to be more specific or broader |
+  </Accordion>
+  <Accordion title="How do I build a complete web scraping workflow with Stagehand Extract?">
+
+    Create comprehensive data extraction workflows using these patterns:
+
+    #### Pattern 1: **Webhook → Stagehand Extract → Agent → Response**
+    Extract data from user-provided URLs and analyze with AI:
+    ```
+    Webhook (receives URL) → Stagehand Extract → Agent (analysis) → Response
+    ```
+
+    #### Pattern 2: **Scheduled → Stagehand Extract → Function → Notification**
+    Monitor websites for changes on a schedule:
+    ```
+    Schedule Trigger → Stagehand Extract → Function (compare data) → Telegram/Email
+    ```
+
+    #### Pattern 3: **API → Stagehand Extract → Database Storage**
+    Bulk process multiple URLs and store results:
+    ```
+    API (URL list) → Loop → Stagehand Extract → Function (format) → Database
+    ```
+  </Accordion>
+  <Accordion title="Can I extract data from multiple pages or dynamic content with Stagehand Extract?">
+
+    Stagehand Extract processes single URLs per block execution. For multiple pages:
+
+    #### Multi-Page Strategies
+
+    ##### 1. **Loop Pattern**
+    Use Function blocks to iterate through URL lists:
+    ```
+    Function (URL generator) → Stagehand Extract → Function (aggregate results)
+    ```
+
+    ##### 2. **Dynamic Content Handling**
+    Provide specific instructions for JavaScript-rendered content:
+    ```json
+    {
+      "instruction": "Wait for the product grid to load, then extract all visible product cards with names, prices, and availability status"
+    }
+    ```
+
+    ##### 3. **Pagination Workflow**
+    Extract pagination links first, then process each page:
+    ```
+    Stagehand Extract (get pagination) → Function (process links) → Multiple Stagehand Extract blocks
+    ```
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

@@ -4,6 +4,8 @@ description: Manage Google Calendar events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="google_calendar"
@@ -88,13 +90,7 @@ In Sim, the Google Calendar integration enables your agents to programmatically 
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Integrate Google Calendar functionality to create, read, update, and list calendar events within your workflow. Automate scheduling, check availability, and manage events using OAuth authentication. Email invitations are sent asynchronously and delivery depends on recipients' Google Calendar settings.
-
-
-
-## Tools
+## Operations
 
 ### `google_calendar_create`
 
@@ -203,7 +199,251 @@ Invite attendees to an existing Google Calendar event
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `google_calendar`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Google Calendar block into your Sim.ai workflows, following established best practices ensures reliable event management, optimal performance, and seamless calendar automation. The Google Calendar block serves as a comprehensive scheduling hub that connects your automated workflows with Google's calendar infrastructure, enabling intelligent event creation, attendee management, and schedule monitoring.
+
+**Connection Tag Usage and Data Flow**
+
+Effective connection tag implementation is crucial for successful Google Calendar integrations. The `<google_calendar1.metadata>` output contains rich event data including event IDs, attendee lists, and timestamps that can be chained to subsequent blocks. Use `<google_calendar1.content>` for human-readable confirmations in notification systems, while leveraging the metadata for programmatic operations.
+
+For dynamic event creation, connect AI agent outputs to calendar inputs using patterns like `<agent1.content>` → `<google_calendar1.text>` for the quick_add operation, enabling natural language event scheduling. The `<google_calendar1.metadata.id>` field is particularly valuable for follow-up operations, allowing you to reference created events in subsequent invite or update operations.
+
+When working with time-sensitive workflows, establish proper data validation by connecting date/time inputs from webhook payloads or form submissions directly to `<google_calendar1.startDateTime>` and `<google_calendar1.endDateTime>` fields. Ensure RFC3339 format compliance by using Function blocks to transform timestamps when necessary.
+
+**Workflow Architecture Patterns**
+
+Successful Google Calendar workflows follow several proven architectural patterns. The **Webhook → Function → Google Calendar** pattern excels for external system integrations, where incoming API calls trigger event creation with properly formatted datetime values and attendee lists.
+
+For intelligent scheduling systems, implement **Agent → Google Calendar Quick Add** patterns that leverage natural language processing. This approach allows users to input conversational text like "Schedule team standup every Monday at 9am" through chat interfaces or forms, with the quick_add operation parsing the intent automatically.
+
+The **Schedule Trigger → Google Calendar List → Conditional Logic** pattern enables proactive calendar management. Use this for daily digest workflows that check upcoming events and send preparation reminders, or availability checking systems that list events within specific time ranges using `<google_calendar1.timeMin>` and `<google_calendar1.timeMax>` parameters.
+
+For event management workflows, employ **Google Calendar Create → Google Calendar Invite** sequences that first establish the event, then use the returned `<google_calendar1.metadata.id>` to add attendees dynamically. This pattern provides greater control over invitation timing and recipient management.
+
+**Message/Data Formatting Excellence**
+
+Proper datetime formatting is fundamental to Google Calendar block success. Always use RFC3339 format for `startDateTime` and `endDateTime` inputs: "2025-06-03T10:00:00-08:00". Include timezone information explicitly using the `timeZone` parameter to prevent scheduling conflicts across different geographic regions.
+
+Structure attendee arrays consistently as JSON arrays of email strings: `["user1@company.com", "user2@company.com"]`. The block also accepts comma-separated strings for attendees, but array format provides better validation and error handling. When connecting from webhook data, use Function blocks to transform attendee data into the proper format.
+
+For event descriptions, leverage HTML formatting to create rich, structured content. Include meeting agendas, dial-in information, and relevant links using proper HTML tags. This enhances the user experience and ensures calendar events contain actionable information.
+
+Implement validation patterns for required fields before calendar operations. Use conditional logic to verify that `summary` and datetime fields contain valid data, preventing workflow failures due to malformed inputs.
+
+**Debugging and Monitoring**
+
+Establish comprehensive monitoring by tracking both `<google_calendar1.content>` and `<google_calendar1.metadata>` outputs. The content field provides immediate success/failure feedback, while metadata contains detailed operational results including event IDs, creation timestamps, and error details.
+
+Monitor OAuth authentication status proactively. Google Calendar operations require valid OAuth tokens, and expired authentication will cause workflow failures. Implement error handling that detects authentication issues and provides clear user guidance for re-authorization.
+
+Use the `showDeleted` parameter strategically in list operations for debugging purposes. When troubleshooting missing events, enable this option to reveal deleted events that might explain discrepancies in expected calendar data.
+
+Track invitation delivery using the `sendUpdates` parameter effectively. Set to "all" for maximum visibility, "externalOnly" for mixed internal/external meetings, or "none" for draft events. Monitor the invitation status in metadata to ensure attendees receive proper notifications.
+
+**Security Considerations**
+
+Implement proper OAuth scope management by requesting only necessary calendar permissions. The Google Calendar block operates within the authenticated user's permission context, so ensure service accounts or OAuth applications have appropriate access levels for the target calendars.
+
+Validate attendee email addresses before invitation to prevent information disclosure. Use Function blocks to sanitize and verify email formats, especially when processing attendee lists from external sources or user inputs.
+
+Be mindful of calendar visibility when using non-primary calendar IDs. Events created in shared calendars inherit the calendar's sharing permissions, potentially exposing sensitive information to unintended audiences. Always verify `calendarId` parameters match intended privacy levels.
+
+Consider rate limiting for high-volume calendar operations. Google Calendar API has usage quotas, and exceeding limits will cause workflow failures. Implement appropriate delays or batching strategies for workflows processing multiple events simultaneously.
+
+**Performance Optimization**
+
+Optimize datetime operations by standardizing timezone handling across workflows. Use consistent timezone parameters or UTC timestamps to minimize conversion overhead and prevent scheduling errors. Store commonly used timezone values as workflow constants for reusability.
+
+Leverage the quick_add operation for user-facing scheduling interfaces due to its natural language processing capabilities, but use standard create operations for programmatic scheduling where exact control over all parameters is required. The quick_add parsing introduces slight latency but significantly improves user experience.
+
+Implement intelligent caching for calendar list operations by using appropriate `timeMin` and `timeMax` boundaries. Avoid open-ended queries that retrieve excessive historical data, which increases response times and API quota consumption.
+
+Batch attendee operations efficiently by using the invite operation strategically. Rather than creating events with all attendees immediately, create the base event first, then use targeted invite operations for different attendee groups, enabling better control over invitation timing and reducing the risk of delivery failures affecting event creation.
+
+Use the `orderBy` parameter in list operations to optimize result processing. Order by "startTime" for chronological workflows and "updated" for change-detection systems, ensuring your workflow receives data in the most useful sequence for subsequent processing steps.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I create a Google Calendar event from my workflow using specific date and time inputs?">
+
+    To create Google Calendar events from your Sim.ai workflow, add a **Google Calendar block** and configure the `google_calendar_create` operation with these required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example Connection |
+    |-------|-------------|-------------------|
+    | `summary` | Event title | `<start.eventTitle>` or `<agent1.content>` |
+    | `startDateTime` | Start time in RFC3339 format | `<start.startTime>` or `"2025-06-03T10:00:00-08:00"` |
+    | `endDateTime` | End time in RFC3339 format | `<start.endTime>` or `"2025-06-03T11:00:00-08:00"` |
+
+    #### Optional Configuration
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `calendarId` | Target calendar ID | `<start.calendarId>` (defaults to primary) |
+    | `description` | Event details | `<agent1.content>` |
+    | `location` | Meeting location | `<start.location>` |
+    | `attendees` | Email addresses array | `<start.attendeeEmails>` |
+  </Accordion>
+  <Accordion title="How do I create calendar events from natural language using the quick add feature?">
+
+    The `google_calendar_quick_add` operation parses natural language text into calendar events:
+
+    1. **Set the operation** to `google_calendar_quick_add`
+    2. **Connect the text input** with natural language descriptions:
+
+    #### Example Configurations
+
+    ```json
+    {
+      "text": "<start.userMessage>",
+      "attendees": "<start.inviteList>"
+    }
+    ```
+
+    #### Supported Natural Language Formats
+    - `"Meeting with John tomorrow at 3pm"`
+    - `"Lunch at Mario's Restaurant next Friday 12:30"`
+    - `"Team standup every Monday 9am"`
+    - `"Doctor appointment June 15th 2:00 PM"`
+  </Accordion>
+  <Accordion title="What are the correct connection tags to reference Google Calendar block outputs?">
+
+    Every Google Calendar block provides these outputs that can be referenced downstream:
+
+    #### Standard Output Tags
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<google_calendar1.content>` | String | Human-readable confirmation message |
+    | `<google_calendar1.metadata>` | JSON | Complete event data and API response |
+
+    #### Accessing Nested Metadata Fields
+
+    | Nested Field | Connection Tag | Description |
+    |--------------|----------------|-------------|
+    | Event ID | `<google_calendar1.metadata.id>` | Unique event identifier |
+    | Event Status | `<google_calendar1.metadata.status>` | confirmed, tentative, or cancelled |
+    | Start Time | `<google_calendar1.metadata.start.dateTime>` | Event start timestamp |
+    | End Time | `<google_calendar1.metadata.end.dateTime>` | Event end timestamp |
+    | Attendee List | `<google_calendar1.metadata.attendees>` | Array of attendee objects |
+  </Accordion>
+  <Accordion title="How do I list upcoming events and filter them by date range?">
+
+    To retrieve calendar events using the `google_calendar_list` operation:
+
+    #### Basic Event Listing
+    ```json
+    {
+      "calendarId": "<start.calendarId>",
+      "timeMin": "2025-06-03T00:00:00Z",
+      "timeMax": "2025-06-04T23:59:59Z"
+    }
+    ```
+
+    #### Advanced Filtering Options
+
+    | Parameter | Connection Example | Purpose |
+    |-----------|-------------------|---------|
+    | `timeMin` | `<start.fromDate>` | Filter events after this timestamp |
+    | `timeMax` | `<start.toDate>` | Filter events before this timestamp |
+    | `orderBy` | `"startTime"` | Sort by start time or last updated |
+    | `showDeleted` | `<start.includeDeleted>` | Include cancelled events |
+
+    The output `<google_calendar1.metadata.items>` contains an array of matching events.
+  </Accordion>
+  <Accordion title="How do I connect an Agent block to automatically schedule meetings from chat requests?">
+
+    Create an intelligent scheduling workflow by chaining Agent and Google Calendar blocks:
+
+    #### Workflow Pattern: Webhook → Agent → Google Calendar
+
+    1. **Configure the Agent** to extract meeting details:
+    ```json
+    {
+      "systemPrompt": "Extract meeting details and format as: TITLE|START_TIME|END_TIME|LOCATION",
+      "userPrompt": "<start.message.text>"
+    }
+    ```
+
+    2. **Use a Function block** to parse the agent response:
+    ```javascript
+    const [title, start, end, location] = input.split('|');
+    return {
+      summary: title,
+      startDateTime: start,
+      endDateTime: end,
+      location: location
+    };
+    ```
+
+    3. **Connect to Google Calendar**:
+    ```json
+    {
+      "summary": "<function1.summary>",
+      "startDateTime": "<function1.startDateTime>",
+      "endDateTime": "<function1.endDateTime>",
+      "location": "<function1.location>"
+    }
+    ```
+  </Accordion>
+  <Accordion title="Why is my Google Calendar event creation failing with authentication errors?">
+
+    Google Calendar requires OAuth 2.0 authentication setup in Sim.ai:
+
+    #### Authentication Setup Steps
+
+    1. **Enable Google Calendar API** in your Google Cloud Console
+    2. **Create OAuth 2.0 credentials** with appropriate scopes
+    3. **Configure the integration** in Sim.ai settings
+    4. **Grant calendar permissions** during the OAuth flow
+
+    #### Required OAuth Scopes
+    - `https://www.googleapis.com/auth/calendar` - Full calendar access
+    - `https://www.googleapis.com/auth/calendar.events` - Event management only
+
+    #### Common Authentication Issues
+
+    | Error | Cause | Solution |
+    |-------|-------|----------|
+    | `Invalid credentials` | OAuth token expired | Re-authenticate in Sim.ai settings |
+    | `Insufficient permissions` | Missing calendar scopes | Update OAuth scope configuration |
+    | `Calendar not found` | Invalid `calendarId` | Use `primary` or verify calendar ID |
+  </Accordion>
+  <Accordion title="How do I invite attendees to existing events and handle email notifications?">
+
+    Use the `google_calendar_invite` operation to add attendees to created events:
+
+    #### Step-by-Step Attendee Management
+
+    1. **Create the initial event** using `google_calendar_create`
+    2. **Reference the event ID** from the creation output
+    3. **Add invitations** using the invite operation:
+
+    ```json
+    {
+      "eventId": "<google_calendar1.metadata.id>",
+      "attendees": "<start.emailList>",
+      "sendUpdates": "all",
+      "replaceExisting": false
+    }
+    ```
+
+    #### Email Notification Options
+
+    | `sendUpdates` Value | Behavior |
+    |-------------------|----------|
+    | `"all"` | Send invitations to all attendees |
+    | `"externalOnly"` | Only send to external (non-Google Workspace) attendees |
+    | `"none"` | Add attendees without sending notifications |
+
+    **Note**: Email delivery is asynchronous and depends on recipients' Google Calendar notification settings.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

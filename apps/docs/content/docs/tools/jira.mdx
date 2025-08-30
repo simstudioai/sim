@@ -4,6 +4,8 @@ description: Interact with Jira
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="jira"
@@ -41,13 +43,7 @@ In Sim, the Jira integration allows your agents to seamlessly interact with your
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Connect to Jira workspaces to read, write, and update issues. Access content, metadata, and integrate Jira documentation into your workflows.
-
-
-
-## Tools
+## Operations
 
 ### `jira_retrieve`
 
@@ -139,7 +135,225 @@ Retrieve multiple Jira issues in bulk
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `jira`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Jira block into your Sim.ai workflows, following established best practices ensures reliable issue management and optimal performance. The Jira block serves as a comprehensive bridge between your automated workflows and Atlassian's project management ecosystem, enabling sophisticated issue tracking, automated updates, and intelligent project coordination.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation forms the foundation of effective Jira workflows. The `<jira1.issueKey>` output provides the essential reference for chaining operations, allowing you to retrieve an issue in one block and update it in another. Use `<jira1.summary>` and `<jira1.description>` outputs to feed issue content into AI agents for analysis or automated responses. When creating issues, leverage `<agent1.content>` as input to the `description` field for AI-generated issue descriptions, while `<webhook1.title>` can populate the `summary` field from external triggers.
+
+For bulk operations, the `<jira1.output>` array from jira_bulk_read contains structured issue data that can be processed through Function blocks or filtered using conditional logic. Each array element includes complete issue metadata, enabling sophisticated data transformations before routing to other workflow components.
+
+**Workflow Architecture Patterns**
+
+Successful Jira workflows typically follow proven architectural patterns based on operational needs. The **Webhook → Function → Jira Write** pattern excels for external system integrations, where incoming events from CI/CD pipelines or monitoring tools automatically create issues with properly formatted metadata. This pattern ensures consistent issue creation with validated data structures.
+
+For issue management automation, implement **Scheduler → Jira Bulk Read → Function → Jira Update** workflows that periodically review issues and apply business logic. This pattern enables automated issue grooming, priority adjustments, and status transitions based on defined criteria.
+
+Customer support workflows benefit from **Email/Slack → Agent → Jira Write** patterns, where incoming support requests are processed by AI agents to extract relevant information before creating structured issues. The AI agent can analyze request content, categorize issues, and populate appropriate fields automatically.
+
+For project reporting, consider **Jira Bulk Read → Function → Notification** patterns that aggregate issue data and distribute formatted reports to stakeholders through various communication channels.
+
+**Message/Data Formatting Excellence**
+
+Jira's rich text capabilities require careful attention to formatting standards. When populating `description` fields, structure content using Jira's markup syntax for optimal readability. Use proper headings, bullet points, and code blocks to organize technical information effectively. This becomes particularly important when routing AI-generated content through `<agent1.content>` into issue descriptions.
+
+Maintain consistency in issue metadata by establishing clear field mapping strategies. Use Function blocks to standardize priority values, validate assignee usernames, and ensure issue types align with project configurations. The `projectId` parameter should reference actual project identifiers, not display names, to prevent API errors.
+
+When implementing bulk operations, structure data transformations to handle arrays efficiently. Process `<jira1.output>` arrays through Function blocks that can filter, sort, and format issue collections before routing to subsequent workflow steps.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring using the `<jira1.success>` boolean output as your primary health indicator. Failed operations should trigger error handling workflows that capture failure details and notify administrators. Monitor the `<jira1.ts>` timestamp to track operation performance and identify potential API rate limiting issues.
+
+Enable detailed logging for domain and projectId parameters to ensure proper workspace targeting. Validate `cloudId` resolution when working across multiple Jira instances, as incorrect cloud identification leads to authentication failures.
+
+Use the `<jira1.url>` output for verification workflows that confirm issue creation or updates. This URL can be logged for audit trails or shared with stakeholders for direct issue access.
+
+For bulk operations, implement result validation by checking array lengths in `<jira1.output>` against expected counts. Significant discrepancies may indicate API limitations or query parameter issues requiring investigation.
+
+**Security Considerations**
+
+Jira block security centers on proper authentication and access control management. Store Jira credentials securely within Sim.ai's credential management system, avoiding hardcoded authentication details in workflow configurations. Regularly rotate API tokens and review access permissions to maintain security posture.
+
+Implement input validation for user-provided data before routing to Jira operations. Sanitize `summary` and `description` inputs to prevent potential injection attacks or malformed content that could disrupt issue tracking workflows.
+
+When processing sensitive information through Jira workflows, consider data classification requirements and ensure appropriate issue visibility settings. Use project-level security schemes to control access to automated issue creation and updates.
+
+**Performance Optimization**
+
+Optimize Jira block performance by implementing intelligent caching strategies for bulk read operations. Store `<jira1.output>` arrays in workflow variables when multiple blocks need access to the same issue data, reducing redundant API calls.
+
+Batch issue operations when possible by accumulating changes through Function blocks before executing updates. This approach minimizes API rate limit consumption and improves overall workflow performance.
+
+Implement conditional logic to prevent unnecessary API calls when issue states haven't changed. Use timestamp comparisons with `<jira1.updated>` values to determine if updates are actually needed before executing write operations.
+
+For high-volume workflows, consider implementing exponential backoff retry logic using Delay blocks when encountering rate limits or temporary API unavailability. Monitor `<jira1.success>` patterns to identify optimal retry intervals for your specific use case.
+
+Configure appropriate timeout values for Jira operations based on your instance performance characteristics. Cloud instances typically require different timeout considerations compared to server deployments, affecting workflow reliability and user experience.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I retrieve a specific Jira issue in my Sim.ai workflow?">
+
+    To retrieve a specific Jira issue, add a **Jira block** to your workflow and configure the `jira_retrieve` operation:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `domain` | Your Jira domain without protocol | `<start.domain>` or `yourcompany.atlassian.net` |
+    | `issueKey` | The specific issue key to retrieve | `<start.issueKey>` or `PROJ-123` |
+
+    #### Optional Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `projectId` | Limit retrieval to specific project | `<start.projectId>` or `10001` |
+    | `cloudId` | Jira Cloud ID for the instance | `<start.cloudId>` or auto-fetched |
+
+    The block will return detailed issue information including `<jira1.summary>`, `<jira1.description>`, and timestamps.
+  </Accordion>
+  <Accordion title="How do I create a new Jira issue from workflow data?">
+
+    To create new Jira issues using the `jira_write` operation:
+
+    1. **Set required inputs** in your Jira block
+    2. **Connect data sources** from upstream blocks
+
+    #### Example Configuration
+
+    ```json
+    {
+      "domain": "<start.domain>",
+      "projectId": "<start.projectId>",
+      "summary": "<agent1.content>",
+      "description": "<function1.processedText>",
+      "issueType": "Task"
+    }
+    ```
+
+    This creates a new issue with AI-generated content and returns `<jira1.issueKey>` and `<jira1.url>` for the created issue.
+  </Accordion>
+  <Accordion title="What are the correct connection tags for referencing Jira block outputs?">
+
+    Every Jira block exposes these output fields that can be referenced in downstream blocks:
+
+    #### Available Output Tags
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<jira1.success>` | Boolean | `true` if the operation completed successfully |
+    | `<jira1.issueKey>` | String | Issue key like `PROJ-123` |
+    | `<jira1.summary>` | String | Issue title/summary text |
+    | `<jira1.description>` | String | Full issue description content |
+    | `<jira1.created>` | String | ISO timestamp when issue was created |
+    | `<jira1.updated>` | String | ISO timestamp of last modification |
+    | `<jira1.url>` | String | Direct link to the Jira issue (write operations) |
+    | `<jira1.ts>` | String | Operation execution timestamp |
+
+    Use these tags to connect Jira data to Agent prompts, Webhook responses, or other workflow blocks.
+  </Accordion>
+  <Accordion title="How do I update existing Jira issues with data from other blocks?">
+
+    To update Jira issues using the `jira_update` operation:
+
+    #### Required Configuration
+
+    ```json
+    {
+      "domain": "<start.domain>",
+      "issueKey": "<jira_retrieve1.issueKey>"
+    }
+    ```
+
+    #### Update Fields (All Optional)
+
+    | Field | Connection Example | Description |
+    |-------|-------------------|-------------|
+    | `summary` | `<agent1.content>` | New issue title |
+    | `description` | `<function1.output>` | Updated description |
+    | `status` | `"In Progress"` | Change issue status |
+    | `priority` | `"High"` | Set issue priority |
+    | `assignee` | `<start.assigneeEmail>` | Assign to user |
+
+    The operation returns `<jira1.success>` to confirm the update completed successfully.
+  </Accordion>
+  <Accordion title="How do I handle Jira authentication and domain configuration?">
+
+    Jira blocks require proper domain and credential setup:
+
+    #### Domain Setup
+
+    | Input Format | Example | Notes |
+    |--------------|---------|-------|
+    | `domain` | `yourcompany.atlassian.net` | No `https://` prefix |
+    | `cloudId` | Auto-detected or manual | Optional, fetched from domain if not provided |
+
+    #### Authentication Methods
+
+    1. **Environment Variables**: Store Jira API tokens in workflow environment
+    2. **Webhook Inputs**: Pass credentials through `<start.apiToken>`
+    3. **Static Configuration**: Hardcode for testing (not recommended for production)
+
+    Ensure your API token has appropriate permissions for read/write operations on target projects.
+  </Accordion>
+  <Accordion title="Why is my Jira operation failing with authentication errors?">
+
+    Troubleshoot common Jira integration issues:
+
+    #### Common Error Scenarios
+
+    | Error Type | Cause | Solution |
+    |------------|-------|----------|
+    | **401 Unauthorized** | Invalid API token | Verify `apiToken` is valid and not expired |
+    | **403 Forbidden** | Insufficient permissions | Check project permissions for the API user |
+    | **404 Not Found** | Invalid issue key or domain | Confirm `<jira1.issueKey>` format and `domain` spelling |
+    | **400 Bad Request** | Missing required fields | Ensure `projectId`, `summary`, `issueType` are provided for writes |
+    | **Domain Resolution** | Incorrect domain format | Use format `company.atlassian.net` without protocol |
+
+    Check workflow execution logs for specific error messages and response codes.
+  </Accordion>
+  <Accordion title="Can I combine Jira blocks with other Sim.ai workflow components for automation?">
+
+    Yes! Jira blocks integrate seamlessly with other workflow components:
+
+    #### Common Integration Patterns
+
+    ##### 1. **Webhook → Agent → Jira Write**
+    Create issues from external triggers with AI-enhanced descriptions:
+    ```
+    Webhook (issue request) → Agent (enhance description) → Jira (create issue)
+    ```
+
+    ##### 2. **Jira Retrieve → Agent → Jira Update**
+    AI-powered issue analysis and updates:
+    ```
+    Jira Retrieve → Agent (analyze/summarize) → Jira Update (add comments)
+    ```
+
+    ##### 3. **Jira Bulk Read → Function → Webhook**
+    Export and transform multiple issues:
+    ```
+    Jira Bulk Read → Function (format data) → Webhook (send to external system)
+    ```
+
+    ##### 4. **Condition → Multiple Jira Operations**
+    Conditional issue processing:
+    ```
+    if `<condition1.result>` is "urgent":
+      → Jira Update (priority = High)
+    else:
+      → Jira Update (assignee = default)
+    ```
+
+    Use `<jira1.output>` arrays from bulk operations to iterate through multiple issues in downstream processing blocks.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

@@ -4,6 +4,8 @@ description: Search for videos on YouTube
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="youtube"
@@ -38,13 +40,7 @@ In Sim, the YouTube integration enables your agents to programmatically search a
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Find relevant videos on YouTube using the YouTube Data API. Search for content with customizable result limits and retrieve structured video metadata for integration into your workflow.
-
-
-
-## Tools
+## Operations
 
 ### `youtube_search`
 
@@ -66,7 +62,229 @@ Search for videos on YouTube using the YouTube Data API.
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `youtube`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the YouTube block into your Sim.ai workflows, following established best practices ensures reliable video search functionality and optimal data retrieval. The YouTube block serves as a powerful content discovery engine within your automated workflows, enabling dynamic video search capabilities and structured metadata extraction from YouTube's vast video library.
+
+**Connection Tag Usage and Data Flow**
+
+Proper configuration of connection tags is essential for effective YouTube integrations. The `<youtube1.items>` connection tag provides structured video data that can be consumed by downstream blocks for content processing and analysis. When connecting search queries, use dynamic inputs like `<webhook1.query>` or `<agent1.content>` to enable real-time video discovery based on user requests or AI-generated search terms.
+
+The `<youtube1.totalResults>` output serves as a valuable metric for workflow logic and conditional processing. Use this data to implement result validation and adaptive behavior in your workflows. For example, connect this output to Function blocks to determine if additional searches or alternative strategies are needed when result counts are low.
+
+Structure your data flow to handle the array nature of video results effectively. The items array contains comprehensive video metadata including titles, descriptions, channel information, and video IDs. Plan your downstream processing to iterate through results or extract specific elements based on your workflow requirements.
+
+**Workflow Architecture Patterns**
+
+The most effective YouTube workflows follow established architectural patterns that maximize content discovery capabilities. The **Webhook → YouTube → Agent** pattern enables conversational video search interfaces where users submit queries and receive AI-processed video recommendations with summaries and relevance analysis.
+
+For content curation workflows, implement **Scheduler → YouTube → Function → Database** patterns that perform periodic video searches, process metadata, and store curated content collections. This pattern works exceptionally well for trend monitoring and competitive analysis workflows.
+
+Consider the **Agent → YouTube → Template** pattern for generating formatted video compilations where AI agents create search queries, retrieve video data, and format results into structured reports or social media content. This pattern excels in content marketing and research applications.
+
+For multi-stage content discovery, utilize **YouTube → Function → YouTube** cascading patterns where initial search results inform secondary searches, creating comprehensive content mapping workflows that explore related topics and channels.
+
+**Search Query Optimization and Data Formatting**
+
+Craft search queries strategically to maximize result relevance and quality. Use specific keywords, phrases, and search operators that align with YouTube's search algorithm. Avoid overly broad queries that may return irrelevant results, and consider implementing query refinement logic using Function blocks to optimize search terms based on initial result quality.
+
+Structure your `maxResults` parameter based on downstream processing capabilities and workflow performance requirements. While higher result counts provide more comprehensive data, they also increase processing time and API quota consumption. Typically, 10-25 results provide optimal balance between comprehensiveness and performance.
+
+Format video metadata appropriately for downstream consumption. The items array contains rich data structures including video IDs, titles, descriptions, thumbnails, and channel information. Extract and transform relevant fields using Function blocks to create clean, structured data that matches your workflow's specific requirements.
+
+**API Key Management and Security Considerations**
+
+Implement robust API key management practices to ensure secure and reliable YouTube API access. Store API keys as secure environment variables rather than hardcoding them in workflow configurations. Use Sim.ai's secure parameter handling to protect sensitive credentials throughout your workflow execution.
+
+Monitor API quota usage carefully to avoid service interruptions. YouTube API has daily quotas and rate limits that can impact workflow reliability. Implement error handling logic that gracefully manages quota exceeded scenarios and provides appropriate fallback behaviors.
+
+Consider implementing API key rotation strategies for production workflows that require high availability. Use multiple API keys with load balancing logic to distribute quota usage and reduce the risk of service interruptions due to quota exhaustion.
+
+**Performance Optimization and Monitoring**
+
+Optimize search performance by implementing intelligent caching strategies using Function blocks to store frequently accessed video data. This reduces API calls and improves response times for common search queries. Cache video metadata locally and implement cache invalidation logic based on content freshness requirements.
+
+Monitor the `<youtube1.totalResults>` output to track search effectiveness and identify potential issues with query formulation or API connectivity. Low result counts may indicate overly specific queries or trending topic shifts that require query adaptation.
+
+Implement comprehensive error handling for API connectivity issues, invalid queries, and quota limitations. Use the block's error outputs to trigger alternative workflows or notification systems that alert administrators to potential issues requiring attention.
+
+**Debugging and Troubleshooting Strategies**
+
+Enable detailed logging for all YouTube block operations to facilitate troubleshooting and performance analysis. Log search queries, result counts, and processing times to identify patterns and optimize workflow performance over time.
+
+Test search queries thoroughly across different content categories and trending topics to ensure consistent performance. YouTube's search algorithm and content landscape evolve continuously, requiring periodic validation of workflow effectiveness.
+
+Use the video ID field from search results to implement direct video access and validation. This enables verification that returned videos are accessible and match expected content criteria, providing additional quality assurance for content-dependent workflows.
+
+Monitor API response times and implement timeout handling to prevent workflow delays due to API latency. YouTube API performance can vary based on query complexity and server load, requiring adaptive timeout strategies for optimal workflow reliability.
+
+**Advanced Integration Patterns**
+
+Implement sophisticated content analysis workflows by connecting YouTube search results to AI agents for video content summarization and relevance scoring. This enables intelligent content filtering and recommendation systems that provide value beyond basic search functionality.
+
+Create dynamic search strategies using Function blocks to analyze initial results and generate follow-up searches based on content themes, channel analysis, or trend identification. This multi-stage approach enables comprehensive content discovery that adapts to search context.
+
+Integrate YouTube searches with external data sources to create enriched content databases that combine video metadata with additional context like social media metrics, competitor analysis, or market research data. This approach maximizes the value of video search capabilities within broader business intelligence workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I search for YouTube videos in my workflow?">
+
+    To search for YouTube videos in your Sim.ai workflow, add a **YouTube block** and configure its required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `query` | Your search terms | `<start.searchTerm>` or static text like "AI tutorials" |
+    | `apiKey` | YouTube Data API key | `<start.apiKey>` or environment variable |
+    | `maxResults` | Number of videos to return (optional) | `<start.limit>` or static number like 10 |
+
+    The block will return matching videos with metadata including titles, descriptions, and video IDs.
+  </Accordion>
+  <Accordion title="How do I get a YouTube API key for the YouTube block?">
+
+    To use the YouTube block, you need a YouTube Data API key:
+
+    1. **Visit Google Cloud Console** and create a new project or select existing one
+    2. **Enable the YouTube Data API v3** in the API Library
+    3. **Create credentials** (API Key) in the Credentials section
+    4. **Restrict the key** (optional but recommended) to YouTube Data API only
+    5. **Copy the API key** and use it in your workflow's `apiKey` input
+
+    Store your API key securely and reference it using `<start.apiKey>` in your workflow configuration.
+  </Accordion>
+  <Accordion title="What outputs does the YouTube block provide and how do I reference them?">
+
+    The YouTube block provides structured outputs that you can reference in downstream blocks:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<youtube1.items>` | Array | Complete array of video objects with metadata |
+    | `<youtube1.totalResults>` | Number | Total number of videos returned by search |
+
+    #### Video Object Structure
+    Each item in `<youtube1.items>` contains:
+    - `videoId`: Unique YouTube video identifier
+    - `title`: Video title
+    - `description`: Video description text
+    - `thumbnails`: Various thumbnail image URLs
+    - `channelTitle`: Name of the video's channel
+    - `publishedAt`: Video publication date
+  </Accordion>
+  <Accordion title="How do I connect YouTube search results to an Agent block for content analysis?">
+
+    To analyze YouTube video data with an AI agent:
+
+    1. **Connect the YouTube output** to your Agent block's input
+    2. **Reference the video data** in your agent prompt
+
+    #### Example Configuration
+
+    ```json
+    {
+      "userPrompt": "Analyze these YouTube videos and summarize the main topics: <youtube1.items>"
+    }
+    ```
+
+    The agent will receive the complete video metadata and can extract insights, create summaries, or recommend videos based on the search results.
+  </Accordion>
+  <Accordion title="How do I filter YouTube search results based on specific criteria?">
+
+    While the YouTube block handles the initial search, you can use a **Function block** to filter results:
+
+    #### Example Workflow Pattern
+    ```
+    YouTube → Function → Agent
+    ```
+
+    #### Function Block Logic
+    ```javascript
+    // Filter videos published in the last month
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+    return input.items.filter(video => 
+      new Date(video.publishedAt) > oneMonthAgo
+    );
+    ```
+
+    Connect `<youtube1.items>` to the Function block input, then use `<function1.result>` in downstream blocks.
+  </Accordion>
+  <Accordion title="Why is my YouTube search returning no results or errors?">
+
+    Troubleshoot common YouTube block issues:
+
+    #### Common Problems and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Invalid API Key** | Authentication failed | Verify `<start.apiKey>` is correct and API is enabled |
+    | **Quota Exceeded** | Daily API limit reached | Check Google Cloud Console quotas |
+    | **Empty Results** | No videos match query | Try broader search terms in `query` field |
+    | **Invalid Query** | Search terms cause errors | Ensure `<start.searchTerm>` contains valid text |
+    | **Rate Limiting** | Too many requests | Add delays between workflow runs |
+
+    Check the workflow logs for specific error messages from the YouTube API.
+  </Accordion>
+  <Accordion title="Can I use YouTube search results to create automated video recommendations?">
+
+    Yes! Combine YouTube with other blocks for intelligent video curation:
+
+    #### Recommendation Workflow Pattern
+
+    ##### 1. **User Input → YouTube → Agent → Response**
+    ```
+    Webhook: User provides topic
+    YouTube: Search for videos on that topic
+    Agent: Analyze and rank videos by relevance
+    ```
+
+    ##### 2. **Scheduled → YouTube → Function → Notification**
+    ```
+    Schedule: Daily trigger
+    YouTube: Search trending topics
+    Function: Filter by duration/views
+    Telegram: Send curated list
+    ```
+
+    #### Example Agent Prompt
+    ```
+    "From these YouTube videos: <youtube1.items>
+    Create a ranked list of the top 3 most educational videos about <start.topic>.
+    Include title, channel, and brief explanation why each video is recommended."
+    ```
+  </Accordion>
+  <Accordion title="How do I handle large YouTube search results efficiently in my workflow?">
+
+    For workflows processing many videos, optimize performance:
+
+    #### Best Practices
+
+    1. **Limit Results**: Set `maxResults` to reasonable numbers (5-50)
+    2. **Batch Processing**: Use Function blocks to process `<youtube1.items>` in chunks
+    3. **Early Filtering**: Apply filters before expensive operations like AI analysis
+    4. **Cache Results**: Store `<youtube1.items>` in databases for reuse
+
+    #### Example Batch Processing
+    ```javascript
+    // Process 5 videos at a time
+    const batchSize = 5;
+    const batches = [];
+    for (let i = 0; i < input.items.length; i += batchSize) {
+      batches.push(input.items.slice(i, i + batchSize));
+    }
+    return batches[0]; // Process first batch
+    ```
+
+    This approach prevents timeouts and manages API costs effectively.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

@@ -4,6 +4,8 @@ description: Read, write, and create documents
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="google_docs"
@@ -79,13 +81,7 @@ In Sim, the Google Docs integration enables your agents to interact directly wit
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Integrate Google Docs functionality to manage documents. Read content from existing documents, write to documents, and create new documents using OAuth authentication. Supports text content manipulation for document creation and editing.
-
-
-
-## Tools
+## Operations
 
 ### `google_docs_read`
 
@@ -143,7 +139,209 @@ Create a new Google Docs document
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `google_docs`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Google Docs block into your Sim.ai workflows, following established best practices ensures reliable document operations and seamless data flow between blocks. The Google Docs block serves as a comprehensive document management solution within your automated workflows, enabling dynamic content creation, collaborative document editing, and intelligent document processing through OAuth-authenticated connections.
+
+**Connection Tag Usage and Data Flow**
+
+Effective connection tag implementation forms the backbone of successful Google Docs integrations. The `<googleDocs1.content>` tag provides direct access to document text content, making it ideal for feeding document data into Agent blocks for analysis or processing. When creating documents, use `<agent1.content>` or `<function1.output>` to populate the content parameter dynamically, ensuring your workflows generate contextually relevant documents.
+
+For metadata-driven workflows, leverage `<googleDocs1.metadata>` to extract document properties including title, ID, and URL. This JSON output enables conditional logic and workflow branching based on document characteristics. The `<googleDocs1.updatedContent>` boolean output serves as a crucial validation point for write operations, allowing subsequent blocks to respond appropriately to successful or failed document updates.
+
+When chaining multiple Google Docs operations, use `<googleDocsCreate1.metadata.id>` to pass newly created document IDs to read or write operations. This pattern enables complex document workflows where creation, modification, and retrieval occur in sequence.
+
+**Workflow Architecture Patterns**
+
+Document-centric workflows benefit from established architectural patterns that maximize reliability and maintainability. The **Webhook → Agent → Google Docs Create** pattern excels for automated report generation, where external triggers initiate AI-powered content creation that results in formatted documents. This pattern works particularly well for customer reports, meeting summaries, and automated documentation.
+
+For document processing workflows, implement **Google Docs Read → Agent → Function → Google Docs Write** patterns. This architecture enables intelligent document analysis where AI agents process existing content, functions perform calculations or transformations, and results update the original or new documents. Consider this pattern for document review systems, content analysis, and automated editing workflows.
+
+Collaborative workflows benefit from **API Trigger → Google Docs Read → Agent → Notification** patterns, where document changes trigger intelligent analysis and stakeholder notifications. This enables automated document monitoring, compliance checking, and collaborative review processes.
+
+**Document Content and Formatting Excellence**
+
+Google Docs content formatting requires careful attention to structure and readability. When using the content parameter in create or write operations, organize text with proper paragraph breaks using `\n\n` for clear section separation. While the Google Docs block handles plain text content, structure your input for optimal document appearance.
+
+For dynamic content generation, ensure Agent-generated text maintains consistent formatting patterns. Use Functions blocks to preprocess content when combining multiple data sources, ensuring clean paragraph structures and proper text flow. When updating existing documents, consider reading current content first to append or modify sections intelligently rather than overwriting entire documents.
+
+Implement content validation before document operations. Check for empty strings, verify content length limits, and sanitize user inputs to prevent document corruption or formatting issues. This validation layer prevents workflow failures and maintains document integrity.
+
+**Debugging and Monitoring**
+
+Comprehensive monitoring strategies ensure reliable Google Docs operations across your workflows. Monitor the `<googleDocs1.updatedContent>` output for write operations to detect failed updates immediately. Implement error handling blocks that respond to false values by logging errors and potentially retrying operations or notifying administrators.
+
+Track document metadata changes to monitor workflow effectiveness. The `<googleDocs1.metadata>` output provides timestamps and document properties that enable performance analysis and usage tracking. Log document IDs, titles, and URLs for audit trails and troubleshooting purposes.
+
+For read operations, validate that `<googleDocs1.content>` returns expected data. Empty or malformed content may indicate permission issues, document deletion, or API limitations. Implement content length checks and format validation to ensure downstream blocks receive properly structured data.
+
+Monitor OAuth authentication status regularly. Document operations failing due to authentication issues require immediate attention to maintain workflow reliability. Implement webhook notifications or monitoring dashboards that alert administrators to authentication failures or quota limit approaches.
+
+**Security Considerations and Access Management**
+
+Document security requires careful management of OAuth permissions and document access controls. Ensure your Google Docs block operates with minimal necessary permissions, typically requiring read and write access to documents rather than full Google Drive management capabilities.
+
+Implement document ID validation to prevent unauthorized access attempts. Use Functions blocks to verify document IDs match expected patterns before performing operations. This prevents malicious inputs from accessing unintended documents or folders.
+
+For sensitive document workflows, consider implementing additional access controls through conditional logic. Verify user permissions, document ownership, or organizational domain restrictions before allowing document operations. The `<googleDocs1.metadata>` output provides document properties that enable security validation.
+
+Store document IDs and sensitive metadata securely. Avoid logging complete document content in workflow logs, instead focusing on operation success indicators and metadata summaries. This maintains audit trails while protecting document privacy.
+
+**Performance Optimization and Quota Management**
+
+Optimize Google Docs operations by minimizing unnecessary API calls and implementing efficient caching strategies. When multiple blocks require the same document content, use the read operation once and distribute content through connection tags rather than repeated read operations.
+
+Implement intelligent document batching for workflows processing multiple documents. Group related operations and use conditional logic to process documents efficiently. Consider document size limitations and API rate limits when designing high-volume workflows.
+
+For large document processing, implement chunking strategies using Functions blocks to process content in segments. This prevents timeout issues and enables more granular error handling. Monitor processing times and implement timeout handling for operations involving large documents or slow network conditions.
+
+Cache document metadata when workflows require repeated access to document properties. Use the `<googleDocs1.metadata>` output to store document information in workflow variables, reducing API calls for subsequent operations that only need basic document information rather than full content retrieval.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I read content from an existing Google Docs document in my workflow?">
+
+    To read content from a Google Docs document in Sim.ai, add a **Google Docs block** to your workflow and configure the read operation:
+
+    #### Required Input
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `documentId` | The Google Docs document ID from the URL | `<start.docId>` or static ID like `1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms` |
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<google_docs1.content>` | String | Full text content extracted from the document |
+    | `<google_docs1.metadata>` | JSON | Document metadata including ID, title, and URL |
+  </Accordion>
+  <Accordion title="How do I create a new Google Docs document from my workflow?">
+
+    To create new documents programmatically in Sim.ai:
+
+    1. **Add a Google Docs block** and select the `google_docs_create` operation
+    2. **Configure the required inputs**:
+
+    #### Input Configuration
+
+    | Input | Required | Description | Example |
+    |-------|----------|-------------|---------|
+    | `title` | Yes | Document title | `<start.title>` or `"Meeting Notes - {date}"` |
+    | `content` | No | Initial document content | `<agent1.content>` or static text |
+    | `folderSelector` | No | Target folder selection | Folder picker in UI |
+    | `folderId` | No | Specific folder ID | `<start.folderId>` |
+
+    The block outputs `<google_docs1.metadata>` containing the new document's ID, title, and shareable URL.
+  </Accordion>
+  <Accordion title="What is the correct way to reference Google Docs outputs in downstream blocks?">
+
+    Google Docs blocks expose specific outputs that can be connected to other blocks using connection tags:
+
+    #### Output Reference Examples
+
+    | Use Case | Connection Tag | Target Block |
+    |----------|----------------|--------------|
+    | **Process document content** | `<google_docs1.content>` | Agent block's `userPrompt` |
+    | **Extract document URL** | `<google_docs1.metadata.url>` | Slack message content |
+    | **Get document title** | `<google_docs1.metadata.title>` | Email subject line |
+    | **Reference document ID** | `<google_docs1.metadata.id>` | Another Google Docs operation |
+  </Accordion>
+  <Accordion title="How do I update content in an existing Google Docs document?">
+
+    To write or update content in an existing document:
+
+    1. **Use the `google_docs_write` operation**
+    2. **Configure both required inputs**:
+
+    #### Required Configuration
+
+    ```json
+    {
+      "documentId": "<start.documentId>",
+      "content": "<agent1.content>"
+    }
+    ```
+
+    #### Output Verification
+
+    | Output | Description | Usage |
+    |--------|-------------|--------|
+    | `<google_docs1.updatedContent>` | Boolean success indicator | Connect to Condition blocks |
+    | `<google_docs1.metadata>` | Updated document information | Reference in notifications |
+  </Accordion>
+  <Accordion title="How do I authenticate Google Docs with Sim.ai workflows?">
+
+    Google Docs integration requires OAuth authentication setup:
+
+    #### Authentication Steps
+
+    1. **Connect your Google account** in the Sim.ai connections panel
+    2. **Grant document permissions** during the OAuth flow
+    3. **Reference authenticated connection** in your workflow blocks
+
+    #### Required Permissions
+
+    - `https://www.googleapis.com/auth/documents` - Read and write document access
+    - `https://www.googleapis.com/auth/drive.file` - File creation and folder access
+
+    Once authenticated, all Google Docs blocks in your workspace automatically use the stored credentials.
+  </Accordion>
+  <Accordion title="What are common workflow patterns using Google Docs blocks?">
+
+    Google Docs blocks integrate seamlessly with other Sim.ai components for document automation:
+
+    #### Popular Workflow Patterns
+
+    ##### 1. **Webhook → Agent → Google Docs Create**
+    Generate AI-powered documents from external triggers:
+    ```
+    External API → Agent (content generation) → Google Docs (document creation)
+    ```
+
+    ##### 2. **Google Docs Read → Agent → Google Docs Write**
+    Process and update existing documents:
+    ```
+    Read document → AI analysis → Write updated content back
+    ```
+
+    ##### 3. **Scheduled Trigger → Multiple APIs → Google Docs**
+    Create automated reports:
+    ```
+    Timer → Fetch data → Transform → Create summary document
+    ```
+
+    ##### 4. **Google Docs Create → Email/Slack**
+    Share newly created documents:
+    ```
+    Create document → Extract `<google_docs1.metadata.url>` → Send notification
+    ```
+  </Accordion>
+  <Accordion title="Why is my Google Docs operation failing?">
+
+    Troubleshoot common issues with this diagnostic checklist:
+
+    #### Common Issues and Solutions
+
+    | Issue | Symptoms | Solution |
+    |-------|----------|----------|
+    | **Invalid Document ID** | "Document not found" error | Verify `documentId` format and permissions |
+    | **Permission Denied** | Authentication errors | Re-authenticate Google account connection |
+    | **Empty Content** | Document created but blank | Ensure `content` input is populated |
+    | **Folder Access** | Cannot create in specified folder | Check folder permissions and `folderId` |
+    | **Rate Limiting** | API quota exceeded | Add delays between operations |
+
+    #### Debug Steps
+
+    1. **Check the workflow logs** for specific error messages
+    2. **Verify document ID format**: Should be alphanumeric string from Google Docs URL
+    3. **Test with static values** before using dynamic connection tags
+    4. **Ensure proper OAuth scopes** are granted during authentication
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

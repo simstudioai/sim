@@ -4,6 +4,8 @@ description: Connect to MySQL database
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="mysql"
@@ -40,13 +42,7 @@ The MySQL tool is ideal for scenarios where your agents need to interact with st
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Connect to any MySQL database to execute queries, manage data, and perform database operations. Supports SELECT, INSERT, UPDATE, DELETE operations with secure connection handling.
-
-
-
-## Tools
+## Operations
 
 ### `mysql_query`
 
@@ -174,7 +170,244 @@ Execute raw SQL query on MySQL database
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `mysql`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the MySQL block into your Sim.ai workflows, following established best practices ensures reliable database operations and optimal performance. The MySQL block serves as a critical data persistence layer in your automated workflows, enabling secure connections to MySQL databases for comprehensive data management operations including queries, insertions, updates, and deletions.
+
+**Connection Tag Usage and Data Flow**
+
+The MySQL block's connection tags enable sophisticated data pipeline architectures. The `<mysql1.rows>` output provides the primary mechanism for passing query results to subsequent blocks, while `<mysql1.rowCount>` offers quantitative feedback for conditional logic. When chaining database operations, use `<mysql1.message>` to implement error handling flows that branch based on operation success or failure.
+
+For dynamic query construction, leverage connection tags from previous blocks in the `query` parameter. For example, `<function1.sqlQuery>` allows Function blocks to generate complex SELECT statements based on workflow logic. Similarly, use `<webhook1.userId>` within WHERE clauses to filter data based on incoming request parameters. The `data` parameter in insert and update operations accepts object structures from JSON blocks or API responses through tags like `<api1.responseData>`.
+
+Advanced patterns include using `<mysql1.rows[0].id>` to extract specific values from query results for subsequent operations. This enables workflows where initial database queries inform follow-up operations, creating sophisticated data processing pipelines.
+
+**Workflow Architecture Patterns**
+
+Successful MySQL workflows follow proven architectural patterns that maximize reliability and maintainability. The **API → MySQL Query → Response Formatter** pattern enables data retrieval APIs where incoming requests trigger database queries and formatted responses. This pattern works exceptionally well for customer dashboards and reporting systems.
+
+For data synchronization, implement **Webhook → Data Validator → MySQL Insert/Update** flows. This architecture ensures data integrity by validating incoming payloads before database operations. The **Schedule Trigger → MySQL Query → Analytics Function → MySQL Update** pattern creates automated data processing pipelines that run on predetermined intervals.
+
+Complex workflows benefit from **MySQL Query → Conditional → Multiple MySQL Operations** patterns. Use the `<mysql1.rowCount>` output to determine workflow branching—zero rows might trigger insert operations, while existing data triggers updates. This pattern prevents duplicate data and maintains referential integrity across workflow executions.
+
+**Message/Data Formatting Excellence**
+
+Structure your MySQL operations for maximum reliability through proper data type handling and query formatting. The `data` parameter in insert and update operations requires objects with keys matching database column names exactly. Validate data types before passing to MySQL blocks—use Function blocks to convert strings to numbers where necessary.
+
+For SELECT queries, construct WHERE clauses that prevent SQL injection by using parameterized approaches. While the MySQL block handles connection security, avoid concatenating user input directly into query strings. Instead, use the structured `where` parameter in update and delete operations, which accepts conditions like `id = 123 AND status = 'active'`.
+
+Handle array and object data properly by serializing complex structures before database storage. Use JSON.stringify() in Function blocks to convert objects to strings for TEXT or JSON column types. When retrieving data, parse JSON strings back to objects using `<function1.parsedData>` connection tags for subsequent processing.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring for MySQL blocks through systematic logging and error handling. The `<mysql1.message>` output provides detailed operation status information—capture these messages in logging blocks to track database performance and identify connection issues. Monitor `<mysql1.rowCount>` values to detect unexpected query results that might indicate data integrity problems.
+
+Create debugging workflows that log connection parameters (excluding passwords) and query structures. Use Function blocks to sanitize and format connection details for debugging logs: `host: <mysql1.host>, database: <mysql1.database>, port: <mysql1.port>`. This information proves invaluable when troubleshooting connectivity issues across different environments.
+
+Establish query performance baselines by measuring execution times. Implement timing logic using Function blocks before and after MySQL operations to identify slow queries. Store performance metrics in separate monitoring tables to track database performance trends over time.
+
+**Security Considerations**
+
+MySQL block security requires careful handling of connection credentials and query construction. Store database passwords in environment variables rather than hardcoding them in workflows. Use secure connection tags like `<environment.dbPassword>` to reference credentials safely.
+
+Enable SSL connections by setting the `ssl` parameter to "required" for production environments. This encrypts data transmission between Sim.ai workflows and MySQL servers, protecting sensitive information during database operations. For development environments, "preferred" provides a balance between security and flexibility.
+
+Implement proper access controls by using database users with minimal required privileges. Create specific database users for Sim.ai workflows that have only the necessary permissions for intended operations. Avoid using administrative accounts for routine workflow operations.
+
+Validate and sanitize all data before database operations. Use Function blocks to implement input validation rules that prevent malformed data from reaching the database. This includes checking data types, string lengths, and format requirements before executing MySQL operations.
+
+**Performance Optimization**
+
+Optimize MySQL block performance through strategic query design and connection management. Structure SELECT queries to retrieve only necessary columns rather than using SELECT * statements. This reduces network transfer time and memory usage, especially important for workflows processing large datasets.
+
+Implement connection pooling strategies by reusing connection parameters across multiple MySQL blocks within the same workflow. This reduces connection overhead and improves execution speed. Configure appropriate `port` settings—use 3306 for standard MySQL installations or specify custom ports for optimized server configurations.
+
+For high-volume workflows, batch operations using the mysql_execute operation with compound statements. This reduces the number of individual database connections and improves overall throughput. Structure batch queries carefully to maintain transactional integrity and enable proper error handling.
+
+Monitor and optimize query execution plans by analyzing slow queries. Use the mysql_query operation to run EXPLAIN statements on complex queries, helping identify indexing opportunities and query optimization strategies. Store query performance data using additional MySQL blocks to build comprehensive performance monitoring systems.
+
+Cache frequently accessed data by implementing Redis or in-memory storage blocks between MySQL queries and response generation. This reduces database load for read-heavy workflows while maintaining data consistency through strategic cache invalidation patterns.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I connect my workflow to a MySQL database in Sim.ai?">
+
+    To connect your workflow to a MySQL database, add a **MySQL block** to your Sim.ai workflow and configure the required database connection inputs:
+
+    #### Required Connection Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `host` | MySQL server hostname or IP | `<start.dbHost>` or `"localhost"` |
+    | `port` | MySQL server port number | `<start.dbPort>` or `3306` |
+    | `database` | Database name to connect to | `<start.dbName>` or `"myapp_db"` |
+    | `username` | Database username | `<start.dbUser>` or environment variable |
+    | `password` | Database password | `<start.dbPassword>` or secure connection |
+
+    #### Optional Parameters
+    - `ssl`: SSL connection mode (`"disabled"`, `"required"`, or `"preferred"`)
+  </Accordion>
+  <Accordion title="How do I execute a SELECT query to retrieve data from MySQL?">
+
+    Use the `mysql_query` operation to execute SELECT queries and retrieve data:
+
+    1. **Set the operation** to `mysql_query`
+    2. **Configure database connection** parameters (host, port, database, username, password)
+    3. **Add your SQL query** in the `query` field:
+
+    #### Example Query Configuration
+    ```sql
+    SELECT id, name, email FROM users WHERE status = 'active'
+    ```
+
+    You can also use dynamic queries with connection tags:
+    ```sql
+    SELECT * FROM orders WHERE customer_id = '<start.customerId>'
+    ```
+  </Accordion>
+  <Accordion title="What outputs can I reference from MySQL blocks in my workflow?">
+
+    Every MySQL block exposes three standard outputs that can be referenced using connection tags:
+
+    #### Available Output Tags
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<mysql1.message>` | String | Success or error message describing the operation |
+    | `<mysql1.rows>` | Array | Array of rows returned from the query |
+    | `<mysql1.rowCount>` | Number | Number of rows affected by the operation |
+
+    #### Example Usage in Downstream Blocks
+    - Connect `<mysql1.rows>` to an Agent block to process query results
+    - Use `<mysql1.rowCount>` in a Condition block to check if records exist
+    - Reference `<mysql1.message>` for error handling and logging
+  </Accordion>
+  <Accordion title="How do I insert new records into MySQL from my workflow data?">
+
+    To insert data into MySQL tables using the `mysql_insert` operation:
+
+    1. **Set operation** to `mysql_insert`
+    2. **Configure connection** parameters
+    3. **Specify target table** in the `table` field
+    4. **Map data object** with key-value pairs matching your table columns
+
+    #### Example Insert Configuration
+
+    | Field | Value | Example |
+    |-------|-------|---------|
+    | `table` | `"users"` | Target table name |
+    | `data` | Object with column mappings | `{"name": "<start.userName>", "email": "<start.userEmail>"}` |
+
+    #### Dynamic Data Mapping
+    ```json
+    {
+      "name": "<webhook1.body.fullName>",
+      "email": "<webhook1.body.email>",
+      "created_at": "<function1.timestamp>"
+    }
+    ```
+  </Accordion>
+  <Accordion title="How do I update existing MySQL records based on workflow conditions?">
+
+    Use the `mysql_update` operation to modify existing records:
+
+    #### Required Parameters for Updates
+
+    | Parameter | Description | Example |
+    |-----------|-------------|---------|
+    | `table` | Table name to update | `"orders"` |
+    | `data` | Key-value pairs of fields to update | `{"status": "<agent1.orderStatus>"}` |
+    | `where` | WHERE clause condition (without WHERE keyword) | `"id = '<start.orderId>'"` |
+
+    #### Example Update Configuration
+    ```json
+    {
+      "table": "customers",
+      "data": {
+        "last_login": "<function1.currentTimestamp>",
+        "login_count": "<mysql_query1.rows[0].login_count> + 1"
+      },
+      "where": "email = '<webhook1.body.email>'"
+    }
+    ```
+  </Accordion>
+  <Accordion title="How do I integrate MySQL blocks with Agent blocks for data-driven AI responses?">
+
+    Create powerful data-driven workflows by connecting MySQL query results to Agent blocks:
+
+    #### Common Integration Patterns
+
+    ##### 1. **Query → Agent Pattern**
+    ```
+    MySQL (SELECT) → Agent → Response
+    ```
+    - Connect `<mysql1.rows>` to Agent's `context` or `systemPrompt`
+    - Agent processes database results and generates responses
+
+    ##### 2. **Agent → MySQL Pattern**
+    ```
+    Webhook → Agent → MySQL (INSERT/UPDATE)
+    ```
+    - Agent processes user input: `<webhook1.body.message>`
+    - Connect `<agent1.extractedData>` to MySQL `data` parameter
+
+    ##### 3. **Conditional Database Operations**
+    ```
+    MySQL (SELECT) → Condition → MySQL (INSERT/UPDATE)
+    ```
+    - Use `<mysql1.rowCount>` in Condition block
+    - Route to different database operations based on existence checks
+  </Accordion>
+  <Accordion title="Why is my MySQL connection failing and how do I troubleshoot it?">
+
+    Troubleshoot MySQL connection issues with this systematic approach:
+
+    #### Common Connection Problems
+
+    | Issue | Symptoms | Solution |
+    |-------|----------|----------|
+    | **Authentication Failed** | "Access denied" in `<mysql1.message>` | Verify `username` and `password` are correct |
+    | **Host Unreachable** | Connection timeout errors | Check `host` and `port` values, ensure network access |
+    | **Database Not Found** | "Unknown database" error | Confirm `database` name exists and user has access |
+    | **SSL Configuration** | SSL handshake failures | Set `ssl` parameter to `"disabled"` for testing |
+    | **Query Syntax Error** | SQL syntax error messages | Validate SQL syntax in `query` field |
+
+    #### Debugging Steps
+    1. **Test connection** with minimal SELECT query: `"SELECT 1"`
+    2. **Check credentials** using static values before dynamic connections
+    3. **Verify permissions** - ensure database user has required privileges
+    4. **Review logs** in workflow execution for detailed error messages
+  </Accordion>
+  <Accordion title="How do I handle MySQL query results with conditional logic in workflows?">
+
+    Combine MySQL blocks with Condition blocks to create smart data-driven workflows:
+
+    #### Pattern 1: Check Record Existence
+    ```
+    MySQL (SELECT) → Condition → Different Actions
+    ```
+
+    #### Condition Configuration
+    - **Condition**: `<mysql1.rowCount> > 0`
+    - **True path**: Update existing record
+    - **False path**: Insert new record
+
+    #### Pattern 2: Process Query Results
+    ```
+    MySQL (SELECT) → Condition → Agent/Function
+    ```
+
+    #### Example Conditions
+    - `<mysql1.rows.length> === 0` - No results found
+    - `<mysql1.rows[0].status> === 'pending'` - Check specific field value
+    - `<mysql1.rowCount> >= 10` - Threshold-based routing
+
+    This enables sophisticated database-driven decision making within your Sim.ai workflows.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

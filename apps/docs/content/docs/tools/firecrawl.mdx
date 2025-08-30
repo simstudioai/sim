@@ -4,6 +4,8 @@ description: Scrape or search the web
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="firecrawl"
@@ -57,13 +59,7 @@ This allows your agents to gather information from websites, extract structured 
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Extract content from any website with advanced web scraping or search the web for information. Retrieve clean, structured data from web pages with options to focus on main content, or intelligently search for information across the web.
-
-
-
-## Tools
+## Operations
 
 ### `firecrawl_scrape`
 
@@ -123,7 +119,217 @@ Crawl entire websites and extract structured content from all accessible pages
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `firecrawl`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When implementing the Firecrawl block in your Sim.ai workflows, following established best practices ensures reliable web scraping, efficient data extraction, and optimal resource utilization. The Firecrawl block serves as a versatile web intelligence component, enabling automated content extraction, comprehensive website crawling, and intelligent web search capabilities within your automated workflows.
+
+**Connection Tag Usage and Data Flow**
+
+The Firecrawl block offers multiple output connection tags optimized for different use cases. Use `<firecrawl1.markdown>` when routing structured content to AI agents or content processing blocks, as markdown format provides clean, readable text that maintains formatting hierarchy. The `<firecrawl1.html>` output serves specialized use cases where raw HTML structure is required for custom parsing or template generation.
+
+For metadata-driven workflows, leverage `<firecrawl1.metadata>` to access comprehensive page information including SEO titles, descriptions, and Open Graph properties. This connection tag proves invaluable for content analysis workflows where you need to extract specific metadata fields like `<firecrawl1.metadata.title>` or `<firecrawl1.metadata.description>` for downstream processing.
+
+When implementing search-based workflows, connect `<firecrawl1.data>` to Function blocks for result filtering and ranking. For crawling operations, use `<firecrawl1.pages>` to access the complete array of discovered pages, while `<firecrawl1.total>` provides count information for workflow logic decisions.
+
+**Workflow Architecture Patterns**
+
+Successful Firecrawl implementations follow several proven architectural patterns. The most common pattern involves **Function → Firecrawl → Agent** flows, where Function blocks generate dynamic URLs or search queries, Firecrawl extracts content, and AI agents analyze or summarize the results. This pattern enables intelligent content monitoring and automated research workflows.
+
+For comprehensive site analysis, implement **API → Firecrawl (crawl) → Function → Database** patterns. Start with a base URL, crawl the entire site, process the results through filtering functions, and store structured data for future analysis. This approach works exceptionally well for competitive intelligence and content auditing workflows.
+
+Research automation follows **Agent → Firecrawl (search) → Function → Agent** patterns, where an initial AI agent formulates search queries, Firecrawl retrieves relevant content, functions filter and rank results, and a final agent synthesizes findings into actionable insights.
+
+**Data Formatting Excellence and Input Optimization**
+
+Structure your URL inputs to maximize extraction quality. Always use complete URLs with proper protocol specification (https://) and avoid URLs with authentication requirements or dynamic parameters that might interfere with content extraction. When using the scrapeOptions parameter, configure `onlyMainContent: true` for cleaner content extraction that focuses on primary page content while filtering out navigation, advertisements, and boilerplate elements.
+
+For search operations, formulate queries using specific, targeted terms rather than broad phrases. Firecrawl's search functionality performs better with precise queries that include relevant keywords and context. Structure search queries to match natural language patterns when possible, as this improves result relevance and quality.
+
+When implementing crawling workflows, set appropriate limit values based on your use case and API quota constraints. Start with conservative limits (10-50 pages) for testing, then scale based on actual requirements and `<firecrawl1.creditsUsed>` monitoring results.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring using Firecrawl's built-in output fields. Track `<firecrawl1.creditsUsed>` to monitor API consumption and prevent quota exhaustion. Set up alerting when credit usage exceeds expected thresholds, particularly for high-volume crawling operations.
+
+Monitor `<firecrawl1.warning>` outputs to identify potential issues with URL accessibility, content extraction problems, or rate limiting. These warnings provide early indicators of workflow issues before they result in failures.
+
+For scraping operations, validate that `<firecrawl1.markdown>` contains meaningful content by checking string length and content patterns. Empty or extremely short responses often indicate blocked access or content extraction failures. Implement conditional logic to retry failed extractions or route to alternative data sources.
+
+Use the `<firecrawl1.total>` output in crawling workflows to verify expected page discovery. Significant deviations from expected page counts may indicate site structure changes or access restrictions that require workflow adjustments.
+
+**Security and Access Management**
+
+Store your Firecrawl API keys securely using Sim.ai's environment variable system rather than hardcoding them in workflows. Rotate API keys regularly and monitor usage patterns to detect unauthorized access or unusual consumption spikes.
+
+Respect website robots.txt files and terms of service when implementing crawling workflows. While Firecrawl handles technical aspects of web scraping, ensure your use cases comply with target sites' access policies and data usage terms.
+
+Implement rate limiting in high-frequency workflows to avoid overwhelming target websites or triggering anti-scraping measures. Use delays between requests and monitor for HTTP error responses that might indicate rate limiting or access blocks.
+
+**Performance Optimization and Resource Management**
+
+Optimize crawling operations by setting appropriate limits based on actual content requirements rather than maximizing page counts. Use `onlyMainContent: true` consistently to reduce processing overhead and improve extraction speed while maintaining content quality.
+
+For large-scale crawling projects, implement pagination strategies that break extensive crawls into smaller batches. This approach improves workflow reliability and enables better error recovery when issues occur with specific page subsets.
+
+Cache frequently accessed content by storing Firecrawl outputs in databases or file storage blocks. This reduces API consumption for repeated access to the same content and improves workflow response times.
+
+Monitor `<firecrawl1.creditsUsed>` patterns to optimize workflow efficiency. Identify high-consumption operations and evaluate whether alternative approaches or reduced scope can achieve similar results with lower resource utilization.
+
+Structure error handling to gracefully manage failed extractions or inaccessible URLs. Implement fallback mechanisms that can continue workflow execution even when specific pages or sites become unavailable, ensuring robust automation that adapts to changing web conditions.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I scrape content from a website using the Firecrawl block in my workflow?">
+
+    To scrape website content with Firecrawl, add a **Firecrawl block** to your Sim.ai workflow and configure the scraping operation:
+
+    #### Required Inputs for Scraping
+
+    | Input | Description | Example Connection |
+    |-------|-------------|-------------------|
+    | `url` | Target website URL to scrape | `<start.url>` or static URL like `https://example.com` |
+    | `apiKey` | Your Firecrawl API key | `<start.apiKey>` or environment variable |
+    | `scrapeOptions` | JSON scraping configuration | `<function1.options>` or static JSON object |
+
+    The block will extract clean, structured content and return it in both markdown and HTML formats along with comprehensive metadata.
+  </Accordion>
+  <Accordion title="What outputs can I reference from a Firecrawl scraping operation?">
+
+    Every Firecrawl block exposes multiple outputs that can be connected to downstream blocks:
+
+    #### Available Scraping Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<firecrawl1.markdown>` | String | Clean page content in markdown format |
+    | `<firecrawl1.html>` | String | Raw HTML content of the scraped page |
+    | `<firecrawl1.metadata>` | Object | SEO metadata, Open Graph tags, and page info |
+    | `<firecrawl1.creditsUsed>` | Number | API credits consumed for the operation |
+    | `<firecrawl1.warning>` | String | Any warnings encountered during scraping |
+
+    These outputs can be dragged into Agent blocks, Function blocks, or other processing components.
+  </Accordion>
+  <Accordion title="How do I search the web for information using Firecrawl instead of scraping specific URLs?">
+
+    To perform web searches rather than targeted scraping:
+
+    1. **Set the operation** to `firecrawl_search` in your Firecrawl block
+    2. **Configure search inputs**:
+
+    #### Search Operation Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `query` | Your search terms | `<start.searchQuery>` or `<agent1.content>` |
+    | `apiKey` | Firecrawl API key | `<start.apiKey>` |
+
+    #### Search Results Output
+
+    The search operation returns `<firecrawl1.data>` containing an array of search results with URLs, titles, and content snippets.
+  </Accordion>
+  <Accordion title="How do I connect a Firecrawl block to an Agent block for content analysis?">
+
+    To analyze scraped content with AI:
+
+    1. **Connect the content output** to the Agent's input:
+       - Drag `<firecrawl1.markdown>` to `<agent1.userPrompt>`
+       - Or combine with static text: `"Analyze this content: <firecrawl1.markdown>"`
+
+    2. **Use metadata for context**:
+       - Connect `<firecrawl1.metadata>` to provide page title, description, and SEO data
+
+    #### Example Workflow Pattern
+    ```
+    Webhook → Firecrawl → Agent → Response
+    ```
+    Where `<start.url>` feeds Firecrawl, and `<firecrawl1.markdown>` feeds the Agent for analysis.
+  </Accordion>
+  <Accordion title="What is the difference between scraping, searching, and crawling operations in Firecrawl?">
+
+    Firecrawl offers three distinct operations for different use cases:
+
+    #### Operation Comparison
+
+    | Operation | Purpose | Input | Output |
+    |-----------|---------|-------|--------|
+    | **Scrape** | Extract content from a single URL | `url`, `apiKey`, `scrapeOptions` | `markdown`, `html`, `metadata` |
+    | **Search** | Find information across the web | `query`, `apiKey` | `data` (search results array) |
+    | **Crawl** | Extract content from entire websites | `url`, `limit`, `onlyMainContent`, `apiKey` | `pages` (array of all crawled pages) |
+
+    Choose scraping for single pages, searching for discovery, and crawling for comprehensive site analysis.
+  </Accordion>
+  <Accordion title="How do I crawl an entire website and process all pages with Firecrawl?">
+
+    To crawl multiple pages from a website:
+
+    1. **Set operation** to `firecrawl_crawl`
+    2. **Configure crawling parameters**:
+
+    #### Crawling Inputs
+
+    | Input | Description | Example Value |
+    |-------|-------------|---------------|
+    | `url` | Base website URL to crawl | `<start.baseUrl>` |
+    | `limit` | Maximum pages to crawl | `<start.pageLimit>` or static number like `50` |
+    | `onlyMainContent` | Extract only main content | `true` or `<condition1.result>` |
+    | `apiKey` | Firecrawl API key | `<start.apiKey>` |
+
+    #### Crawling Outputs
+
+    Access crawled data using:
+    - `<firecrawl1.pages>` - Array of all crawled pages with content
+    - `<firecrawl1.total>` - Total number of pages found
+    - `<firecrawl1.creditsUsed>` - API credits consumed
+  </Accordion>
+  <Accordion title="Why is my Firecrawl operation failing or returning empty results?">
+
+    Troubleshoot common Firecrawl issues with this checklist:
+
+    #### Common Issues and Solutions
+
+    | Issue | Cause | Solution |
+    |-------|-------|----------|
+    | **Invalid API Key** | Incorrect or expired API key | Verify `<start.apiKey>` is valid Firecrawl token |
+    | **URL Format Error** | Malformed or inaccessible URL | Ensure `<start.url>` includes protocol (https://) |
+    | **Rate Limiting** | Too many requests | Check `<firecrawl1.warning>` for rate limit messages |
+    | **Empty Content** | Page blocked or JavaScript-heavy | Use `scrapeOptions` to handle dynamic content |
+    | **Credit Exhaustion** | API credits depleted | Monitor `<firecrawl1.creditsUsed>` output |
+    | **Network Issues** | Connection problems | Check workflow logs for HTTP errors |
+  </Accordion>
+  <Accordion title="Can I combine Firecrawl with other blocks for automated web monitoring?">
+
+    Yes! Firecrawl integrates seamlessly with other Sim.ai blocks for comprehensive automation:
+
+    #### Common Integration Patterns
+
+    ##### 1. **Scheduled Monitoring**
+    ```
+    Schedule Trigger → Firecrawl → Agent → Condition → Telegram
+    ```
+    Monitor websites for changes and send alerts when content updates.
+
+    ##### 2. **Research Pipeline**
+    ```
+    Webhook → Firecrawl (search) → Function → Firecrawl (scrape) → Agent
+    ```
+    Search for relevant URLs, then scrape and analyze the best results.
+
+    ##### 3. **Content Processing**
+    ```
+    Firecrawl → Function → Database → Email
+    ```
+    Scrape content, transform data, store results, and notify stakeholders.
+
+    ##### 4. **Competitive Analysis**
+    ```
+    API → Firecrawl (crawl) → Agent → Spreadsheet
+    ```
+    Crawl competitor sites, analyze with AI, and compile insights into reports.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

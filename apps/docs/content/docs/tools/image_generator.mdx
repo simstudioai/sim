@@ -4,6 +4,8 @@ description: Generate images
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="image_generator"
@@ -44,13 +46,7 @@ In Sim, the DALL-E integration enables your agents to generate images programmat
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Create high-quality images using OpenAI's image generation models. Configure resolution, quality, style, and other parameters to get exactly the image you need.
-
-
-
-## Tools
+## Operations
 
 ### `openai_image`
 
@@ -78,7 +74,201 @@ Generate images using OpenAI
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `image_generator`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Image Generator block into your Sim.ai workflows, following established best practices ensures consistent image quality, optimal performance, and reliable visual content generation. The Image Generator block serves as a powerful creative engine that transforms textual descriptions into high-quality images using OpenAI's advanced image generation models, enabling automated visual content creation across diverse applications.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation is crucial for effective image generation workflows. The `<agent1.content>` connection tag represents the most common method for routing AI-generated prompts to the Image Generator's prompt input, creating dynamic workflows where AI assistants craft optimized image descriptions. Use `<imageGenerator1.image>` to retrieve the generated image URL for downstream processing or delivery, while `<imageGenerator1.content>` provides the complete generation response for logging purposes.
+
+For dynamic prompt construction, combine multiple connection tags using the format `<function1.description> in the style of <userInput.stylePreference>` within the prompt field. This enables sophisticated prompt engineering where different workflow components contribute specific elements to the final image description. The `<imageGenerator1.metadata>` output contains valuable generation details that can be passed to logging systems using `<logger1.data>` connection tags for comprehensive tracking.
+
+**Workflow Architecture Patterns**
+
+Successful Image Generator workflows follow proven architectural patterns tailored to specific use cases. The **Agent → Image Generator → Storage** pattern excels for creative content generation, where AI agents analyze user requests and generate optimized prompts that produce targeted visual content. This pattern works particularly well for marketing automation and content creation workflows.
+
+For e-commerce applications, implement **Product Data → Function → Image Generator → CDN Upload** patterns, where product information flows through formatting functions that create detailed product visualization prompts. The generated images then upload automatically to content delivery networks for immediate use.
+
+Social media automation benefits from **Scheduler → Content Agent → Image Generator → Multiple Platforms** workflows, where scheduled triggers generate themed visual content that publishes across multiple social channels. Consider implementing **User Input → Prompt Optimizer → Image Generator → Quality Checker** for user-facing applications requiring consistent output quality.
+
+**Message/Data Formatting Excellence**
+
+Prompt engineering excellence directly impacts image quality and generation success rates. Structure prompts with specific technical details, including style descriptors, composition elements, and quality modifiers. Use clear, descriptive language that specifies lighting conditions, color palettes, and artistic styles for consistent results.
+
+Configure the size parameter strategically based on intended use cases. Use `1024x1024` for social media posts, `1024x1792` for mobile-optimized portraits, and `1792x1024` for desktop banners and headers. Set quality to `hd` for marketing materials and professional content, while `standard` suffices for rapid prototyping and internal testing.
+
+When using the style parameter, `vivid` produces saturated, high-contrast images ideal for attention-grabbing content, while `natural` generates more realistic, subtle imagery suitable for professional contexts. The background parameter for gpt-image-1 enables transparent or specific color backgrounds, essential for logo generation and product photography workflows.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring using the `<imageGenerator1.success>` output to track generation success rates and identify prompt-related failures. Monitor generation failures by examining the `<imageGenerator1.content>` output for error messages and API response details. Common failure points include overly complex prompts, content policy violations, and API rate limiting.
+
+Establish prompt validation workflows that check for prohibited content before generation attempts. Use the n parameter judiciously, as generating multiple images increases API costs and processing time. Monitor the `<imageGenerator1.metadata>` output to track generation parameters and costs for budget management and optimization analysis.
+
+Create fallback mechanisms for generation failures by implementing conditional logic that routes failed requests to alternative prompts or model configurations. Log all generation attempts with timestamps and prompt details to identify patterns in successful versus failed generations.
+
+**Security Considerations**
+
+Secure API key management is paramount for Image Generator implementations. Never hardcode API keys directly in workflows; instead, use Sim.ai's secure credential storage and reference keys through encrypted connection tags. Implement API key rotation schedules and monitor usage patterns for unauthorized access detection.
+
+Establish content filtering workflows that validate generated images against organizational policies before publishing or storage. Use prompt preprocessing to remove potentially problematic content requests and implement human review processes for sensitive applications.
+
+Consider implementing rate limiting and usage quotas to prevent API abuse and unexpected costs. Monitor generation requests for unusual patterns that might indicate security breaches or unauthorized usage.
+
+**Performance Optimization**
+
+Optimize generation performance by selecting appropriate model and quality settings for specific use cases. Use gpt-image-1 for faster generation when premium quality isn't required, and dall-e-3 for highest quality artistic content. Cache frequently used prompts and their generated images to reduce API calls and improve response times.
+
+Implement batch processing for multiple image requirements by strategically using the n parameter, but balance this against memory usage and processing time constraints. Consider implementing image compression and format optimization workflows that process `<imageGenerator1.image>` outputs before storage or delivery.
+
+Structure workflows to minimize redundant generations by implementing conditional logic that checks for existing images before triggering new generation requests. Use the metadata output to track generation costs and optimize prompt complexity based on budget constraints and quality requirements.
+
+Monitor API response times and implement timeout handling for generation requests that exceed acceptable waiting periods. Consider implementing queue-based processing for high-volume image generation workflows to manage API rate limits effectively.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I generate images from my workflow using the Image Generator block?">
+
+    To generate images in your Sim.ai workflow, add an **Image Generator block** and configure its required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `model` | OpenAI model to use | `dall-e-3` or `gpt-image-1` |
+    | `prompt` | Text description of desired image | `<agent1.content>` or static text |
+    | `size` | Image dimensions | `1024x1024`, `1024x1792`, or `1792x1024` |
+    | `apiKey` | Your OpenAI API key | `<start.apiKey>` or environment variable |
+
+    #### Optional Inputs
+    - `quality`: Set to `hd` for higher quality (default: `standard`)
+    - `style`: Choose `vivid` or `natural` styling
+    - `n`: Number of images to generate (1-10)
+  </Accordion>
+  <Accordion title="How do I connect an Agent block's output to the Image Generator prompt?">
+
+    To use AI-generated descriptions for image creation:
+
+    1. In the Image Generator block's `prompt` field, type `<>` to open the connection menu
+    2. Select `<agent1.content>` from your Agent block's outputs
+
+    #### Example Configuration
+    ```json
+    {
+      "model": "dall-e-3",
+      "prompt": "<agent1.content>",
+      "size": "1024x1024",
+      "quality": "hd"
+    }
+    ```
+
+    This automatically uses the agent's response as the image generation prompt.
+  </Accordion>
+  <Accordion title="What outputs can I reference from the Image Generator block in my workflow?">
+
+    Every Image Generator block provides multiple outputs for downstream connections:
+
+    #### Available Output Tags
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<image_generator1.success>` | Boolean | `true` if image generation succeeded |
+    | `<image_generator1.content>` | String | Generation response text |
+    | `<image_generator1.image>` | String | Direct URL to the generated image |
+    | `<image_generator1.metadata>` | JSON | Generation metadata including model used |
+
+    Use `<image_generator1.image>` to display or process the generated image in other blocks.
+  </Accordion>
+  <Accordion title="How do I set up authentication for the Image Generator block?">
+
+    The Image Generator requires an OpenAI API key for authentication:
+
+    #### Setup Methods
+
+    1. **Environment Variable** (Recommended)
+       - Store your API key as an environment variable
+       - Reference it in the workflow start block
+
+    2. **Direct Input Connection**
+       - Connect from a secure input: `<start.openaiApiKey>`
+       - Pass from another block that handles credentials
+
+    #### Security Best Practice
+    Never hardcode API keys directly in the workflow. Always use secure input connections or environment variables.
+  </Accordion>
+  <Accordion title="Can I generate multiple images with different prompts in one workflow?">
+
+    Yes! Create multiple Image Generator blocks or use the `n` parameter:
+
+    #### Method 1: Multiple Blocks
+    ```
+    Agent1 → Image Generator1 (portrait)
+    Agent2 → Image Generator2 (landscape)
+    ```
+
+    #### Method 2: Batch Generation
+    Set the `n` input to generate multiple variations of the same prompt:
+    ```json
+    {
+      "prompt": "<agent1.content>",
+      "n": 3
+    }
+    ```
+
+    Each approach provides `<blockName.image>` outputs for downstream processing.
+  </Accordion>
+  <Accordion title="Why is my Image Generator block failing to create images?">
+
+    Troubleshoot common image generation issues with this checklist:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Invalid API Key** | OpenAI authentication failed | Verify `<start.apiKey>` is correct OpenAI token |
+    | **Prompt Too Long** | Description exceeds model limits | Shorten prompt or use `<agent1.content>` summary |
+    | **Invalid Size** | Unsupported dimensions | Use `1024x1024`, `1024x1792`, or `1792x1024` |
+    | **Model Mismatch** | Wrong model for parameters | Use `dall-e-3` for quality/style, `gpt-image-1` for background |
+    | **Rate Limits** | Too many requests | Check OpenAI usage limits and implement delays |
+  </Accordion>
+  <Accordion title="How do I integrate Image Generator with other blocks for automated workflows?">
+
+    Image Generator blocks work seamlessly with other Sim.ai components:
+
+    #### Popular Workflow Patterns
+
+    ##### 1. **Webhook → Agent → Image Generator**
+    Generate images from user descriptions in real-time:
+    ```
+    User input → AI enhancement → Image creation
+    ```
+
+    ##### 2. **API → Function → Image Generator → Telegram**
+    Fetch data, create descriptions, generate images, and share:
+    ```
+    <api1.data> → <function1.description> → <image_generator1.image> → Telegram
+    ```
+
+    ##### 3. **Condition → Image Generator**
+    Generate different images based on logic:
+    ```
+    if `<condition1.result>` is "landscape":
+      → Image Generator (nature prompt)
+    else:
+      → Image Generator (urban prompt)
+    ```
+
+    ##### 4. **Image Generator → Function → Database**
+    Generate and store images with metadata:
+    ```
+    <image_generator1.image> → Process URL → Save to database
+    ```
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

@@ -4,6 +4,8 @@ description: Read, write, and update data
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="google_sheets"
@@ -94,13 +96,7 @@ In Sim, the Google Sheets integration enables your agents to interact directly w
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Integrate Google Sheets functionality to manage spreadsheet data. Read data from specific ranges, write new data, update existing cells, and append data to the end of sheets using OAuth authentication. Supports various input and output formats for flexible data handling.
-
-
-
-## Tools
+## Operations
 
 ### `google_sheets_read`
 
@@ -196,7 +192,207 @@ Append data to the end of a Google Sheets spreadsheet
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `google_sheets`
+{/* MANUAL-CONTENT-START:bestPractices */}
+The Google Sheets block serves as a critical data management component in Sim.ai workflows, enabling seamless integration between automated processes and spreadsheet-based data storage. This block transforms Google Sheets into a dynamic database that can be read from, written to, and updated programmatically, making it ideal for data collection, reporting, and collaborative workflows.
+
+**Connection Tag Usage and Data Flow**
+
+Effective Google Sheets integration relies on proper connection tag usage across the four core operations. For data retrieval, use `<googlesheets1.data>` to access complete spreadsheet data, while `<googlesheets1.metadata>` provides essential spreadsheet information including ID and URL references. When implementing write operations, leverage `<googlesheets1.updatedRange>` to confirm successful data placement and `<googlesheets1.updatedCells>` to validate the scope of changes.
+
+The `spreadsheetId` parameter accepts connection tags from webhook triggers or form submissions, enabling dynamic spreadsheet targeting: `<webhook1.spreadsheetId>`. Similarly, range specifications can be dynamically constructed using `<function1.calculatedRange>` for advanced data positioning. Value arrays should be properly formatted as nested arrays, where `<agent1.structuredResponse>` can provide formatted data ready for insertion.
+
+For append operations, the `<googlesheets1.tableRange>` output becomes crucial for tracking data growth and subsequent operations. Chain operations by connecting `<googlesheets1.updatedRange>` to subsequent read operations, creating feedback loops that verify data integrity.
+
+**Workflow Architecture Patterns**
+
+The most robust Google Sheets workflows follow established architectural patterns optimized for data consistency and error handling. The **Form → Validation → Sheets Append** pattern captures user input, validates data integrity, then appends structured records to tracking spreadsheets. This pattern excels for lead generation, survey collection, and registration systems.
+
+For reporting workflows, implement **API → Transform → Sheets Update** patterns where external data sources feed into standardized spreadsheet templates. Use the `google_sheets_update` operation for existing data modification and `google_sheets_write` for complete range replacements. The **Scheduler → Sheets Read → Agent Analysis → Sheets Write** pattern enables automated data analysis with AI-generated insights written back to summary sheets.
+
+Multi-sheet workflows benefit from **Sheets Read → Logic Branch → Multiple Sheets Write** architectures, where initial data determines subsequent write operations across different spreadsheets or sheets within the same document. Implement conditional logic using the `<googlesheets1.metadata>` to verify spreadsheet accessibility before attempting write operations.
+
+**Message/Data Formatting Excellence**
+
+Data formatting represents the most critical aspect of Google Sheets integration success. The `values` parameter requires strict array formatting: single rows as `[["value1", "value2", "value3"]]` and multiple rows as nested arrays `[["row1col1", "row1col2"], ["row2col1", "row2col2"]]`. Inconsistent array nesting causes operation failures and data corruption.
+
+Set the `valueInputOption` parameter strategically: use "RAW" for exact data preservation, "USER_ENTERED" for automatic type conversion and formula interpretation. For financial data or timestamps, "USER_ENTERED" ensures proper formatting, while "RAW" maintains data integrity for subsequent processing operations.
+
+Range specifications should follow Google Sheets A1 notation precisely. Use specific ranges like "A1:C10" for targeted operations, or sheet names with ranges like "DataSheet!A1:Z" for multi-sheet documents. The `includeValuesInResponse` parameter should be set to `true` during development for debugging purposes but can be disabled in production workflows to reduce payload size.
+
+Handle date and time data by formatting values appropriately before writing. Convert timestamps to ISO format or Google Sheets date serial numbers depending on your downstream processing requirements. Use the `insertDataOption` parameter in append operations carefully: "INSERT_ROWS" maintains data integrity by inserting new rows, while "OVERWRITE" replaces existing data.
+
+**Debugging and Monitoring**
+
+Comprehensive monitoring begins with tracking the core output metrics: `<googlesheets1.updatedRows>`, `<googlesheets1.updatedColumns>`, and `<googlesheets1.updatedCells>`. These values should match your expected operation scope. Implement conditional logic to verify that `<googlesheets1.updatedCells>` equals the product of your intended rows and columns for write operations.
+
+Enable error logging by capturing the complete `<googlesheets1.metadata>` output, which includes spreadsheet URL for manual verification and timestamp information for operation sequencing. Monitor authentication failures by implementing try-catch patterns around Google Sheets operations, as OAuth token expiration represents the most common failure point.
+
+For data integrity validation, implement read-after-write patterns where `<googlesheets1.updatedRange>` from write operations feeds into subsequent read operations using the same range specification. Compare the read data against your original input to verify successful data persistence.
+
+Track operation performance by monitoring response times and implementing timeout handling for large data operations. Append operations on sheets with thousands of existing rows may experience slower performance, requiring workflow architecture adjustments for optimal user experience.
+
+#### Range Validation and Error Prevention
+
+Implement range validation before write operations by using the `google_sheets_read` operation to verify target ranges exist and contain expected data types. Invalid ranges cause immediate operation failures, while data type mismatches can corrupt existing formulas and calculations within the spreadsheet.
+
+**Security Considerations**
+
+OAuth authentication requires careful token management and scope limitation. Configure Google Sheets integrations with minimal required permissions, typically limited to specific spreadsheets rather than entire Google Drive access. The `spreadsheetId` parameter should be validated against allowed spreadsheet lists to prevent unauthorized data access through connection tag manipulation.
+
+Implement input sanitization for all user-provided data before writing to spreadsheets. Malicious input can include formula injection attacks where users provide values starting with "=" that execute unintended calculations or external references. Prefix user input with single quotes to force text interpretation and prevent formula execution.
+
+For sensitive data workflows, utilize private spreadsheets with restricted sharing permissions. The `<googlesheets1.metadata>` output includes spreadsheet URLs that could expose data locations if logged inappropriately. Implement secure logging practices that exclude sensitive metadata from workflow logs.
+
+**Performance Optimization**
+
+Batch operations significantly improve performance over individual cell updates. Instead of multiple single-cell write operations, aggregate data into arrays for single `google_sheets_write` or `google_sheets_update` calls. A single operation writing 100 cells performs substantially better than 100 individual write operations.
+
+Optimize range specifications by using exact ranges rather than entire column references. Reading "A1:D1000" performs better than "A:D" when you know your data boundaries. For dynamic ranges, calculate specific boundaries using function blocks before Google Sheets operations.
+
+Cache frequently accessed data using workflow variables rather than repeated read operations. If multiple workflow branches require the same spreadsheet data, perform a single read operation and distribute the `<googlesheets1.data>` output through connection tags to multiple subsequent blocks.
+
+For large datasets, implement pagination patterns using range calculations. Split large write operations into smaller batches, using the `<googlesheets1.updatedRange>` output to calculate subsequent range positions. This approach prevents timeout errors and improves overall workflow reliability.
+
+#### Advanced Data Transformation
+
+Leverage the `valueInputOption` parameter strategically for different data types. Financial calculations benefit from "USER_ENTERED" formatting that automatically handles currency symbols and decimal precision. Text data requiring exact preservation should use "RAW" formatting to prevent unwanted type conversion.
+
+Implement data validation workflows where read operations verify data integrity before subsequent write operations. Use `<googlesheets1.data>` outputs in conditional logic blocks to ensure data meets expected formats and ranges before proceeding with automated updates or calculations.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I read data from a Google Sheets spreadsheet in my workflow?">
+
+    To read data from Google Sheets, add a **Google Sheets block** to your Sim.ai workflow and configure the read operation:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `spreadsheetId` | The Google Sheets document ID from the URL | `<start.sheetId>` or static ID like `1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms` |
+    | `range` | Cell range to read (optional) | `<start.range>` or static range like `A1:D10` |
+
+    The block outputs `<google_sheets1.data>` containing the cell values and `<google_sheets1.metadata>` with spreadsheet information.
+  </Accordion>
+  <Accordion title="How do I write data to Google Sheets from another block's output?">
+
+    To write data from previous blocks to Google Sheets:
+
+    1. **Connect the spreadsheet ID** using `<start.spreadsheetId>` or a static value
+    2. **Map the data array** from another block like `<agent1.structuredOutput>` or `<function1.results>`
+    3. **Set the target range** using `<start.range>` or specify cells like `A1:C5`
+
+    #### Example Configuration
+    ```json
+    {
+      "spreadsheetId": "<start.sheetId>",
+      "range": "A1:B10",
+      "values": "<function1.dataArray>"
+    }
+    ```
+  </Accordion>
+  <Accordion title="What is the correct way to reference Google Sheets block outputs in downstream blocks?">
+
+    Every Google Sheets block provides multiple outputs that can be connected to other blocks:
+
+    #### Available Output Tags
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<google_sheets1.data>` | JSON | Complete sheet data including values and formatting |
+    | `<google_sheets1.metadata>` | JSON | Spreadsheet metadata with ID, title, and URL |
+    | `<google_sheets1.updatedRange>` | String | Range of cells that were modified |
+    | `<google_sheets1.updatedRows>` | Number | Count of rows affected by the operation |
+    | `<google_sheets1.updatedColumns>` | Number | Count of columns affected |
+    | `<google_sheets1.updatedCells>` | Number | Total number of cells modified |
+    | `<google_sheets1.tableRange>` | String | Full table range (for append operations) |
+
+    Use these outputs by dragging them into input fields of subsequent blocks.
+  </Accordion>
+  <Accordion title="How do I append new data to the end of an existing Google Sheets document?">
+
+    To add data to the bottom of your spreadsheet:
+
+    1. **Use the append operation** in your Google Sheets block
+    2. **Connect the data source** like `<webhook1.payload>` or `<agent1.extractedData>`
+    3. **Configure append settings**:
+
+    #### Input Configuration
+
+    | Parameter | Purpose | Example Value |
+    |-----------|---------|---------------|
+    | `spreadsheetId` | Target sheet identifier | `<start.sheetId>` |
+    | `range` | Starting position (optional) | `A1` or `<start.startCell>` |
+    | `values` | Data array to append | `<function1.processedRows>` |
+    | `insertDataOption` | Insert method | `INSERT_ROWS` or `OVERWRITE` |
+
+    The operation returns `<google_sheets1.tableRange>` showing where data was added.
+  </Accordion>
+  <Accordion title="Why is my Google Sheets integration failing with authentication errors?">
+
+    Google Sheets requires OAuth authentication setup. Common authentication issues include:
+
+    #### Troubleshooting Authentication
+
+    | Issue | Symptoms | Solution |
+    |-------|----------|----------|
+    | **Missing OAuth Setup** | "Authentication required" errors | Configure Google OAuth credentials in Sim.ai settings |
+    | **Insufficient Permissions** | "Access denied" responses | Ensure OAuth scope includes `https://www.googleapis.com/auth/spreadsheets` |
+    | **Invalid Sheet ID** | "Spreadsheet not found" | Verify `spreadsheetId` matches the document ID from the URL |
+    | **Sheet Access Rights** | "Permission denied" | Share the Google Sheet with your authenticated account |
+    | **Expired Token** | Intermittent failures | Re-authenticate your Google account in Sim.ai |
+  </Accordion>
+  <Accordion title="How do I create a workflow that processes data from Google Sheets with an AI agent?">
+
+    Create data processing workflows by chaining Google Sheets with other Sim.ai blocks:
+
+    #### Common Workflow Patterns
+
+    ##### 1. **Google Sheets → Agent → Google Sheets**
+    Read data, process with AI, write results back:
+    ```
+    - Read: `<google_sheets1.data>` → Agent input
+    - Process: Agent analyzes the data  
+    - Write: `<agent1.structuredOutput>` → New sheet range
+    ```
+
+    ##### 2. **Webhook → Function → Google Sheets**
+    Receive external data, transform it, save to sheets:
+    ```
+    - Receive: `<start.payload>`
+    - Transform: `<function1.processedData>`
+    - Save: `<google_sheets1.updatedCells>` confirmation
+    ```
+
+    ##### 3. **Scheduled → Google Sheets → Condition → Telegram**
+    Automated reporting with conditional notifications:
+    ```
+    - Read sheet data periodically
+    - Check conditions on `<google_sheets1.data>`
+    - Send alerts via Telegram if criteria met
+    ```
+  </Accordion>
+  <Accordion title="What data formats does Google Sheets accept for the values input?">
+
+    The `values` input accepts arrays in specific formats depending on your data structure:
+
+    #### Supported Data Formats
+
+    | Format Type | Structure | Example |
+    |-------------|-----------|---------|
+    | **Single Row** | `[["value1", "value2", "value3"]]` | `[["John", "Doe", "Manager"]]` |
+    | **Multiple Rows** | `[["row1col1", "row1col2"], ["row2col1", "row2col2"]]` | `[["Alice", 25], ["Bob", 30]]` |
+    | **Mixed Types** | Arrays with strings, numbers, booleans | `[["Product", 29.99, true]]` |
+    | **From Function** | `<function1.formattedArray>` | Dynamic arrays from processing blocks |
+    | **From Agent** | `<agent1.extractedData>` | Structured data extracted by AI |
+
+    Set `valueInputOption` to `RAW` for literal values or `USER_ENTERED` for formula parsing.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

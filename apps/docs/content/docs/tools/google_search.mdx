@@ -4,6 +4,8 @@ description: Search the web
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="google_search"
@@ -56,13 +58,7 @@ In Sim, the Google Search integration enables your agents to search the web prog
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Searches the web using the Google Custom Search API, which provides high-quality search results from the entire internet or a specific site defined by a custom search engine ID.
-
-
-
-## Tools
+## Operations
 
 ### `google_search`
 
@@ -85,7 +81,192 @@ Search the web with the Custom Search API
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `google_search`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Google Search block into your Sim.ai workflows, adhering to established best practices ensures accurate search results and optimal API utilization. The Google Search block serves as a critical information retrieval component, connecting your automated workflows to the vast repository of web content through Google's Custom Search API.
+
+**Connection Tag Usage and Data Flow**
+
+The primary connection tag for search result data is `<google_search1.items>`, which contains the array of search results that can be processed by downstream blocks. For search metadata such as total result counts and search timing, use `<google_search1.searchInformation>`. When chaining with Agent blocks, the pattern `<agent1.content>` → `<google_search1.query>` enables dynamic search queries based on AI-generated content or user inputs.
+
+Structure your data flow to handle the array nature of search results effectively. Individual result items contain fields like title, link, snippet, and displayLink, which can be accessed using array indexing or processed collectively by Agent blocks for summarization. The `<google_search1.items>` output integrates seamlessly with Function blocks for custom result filtering or with Agent blocks for content analysis and synthesis.
+
+**Workflow Architecture Patterns**
+
+The most effective Google Search workflow follows the **User Input → Google Search → Agent → Response** pattern, where search results inform AI-generated responses with current web information. This architecture enables real-time information retrieval and analysis within conversational interfaces.
+
+For research automation, implement **Scheduled Trigger → Google Search → Function → Database** patterns to monitor specific topics or competitors. Advanced implementations use **Agent → Google Search → Agent** chains, where initial AI analysis generates targeted search queries, and subsequent AI processing synthesizes the results into comprehensive reports.
+
+Consider the **Multi-Query Pattern**: **Function → Multiple Google Search blocks → Agent**, where a Function block generates multiple related queries, parallel Google Search blocks execute them simultaneously, and an Agent synthesizes all results. This approach provides comprehensive coverage of complex research topics.
+
+**Message/Data Formatting Excellence**
+
+Configure the `num` parameter strategically based on your workflow's downstream processing capabilities. The default value of 10 results balances comprehensiveness with processing efficiency. For Agent block integration, fewer results (3-5) often yield better synthesis quality, while Function blocks can effectively process the full 10 results for filtering and ranking.
+
+Structure your `query` inputs to maximize search effectiveness. Use specific, targeted queries rather than broad terms. When connecting from Agent blocks, prompt the AI to generate search-optimized queries with relevant keywords and boolean operators. Implement query validation through Function blocks to ensure search terms meet Google's API requirements and avoid common formatting issues.
+
+Format search results for optimal downstream processing by extracting key fields systematically. Create structured outputs that separate titles, URLs, and snippets for different use cases—titles for quick scanning, snippets for content analysis, and URLs for direct access or verification.
+
+**Debugging and Monitoring**
+
+Monitor API quota usage closely since Google Custom Search API has daily limits. Implement logging for the `searchInformation` output to track query performance, result counts, and search timing. Use `<google_search1.searchInformation.totalResults>` to validate that searches return meaningful results before processing with expensive downstream operations.
+
+Debug failed searches by examining the `items` array length and `searchInformation` metadata. Empty results often indicate overly specific queries, API key issues, or Custom Search Engine configuration problems. Implement fallback queries with broader terms when initial searches return insufficient results.
+
+Create monitoring workflows that track search result relevance by analyzing snippet content quality and result diversity. Use Agent blocks to evaluate whether returned results actually address the original query intent, enabling automatic query refinement for improved accuracy.
+
+**Security Considerations**
+
+Secure your Google API key using Sim.ai's credential management system rather than hardcoding in workflow configurations. Implement query sanitization through Function blocks to prevent injection of malicious search terms that could expose sensitive information or violate Google's terms of service.
+
+Configure Custom Search Engine IDs with appropriate site restrictions to limit search scope and improve result relevance. Use domain-specific search engines for sensitive or specialized queries to prevent information leakage to unintended sources.
+
+Monitor search queries for patterns that might indicate data exfiltration attempts or inappropriate usage. Implement rate limiting within your workflows to respect API quotas and prevent accidental or malicious overuse that could result in service suspension.
+
+**Performance Optimization**
+
+Optimize Custom Search Engine configuration by defining specific sites and excluding irrelevant domains to improve result quality and reduce processing overhead. Use site-restricted searches (site:example.com) for targeted information retrieval when appropriate sources are known.
+
+Implement intelligent query caching through Function blocks to avoid redundant searches for identical queries within time windows. Cache search results temporarily for workflows that might re-query the same information, especially in conversational interfaces where users might rephrase similar questions.
+
+Batch related searches strategically by designing workflows that execute multiple related queries in sequence rather than triggering separate workflow instances. This approach maximizes API efficiency while ensuring comprehensive information coverage for complex research tasks.
+
+Use the `num` parameter dynamically based on downstream processing requirements. Analytical workflows benefit from maximum results, while real-time response systems perform better with fewer, higher-quality results that enable faster processing and response times.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I add Google Search functionality to my Sim.ai workflow?">
+
+    To add Google Search to your workflow, add a **Google Search block** and configure these required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `query` | Search terms to find | `<start.searchQuery>` or `<agent1.content>` |
+    | `searchEngineId` | Custom Search Engine ID from Google | `<start.engineId>` or environment variable |
+    | `apiKey` | Google API key with Custom Search enabled | `<start.apiKey>` or secure environment variable |
+
+    #### Optional Input
+
+    | Input | Description | Default | Example |
+    |-------|-------------|---------|---------|
+    | `num` | Number of results (max 10) | `10` | `<start.resultCount>` or `"5"` |
+  </Accordion>
+  <Accordion title="What Google credentials do I need to set up the Google Search block?">
+
+    To use Google Search in Sim.ai, you need two credentials from Google Cloud Console:
+
+    #### Setup Steps
+
+    1. **Enable Custom Search API** in Google Cloud Console
+    2. **Create an API Key** with Custom Search API access
+    3. **Create a Custom Search Engine** at [cse.google.com](https://cse.google.com)
+    4. **Copy the Search Engine ID** from your custom search engine settings
+
+    #### Security Best Practice
+    Store your `apiKey` and `searchEngineId` as environment variables rather than hardcoding them in workflows.
+  </Accordion>
+  <Accordion title="How do I reference Google Search results in my workflow?">
+
+    The Google Search block provides outputs that can be connected to other blocks using connection tags:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<google_search1.items>` | Array | Complete array of search result objects |
+    | `<google_search1.searchInformation>` | Object | Metadata about the search (total results, search time, etc.) |
+
+    #### Individual Result Fields
+    Each item in `<google_search1.items>` contains:
+    - `title` - Page title
+    - `link` - URL of the result  
+    - `snippet` - Text preview
+    - `displayLink` - Formatted display URL
+  </Accordion>
+  <Accordion title="How do I connect an Agent block to process Google Search results?">
+
+    To have an AI agent analyze search results:
+
+    1. **Connect search results** to the Agent's `context` or `userPrompt` field
+    2. **Use connection tags** to pass the data
+
+    #### Example Configuration
+
+    ```json
+    {
+      "userPrompt": "Summarize these search results: <google_search1.items>",
+      "context": "Search query was: <google_search1.query>"
+    }
+    ```
+
+    #### Alternative Approach
+    Use a **Function block** to format results before sending to the Agent:
+    ```
+    Google Search → Function → Agent → Response
+    ```
+  </Accordion>
+  <Accordion title="What are common workflow patterns using Google Search?">
+
+    Google Search integrates well with other Sim.ai blocks in these patterns:
+
+    #### Pattern 1: **Webhook → Google Search → Agent → Response**
+    Real-time search queries triggered by external systems with AI-powered result analysis.
+
+    #### Pattern 2: **Scheduled Trigger → Google Search → Condition → Notification**
+    Automated monitoring for new search results on specific topics.
+
+    #### Pattern 3: **Agent → Google Search → Function → Agent**
+    AI agent performs searches, processes results, and provides comprehensive answers:
+    ```
+    Agent (generates query) → Google Search → Function (format) → Agent (analyze)
+    ```
+
+    #### Pattern 4: **API → Google Search → Database → Email**
+    Research automation that searches, stores results, and sends reports.
+  </Accordion>
+  <Accordion title="Why is my Google Search block returning no results or errors?">
+
+    Troubleshoot common Google Search issues with this checklist:
+
+    #### Common Issues and Solutions
+
+    | Issue | Root Cause | Solution |
+    |-------|------------|----------|
+    | **"API key not valid"** | Invalid or restricted API key | Verify `<start.apiKey>` has Custom Search API enabled |
+    | **"Invalid search engine ID"** | Wrong Custom Search Engine ID | Check `<start.searchEngineId>` matches your CSE ID |
+    | **Empty results array** | Query too specific or no matches | Broaden search terms in `<start.query>` |
+    | **Quota exceeded** | Daily API limit reached | Monitor usage in Google Cloud Console |
+    | **403 Forbidden** | API key lacks permissions | Enable Custom Search API for your project |
+    | **Invalid num parameter** | Result count exceeds limit | Ensure `<start.num>` is between 1-10 |
+  </Accordion>
+  <Accordion title="Can I search specific websites instead of the entire web?">
+
+    Yes! Configure your Custom Search Engine to search specific sites:
+
+    #### Setup Options
+
+    1. **Site-Restricted Search**: In Google CSE settings, add specific domains
+    2. **Programmable Search**: Create engines for specific content types
+    3. **Multi-Site Search**: Include multiple related domains
+
+    #### Workflow Integration
+    Use different `searchEngineId` values for different search scopes:
+    ```json
+    {
+      "query": "<start.query>",
+      "searchEngineId": "<start.techSiteEngineId>",
+      "apiKey": "<start.apiKey>"
+    }
+    ```
+
+    This allows you to create specialized search agents for different domains or content types.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

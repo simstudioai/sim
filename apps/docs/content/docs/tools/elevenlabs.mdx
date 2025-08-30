@@ -4,6 +4,8 @@ description: Convert TTS using ElevenLabs
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="elevenlabs"
@@ -37,13 +39,7 @@ In Sim, the ElevenLabs integration enables your agents to convert text to lifeli
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Generate realistic speech from text using ElevenLabs voices.
-
-
-
-## Tools
+## Operations
 
 ### `elevenlabs_tts`
 
@@ -66,7 +62,180 @@ Convert TTS using ElevenLabs voices
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `elevenlabs`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the ElevenLabs block into your Sim.ai workflows, following established best practices ensures high-quality audio generation and reliable performance. The ElevenLabs block serves as a sophisticated text-to-speech converter that transforms written content into natural-sounding speech using advanced AI voice synthesis technology.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation is critical for successful audio generation workflows. The `<agent1.content>` connection tag represents the most common method for routing AI-generated text from Agent blocks directly to the ElevenLabs `text` input parameter. This creates a seamless flow where conversational AI responses are automatically converted to speech without manual intervention.
+
+For voice selection, use static voice IDs or implement dynamic voice switching with `<function1.selectedVoiceId>` when building multi-persona applications. The `<elevenlabs1.audioUrl>` output serves as the primary connection point for downstream blocks, enabling audio playback, file storage, or webhook delivery patterns. When chaining multiple TTS operations, ensure proper sequencing by connecting the `audioUrl` output to conditional blocks that verify successful generation before proceeding.
+
+**Workflow Architecture Patterns**
+
+Successful ElevenLabs workflows typically follow established architectural patterns optimized for audio content delivery. The **Agent → ElevenLabs → Webhook** pattern enables conversational interfaces that deliver audio responses to external applications, perfect for voice assistants and interactive chatbots. For content creation workflows, implement **API → Function → ElevenLabs → Cloud Storage** patterns where text content from external sources undergoes processing before audio generation and archival storage.
+
+Multi-language applications benefit from **Language Detection → Voice Mapping → ElevenLabs** workflows, where text analysis determines appropriate voice models for different languages. Consider implementing **Batch Processing → ElevenLabs → Queue Management** patterns for high-volume content generation, ensuring efficient API usage and preventing rate limiting issues.
+
+**Message/Data Formatting Excellence**
+
+Text formatting significantly impacts audio quality and naturalness. Structure input text with proper punctuation, paragraph breaks, and speech-friendly formatting. Remove special characters, URLs, and markdown syntax that don't translate well to speech. Use sentence-ending punctuation consistently to ensure appropriate pauses and intonation patterns in generated audio.
+
+For optimal voice synthesis, limit individual text inputs to 2,500 characters or less, as longer texts may experience quality degradation or timeout issues. When processing longer content, implement text segmentation logic using Function blocks to split content at natural breakpoints like paragraphs or sentences. This approach maintains audio coherence while staying within API limitations.
+
+Format technical content, numbers, and acronyms for speech readability. Convert "URL" to "you-are-ell" and "API" to "A-P-I" to ensure proper pronunciation. Use SSML (Speech Synthesis Markup Language) tags when supported to control pronunciation, emphasis, and pacing for specialized content.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring by tracking the `<elevenlabs1.audioUrl>` output status across all workflow executions. Empty or null audio URLs indicate generation failures that require investigation. Create logging workflows that capture input text length, voice ID validity, and API response times to identify performance bottlenecks and usage patterns.
+
+Monitor API key usage and rate limiting by implementing retry logic with exponential backoff when requests fail. Use Function blocks to validate voice IDs before processing to prevent unnecessary API calls with invalid parameters. Track model selection effectiveness by comparing audio quality metrics across different `modelId` values for your specific use cases.
+
+Set up alerting for common failure scenarios including API quota exhaustion, invalid voice IDs, and network timeout errors. Implement fallback voice options when primary voice selections fail, ensuring workflow continuity even with voice availability issues.
+
+**Security Considerations**
+
+Protect ElevenLabs API keys using secure environment variable storage rather than hardcoding them in workflow configurations. Implement API key rotation schedules and monitor for unauthorized usage patterns that might indicate key compromise. Use least-privilege principles by creating separate API keys for different workflow purposes with appropriate usage limits.
+
+Validate and sanitize input text to prevent potential abuse or inappropriate content generation. Implement content filtering logic using Function blocks to screen text for sensitive information, profanity, or potentially harmful content before audio generation. This prevents inadvertent creation of problematic audio content and maintains compliance with usage policies.
+
+**Performance Optimization**
+
+Optimize API usage by implementing intelligent caching strategies for frequently requested text-to-speech conversions. Use Function blocks to generate content hashes and store audio URLs for repeated content, reducing unnecessary API calls and improving response times. This approach is particularly effective for templated responses and standard notifications.
+
+Select appropriate model IDs based on your specific requirements. The default `eleven_monolingual_v1` model provides good performance for English content, while multilingual models offer broader language support at potentially higher processing costs. Test different models with your typical content to identify the optimal balance of quality, speed, and cost.
+
+Implement batch processing for high-volume workflows by grouping text processing operations and staggering ElevenLabs API calls to respect rate limits. Use queue management patterns with Function blocks to distribute API requests evenly over time, preventing quota exhaustion and maintaining consistent performance during peak usage periods.
+
+Pre-select and validate voice IDs during workflow setup rather than dynamic selection when possible. This reduces API overhead and ensures consistent voice quality across all generated content. Maintain a curated list of tested voice IDs that work well with your specific content types and user preferences.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I convert text to speech using ElevenLabs in my workflow?">
+
+    To convert text to speech with ElevenLabs, add an **ElevenLabs block** to your Sim.ai workflow and configure its required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `text` | The text content to convert to speech | `<agent1.content>` or `<start.message>` |
+    | `voiceId` | ElevenLabs voice identifier | `<start.voiceId>` or static ID like `21m00Tcm4TlvDq8ikWAM` |
+    | `apiKey` | Your ElevenLabs API key | `<start.apiKey>` or environment variable |
+
+    #### Optional Input
+
+    | Input | Description | Default |
+    |-------|-------------|---------|
+    | `modelId` | ElevenLabs model to use | `eleven_monolingual_v1` |
+  </Accordion>
+  <Accordion title="How do I get an ElevenLabs API key and voice ID for my workflow?">
+
+    To authenticate with ElevenLabs and select voices:
+
+    1. **Get API Key**: Sign up at ElevenLabs and copy your API key from the profile settings
+    2. **Find Voice IDs**: Use the ElevenLabs dashboard or API to list available voices
+    3. **Configure in Workflow**: Add these as inputs to your start block or directly in the ElevenLabs block
+
+    #### Popular Voice IDs
+    - Rachel: `21m00Tcm4TlvDq8ikWAM`
+    - Drew: `29vD33N1CtxCmqQRPOHJ`
+    - Clyde: `2EiwWnXFnvU5JabPnv8n`
+  </Accordion>
+  <Accordion title="What is the correct way to reference ElevenLabs block outputs in downstream blocks?">
+
+    The ElevenLabs block generates one output that can be referenced using connection tags:
+
+    #### Available Output
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<elevenlabs1.audioUrl>` | String | Direct URL to the generated audio file |
+
+    This URL can be used in other blocks for audio playback, file storage, or further processing.
+  </Accordion>
+  <Accordion title="How do I connect an Agent block's response to ElevenLabs for text-to-speech conversion?">
+
+    To convert AI-generated text to speech:
+
+    1. In the ElevenLabs block's `text` field, type `<>` to open the connection menu
+    2. Select `<agent1.content>` from the available connections
+    3. Configure your voice settings
+
+    #### Example Configuration
+
+    ```json
+    {
+      "text": "<agent1.content>",
+      "voiceId": "21m00Tcm4TlvDq8ikWAM",
+      "apiKey": "<start.apiKey>"
+    }
+    ```
+
+    This automatically converts the AI agent's response into natural-sounding speech using your selected voice.
+  </Accordion>
+  <Accordion title="Why is my ElevenLabs text-to-speech conversion failing?">
+
+    Troubleshoot common issues with this checklist:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Invalid API Key** | Authentication failed | Verify `<start.apiKey>` matches your ElevenLabs key |
+    | **Voice ID Not Found** | Specified voice doesn't exist | Check voice ID format and availability in your account |
+    | **Empty Text Input** | No content to convert | Ensure `text` field is populated (e.g., `<agent1.content>`) |
+    | **Character Limit Exceeded** | Text too long for conversion | Split long text or check your plan's character limits |
+    | **Model ID Error** | Invalid model specified | Use default or verify model ID exists |
+  </Accordion>
+  <Accordion title="Can I combine ElevenLabs with other blocks for complete voice workflows?">
+
+    Yes! ElevenLabs blocks integrate seamlessly with other Sim.ai workflow components:
+
+    #### Common Workflow Patterns
+
+    ##### 1. **Webhook → Agent → ElevenLabs**
+    Convert incoming text messages into AI responses and then to speech.
+
+    ##### 2. **API → Function → ElevenLabs**
+    Fetch content from external sources, process it, and convert to audio.
+
+    ##### 3. **Schedule → Agent → ElevenLabs**
+    Generate periodic voice announcements or reports.
+
+    ##### 4. **ElevenLabs → File Storage**
+    Convert text to speech and save the audio file:
+    ```
+    text → ElevenLabs → use `<elevenlabs1.audioUrl>` in file storage block
+    ```
+  </Accordion>
+  <Accordion title="How do I create dynamic voice selection based on user preferences in my workflow?">
+
+    To allow users to choose different voices dynamically:
+
+    #### Setup Dynamic Voice Selection
+
+    1. **Start Block**: Include a `voicePreference` input field
+    2. **Condition Block**: Map user preferences to voice IDs
+    3. **ElevenLabs Block**: Use conditional output as `voiceId`
+
+    #### Example Mapping
+
+    ```json
+    {
+      "text": "<agent1.content>",
+      "voiceId": "<condition1.selectedVoiceId>",
+      "apiKey": "<start.apiKey>"
+    }
+    ```
+
+    This allows users to specify voice preferences that get translated into the appropriate ElevenLabs voice identifier.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

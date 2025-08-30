@@ -4,6 +4,8 @@ description: Extract text from PDF documents
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="mistral_parse"
@@ -77,13 +79,7 @@ The Mistral Parse tool is particularly useful for scenarios where your agents ne
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Extract text and structure from PDF documents using Mistral's OCR API. Either enter a URL to a PDF document or upload a PDF file directly. Configure processing options and get the content in your preferred format. For URLs, they must be publicly accessible and point to a valid PDF file. Note: Google Drive, Dropbox, and other cloud storage links are not supported; use a direct download URL from a web server instead.
-
-
-
-## Tools
+## Operations
 
 ### `mistral_parser`
 
@@ -112,7 +108,231 @@ Parse PDF documents using Mistral OCR API
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `mistral_parse`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Mistral Parser block into your Sim.ai workflows, following established best practices ensures reliable PDF processing and optimal content extraction. The Mistral Parser block serves as a powerful document processing component that converts PDF files into structured text, markdown, or JSON formats using Mistral's advanced OCR capabilities.
+
+**Connection Tag Usage and Data Flow**
+
+Effective connection tag implementation is crucial for successful PDF processing workflows. The `<mistralParser1.content>` connection tag provides the primary extracted text output that can be seamlessly routed to downstream blocks like Agent blocks for content analysis or Function blocks for data transformation. When working with metadata-driven workflows, utilize `<mistralParser1.metadata>` to access processing details such as page count and job identifiers for workflow orchestration.
+
+For input connections, the `<fileUpload1.fileData>` pattern enables direct file uploads from users, while `<function1.pdfUrl>` connections allow dynamic URL processing. The `<mistralParser1.success>` boolean output serves as a critical decision point for conditional workflow branching, enabling error handling and alternative processing paths.
+
+Advanced connection patterns include chaining multiple Mistral Parser blocks for batch processing using array outputs from Function blocks: `<function1.urlArray>` can drive iterative PDF processing when combined with proper loop constructs.
+
+**Workflow Architecture Patterns**
+
+Successful Mistral Parser workflows follow several proven architectural patterns. The most effective pattern for document analysis involves **File Upload → Mistral Parser → Agent → Response**, where uploaded PDFs are processed, analyzed by AI agents, and results delivered to users. This pattern excels for document summarization, content extraction, and automated analysis workflows.
+
+For batch document processing, implement **Webhook → Function → Mistral Parser → Database** patterns, where external systems trigger bulk PDF processing with results stored for later retrieval. The Function block manages URL validation and parameter preparation before PDF processing.
+
+Content management workflows benefit from **Mistral Parser → Function → Multiple Outputs** patterns, where extracted content is simultaneously routed to storage systems, notification channels, and analysis pipelines. This parallel processing maximizes document processing efficiency.
+
+Research and knowledge management workflows often use **Mistral Parser → Vector Database → Agent** patterns, where extracted PDF content populates vector databases for semantic search and AI-powered research assistance.
+
+**Message/Data Formatting Excellence**
+
+Configure the `resultType` parameter strategically based on downstream processing requirements. Use `markdown` format for content that will be processed by Agent blocks, as it preserves document structure while remaining highly readable for AI analysis. Select `text` format for simple string operations and search indexing, and choose `json` format when structured data extraction is required for API integration or database storage.
+
+Optimize page processing using the `pages` parameter to extract specific sections rather than entire documents. This reduces processing time and API costs while focusing on relevant content. For documents with mixed content types, configure `imageLimit` and `imageMinSize` parameters to balance image extraction needs with processing efficiency.
+
+When processing image-heavy documents, enable `includeImageBase64` selectively. While this provides comprehensive content extraction, it significantly increases output size and processing time. Reserve base64 image inclusion for workflows that specifically require visual content analysis.
+
+Structure error handling by validating the `<mistralParser1.success>` output before processing content. Implement fallback logic that handles parsing failures gracefully, potentially routing failed documents to alternative processing methods or human review queues.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring by tracking the `<mistralParser1.metadata>` output for processing metrics. Monitor `jobId` values for request tracing, `pageCount` for document complexity assessment, and `usage` information for API cost management. Establish baseline processing times based on document size and complexity to identify performance anomalies.
+
+Common failure points include invalid PDF URLs, unsupported file formats, and API key authentication issues. Validate URLs using Function blocks before processing, ensuring they point to publicly accessible PDF files. Test URL accessibility with HEAD requests to verify file availability and content type.
+
+Debug content extraction issues by examining the `resultType` output format. If extracted content appears incomplete, verify that the PDF isn't password-protected or contains non-standard encoding. For OCR accuracy problems, experiment with different `resultType` settings to identify optimal extraction formats.
+
+Monitor API usage patterns through the metadata outputs to optimize processing costs. Track processing time trends to identify documents that require special handling or alternative processing approaches.
+
+**Security Considerations**
+
+Secure API key management is paramount when using the Mistral Parser block. Store Mistral API keys in Sim.ai's secure environment variables rather than hardcoding them in workflow configurations. Regularly rotate API keys and monitor usage patterns for unauthorized access attempts.
+
+Validate PDF URLs rigorously before processing to prevent server-side request forgery (SSRF) attacks. Implement URL allowlists when possible, and avoid processing URLs from untrusted sources. The block's restriction against cloud storage links (Google Drive, Dropbox) provides additional security by preventing indirect file access.
+
+When processing sensitive documents, consider implementing content sanitization on extracted text before routing to downstream blocks. Remove or mask personally identifiable information (PII) based on your organization's data handling policies.
+
+**Performance Optimization**
+
+Optimize processing performance by strategically using the `pages` parameter to limit extraction to relevant document sections. Processing specific pages reduces API costs and improves response times, particularly for large documents where only certain sections require analysis.
+
+Configure image extraction parameters (`imageLimit`, `imageMinSize`) based on actual requirements rather than maximum settings. Excessive image processing increases parsing time and output size without corresponding value for text-focused workflows.
+
+Implement document preprocessing in Function blocks to validate file size, format, and accessibility before invoking Mistral Parser. This prevents unnecessary API calls for invalid inputs and improves overall workflow efficiency.
+
+For high-volume processing scenarios, implement throttling mechanisms to respect API rate limits and prevent processing bottlenecks. Consider implementing queue-based processing for batch document workflows to maintain consistent performance under load.
+
+Cache frequently accessed PDF content when appropriate, using the document URL as a cache key. This reduces redundant API calls for documents that are processed multiple times across different workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I extract text from a PDF document using the Mistral Parser block in my workflow?">
+
+    To extract text from PDFs using the Mistral Parser block, add it to your Sim.ai workflow and configure the required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `filePath` | Direct URL to a publicly accessible PDF | `<start.pdfUrl>` or `https://example.com/document.pdf` |
+    | `apiKey` | Your Mistral API key | `<start.mistralApiKey>` or environment variable |
+
+    #### Optional Configuration
+
+    | Input | Description | Default |
+    |-------|-------------|---------|
+    | `resultType` | Output format: `markdown`, `text`, or `json` | `markdown` |
+    | `includeImageBase64` | Include extracted images as base64 | `false` |
+    | `pages` | Specific pages to process (0-indexed array) | All pages |
+  </Accordion>
+  <Accordion title="What is the correct way to reference Mistral Parser outputs in downstream blocks?">
+
+    Every Mistral Parser block exposes outputs that can be connected to other blocks using connection tags:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<mistral_parse1.success>` | Boolean | `true` if PDF parsing completed successfully |
+    | `<mistral_parse1.content>` | String | Extracted text content in specified format |
+    | `<mistral_parse1.metadata>` | Object | Processing details including page count and job ID |
+    | `<mistral_parse1.metadata.pageCount>` | Number | Total number of pages processed |
+    | `<mistral_parse1.metadata.jobId>` | String | Unique identifier for the parsing job |
+    | `<mistral_parse1.metadata.usage>` | Object | API usage statistics |
+
+    Connect `<mistral_parse1.content>` to Agent blocks or other processing components.
+  </Accordion>
+  <Accordion title="How do I upload a PDF file directly instead of using a URL?">
+
+    To process uploaded files in your Mistral Parser workflow:
+
+    1. **Add a File Upload component** to your workflow's start trigger
+    2. **Connect the upload data** to the Mistral Parser block's `fileUpload` input
+    3. **Leave `filePath` empty** when using file uploads
+
+    #### Example Configuration
+
+    ```json
+    {
+      "fileUpload": "<start.uploadedFile>",
+      "apiKey": "<start.mistralApiKey>",
+      "resultType": "markdown"
+    }
+    ```
+
+    The block will automatically process the uploaded PDF without requiring a public URL.
+  </Accordion>
+  <Accordion title="How do I combine Mistral Parser with Agent blocks for document analysis?">
+
+    Create intelligent document processing workflows by connecting Mistral Parser outputs to AI agents:
+
+    #### Common Workflow Pattern
+
+    ```
+    Start → Mistral Parser → Agent → Response
+    ```
+
+    #### Configuration Steps
+
+    1. **Configure Mistral Parser** with PDF source:
+       ```json
+       {
+         "filePath": "<start.documentUrl>",
+         "resultType": "markdown"
+       }
+       ```
+
+    2. **Connect to Agent block** using the extracted content:
+       ```json
+       {
+         "userPrompt": "Analyze this document: <mistral_parse1.content>",
+         "systemPrompt": "You are a document analyst. Summarize key points."
+       }
+       ```
+
+    3. **Reference Agent output** for final results: `<agent1.content>`
+  </Accordion>
+  <Accordion title="What PDF URL formats are supported and which ones should I avoid?">
+
+    The Mistral Parser requires direct, publicly accessible PDF URLs:
+
+    #### ✅ Supported URL Formats
+
+    - Direct web server URLs: `https://example.com/document.pdf`
+    - CDN-hosted files: `https://cdn.example.com/files/report.pdf`
+    - Static hosting services: `https://yoursite.github.io/docs/file.pdf`
+
+    #### ❌ Unsupported URL Formats
+
+    | Service | Example | Issue |
+    |---------|---------|-------|
+    | Google Drive | `drive.google.com/file/d/...` | Requires authentication |
+    | Dropbox | `dropbox.com/s/...` | Sharing link, not direct URL |
+    | OneDrive | `onedrive.live.com/...` | Access restrictions |
+    | Password-protected | `site.com/secure/file.pdf` | Authentication required |
+
+    Use `<start.directPdfUrl>` for user-provided direct URLs or host files on accessible web servers.
+  </Accordion>
+  <Accordion title="Why is my Mistral Parser block failing to process PDFs?">
+
+    Troubleshoot common PDF parsing issues with this diagnostic checklist:
+
+    #### Common Issues and Solutions
+
+    | Issue | Symptoms | Solution |
+    |-------|----------|----------|
+    | **Invalid API Key** | Authentication errors | Verify `<start.mistralApiKey>` is correct |
+    | **Inaccessible URL** | Connection timeout | Ensure `<start.pdfUrl>` is publicly accessible |
+    | **File Format Error** | Parsing failure | Confirm URL points to valid PDF, not HTML page |
+    | **Large File Size** | Processing timeout | Consider using `pages` parameter for specific sections |
+    | **Cloud Storage Links** | Access denied | Use direct download URLs, not sharing links |
+    | **Network Issues** | Intermittent failures | Check workflow logs for specific API error messages |
+
+    #### Debugging Steps
+
+    1. Test URL accessibility in browser
+    2. Verify PDF file opens correctly
+    3. Check API key permissions in Mistral dashboard
+    4. Review workflow logs for detailed error messages
+  </Accordion>
+  <Accordion title="Can I process only specific pages from a large PDF document?">
+
+    Yes! Use the `pages` parameter to extract content from specific pages and improve processing efficiency:
+
+    #### Page Selection Configuration
+
+    ```json
+    {
+      "filePath": "<start.documentUrl>",
+      "pages": [0, 1, 4],
+      "resultType": "markdown"
+    }
+    ```
+
+    #### Page Numbering Rules
+
+    - **Zero-indexed**: First page is `0`, second page is `1`
+    - **Array format**: `[0, 2, 5]` processes pages 1, 3, and 6
+    - **Sequential processing**: Pages are processed in the order specified
+
+    #### Use Cases
+
+    - **Executive summaries**: `[0, 1]` for first two pages
+    - **Specific sections**: Connect `<start.targetPages>` for dynamic page selection
+    - **Large document optimization**: Process key pages to reduce API usage
+
+    Connect `<mistral_parse1.content>` to downstream blocks for targeted document analysis.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

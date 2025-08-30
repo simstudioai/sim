@@ -4,6 +4,8 @@ description: Read and parse multiple files
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="file"
@@ -48,13 +50,7 @@ The File Parser tool is particularly useful for scenarios where your agents need
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Upload and extract contents from structured file formats including PDFs, CSV spreadsheets, and Word documents (DOCX). You can either provide a URL to a file or upload files directly. Specialized parsers extract text and metadata from each format. You can upload multiple files at once and access them individually or as a combined document.
-
-
-
-## Tools
+## Operations
 
 ### `file_parser`
 
@@ -76,7 +72,205 @@ Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `file`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the File block into your Sim.ai workflows, following established best practices ensures reliable document processing and optimal data extraction. The File block serves as a critical data ingestion component, transforming various document formats into structured, workflow-ready content that can be processed by downstream blocks and AI agents.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag usage is essential for effective file processing workflows. The `<file1.files>` output provides a JSON array containing detailed metadata and content for each processed file, making it ideal for workflows requiring individual file handling. Use `<file1.combinedContent>` when you need all file contents merged into a single text stream for AI processing or text analysis operations.
+
+For multi-file workflows, leverage the array structure of `<file1.files>` to iterate through individual documents. Each file object contains essential metadata including filename, file type, and extracted content, enabling sophisticated document routing and processing logic. When connecting to Agent blocks, `<file1.combinedContent>` creates seamless integration for document summarization, question-answering, and content analysis workflows.
+
+The `filePath` input accepts both direct file uploads and URL references, providing flexibility in data sourcing. Use connection tags like `<webhook1.fileUrl>` to dynamically process files from external systems, or `<api1.documentPaths>` for batch processing scenarios.
+
+**Workflow Architecture Patterns**
+
+Successful File block implementations typically follow several proven architectural patterns. The **File → Agent → Output** pattern represents the most common use case, where documents are processed and analyzed by AI agents before generating insights or summaries. This pattern works exceptionally well for document analysis, content extraction, and automated report generation.
+
+For batch processing scenarios, implement **File → Function → Multiple Agents** patterns, where extracted content is distributed to specialized agents for parallel processing. This approach maximizes throughput when processing large document collections or performing multi-faceted analysis.
+
+Document validation workflows benefit from **File → Conditional Logic → Processing Branch** patterns, where file metadata determines subsequent processing paths. Use conditional blocks to route different file types to appropriate specialized processing chains, ensuring optimal extraction quality for each format.
+
+**Message/Data Formatting Excellence**
+
+Optimize file processing by understanding format-specific considerations. PDF files may contain embedded images, tables, and complex layouts that affect text extraction quality. Structure your workflows to handle potential formatting inconsistencies by implementing content validation steps after file processing.
+
+CSV files require special attention to delimiter detection and column mapping. The File block automatically detects common CSV formats, but complex files with custom delimiters or encoding issues may require preprocessing. When processing spreadsheets, validate the `<file1.files>` array structure to ensure proper column extraction before passing data to downstream blocks.
+
+Word documents (DOCX) preserve formatting metadata that can be valuable for content analysis. Leverage the detailed file objects in `<file1.files>` to access document properties, creation dates, and author information for comprehensive document intelligence workflows.
+
+**Debugging and Monitoring**
+
+Implement comprehensive error handling by monitoring file processing outcomes through the output arrays. Empty or malformed content in `<file1.files>` indicates potential parsing failures or unsupported file formats. Establish validation checkpoints that verify content extraction quality before proceeding with downstream processing.
+
+Monitor file size and processing times to identify performance bottlenecks. Large PDFs with complex layouts or high-resolution images may require extended processing time. Implement timeout handling and progress tracking for batch processing scenarios to maintain workflow reliability.
+
+Log file metadata including original filenames, file sizes, and processing timestamps for audit trails and performance analysis. Use the structured output from `<file1.files>` to track processing statistics and identify patterns in document types and sizes that may require optimization.
+
+**Security Considerations**
+
+When processing files from external URLs, implement URL validation to prevent access to unauthorized resources. Validate file sources and implement allowlist-based access controls for production workflows handling sensitive documents.
+
+For workflows processing confidential documents, ensure proper data handling by reviewing file contents before passing to external AI services. Consider implementing content filtering or redaction steps between the File block and downstream AI processing blocks when handling sensitive information.
+
+Monitor file upload sizes and implement appropriate limits to prevent resource exhaustion. Large file processing can impact workflow performance and should be managed through proper resource allocation and processing queues.
+
+**Performance Optimization**
+
+Optimize file processing performance by batching related files when possible. The File block's native support for multiple file processing (`filePath` as an array) provides better performance than sequential single-file operations. Group related documents to maximize processing efficiency and reduce overhead.
+
+For repetitive document processing workflows, consider implementing caching strategies for frequently accessed files. Monitor processing patterns and identify opportunities to pre-process or cache extracted content for commonly used documents.
+
+Implement intelligent file type detection by leveraging the automatic format detection capabilities rather than manually specifying `fileType` parameters. This reduces configuration complexity and ensures robust handling of mixed document collections. However, for performance-critical workflows processing known file types, explicitly specifying the format can reduce processing overhead.
+
+Structure your workflows to handle processing failures gracefully by implementing fallback mechanisms for unsupported file types or corrupted documents. Use conditional logic based on the success of content extraction to route files to alternative processing paths or manual review queues.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I upload files to my workflow using the File block?">
+
+    To upload files in your Sim.ai workflow, add a **File block** and configure the `filePath` input:
+
+    #### Upload Methods
+
+    | Method | Input Configuration | Example |
+    |--------|-------------------|---------|
+    | **Direct Upload** | Upload files through the block interface | Files are automatically processed |
+    | **URL Reference** | Provide file URLs in `filePath` | `<start.fileUrl>` or static URL |
+    | **Multiple Files** | Array of file paths or URLs | `["file1.pdf", "file2.csv"]` |
+
+    The block automatically detects file types (PDF, CSV, DOCX, images, text) and applies the appropriate parser.
+  </Accordion>
+  <Accordion title="How do I reference parsed file content in downstream blocks?">
+
+    Every File block provides structured outputs that can be connected to other workflow blocks:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<file1.files>` | Array | Complete array of parsed file objects with metadata |
+    | `<file1.combinedContent>` | String | All file contents merged into a single text string |
+
+    #### Individual File Access
+    To access specific files from the array:
+    ```
+    <file1.files[0].content>  // First file's text content
+    <file1.files[0].name>     // First file's filename
+    <file1.files[0].type>     // First file's detected type
+    ```
+  </Accordion>
+  <Accordion title="How do I connect file content to an Agent block for processing?">
+
+    To send parsed file content to an AI agent for analysis:
+
+    1. In the Agent block's `userPrompt` field, type `<>` to open connections
+    2. Select `<file1.combinedContent>` for all files together, or `<file1.files[0].content>` for individual files
+
+    #### Example Configuration
+
+    ```json
+    {
+      "userPrompt": "Analyze this document: <file1.combinedContent>",
+      "systemPrompt": "You are a document analysis expert."
+    }
+    ```
+
+    This configuration automatically processes all uploaded file content through the AI agent.
+  </Accordion>
+  <Accordion title="Can I process different file types simultaneously with the File block?">
+
+    Yes! The File block handles multiple file formats in a single operation:
+
+    #### Supported File Types
+
+    | Format | Parser Features | Output Structure |
+    |--------|----------------|------------------|
+    | **PDF** | Text extraction, metadata | `{content, name, type, pages}` |
+    | **CSV** | Structured data parsing | `{content, name, type, headers, rows}` |
+    | **DOCX** | Text content, formatting | `{content, name, type, wordCount}` |
+    | **Images** | OCR text extraction | `{content, name, type, dimensions}` |
+    | **Text** | Direct content reading | `{content, name, type, encoding}` |
+
+    All files are processed simultaneously and returned in the `files` array output.
+  </Accordion>
+  <Accordion title="Why is my file not being parsed correctly?">
+
+    Troubleshoot file parsing issues with this checklist:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Empty Content** | File appears to have no text | Verify file isn't corrupted or password-protected |
+    | **URL Access Error** | Cannot fetch file from URL | Ensure URL is publicly accessible and returns file |
+    | **Unsupported Format** | File type not recognized | Check if file extension matches supported formats |
+    | **Large File Timeout** | Processing takes too long | Split large files or use smaller file sizes |
+    | **Array Access Error** | Cannot reference `files[0]` | Ensure files were successfully parsed before indexing |
+  </Accordion>
+  <Accordion title="How do I create a document analysis workflow using the File block?">
+
+    Build comprehensive document processing workflows by chaining File blocks with other components:
+
+    #### Common Workflow Patterns
+
+    ##### 1. **Webhook → File → Agent → Response**
+    Process uploaded documents via API and return analysis:
+    ```
+    filePath: <start.fileUrl>
+    → Agent prompt: <file1.combinedContent>
+    ```
+
+    ##### 2. **File → Function → Database**
+    Parse files and store structured data:
+    ```
+    files: <file1.files>
+    → Transform each file object
+    → Insert into database
+    ```
+
+    ##### 3. **File → Condition → Multiple Agents**
+    Route different file types to specialized processors:
+    ```
+    if <file1.files[0].type> == "pdf":
+      → PDF Analysis Agent
+    else:
+      → General Document Agent
+    ```
+
+    ##### 4. **Multiple Files → Comparison Agent**
+    Compare content across multiple documents:
+    ```
+    userPrompt: "Compare these documents: <file1.combinedContent>"
+    ```
+  </Accordion>
+  <Accordion title="How do I handle multiple file uploads and process them individually?">
+
+    When uploading multiple files, use the `files` array output to process each file separately:
+
+    #### Individual File Processing
+
+    ```json
+    {
+      "filePath": ["document1.pdf", "data.csv", "report.docx"]
+    }
+    ```
+
+    #### Access Each File
+
+    | Connection Tag | Returns |
+    |----------------|---------|
+    | `<file1.files[0]>` | First file object (document1.pdf) |
+    | `<file1.files[1]>` | Second file object (data.csv) |
+    | `<file1.files[2]>` | Third file object (report.docx) |
+
+    Use Function blocks or conditional logic to iterate through the array and process each file according to its type and content requirements.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

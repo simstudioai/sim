@@ -4,6 +4,8 @@ description: Use Supabase database
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="supabase"
@@ -74,13 +76,7 @@ Whether you’re building internal tools, automating business processes, or powe
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Integrate with Supabase to manage your database, authentication, storage, and more. Query data, manage users, and interact with Supabase services directly.
-
-
-
-## Tools
+## Operations
 
 ### `supabase_query`
 
@@ -207,7 +203,241 @@ Insert or update data in a Supabase table (upsert operation)
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `supabase`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When implementing the Supabase block in your Sim.ai workflows, following database best practices ensures reliable data operations and optimal performance. The Supabase block serves as a comprehensive database interface within your automated workflows, enabling full CRUD operations, real-time data synchronization, and seamless integration with Supabase's powerful backend services.
+
+**Connection Tag Usage and Data Flow**
+
+Effective connection tag implementation starts with understanding the block's dual output structure. The `<supabase1.results>` array contains your actual database records, while `<supabase1.message>` provides operational status information. When chaining database operations, use `<supabase1.results>` to pass data between blocks. For example, connect `<agent1.content>` to the `data` input for dynamic insertions, or use `<webhook1.body>` to filter queries based on incoming requests.
+
+For complex data transformations, leverage the Function block between operations. Pass `<supabase1.results>` to a Function block to transform query results before sending to downstream blocks. This pattern is particularly powerful when normalizing data structures or calculating derived values before database updates.
+
+When working with single-record operations like `supabase_get_row`, remember that results always return as arrays. Use array indexing in subsequent blocks or Functions to extract individual record properties: `<supabase1.results[0].columnName>`.
+
+**Workflow Architecture Patterns**
+
+The most robust Supabase workflows follow established architectural patterns based on operation types. For **data ingestion workflows**, implement **Webhook → Function → Supabase Insert** patterns, where incoming data is validated and transformed before database storage. This ensures data integrity and proper formatting.
+
+**Query-driven workflows** typically follow **API Trigger → Supabase Query → Agent → Response** patterns, enabling intelligent data retrieval and processing. Use the `filter` parameter with dynamic values like `<webhook1.body.userId>=eq.123` to create personalized data queries.
+
+For **data synchronization workflows**, combine multiple Supabase operations: **Supabase Query → Function → Supabase Update**. This pattern enables complex data transformations and conditional updates based on existing database state.
+
+**Audit trail workflows** benefit from **Primary Operation → Supabase Insert (Audit)** patterns, where each significant database change triggers an audit log entry. Use the `results` output from the primary operation to capture the exact changes made.
+
+**Message/Data Formatting Excellence**
+
+PostgREST filter syntax requires precise formatting for reliable queries. Use exact equality with `column=eq.value`, range queries with `column=gte.value`, and multiple conditions with `&` separators: `status=eq.active&created_at=gte.2024-01-01`. Always validate filter syntax in your Functions before passing to the Supabase block.
+
+Structure your `data` inputs as properly formatted JSON objects that match your table schema. For insert operations, ensure all required columns are present and data types align with your Supabase table definitions. Use the Function block to validate and transform data structures before database operations.
+
+When implementing `orderBy`, specify column names exactly as they appear in your database schema. Add `DESC` suffix for descending order: `created_at DESC`. Combine with `limit` parameters for efficient pagination: use `orderBy: "id DESC"` with `limit: 50` for recent records.
+
+For upsert operations, ensure your data includes the primary key or unique constraint columns. Supabase determines insert vs. update behavior based on constraint conflicts, so proper key handling is essential for predictable behavior.
+
+**Debugging and Monitoring**
+
+Implement comprehensive error handling by monitoring the `<supabase1.message>` output for operation status. Successful operations typically return messages like "Query completed successfully", while errors provide specific details about validation failures or connection issues.
+
+Use the `results` array length to validate operation success. Empty arrays from query operations may indicate filter mismatches or missing data, while insert operations should return arrays matching the number of records processed.
+
+Enable detailed logging for `filter` parameters by connecting them to monitoring blocks. Common filter errors include incorrect column names, malformed PostgREST syntax, or data type mismatches. Log these parameters alongside operation results for effective debugging.
+
+Monitor query performance by tracking operation execution times. Large result sets or complex filters may impact workflow performance. Use `limit` parameters strategically to prevent memory issues and improve response times.
+
+For update and delete operations, always verify the `results` array contains expected records before the operation. Implement safeguards using conditional logic or validation functions to prevent unintended bulk operations.
+
+**Security Considerations**
+
+Protect your `apiKey` parameters by using environment variables or secure storage rather than hardcoding values in workflows. Service role keys provide full database access and should be treated as highly sensitive credentials.
+
+Implement proper Row Level Security (RLS) policies in your Supabase database to complement workflow-level security. Even with service role keys, RLS provides additional protection against unauthorized data access.
+
+Validate and sanitize all dynamic filter parameters to prevent injection attacks. Use Functions to validate filter syntax and escape special characters before passing values to database operations.
+
+Limit database operation scope using precise filters rather than broad queries. Avoid operations without filters on large tables, and implement pagination for data export workflows to prevent resource exhaustion.
+
+**Performance Optimization**
+
+Optimize query performance by using database indexes for frequently filtered columns. Ensure your `orderBy` columns are indexed in Supabase for efficient sorting operations.
+
+Implement connection pooling and query batching where possible. Group related operations into single workflow executions rather than creating separate workflows for each database interaction.
+
+Use `limit` parameters strategically to control memory usage and response times. For large datasets, implement pagination patterns with offset-based or cursor-based approaches using sequential Supabase queries.
+
+Cache frequently accessed data using intermediate storage blocks or implement workflow-level caching patterns. Combine Supabase queries with conditional logic to avoid redundant database operations.
+
+Consider using Supabase's real-time features for data synchronization instead of polling patterns. This reduces database load and provides more efficient data updates for time-sensitive workflows.
+
+For bulk operations, prefer `upsert` over separate insert/update logic when dealing with potentially duplicate records. Upsert operations are more efficient and provide better conflict resolution than conditional CRUD patterns.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I query data from my Supabase database in a workflow?">
+
+    To query data from Supabase, add a **Supabase block** to your Sim.ai workflow and configure the required inputs for the `supabase_query` operation:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `projectId` | Your Supabase project ID from the dashboard | `<start.projectId>` or static value like `jdrkgepadsdopsntdlom` |
+    | `table` | The table name to query | `<start.tableName>` or static value like `users` |
+    | `apiKey` | Your Supabase service role secret key | `<start.apiKey>` or environment variable |
+
+    #### Optional Filtering
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `filter` | PostgREST filter syntax | `"id=eq.123"` or `"status=eq.active"` |
+    | `orderBy` | Column to sort by | `"created_at"` or `"name DESC"` |
+    | `limit` | Maximum rows to return | `10` or `<start.pageSize>` |
+  </Accordion>
+  <Accordion title="How do I insert new records into my Supabase table from a workflow?">
+
+    Use the `supabase_insert` operation to add data to your table:
+
+    1. **Set the operation** to `supabase_insert`
+    2. **Configure required inputs**:
+       - `projectId`: `<start.projectId>`
+       - `table`: Target table name like `customers`
+       - `data`: JSON object with record data
+       - `apiKey`: Your service role key
+
+    #### Example Data Input
+    ```json
+    {
+      "name": "<agent1.extractedName>",
+      "email": "<start.userEmail>",
+      "status": "active"
+    }
+    ```
+
+    The `<supabase1.results>` output will contain the newly created record with auto-generated fields like `id` and timestamps.
+  </Accordion>
+  <Accordion title="What is the correct way to reference Supabase block outputs in my workflow?">
+
+    Every Supabase block exposes outputs that can be referenced using connection tags:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<supabase1.message>` | String | Success or error message from the operation |
+    | `<supabase1.results>` | Array | Database records returned from the operation |
+
+    #### Accessing Specific Record Fields
+    For query results, you can access individual fields:
+    - `<supabase1.results[0].id>` - First record's ID
+    - `<supabase1.results[0].name>` - First record's name field
+    - `<supabase1.results.length>` - Number of records returned
+  </Accordion>
+  <Accordion title="How do I update existing records in my Supabase database?">
+
+    To update records, use the `supabase_update` operation with proper filtering:
+
+    #### Required Configuration
+
+    | Input | Value | Description |
+    |-------|-------|-------------|
+    | `projectId` | `<start.projectId>` | Your Supabase project identifier |
+    | `table` | `users` | Target table name |
+    | `filter` | `"id=eq.123"` | PostgREST filter to find records |
+    | `data` | Update object | Fields to modify |
+
+    #### Example Update Data
+    ```json
+    {
+      "status": "verified",
+      "updated_at": "<function1.currentTimestamp>"
+    }
+    ```
+
+    The `filter` parameter determines which records get updated. Use PostgREST syntax like `"email=eq.user@example.com"` or `"status=eq.pending"`.
+  </Accordion>
+  <Accordion title="How do I handle authentication and connect to my Supabase project?">
+
+    Supabase requires proper authentication credentials for all operations:
+
+    #### Required Credentials
+
+    1. **Project ID**: Found in your Supabase dashboard URL
+       - Format: `https://app.supabase.com/project/[PROJECT_ID]`
+       - Example: `jdrkgepadsdopsntdlom`
+
+    2. **API Key**: Service role secret key (not anon key)
+       - Found in: Project Settings → API → Service Role Key
+       - Provides full database access for server-side operations
+
+    #### Security Best Practices
+    - Store credentials in environment variables
+    - Use `<start.supabaseKey>` for API key input
+    - Never hardcode secrets in workflow configurations
+  </Accordion>
+  <Accordion title="Why is my Supabase query returning empty results or failing?">
+
+    Troubleshoot common Supabase integration issues:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Empty Results** | Query returns no data | Verify table exists and filter syntax is correct |
+    | **Authentication Error** | Invalid credentials | Check `projectId` and `apiKey` are correct |
+    | **Table Not Found** | Specified table doesn't exist | Verify `table` name matches your database schema |
+    | **Filter Syntax Error** | Invalid PostgREST filter | Use correct format: `"column=eq.value"` or `"id=gt.100"` |
+    | **Permission Denied** | Insufficient API key permissions | Use service role key, not anon key |
+
+    #### PostgREST Filter Examples
+    - `"id=eq.123"` - Exact match
+    - `"age=gte.18"` - Greater than or equal
+    - `"status=in.(active,pending)"` - Multiple values
+    - `"name=ilike.*john*"` - Case-insensitive pattern match
+  </Accordion>
+  <Accordion title="How do I integrate Supabase with Agent blocks for dynamic database operations?">
+
+    Combine Supabase with AI agents for intelligent data management:
+
+    #### Common Workflow Patterns
+
+    ##### 1. **Agent → Function → Supabase Insert**
+    Process user input with AI, format data, then save to database:
+    ```
+    Agent processes: "<start.userMessage>"
+    Function formats: Agent output into database schema
+    Supabase inserts: Structured data
+    ```
+
+    ##### 2. **Supabase Query → Agent → Response**
+    Retrieve data and generate AI-powered insights:
+    ```
+    Supabase queries: User records with `<start.userId>`
+    Agent analyzes: `<supabase1.results>` for patterns
+    Return: Personalized recommendations
+    ```
+
+    ##### 3. **Webhook → Supabase Get Row → Condition → Update**
+    Validate and update records based on incoming data:
+    ```
+    Webhook receives: External API payload
+    Supabase gets: Existing record with `<start.recordId>`
+    Condition checks: If record exists
+    Supabase updates: Record with new data
+    ```
+
+    ##### 4. **Scheduled Trigger → Supabase Query → Agent → Supabase Update**
+    Automated data processing and enrichment:
+    ```
+    Timer triggers: Daily at 9 AM
+    Supabase queries: Unprocessed records
+    Agent enriches: Record data with AI analysis
+    Supabase updates: Records with `processed: true`
+    ```
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

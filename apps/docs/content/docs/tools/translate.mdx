@@ -4,6 +4,8 @@ description: Translate text to any language
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="translate"
@@ -46,13 +48,7 @@ With Translate, you can:
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Convert text between languages while preserving meaning, nuance, and formatting. Utilize powerful language models to produce natural, fluent translations with appropriate cultural adaptations.
-
-
-
-## Tools
+## Operations
 
 ### `openai_chat`
 
@@ -89,7 +85,210 @@ Convert text between languages while preserving meaning, nuance, and formatting.
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `translate`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Translate block into your Sim.ai workflows, following established best practices ensures accurate translations and optimal language processing performance. The Translate block serves as a critical language bridge in international workflows, enabling seamless multilingual content processing and global automation capabilities.
+
+**Connection Tag Usage and Data Flow**
+
+The `<translate1.content>` connection tag represents the primary output containing your translated text and should be your main reference point in downstream blocks. This output maintains the semantic meaning while adapting to target language conventions. When chaining translation operations, use `<translate1.model>` to track which language model processed the content, enabling consistent model selection across workflow branches.
+
+For input connections, establish clear data paths from content sources using connection tags like `<agent1.content>`, `<webhook1.body>`, or `<function1.result>`. The Translate block intelligently processes various text formats while preserving structural elements like line breaks, basic formatting, and logical content organization.
+
+**Workflow Architecture Patterns**
+
+The most effective translation workflows follow predictable architectural patterns. For content localization, implement **API → Translate → Database** flows where source content gets translated and stored for multi-language applications. Interactive translation systems benefit from **Webhook → Translate → Response** patterns, enabling real-time translation APIs.
+
+For batch processing scenarios, consider **Database Query → Translate → Batch Update** architectures that process large content volumes efficiently. Content validation workflows use **Translate → Agent → Quality Check** patterns, where translated content undergoes AI-powered review for accuracy and cultural appropriateness.
+
+Multi-language distribution follows **Source Content → Multiple Translate Blocks → Channel Distribution** patterns, where single source content branches into parallel translation streams for different target languages, then routes to appropriate communication channels.
+
+**Message/Data Formatting Excellence**
+
+Prepare input text for optimal translation quality by maintaining clean, well-structured content. Remove unnecessary formatting artifacts, normalize whitespace, and ensure proper punctuation before translation. The Translate block handles various text formats but performs best with grammatically correct, complete sentences.
+
+Structure complex content using logical paragraphs and clear sentence boundaries. Avoid mixing languages within single translation requests, as this can reduce accuracy. For technical content containing specialized terminology, consider preprocessing to identify and preserve key terms that should remain untranslated.
+
+When processing user-generated content, implement input sanitization to handle special characters, emojis, and non-standard text formatting that might impact translation quality. The block's language models excel at contextual translation but benefit from consistent input formatting.
+
+**Debugging and Monitoring**
+
+Monitor translation quality by tracking the `<translate1.tokens>` output to understand processing costs and identify unusually long or short translations that might indicate errors. Implement validation checks comparing input and output length ratios to detect potential translation failures.
+
+Use the `<translate1.model>` output for debugging model consistency issues. Different language models may produce varying translation styles, so tracking model usage helps maintain translation consistency across workflow executions. Log model selections alongside translation requests for troubleshooting performance variations.
+
+Create feedback loops by storing source text, translated output, and metadata for quality analysis. Monitor translation patterns to identify recurring issues with specific language pairs, technical terminology, or content types that may require preprocessing adjustments.
+
+**Language Pair Optimization**
+
+Different language combinations present unique challenges that require specific handling approaches. For similar language families (Spanish-Portuguese, German-Dutch), expect high accuracy with natural fluency. For distant language pairs (English-Japanese, Arabic-Finnish), implement additional validation steps and consider cultural context adjustments.
+
+Handle right-to-left languages (Arabic, Hebrew) by ensuring downstream blocks properly process directional text formatting. For languages with complex character systems (Chinese, Korean), monitor token usage as these typically require more processing resources.
+
+**Cultural Context and Localization**
+
+Beyond literal translation, leverage the block's cultural adaptation capabilities by providing context about target audience and content purpose. The underlying language models consider cultural nuances, but explicit context improves localization quality for marketing content, user interfaces, and customer communications.
+
+For formal business communications, ensure consistent tone preservation across languages. The Translate block maintains professional registers but may require post-processing for industry-specific terminology or compliance language that must meet exact regulatory requirements.
+
+**Performance and Cost Management**
+
+Optimize translation costs by implementing intelligent caching for repeated content. Store frequently translated phrases or sentences using the `<translate1.content>` output to avoid redundant processing. This is particularly effective for template-based content, user interface strings, and standard business communications.
+
+Batch similar translation requests when possible to improve processing efficiency. Group content by target language and process in consolidated requests rather than individual sentence-by-sentence translations. This reduces overhead and improves overall workflow performance.
+
+Monitor the `<translate1.tokens>` output to track usage patterns and optimize content preparation. Shorter, well-structured input generally produces better results with lower token consumption compared to lengthy, complex text blocks that may lose context during processing.
+
+**Error Handling and Fallback Strategies**
+
+Implement robust error handling for translation failures by monitoring output completeness and quality indicators. Create fallback workflows that retry failed translations with adjusted parameters or route to alternative translation approaches when primary processing fails.
+
+For critical translations, consider implementing parallel translation workflows using multiple approaches, then comparing results for consistency. This redundancy ensures reliable output for business-critical multilingual communications and helps identify potential accuracy issues before content distribution.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I translate text from another block in my Sim.ai workflow?">
+
+    To translate text from upstream blocks, add a **Translate block** to your workflow and connect the source text using connection tags:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `text` | Source text to translate | `<agent1.content>` or `<start.message>` |
+    | `target_language` | Target language code | `"es"` for Spanish or `<start.language>` |
+    | `source_language` | Source language (optional) | `"en"` or `"auto"` for auto-detection |
+
+    Connect any text output from previous blocks by typing `<>` in the text field and selecting the desired connection.
+  </Accordion>
+  <Accordion title="What outputs can I reference from a Translate block in downstream blocks?">
+
+    Every Translate block exposes three outputs that can be referenced using connection tags:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<translate1.content>` | String | The translated text result |
+    | `<translate1.model>` | String | Language model used for translation |
+    | `<translate1.tokens>` | JSON Object | Token usage statistics and costs |
+
+    The most commonly used output is `<translate1.content>` which contains the actual translated text for use in subsequent blocks.
+  </Accordion>
+  <Accordion title="How do I connect a Translate block to send translated messages via other communication blocks?">
+
+    To create translation workflows that output to messaging platforms:
+
+    1. **Connect the source text** to the Translate block's `text` input
+    2. **Reference the translated output** in downstream blocks
+
+    #### Example Workflow Pattern
+    ```
+    Webhook → Translate → Telegram
+    ```
+
+    Configuration:
+    - Translate block: `text` = `<start.message.text>`
+    - Telegram block: `text` = `<translate1.content>`
+
+    This automatically translates incoming messages and forwards them to Telegram in the target language.
+  </Accordion>
+  <Accordion title="Can I use variables or dynamic inputs to specify the target language?">
+
+    Yes! The Translate block accepts dynamic language specifications through connection tags:
+
+    #### Dynamic Language Selection
+
+    | Method | Example | Use Case |
+    |--------|---------|----------|
+    | **From webhook payload** | `<start.target_lang>` | User specifies language in request |
+    | **From function output** | `<function1.detected_language>` | Language detection logic |
+    | **From condition result** | `<condition1.language_code>` | Conditional language routing |
+    | **Static value** | `"fr"` | Fixed target language |
+
+    #### Supported Language Codes
+    Common ISO 639-1 codes: `en` (English), `es` (Spanish), `fr` (French), `de` (German), `ja` (Japanese), `zh` (Chinese), `ar` (Arabic)
+  </Accordion>
+  <Accordion title="How do I handle translation errors and validate successful translations?">
+
+    Implement error handling by checking the Translate block's outputs and adding conditional logic:
+
+    #### Error Detection Patterns
+
+    ##### 1. **Check Content Length**
+    ```
+    Condition Block:
+    if `<translate1.content>`.length > 0
+      → Success path
+    else
+      → Error handling block
+    ```
+
+    ##### 2. **Validate Against Source**
+    ```
+    Function Block:
+    Compare `<translate1.content>` with `<start.original_text>`
+    Return validation status
+    ```
+
+    ##### 3. **Token Usage Monitoring**
+    Reference `<translate1.tokens>` to track API costs and detect unusually high token consumption that might indicate processing errors.
+  </Accordion>
+  <Accordion title="What are common workflow patterns for the Translate block in multi-language applications?">
+
+    The Translate block integrates effectively in several automation scenarios:
+
+    #### Popular Integration Patterns
+
+    ##### 1. **Real-time Message Translation**
+    ```
+    Webhook → Translate → Slack/Discord/Telegram
+    ```
+    Automatically translate incoming messages for international teams.
+
+    ##### 2. **Content Localization Pipeline**
+    ```
+    API → Function → Translate → Database
+    ```
+    Fetch content, process it, translate to multiple languages, and store results.
+
+    ##### 3. **Multi-language Support Bot**
+    ```
+    Webhook → Agent → Translate → Response Block
+    ```
+    AI agent responds in user's preferred language by translating the generated content.
+
+    ##### 4. **Batch Translation Processing**
+    ```
+    Scheduled Trigger → Database → Translate → Email
+    ```
+    Translate stored content and send localized notifications on schedule.
+
+    ##### 5. **Language Detection + Translation**
+    ```
+    API → Function (detect language) → Translate → Output
+    ```
+    Automatically detect source language and translate to target language.
+  </Accordion>
+  <Accordion title="How do I preserve formatting and special characters during translation?">
+
+    The Translate block maintains text formatting and handles special characters appropriately:
+
+    #### Formatting Preservation
+
+    | Element | Handling | Example |
+    |---------|----------|---------|
+    | **Markdown** | Preserved in output | `**bold**` remains `**negrita**` |
+    | **HTML tags** | Structure maintained | `<p>text</p>` becomes `<p>texto</p>` |
+    | **Line breaks** | Original spacing kept | Paragraph structure preserved |
+    | **Special chars** | Unicode support | Emoji and symbols translated correctly |
+
+    To ensure optimal formatting preservation, connect the raw text output `<translate1.content>` directly to blocks that support formatted content.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

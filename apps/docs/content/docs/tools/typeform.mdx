@@ -4,6 +4,8 @@ description: Interact with Typeform
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="typeform"
@@ -45,13 +47,7 @@ In Sim, the Typeform integration enables your agents to programmatically interac
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Access and retrieve responses from your Typeform forms. Integrate form submissions data into your workflow for analysis, storage, or processing.
-
-
-
-## Tools
+## Operations
 
 ### `typeform_responses`
 
@@ -118,7 +114,231 @@ Retrieve insights and analytics for Typeform forms
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `typeform`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When implementing the Typeform block in your Sim.ai workflows, adhering to proven best practices ensures reliable data retrieval and seamless form response processing. The Typeform block serves as a critical data ingestion point, transforming form submissions into actionable workflow data that can trigger complex automation sequences and analytical processes.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation is essential for effective Typeform data processing. The `<typeform1.items>` connection tag contains the complete response dataset and serves as the primary data source for downstream processing. Use `<typeform1.total_items>` to implement conditional logic based on response volume, enabling different processing paths for high-volume versus low-volume forms.
+
+When processing individual responses, extract specific field values using array indexing patterns like `<typeform1.items[0].answers>` to access the first response's answers. For iterative processing across multiple responses, connect the `<typeform1.items>` output to Function blocks that can parse and distribute individual response objects to subsequent workflow blocks.
+
+The `<typeform1.page_count>` output enables pagination logic implementation, allowing workflows to process large response datasets incrementally. This prevents timeout issues and ensures consistent data processing across forms with thousands of submissions.
+
+**Workflow Architecture Patterns**
+
+Successful Typeform integration follows several established architectural patterns. The **Scheduler → Typeform → Database** pattern enables regular form response synchronization, automatically importing new submissions at defined intervals. This pattern works exceptionally well for lead generation forms and survey data collection.
+
+For real-time processing, implement **Webhook → Typeform → Agent → Action** flows where external triggers prompt immediate response retrieval and AI-powered analysis. This pattern excels in customer feedback scenarios where rapid response and action are critical.
+
+The **Typeform → Function → Multiple Outputs** pattern enables response routing based on form content. Process form responses through Function blocks that analyze answers and route data to appropriate downstream actions like email notifications, CRM updates, or analytics systems.
+
+For file-heavy forms, utilize the **Typeform → Typeform Files → Storage** pattern, where the initial response retrieval identifies file upload responses, followed by dedicated file download operations using the `typeform_files` operation.
+
+**Message/Data Formatting Excellence**
+
+Typeform response data requires careful formatting for optimal processing. The response structure includes nested answer arrays where each answer object contains field references, field types, and values. Structure your data extraction to handle multiple field types including text, choice, rating, and file upload responses.
+
+When processing date-filtered responses, format the `since` and `until` parameters using proper ISO 8601 formatting (YYYY-MM-DDTHH:mm:ssZ). This ensures accurate temporal filtering and prevents timezone-related data inconsistencies. Use Function blocks to dynamically generate these date strings based on workflow requirements.
+
+Format the `pageSize` parameter strategically based on your processing capacity. Smaller page sizes (10-25) work well for complex processing workflows, while larger sizes (100+) suit simple data transfer operations. Consider your downstream processing capabilities when setting this parameter.
+
+For completion filtering, use the `completed` parameter with string values "true" or "false" to separate complete submissions from partial responses. This enables different processing workflows for engaged versus abandoned form sessions.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring using the Typeform block's output fields. Monitor `<typeform1.total_items>` trends to identify unusual submission patterns that might indicate form issues or traffic anomalies. Track `<typeform1.page_count>` to understand data volume patterns and optimize pagination strategies accordingly.
+
+When debugging response retrieval issues, verify the `formId` parameter matches your Typeform's actual form identifier. Common errors stem from using form URLs instead of form IDs or including unnecessary URL parameters in the form ID field.
+
+API key validation failures often manifest as empty response sets. Test your Typeform Personal Access Token permissions by ensuring it has access to the target form and hasn't expired. Implement error handling workflows that can detect authentication failures and trigger administrative notifications.
+
+For file download operations, monitor the `<typeform1.fileUrl>` output validity by testing download URLs before processing. File URLs can expire, so implement retry logic and error handling for failed download attempts.
+
+**Security Considerations**
+
+Secure your Typeform integration by treating API keys as sensitive credentials. Store Typeform Personal Access Tokens using Sim.ai's secure credential management rather than hardcoding them in workflow configurations. Rotate API keys regularly according to your security policies.
+
+When processing form responses containing personal data, implement appropriate data handling workflows that comply with privacy regulations. Use the date filtering parameters to limit data retrieval to necessary timeframes, reducing exposure of historical personal information.
+
+For file download operations, validate file types and sizes before processing. Implement content scanning for uploaded files, especially in workflows that process user-generated content. The `<typeform1.contentType>` output enables MIME type validation to prevent malicious file processing.
+
+**Performance Optimization**
+
+Optimize Typeform block performance through strategic parameter configuration. Use date-based filtering with `since` parameters to retrieve only new responses since the last workflow execution. This dramatically reduces API load and processing time for regular synchronization workflows.
+
+Implement intelligent pagination by setting appropriate `pageSize` values based on your processing requirements. For workflows that process responses individually, smaller page sizes prevent memory issues and enable faster response times. For bulk operations, larger page sizes reduce API call overhead.
+
+Cache form metadata and field definitions to avoid repeated API calls for form structure information. The `typeform_insights` operation provides valuable form analytics that can inform optimization strategies and identify performance bottlenecks in form completion flows.
+
+For high-volume forms, implement parallel processing by distributing response items across multiple workflow branches. Use Function blocks to split large response datasets into smaller chunks that can be processed concurrently, significantly improving overall workflow performance.
+
+Monitor API rate limits and implement backoff strategies for high-frequency form polling. Typeform's API rate limiting can impact workflow reliability, so design your workflows with appropriate delays and retry mechanisms to handle temporary API restrictions gracefully.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I retrieve form responses from Typeform in my Sim.ai workflow?">
+
+    To fetch Typeform responses, add a **Typeform block** to your workflow and configure the required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `formId` | Your Typeform's unique identifier | `<start.formId>` or static ID like `abc123def` |
+    | `apiKey` | Personal Access Token from Typeform | `<start.apiKey>` or environment variable |
+
+    #### Optional Filters
+
+    | Input | Type | Description | Example |
+    |-------|------|-------------|---------|
+    | `pageSize` | Number | Responses per page (default: 25) | `<start.pageSize>` or `50` |
+    | `since` | String | Start date filter (ISO 8601) | `<start.since>` or `2024-01-01T00:00:00Z` |
+    | `until` | String | End date filter (ISO 8601) | `<start.until>` or `2024-12-31T23:59:59Z` |
+    | `completed` | String | Filter by completion status | `<start.completed>` or `true` |
+  </Accordion>
+  <Accordion title="What outputs are available from the Typeform responses operation?">
+
+    The Typeform block provides structured outputs for processing form data:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<typeform1.total_items>` | Number | Total number of responses in the form |
+    | `<typeform1.page_count>` | Number | Total number of pages for pagination |
+    | `<typeform1.items>` | Array | Complete response data with answers and metadata |
+
+    #### Response Data Structure
+    Each item in `<typeform1.items>` contains:
+    - `response_id`: Unique identifier for the response
+    - `submitted_at`: Timestamp when form was submitted
+    - `answers`: Array of question answers with field references
+    - `calculated`: Calculated fields and scores
+  </Accordion>
+  <Accordion title="How do I download files uploaded through Typeform file fields?">
+
+    To access uploaded files from Typeform responses:
+
+    1. **First, get responses** using the `typeform_responses` operation
+    2. **Add another Typeform block** set to `typeform_files` operation
+    3. **Configure file download inputs**:
+
+    #### Required File Inputs
+
+    | Input | Description | Connection Example |
+    |-------|-------------|-------------------|
+    | `formId` | Same form ID | `<typeform1.formId>` |
+    | `responseId` | ID from response data | `<typeform1.items[0].response_id>` |
+    | `fieldId` | File field identifier | `<start.fieldId>` or static field ID |
+    | `filename` | Original filename | `<typeform1.items[0].answers[0].file.filename>` |
+    | `apiKey` | Your access token | `<start.apiKey>` |
+
+    #### File Outputs
+
+    | Output Tag | Description |
+    |------------|-------------|
+    | `<typeform2.fileUrl>` | Direct download URL for the file |
+    | `<typeform2.contentType>` | MIME type (e.g., `image/jpeg`) |
+    | `<typeform2.filename>` | Original filename from upload |
+  </Accordion>
+  <Accordion title="How do I connect Typeform responses to an Agent block for analysis?">
+
+    To process Typeform data with AI analysis:
+
+    1. **Connect response data** to Agent's `userPrompt`:
+    ```
+    <typeform1.items> → Agent `userPrompt`
+    ```
+
+    2. **Create analysis prompt** in the Agent block:
+    ```
+    Analyze these survey responses and provide insights: <typeform1.items>
+    ```
+
+    #### Example Workflow Pattern
+    ```
+    Webhook → Typeform (responses) → Agent (analysis) → Database (storage)
+    ```
+
+    This pattern retrieves responses, analyzes them with AI, and stores insights for reporting.
+  </Accordion>
+  <Accordion title="What are common authentication issues with Typeform integration?">
+
+    Troubleshoot Typeform API authentication problems:
+
+    #### Common Authentication Errors
+
+    | Issue | Symptom | Solution |
+    |-------|---------|----------|
+    | **Invalid API Key** | 401 Unauthorized error | Verify `<start.apiKey>` matches your Personal Access Token |
+    | **Wrong Form ID** | 404 Not Found error | Confirm `<start.formId>` exists and you have access |
+    | **Expired Token** | Authentication failure | Generate new token in Typeform account settings |
+    | **Insufficient Permissions** | Access denied to form | Ensure API token has read access to the target form |
+
+    #### Getting Your Credentials
+    1. **API Key**: Generate in Typeform → Settings → Personal tokens
+    2. **Form ID**: Found in form URL: `typeform.com/to/FORM_ID`
+  </Accordion>
+  <Accordion title="How can I filter Typeform responses by date range in my workflow?">
+
+    To retrieve responses within specific timeframes, use the date filter inputs:
+
+    #### Date Range Configuration
+
+    ```json
+    {
+      "formId": "<start.formId>",
+      "apiKey": "<start.apiKey>",
+      "since": "<start.startDate>",
+      "until": "<start.endDate>",
+      "pageSize": 100
+    }
+    ```
+
+    #### Dynamic Date Filtering
+    Connect dates from other blocks:
+    - `<webhook1.body.startDate>` for webhook-triggered filtering
+    - `<function1.lastWeekDate>` for calculated date ranges
+    - `<condition1.dateRange>` for conditional date logic
+  </Accordion>
+  <Accordion title="How do I combine Typeform with other blocks for automated workflows?">
+
+    Typeform integrates seamlessly with other Sim.ai workflow components:
+
+    #### Common Integration Patterns
+
+    ##### 1. **Scheduled → Typeform → Email**
+    Daily digest of new form responses:
+    ```
+    Schedule (daily) → Typeform (new responses) → Email (summary)
+    ```
+
+    ##### 2. **Webhook → Typeform → Database**
+    Real-time response processing:
+    ```
+    Typeform webhook → Typeform (get full response) → Database (store)
+    ```
+
+    ##### 3. **Typeform → Agent → Multiple Actions**
+    AI-powered response routing:
+    ```
+    Typeform → Agent (classify) → Condition → [Email/Slack/Database]
+    ```
+
+    ##### 4. **Typeform → Function → API**
+    Data transformation and external integration:
+    ```
+    Typeform → Function (transform) → External API (sync)
+    ```
+
+    Use `<typeform1.items>` to pass response data between blocks for comprehensive automation workflows.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

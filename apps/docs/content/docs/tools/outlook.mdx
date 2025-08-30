@@ -4,6 +4,8 @@ description: Access Outlook
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="outlook"
@@ -138,13 +140,63 @@ In Sim, the Microsoft Outlook integration enables your agents to interact direct
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Webhook
 
-Integrate Outlook functionality to read, draft, andsend email messages within your workflow. Automate email communications and process email content using OAuth authentication.
+Trigger workflows from new Outlook messages. You can use the Outlook block in trigger mode to start a workflow when new email arrives in a mailbox or folder using Microsoft Graph change notifications (webhooks). Click the lightning bolt icon to enable trigger mode, then configure a Graph subscription targeting `messages` to deliver notifications to your workflow webhook URL.
 
+### Configuration Inputs
 
+| Input | Type | Required | Description |
+|------|------|----------|-------------|
+| `resource` | string | Yes | Microsoft Graph resource to monitor (e.g., `/me/messages` or `/users/{id}/mailFolders('Inbox')/messages`). |
+| `clientState` | string | No | Optional client state to validate notifications. Returned as-is in each notification. |
+| `includeResourceData` | boolean | No | Include encrypted resource data in notifications (requires additional setup). Defaults to `false`. |
 
-## Tools
+### Outputs
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `payloads` | array | The raw Microsoft Graph notification payloads received. |
+| `latestPayload` | object | Convenience object of the latest notification. |
+| `outlookEvent` | object | Parsed notification fields (subscription id, change type, resource, message id). |
+
+#### `latestPayload` shape
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `value[].subscriptionId` | string | ID of the Graph subscription. |
+| `value[].changeType` | string | Type of change (e.g., `created`, `updated`, `deleted`). |
+| `value[].resource` | string | Resource path that changed (e.g., `Users/{id}/Messages/{messageId}`). |
+| `value[].resourceData.id` | string | ID of the changed message (when resource data is included). |
+| `value[].clientState` | string | Client-provided state used for validation. |
+| `value[].subscriptionExpirationDateTime` | string | When the subscription expires. |
+
+### Example webhook event body (raw Outlook/Microsoft Graph payload)
+
+```json
+{
+  "value": [
+    {
+      "subscriptionId": "f3f9b1be-1a2b-4e62-8f4c-bc0b1b2a7b9a",
+      "tenantId": "00000000-0000-0000-0000-000000000000",
+      "changeType": "created",
+      "resource": "Users/12345678-90ab-cdef-1234-567890abcdef/Messages/AAMkAGI2...AAA=",
+      "subscriptionExpirationDateTime": "2023-01-01T01:00:00.000Z",
+      "clientState": "secretClientState",
+      "resourceData": {
+        "@odata.type": "#Microsoft.Graph.Message",
+        "@odata.id": "Users/12345678-90ab-cdef-1234-567890abcdef/Messages/AAMkAGI2...AAA=",
+        "id": "AAMkAGI2...AAA=",
+        "webUrl": "https://outlook.office365.com/mail/deeplink/compose/AAMkAGI2...AAA="
+      }
+    }
+  ]
+}
+```
+
+Method: `POST`  •  Headers: `Content-Type: application/json`, `ValidationToken` (for initial validation callbacks)
+
+## Operations
 
 ### `outlook_send`
 
@@ -235,7 +287,213 @@ Forward an existing Outlook message to specified recipients
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `outlook`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When implementing the Outlook block in your Sim.ai workflows, proper configuration and strategic integration ensure reliable email automation and seamless data flow. The Outlook block serves as a comprehensive email management solution, enabling automated communication, content processing, and inbox monitoring through secure OAuth authentication.
+
+**Connection Tag Usage and Data Flow**
+
+Master the connection tag syntax to create robust email workflows. Use `<agent1.content>` to route AI-generated content directly into the `<outlook.body>` field for intelligent email composition. The `<outlook.messageId>` output from draft operations can be referenced in subsequent workflow steps for email tracking and threading. When processing inbound emails, leverage `<outlook.bodyContent>` to feed email text into Agent blocks for automated analysis or response generation.
+
+For dynamic recipient management, connect user data from previous blocks using `<webhook.userEmail>` into `<outlook.to>` fields. Thread conversations effectively by passing `<outlook.messageId>` from sent emails into the `replyToMessageId` parameter of follow-up messages, maintaining conversation context across automated exchanges.
+
+**Workflow Architecture Patterns**
+
+Successful Outlook implementations follow proven architectural patterns. The **Agent → Outlook Send** pattern enables AI-powered email composition, where intelligent responses are automatically delivered to recipients. For customer support workflows, implement **Webhook → Agent → Outlook Send** flows that process incoming queries and generate contextual email responses.
+
+Inbox monitoring workflows benefit from **Schedule → Outlook Read → Agent → Function** patterns, where periodic email retrieval triggers content analysis and automated actions. Draft-based approval systems use **Form → Outlook Draft → Human Approval → Outlook Send** flows, allowing human oversight before message delivery. Multi-recipient campaigns leverage **Database → Loop → Outlook Send** patterns for personalized bulk communications.
+
+**Message/Data Formatting Excellence**
+
+Structure email content for maximum impact and deliverability. Compose clear, concise subject lines using dynamic content from previous workflow steps. Format email bodies with proper HTML structure when needed, utilizing paragraph breaks, lists, and professional formatting. Avoid spam triggers by maintaining appropriate text-to-HTML ratios and using legitimate sender authentication.
+
+When processing inbound emails with `<outlook.bodyContent>`, implement content sanitization to handle various email formats and embedded content. Extract key information using the `<outlook.bodyPreview>` for quick content assessment before full processing. Utilize the `<outlook.sender>` and `<outlook.recipients>` objects to implement dynamic routing logic based on participant information.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring using the `<outlook.success>` output to track operation completion rates. Monitor the `<outlook.status>` field to identify delivery issues and authentication problems. Use `<outlook.timestamp>` values to analyze email processing times and identify performance bottlenecks in high-volume workflows.
+
+Log the `<outlook.message>` output for detailed error information when operations fail. Track the `<outlook.messageCount>` from read operations to monitor inbox processing volumes. For draft workflows, verify `<outlook.messageId>` generation to ensure proper message creation before attempting sends. Implement retry logic for failed operations using conditional blocks that evaluate success status.
+
+**Security Considerations**
+
+Maintain strict OAuth token management and regularly refresh authentication credentials. Implement input validation for all email fields to prevent injection attacks and malformed messages. Use BCC fields judiciously to protect recipient privacy in bulk communications. Validate sender permissions before allowing automated email sending from shared mailboxes.
+
+Sanitize email content from external sources before processing to prevent malicious payload execution. Implement rate limiting in high-volume workflows to avoid triggering Microsoft's API throttling mechanisms. Store sensitive email data securely and implement data retention policies that comply with organizational and regulatory requirements.
+
+**Performance Optimization**
+
+Optimize email retrieval by setting appropriate `maxResults` limits based on workflow requirements rather than retrieving maximum allowed emails. Use folder-specific reading with the `folder` parameter to reduce processing overhead when monitoring specific mailboxes. Batch email operations where possible to minimize API calls and improve overall workflow efficiency.
+
+Implement conditional logic to process only unread emails using the `<outlook.isRead>` field, reducing unnecessary processing cycles. Cache email metadata locally when appropriate to avoid repeated API calls for the same message data. Structure workflows to handle Microsoft Graph API rate limits gracefully with appropriate delays and retry mechanisms.
+
+For high-volume scenarios, implement queue-based processing where emails are captured quickly and processed asynchronously. Use the `<outlook.hasAttachments>` field to route emails with attachments to specialized processing workflows, optimizing resource allocation based on message complexity.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I send an email from my workflow using the Outlook block?">
+
+    To send emails from your workflow, add an **Outlook block** to your Sim.ai workflow and configure the required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `to` | Recipient email address | `<start.recipient>` or static email like `user@company.com` |
+    | `subject` | Email subject line | `<agent1.title>` or custom text |
+    | `body` | Email content | `<agent1.content>` or formatted message |
+
+    #### Optional Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `cc` | CC recipients (comma-separated) | `<start.ccList>` or `manager@company.com,team@company.com` |
+    | `bcc` | BCC recipients (comma-separated) | `<start.bccList>` |
+    | `replyToMessageId` | Message ID for threading replies | `<outlook1.messageId>` |
+    | `conversationId` | Conversation ID for threading | `<start.conversationId>` |
+  </Accordion>
+  <Accordion title="How do I create email drafts instead of sending them immediately?">
+
+    To draft emails without sending, use the **outlook_draft** operation in your Outlook block:
+
+    1. **Select the Draft operation** when configuring your Outlook block
+    2. **Configure the same required inputs** as sending (`to`, `subject`, `body`)
+    3. **Reference the draft outputs** for confirmation:
+
+    #### Draft Output References
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<outlook1.success>` | Boolean | `true` if draft was created successfully |
+    | `<outlook1.messageId>` | String | Unique identifier for the drafted email |
+    | `<outlook1.status>` | String | Draft creation status |
+    | `<outlook1.subject>` | String | Subject of the drafted email |
+    | `<outlook1.timestamp>` | String | When the draft was created |
+  </Accordion>
+  <Accordion title="What is the correct way to reference Outlook block outputs in my workflow?">
+
+    Every Outlook block exposes different outputs depending on the operation used:
+
+    #### Send Operation Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<outlook1.success>` | Boolean | Email send success status |
+    | `<outlook1.status>` | String | Delivery status (`sent`, `failed`, etc.) |
+    | `<outlook1.timestamp>` | String | When email was sent |
+    | `<outlook1.message>` | String | Success or error message details |
+
+    #### Read Operation Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<outlook1.success>` | Boolean | Read operation success status |
+    | `<outlook1.messageCount>` | Number | Number of emails retrieved |
+    | `<outlook1.messages>` | Array | Array of email message objects |
+    | `<outlook1.emails>` | JSON | Email objects with full details |
+    | `<outlook1.emailSubject>` | String | Subject of individual email |
+    | `<outlook1.bodyContent>` | String | Full email body content |
+    | `<outlook1.sender>` | JSON | Email sender information |
+    | `<outlook1.receivedDateTime>` | String | When email was received |
+  </Accordion>
+  <Accordion title="How do I read emails from Outlook and process them in my workflow?">
+
+    To read and process emails using the **outlook_read** operation:
+
+    1. **Configure the read inputs**:
+       - `folder`: Specify folder ID or leave empty for Inbox
+       - `maxResults`: Set number of emails to retrieve (1-10)
+
+    2. **Process email data** in downstream blocks:
+
+    #### Example Workflow Pattern
+    ```
+    Outlook (Read) → Agent → Outlook (Send Reply)
+    ```
+
+    Connect `<outlook1.bodyContent>` to an Agent block's `userPrompt` to analyze email content, then send a response using `<agent1.content>`.
+  </Accordion>
+  <Accordion title="How do I connect an Agent block's output to compose Outlook emails?">
+
+    To route an agent's response to an Outlook email:
+
+    1. **In the Outlook block's `body` field**, type `<>` to open the connection menu
+    2. **Select `<agent1.content>`** from available connections
+    3. **Use dynamic subject lines** by connecting `<agent1.title>` to the `subject` field
+
+    #### Example Configuration
+
+    ```json
+    {
+      "to": "<start.customerEmail>",
+      "subject": "Re: <outlook1.emailSubject>",
+      "body": "<agent1.content>",
+      "replyToMessageId": "<outlook1.emailId>"
+    }
+    ```
+
+    This creates automated email replies with AI-generated content that maintains conversation threading.
+  </Accordion>
+  <Accordion title="Why is my Outlook block failing to authenticate or send emails?">
+
+    Troubleshoot common Outlook integration issues:
+
+    #### Authentication Issues
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **OAuth Not Configured** | Missing OAuth connection | Set up Microsoft OAuth in Sim.ai connections |
+    | **Insufficient Permissions** | App lacks email permissions | Ensure app has `Mail.Send` and `Mail.Read` scopes |
+    | **Token Expired** | Access token needs refresh | Reconnect your Microsoft account in settings |
+
+    #### Send Operation Issues
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Invalid Email Format** | Malformed recipient address | Verify `<start.to>` contains valid email format |
+    | **Empty Required Fields** | Missing subject or body | Ensure `subject` and `body` are populated |
+    | **Large Email Size** | Content exceeds size limits | Check body content length from `<agent1.content>` |
+    | **Network Errors** | Microsoft Graph API issues | Check workflow logs for specific error codes |
+  </Accordion>
+  <Accordion title="Can I use Outlook with other Sim.ai blocks for email automation?">
+
+    Yes! Outlook blocks integrate seamlessly with other workflow components:
+
+    #### Common Workflow Patterns
+
+    ##### 1. **Webhook → Outlook (Read) → Agent → Outlook (Send)**
+    Process incoming emails with AI analysis and automated responses.
+
+    ##### 2. **Scheduled Trigger → API → Outlook (Send)**
+    Send periodic reports or notifications via email.
+
+    ##### 3. **Agent → Condition → Outlook**
+    Send different emails based on AI decision-making:
+    ```
+    if `<agent1.classification>` equals "urgent":
+      → Outlook (priority email)
+    else:
+      → Outlook (draft for review)
+    ```
+
+    ##### 4. **Outlook (Read) → Function → Multiple Recipients**
+    Parse email content and distribute processed information:
+    ```json
+    {
+      "to": "<function1.managerEmail>",
+      "cc": "<function1.teamEmails>",
+      "subject": "Processed: <outlook1.emailSubject>",
+      "body": "<function1.summary>"
+    }
+    ```
+
+    ##### 5. **Form Submission → Agent → Outlook (Draft)**
+    Create email drafts from form data for manual review before sending.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

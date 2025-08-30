@@ -4,6 +4,8 @@ description: Populate Clay workbook
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="clay"
@@ -189,20 +191,13 @@ Learn how to use the Clay Tool in Sim to seamlessly insert data into a Clay work
 With Clay, you can:
 
 - **Enrich agent outputs**: Automatically feed your Sim agent data into Clay tables for structured tracking and analysis
-- **Trigger workflows via webhooks**: Use Clay’s webhook support to initiate Sim agent tasks from within Clay
 - **Leverage data loops**: Seamlessly iterate over enriched data rows with agents that operate across dynamic datasets
 
 In Sim, the Clay integration allows your agents to push structured data into Clay tables via webhooks. This makes it easy to collect, enrich, and manage dynamic outputs such as leads, research summaries, or action items—all in a collaborative, spreadsheet-like interface. Your agents can populate rows in real time, enabling asynchronous workflows where AI-generated insights are captured, reviewed, and used by your team. Whether you're automating research, enriching CRM data, or tracking operational outcomes, Clay becomes a living data layer that interacts intelligently with your agents. By connecting Sim with Clay, you gain a powerful way to operationalize agent results, loop over datasets with precision, and maintain a clean, auditable record of AI-driven work.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Populate Clay workbook with data using a JSON or plain text. Enables direct communication and notifications with channel confirmation.
-
-
-
-## Tools
+## Operations
 
 ### `clay_populate`
 
@@ -225,7 +220,200 @@ Populate Clay with data from a JSON file. Enables direct communication and notif
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `clay`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Clay block into your Sim.ai workflows, following established best practices ensures reliable data population and optimal performance. The Clay block serves as a critical data bridge, enabling automated population of Clay workbooks with structured information from your workflow processes, creating seamless integration between Sim.ai's automation capabilities and Clay's data management platform.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation is essential for successful Clay data population. The `<clay1.data>` connection tag captures the complete response data from Clay's webhook, enabling downstream blocks to process confirmation details and populate results. When connecting upstream blocks to the Clay input, use `<agent1.content>` or `<function1.output>` to populate the `<clay1.data>` field with properly structured JSON data.
+
+The `<clay1.success>` boolean output serves as a crucial control flow mechanism. Connect this output to conditional logic blocks to implement error handling and retry mechanisms. For complex data transformations, chain multiple blocks before the Clay input: **API → Function → Transform → Clay**, ensuring data reaches Clay in the expected format.
+
+Always validate that your `<clay1.webhookURL>` connection maintains consistency across workflow executions. Store webhook URLs in environment variables or configuration blocks rather than hardcoding them, enabling seamless transitions between development and production environments.
+
+**Workflow Architecture Patterns**
+
+The most effective Clay workflows follow predictable architectural patterns. The **Scheduled Trigger → Data Collection → Clay** pattern excels for regular data synchronization, where scheduled workflows gather information from multiple sources and populate Clay workbooks at predetermined intervals.
+
+For real-time data population, implement **Webhook Trigger → Data Processing → Clay** flows. This pattern enables immediate Clay updates when external events occur, maintaining data freshness across your systems. The webhook trigger captures incoming data, processing blocks transform it into Clay's expected format, and the Clay block executes the population operation.
+
+Complex enrichment workflows benefit from **Data Source → AI Processing → Clay** architectures. Connect API blocks to gather raw data, route it through Agent blocks for AI-powered analysis and enhancement, then populate enriched results into Clay workbooks. This creates sophisticated data pipelines that combine automation with intelligent processing.
+
+**Data Formatting Excellence**
+
+Clay expects well-structured JSON data in the `<clay1.data>` input field. Design your upstream data processing to match Clay's field schemas exactly. Use Function blocks to transform data structures before reaching the Clay block, ensuring field names, data types, and nested object structures align with your Clay workbook configuration.
+
+Implement comprehensive data validation before Clay population. Check for required fields, validate data types, and handle null values appropriately. Structure your JSON with clear hierarchies that map directly to Clay's column structure. For example, flatten nested objects into separate fields or use consistent naming conventions that Clay can parse effectively.
+
+Handle array data carefully by ensuring consistent formatting across all records. When populating multiple rows simultaneously, maintain uniform field structures to prevent Clay from rejecting inconsistent data formats. Use timestamp fields consistently, formatting dates in ISO 8601 standard to ensure Clay processes temporal data correctly.
+
+**Debugging and Monitoring**
+
+Enable comprehensive monitoring using the Clay block's output fields. Track the `<clay1.success>` boolean to identify failed population attempts and implement automated retry logic for transient failures. Log the complete `<clay1.output>` JSON response to capture detailed error messages and Clay's feedback on population operations.
+
+Implement connection tag logging throughout your workflow to trace data transformation from source to Clay. Add Function blocks before and after the Clay block to log data structures, enabling rapid identification of formatting issues or schema mismatches. Monitor webhook response times by capturing timestamps before and after Clay operations.
+
+Set up alerting mechanisms that trigger when `<clay1.success>` returns false repeatedly. Connect error outputs to notification blocks like Telegram or email to receive immediate feedback on Clay population failures. Maintain logs of successful operations to establish baseline performance metrics and identify degradation patterns.
+
+**Security Considerations**
+
+Protect your `<clay1.authToken>` with enterprise-grade security practices. Store authentication tokens in encrypted environment variables rather than embedding them directly in workflow configurations. Rotate tokens regularly and update workflow configurations accordingly to maintain security posture.
+
+Validate webhook URLs before execution to prevent data from reaching unintended destinations. Implement URL pattern matching to ensure `<clay1.webhookURL>` values conform to expected Clay webhook formats. Consider implementing IP allowlisting if your Clay instance supports it.
+
+Sanitize sensitive data before Clay population by removing or encrypting personally identifiable information that shouldn't persist in Clay workbooks. Use Function blocks to filter out sensitive fields while preserving necessary data for Clay population operations.
+
+**Performance Optimization**
+
+Optimize Clay block performance by batching data operations whenever possible. Structure your `<clay1.data>` input to include multiple records in a single webhook call rather than making individual calls for each record. This reduces API overhead and improves overall workflow execution speed.
+
+Implement intelligent retry logic with exponential backoff for failed Clay operations. Use conditional blocks to check `<clay1.success>` and implement increasing delays between retry attempts. Limit retry attempts to prevent infinite loops while allowing transient issues to resolve.
+
+Cache webhook URLs and authentication tokens in workflow variables to eliminate redundant configuration lookups. Pre-validate data structures before reaching the Clay block to fail fast on formatting issues rather than waiting for Clay to reject malformed data. Monitor Clay's webhook response times and implement timeout handling to prevent workflows from hanging on slow Clay operations.
+
+Structure your data transformation pipeline to minimize processing overhead before Clay population. Use efficient data structures and avoid unnecessary data copying or transformation operations that don't contribute to the final Clay format requirements.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I populate a Clay workbook from my Sim.ai workflow?">
+
+    To populate Clay workbooks from your workflow, add a **Clay block** and configure its required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `webhookURL` | Your Clay webhook URL for data population | `<start.webhookURL>` or static URL |
+    | `data` | JSON data to populate in Clay workbook | `<agent1.structuredOutput>` or `<api1.response>` |
+    | `authToken` | Authentication token for Clay webhook | `<start.authToken>` or environment variable |
+  </Accordion>
+  <Accordion title="What is the correct way to reference Clay block outputs in downstream blocks?">
+
+    Every Clay block exposes outputs that can be referenced using connection tags:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<clay1.success>` | Boolean | `true` if Clay population was successful |
+    | `<clay1.output>` | JSON | Complete response data from Clay webhook |
+    | `<clay1.data>` | JSON | Response data from the Clay operation |
+
+    These values can be connected to inputs of downstream blocks for further processing or validation.
+  </Accordion>
+  <Accordion title="How do I connect an Agent block's structured output to Clay for data population?">
+
+    To route an agent's structured response to Clay workbooks:
+
+    1. Configure your Agent block to output structured JSON data
+    2. In the Clay block's `data` field, connect the agent's output using `<agent1.structuredOutput>`
+
+    #### Example Configuration
+
+    ```json
+    {
+      "webhookURL": "https://hooks.clay.run/api/v1/webhook/your-webhook-id",
+      "data": "<agent1.structuredOutput>",
+      "authToken": "<start.clayToken>"
+    }
+    ```
+
+    This configuration automatically populates your Clay workbook with AI-generated structured data.
+  </Accordion>
+  <Accordion title="Why is my Clay workbook population failing?">
+
+    Troubleshoot common Clay integration issues with this checklist:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Invalid Webhook URL** | Incorrect Clay webhook endpoint | Verify webhook URL format and Clay workbook settings |
+    | **Authentication Error** | Wrong or missing auth token | Check `<start.authToken>` matches your Clay API credentials |
+    | **Data Format Mismatch** | JSON structure doesn't match Clay schema | Ensure `data` field contains properly formatted JSON |
+    | **Webhook Permissions** | Insufficient permissions for Clay webhook | Verify webhook has write access to target workbook |
+    | **Rate Limiting** | Too many requests to Clay API | Add delays between Clay operations or batch requests |
+  </Accordion>
+  <Accordion title="How do I create automated workflows that populate Clay workbooks with external data?">
+
+    Clay blocks integrate seamlessly with other Sim.ai components for automated data population:
+
+    #### Common Workflow Patterns
+
+    ##### 1. **Webhook → Agent → Clay**
+    Process incoming webhook data with AI and populate Clay workbooks:
+    ```
+    Webhook (receives data) → Agent (structures data) → Clay (populates workbook)
+    ```
+
+    ##### 2. **API → Function → Clay**
+    Fetch external data, transform it, and populate Clay:
+    ```
+    API (fetch data) → Function (transform) → Clay (populate)
+    ```
+
+    ##### 3. **Scheduled Trigger → Multiple APIs → Clay**
+    Create periodic data syncing workflows:
+    ```
+    Schedule → API calls → Clay (batch populate)
+    ```
+
+    ##### 4. **Condition → Clay**
+    Populate different Clay workbooks based on conditional logic:
+    ```
+    if `<condition1.result>` is "high_priority":
+      → Clay (urgent workbook)
+    else:
+      → Clay (standard workbook)
+    ```
+  </Accordion>
+  <Accordion title="How do I handle Clay webhook authentication in my workflows?">
+
+    Clay webhook authentication requires proper token management:
+
+    #### Authentication Setup
+
+    1. **Store tokens securely**: Use environment variables or secure input fields
+    2. **Reference in workflows**: Connect auth tokens using `<start.authToken>`
+    3. **Validate responses**: Check `<clay1.success>` to confirm authentication worked
+
+    #### Example Authentication Pattern
+
+    ```json
+    {
+      "webhookURL": "https://hooks.clay.run/api/v1/webhook/abc123",
+      "authToken": "<start.CLAY_AUTH_TOKEN>",
+      "data": "<api1.transformedData>"
+    }
+    ```
+  </Accordion>
+  <Accordion title="Can I validate Clay population results and handle errors in my workflow?">
+
+    Yes! Use Clay block outputs to create error handling and validation workflows:
+
+    #### Error Handling Pattern
+
+    ##### 1. **Check Success Status**
+    ```
+    Clay → Condition (check `<clay1.success>`)
+    ```
+
+    ##### 2. **Branch Based on Results**
+    ```
+    if `<clay1.success>` is true:
+      → Telegram (send success notification)
+    else:
+      → Email (send error alert with `<clay1.output>`)
+    ```
+
+    ##### 3. **Log Population Details**
+    Reference `<clay1.data>` to capture detailed response information for debugging and audit trails.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

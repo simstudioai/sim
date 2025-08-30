@@ -4,6 +4,8 @@ description: Use Perplexity AI chat models
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="perplexity"
@@ -35,13 +37,7 @@ In Sim, the Perplexity integration enables your agents to leverage these powerfu
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Generate completions using Perplexity AI models with real-time knowledge and search capabilities. Create responses, answer questions, and generate content with customizable parameters.
-
-
-
-## Tools
+## Operations
 
 ### `perplexity_chat`
 
@@ -67,7 +63,213 @@ Generate completions using Perplexity AI chat models
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `perplexity`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When incorporating the Perplexity block into your Sim.ai workflows, adhering to proven best practices maximizes the value of real-time knowledge capabilities while maintaining reliable performance. The Perplexity block stands apart from traditional AI models by providing access to current information and web-scale knowledge, making it particularly valuable for research-intensive workflows and dynamic content generation.
+
+**Connection Tag Usage and Data Flow**
+
+Strategic connection tag implementation optimizes data flow through the Perplexity block. Use `<webhook1.body>` or `<trigger1.query>` to route user questions directly to the `<perplexity1.content>` input for conversational workflows. The `<perplexity1.content>` output serves as the primary data source for downstream blocks, containing the AI-generated response with real-time context. For multi-step research workflows, chain multiple Perplexity blocks using `<perplexity1.content>` as input to `<perplexity2.systemPrompt>`, creating iterative knowledge-building patterns.
+
+Advanced connection patterns include using `<function1.formattedQuery>` to preprocess user inputs before sending to Perplexity, ensuring queries are optimized for the model's search capabilities. The `<perplexity1.usage>` output provides valuable token consumption data that can be routed to monitoring systems or cost-tracking workflows through `<analytics1.tokenData>` connections.
+
+**Workflow Architecture Patterns**
+
+Successful Perplexity workflows leverage specific architectural patterns that capitalize on real-time knowledge access. The **Research Assistant Pattern** follows **Webhook → Function → Perplexity → Telegram** flow, where incoming questions are processed, researched with current data, and delivered as comprehensive responses. This pattern excels for customer support and educational applications requiring up-to-date information.
+
+The **Knowledge Validation Pattern** implements **API → Perplexity → Comparison Function → Output** architecture, where existing content is fact-checked against current information. Use this pattern for content moderation and information accuracy workflows.
+
+For complex research scenarios, employ the **Multi-Source Research Pattern**: **Trigger → Perplexity (General) → Function (Topic Extraction) → Perplexity (Specific) → Aggregation → Output**. This pattern enables deep-dive research on complex topics by first gathering broad context, then focusing on specific aspects identified in the initial response.
+
+**Message Formatting Excellence**
+
+Perplexity models respond optimally to well-structured prompts that leverage their search capabilities. Structure `systemPrompt` inputs to define the research scope and response format explicitly. Use specific instructions like "Research recent developments in [topic] and provide a comprehensive analysis with current data and sources" rather than generic prompts.
+
+Format the `content` field with clear, specific questions that guide the model's search behavior. Include temporal context when relevant: "What are the latest developments in AI regulation as of 2024?" rather than "Tell me about AI regulation." This precision helps Perplexity's search mechanisms locate the most current and relevant information.
+
+When chaining responses, use `<perplexity1.content>` as input to formatting functions that structure data for specific output channels. Create templates that preserve source attribution and maintain the real-time knowledge context that makes Perplexity responses valuable.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring for Perplexity blocks focusing on both operational and quality metrics. Track the `<perplexity1.success>` output to identify API connectivity issues and model availability problems. Monitor `<perplexity1.usage>` data to understand token consumption patterns and optimize cost efficiency across workflows.
+
+Use the `<perplexity1.model>` output to verify correct model selection, particularly when using dynamic model assignment based on query complexity. Create conditional logic that routes different query types to appropriate Perplexity models (sonar for current events, mistral for analytical tasks) based on content analysis.
+
+Establish response quality monitoring by implementing feedback loops that analyze `<perplexity1.content>` for completeness, accuracy, and relevance. Use pattern matching functions to identify when responses lack current information or provide outdated data, triggering retry mechanisms or alternative research pathways.
+
+**Security Considerations**
+
+Secure API key management is critical for Perplexity block implementations. Store the `apiKey` parameter in Sim.ai's secure variable system rather than hardcoding in workflow configurations. Implement key rotation procedures that update credentials across all workflow instances simultaneously.
+
+Monitor query patterns to prevent potential misuse of the Perplexity service. Implement rate limiting at the workflow level to prevent excessive API consumption and potential service disruption. Use content filtering on `<perplexity1.content>` inputs to ensure queries comply with Perplexity's usage policies and your organization's data governance requirements.
+
+Consider implementing query sanitization functions before routing user inputs to `<perplexity1.content>`. This prevents injection attacks and ensures that sensitive information isn't inadvertently included in research queries that may be logged by external services.
+
+**Performance Optimization**
+
+Optimize Perplexity block performance through strategic parameter configuration and workflow design. Set appropriate `max_tokens` values based on use case requirements - use lower values (500-1000) for quick facts and higher values (2000-4000) for comprehensive research responses. Monitor `<perplexity1.usage>` to identify optimal token allocation patterns for different query types.
+
+Implement intelligent caching strategies by storing `<perplexity1.content>` responses in temporary storage blocks when dealing with similar queries. Use hash functions to identify duplicate or similar requests and serve cached responses for improved latency and reduced API consumption.
+
+Configure `temperature` parameters strategically: use lower values (0.1-0.3) for factual research queries requiring precision, and higher values (0.6-0.8) for creative content generation. Implement dynamic temperature adjustment based on query classification to optimize response quality for different use cases.
+
+Design workflows with parallel processing capabilities when multiple research queries are required. Use concurrent Perplexity blocks with different search focuses, then aggregate results using function blocks. This approach significantly reduces total processing time for complex research workflows while maximizing the real-time knowledge benefits that distinguish Perplexity from static AI models.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I use Perplexity AI in my Sim.ai workflow to generate responses with real-time knowledge?">
+
+    To use Perplexity AI in your workflow, add a **Perplexity block** and configure its required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `apiKey` | Your Perplexity API key | `<start.apiKey>` or environment variable |
+    | `content` | The user message or prompt | `<start.userMessage>` or `<agent1.output>` |
+    | `model` | Perplexity model to use | `sonar` or `mistral` |
+
+    #### Optional Parameters
+
+    | Input | Description | Default | Example |
+    |-------|-------------|---------|---------|
+    | `systemPrompt` | Instructions for model behavior | None | `"You are a helpful research assistant"` |
+    | `max_tokens` | Maximum response length | Model default | `1000` |
+    | `temperature` | Response creativity (0-1) | `0.7` | `0.3` for factual, `0.9` for creative |
+  </Accordion>
+  <Accordion title="What Perplexity AI models are available and when should I use each one?">
+
+    Perplexity offers different models optimized for various use cases:
+
+    #### Popular Model Options
+
+    | Model | Best For | Characteristics |
+    |-------|----------|-----------------|
+    | `sonar` | Real-time research and current events | Access to live web data and recent information |
+    | `mistral` | General conversation and reasoning | Strong general-purpose capabilities |
+
+    Choose `sonar` when you need up-to-date information, and `mistral` for general AI assistance tasks.
+  </Accordion>
+  <Accordion title="How do I reference Perplexity block outputs in downstream workflow blocks?">
+
+    Every Perplexity block exposes structured outputs that can be connected to other blocks:
+
+    #### Available Output Tags
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<perplexity1.content>` | String | The AI-generated response text |
+    | `<perplexity1.model>` | String | Model identifier that was used |
+    | `<perplexity1.usage>` | JSON | Token consumption details |
+    | `<perplexity1.success>` | Boolean | `true` if generation completed successfully |
+    | `<perplexity1.output>` | Object | Complete API response object |
+
+    Connect `<perplexity1.content>` to other blocks like Telegram, Email, or Function blocks to use the generated response.
+  </Accordion>
+  <Accordion title="How do I create a research assistant workflow that combines user questions with Perplexity's real-time knowledge?">
+
+    Build a workflow that processes user queries and returns researched responses:
+
+    #### Example Workflow Pattern
+    ```
+    Webhook → Perplexity → Telegram
+    ```
+
+    #### Configuration Steps
+
+    1. **Webhook Trigger**: Capture user input
+       - Output: `<start.message.text>`
+
+    2. **Perplexity Block**: Generate research-based response
+       ```json
+       {
+         "content": "<start.message.text>",
+         "model": "sonar",
+         "systemPrompt": "You are a research assistant. Provide accurate, well-sourced answers with current information.",
+         "temperature": 0.3
+       }
+       ```
+
+    3. **Response Block** (Telegram/Email): Send results
+       - Input: `<perplexity1.content>`
+  </Accordion>
+  <Accordion title="Why is my Perplexity block failing and how do I troubleshoot common issues?">
+
+    Diagnose and resolve common problems with this troubleshooting guide:
+
+    #### Common Issues and Solutions
+
+    | Issue | Symptoms | Solution |
+    |-------|----------|----------|
+    | **Invalid API Key** | `401` authentication error | Verify `apiKey` input contains valid Perplexity API key |
+    | **Empty Content** | Missing required field error | Ensure `content` input is populated with text |
+    | **Unsupported Model** | Model not found error | Use supported models like `sonar` or `mistral` |
+    | **Token Limit Exceeded** | Response cut off abruptly | Increase `max_tokens` or reduce input length |
+    | **Rate Limiting** | `429` too many requests | Add delays between requests or upgrade API plan |
+
+    #### Debug Using Outputs
+    Check `<perplexity1.success>` to verify completion status and `<perplexity1.usage>` to monitor token consumption.
+  </Accordion>
+  <Accordion title="Can I customize Perplexity's behavior for specific tasks like summarization or analysis?">
+
+    Yes, use the `systemPrompt` parameter to tailor Perplexity's responses for specific tasks:
+
+    #### Task-Specific System Prompts
+
+    ##### **Research & Analysis**
+    ```json
+    {
+      "systemPrompt": "You are a research analyst. Provide comprehensive analysis with sources, key findings, and actionable insights.",
+      "temperature": 0.2
+    }
+    ```
+
+    ##### **Content Summarization**
+    ```json
+    {
+      "systemPrompt": "Summarize the following content in 3-5 bullet points, highlighting the most important information.",
+      "temperature": 0.1
+    }
+    ```
+
+    ##### **Technical Documentation**
+    ```json
+    {
+      "systemPrompt": "You are a technical writer. Explain complex topics clearly with examples and step-by-step guidance.",
+      "temperature": 0.3
+    }
+    ```
+  </Accordion>
+  <Accordion title="How do I integrate Perplexity with other Sim.ai blocks for advanced automation workflows?">
+
+    Perplexity blocks work seamlessly with other workflow components:
+
+    #### Advanced Integration Patterns
+
+    ##### 1. **API → Perplexity → Function → Email**
+    Fetch data, analyze with AI, process results, and send notifications.
+
+    ##### 2. **Condition → Perplexity (Multiple Configs)**
+    Route different content types to specialized Perplexity configurations:
+    ```
+    if `<condition1.result>` equals "research":
+      → Perplexity (research system prompt)
+    else if `<condition1.result>` equals "creative":
+      → Perplexity (creative system prompt)
+    ```
+
+    ##### 3. **Webhook → Perplexity → Database**
+    Process user inputs, generate AI responses, and store conversation history.
+
+    ##### 4. **Scheduled → API → Perplexity → Slack**
+    Create automated research briefings with current information delivered to team channels.
+
+    Connect `<perplexity1.content>` outputs to any downstream block that accepts text input for seamless workflow integration.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

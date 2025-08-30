@@ -4,6 +4,8 @@ description: Read and create pages
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="sharepoint"
@@ -59,13 +61,7 @@ In Sim, the SharePoint integration empowers your agents to create and access Sha
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Integrate Sharepoint functionality to manage pages. Read and create pages, and list sites using OAuth authentication. Supports page operations with custom MIME types and folder organization.
-
-
-
-## Tools
+## Operations
 
 ### `sharepoint_create_page`
 
@@ -126,7 +122,196 @@ List details of all SharePoint sites
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `sharepoint`
+{/* MANUAL-CONTENT-START:bestPractices */}
+The SharePoint block serves as a critical content management connector in Sim.ai workflows, enabling seamless integration between automated processes and Microsoft SharePoint's collaborative platform. This block empowers workflows to read existing SharePoint content, create new pages dynamically, and manage site-level operations with proper OAuth authentication, making it essential for document automation and content publishing workflows.
+
+**Connection Tag Usage and Data Flow**
+
+Effective SharePoint integration relies on strategic connection tag implementation across multiple data flow patterns. The `<sharepoint1.page>` output contains comprehensive page information that can be mapped to downstream blocks for content analysis or transformation. When creating pages, route dynamic content through `<agent1.content>` to the `pageContent` input, enabling AI-generated content to be published directly to SharePoint sites.
+
+Site management workflows benefit from the `<sharepoint1.sites>` array output, which provides structured site data including IDs, names, and metadata. Map this data to subsequent SharePoint operations using `<sharepoint1.sites[0].id>` for the `siteId` parameter, creating efficient site-to-site content workflows. For page identification, use either `<sharepoint1.page.id>` for the `pageId` input or maintain page names through `<sharepoint1.page.name>` for name-based lookups.
+
+Advanced data flow patterns leverage the optional parameters strategically. The `maxPages` parameter accepts numeric values up to 50, allowing controlled pagination when processing large site collections. Connection tags like `<function1.calculatedLimit>` can dynamically set this parameter based on workflow requirements.
+
+**Workflow Architecture Patterns**
+
+SharePoint workflows typically follow established architectural patterns optimized for content lifecycle management. The **Agent → SharePoint Create → Notification** pattern enables AI-driven content generation where intelligent agents produce formatted content that gets published to SharePoint pages automatically. This pattern works exceptionally well for documentation generation and knowledge base updates.
+
+For content synchronization workflows, implement **Webhook → SharePoint Read → Database → SharePoint Create** patterns. This architecture enables cross-site content replication with transformation capabilities, where content changes in one location trigger automated updates across multiple SharePoint sites.
+
+Monitoring and audit workflows benefit from **Schedule → SharePoint List Sites → Function → Database** patterns, where periodic site enumeration feeds into analysis functions for governance and compliance reporting. The sites array output provides rich metadata for tracking site usage and permissions.
+
+Content enrichment workflows use **SharePoint Read → Agent → SharePoint Create** patterns, where existing content gets processed by AI agents and enhanced versions are published as new pages. This pattern enables automated content updates and version management.
+
+**Message/Data Formatting Excellence**
+
+SharePoint content formatting requires attention to both structure and metadata for optimal presentation. The `pageContent` parameter accepts rich HTML formatting, enabling complex document layouts with embedded media and structured data. Format AI-generated content with proper HTML tags including `<h1>`, `<p>`, `<ul>`, and `<table>` elements for professional presentation.
+
+Page naming conventions significantly impact discoverability and organization. Use descriptive `pageName` values that follow consistent patterns like "Report_YYYY-MM-DD" or "Process_Documentation_v1". The optional `pageTitle` parameter should provide human-readable titles that differ from the technical page names when necessary.
+
+When working with site selectors, maintain consistency in `siteSelector` values across workflow executions. Store site identifiers in workflow variables or configuration blocks to ensure reliable site targeting. The `groupId` parameter enables access to team sites with specific group associations, requiring proper Azure AD group identifiers.
+
+Content validation becomes critical for page creation operations. Implement input sanitization for `pageContent` to prevent formatting issues and ensure SharePoint compatibility. Use connection tags like `<function1.sanitizedContent>` to clean and validate content before page creation.
+
+**Debugging and Monitoring**
+
+SharePoint block monitoring requires comprehensive tracking of authentication status, operation success rates, and content delivery metrics. Monitor the `<sharepoint1.page>` output structure to verify successful page creation and retrieval operations. Missing or malformed page objects indicate authentication issues or insufficient permissions.
+
+Authentication debugging focuses on OAuth token validity and scope permissions. SharePoint operations require specific permission scopes for site access and page management. Failed operations often result from expired tokens or insufficient application permissions in the Microsoft 365 admin center.
+
+Site identification errors commonly occur with incorrect `siteId` or `siteSelector` values. Implement validation workflows using the list sites operation to verify site accessibility before attempting page operations. The sites output array helps troubleshoot site discovery issues and permission boundaries.
+
+Page operation failures frequently stem from naming conflicts or content formatting issues. Monitor `pageName` uniqueness within sites and validate HTML content structure before creation operations. Implement retry logic for transient connection failures, particularly during high-traffic periods.
+
+Performance monitoring should track operation completion times and success rates across different sites and content sizes. Large `pageContent` payloads may experience longer processing times, requiring timeout adjustments in workflow configurations.
+
+**Security Considerations**
+
+SharePoint security implementation requires careful attention to authentication scope and data handling practices. OAuth authentication provides secure, token-based access without storing credentials in workflows. Ensure application registrations in Azure AD include only necessary permissions for SharePoint site access and page management.
+
+Content security involves validating and sanitizing all user-generated content before page creation. Implement input validation for `pageContent` to prevent script injection and malformed HTML that could compromise SharePoint site security. Use allow-lists for HTML tags and attributes rather than block-lists for comprehensive protection.
+
+Site access control requires proper understanding of SharePoint permissions models. The `groupId` parameter should only reference groups with appropriate access levels. Implement role-based access patterns where workflow execution contexts match required permission levels for target sites.
+
+Data residency considerations apply when processing sensitive content through SharePoint operations. Ensure compliance with organizational policies regarding data storage locations and access logging requirements.
+
+**Performance Optimization**
+
+SharePoint performance optimization focuses on efficient site targeting, content sizing, and operation batching strategies. Use specific `siteId` values when available rather than relying on `siteSelector` searches, reducing lookup overhead and improving operation response times.
+
+Content optimization involves managing `pageContent` size and complexity. Large HTML payloads increase processing time and may encounter SharePoint limits. Implement content chunking strategies for extensive documents, creating multiple pages with cross-references rather than single large pages.
+
+Batch operations improve efficiency when working with multiple pages or sites. Instead of individual page creation operations, accumulate content and create pages in logical groups. Use the `maxPages` parameter strategically to control data retrieval volume and prevent timeout issues.
+
+Caching strategies enhance repeated operations on the same sites or pages. Store site information from list operations in workflow variables to avoid repeated site discovery calls. Implement conditional logic to check page existence before creation attempts, reducing unnecessary API calls.
+
+Connection pooling and rate limiting considerations apply to high-volume SharePoint operations. Implement delays between operations when processing large page collections to respect SharePoint API throttling limits and maintain consistent performance across workflow executions.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I create a new SharePoint page from my workflow?">
+
+    To create a SharePoint page from your Sim.ai workflow, add a **SharePoint block** and configure the `sharepoint_create_page` operation:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `pageName` | The name for your new page | `<start.pageName>` or `"My New Page"` |
+    | `siteSelector` | Choose your target SharePoint site | Select from dropdown or use `<start.siteSelector>` |
+    | `pageTitle` | Display title (optional) | `<agent1.title>` or defaults to `pageName` |
+    | `pageContent` | HTML or text content | `<agent1.content>` for AI-generated content |
+
+    The block outputs `<sharepoint1.page>` containing the created page information including ID, URL, and metadata.
+  </Accordion>
+  <Accordion title="How do I read existing SharePoint page content in my workflow?">
+
+    To retrieve SharePoint page content, configure the SharePoint block with the `sharepoint_read_page` operation:
+
+    #### Input Options
+
+    | Method | Input Field | Example |
+    |--------|-------------|---------|
+    | **By Page ID** | `pageId` | `<start.pageId>` or static ID |
+    | **By Page Name** | `pageName` | `<start.pageName>` or `"Sales Report"` |
+    | **List All Pages** | `maxPages` | `10` (default) to `50` (maximum) |
+
+    Use `<sharepoint1.page>` to access the retrieved page data in downstream blocks like Agent or Function blocks for content processing.
+  </Accordion>
+  <Accordion title="What is the correct way to reference SharePoint block outputs in my workflow?">
+
+    SharePoint blocks expose different outputs depending on the operation used:
+
+    #### Available Output Tags
+
+    | Output Tag | Operation | Type | Description |
+    |------------|-----------|------|-------------|
+    | `<sharepoint1.page>` | create_page, read_page | Object | Page information with ID, title, content, URL |
+    | `<sharepoint1.site>` | list_sites | Object | Current site details with ID, name, web URL |
+    | `<sharepoint1.sites>` | list_sites | Array | All available SharePoint sites |
+
+    Connect these outputs to other blocks using the connection menu or by typing the tag directly into input fields.
+  </Accordion>
+  <Accordion title="How do I connect an Agent block to generate SharePoint page content automatically?">
+
+    To use AI-generated content for SharePoint pages:
+
+    1. **Agent Block First**: Configure an Agent to generate content based on your prompt
+    2. **Connect to SharePoint**: In the SharePoint block's inputs:
+       - Set `pageContent` to `<agent1.content>`
+       - Set `pageTitle` to `<agent1.title>` if the agent generates titles
+       - Set `pageName` to either `<start.pageName>` or a static value
+
+    #### Example Workflow Pattern
+    ```
+    Webhook → Agent → SharePoint (create_page)
+    ```
+
+    This pattern processes incoming data with AI and automatically creates SharePoint pages with the generated content.
+  </Accordion>
+  <Accordion title="Why is my SharePoint block failing with authentication errors?">
+
+    SharePoint blocks require OAuth authentication setup in Sim.ai:
+
+    #### Common Authentication Issues
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **No Site Access** | Block cannot access SharePoint sites | Ensure OAuth app has Sites.ReadWrite.All permissions |
+    | **Invalid Site Selector** | Selected site doesn't exist | Use `list_sites` operation first to verify available sites |
+    | **Missing Tenant** | SharePoint tenant not configured | Contact admin to configure tenant in OAuth settings |
+    | **Expired Token** | Authentication token expired | Re-authenticate through block settings |
+
+    Verify your site selection using `<sharepoint1.sites>` from the `list_sites` operation before creating or reading pages.
+  </Accordion>
+  <Accordion title="Can I use SharePoint blocks with conditional logic and other workflow components?">
+
+    Yes! SharePoint blocks integrate seamlessly with other Sim.ai components:
+
+    #### Advanced Workflow Patterns
+
+    ##### 1. **Content Processing Pipeline**
+    ```
+    Webhook → Function → Agent → SharePoint (create_page)
+    ```
+    Process incoming data, generate AI content, and create SharePoint pages automatically.
+
+    ##### 2. **Conditional Page Creation**
+    ```
+    API → Condition → SharePoint (create_page)
+                    → Email (alternative action)
+    ```
+    Create pages only when specific conditions are met, otherwise send notifications.
+
+    ##### 3. **Page Content Analysis**
+    ```
+    SharePoint (read_page) → Agent → SharePoint (create_page)
+    ```
+    Read existing pages, analyze with AI, and create summary or follow-up pages.
+
+    ##### 4. **Multi-Site Management**
+    Use `<sharepoint1.sites>` with Function blocks to iterate over multiple sites and perform bulk operations across your SharePoint environment.
+  </Accordion>
+  <Accordion title="How do I handle SharePoint page creation errors in my workflow?">
+
+    Implement error handling for common SharePoint operation failures:
+
+    #### Common Error Scenarios
+
+    | Error Type | Cause | Prevention |
+    |------------|-------|------------|
+    | **Page Already Exists** | Duplicate `pageName` in site | Use dynamic names like `<function1.uniqueName>` |
+    | **Invalid Characters** | Special characters in page name | Sanitize input with Function block before SharePoint |
+    | **Content Too Large** | Page content exceeds limits | Truncate `<agent1.content>` using Function block |
+    | **Site Access Denied** | Insufficient permissions | Verify `siteSelector` matches accessible sites from `<sharepoint1.sites>` |
+
+    Add Condition blocks after SharePoint operations to check success status and implement fallback actions for failed page operations.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

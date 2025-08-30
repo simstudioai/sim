@@ -4,6 +4,8 @@ description: Connect to PostgreSQL database
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="postgresql"
@@ -48,13 +50,7 @@ The PostgreSQL tool is ideal for scenarios where your agents need to interact wi
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Connect to any PostgreSQL database to execute queries, manage data, and perform database operations. Supports SELECT, INSERT, UPDATE, DELETE operations with secure connection handling.
-
-
-
-## Tools
+## Operations
 
 ### `postgresql_query`
 
@@ -182,7 +178,214 @@ Execute raw SQL query on PostgreSQL database
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `postgresql`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the PostgreSQL block into your Sim.ai workflows, following established best practices ensures secure database operations, optimal performance, and reliable data management. The PostgreSQL block serves as a critical data layer component, enabling workflows to interact with PostgreSQL databases through standardized CRUD operations and custom SQL execution.
+
+**Connection Tag Usage and Data Flow**
+
+Effective PostgreSQL block integration relies on proper connection tag mapping for both inputs and outputs. For connection parameters, use static values for `<postgresql1.host>`, `<postgresql1.port>`, and `<postgresql1.database>`, while dynamic values like `<function1.tableName>` or `<webhook1.recordId>` work well for the `table` and `where` parameters. The `<postgresql1.rows>` output provides structured data arrays that can be directly mapped to other blocks, such as `<postgresql1.rows>` → `<agent1.context>` for AI processing or `<postgresql1.rows>` → `<function1.data>` for data transformation.
+
+When chaining PostgreSQL operations, leverage the `<postgresql1.rowCount>` output to control workflow logic. For example, use conditional routing where `<postgresql1.rowCount>` equals zero to trigger alternative workflows or error handling paths. The `<postgresql1.message>` output serves as a reliable indicator for operation success and should be monitored in production workflows.
+
+**Workflow Architecture Patterns**
+
+Successful PostgreSQL workflows typically implement proven architectural patterns. The **API Webhook → PostgreSQL Query → Response** pattern enables real-time data retrieval for external applications. For data processing workflows, consider **PostgreSQL Query → Function → PostgreSQL Update** patterns that read data, apply transformations, and write results back to the database.
+
+For AI-enhanced workflows, the **PostgreSQL Query → Agent → PostgreSQL Insert** pattern proves effective for data analysis and automated insights generation. This allows AI agents to process existing data and store their findings for future reference. Complex ETL workflows benefit from **PostgreSQL Query → Multiple Function Blocks → PostgreSQL Insert** patterns that handle data extraction, transformation, and loading operations across multiple tables.
+
+Batch processing workflows should implement **Scheduler → PostgreSQL Query → Loop → PostgreSQL Update** patterns for handling large datasets efficiently. This approach processes data in manageable chunks while maintaining transaction integrity and performance.
+
+**Message/Data Formatting Excellence**
+
+The `data` input parameter for insert and update operations requires properly formatted JSON objects with key-value pairs matching your database schema. Ensure data types align with PostgreSQL column definitions - strings for VARCHAR fields, numbers for INTEGER/DECIMAL fields, and properly formatted dates for TIMESTAMP columns. Use the `<function1.formattedData>` connection tag when data transformation is needed before database operations.
+
+For SELECT queries, structure your `query` parameter with explicit column selection rather than using SELECT * to optimize performance and reduce data transfer. When using dynamic WHERE clauses, format the `where` parameter without the WHERE keyword - the block automatically handles this. For example, use `id = 123 AND status = 'active'` rather than `WHERE id = 123 AND status = 'active'`.
+
+Complex queries requiring joins or subqueries should utilize the `postgresql_execute` operation with raw SQL in the `query` parameter. This provides maximum flexibility while maintaining proper parameterization for security.
+
+**Security Considerations**
+
+Database security requires careful handling of connection credentials and query construction. Store sensitive connection parameters like `password` in Sim.ai's secure environment variables rather than hardcoding them in workflows. Use the `ssl` parameter set to "required" for production deployments to encrypt data in transit.
+
+For dynamic query construction, implement proper input validation through Function blocks before passing data to PostgreSQL operations. This prevents SQL injection attacks when user input influences WHERE clauses or data values. The structured input approach used by `postgresql_insert`, `postgresql_update`, and `postgresql_delete` operations provides built-in protection against SQL injection by using parameterized queries internally.
+
+Implement least-privilege database access by creating dedicated database users with minimal required permissions for your workflows. Avoid using administrative database accounts for routine workflow operations.
+
+**Debugging and Monitoring**
+
+Comprehensive monitoring starts with tracking the `<postgresql1.message>` output across all database operations. Implement conditional logic that routes failed operations to logging or notification systems based on error messages. The `<postgresql1.rowCount>` output provides critical insights into operation effectiveness - zero rows affected by UPDATE or DELETE operations may indicate logic errors or data inconsistencies.
+
+For query performance monitoring, track execution patterns by logging slow queries and optimizing frequently used SELECT operations with appropriate database indexes. Use the `<postgresql1.rows>` array length to monitor result set sizes and implement pagination for large datasets to prevent memory issues.
+
+Error handling workflows should distinguish between connection errors, syntax errors, and data validation errors by analyzing the `<postgresql1.message>` content. Connection timeouts often indicate network issues or database server problems, while constraint violations suggest data integrity issues requiring workflow logic adjustments.
+
+**Performance Optimization**
+
+Database connection pooling optimization requires careful configuration of the `host` and `port` parameters to ensure efficient connection reuse. Minimize connection overhead by grouping related database operations within single workflow execution paths rather than spreading them across multiple triggered workflows.
+
+Query optimization focuses on efficient SQL construction and proper indexing. Use specific column selections in SELECT queries rather than retrieving entire rows when only specific fields are needed. For bulk operations, consider batching multiple records through the `postgresql_execute` operation with transaction control rather than executing individual insert/update operations in loops.
+
+Memory management becomes critical when processing large result sets from `<postgresql1.rows>`. Implement pagination using LIMIT and OFFSET clauses in your queries, processing data in chunks rather than loading entire tables into memory. Monitor workflow execution times and implement timeout handling for long-running database operations to prevent workflow deadlocks.
+
+For high-frequency workflows, cache frequently accessed reference data using intermediate storage blocks rather than repeatedly querying static lookup tables. This reduces database load and improves overall workflow response times.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I connect my Sim.ai workflow to a PostgreSQL database?">
+
+    To connect your workflow to a PostgreSQL database, add a **PostgreSQL block** to your workflow and configure the required database connection inputs:
+
+    #### Required Connection Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `host` | PostgreSQL server hostname or IP | `<start.dbHost>` or `"localhost"` |
+    | `port` | PostgreSQL server port | `<start.dbPort>` or `5432` |
+    | `database` | Database name to connect to | `<start.dbName>` or `"myapp"` |
+    | `username` | Database username | `<start.dbUser>` or environment variable |
+    | `password` | Database password | `<start.dbPassword>` or secure connection |
+
+    #### Optional SSL Configuration
+    Set `ssl` to `"required"`, `"preferred"`, or `"disabled"` based on your security requirements.
+  </Accordion>
+  <Accordion title="What is the correct way to execute SELECT queries using the PostgreSQL block?">
+
+    Use the **postgresql_query** operation to retrieve data from your database:
+
+    1. **Configure connection parameters** using connection tags like `<start.dbHost>`
+    2. **Set the query input** with your SQL SELECT statement
+    3. **Reference results** using output connection tags
+
+    #### Example Configuration
+    ```sql
+    SELECT id, name, email FROM users WHERE created_at > '2024-01-01'
+    ```
+
+    Connect this query string to the `query` input field, either as static text or from another block like `<agent1.generatedQuery>`.
+  </Accordion>
+  <Accordion title="How do I reference PostgreSQL block outputs in downstream workflow blocks?">
+
+    Every PostgreSQL block exposes three main outputs that can be referenced using connection tags:
+
+    #### Available Output Tags
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<postgresql1.message>` | String | Success/error message from the database operation |
+    | `<postgresql1.rows>` | Array | Array of rows returned from SELECT queries |
+    | `<postgresql1.rowCount>` | Number | Number of rows affected or returned |
+
+    #### Accessing Specific Row Data
+    For detailed row access, use array indexing: `<postgresql1.rows[0].columnName>` to get the first row's specific column value.
+  </Accordion>
+  <Accordion title="How do I insert data from other blocks into PostgreSQL tables?">
+
+    Use the **postgresql_insert** operation with the `data` input configured as a JSON object:
+
+    #### Step-by-Step Process
+
+    1. **Set the table name** in the `table` input field
+    2. **Configure the data object** using connection tags from upstream blocks:
+
+    ```json
+    {
+      "name": "<start.userName>",
+      "email": "<start.userEmail>",
+      "status": "<agent1.processedStatus>",
+      "created_at": "<function1.timestamp>"
+    }
+    ```
+
+    3. **Reference insertion results** using `<postgresql1.rowCount>` to confirm successful insertion
+  </Accordion>
+  <Accordion title="How can I update existing PostgreSQL records based on workflow conditions?">
+
+    Use the **postgresql_update** operation with conditional WHERE clauses:
+
+    #### Required Update Inputs
+
+    | Input | Purpose | Example |
+    |-------|---------|---------|
+    | `table` | Target table name | `"users"` or `<start.tableName>` |
+    | `data` | Fields to update | `{"status": "<agent1.newStatus>"}` |
+    | `where` | Condition (without WHERE) | `"id = <start.userId>"` |
+
+    #### Example Workflow Pattern
+    ```
+    Webhook → Function → PostgreSQL Update → Agent
+    ```
+    Update user records based on incoming webhook data, then send confirmation via an Agent block.
+  </Accordion>
+  <Accordion title="What are the common PostgreSQL connection errors and how do I troubleshoot them?">
+
+    Troubleshoot database connectivity issues with this systematic approach:
+
+    #### Common Issues and Solutions
+
+    | Error Type | Description | Solution |
+    |------------|-------------|----------|
+    | **Connection Timeout** | Cannot reach database server | Verify `<start.host>` and `<start.port>` values |
+    | **Authentication Failed** | Invalid credentials | Check `<start.username>` and `<start.password>` |
+    | **Database Not Found** | Target database doesn't exist | Confirm `<start.database>` name is correct |
+    | **SSL Connection Error** | SSL configuration mismatch | Set `ssl` to `"disabled"` for testing |
+    | **Query Syntax Error** | Invalid SQL in query input | Validate SQL syntax in `query` field |
+    | **Permission Denied** | User lacks table privileges | Grant appropriate permissions to database user |
+
+    Check workflow execution logs for specific PostgreSQL error messages and connection details.
+  </Accordion>
+  <Accordion title="How do I combine PostgreSQL blocks with Agent blocks for data-driven AI responses?">
+
+    Create intelligent workflows that query databases and generate AI responses:
+
+    #### Pattern 1: **Query → Agent Analysis**
+    ```
+    PostgreSQL Query → Agent → Response Block
+    ```
+    Connect `<postgresql1.rows>` to an Agent's `userPrompt` for data analysis and insights.
+
+    #### Pattern 2: **Agent → Database Operations**
+    ```
+    Agent → Function → PostgreSQL Insert → Confirmation
+    ```
+    Let agents generate structured data, transform it via Function block, then store in PostgreSQL.
+
+    #### Pattern 3: **Conditional Database Updates**
+    ```
+    PostgreSQL Query → Condition → PostgreSQL Update → Agent
+    ```
+    Query existing data, check conditions, update records, and generate status reports through agents.
+  </Accordion>
+  <Accordion title="Can I execute complex SQL operations and stored procedures with PostgreSQL blocks?">
+
+    Yes, use the **postgresql_execute** operation for advanced SQL operations:
+
+    #### Supported SQL Operations
+    - **Complex JOINs and subqueries** for multi-table data retrieval
+    - **Stored procedure calls** using `CALL procedure_name(parameters)`
+    - **Database functions** and custom SQL commands
+    - **Transaction control** with BEGIN, COMMIT, ROLLBACK statements
+
+    #### Example Complex Query
+    ```sql
+    WITH user_stats AS (
+      SELECT user_id, COUNT(*) as order_count 
+      FROM orders 
+      WHERE created_at > '<function1.dateRange>'
+      GROUP BY user_id
+    )
+    SELECT u.name, u.email, us.order_count
+    FROM users u
+    JOIN user_stats us ON u.id = us.user_id
+    ORDER BY us.order_count DESC
+    ```
+
+    Connect this to the `query` input and reference results using `<postgresql1.rows>` for downstream processing.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

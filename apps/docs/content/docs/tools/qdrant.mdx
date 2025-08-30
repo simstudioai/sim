@@ -4,6 +4,8 @@ description: Use Qdrant vector database
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="qdrant"
@@ -101,13 +103,7 @@ This integration allows your agents to leverage powerful vector search and manag
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Store, search, and retrieve vector embeddings using Qdrant. Perform semantic similarity searches and manage your vector collections.
-
-
-
-## Tools
+## Operations
 
 ### `qdrant_upsert_points`
 
@@ -177,7 +173,216 @@ Fetch points by ID from a Qdrant collection
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `qdrant`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Qdrant block into your Sim.ai workflows, following established best practices ensures efficient vector operations and optimal search performance. The Qdrant block serves as a powerful semantic search engine within your automated workflows, enabling advanced AI applications that require similarity matching, recommendation systems, and intelligent content retrieval.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation is crucial for effective vector database operations. The `<embeddings1.vectors>` connection tag from OpenAI or other embedding blocks provides the vector data required for the `<qdrant1.vector>` input field. When upserting points, structure your data flow using `<function1.formattedPoints>` to properly format arrays of points with IDs, vectors, and payload data before connecting to `<qdrant1.points>`.
+
+For search operations, connect AI-generated vectors directly: `<openai1.embedding>` → `<qdrant1.vector>` creates seamless semantic search capabilities. The `<qdrant1.matches>` output provides structured search results that can be consumed by downstream blocks. Use `<qdrant1.data>` for detailed operation responses and `<qdrant1.status>` for error handling and flow control.
+
+When chaining multiple Qdrant operations, leverage the `<qdrant1.upsertedCount>` output to validate successful insertions before proceeding with search operations. This ensures data consistency across your vector pipeline.
+
+**Workflow Architecture Patterns**
+
+Successful Qdrant workflows follow distinct architectural patterns based on use case. The **Content Ingestion** pattern implements **API/Webhook → Text Processing → OpenAI Embeddings → Qdrant Upsert**, ideal for building knowledge bases from incoming content. This pattern ensures new information is immediately vectorized and stored for future retrieval.
+
+The **Semantic Search** pattern follows **User Query → OpenAI Embeddings → Qdrant Search → Response Generation**, enabling intelligent question-answering systems. For recommendation engines, implement **User Behavior → Feature Extraction → Qdrant Search → Content Filtering** workflows that provide personalized content suggestions.
+
+**RAG (Retrieval Augmented Generation)** implementations benefit from **Query → Qdrant Search → Context Assembly → LLM Generation** patterns, where vector search results provide relevant context for AI response generation. Consider implementing **Batch Processing** patterns for large-scale data operations: **Data Source → Batch Function → Multiple Qdrant Upserts** to efficiently handle high-volume vector insertions.
+
+**Vector Data Formatting Excellence**
+
+Vector data requires precise formatting to ensure successful operations. Structure point arrays with consistent schemas: each point must include `id`, `vector`, and `payload` fields. Use Function blocks to transform raw data into Qdrant-compatible formats before upserting. Ensure vector dimensions match your embedding model consistently - mixing 768-dimensional and 1536-dimensional vectors within the same collection will cause errors.
+
+Implement payload standardization across your collections. Include metadata fields like `timestamp`, `source`, `category`, and `content_type` to enable sophisticated filtering during searches. Use consistent data types within payload fields to prevent search filter complications.
+
+For search operations, normalize input vectors to unit length when using cosine similarity. Structure filter objects using Qdrant's filter syntax with `must`, `should`, and `must_not` conditions. Implement pagination using the `limit` parameter for large result sets, typically starting with limits between 10-50 for optimal performance.
+
+**Debugging and Monitoring**
+
+Enable comprehensive monitoring using the `<qdrant1.status>` output for all operations. Successful operations return "success" status, while errors provide detailed failure information. Monitor `<qdrant1.upsertedCount>` to track insertion rates and identify potential data pipeline issues.
+
+Implement vector dimension validation before upsert operations. Use Function blocks to verify that all vectors in your point arrays have identical dimensions matching your collection configuration. Log vector search scores from `<qdrant1.matches>` to monitor search quality - consistently low scores may indicate embedding model mismatches or poor data quality.
+
+Track search performance by monitoring response times and result relevance. If searches return consistently irrelevant results, examine your embedding strategy and consider reprocessing source data. Use the `with_payload` and `with_vector` parameters strategically - including unnecessary data increases response times and bandwidth usage.
+
+**Security Considerations**
+
+Implement proper API key management when connecting to Qdrant instances. Use environment variables or secure storage for the `<qdrant1.apiKey>` field rather than hardcoding credentials in workflows. For production deployments, ensure Qdrant URLs use HTTPS connections to encrypt data in transit.
+
+Consider payload data sensitivity when structuring vector points. Avoid storing personally identifiable information (PII) directly in payloads. Instead, use reference IDs that link to secure data stores. Implement collection-level access controls by using different Qdrant collections for different data sensitivity levels.
+
+Validate input data before upsert operations to prevent injection attacks or malformed data corruption. Use Function blocks to sanitize and validate all payload data, especially when processing user-generated content or external API responses.
+
+**Performance Optimization**
+
+Optimize collection configurations based on your use case. For high-throughput applications, configure appropriate indexing parameters and consider using quantization to reduce memory usage. Batch upsert operations when possible - grouping multiple points into single upsert calls reduces API overhead and improves performance.
+
+Implement intelligent caching strategies for frequently accessed vectors. Use the `<qdrant1.data>` output to cache search results in faster storage systems for repeated queries. Consider implementing vector preprocessing pipelines that normalize and optimize embeddings before storage.
+
+For search operations, tune the `limit` parameter based on your downstream processing capabilities. Higher limits provide more comprehensive results but increase processing time and bandwidth usage. Implement smart filtering strategies using the `filter` parameter to reduce search space and improve response times.
+
+Monitor collection size and implement data lifecycle management. Regularly archive or delete outdated vectors to maintain optimal search performance. Use batch fetch operations with `<qdrant1.ids>` for efficient bulk data retrieval rather than individual point requests.
+
+Consider implementing vector compression techniques for storage optimization while maintaining search accuracy. Balance precision requirements with storage costs by selecting appropriate vector quantization settings based on your specific use case requirements.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I store vector embeddings in a Qdrant collection from my workflow?">
+
+    To store vector embeddings in Qdrant, add a **Qdrant block** to your Sim.ai workflow and configure the upsert operation:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `url` | Your Qdrant server base URL | `<start.qdrantUrl>` or `https://your-cluster.qdrant.tech` |
+    | `collection` | Target collection name | `<start.collectionName>` or static name like `documents` |
+    | `points` | Array of points with vectors and metadata | `<embeddings1.points>` or structured array |
+
+    #### Point Structure
+    ```json
+    [
+      {
+        "id": 1,
+        "vector": [0.1, 0.2, 0.3, ...],
+        "payload": {"text": "Document content", "category": "news"}
+      }
+    ]
+    ```
+  </Accordion>
+  <Accordion title="How do I perform semantic similarity searches with the Qdrant block?">
+
+    To search for similar vectors in your Qdrant collection:
+
+    1. **Set the operation** to `qdrant_search_vector`
+    2. **Configure search inputs**:
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `url` | Qdrant server URL | `<start.qdrantUrl>` |
+    | `collection` | Collection to search | `<start.collectionName>` |
+    | `vector` | Query vector for similarity search | `<embeddings1.vector>` |
+    | `limit` | Maximum results to return | `<start.limit>` or static number like `10` |
+    | `with_payload` | Include metadata in results | `true` |
+  </Accordion>
+  <Accordion title="What is the correct way to reference Qdrant block outputs in my workflow?">
+
+    Every Qdrant block exposes outputs that can be referenced using connection tags:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<qdrant1.data>` | Array/Object | Main result data from the operation |
+    | `<qdrant1.status>` | String | Operation status (success/error) |
+    | `<qdrant1.matches>` | Array | Search results with similarity scores |
+    | `<qdrant1.upsertedCount>` | Number | Number of points successfully upserted |
+
+    #### Search Result Structure
+    When using `<qdrant1.matches>`, each result contains:
+    - `id`: Point identifier
+    - `score`: Similarity score (0-1)
+    - `payload`: Associated metadata
+    - `vector`: Original vector (if `with_vector` is true)
+  </Accordion>
+  <Accordion title="How do I connect an Agent block's embeddings to Qdrant for storage?">
+
+    To store AI-generated embeddings in Qdrant:
+
+    1. **Agent generates content** → `<agent1.content>`
+    2. **Embeddings block creates vectors** → `<embeddings1.vectors>`
+    3. **Qdrant block stores data**:
+
+    #### Example Configuration
+    ```json
+    {
+      "collection": "knowledge_base",
+      "points": [
+        {
+          "id": "<function1.generateId>",
+          "vector": "<embeddings1.vector>",
+          "payload": {
+            "text": "<agent1.content>",
+            "timestamp": "<start.timestamp>"
+          }
+        }
+      ]
+    }
+    ```
+  </Accordion>
+  <Accordion title="Why is my Qdrant operation failing with authentication errors?">
+
+    Troubleshoot Qdrant authentication and connection issues:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Missing API Key** | Cloud Qdrant requires authentication | Add `apiKey` input with `<start.qdrantApiKey>` |
+    | **Wrong URL Format** | Incorrect server URL | Ensure URL includes protocol: `https://cluster.qdrant.tech` |
+    | **Collection Not Found** | Target collection doesn't exist | Create collection first or verify name in `<qdrant1.collection>` |
+    | **Invalid Vector Dimensions** | Vector size mismatch | Ensure `<embeddings1.vector>` matches collection dimensions |
+    | **Network Timeout** | Connection issues | Check Qdrant server status and network connectivity |
+  </Accordion>
+  <Accordion title="Can I build a RAG system using Qdrant with other Sim.ai blocks?">
+
+    Yes! Qdrant integrates perfectly with other blocks for Retrieval-Augmented Generation:
+
+    #### RAG Workflow Pattern
+    ```
+    Webhook → Embeddings → Qdrant Search → Agent → Response
+    ```
+
+    ##### 1. **Store Knowledge (Setup)**
+    ```
+    Document → Embeddings → Qdrant Upsert
+    ```
+    - Process documents with `<embeddings1.vector>`
+    - Store in Qdrant with `<qdrant1.upsertedCount>` confirmation
+
+    ##### 2. **Query Knowledge (Runtime)**
+    ```
+    User Question → Embeddings → Qdrant Search → Context Retrieval
+    ```
+    - Convert question: `<embeddings2.vector>`
+    - Search similar: `<qdrant2.matches>`
+    - Extract context: `<qdrant2.data[0].payload.text>`
+
+    ##### 3. **Generate Response**
+    ```
+    Agent Input: "Context: <qdrant2.matches> Question: <start.question>"
+    ```
+  </Accordion>
+  <Accordion title="How do I fetch specific points by ID from my Qdrant collection?">
+
+    To retrieve specific points using their IDs:
+
+    1. **Set operation** to `qdrant_fetch_points`
+    2. **Configure fetch inputs**:
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `collection` | Collection name | `<start.collectionName>` |
+    | `ids` | Array of point IDs to fetch | `<start.pointIds>` or `[1, 2, 3]` |
+    | `with_payload` | Include metadata | `true` |
+    | `with_vector` | Include vector data | `false` (unless needed) |
+
+    #### Use Case Example
+    ```
+    Condition → Qdrant Fetch (if specific IDs needed)
+             → Qdrant Search (if similarity search needed)
+    ```
+
+    Connect `<qdrant1.data>` to downstream blocks for further processing of the retrieved points.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

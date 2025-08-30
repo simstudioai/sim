@@ -4,6 +4,8 @@ description: Manage Notion pages
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="notion"
@@ -43,13 +45,7 @@ This integration bridges the gap between your AI workflows and your knowledge ba
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Integrate with Notion to read content from pages, write new content, and create new pages.
-
-
-
-## Tools
+## Operations
 
 ### `notion_read`
 
@@ -181,7 +177,207 @@ Create a new database in Notion with custom properties
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `notion`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When incorporating the Notion block into your Sim.ai workflows, following established best practices ensures reliable content management and optimal performance. The Notion block serves as a comprehensive content management bridge between your automated workflows and Notion workspaces, enabling seamless document creation, content retrieval, and database operations that transform static information into dynamic, workflow-driven knowledge systems.
+
+**Connection Tag Usage and Data Flow**
+
+Effective connection tag implementation forms the backbone of successful Notion integrations. The `<notion1.content>` output provides the primary data stream for retrieved content, formatted search results, or operation confirmations. When chaining Notion operations, utilize `<notion1.metadata.pageId>` from creation operations as input for subsequent read or write operations, creating seamless content lifecycle workflows.
+
+For dynamic page creation, leverage AI-generated content by connecting `<agent1.content>` to `<notion2.content>` input parameters. This enables automated documentation generation where AI processes information and directly creates or updates Notion pages. Database operations benefit from structured data flow using `<function1.result>` for complex filter and sort parameters, allowing precise query execution based on workflow conditions.
+
+The metadata outputs provide crucial operational context. Use `<notion1.metadata.url>` for sharing direct page links in notifications, `<notion1.metadata.totalResults>` for pagination logic in search operations, and `<notion1.metadata.properties>` for dynamic database schema analysis in complex workflows.
+
+**Workflow Architecture Patterns**
+
+Successful Notion workflows typically follow distinct architectural patterns optimized for specific use cases. The **Webhook → Function → Notion Create** pattern excels for automated documentation systems, where external events trigger structured content creation with predefined templates and formatting.
+
+For content aggregation systems, implement **Schedule Trigger → Notion Search → Function → Notion Write** workflows that regularly scan for specific content types, process them through business logic, and append summaries to master tracking pages. This pattern enables automated knowledge base maintenance and content curation.
+
+Database-centric workflows benefit from **API Trigger → Notion Query Database → Agent → Notion Create Page** patterns, where external data triggers database queries, AI processes the results for insights, and automatically generates summary pages or reports. This creates dynamic reporting systems that transform raw data into structured knowledge.
+
+Interactive workflows leverage **Webhook → Notion Read → Agent → Telegram** patterns for conversational interfaces that retrieve specific Notion content based on user queries and deliver formatted responses through messaging platforms.
+
+**Message/Data Formatting Excellence**
+
+Notion's content structure requires careful attention to formatting standards. When using `notion_write` operations, structure content using proper Markdown syntax with clear headers, bullet points, and code blocks. Notion interprets Markdown formatting natively, so consistent formatting patterns ensure professional-looking automated content.
+
+For database operations, format filter parameters as valid JSON objects with proper property references. Use structured approaches like `{"property": "Status", "select": {"equals": "Active"}}` rather than ad-hoc string formatting. This prevents parsing errors and ensures reliable query execution.
+
+Content creation workflows should validate input data before sending to Notion operations. Implement content length checks, special character handling, and template validation to maintain consistent page structure across automated content generation. Long-form content benefits from paragraph breaks and section headers that improve readability in Notion's interface.
+
+When working with database queries, structure sort parameters as JSON arrays with clear property and direction specifications: `[{"property": "Created", "direction": "descending"}]`. This ensures predictable result ordering and enables reliable pagination handling in complex workflows.
+
+**Debugging and Monitoring**
+
+Comprehensive monitoring requires tracking both successful operations and failure conditions across all Notion block operations. Monitor `<notion1.content>` outputs for empty results that might indicate permission issues, deleted pages, or incorrect ID parameters. The content field provides descriptive error messages that pinpoint specific operational failures.
+
+Implement metadata-based validation by checking `<notion1.metadata.totalResults>` for search and query operations. Zero results might indicate overly restrictive filters, incorrect database structures, or outdated query parameters. Use this data to implement fallback logic and error recovery patterns.
+
+For database operations, monitor property schema changes by comparing `<notion1.metadata.properties>` across workflow executions. Notion database schema modifications can break existing filter and sort logic, so proactive monitoring prevents workflow failures when team members modify database structures.
+
+Page creation operations require validation of `<notion1.metadata.pageId>` outputs to ensure successful creation before attempting subsequent operations. Failed page creation often results from insufficient permissions, invalid parent IDs, or workspace limitations that require immediate attention.
+
+Performance monitoring should track operation execution times, particularly for large database queries and content-heavy read operations. Notion's API rate limits require careful workflow scheduling to avoid temporary blocks that could disrupt automated processes.
+
+**Security Considerations**
+
+Notion workspace security requires careful attention to access permissions and data handling practices. Ensure Notion API tokens used in Sim.ai workflows have minimal required permissions, limiting access to specific pages and databases rather than workspace-wide access. This reduces potential impact from credential compromise.
+
+When handling sensitive content through Notion blocks, implement content filtering to prevent accidental exposure of confidential information. Use function blocks to sanitize AI-generated content before writing to shared Notion pages, removing personal identifiers, financial data, or proprietary information.
+
+Database operations should validate filter parameters to prevent information disclosure through overly broad queries. Implement query validation that ensures users can only access data within their authorization scope, particularly in multi-tenant workflow environments.
+
+Monitor page and database sharing settings when creating new content programmatically. Automated page creation should respect existing workspace sharing policies and avoid inadvertently creating publicly accessible content that should remain private.
+
+**Performance Optimization**
+
+Optimize Notion block performance through strategic caching and batch operation patterns. Implement read caching for frequently accessed pages using temporary storage blocks, reducing redundant API calls and improving workflow response times. Cache page content for workflow sessions rather than re-reading unchanged content multiple times.
+
+Database query optimization requires careful filter and sort parameter design. Use specific property filters rather than broad search terms to reduce result set sizes and improve query performance. Implement pagination logic for large databases by processing results in manageable chunks using the `pageSize` parameter effectively.
+
+Content creation workflows benefit from batching strategies where multiple updates accumulate before writing to Notion pages. Rather than appending individual items repeatedly, collect updates in temporary storage and perform bulk append operations to minimize API calls and improve overall throughput.
+
+Search operations should use specific query terms and filter types to reduce processing overhead. Implement progressive search refinement where broad queries narrow down through subsequent operations rather than processing large result sets client-side.
+
+For high-frequency workflows, implement operation queuing using schedule triggers to distribute Notion API calls across time intervals, preventing rate limit conflicts and ensuring consistent performance during peak usage periods.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I read content from a Notion page in my workflow?">
+
+    To read content from a Notion page, add a **Notion block** to your Sim.ai workflow and configure the `notion_read` operation:
+
+    #### Required Input
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `pageId` | The ID of the Notion page to read | `<start.pageId>` or static ID like `abc123def456` |
+
+    The block outputs `<notion1.content>` containing the page content in markdown format and `<notion1.metadata>` with page details like title, URL, and timestamps.
+  </Accordion>
+  <Accordion title="How do I append new content to an existing Notion page?">
+
+    To add content to a Notion page, use the `notion_write` operation with these required inputs:
+
+    #### Configuration Example
+
+    | Input | Value | Source |
+    |-------|-------|--------|
+    | `pageId` | Target page identifier | `<start.pageId>` or `<notion1.metadata.id>` |
+    | `content` | Content to append | `<agent1.content>` or any markdown text |
+
+    The operation appends content to the end of the specified page and returns a success confirmation in `<notion1.content>`.
+  </Accordion>
+  <Accordion title="What is the correct way to reference Notion block outputs in downstream blocks?">
+
+    Every Notion block exposes standardized outputs that can be referenced using connection tags:
+
+    #### Available Output Tags
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<notion1.content>` | String | Page content, search results, or operation confirmations |
+    | `<notion1.metadata>` | Object | Operation-specific metadata with page/database details |
+    | `<notion1.metadata.title>` | String | Page or database title |
+    | `<notion1.metadata.id>` | String | Unique page or database identifier |
+    | `<notion1.metadata.url>` | String | Direct URL to the Notion resource |
+
+    These outputs can be connected to inputs of other blocks for further processing or analysis.
+  </Accordion>
+  <Accordion title="How do I create a new Notion page from my workflow?">
+
+    To create new pages programmatically, use the `notion_create_page` operation:
+
+    #### Required and Optional Inputs
+
+    | Input | Required | Description | Example |
+    |-------|----------|-------------|---------|
+    | `parentId` | Yes | ID of parent page | `<start.parentPageId>` |
+    | `title` | No | Page title | `<agent1.title>` or "Meeting Notes" |
+    | `content` | No | Initial page content | `<function1.summary>` or markdown text |
+
+    The operation returns `<notion1.content>` with a success message and `<notion1.metadata>` containing the new page's ID, URL, and creation details.
+  </Accordion>
+  <Accordion title="How do I query and filter data from a Notion database?">
+
+    Use the `notion_query_database` operation to retrieve filtered database entries:
+
+    #### Input Configuration
+
+    | Input | Type | Description | Example |
+    |-------|------|-------------|---------|
+    | `databaseId` | String (required) | Target database ID | `<start.databaseId>` |
+    | `filter` | String (optional) | JSON filter conditions | `{"property": "Status", "select": {"equals": "Done"}}` |
+    | `sorts` | String (optional) | JSON sort criteria | `[{"property": "Created", "direction": "descending"}]` |
+    | `pageSize` | Number (optional) | Results limit (max 100) | `50` or `<start.limit>` |
+
+    The block returns formatted results in `<notion1.content>` and detailed metadata including pagination info in `<notion1.metadata>`.
+  </Accordion>
+  <Accordion title="Why am I getting authentication errors with my Notion block?">
+
+    Troubleshoot Notion integration issues with this checklist:
+
+    #### Common Authentication Problems
+
+    | Issue | Cause | Solution |
+    |-------|-------|---------|
+    | **Invalid Integration Token** | Missing or expired API token | Verify your Notion integration token in workflow settings |
+    | **Insufficient Permissions** | Integration lacks page access | Grant your integration access to specific pages/databases |
+    | **Wrong Page/Database ID** | Incorrect resource identifier | Use full UUID format (32 characters with hyphens) |
+    | **Parent Page Access** | No access to parent for new pages | Ensure integration can access the parent page specified |
+
+    Check your Notion integration settings and ensure proper permissions are configured for all target resources.
+  </Accordion>
+  <Accordion title="Can I combine Notion blocks with AI agents for content generation?">
+
+    Yes! Notion blocks work seamlessly with Agent blocks for intelligent content workflows:
+
+    #### Common Integration Patterns
+
+    ##### 1. **Agent → Notion Write**
+    Generate AI content and append to existing pages:
+    ```
+    Connect: <agent1.content> → notion.content
+    ```
+
+    ##### 2. **Notion Read → Agent → Notion Write**
+    Process existing content with AI and update pages:
+    ```
+    <notion1.content> → agent.userPrompt → <agent1.content> → notion2.content
+    ```
+
+    ##### 3. **Webhook → Agent → Notion Create Page**
+    Create new pages with AI-generated content from external triggers:
+    ```
+    <start.data> → agent.userPrompt → <agent1.content> → notion.content
+    ```
+
+    ##### 4. **Notion Query Database → Function → Agent**
+    Analyze database entries and generate insights:
+    ```
+    <notion1.content> → function.data → <function1.summary> → agent.userPrompt
+    ```
+  </Accordion>
+  <Accordion title="How do I search across my entire Notion workspace from a workflow?">
+
+    Use the `notion_search` operation to find pages and databases across your workspace:
+
+    #### Search Configuration
+
+    | Input | Required | Description | Example |
+    |-------|----------|-------------|---------|
+    | `query` | No | Search terms (empty = all pages) | `<start.searchTerm>` or "project updates" |
+    | `filterType` | No | Object type filter | "page", "database", or leave empty |
+    | `pageSize` | No | Results limit (default: 100) | `25` or `<start.maxResults>` |
+
+    The search returns formatted results in `<notion1.content>` and comprehensive metadata in `<notion1.metadata>` including total count and pagination details for processing large result sets.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

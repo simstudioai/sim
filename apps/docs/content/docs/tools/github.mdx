@@ -4,6 +4,8 @@ description: Interact with GitHub or trigger workflows from GitHub events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="github"
@@ -33,13 +35,70 @@ In Sim, the GitHub integration enables your agents to interact directly with Git
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Webhook
 
-Access GitHub repositories, pull requests, and comments through the GitHub API. Automate code reviews, PR management, and repository interactions within your workflow. Trigger workflows from GitHub events like push, pull requests, and issues.
+Trigger workflows from GitHub push events. You can use the GitHub block in trigger mode to start a workflow whenever code is pushed to a branch in your repository. Configure your repository Webhook to point to your workflow's URL, then click the lightning bolt icon on the GitHub block to enable trigger mode. This is ideal for CI notifications, automated analysis, and deployment orchestration.
+
+### Configuration Inputs
+
+| Input | Type | Required | Description |
+|------|------|----------|-------------|
+| `event` | string | Yes | Must be `push`. Configure this in your repository's Webhooks. |
+| `secret` | string | No | Webhook secret used to verify `X-Hub-Signature-256`. |
+| `validateSignature` | boolean | No | Validate GitHub signature using the shared `secret`. Defaults to `true`. |
+
+### Outputs
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `payloads` | array | The payloads of the GitHub events. |
+| `latestPayload` | object | Convenience object of the latest webhook payload. |
+| `commits` | array | Commits included in the push. |
+
+#### `latestPayload` shape
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ref` | string | The full Git ref that was pushed (e.g., `refs/heads/main`). |
+| `before` | string | SHA before the push. |
+| `after` | string | SHA after the push. |
+| `repository` | object | Repository metadata. |
+| `pusher` | object | User who initiated the push. |
+| `sender` | object | The GitHub user who triggered the event. |
+| `commits` | array | Array of commit objects. |
+
+### Example webhook event body (raw GitHub payload)
+
+```json
+{
+  "ref": "refs/heads/main",
+  "before": "a10867b14bb761a232cd80139fbd4c0d33264240",
+  "after": "bd9dbfe02f3e6c8a9cdd1e8b5a2a9f5d1f5d4f5a",
+  "repository": {
+    "id": 135493233,
+    "name": "hello-world",
+    "full_name": "octocat/hello-world",
+    "private": false,
+    "html_url": "https://github.com/octocat/hello-world"
+  },
+  "pusher": { "name": "octocat", "email": "octocat@github.com" },
+  "sender": { "login": "octocat", "id": 1 },
+  "commits": [
+    {
+      "id": "1481a2de7b2a7d02428ad93446ab166be7793fbb",
+      "message": "Fix all the bugs",
+      "timestamp": "2023-01-01T00:00:00Z",
+      "author": { "name": "Monalisa Octocat", "email": "octocat@github.com" },
+      "url": "https://github.com/octocat/hello-world/commit/1481a2d"
+    }
+  ]
+}
+```
+
+Method: `POST`  •  Headers: `Content-Type: application/json`, `X-GitHub-Event: push`, `X-Hub-Signature-256: sha256=...`
 
 
-
-## Tools
+## Operations
 
 ### `github_pr`
 
@@ -129,7 +188,233 @@ Retrieve the latest commit from a GitHub repository
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `github`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the GitHub block into your Sim.ai workflows, following established best practices ensures reliable repository interactions and optimal GitHub API performance. The GitHub block serves as a comprehensive interface for repository management, code review automation, and event-driven development workflows, enabling seamless integration between your automated processes and GitHub's ecosystem.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation is critical for GitHub workflow success. The `<github1.content>` output provides human-readable summaries ideal for feeding into Agent blocks for AI-powered code analysis, while `<github1.metadata>` contains structured data perfect for conditional logic and data extraction. For pull request workflows, use `<github1.pull_request>` to access complete PR objects, enabling sophisticated filtering and routing based on PR status, labels, or file changes.
+
+When chaining GitHub operations, leverage the `<github1.repository_owner>` and `<github1.repository_name>` outputs to maintain context across blocks. This pattern proves essential for multi-step workflows where initial webhook events need to trigger subsequent API calls to the same repository. The `<github1.commits>` array can be parsed to extract commit SHAs for detailed commit analysis using the `github_latest_commit` operation.
+
+**Workflow Architecture Patterns**
+
+Successful GitHub workflows typically implement event-driven architectures. The **GitHub Webhook → Function → GitHub Comment** pattern enables automated code review systems where incoming pull requests trigger AI analysis and automated feedback. This creates intelligent review bots that can analyze code quality, security issues, or compliance requirements.
+
+For repository monitoring, implement **GitHub Webhook → Conditional → Multiple Actions** patterns. Use the `<github1.event_type>` output to route different GitHub events (push, pull_request, issues) to specialized handling workflows. Push events can trigger deployment pipelines, while pull request events can initiate review workflows, and issue events can route to project management systems.
+
+Advanced patterns include **GitHub PR → Agent Analysis → GitHub Comment → Slack Notification** flows, where pull requests undergo AI-powered analysis, receive automated comments, and notify development teams through multiple channels. The `<github1.action>` field enables fine-grained control over webhook responses, allowing workflows to distinguish between opened, closed, or synchronized pull requests.
+
+**Message/Data Formatting Excellence**
+
+GitHub comment formatting requires attention to Markdown compatibility and API limitations. Structure comments using proper Markdown syntax with headers, code blocks, and lists for optimal readability. When using the `github_comment` operation, leverage the `commentType` parameter to create targeted feedback: use "pr_comment" for general pull request discussions and "file_comment" with `path`, `line`, and `position` parameters for specific code line feedback.
+
+Format the `body` input with clear sections and actionable feedback. Include code snippets using triple backticks with language specifications for syntax highlighting. For automated reviews, structure comments with consistent headers like "## Security Analysis" or "## Performance Review" to maintain professional appearance across all automated interactions.
+
+When processing `<github1.metadata>` objects, extract specific fields like file changes, commit messages, and author information to create contextual responses. Use the metadata structure to build intelligent filtering systems that only trigger workflows for relevant changes, such as modifications to specific file types or directories.
+
+**Debugging and Monitoring**
+
+Enable comprehensive logging for all GitHub API interactions to track rate limits and identify authentication issues. Monitor the `<github1.content>` output for error messages and use conditional blocks to handle API failures gracefully. The GitHub API returns detailed error information in the metadata object, including rate limit headers and specific error codes.
+
+Implement retry logic for rate limit scenarios by checking response headers in the `<github1.metadata>` output. GitHub's rate limits vary by endpoint and authentication type, so monitor usage patterns and implement exponential backoff strategies for high-volume workflows. Use the `X-RateLimit-Remaining` header information to pause workflows before hitting limits.
+
+For webhook debugging, verify payload signatures and ensure proper event filtering using the `<github1.event_type>` output. Common issues include incorrect webhook secret configuration or missing repository permissions. Test webhook deliveries using GitHub's webhook delivery interface and validate that your workflow correctly processes all expected event types.
+
+**Security Considerations**
+
+GitHub API token management requires strict security protocols. Store API tokens as encrypted environment variables and never expose them in workflow logs or outputs. Use fine-grained personal access tokens with minimal required permissions rather than classic tokens with broad access. For organization repositories, implement token rotation policies and monitor token usage for suspicious activity.
+
+Validate webhook payloads using GitHub's signature verification to prevent malicious requests. The webhook secret should be stored securely and used to verify that incoming requests originate from GitHub. Implement IP allowlist restrictions where possible to limit webhook sources to GitHub's published IP ranges.
+
+When creating comments or interacting with repositories, sanitize all user-provided input to prevent injection attacks or malformed content. Validate repository ownership and user permissions before executing sensitive operations like creating comments or accessing private repository data.
+
+**Performance Optimization**
+
+Optimize GitHub API usage by implementing intelligent caching strategies for repository metadata and commit information. The `github_repo_info` operation provides comprehensive repository data that can be cached to reduce API calls for frequently accessed repositories. Use the repository's `updated_at` timestamp to implement cache invalidation strategies.
+
+Batch similar operations when possible to reduce API request overhead. Instead of making individual commit requests, leverage the commits array from push events to process multiple commits simultaneously. For pull request workflows, combine PR details and file change analysis into single operations rather than multiple API calls.
+
+Implement conditional execution based on file changes to avoid unnecessary processing. Use the `<github1.metadata>` file change information to filter workflows by file types, directories, or change patterns. This prevents resource-intensive operations from running on documentation-only changes or minor configuration updates.
+
+Monitor GitHub API quotas and implement request prioritization for critical workflows. Use the rate limit information in response headers to dynamically adjust workflow execution frequency and ensure high-priority operations complete successfully during peak usage periods.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I fetch pull request details from GitHub in my workflow?">
+
+    To retrieve PR information in your Sim.ai workflow, add a **GitHub block** and configure the `github_pr` operation:
+
+    #### Required Inputs
+
+    | Input | Description | Example Connection |
+    |-------|-------------|-------------------|
+    | `owner` | Repository owner username | `<start.owner>` or static value like "facebook" |
+    | `repo` | Repository name | `<start.repo>` or static value like "react" |
+    | `pullNumber` | PR number to fetch | `<webhook.pull_request.number>` or static number |
+    | `apiKey` | GitHub Personal Access Token | `<start.githubToken>` or environment variable |
+
+    The block outputs `<github1.content>` with a human-readable PR summary and `<github1.metadata>` containing detailed file changes and PR data.
+  </Accordion>
+  <Accordion title="How do I automatically comment on GitHub pull requests from my workflow?">
+
+    To add comments to PRs, configure the GitHub block with the `github_comment` operation:
+
+    1. **Set basic PR comment inputs:**
+       - `owner`: `<webhook.repository.owner.login>`
+       - `repo`: `<webhook.repository.name>`
+       - `pullNumber`: `<webhook.pull_request.number>`
+       - `body`: `<agent1.content>` (AI-generated review comment)
+
+    2. **For file-specific review comments, add:**
+       - `path`: `<function1.filePath>` (specific file being reviewed)
+       - `line`: `<function1.lineNumber>` (line number for the comment)
+       - `side`: "RIGHT" (comment on new code) or "LEFT" (comment on old code)
+       - `commitId`: `<webhook.pull_request.head.sha>`
+  </Accordion>
+  <Accordion title="What GitHub block outputs can I reference in downstream blocks?">
+
+    The GitHub block provides comprehensive outputs for different operations:
+
+    #### Core Outputs (All Operations)
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<github1.content>` | String | Human-readable summary of the operation |
+    | `<github1.metadata>` | Object | Detailed response data from GitHub API |
+    | `<github1.action>` | String | The GitHub operation that was performed |
+
+    #### Webhook Event Outputs (When triggered by GitHub events)
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<github1.repository>` | String | Full repository name (owner/repo) |
+    | `<github1.repository_owner>` | String | Repository owner username |
+    | `<github1.sender>` | String | Username who triggered the event |
+    | `<github1.pull_request>` | Object | Complete pull request data |
+    | `<github1.commits>` | Array | Commit objects for push events |
+    | `<github1.branch>` | String | Branch name from the event |
+    | `<github1.commit_message>` | String | Latest commit message |
+  </Accordion>
+  <Accordion title="How do I create automated code review workflows using GitHub and AI agents?">
+
+    Build intelligent PR review automation by connecting GitHub with Agent blocks:
+
+    #### Example Workflow Pattern
+    ```
+    GitHub Webhook → GitHub (fetch PR) → Agent → GitHub (comment)
+    ```
+
+    #### Step-by-Step Configuration
+
+    1. **Webhook Trigger**: Receives GitHub PR events
+    2. **GitHub Block 1** (`github_pr`):
+       - `owner`: `<start.repository.owner.login>`
+       - `repo`: `<start.repository.name>`
+       - `pullNumber`: `<start.pull_request.number>`
+
+    3. **Agent Block**:
+       - `userPrompt`: "Review this PR: `<github1.content>`"
+       - `systemPrompt`: "You are a code reviewer. Provide constructive feedback."
+
+    4. **GitHub Block 2** (`github_comment`):
+       - `body`: `<agent1.content>`
+       - Other inputs inherited from webhook
+  </Accordion>
+  <Accordion title="Why is my GitHub API request failing?">
+
+    Troubleshoot common GitHub integration issues:
+
+    #### Authentication Problems
+
+    | Issue | Solution |
+    |-------|----------|
+    | **401 Unauthorized** | Verify `<start.apiKey>` contains valid GitHub Personal Access Token |
+    | **403 Forbidden** | Check token permissions include `repo` scope for private repositories |
+    | **Rate Limiting** | GitHub API has rate limits; implement delay between requests |
+
+    #### Repository Access Issues
+
+    | Issue | Solution |
+    |-------|----------|
+    | **404 Repository Not Found** | Verify `<start.owner>` and `<start.repo>` are correct |
+    | **Private Repo Access** | Ensure API token has access to the specific repository |
+    | **Invalid PR Number** | Check `<start.pullNumber>` exists in the target repository |
+
+    #### Input Validation Errors
+
+    | Issue | Solution |
+    |-------|----------|
+    | **Missing Required Fields** | All operation inputs marked as required must be populated |
+    | **Invalid Comment Position** | For file comments, `line` must exist in the PR diff |
+    | **Wrong Branch Reference** | Verify `<start.branch>` exists in the repository |
+  </Accordion>
+  <Accordion title="How do I trigger workflows from specific GitHub events?">
+
+    Configure GitHub webhooks to trigger Sim.ai workflows on repository events:
+
+    #### Common Event Patterns
+
+    ##### 1. **Pull Request Events**
+    Webhook payload provides:
+    - `<start.action>` (opened, closed, synchronize)
+    - `<start.pull_request.number>`
+    - `<start.pull_request.head.sha>`
+
+    ##### 2. **Push Events**
+    Webhook payload provides:
+    - `<start.ref>` (branch reference)
+    - `<start.commits>` (array of new commits)
+    - `<start.before>` and `<start.after>` (commit SHAs)
+
+    ##### 3. **Issue Events**
+    Webhook payload provides:
+    - `<start.action>` (opened, closed, edited)
+    - `<start.issue.number>`
+    - `<start.issue.title>`
+
+    Use these webhook outputs as inputs to GitHub blocks for automated responses to repository activity.
+  </Accordion>
+  <Accordion title="Can I combine GitHub blocks with other Sim.ai blocks for advanced automation?">
+
+    Yes! GitHub blocks integrate seamlessly with other workflow components:
+
+    #### Advanced Integration Patterns
+
+    ##### 1. **GitHub → Function → Slack**
+    Process GitHub events and notify teams:
+    ```
+    GitHub Webhook → Function (parse commits) → Slack (notify channel)
+    ```
+
+    ##### 2. **Schedule → GitHub → Agent**
+    Periodic repository analysis:
+    ```
+    Schedule → GitHub (latest commit) → Agent (analyze changes) → Email
+    ```
+
+    ##### 3. **GitHub → Condition → Multiple Actions**
+    Conditional workflows based on PR status:
+    ```
+    if `<github1.pull_request.state>` equals "closed":
+      → GitHub (comment "Thanks!")
+    else:
+      → Agent (review code)
+    ```
+
+    ##### 4. **API → GitHub → Database**
+    External system integration:
+    ```
+    API (get deployment status) → GitHub (update PR status) → Database (log event)
+    ```
+
+    Use connection tags to pass data between blocks and create sophisticated automation workflows.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

@@ -4,6 +4,8 @@ description: Interact with Discord
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="discord"
@@ -55,13 +57,7 @@ Discord components in Sim use efficient lazy loading, only fetching data when ne
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Connect to Discord to send messages, manage channels, and interact with servers. Automate notifications, community management, and integrate Discord into your workflows.
-
-
-
-## Tools
+## Operations
 
 ### `discord_send_message`
 
@@ -140,7 +136,192 @@ Retrieve information about a Discord user
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `discord`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Discord block into your Sim.ai workflows, following established best practices ensures reliable server interactions and optimal community management. The Discord block serves as a comprehensive bridge between your automated workflows and Discord's rich ecosystem, enabling everything from automated notifications to complex community engagement systems.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation is critical for Discord integrations. The `<discord1.data>` output provides comprehensive message metadata that can be mapped to subsequent blocks for advanced processing. When sending messages, leverage `<agent1.content>` or `<function1.result>` as inputs to the `<discord1.content>` field to create dynamic, context-aware communications. For multi-step workflows, use `<discord1.message>` to track operation success states and trigger conditional logic.
+
+The `<discord1.messages>` output from the get_messages operation contains rich array data that requires careful handling. Map specific message properties using dot notation in connection tags, such as `<discord1.messages[0].content>` for the latest message content or `<discord1.messages[0].author.username>` for sender identification. This granular access enables sophisticated message processing and response systems.
+
+**Workflow Architecture Patterns**
+
+Successful Discord workflows typically follow several proven architectural patterns. The **Webhook Trigger → Function → Discord** pattern excels for external system notifications, where API events are processed and formatted before delivery to specific channels. This pattern ensures consistent message formatting and proper error handling.
+
+For community management, implement **Discord Get Messages → Agent → Discord Send Message** flows that create intelligent conversation systems. The agent processes recent channel activity and responds with contextually relevant content. Advanced implementations use **Schedule Trigger → Discord Get Server → Function → Discord** patterns for periodic community health reports and automated moderation tasks.
+
+Multi-channel broadcasting follows **API → Function → Multiple Discord** patterns, where a single trigger distributes formatted content across different servers and channels simultaneously, perfect for announcement systems and cross-community coordination.
+
+**Message/Data Formatting Excellence**
+
+Discord's message formatting capabilities require careful attention to content structure. Ensure your `<discord1.content>` inputs properly handle Discord's Markdown formatting, including code blocks, embeds, and mentions. Structure complex data using Discord's native formatting to enhance readability - use code blocks for technical information, bullet points for lists, and proper line breaks for long-form content.
+
+When processing `<discord1.messages>` arrays, implement proper null checking and data validation since message objects contain varying fields depending on message type. Filter messages by author type, content length, or timestamp to avoid processing bot messages or system notifications unless specifically required.
+
+For server and user data operations, the `<discord1.data>` outputs contain nested objects with extensive metadata. Map only the required fields to subsequent blocks to maintain workflow efficiency and avoid unnecessary data processing overhead.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring using the `<discord1.message>` output to track operation success rates across all Discord interactions. This field provides clear success/error states that enable conditional workflow logic and failure recovery mechanisms. Log failed operations with specific error details to identify common issues like invalid channel IDs, insufficient bot permissions, or rate limiting.
+
+Monitor `<discord1.data>` outputs for unexpected null values or missing fields that could indicate API changes or permission issues. Set up validation functions that verify critical data fields before processing to prevent downstream workflow failures.
+
+For message retrieval operations, track the actual count of returned messages against the requested limit to identify channels with low activity or potential access restrictions. Use timestamp analysis from message arrays to detect unusual posting patterns or potential spam scenarios.
+
+**Security Considerations**
+
+Bot token security is paramount in Discord workflows. Never expose `botToken` values in logs or error messages, and implement token rotation procedures for production environments. Use environment variables or secure configuration management for bot credentials rather than hardcoding tokens in workflow definitions.
+
+Validate `serverId` and `channelId` inputs rigorously to prevent unauthorized access to Discord resources. Implement allowlist validation for server and channel IDs to ensure workflows only interact with intended Discord communities. This prevents accidental cross-posting and maintains proper access control.
+
+When processing user data from `<discord1.data>` outputs, be mindful of privacy implications and Discord's Terms of Service regarding data usage. Implement data retention policies that automatically purge user information after processing to maintain compliance.
+
+**Performance Optimization**
+
+Discord API rate limiting requires careful workflow design to maintain optimal performance. Implement exponential backoff logic in error handling to gracefully manage rate limit responses. Space multiple Discord operations across time using delay blocks or schedule triggers to distribute API load evenly.
+
+Optimize message retrieval by setting appropriate `limit` values based on actual processing needs - retrieving 100 messages when only the latest 10 are required wastes API quota and processing resources. Cache server and user information locally when possible to reduce redundant API calls.
+
+For high-volume scenarios, implement message batching strategies that collect multiple content items before sending, reducing the total number of Discord API calls. Use queue-based architectures with schedule triggers to process Discord operations during off-peak hours when possible.
+
+Monitor workflow execution times and optimize data mapping patterns to minimize processing overhead. Complex message array processing should use efficient filtering and mapping techniques to avoid performance bottlenecks in active Discord communities.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I send a message from my workflow to Discord?">
+
+    To send messages from your workflow to Discord, add a **Discord block** to your Sim.ai workflow and configure its inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `botToken` | Your Discord bot token from Developer Portal | `<start.botToken>` or environment variable |
+    | `channelId` | The ID of your target Discord channel | `<start.channelId>` or static ID like `1234567890123456789` |
+    | `serverId` | The Discord server (guild) ID | `<start.serverId>` or static server ID |
+    | `content` | The message content to send | `<agent1.content>` or any string |
+  </Accordion>
+  <Accordion title="How do I trigger a workflow when someone sends a Discord message?">
+
+    To create Discord-triggered workflows in Sim.ai:
+
+    1. **Add a Webhook Trigger block** as your workflow's entry point
+    2. **Configure Discord bot webhooks** to send events to your webhook URL
+    3. **Map incoming payload fields** to downstream blocks:
+
+    #### Example Workflow
+    ```
+    Webhook → Agent → Discord
+    ```
+    Connect `<start.content>` to an Agent block's `userPrompt` to process incoming Discord messages.
+  </Accordion>
+  <Accordion title="What is the correct way to reference Discord block outputs in my workflow?">
+
+    Every Discord block exposes outputs that can be referenced using connection tags:
+
+    #### Available Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<discord1.message>` | String | Success or error message from the operation |
+    | `<discord1.data>` | Object | Complete Discord response data |
+    | `<discord1.messages>` | Array | Array of messages (for get_messages operation) |
+
+    #### Operation-Specific Outputs
+
+    For `discord_send_message`:
+    - `<discord1.data.id>` - Message ID
+    - `<discord1.data.content>` - Sent message content
+    - `<discord1.data.timestamp>` - When message was created
+
+    For `discord_get_messages`:
+    - `<discord1.messages[0].content>` - First message content
+    - `<discord1.messages[0].author.username>` - Message author
+  </Accordion>
+  <Accordion title="How do I connect an Agent block's output to a Discord message?">
+
+    To route an agent's response to Discord:
+
+    1. In the Discord block's `content` field, type `<>` to open the connection menu
+    2. Select `<agent1.content>` from the available connections
+
+    #### Example Configuration
+
+    ```json
+    {
+      "channelId": "<start.channel_id>",
+      "serverId": "<start.guild_id>",
+      "content": "<agent1.content>"
+    }
+    ```
+
+    This configuration automatically sends the AI-generated response to the specified Discord channel.
+  </Accordion>
+  <Accordion title="How do I retrieve and process Discord messages in my workflow?">
+
+    Use the `discord_get_messages` operation to fetch channel messages:
+
+    #### Setup Steps
+
+    1. **Configure the Discord block** with `discord_get_messages` operation
+    2. **Set required inputs**:
+       - `botToken`: `<start.botToken>`
+       - `channelId`: `<start.channelId>`
+       - `limit`: `10` (or desired number)
+
+    3. **Reference message data** in downstream blocks:
+       - `<discord1.messages>` - Full messages array
+       - `<discord1.messages[0].content>` - First message text
+       - `<discord1.messages[0].author.username>` - Author name
+  </Accordion>
+  <Accordion title="Why is my Discord bot not sending messages?">
+
+    Troubleshoot common issues with this checklist:
+
+    #### Common Issues and Solutions
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Invalid Bot Token** | Token from Discord Developer Portal is incorrect | Verify `<start.botToken>` matches your bot's token |
+    | **Missing Permissions** | Bot lacks send message permissions | Grant bot `Send Messages` permission in channel |
+    | **Invalid Channel ID** | Wrong channel identifier format | Right-click channel → Copy ID (enable Developer Mode) |
+    | **Invalid Server ID** | Wrong guild identifier | Right-click server name → Copy ID |
+    | **Bot Not in Server** | Bot hasn't joined the target server | Use OAuth2 URL to add bot to server |
+    | **Empty Content** | No message content provided | Ensure `content` field is populated |
+  </Accordion>
+  <Accordion title="Can I combine Discord with other blocks for advanced automation?">
+
+    Yes! Discord blocks integrate seamlessly with other Sim.ai workflow components:
+
+    #### Common Workflow Patterns
+
+    ##### 1. **Webhook → Agent → Discord**
+    Process Discord events with AI and respond automatically.
+
+    ##### 2. **API → Function → Discord**
+    Fetch external data, transform it, and notify Discord channels.
+
+    ##### 3. **Condition → Discord**
+    Send different messages based on conditional logic:
+    ```
+    if `<condition1.result>` is true:
+      → Discord (success notification)
+    else:
+      → Discord (error alert)
+    ```
+
+    ##### 4. **Discord (get_messages) → Agent → Discord (send_message)**
+    Create chatbot workflows that read channel messages and respond intelligently.
+
+    ##### 5. **Scheduled Trigger → Discord**
+    Send automated announcements or status updates to Discord servers on a schedule.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

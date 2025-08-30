@@ -4,6 +4,8 @@ description: Search and retrieve academic papers from ArXiv
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="arxiv"
@@ -45,13 +47,7 @@ In Sim, the ArXiv integration enables your agents to programmatically search, re
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Search for academic papers, retrieve metadata, download papers, and access the vast collection of scientific research on ArXiv.
-
-
-
-## Tools
+## Operations
 
 ### `arxiv_search`
 
@@ -108,7 +104,199 @@ Search for papers by a specific author on ArXiv.
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `arxiv`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the ArXiv block into your Sim.ai workflows, following established best practices ensures reliable academic research retrieval and optimal performance. The ArXiv block serves as a gateway to accessing the vast collection of scientific papers on ArXiv, enabling automated research workflows, literature reviews, and knowledge discovery systems.
+
+**Connection Tag Usage and Data Flow**
+
+Proper use of connection tags is fundamental to successful ArXiv integrations. The `<arxiv1.papers>` connection tag represents the primary output for search operations and should be connected to downstream blocks that process research data. When using `<arxiv1.paper>` for specific paper retrieval, ensure the connection flows to blocks expecting detailed metadata structures including abstracts, authors, and publication dates.
+
+The `<arxiv1.totalResults>` output provides valuable workflow control information. Connect this to conditional logic blocks to handle cases where searches return no results or exceed expected thresholds. For author-specific searches, `<arxiv1.authorPapers>` contains structured data that can be mapped directly to database storage blocks or analysis tools.
+
+Critical data flow patterns include chaining search operations where `<searchBlock.papers[0].id>` feeds into `<arxiv2.paperId>` for detailed retrieval. This enables workflows that first discover relevant papers through broad searches, then fetch comprehensive metadata for selected results.
+
+**Workflow Architecture Patterns**
+
+Successful ArXiv workflows typically follow established architectural patterns. The most common pattern involves **Trigger → ArXiv Search → Agent Analysis → Output**, where external triggers initiate research queries, ArXiv returns results, and AI agents analyze the findings. This pattern enables automated literature monitoring systems that track new publications in specific research areas.
+
+For comprehensive research workflows, implement **ArXiv Search → Filter/Sort → ArXiv Get Paper → Database Storage** patterns. This architecture first identifies relevant papers through broad searches, applies filtering logic to select the most pertinent results, retrieves detailed information, and stores structured data for future analysis.
+
+Advanced patterns include **Scheduled Trigger → Author Search → Comparison Logic → Notification** flows for monitoring specific researchers' publications. These workflows automatically track new papers from followed authors and alert users to relevant publications in their field of interest.
+
+**Message/Data Formatting Excellence**
+
+ArXiv search queries require careful formatting for optimal results. Structure your `<arxiv1.searchQuery>` inputs using appropriate boolean operators and field-specific syntax. For title searches, use precise terminology and consider alternative phrasings. When searching abstracts, include domain-specific keywords and technical terms relevant to your research area.
+
+The `<arxiv1.searchField>` parameter enables targeted searches that significantly improve result relevance. Use "ti" for title-specific searches when looking for papers on exact topics, "au" for author searches, and "abs" for concept-based discovery through abstract content. Combine multiple search strategies in parallel workflows to ensure comprehensive coverage.
+
+Format `<arxiv1.maxResults>` strategically based on downstream processing capabilities. For manual review workflows, limit results to 20-50 papers. For automated analysis systems, consider higher limits but implement proper error handling for large datasets. The 2000-result maximum should be used judiciously to avoid performance degradation.
+
+**Debugging and Monitoring**
+
+Enable comprehensive logging for all ArXiv blocks in your workflows. Monitor the `<arxiv1.totalResults>` output to track search effectiveness and identify queries that return insufficient or excessive results. Use this data to refine search strategies and optimize query parameters over time.
+
+Implement error handling for cases where `<arxiv1.papers>` returns empty arrays or `<arxiv1.paper>` fails to retrieve specific documents. ArXiv paper IDs must follow exact formatting (e.g., "1706.03762" or "cs.AI/0001001"), and malformed IDs will cause operation failures. Validate paper ID formats before passing them to retrieval operations.
+
+Monitor API response times and implement timeout handling for large result sets. ArXiv's servers may experience delays during peak usage periods, particularly for complex searches or requests for popular papers. Set appropriate timeout values and implement retry logic for critical research workflows.
+
+**Performance Optimization**
+
+Optimize ArXiv block performance by implementing intelligent caching strategies. Store frequently accessed paper metadata locally using database blocks to reduce redundant API calls. Cache search results for common queries and implement time-based expiration to balance performance with data freshness.
+
+Structure search queries efficiently by using the most restrictive search fields first. Title and author searches typically return faster results than abstract or full-text searches. When possible, combine multiple specific criteria rather than relying on broad keyword searches that require extensive server-side processing.
+
+Implement pagination strategies for large research datasets. Rather than requesting maximum results in single operations, design workflows that retrieve papers in batches and process them incrementally. This approach reduces memory usage and improves overall workflow reliability.
+
+**Security Considerations**
+
+Validate all user-provided search inputs to prevent injection attacks or malformed queries that could cause system instability. Implement input sanitization for search terms, especially when accepting queries from external sources or user interfaces.
+
+Consider rate limiting when implementing public-facing research tools that utilize the ArXiv block. Excessive API usage can impact service availability and may violate ArXiv's usage policies. Implement request throttling and user session management to ensure responsible API consumption.
+
+Store retrieved research data securely, particularly when building proprietary research databases or commercial applications. While ArXiv content is generally open access, implement appropriate data handling practices and respect any usage restrictions specified by individual papers or authors.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I search for academic papers using the ArXiv block in my workflow?">
+
+    To search for academic papers from ArXiv, add an **ArXiv block** to your Sim.ai workflow and configure the `arxiv_search` operation with these inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `searchQuery` | Keywords, topics, or research terms | `<start.topic>` or static text like "machine learning" |
+
+    #### Optional Search Parameters
+
+    | Input | Description | Options | Example |
+    |-------|-------------|---------|---------|
+    | `searchField` | Specific field to search | all, ti (title), au (author), abs (abstract), co (comment), jr (journal), cat (category), rn (report number) | `<start.searchField>` |
+    | `maxResults` | Number of papers to return | 1-2000 (default: 10) | `<start.maxResults>` |
+    | `sortBy` | Sort criteria | relevance, lastUpdatedDate, submittedDate | `<start.sortBy>` |
+    | `sortOrder` | Sort direction | ascending, descending | `<start.sortOrder>` |
+  </Accordion>
+  <Accordion title="What outputs does the ArXiv block provide and how do I reference them?">
+
+    The ArXiv block exposes several outputs that can be connected to downstream blocks using connection tags:
+
+    #### ArXiv Search Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<arxiv1.papers>` | JSON Array | Complete list of papers matching your search query |
+    | `<arxiv1.totalResults>` | Number | Total count of papers found in the search |
+
+    #### Individual Paper Details (arxiv_get_paper)
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<arxiv1.paper>` | JSON Object | Detailed metadata for a specific paper |
+
+    #### Author Papers (arxiv_get_author_papers)
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<arxiv1.authorPapers>` | JSON Array | All papers by the specified author |
+  </Accordion>
+  <Accordion title="How do I retrieve detailed information about a specific ArXiv paper?">
+
+    To get comprehensive details about a specific paper:
+
+    1. **Use the `arxiv_get_paper` operation** in your ArXiv block
+    2. **Provide the paper ID** in the required input:
+
+    #### Configuration Example
+
+    | Input | Value | Description |
+    |-------|-------|-------------|
+    | `paperId` | `<start.arxivId>` or `"1706.03762"` | ArXiv paper identifier (without "arXiv:" prefix) |
+
+    The output `<arxiv1.paper>` will contain complete paper metadata including title, authors, abstract, publication date, categories, and download links.
+  </Accordion>
+  <Accordion title="How do I connect ArXiv search results to an Agent block for analysis?">
+
+    To process ArXiv papers with AI analysis:
+
+    1. **Connect ArXiv output to Agent input** using connection tags
+    2. **Reference papers data** in the agent's prompt
+
+    #### Example Workflow Configuration
+
+    ```
+    ArXiv Search → Agent → Output
+    ```
+
+    **Agent Block Setup:**
+    - `userPrompt`: `"Summarize these research papers: <arxiv1.papers>"`
+    - `systemPrompt`: `"You are a research analyst. Provide concise summaries of academic papers."`
+
+    The agent will receive the full JSON array of papers and can analyze titles, abstracts, authors, and other metadata.
+  </Accordion>
+  <Accordion title="How do I search for papers by a specific author using the ArXiv block?">
+
+    To find all papers by a particular researcher:
+
+    1. **Select the `arxiv_get_author_papers` operation**
+    2. **Configure the required input:**
+
+    #### Author Search Configuration
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `authorName` | Full or partial author name | `<start.authorName>` or `"Geoffrey Hinton"` |
+    | `maxResults` | Maximum papers to return | `<start.maxResults>` or static number like `50` |
+
+    The output `<arxiv1.authorPapers>` contains an array of all papers by that author, which can be connected to downstream processing blocks.
+  </Accordion>
+  <Accordion title="What common errors occur when using the ArXiv block and how do I fix them?">
+
+    Troubleshoot ArXiv integration issues with these solutions:
+
+    #### Common Issues and Resolutions
+
+    | Error Type | Cause | Solution |
+    |------------|-------|----------|
+    | **Invalid Paper ID Format** | Wrong ID format provided | Use format like `"1706.03762"` without "arXiv:" prefix |
+    | **Empty Search Results** | Query too specific or typos | Broaden search terms in `<arxiv1.searchQuery>` |
+    | **Rate Limiting** | Too many requests | Reduce `maxResults` or add delays between requests |
+    | **Author Name Not Found** | Exact name match required | Try variations: "Smith, J." vs "John Smith" |
+    | **Connection Tag Errors** | Incorrect output references | Verify tags like `<arxiv1.papers>` match block name |
+
+    Check workflow execution logs for specific API error messages from ArXiv's service.
+  </Accordion>
+  <Accordion title="How do I create a research workflow that combines ArXiv with other blocks?">
+
+    ArXiv integrates seamlessly with other Sim.ai blocks for comprehensive research automation:
+
+    #### Common Research Workflow Patterns
+
+    ##### 1. **Webhook → ArXiv → Agent → Email**
+    - Trigger: `<start.researchTopic>`
+    - ArXiv: Search papers on topic
+    - Agent: Summarize findings using `<arxiv1.papers>`
+    - Email: Send research summary
+
+    ##### 2. **Schedule → ArXiv → Function → Database**
+    - Schedule: Daily trigger
+    - ArXiv: Get latest papers in category
+    - Function: Process and format `<arxiv1.papers>`
+    - Database: Store research updates
+
+    ##### 3. **API → ArXiv → Condition → Multiple Actions**
+    - API: Fetch trending topics
+    - ArXiv: Search each topic using `<api1.topics>`
+    - Condition: Check if `<arxiv1.totalResults>` > 5
+    - Actions: Different responses based on paper count
+
+    ##### 4. **Form → ArXiv → Agent → Telegram**
+    Perfect for creating a research assistant bot that searches ArXiv and delivers summaries via Telegram.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

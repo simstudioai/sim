@@ -4,6 +4,8 @@ description: Create, upload, and list files
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="onedrive"
@@ -49,13 +51,7 @@ In Sim, the OneDrive integration enables your agents to directly interact with y
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Integrate OneDrive functionality to manage files and folders. Upload new files, create new folders, and list contents of folders using OAuth authentication. Supports file operations with custom MIME types and folder organization.
-
-
-
-## Tools
+## Operations
 
 ### `onedrive_upload`
 
@@ -119,7 +115,211 @@ List files and folders in OneDrive
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `onedrive`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When incorporating the OneDrive block into your Sim.ai workflows, following established best practices ensures reliable file operations and seamless cloud storage integration. The OneDrive block serves as a critical bridge between your automated workflows and Microsoft's cloud storage platform, enabling sophisticated document management, content archival, and file distribution capabilities across your organization.
+
+**Connection Tag Usage and Data Flow**
+
+Effective OneDrive integrations rely heavily on proper connection tag implementation for file metadata and content flow. The `<onedrive1.file>` connection tag provides comprehensive file metadata including unique identifiers, download links, and timestamps that can be propagated to subsequent blocks. When chaining multiple OneDrive operations, use `<onedrive1.file.id>` to reference specific files for follow-up actions like sharing or moving between folders.
+
+For dynamic file naming, leverage connection tags from upstream blocks such as `<agent1.content>` or `<function1.result>` to populate the `fileName` input. This enables contextual file naming based on workflow data. When working with content generation workflows, connect AI-generated text using `<agent1.content>` directly to the `content` input for seamless document creation.
+
+The `<onedrive1.files>` array output is particularly powerful for batch operations and file discovery workflows. Access individual file properties using array notation like `<onedrive1.files[0].name>` or implement iteration patterns to process multiple files systematically. For folder organization workflows, chain the `<onedrive1.file.id>` from folder creation operations to the `manualFolderId` input of subsequent upload operations.
+
+**Workflow Architecture Patterns**
+
+Successful OneDrive workflows typically implement hierarchical patterns that mirror organizational file structures. The **Document Generation → OneDrive Upload → Notification** pattern is highly effective for automated report creation, where AI agents generate content that gets uploaded to specific folders with stakeholder notifications. This pattern ensures consistent file organization and immediate visibility of new documents.
+
+For content archival systems, implement **Trigger → Data Processing → OneDrive Upload → Index Update** workflows. This pattern captures data from various sources, processes it through transformation functions, uploads structured files to OneDrive, and maintains searchable indexes for future retrieval.
+
+The **OneDrive List → Filter → Process → Action** pattern excels for file monitoring and batch processing scenarios. Use this architecture to regularly scan folders for new files, apply business logic filters, and trigger downstream actions based on file properties or content patterns. This enables automated document workflows that respond to file uploads or modifications.
+
+For collaborative workflows, consider **User Input → Folder Creation → Document Upload → Permission Management** patterns that create project-specific folder structures and populate them with initial documentation. This approach standardizes project initialization and ensures consistent file organization across teams.
+
+**Message/Data Formatting Excellence**
+
+File naming conventions significantly impact workflow reliability and searchability. Implement consistent naming patterns using connection tags: `Report_${workflow.timestamp}_${department.name}.pdf` creates predictable, sortable filenames. Avoid special characters that may cause API issues; stick to alphanumeric characters, hyphens, and underscores.
+
+When uploading text-based content, ensure proper encoding for international characters and special symbols. The `content` parameter accepts string data, so structured formats like JSON, CSV, or XML should be properly serialized. For binary file uploads, ensure content is base64 encoded when passing through connection tags from file processing blocks.
+
+Folder organization requires strategic use of the `folderSelector` and `manualFolderId` parameters. The `folderSelector` provides user-friendly folder selection, while `manualFolderId` enables programmatic folder targeting using connection tags from folder creation operations. For nested folder structures, chain multiple folder creation operations, passing parent folder IDs through connection tags.
+
+Query formatting for the list operation supports OneDrive's search syntax. Use specific file type filters like `query: "name:*.pdf"` or date-based searches like `query: "lastModifiedDateTime:2024-01-01..2024-12-31"`. Combine multiple criteria with AND/OR operators for precise file discovery.
+
+**Debugging and Monitoring**
+
+Comprehensive monitoring starts with tracking the `<onedrive1.success>` boolean output across all operations. Implement conditional logic blocks that handle failed operations gracefully, providing alternative paths or retry mechanisms. The `success` output serves as the primary health indicator for OneDrive operations.
+
+File upload monitoring should track both `<onedrive1.success>` and validate the returned `<onedrive1.file.id>` field. A successful upload always returns a valid file ID; missing IDs indicate partial failures that require investigation. Monitor file sizes and upload timestamps to identify performance bottlenecks or timeout issues.
+
+For list operations, monitor the `<onedrive1.files>` array length against expected results. Discrepancies may indicate permission issues, deleted files, or API limits. The optional `<onedrive1.nextPageToken>` output signals when results are paginated; implement logic to handle large folder contents appropriately.
+
+Common failure patterns include authentication token expiration, insufficient permissions, and storage quota limitations. Implement error handling that checks for specific error conditions and provides meaningful feedback to workflow operators. Use logging blocks to capture detailed error information including operation parameters and response metadata.
+
+**Security Considerations**
+
+OneDrive integration requires careful handling of authentication tokens and file permissions. OAuth tokens should never be logged or passed to external systems through connection tags. The OneDrive block manages token refresh automatically, but monitor authentication health through operation success rates.
+
+File content security depends on proper access controls within OneDrive. When creating folders programmatically, verify that inherited permissions align with organizational security policies. Sensitive documents should be uploaded to folders with restricted access, and sharing links should be generated with appropriate expiration dates and permission levels.
+
+For workflows processing sensitive data, implement content validation before upload. Use function blocks to scan content for personally identifiable information, confidential markers, or compliance violations. This prevents accidental exposure of sensitive information through automated uploads.
+
+Consider implementing audit trails by logging all OneDrive operations including file names, folder paths, and user contexts. This enables compliance reporting and security incident investigation. The `<onedrive1.file>` metadata includes timestamps and identifiers that support comprehensive audit logging.
+
+**Performance Optimization**
+
+OneDrive API performance varies significantly based on file sizes, concurrent operations, and network conditions. For large file uploads, implement progress monitoring and timeout handling. Break large batch operations into smaller chunks using pagination controls and the `pageSize` parameter to maintain responsive workflows.
+
+Folder structure optimization impacts both performance and usability. Deep folder hierarchies can slow list operations and complicate file discovery. Design folder structures that balance organization with performance, typically limiting nesting to 3-4 levels for optimal API response times.
+
+Cache frequently accessed folder IDs and file metadata to reduce API calls. Use workflow variables or database blocks to store commonly referenced OneDrive objects, reducing the need for repeated list operations. This approach significantly improves performance for workflows that operate on stable folder structures.
+
+For high-volume workflows, implement rate limiting and queue management. OneDrive APIs have usage limits that can throttle rapid operations. Design workflows with appropriate delays between operations and implement retry logic with exponential backoff for rate-limited requests.
+
+Query optimization for list operations involves using specific search criteria rather than retrieving all files and filtering locally. Leverage OneDrive's server-side filtering capabilities through the `query` parameter to reduce data transfer and processing time. Combined with appropriate `pageSize` settings, this approach maximizes workflow performance while minimizing resource consumption.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I upload a file to OneDrive from my workflow?">
+
+    To upload files to OneDrive from your Sim.ai workflow, add a **OneDrive block** and configure the required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `fileName` | Name for the uploaded file | `<start.fileName>` or static name like `report.txt` |
+    | `content` | File content to upload | `<agent1.content>` or `<function1.result>` |
+    | `folderSelector` | Target folder (optional) | Select from dropdown or use `<start.folderId>` |
+
+    The block will return `<onedrive1.success>` and `<onedrive1.file>` containing the uploaded file metadata.
+  </Accordion>
+  <Accordion title="How do I reference OneDrive block outputs in downstream blocks?">
+
+    OneDrive blocks expose several outputs that can be connected to other workflow blocks:
+
+    #### Upload Operation Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<onedrive1.success>` | Boolean | `true` if file upload completed successfully |
+    | `<onedrive1.file.id>` | String | Unique OneDrive file identifier |
+    | `<onedrive1.file.name>` | String | Name of the uploaded file |
+    | `<onedrive1.file.webViewLink>` | String | URL to view file in OneDrive web interface |
+    | `<onedrive1.file.webContentLink>` | String | Direct download URL for the file |
+
+    #### List Operation Outputs
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<onedrive1.files>` | Array | Array of file and folder objects |
+    | `<onedrive1.nextPageToken>` | String | Token for pagination if more results exist |
+  </Accordion>
+  <Accordion title="How do I create folders and organize files in OneDrive workflows?">
+
+    Use the OneDrive block's folder creation capabilities to organize your file structure:
+
+    1. **Create Parent Folder First**:
+       - Set operation to `onedrive_create_folder`
+       - Configure `folderName` with `<start.folderName>` or static name
+
+    2. **Upload Files to Created Folder**:
+       - Add second OneDrive block
+       - Set `folderSelector` to `<onedrive1.file.id>` from the folder creation block
+
+    #### Example Workflow Pattern
+    ```
+    Webhook → OneDrive (create folder) → OneDrive (upload file)
+    ```
+
+    Connect `<onedrive1.file.id>` to the second block's `manualFolderId` to upload into the newly created folder.
+  </Accordion>
+  <Accordion title="How do I list and filter OneDrive files in my workflow?">
+
+    To retrieve and filter files from OneDrive:
+
+    #### Configuration Options
+
+    | Input | Purpose | Example |
+    |-------|---------|---------|
+    | `folderSelector` | Choose specific folder | Select from authenticated folders |
+    | `query` | Filter files by search terms | `<start.searchTerm>` or `name:'report'` |
+    | `pageSize` | Limit results returned | `<start.limit>` or static number like `50` |
+
+    #### Processing Results
+    Connect `<onedrive1.files>` to a **Function block** to iterate through results:
+
+    ```javascript
+    // Access file properties
+    const fileNames = files.map(file => file.name);
+    const fileIds = files.map(file => file.id);
+    ```
+  </Accordion>
+  <Accordion title="What authentication is required for OneDrive blocks in Sim.ai?">
+
+    OneDrive blocks use OAuth authentication that must be configured before use:
+
+    1. **Initial Setup**: Authenticate your Microsoft account when first adding the OneDrive block
+    2. **Permission Scopes**: The integration requests access to read and write files in your OneDrive
+    3. **Token Management**: Sim.ai automatically handles token refresh for ongoing workflows
+
+    #### Common Authentication Issues
+
+    | Issue | Description | Solution |
+    |-------|-------------|----------|
+    | **Expired Token** | OAuth token needs refresh | Re-authenticate the OneDrive block in workflow settings |
+    | **Permission Denied** | Insufficient OneDrive permissions | Ensure account has read/write access to target folders |
+    | **Account Access** | Wrong Microsoft account connected | Disconnect and reconnect with correct account |
+  </Accordion>
+  <Accordion title="How do I handle OneDrive errors and failed operations?">
+
+    Troubleshoot common OneDrive integration issues:
+
+    #### Error Diagnosis Steps
+
+    1. **Check Success Status**: Always verify `<onedrive1.success>` before using outputs
+    2. **Validate Inputs**: Ensure required fields like `fileName` and `content` are populated
+    3. **Folder Permissions**: Confirm the target folder exists and is accessible
+
+    #### Common Error Patterns
+
+    | Error Type | Cause | Solution |
+    |------------|-------|----------|
+    | **Upload Fails** | Empty content or invalid fileName | Verify `<agent1.content>` has data before upload |
+    | **Folder Not Found** | Invalid folderSelector or manualFolderId | Use `onedrive_list` to verify folder IDs exist |
+    | **Quota Exceeded** | OneDrive storage limit reached | Check account storage or implement file cleanup |
+    | **Network Timeout** | Large file upload interrupted | Implement retry logic or reduce file size |
+  </Accordion>
+  <Accordion title="How do I integrate OneDrive with Agent blocks for document processing?">
+
+    Combine OneDrive with AI agents for intelligent document workflows:
+
+    #### Document Generation Pattern
+    ```
+    Webhook → Agent → OneDrive (upload)
+    ```
+
+    1. **Generate Content**: Connect `<start.prompt>` to Agent block's `userPrompt`
+    2. **Upload Result**: Connect `<agent1.content>` to OneDrive block's `content` input
+    3. **Dynamic Naming**: Use `<start.documentName>` or generate names like `Report_${timestamp}.txt`
+
+    #### Document Analysis Pattern
+    ```
+    OneDrive (list) → Function → Agent → OneDrive (upload)
+    ```
+
+    1. **Retrieve Files**: List documents with `<onedrive1.files>`
+    2. **Process Content**: Use Function block to extract file content
+    3. **AI Analysis**: Send content to Agent for summarization or analysis
+    4. **Save Results**: Upload processed results back to OneDrive
+
+    This creates automated document processing pipelines that can analyze, transform, and organize files in your OneDrive storage.
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

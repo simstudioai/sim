@@ -4,6 +4,8 @@ description: Search the web using Serper
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="serper"
@@ -76,13 +78,7 @@ In Sim, the Serper integration enables your agents to leverage the power of web 
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Access real-time web search results with Serper's Google Search API integration. Retrieve structured search data including web pages, news, images, and places with customizable language and region settings.
-
-
-
-## Tools
+## Operations
 
 ### `serper_search`
 
@@ -107,7 +103,197 @@ A powerful web search tool that provides access to Google search results through
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `serper`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When incorporating the Serper block into your Sim.ai workflows, following established best practices ensures accurate search results and optimal API utilization. The Serper block serves as a critical data acquisition component, transforming search queries into structured, actionable information that powers intelligent decision-making across your automated workflows.
+
+**Connection Tag Usage and Data Flow**
+
+The `<serper1.searchResults>` connection tag provides the primary data output containing structured search result arrays. This tag connects seamlessly to Agent blocks via `<serper1.searchResults>` → `<agent1.context>`, enabling AI agents to analyze and synthesize search findings. For dynamic query generation, use `<agent1.content>` → `<serper1.query>` to create conversational search interfaces where AI determines optimal search terms based on user input.
+
+When chaining multiple Serper blocks, leverage specific search types through the `type` parameter. Connect `<serper1.searchResults>` to subsequent searches using Function blocks to extract specific data points like domain names or keywords for refined follow-up searches. This creates powerful research workflows where initial broad searches inform targeted deep-dive investigations.
+
+**Workflow Architecture Patterns**
+
+The most effective Serper implementations follow proven architectural patterns. The **Agent → Serper → Agent** pattern enables intelligent research workflows where the first agent formulates search queries, Serper retrieves results, and a second agent analyzes findings. This pattern excels for market research, competitive analysis, and fact-checking applications.
+
+For real-time information workflows, implement **Webhook Trigger → Serper → Notification** patterns that monitor search results for specific topics. Configure multiple Serper blocks with different `gl` and `hl` parameters to gather international perspectives on trending topics, creating comprehensive global monitoring systems. Additionally, you can use the Serptool tool inside an agent block to instruct the agent to search the web for information.
+
+The **Form Input → Serper → Data Processing → Report Generation** pattern transforms user queries into structured research reports, combining search results with data analysis and formatted output.
+
+**Message/Data Formatting Excellence**
+
+Structure search queries for maximum relevance by incorporating specific operators and contextual terms. Use the `num` parameter strategically—set to 5-10 for focused results that reduce processing time, or 20+ for comprehensive research requiring broad coverage. The `searchResults` array contains critical metadata including `title`, `link`, `snippet`, and type-specific fields like `date` for news results or `rating` for places.
+
+When processing `<serper1.searchResults>` in downstream blocks, implement JSON parsing patterns that extract specific result elements. Filter results by relevance using snippet analysis before passing data to Agent blocks, reducing token consumption and improving response quality. For news searches, leverage the `date` field to ensure temporal relevance in your analysis.
+
+**Security Considerations**
+
+Implement robust API key management by storing your Serper API key in secure environment variables rather than hardcoding values. Use connection tags like `<config.apiKey>` from secure configuration blocks to maintain key security across workflow deployments. Monitor API usage through Serper's dashboard to detect unusual activity patterns that might indicate unauthorized access.
+
+Validate search query inputs to prevent injection attacks when user-generated content flows into the `query` parameter. Implement input sanitization in Function blocks before connecting to `<serper1.query>`, especially in public-facing applications where malicious queries could exhaust API limits.
+
+**Performance Optimization**
+
+Optimize API usage by implementing intelligent caching strategies for frequently searched queries. Use Function blocks to check recent search history before triggering new Serper requests, reducing redundant API calls. Configure appropriate `gl` and `hl` parameters based on your target audience to ensure result relevance and reduce the need for follow-up searches.
+
+Implement result filtering at the Function block level to process only relevant search results before expensive downstream operations. Extract key data points immediately after the Serper block rather than passing entire result sets through multiple workflow stages. This approach reduces memory usage and improves overall workflow performance.
+
+**Debugging and Monitoring**
+
+Enable comprehensive logging for all Serper operations by monitoring the `<serper1.searchResults>` output structure. Track search result counts and quality metrics to identify when queries return insufficient or irrelevant data. Implement error handling for empty result sets by checking array length before processing downstream operations.
+
+Monitor API rate limits and response times through workflow execution logs. Create fallback patterns using multiple Serper blocks with different configuration parameters when primary searches fail or return limited results. Use the metadata within `searchResults` to assess result quality—low snippet lengths or missing titles often indicate poor search targeting that requires query refinement.
+
+Implement query performance analysis by tracking which search terms and parameters yield the highest-quality results for your specific use cases. This data informs optimization strategies and helps refine search strategies over time, ensuring consistent workflow performance as your automation needs evolve.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I add web search capabilities to my Sim.ai workflow using Serper?">
+
+    To add web search to your workflow, add a **Serper block** and configure its required inputs:
+
+    #### Required Inputs
+
+    | Input | Description | Example |
+    |-------|-------------|---------|
+    | `query` | The search terms to look for | `<start.searchTerm>` or `<agent1.content>` |
+    | `apiKey` | Your Serper API key from serper.dev | `<start.apiKey>` or environment variable |
+
+    #### Optional Inputs
+
+    | Input | Description | Default | Example |
+    |-------|-------------|---------|---------|
+    | `num` | Number of results to return | 10 | `<start.maxResults>` or static value like `5` |
+    | `gl` | Country code for localized results | us | `<start.country>` or `"gb"` for UK |
+    | `hl` | Language code for results | en | `<start.language>` or `"es"` for Spanish |
+    | `type` | Search type (search, news, images, places) | search | `<start.searchType>` or `"news"` |
+  </Accordion>
+  <Accordion title="What outputs does the Serper block provide and how do I reference them?">
+
+    The Serper block returns structured search data that you can connect to other blocks:
+
+    #### Available Output Tags
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<serper1.searchResults>` | Array | Complete array of search results |
+    | `<serper1.searchResults[0].title>` | String | Title of the first search result |
+    | `<serper1.searchResults[0].link>` | String | URL of the first search result |
+    | `<serper1.searchResults[0].snippet>` | String | Description snippet of the first result |
+    | `<serper1.searchResults[0].date>` | String | Publication date (for news results) |
+    | `<serper1.searchResults[0].rating>` | Number | Rating score (for places results) |
+    | `<serper1.searchResults[0].imageUrl>` | String | Image URL (for image results) |
+
+    Connect `<serper1.searchResults>` to downstream blocks for processing the complete search data.
+  </Accordion>
+  <Accordion title="How do I create a workflow that searches the web based on user input?">
+
+    Build a search-powered workflow with this pattern:
+
+    #### Example Workflow Structure
+    ```
+    Webhook → Serper → Agent → Response
+    ```
+
+    #### Configuration Steps
+
+    1. **Webhook Trigger**: Capture user search query via `<start.query>`
+    2. **Serper Block**: Configure search inputs:
+       ```json
+       {
+         "query": "<start.query>",
+         "apiKey": "<start.serperKey>",
+         "num": 5,
+         "type": "search"
+       }
+       ```
+    3. **Agent Block**: Process results with `<serper1.searchResults>` as context
+    4. **Response Block**: Return formatted answer to user
+  </Accordion>
+  <Accordion title="How do I get a Serper API key and configure authentication?">
+
+    To authenticate with Serper in your Sim.ai workflows:
+
+    #### Getting Your API Key
+
+    1. **Visit serper.dev** and create a free account
+    2. **Generate API key** from your dashboard
+    3. **Add to workflow** via `<start.apiKey>` or environment variables
+
+    #### Security Best Practices
+
+    - Store API keys in environment variables rather than hardcoding
+    - Use `<start.apiKey>` to pass keys from secure storage
+    - Never expose API keys in client-side code or public repositories
+  </Accordion>
+  <Accordion title="What search types does Serper support and how do I use them?">
+
+    Serper supports four different search types, each returning specialized metadata:
+
+    #### Available Search Types
+
+    | Type | Description | Special Fields |
+    |------|-------------|----------------|
+    | `search` | Regular web search | Standard title, link, snippet |
+    | `news` | News articles | `date`, `source`, publication info |
+    | `images` | Image search | `imageUrl`, dimensions, source site |
+    | `places` | Local business search | `rating`, `address`, `phoneNumber` |
+
+    #### Example Usage
+    ```json
+    {
+      "query": "<start.businessName>",
+      "type": "places",
+      "gl": "us"
+    }
+    ```
+  </Accordion>
+  <Accordion title="How do I combine Serper with Agent blocks for intelligent search responses?">
+
+    Create AI-powered search experiences by connecting Serper results to Agent blocks:
+
+    #### Pattern 1: Search + Summarization
+    ```
+    User Query → Serper → Agent (summarize) → Response
+    ```
+
+    Configure the Agent block:
+    - **System Prompt**: "Summarize the following search results"
+    - **User Prompt**: `<serper1.searchResults>`
+
+    #### Pattern 2: Search + Question Answering
+    ```
+    Question → Serper → Agent (answer) → Formatted Response
+    ```
+
+    Configure the Agent block:
+    - **System Prompt**: "Answer the user's question using these search results"
+    - **User Prompt**: `Question: <start.question>\n\nSearch Results: <serper1.searchResults>`
+  </Accordion>
+  <Accordion title="Why am I getting empty or irrelevant search results from Serper?">
+
+    Troubleshoot search quality issues with these solutions:
+
+    #### Common Issues and Fixes
+
+    | Issue | Cause | Solution |
+    |-------|-------|----------|
+    | **No Results** | Query too specific or API key invalid | Verify `<start.apiKey>` is correct, broaden search terms |
+    | **Wrong Language** | Incorrect `hl` parameter | Set `hl` to target language code (e.g., `"en"`, `"es"`) |
+    | **Wrong Location** | Incorrect `gl` parameter | Set `gl` to target country code (e.g., `"us"`, `"gb"`) |
+    | **Outdated Results** | Using wrong search type | Use `type: "news"` for recent information |
+    | **Rate Limiting** | Too many requests | Implement delays or upgrade Serper plan |
+
+    #### Debugging Tips
+    - Check workflow logs for API error messages
+    - Verify `<serper1.searchResults>` contains data before processing
+    - Test queries in Serper dashboard first to validate results
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}

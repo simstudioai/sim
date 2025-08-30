@@ -4,6 +4,8 @@ description: Agent memory management
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion"
+
 
 <BlockInfoCard 
   type="mem0"
@@ -42,13 +44,7 @@ In Sim, the Mem0 integration enables your agents to maintain persistent memory a
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
-
-Add, search, retrieve, and delete memories using Mem0. Store conversation history, user preferences, and context across workflow executions for enhanced AI agent capabilities.
-
-
-
-## Tools
+## Operations
 
 ### `mem0_add_memories`
 
@@ -113,7 +109,225 @@ Retrieve memories from Mem0 by ID or filter criteria
 
 
 
-## Notes
+## Best Practices
 
-- Category: `tools`
-- Type: `mem0`
+{/* MANUAL-CONTENT-START:bestPractices */}
+When integrating the Mem0 block into your Sim.ai workflows, following established best practices ensures reliable memory management and optimal performance. The Mem0 block serves as a critical persistence layer for AI agents, enabling contextual awareness and personalized interactions across multiple workflow executions by storing and retrieving conversation history, user preferences, and contextual information.
+
+**Connection Tag Usage and Data Flow**
+
+Proper connection tag implementation with Mem0 requires understanding the three core operations and their data flows. Use `<agent1.content>` to capture AI responses for memory storage via the `<mem0_1.messages>` input, ensuring conversation context persists across sessions. The `<mem0_1.memories>` output provides structured memory objects that can be passed to subsequent Agent blocks using `<mem0_1.memories>` as context input. For search operations, connect user queries through `<webhook1.query>` to `<mem0_1.query>`, then utilize `<mem0_1.searchResults>` to provide relevant historical context to downstream processing blocks.
+
+The `<mem0_1.ids>` output serves as a crucial reference for memory tracking and deletion workflows. Always capture memory IDs when adding new memories to enable future retrieval and management operations. When implementing conversational flows, structure your data flow as: **User Input → Memory Search → Agent Processing → Memory Addition**, where each operation builds upon the previous block's outputs.
+
+**Workflow Architecture Patterns**
+
+Successful Mem0 implementations follow several proven architectural patterns. The **Contextual Agent Pattern** implements: **Webhook → Mem0 Search → Agent → Mem0 Add**, where incoming messages trigger memory retrieval, provide context to AI processing, and store new interactions. This pattern ensures agents maintain conversation continuity and personalized responses.
+
+For user preference management, deploy the **Preference Learning Pattern**: **User Action → Function → Mem0 Add** combined with **New Interaction → Mem0 Search → Agent**, where user behaviors are captured as memories and retrieved during subsequent interactions. Advanced implementations use the **Memory Hygiene Pattern**: **Scheduled Trigger → Mem0 Get → Function → Mem0 Delete**, automatically managing memory lifecycle based on age, relevance, or storage limits.
+
+Multi-user applications benefit from the **User Context Isolation Pattern**, where each workflow execution uses distinct `userId` values to maintain separate memory spaces. Implement user ID derivation through `<webhook1.userId>` or `<function1.derivedUserId>` to ensure proper memory segmentation.
+
+**Message/Data Formatting Excellence**
+
+Memory formatting directly impacts retrieval quality and agent performance. Structure messages arrays with consistent role-content pairs: `[{"role": "user", "content": "user message"}, {"role": "assistant", "content": "ai response"}]`. This format enables Mem0's semantic understanding and improves search result relevance.
+
+When storing complex information, embed structured data within content fields using JSON or markdown formatting. For user preferences, format memories as: `{"role": "system", "content": "User prefers technical explanations with code examples"}`. This approach enables precise preference retrieval during agent context building.
+
+Optimize search queries for semantic matching by using natural language descriptions rather than keyword lists. Transform user inputs like "show my python projects" into search queries like "python programming projects user has worked on" for better semantic retrieval. Implement query expansion through Function blocks when dealing with abbreviated or technical user inputs.
+
+**Debugging and Monitoring**
+
+Implement comprehensive monitoring using Mem0's output fields for operational visibility. Track memory creation success through `<mem0_1.ids>` array length verification - empty arrays indicate failed memory storage. Monitor search effectiveness by analyzing `<mem0_1.searchResults>` score distributions; consistently low scores suggest query optimization needs or insufficient memory data.
+
+Use conditional logic blocks to handle edge cases: empty search results, failed memory additions, or API errors. Implement fallback patterns where memory failures don't break entire workflows. Create logging workflows that capture `<mem0_1.memories>` content for manual review and quality assessment.
+
+For debugging search operations, implement result inspection workflows that log query-result pairs, enabling search quality optimization. Monitor memory growth patterns by tracking `<mem0_1.ids>` counts across time periods to identify potential storage issues or unexpected memory accumulation.
+
+**Security Considerations**
+
+Implement strict API key management by using environment variables or secure configuration systems rather than hardcoding keys in workflow configurations. Each Mem0 operation requires `apiKey` input - ensure these connections reference secure storage systems rather than plain text values.
+
+Establish user ID validation patterns to prevent memory cross-contamination. Use Function blocks to sanitize and validate `userId` inputs before memory operations, ensuring malicious inputs cannot access unauthorized memory spaces. Implement access control patterns where user identity verification precedes memory operations.
+
+Consider memory content sensitivity when storing conversation data. Avoid persisting sensitive information like passwords, API keys, or personal identification numbers in memory content. Implement content filtering through Function blocks before memory storage to remove or mask sensitive data patterns.
+
+**Performance Optimization**
+
+Optimize memory operations through strategic batching and filtering. When retrieving historical context, use `limit` parameters to control response sizes and reduce processing overhead. Start with smaller limits (10-20 memories) and adjust based on agent performance and response quality requirements.
+
+Implement temporal filtering using `startDate` and `endDate` parameters for `mem0_get_memories` operations to focus on recent, relevant memories. This approach reduces processing overhead and improves context relevance for time-sensitive applications.
+
+Structure search operations for maximum efficiency by preprocessing queries through Function blocks to remove stop words, expand abbreviations, and optimize semantic matching. Cache frequently accessed memories at the workflow level when dealing with static reference data that doesn't require real-time Mem0 retrieval.
+
+For high-volume applications, implement memory lifecycle management through automated cleanup workflows that remove outdated or irrelevant memories based on age, user activity, or relevance scores. This maintains optimal performance while preventing unlimited memory growth.
+
+Monitor memory operation latency and implement timeout handling for API calls. Use parallel processing patterns where multiple memory operations can execute concurrently, such as simultaneous search and retrieval operations for different user contexts within the same workflow execution.
+{/* MANUAL-CONTENT-END */}
+
+
+## FAQ
+
+{/* MANUAL-CONTENT-START:faq */}
+<Accordions type="single">
+  <Accordion title="How do I add memories to Mem0 from my workflow for persistent agent context?">
+
+    To add memories to Mem0 for persistent storage across workflow executions, add a **Mem0 block** configured for the `mem0_add_memories` operation:
+
+    #### Required Inputs
+
+    | Input | Description | Example Connection |
+    |-------|-------------|-------------------|
+    | `userId` | Unique identifier for the user | `<start.userId>` or `<webhook.body.user_id>` |
+    | `messages` | Array of conversation messages | `<agent1.messages>` or manual JSON array |
+    | `apiKey` | Your Mem0 API authentication key | Environment variable or `<start.mem0ApiKey>` |
+
+    #### Example Messages Format
+    ```json
+    [
+      {"role": "user", "content": "What's my favorite color?"},
+      {"role": "assistant", "content": "Your favorite color is blue."}
+    ]
+    ```
+
+    The block outputs `<mem01.ids>` containing the created memory IDs and `<mem01.memories>` with the full memory objects.
+  </Accordion>
+  <Accordion title="How do I search for relevant memories using semantic search in my workflow?">
+
+    To search existing memories using Mem0's semantic search capabilities:
+
+    1. **Configure the Mem0 block** for `mem0_search_memories` operation
+    2. **Connect the required inputs**:
+
+    #### Search Configuration
+
+    | Input | Description | Connection Example |
+    |-------|-------------|-------------------|
+    | `userId` | User whose memories to search | `<start.userId>` |
+    | `query` | Natural language search query | `<agent1.content>` or `<start.searchQuery>` |
+    | `limit` | Maximum results to return | Static number like `10` |
+    | `apiKey` | Your Mem0 API key | Environment variable |
+
+    The search returns `<mem01.searchResults>` with memory data and relevance scores, plus `<mem01.ids>` containing just the memory IDs for further processing.
+  </Accordion>
+  <Accordion title="What is the correct way to reference Mem0 block outputs in downstream blocks?">
+
+    Every Mem0 block exposes structured outputs that can be referenced using connection tags:
+
+    #### Available Output Tags
+
+    | Output Tag | Type | Description |
+    |------------|------|-------------|
+    | `<mem01.ids>` | Array | Memory identifiers for created/found memories |
+    | `<mem01.memories>` | Array | Complete memory objects with full data |
+    | `<mem01.searchResults>` | Array | Search results with memory data and relevance scores |
+
+    #### Usage Examples
+    - **Feed search results to Agent**: Connect `<mem01.searchResults>` to an Agent's context input
+    - **Chain memory operations**: Use `<mem01.ids>` to retrieve specific memories in a follow-up block
+    - **Conditional processing**: Reference `<mem01.memories>` in Function blocks for data transformation
+  </Accordion>
+  <Accordion title="How do I connect an Agent block with Mem0 for persistent conversation memory?">
+
+    To create AI agents with persistent memory across conversations:
+
+    #### Pattern 1: Search → Agent → Add Memory
+    ```
+    Webhook → Mem0 (search) → Agent → Mem0 (add) → Response
+    ```
+
+    1. **Search existing memories**: Use `<start.userId>` and `<start.message>` to find relevant context
+    2. **Enhance agent context**: Connect `<mem01.searchResults>` to the Agent's system prompt or context
+    3. **Store new conversation**: Connect Agent outputs to a second Mem0 block for persistence
+
+    #### Pattern 2: Retrieve → Agent Workflow
+    ```json
+    {
+      "userId": "<webhook.body.user_id>",
+      "query": "<webhook.body.message>",
+      "limit": 5
+    }
+    ```
+
+    Connect the search results to your Agent: `<mem01.searchResults>` → Agent `context` input.
+  </Accordion>
+  <Accordion title="How do I retrieve specific memories by date range or memory ID in my workflow?">
+
+    To retrieve memories using the `mem0_get_memories` operation with filtering:
+
+    #### Retrieval Options
+
+    | Filter Type | Input Configuration | Example |
+    |-------------|-------------------|---------|
+    | **By Memory ID** | Set `memoryId` field | `<start.specificMemoryId>` |
+    | **By Date Range** | Set `startDate` and `endDate` | `"2024-01-01"` to `"2024-12-31"` |
+    | **Recent Memories** | Set `limit` only | `10` for last 10 memories |
+    | **All User Memories** | Just `userId` | No additional filters |
+
+    #### Example Configuration
+    ```json
+    {
+      "userId": "<start.userId>",
+      "startDate": "2024-01-01",
+      "endDate": "2024-01-31",
+      "limit": 20
+    }
+    ```
+
+    The operation returns `<mem01.memories>` containing the filtered memory objects and `<mem01.ids>` with their identifiers.
+  </Accordion>
+  <Accordion title="Why are my Mem0 operations failing or not returning expected results?">
+
+    Troubleshoot common Mem0 integration issues with this diagnostic checklist:
+
+    #### Authentication & API Issues
+
+    | Issue | Symptoms | Solution |
+    |-------|----------|----------|
+    | **Invalid API Key** | 401/403 errors in logs | Verify `apiKey` input contains valid Mem0 credentials |
+    | **Missing User ID** | Empty results or errors | Ensure `userId` is populated: `<start.userId>` |
+    | **Malformed Messages** | Add operation fails | Verify `messages` is valid JSON array with `role` and `content` fields |
+
+    #### Search & Retrieval Issues
+
+    | Issue | Symptoms | Solution |
+    |-------|----------|----------|
+    | **No Search Results** | Empty `searchResults` array | Try broader queries or check if memories exist for the user |
+    | **Date Filter Problems** | Unexpected results | Use YYYY-MM-DD format for `startDate` and `endDate` |
+    | **Memory ID Not Found** | Empty memories array | Verify the `memoryId` exists and belongs to the specified `userId` |
+
+    #### Data Flow Issues
+    - **Check connection tags**: Ensure `<mem01.outputField>` references match actual block output names
+    - **Validate input data**: Use Function blocks to log and verify input values before Mem0 operations
+    - **Review workflow logs**: Sim.ai execution logs show detailed error messages for debugging
+  </Accordion>
+  <Accordion title="Can I chain multiple Mem0 operations for complex memory management workflows?">
+
+    Yes! Mem0 blocks can be chained together for sophisticated memory management patterns:
+
+    #### Advanced Workflow Patterns
+
+    ##### 1. **Search → Conditional → Add/Update Pattern**
+    ```
+    Mem0 (search) → Condition → [Mem0 (add new) | Mem0 (retrieve existing)]
+    ```
+    Use `<mem01.searchResults>` to determine if memories exist, then branch accordingly.
+
+    ##### 2. **Batch Memory Processing**
+    ```
+    Start → Function (prepare data) → Mem0 (add multiple) → Agent (summarize)
+    ```
+    Transform input data into the required messages format before adding to memory.
+
+    ##### 3. **Memory-Enhanced Agent Pipeline**
+    ```
+    Webhook → Mem0 (search context) → Agent (enhanced response) → Mem0 (store interaction) → Response
+    ```
+
+    #### Connection Examples
+    - **Chain search to retrieval**: `<mem01.ids>` → second Mem0 block's `memoryId` input
+    - **Feed memories to agents**: `<mem01.memories>` → Agent `systemPrompt` or `context`
+    - **Conditional memory storage**: Use Condition blocks with `<mem01.searchResults>` to determine next actions
+  </Accordion>
+</Accordions>
+{/* MANUAL-CONTENT-END */}
