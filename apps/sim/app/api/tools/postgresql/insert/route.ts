@@ -43,9 +43,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    // Debug: Log the data field to see what we're getting
-    logger.info(`[${requestId}] Received data field type: ${typeof body.data}, value:`, body.data)
-
     const params = InsertSchema.parse(body)
 
     logger.info(
