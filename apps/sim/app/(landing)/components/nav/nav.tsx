@@ -39,7 +39,7 @@ export default async function Nav() {
   return (
     <nav
       aria-label='Primary'
-      className={`${soehne.className} flex w-full items-center justify-between px-[70px] pt-[24px] pb-[34px]`}
+      className={`${soehne.className} flex w-full items-center justify-between px-[70px] pt-[22px] pb-[34px]`}
     >
       <div className='flex items-center gap-[50px]'>
         <Link href='/' aria-label='Sim home'>
@@ -65,7 +65,12 @@ export default async function Nav() {
             </a>
           </li>
           <li>
-            <Link href='/' className='font-normal text-[18px] text-muted-foreground'>
+            <Link
+              href='https://docs.sim.ai'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='font-normal text-[18px] text-muted-foreground'
+            >
               Docs
             </Link>
           </li>
@@ -80,6 +85,18 @@ export default async function Nav() {
             </Link>
           </li>
         </ul>
+      </div>
+      <div className='flex items-center justify-center gap-[24px]'>
+        <Link href='/login' className='font-normal text-[#2E2E2E] text-[18px]'>
+          Log in
+        </Link>
+        <Link
+          href='/signup'
+          className='inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] px-3 py-[6px] font-normal text-[18px] text-white shadow-[inset_0_2px_4px_0_#9B77FF]'
+          aria-label='Get started'
+        >
+          Get started
+        </Link>
       </div>
     </nav>
   )

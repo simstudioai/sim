@@ -7,7 +7,7 @@ export default function Hero() {
   return (
     <Background>
       <Nav />
-      <div className='flex w-full flex-col items-center justify-center gap-[2px] pt-[88px]'>
+      <div className='flex w-full flex-col items-center justify-center gap-[2px] pt-[80px]'>
         <h1 className={`${soehne.className} font-medium text-[74px] tracking-tight`}>
           Workflows for LLMs
         </h1>
