@@ -5,6 +5,7 @@ export const API_ENDPOINTS = {
   SETTINGS: '/api/settings',
   WORKFLOWS: '/api/workflows',
   WORKSPACE_PERMISSIONS: (id: string) => `/api/workspaces/${id}/permissions`,
+  WORKSPACE_ENVIRONMENT: (id: string) => `/api/workspaces/${id}/environment`,
 }
 
 // Removed SYNC_INTERVALS - Socket.IO handles real-time sync

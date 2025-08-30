@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Share2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +23,7 @@ import type { EnvironmentVariable as StoreEnvironmentVariable } from '@/stores/s
 const logger = createLogger('EnvironmentVariables')
 
 // Constants
-const GRID_COLS = 'grid grid-cols-[minmax(0,1fr),minmax(0,1fr),40px] gap-4'
+const GRID_COLS = 'grid grid-cols-[minmax(0,1fr),minmax(0,1fr),88px] gap-4'
 const INITIAL_ENV_VAR: UIEnvironmentVariable = { key: '', value: '' }
 
 interface UIEnvironmentVariable extends StoreEnvironmentVariable {
@@ -38,13 +39,27 @@ export function EnvironmentVariables({
   onOpenChange,
   registerCloseHandler,
 }: EnvironmentVariablesProps) {
-  const { variables, isLoading } = useEnvironmentStore()
+  const {
+    variables,
+    isLoading,
+    loadWorkspaceEnvironment,
+    upsertWorkspaceEnvironment,
+    removeWorkspaceEnvironmentKeys,
+  } = useEnvironmentStore()
+  const params = useParams()
+  const workspaceId = (params?.workspaceId as string) || ''
 
   const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [focusedValueIndex, setFocusedValueIndex] = useState<number | null>(null)
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false)
+  const [workspaceVars, setWorkspaceVars] = useState<Record<string, string>>({})
+  const [conflicts, setConflicts] = useState<string[]>([])
+  const [renamingKey, setRenamingKey] = useState<string | null>(null)
+  const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
+  const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(true)
+  const initialWorkspaceVarsRef = useRef<Record<string, string>>({})
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const pendingClose = useRef(false)
@@ -80,8 +95,18 @@ export function EnvironmentVariables({
       if (!currentMap.has(key)) return true
     }
 
+    // Workspace diffs
+    const before = initialWorkspaceVarsRef.current
+    const after = workspaceVars
+    const beforeKeys = Object.keys(before)
+    const afterKeys = Object.keys(after)
+    if (beforeKeys.length !== afterKeys.length) return true
+    for (const key of new Set([...beforeKeys, ...afterKeys])) {
+      if ((before as any)[key] !== (after as any)[key]) return true
+    }
+
     return false
-  }, [envVars])
+  }, [envVars, workspaceVars])
 
   // Intercept close attempts to check for unsaved changes
   const handleModalClose = (open: boolean) => {
@@ -101,6 +126,31 @@ export function EnvironmentVariables({
     setEnvVars(JSON.parse(JSON.stringify(initialVars)))
     pendingClose.current = false
   }, [variables])
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      if (!workspaceId) {
+        setIsWorkspaceLoading(false)
+        return
+      }
+      setIsWorkspaceLoading(true)
+      try {
+        const data = await loadWorkspaceEnvironment(workspaceId)
+        if (!mounted) return
+        setWorkspaceVars(data.workspace || {})
+        initialWorkspaceVarsRef.current = data.workspace || {}
+        setConflicts(data.conflicts || [])
+      } finally {
+        if (mounted) {
+          setIsWorkspaceLoading(false)
+        }
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [workspaceId, loadWorkspaceEnvironment])
 
   // Register close handler with parent
   useEffect(() => {
@@ -246,7 +296,7 @@ export function EnvironmentVariables({
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     try {
       // Close modal immediately for optimistic updates
       setShowUnsavedChanges(false)
@@ -265,54 +315,110 @@ export function EnvironmentVariables({
 
       // Single store update that triggers sync
       useEnvironmentStore.getState().setVariables(validVariables)
+
+      // Workspace diffs commit
+      const before = initialWorkspaceVarsRef.current
+      const after = workspaceVars
+      const toUpsert: Record<string, string> = {}
+      const toDelete: string[] = []
+
+      for (const [k, v] of Object.entries(after)) {
+        if (!(k in before) || before[k] !== v) {
+          toUpsert[k] = v
+        }
+      }
+      for (const k of Object.keys(before)) {
+        if (!(k in after)) toDelete.push(k)
+      }
+
+      if (workspaceId) {
+        if (Object.keys(toUpsert).length) {
+          await upsertWorkspaceEnvironment(workspaceId, toUpsert)
+        }
+        if (toDelete.length) {
+          await removeWorkspaceEnvironmentKeys(workspaceId, toDelete)
+        }
+      }
+
+      initialWorkspaceVarsRef.current = { ...workspaceVars }
     } catch (error) {
       logger.error('Failed to save environment variables:', error)
     }
   }
 
   // UI rendering
-  const renderEnvVarRow = (envVar: UIEnvironmentVariable, originalIndex: number) => (
-    <div key={envVar.id || originalIndex} className={`${GRID_COLS} items-center`}>
-      <Input
-        data-input-type='key'
-        value={envVar.key}
-        onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
-        onPaste={(e) => handlePaste(e, originalIndex)}
-        placeholder='API_KEY'
-        autoComplete='off'
-        autoCorrect='off'
-        autoCapitalize='off'
-        spellCheck='false'
-        name={`env-var-key-${envVar.id || originalIndex}-${Math.random()}`}
-        className='h-9 rounded-[8px] border-none bg-muted px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
-      />
-      <Input
-        data-input-type='value'
-        value={envVar.value}
-        onChange={(e) => updateEnvVar(originalIndex, 'value', e.target.value)}
-        type={focusedValueIndex === originalIndex ? 'text' : 'password'}
-        onFocus={(e) => handleValueFocus(originalIndex, e)}
-        onClick={handleValueClick}
-        onBlur={() => setFocusedValueIndex(null)}
-        onPaste={(e) => handlePaste(e, originalIndex)}
-        placeholder='Enter value'
-        className='allow-scroll h-9 rounded-[8px] border-none bg-muted px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
-        autoComplete='off'
-        autoCorrect='off'
-        autoCapitalize='off'
-        spellCheck='false'
-        name={`env-var-value-${envVar.id || originalIndex}-${Math.random()}`}
-      />
-      <Button
-        variant='ghost'
-        size='icon'
-        onClick={() => removeEnvVar(originalIndex)}
-        className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
-      >
-        ×
-      </Button>
-    </div>
-  )
+  const renderEnvVarRow = (envVar: UIEnvironmentVariable, originalIndex: number) => {
+    const isConflict = !!envVar.key && Object.hasOwn(workspaceVars, envVar.key)
+    return (
+      <>
+        <div key={envVar.id || originalIndex} className={`${GRID_COLS} items-center`}>
+          <Input
+            data-input-type='key'
+            value={envVar.key}
+            onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
+            onPaste={(e) => handlePaste(e, originalIndex)}
+            placeholder='API_KEY'
+            autoComplete='off'
+            autoCorrect='off'
+            autoCapitalize='off'
+            spellCheck='false'
+            name={`env-var-key-${envVar.id || originalIndex}-${Math.random()}`}
+            className={`h-9 rounded-[8px] border-none bg-muted px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 ${isConflict ? 'outline-none ring-0 border border-destructive/50 text-destructive' : ''}`}
+          />
+          <Input
+            data-input-type='value'
+            value={envVar.value}
+            onChange={(e) => updateEnvVar(originalIndex, 'value', e.target.value)}
+            type={focusedValueIndex === originalIndex ? 'text' : 'password'}
+            onFocus={(e) => handleValueFocus(originalIndex, e)}
+            onClick={handleValueClick}
+            onBlur={() => setFocusedValueIndex(null)}
+            onPaste={(e) => handlePaste(e, originalIndex)}
+            placeholder={isConflict ? 'Workspace override active' : 'Enter value'}
+            disabled={isConflict}
+            aria-disabled={isConflict}
+            className={`allow-scroll h-9 rounded-[8px] border-none bg-muted px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 ${isConflict ? 'outline-none ring-0 border border-destructive/50 text-destructive/80 cursor-not-allowed' : ''}`}
+            autoComplete='off'
+            autoCorrect='off'
+            autoCapitalize='off'
+            spellCheck='false'
+            name={`env-var-value-${envVar.id || originalIndex}-${Math.random()}`}
+          />
+          <div className='flex items-center gap-2'>
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={() => removeEnvVar(originalIndex)}
+              className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
+            >
+              ×
+            </Button>
+            <Button
+              variant='ghost'
+              size='icon'
+              title='Make it Workspace Scoped'
+              aria-label='Make it Workspace Scoped'
+              disabled={!envVar.key || !envVar.value || isConflict || !workspaceId}
+              onClick={() => {
+                if (!envVar.key || !envVar.value || !workspaceId) return
+                setWorkspaceVars((prev) => ({ ...prev, [envVar.key]: envVar.value }))
+                setConflicts((prev) => (prev.includes(envVar.key) ? prev : [...prev, envVar.key]))
+              }}
+              className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
+            >
+              <Share2 className='h-4 w-4' />
+            </Button>
+          </div>
+        </div>
+        {isConflict && (
+          <div className='col-span-3 -mt-1 mb-2 text-[12px] leading-tight text-destructive/80'>
+            Workspace variable with the same name overrides this. Rename your personal key to use
+            it.
+          </div>
+        )}
+      </>
+    )
+  }
 
   return (
     <div className='relative flex h-full flex-col'>
@@ -340,7 +446,7 @@ export function EnvironmentVariables({
         className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
       >
         <div className='h-full space-y-2 py-2'>
-          {isLoading ? (
+          {isLoading || isWorkspaceLoading ? (
             <>
               {/* Show 3 skeleton rows */}
               {[1, 2, 3].map((index) => (
@@ -353,6 +459,71 @@ export function EnvironmentVariables({
             </>
           ) : (
             <>
+              {/* Workspace section */}
+              <div className='mb-6 space-y-2'>
+                <div className='text-[13px] font-medium text-foreground'>Workspace Environment</div>
+                {Object.keys(workspaceVars).length === 0 ? (
+                  <div className='text-muted-foreground text-sm'>No workspace variables yet.</div>
+                ) : (
+                  Object.entries(workspaceVars).map(([key, value]) => (
+                    <div key={key} className={`${GRID_COLS} items-center`}>
+                      <Input
+                        value={renamingKey === key ? pendingKeyValue : key}
+                        onChange={(e) => {
+                          if (renamingKey !== key) setRenamingKey(key)
+                          setPendingKeyValue(e.target.value)
+                        }}
+                        onBlur={() => {
+                          const newKey = pendingKeyValue.trim()
+                          if (!renamingKey || renamingKey !== key) return
+                          setRenamingKey(null)
+                          if (!newKey || newKey === key) return
+                          setWorkspaceVars((prev) => {
+                            const next = { ...prev }
+                            delete next[key]
+                            next[newKey] = value
+                            return next
+                          })
+                          setConflicts((prev) => {
+                            const withoutOld = prev.filter((k) => k !== key)
+                            const personalHasNew =
+                              !!useEnvironmentStore.getState().variables[newKey]
+                            return personalHasNew && !withoutOld.includes(newKey)
+                              ? [...withoutOld, newKey]
+                              : withoutOld
+                          })
+                        }}
+                        className='h-9 rounded-[8px] border-none bg-muted px-3 text-sm'
+                      />
+                      <Input
+                        value={value ? '••••••••' : ''}
+                        readOnly
+                        className='h-9 rounded-[8px] border-none bg-muted px-3 text-sm'
+                      />
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        onClick={() => {
+                          setWorkspaceVars((prev) => {
+                            const next = { ...prev }
+                            delete next[key]
+                            return next
+                          })
+                          setConflicts((prev) => prev.filter((k) => k !== key))
+                        }}
+                        className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Personal section */}
+              <div className='mt-8 mb-2 text-[13px] font-medium text-foreground'>
+                Personal Environment
+              </div>
               {filteredEnvVars.map(({ envVar, originalIndex }) =>
                 renderEnvVarRow(envVar, originalIndex)
               )}

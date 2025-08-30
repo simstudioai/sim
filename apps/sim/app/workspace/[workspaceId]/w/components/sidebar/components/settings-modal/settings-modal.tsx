@@ -47,33 +47,34 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const loadSettings = useGeneralStore((state) => state.loadSettings)
   const { activeOrganization } = useOrganizationStore()
   const hasLoadedInitialData = useRef(false)
+  const hasLoadedGeneral = useRef(false)
   const environmentCloseHandler = useRef<((open: boolean) => void) | null>(null)
   const credentialsCloseHandler = useRef<((open: boolean) => void) | null>(null)
 
   useEffect(() => {
-    async function loadAllSettings() {
+    async function loadGeneralIfNeeded() {
       if (!open) return
-
-      if (hasLoadedInitialData.current) return
-
+      if (activeSection !== 'general') return
+      if (hasLoadedGeneral.current) return
       setIsLoading(true)
-
       try {
         await loadSettings()
+        hasLoadedGeneral.current = true
         hasLoadedInitialData.current = true
       } catch (error) {
-        logger.error('Error loading settings data:', error)
+        logger.error('Error loading general settings:', error)
       } finally {
         setIsLoading(false)
       }
     }
 
     if (open) {
-      loadAllSettings()
+      void loadGeneralIfNeeded()
     } else {
       hasLoadedInitialData.current = false
+      hasLoadedGeneral.current = false
     }
-  }, [open, loadSettings])
+  }, [open, activeSection, loadSettings])
 
   useEffect(() => {
     const handleOpenSettings = (event: CustomEvent<{ tab: SettingsSection }>) => {
@@ -127,49 +128,61 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
           {/* Content Area */}
           <div className='flex-1 overflow-y-auto'>
-            <div className={cn('h-full', activeSection === 'general' ? 'block' : 'hidden')}>
-              <General />
-            </div>
-            <div className={cn('h-full', activeSection === 'environment' ? 'block' : 'hidden')}>
-              <EnvironmentVariables
-                onOpenChange={onOpenChange}
-                registerCloseHandler={(handler) => {
-                  environmentCloseHandler.current = handler
-                }}
-              />
-            </div>
-            <div className={cn('h-full', activeSection === 'account' ? 'block' : 'hidden')}>
-              <Account onOpenChange={onOpenChange} />
-            </div>
-            <div className={cn('h-full', activeSection === 'credentials' ? 'block' : 'hidden')}>
-              <Credentials
-                onOpenChange={onOpenChange}
-                registerCloseHandler={(handler) => {
-                  credentialsCloseHandler.current = handler
-                }}
-              />
-            </div>
-            <div className={cn('h-full', activeSection === 'apikeys' ? 'block' : 'hidden')}>
-              <ApiKeys onOpenChange={onOpenChange} />
-            </div>
-            {isSubscriptionEnabled && (
-              <div className={cn('h-full', activeSection === 'subscription' ? 'block' : 'hidden')}>
+            {activeSection === 'general' && (
+              <div className={cn('h-full', 'block')}>
+                <General />
+              </div>
+            )}
+            {activeSection === 'environment' && (
+              <div className={cn('h-full', 'block')}>
+                <EnvironmentVariables
+                  onOpenChange={onOpenChange}
+                  registerCloseHandler={(handler) => {
+                    environmentCloseHandler.current = handler
+                  }}
+                />
+              </div>
+            )}
+            {activeSection === 'account' && (
+              <div className={cn('h-full', 'block')}>
+                <Account onOpenChange={onOpenChange} />
+              </div>
+            )}
+            {activeSection === 'credentials' && (
+              <div className={cn('h-full', 'block')}>
+                <Credentials
+                  onOpenChange={onOpenChange}
+                  registerCloseHandler={(handler) => {
+                    credentialsCloseHandler.current = handler
+                  }}
+                />
+              </div>
+            )}
+            {activeSection === 'apikeys' && (
+              <div className={cn('h-full', 'block')}>
+                <ApiKeys onOpenChange={onOpenChange} />
+              </div>
+            )}
+            {isSubscriptionEnabled && activeSection === 'subscription' && (
+              <div className={cn('h-full', 'block')}>
                 <Subscription onOpenChange={onOpenChange} />
               </div>
             )}
-            {isBillingEnabled && (
-              <div className={cn('h-full', activeSection === 'team' ? 'block' : 'hidden')}>
+            {isBillingEnabled && activeSection === 'team' && (
+              <div className={cn('h-full', 'block')}>
                 <TeamManagement />
               </div>
             )}
-            {isHosted && (
-              <div className={cn('h-full', activeSection === 'copilot' ? 'block' : 'hidden')}>
+            {isHosted && activeSection === 'copilot' && (
+              <div className={cn('h-full', 'block')}>
                 <Copilot />
               </div>
             )}
-            <div className={cn('h-full', activeSection === 'privacy' ? 'block' : 'hidden')}>
-              <Privacy />
-            </div>
+            {activeSection === 'privacy' && (
+              <div className={cn('h-full', 'block')}>
+                <Privacy />
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>

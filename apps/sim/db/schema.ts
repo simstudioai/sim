@@ -319,6 +319,24 @@ export const environment = pgTable('environment', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+export const workspaceEnvironment = pgTable(
+  'workspace_environment',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    variables: json('variables').notNull().default('{}'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Ensure one row per workspace
+    workspaceUnique: uniqueIndex('workspace_environment_workspace_unique').on(table.workspaceId),
+    workspaceIdIdx: index('workspace_environment_workspace_id_idx').on(table.workspaceId),
+  })
+)
+
 export const settings = pgTable('settings', {
   id: text('id').primaryKey(), // Use the user id as the key
   userId: text('user_id')
