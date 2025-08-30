@@ -47,40 +47,9 @@ export function checkTeamPlan(subscription: any): boolean {
 }
 
 /**
- * Calculate the total subscription-level allowance (what the org/user gets for their base payment)
- * - Pro: Fixed amount per user
- * - Team: Seats * base price (pooled for the org)
- * - Enterprise: Unlimited usage (no overages)
- * @param subscription The subscription object
- * @returns The total subscription allowance in dollars
- */
-export function getSubscriptionAllowance(subscription: any): number {
-  if (!subscription || subscription.status !== 'active') {
-    return getFreeTierLimit()
-  }
-
-  const seats = subscription.seats || 1
-
-  if (subscription.plan === 'pro') {
-    return getProTierLimit()
-  }
-  if (subscription.plan === 'team') {
-    return seats * getTeamTierLimitPerSeat()
-  }
-  if (subscription.plan === 'enterprise') {
-    // Enterprise has fixed pricing - allowance equals their monthly cost
-    // This is configured per organization, not calculated from seats
-    return 0
-  }
-
-  return getFreeTierLimit()
-}
-
-/**
  * Get the minimum usage limit for an individual user (used for validation)
- * - Pro: User's plan minimum
- * - Team: Pooled limit shared across team
- * - Enterprise: Unlimited (no limit)
+ * Only applicable for plans with individual limits (Free/Pro)
+ * Team and Enterprise plans use organization-level limits instead
  * @param subscription The subscription object
  * @returns The per-user minimum limit in dollars
  */
@@ -89,18 +58,14 @@ export function getPerUserMinimumLimit(subscription: any): number {
     return getFreeTierLimit()
   }
 
-  const seats = subscription.seats || 1
-
   if (subscription.plan === 'pro') {
     return getProTierLimit()
   }
-  if (subscription.plan === 'team') {
-    // For team plans, return the total pooled limit (seats * cost per seat)
-    // This becomes the user's individual limit representing their share of the team pool
-    return seats * getTeamTierLimitPerSeat()
-  }
-  if (subscription.plan === 'enterprise') {
-    // Enterprise has fixed pricing - limit is managed at organization level
+
+  if (subscription.plan === 'team' || subscription.plan === 'enterprise') {
+    // Team and Enterprise don't have individual limits - they use organization limits
+    // This function should not be called for these plans
+    // Returning 0 to indicate no individual minimum
     return 0
   }
 
