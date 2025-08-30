@@ -70,7 +70,7 @@ export const insertTool: ToolConfig<MySQLInsertParams, MySQLResponse> = {
       database: params.database,
       username: params.username,
       password: params.password,
-      ssl: params.ssl || 'preferred',
+      ssl: params.ssl || 'required',
       table: params.table,
       data: params.data,
     }),

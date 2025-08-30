@@ -18,13 +18,11 @@ export async function createMySQLConnection(config: MySQLConnectionConfig) {
     password: config.password,
   }
 
-  // Handle SSL configuration
   if (config.ssl === 'required') {
     connectionConfig.ssl = { rejectUnauthorized: true }
   } else if (config.ssl === 'preferred') {
     connectionConfig.ssl = { rejectUnauthorized: false }
   }
-  // For 'disabled', we don't set the ssl property at all
 
   return mysql.createConnection(connectionConfig)
 }
@@ -54,7 +52,6 @@ export async function executeQuery(
 export function validateQuery(query: string): { isValid: boolean; error?: string } {
   const trimmedQuery = query.trim().toLowerCase()
 
-  // Block dangerous SQL operations
   const dangerousPatterns = [
     /drop\s+database/i,
     /drop\s+schema/i,
@@ -91,7 +88,6 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
     }
   }
 
-  // Only allow specific statement types for execute endpoint
   const allowedStatements = /^(select|insert|update|delete|with|show|describe|explain)\s+/i
   if (!allowedStatements.test(trimmedQuery)) {
     return {
@@ -116,6 +112,8 @@ export function buildInsertQuery(table: string, data: Record<string, unknown>) {
 }
 
 export function buildUpdateQuery(table: string, data: Record<string, unknown>, where: string) {
+  validateWhereClause(where)
+
   const sanitizedTable = sanitizeIdentifier(table)
   const columns = Object.keys(data)
   const values = Object.values(data)
@@ -127,14 +125,33 @@ export function buildUpdateQuery(table: string, data: Record<string, unknown>, w
 }
 
 export function buildDeleteQuery(table: string, where: string) {
+  validateWhereClause(where)
+
   const sanitizedTable = sanitizeIdentifier(table)
   const query = `DELETE FROM ${sanitizedTable} WHERE ${where}`
 
   return { query, values: [] }
 }
 
+function validateWhereClause(where: string): void {
+  const dangerousPatterns = [
+    /;\s*(drop|delete|insert|update|create|alter|grant|revoke)/i,
+    /union\s+select/i,
+    /into\s+outfile/i,
+    /load_file/i,
+    /--/,
+    /\/\*/,
+    /\*\//,
+  ]
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(where)) {
+      throw new Error('WHERE clause contains potentially dangerous operation')
+    }
+  }
+}
+
 export function sanitizeIdentifier(identifier: string): string {
-  // Handle schema.table format
   if (identifier.includes('.')) {
     const parts = identifier.split('.')
     return parts.map((part) => sanitizeSingleIdentifier(part)).join('.')
@@ -144,16 +161,13 @@ export function sanitizeIdentifier(identifier: string): string {
 }
 
 function sanitizeSingleIdentifier(identifier: string): string {
-  // Remove any existing backticks to prevent double-escaping
   const cleaned = identifier.replace(/`/g, '')
 
-  // Validate identifier contains only safe characters
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(cleaned)) {
     throw new Error(
       `Invalid identifier: ${identifier}. Identifiers must start with a letter or underscore and contain only letters, numbers, and underscores.`
     )
   }
 
-  // Wrap in backticks for MySQL
   return `\`${cleaned}\``
 }

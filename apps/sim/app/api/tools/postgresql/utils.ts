@@ -82,7 +82,6 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
     }
   }
 
-  // Only allow specific statement types for execute endpoint
   const allowedStatements = /^(select|insert|update|delete|with|explain|analyze|show)\s+/i
   if (!allowedStatements.test(trimmedQuery)) {
     return {
@@ -96,7 +95,6 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
 }
 
 export function sanitizeIdentifier(identifier: string): string {
-  // Handle schema.table format
   if (identifier.includes('.')) {
     const parts = identifier.split('.')
     return parts.map((part) => sanitizeSingleIdentifier(part)).join('.')
@@ -105,18 +103,33 @@ export function sanitizeIdentifier(identifier: string): string {
   return sanitizeSingleIdentifier(identifier)
 }
 
+function validateWhereClause(where: string): void {
+  const dangerousPatterns = [
+    /;\s*(drop|delete|insert|update|create|alter|grant|revoke)/i,
+    /union\s+select/i,
+    /into\s+outfile/i,
+    /load_file/i,
+    /--/,
+    /\/\*/,
+    /\*\//,
+  ]
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(where)) {
+      throw new Error('WHERE clause contains potentially dangerous operation')
+    }
+  }
+}
+
 function sanitizeSingleIdentifier(identifier: string): string {
-  // Remove any existing double quotes to prevent double-escaping
   const cleaned = identifier.replace(/"/g, '')
 
-  // Validate identifier contains only safe characters
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(cleaned)) {
     throw new Error(
       `Invalid identifier: ${identifier}. Identifiers must start with a letter or underscore and contain only letters, numbers, and underscores.`
     )
   }
 
-  // Wrap in double quotes for PostgreSQL
   return `"${cleaned}"`
 }
 
@@ -146,6 +159,8 @@ export async function executeUpdate(
   data: Record<string, unknown>,
   where: string
 ): Promise<{ rows: unknown[]; rowCount: number }> {
+  validateWhereClause(where)
+
   const sanitizedTable = sanitizeIdentifier(table)
   const columns = Object.keys(data)
   const sanitizedColumns = columns.map((col) => sanitizeIdentifier(col))
@@ -166,6 +181,8 @@ export async function executeDelete(
   table: string,
   where: string
 ): Promise<{ rows: unknown[]; rowCount: number }> {
+  validateWhereClause(where)
+
   const sanitizedTable = sanitizeIdentifier(table)
   const query = `DELETE FROM ${sanitizedTable} WHERE ${where} RETURNING *`
   const result = await sql.unsafe(query, [])
