@@ -63,8 +63,8 @@ function isEnterpriseMetadata(value: unknown): value is EnterpriseSubscriptionMe
     typeof value.plan === 'string' &&
     value.plan.toLowerCase() === 'enterprise' &&
     typeof value.referenceId === 'string' &&
-    typeof value.monthlyPrice === 'number' &&
-    typeof value.seats === 'number'
+    typeof value.monthlyPrice === 'string' &&
+    typeof value.seats === 'string'
   )
 }
 
@@ -115,22 +115,24 @@ async function handleManualEnterpriseSubscription(event: Stripe.Event) {
   const enterpriseMetadata = metadata
   const metadataJson: Record<string, unknown> = { ...enterpriseMetadata }
 
-  // Extract seats and monthly price from metadata
-  const seats = enterpriseMetadata.seats
-  const monthlyPrice = enterpriseMetadata.monthlyPrice
+  // Extract and parse seats and monthly price from metadata (they come as strings from Stripe)
+  const seats = Number.parseInt(enterpriseMetadata.seats, 10)
+  const monthlyPrice = Number.parseFloat(enterpriseMetadata.monthlyPrice)
 
-  if (!seats || seats <= 0) {
+  if (!seats || seats <= 0 || Number.isNaN(seats)) {
     logger.error('[subscription.created] Invalid or missing seats in enterprise metadata', {
       subscriptionId: stripeSubscription.id,
-      seats,
+      seatsRaw: enterpriseMetadata.seats,
+      seatsParsed: seats,
     })
     throw new Error('Enterprise subscription must include valid seats in metadata')
   }
 
-  if (!monthlyPrice || monthlyPrice <= 0) {
+  if (!monthlyPrice || monthlyPrice <= 0 || Number.isNaN(monthlyPrice)) {
     logger.error('[subscription.created] Invalid or missing monthlyPrice in enterprise metadata', {
       subscriptionId: stripeSubscription.id,
-      monthlyPrice,
+      monthlyPriceRaw: enterpriseMetadata.monthlyPrice,
+      monthlyPriceParsed: monthlyPrice,
     })
     throw new Error('Enterprise subscription must include valid monthlyPrice in metadata')
   }

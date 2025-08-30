@@ -8,12 +8,12 @@ export interface EnterpriseSubscriptionMetadata {
   // The referenceId must be provided in Stripe metadata to link to the organization
   // This gets stored in the subscription.referenceId column
   referenceId: string
-  // The fixed monthly price for this enterprise customer
+  // The fixed monthly price for this enterprise customer (as string from Stripe metadata)
   // This will be used to set the organization's usage limit
-  monthlyPrice: number
-  // Number of seats for invitation limits (not for billing)
+  monthlyPrice: string
+  // Number of seats for invitation limits (not for billing) (as string from Stripe metadata)
   // We set Stripe quantity to 1 and use this for actual seat count
-  seats: number
+  seats: string
 }
 
 export interface UsageData {
