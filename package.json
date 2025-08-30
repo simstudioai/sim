@@ -43,8 +43,6 @@
   "devDependencies": {
     "@biomejs/biome": "2.0.0-beta.5",
     "@next/env": "^15.4.1",
-    "@types/word-extractor": "1.0.6",
-    "dotenv-cli": "^8.0.0",
     "husky": "9.1.7",
     "lint-staged": "16.0.0",
     "turbo": "2.5.6"

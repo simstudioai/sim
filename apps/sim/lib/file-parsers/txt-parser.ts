@@ -8,15 +8,12 @@ const logger = createLogger('TxtParser')
 export class TxtParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
     try {
-      // Validate input
       if (!filePath) {
         throw new Error('No file path provided')
       }
 
-      // Read the file
       const buffer = await readFile(filePath)
 
-      // Use parseBuffer for consistent implementation
       return this.parseBuffer(buffer)
     } catch (error) {
       logger.error('TXT file error:', error)
@@ -28,7 +25,6 @@ export class TxtParser implements FileParser {
     try {
       logger.info('Parsing buffer, size:', buffer.length)
 
-      // Extract content and sanitize for UTF-8 storage
       const rawContent = buffer.toString('utf-8')
       const result = sanitizeTextForUTF8(rawContent)
 

@@ -21,6 +21,10 @@ const ACCEPTED_FILE_TYPES = [
   'text/csv',
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/markdown',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/html',
 ]
 
 interface FileWithPreview extends File {
@@ -74,7 +78,7 @@ export function UploadModal({
       return `File "${file.name}" is too large. Maximum size is 100MB.`
     }
     if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
-      return `File "${file.name}" has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, or XLSX files.`
+      return `File "${file.name}" has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, or HTML files.`
     }
     return null
   }
@@ -203,7 +207,8 @@ export function UploadModal({
                     {isDragging ? 'Drop files here!' : 'Drop files here or click to browse'}
                   </p>
                   <p className='text-muted-foreground text-xs'>
-                    Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 100MB each)
+                    Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max 100MB
+                    each)
                   </p>
                 </div>
               </div>

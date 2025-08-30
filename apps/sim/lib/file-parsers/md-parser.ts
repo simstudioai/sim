@@ -7,15 +7,12 @@ const logger = createLogger('MdParser')
 export class MdParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
     try {
-      // Validate input
       if (!filePath) {
         throw new Error('No file path provided')
       }
 
-      // Read the file
       const buffer = await readFile(filePath)
 
-      // Use parseBuffer for consistent implementation
       return this.parseBuffer(buffer)
     } catch (error) {
       logger.error('MD file error:', error)
@@ -27,7 +24,6 @@ export class MdParser implements FileParser {
     try {
       logger.info('Parsing buffer, size:', buffer.length)
 
-      // Extract content
       const result = buffer.toString('utf-8')
 
       return {
