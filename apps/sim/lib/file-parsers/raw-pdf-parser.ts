@@ -9,10 +9,6 @@ const logger = createLogger('RawPdfParser')
 const inflateAsync = promisify(zlib.inflate)
 const unzipAsync = promisify(zlib.unzip)
 
-/**
- * A simple PDF parser that extracts readable text from a PDF file.
- * This is used as a fallback when the pdf-lib library fails or for text extraction.
- */
 export class RawPdfParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
     try {
@@ -343,7 +339,7 @@ export class RawPdfParser implements FileParser {
               }
               return ''
             })
-            .filter((text) => text.length > 0 && text.split(' ').length > 5) // Must have at least 5 words
+            .filter((text) => text.length > 0 && text.split(' ').length > 5)
             .join('\n\n')
 
           if (textContent.length > 0) {
@@ -398,7 +394,6 @@ export class RawPdfParser implements FileParser {
         extractedText = metadataText + (extractedText ? `\n\n${extractedText}` : '')
       }
 
-      // Count how many recognizable words/characters it contains
       const validCharCount = (extractedText || '').replace(/[^\x20-\x7E\r\n]/g, '').length
       const totalCharCount = (extractedText || '').length
       const validRatio = validCharCount / (totalCharCount || 1)
@@ -409,7 +404,7 @@ export class RawPdfParser implements FileParser {
           extractedText.includes('\\x') ||
           extractedText.includes('\0') ||
           /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]{10,}/g.test(extractedText) ||
-          validRatio < 0.7) // Less than 70% valid characters
+          validRatio < 0.7)
 
       const looksLikeGibberish =
         extractedText &&
@@ -417,7 +412,6 @@ export class RawPdfParser implements FileParser {
           0.3 ||
           extractedText.split(' ').length < extractedText.length / 20)
 
-      // If no text was extracted, or if it's binary/gibberish, provide a helpful message instead
       if (!extractedText || extractedText.length < 50 || hasBinaryArtifacts || looksLikeGibberish) {
         logger.info('Could not extract meaningful text, providing fallback message')
         logger.info('Valid character ratio:', validRatio)

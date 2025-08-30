@@ -41,7 +41,6 @@ export class PdfParser implements FileParser {
 
         logger.info('PDF parsed successfully with pdf-lib, pages:', pageCount)
 
-        const extractedText = ''
         const metadata: Record<string, any> = {
           pageCount,
         }
@@ -74,8 +73,8 @@ export class PdfParser implements FileParser {
         return {
           content: rawResult.content,
           metadata: {
-            ...metadata,
             ...rawResult.metadata,
+            ...metadata,
             source: 'pdf-lib + raw-parser',
           },
         }

@@ -47,11 +47,13 @@ export class DocParser implements FileParser {
       try {
         const result = await parseOfficeAsync(buffer)
 
-        if (!result || typeof result !== 'string') {
-          throw new Error('officeparser returned invalid result')
+        if (!result) {
+          throw new Error('officeparser returned no result')
         }
 
-        const content = sanitizeTextForUTF8(result.trim())
+        const resultString = typeof result === 'string' ? result : String(result)
+
+        const content = sanitizeTextForUTF8(resultString.trim())
 
         logger.info('DOC parsing completed successfully with officeparser')
 
@@ -75,15 +77,13 @@ export class DocParser implements FileParser {
   private fallbackExtraction(buffer: Buffer): FileParseResult {
     logger.info('Using fallback text extraction for DOC file')
 
-    const text = buffer.toString('utf8', 0, Math.min(buffer.length, 100000)) // Limit to first 100KB
+    const text = buffer.toString('utf8', 0, Math.min(buffer.length, 100000))
 
     const readableText = text
-      .match(/[\x20-\x7E\s]{4,}/g) // Find sequences of 4+ printable characters
+      .match(/[\x20-\x7E\s]{4,}/g)
       ?.filter(
         (chunk) =>
-          chunk.trim().length > 10 && // Minimum length
-          /[a-zA-Z]/.test(chunk) && // Must contain letters
-          !/^[\x00-\x1F]*$/.test(chunk) // Not just control characters
+          chunk.trim().length > 10 && /[a-zA-Z]/.test(chunk) && !/^[\x00-\x1F]*$/.test(chunk)
       )
       .join(' ')
       .replace(/\s+/g, ' ')

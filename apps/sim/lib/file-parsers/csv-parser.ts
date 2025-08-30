@@ -6,6 +6,13 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CsvParser')
 
+const PARSE_OPTIONS = {
+  header: true,
+  skipEmptyLines: true,
+  transformHeader: (header: string) => sanitizeTextForUTF8(String(header)),
+  transform: (value: string) => sanitizeTextForUTF8(String(value || '')),
+}
+
 export class CsvParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
     try {
@@ -19,12 +26,7 @@ export class CsvParser implements FileParser {
 
       const fileContent = readFileSync(filePath, 'utf8')
 
-      const parseResult = Papa.parse(fileContent, {
-        header: true,
-        skipEmptyLines: true,
-        transformHeader: (header) => sanitizeTextForUTF8(String(header)),
-        transform: (value) => sanitizeTextForUTF8(String(value || '')),
-      })
+      const parseResult = Papa.parse(fileContent, PARSE_OPTIONS)
 
       if (parseResult.errors && parseResult.errors.length > 0) {
         const errorMessages = parseResult.errors.map((err) => err.message).join(', ')
@@ -67,12 +69,7 @@ export class CsvParser implements FileParser {
 
       const fileContent = buffer.toString('utf8')
 
-      const parseResult = Papa.parse(fileContent, {
-        header: true,
-        skipEmptyLines: true,
-        transformHeader: (header) => sanitizeTextForUTF8(String(header)),
-        transform: (value) => sanitizeTextForUTF8(String(value || '')),
-      })
+      const parseResult = Papa.parse(fileContent, PARSE_OPTIONS)
 
       if (parseResult.errors && parseResult.errors.length > 0) {
         const errorMessages = parseResult.errors.map((err) => err.message).join(', ')

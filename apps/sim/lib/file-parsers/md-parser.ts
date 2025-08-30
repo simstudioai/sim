@@ -1,5 +1,6 @@
 import { readFile } from 'fs/promises'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
+import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('MdParser')
@@ -25,12 +26,13 @@ export class MdParser implements FileParser {
       logger.info('Parsing buffer, size:', buffer.length)
 
       const result = buffer.toString('utf-8')
+      const content = sanitizeTextForUTF8(result)
 
       return {
-        content: result,
+        content,
         metadata: {
-          characterCount: result.length,
-          tokenCount: result.length / 4,
+          characterCount: content.length,
+          tokenCount: Math.floor(content.length / 4),
         },
       }
     } catch (error) {

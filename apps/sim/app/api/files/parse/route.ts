@@ -187,6 +187,7 @@ async function parseFileSingle(filePath: string, fileType?: string): Promise<Par
 }
 
 /**
+ * Validate file path for security - prevents null byte injection and path traversal attacks
  */
 function validateFilePath(filePath: string): { isValid: boolean; error?: string } {
   if (filePath.includes('\0')) {
