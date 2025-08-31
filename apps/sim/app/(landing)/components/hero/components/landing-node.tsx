@@ -3,8 +3,7 @@
 import React from 'react'
 import { gsap } from 'gsap'
 import { Handle, Position } from 'reactflow'
-import { LandingBlock } from './landing-block'
-import type { LandingCardData } from './types'
+import { LandingBlock, type LandingCardData } from './landing-block'
 
 /**
  * React Flow node component for the landing canvas

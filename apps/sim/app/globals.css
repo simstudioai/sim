@@ -28,6 +28,30 @@
 }
 
 /* ==========================================================================
+   LANDING LOOP ANIMATION
+   ========================================================================== */
+@keyframes dash-animation {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+.landing-loop-animated-dash {
+  animation: dash-animation 1.5s linear infinite;
+  /* Ensure animation works in React Flow context */
+  will-change: stroke-dashoffset;
+  transform: translateZ(0);
+}
+
+/* Ensure React Flow doesn't override our animation */
+.react-flow__node-landingLoop svg rect.landing-loop-animated-dash {
+  animation: dash-animation 1.5s linear infinite !important;
+}
+
+/* ==========================================================================
    THEME SYSTEM - CSS CUSTOM PROPERTIES
    ========================================================================== */
 @layer base {

@@ -6,17 +6,16 @@ import {
   BinaryIcon,
   BookIcon,
   BotIcon,
-  BoxesIcon,
   CalendarIcon,
+  CodeIcon,
   HammerIcon,
-  KeyIcon,
   LayersIcon,
-  Mic,
   VariableIcon,
 } from 'lucide-react'
 import { type Edge, type Node, Position } from 'reactflow'
 import { IconButton } from '@/components/icon-button'
 import {
+  AgentIcon,
   AirtableIcon,
   DiscordIcon,
   GmailIcon,
@@ -26,7 +25,9 @@ import {
   LinearIcon,
   NotionIcon,
   OutlookIcon,
+  PackageSearchIcon,
   PineconeIcon,
+  ScheduleIcon,
   SlackIcon,
   StripeIcon,
   SupabaseIcon,
@@ -45,11 +46,11 @@ import {
  */
 const SERVICE_TEMPLATES = {
   slack: 'Summarizer agent that summarizes each new message in #general and sends me a DM',
-  gmail: 'Alert agent that summarizes each new Gmail in my Inbox and flags urgent threads',
+  gmail: 'Alert agent that flags important Gmail messages in my inbox',
   outlook:
     'Auto-forwarding agent that classifies each new Outlook email and forwards to separate inboxes for further analysis',
   pinecone: 'RAG chat agent that uses memories stored in Pinecone',
-  supabase: 'Agent that uses Supabase to store context, run SQL, and produce weekly insights',
+  supabase: 'Natural language to SQL agent to query and update data in Supabase',
   linear: 'Agent that uses Linear to triage issues, assign owners, and draft updates',
   discord: 'Moderator agent that responds back to users in my Discord server',
   airtable: 'Alert agent that validates each new record in a table and prepares a weekly report',
@@ -61,29 +62,29 @@ const SERVICE_TEMPLATES = {
 } as const
 
 /**
- * Sample workflow blocks for the canvas preview
+ * Landing blocks for the canvas preview
  */
-const SAMPLE_WORKFLOW_BLOCKS: LandingManualBlock[] = [
+const LANDING_BLOCKS: LandingManualBlock[] = [
   {
-    id: 'start',
-    name: 'Start',
-    color: '#30B2FF',
-    icon: <KeyIcon className='h-4 w-4' />,
+    id: 'schedule',
+    name: 'Schedule',
+    color: '#7B68EE',
+    icon: <ScheduleIcon className='h-4 w-4' />,
     positions: {
       mobile: { x: 24, y: 120 },
       tablet: { x: 60, y: 180 },
       desktop: { x: 80, y: 241 },
     },
     tags: [
-      { icon: <CalendarIcon className='h-3 w-3' />, label: 'When: Call Received' },
-      { icon: <VariableIcon className='h-3 w-3' />, label: '3 fields' },
+      { icon: <CalendarIcon className='h-3 w-3' />, label: '09:00AM Daily' },
+      { icon: <VariableIcon className='h-3 w-3' />, label: '2 fields' },
     ],
   },
   {
-    id: 'kb',
-    name: 'Knowledge Base',
-    color: '#01B0B0',
-    icon: <BoxesIcon className='h-4 w-4' />,
+    id: 'knowledge',
+    name: 'Knowledge',
+    color: '#00B0B0',
+    icon: <PackageSearchIcon className='h-4 w-4' />,
     positions: {
       mobile: { x: 120, y: 140 },
       tablet: { x: 220, y: 200 },
@@ -95,46 +96,35 @@ const SAMPLE_WORKFLOW_BLOCKS: LandingManualBlock[] = [
     ],
   },
   {
-    id: 'reason',
+    id: 'agent',
     name: 'Agent',
     color: '#802FFF',
-    icon: <BotIcon className='h-4 w-4' />,
+    icon: <AgentIcon className='h-4 w-4' />,
     positions: {
-      mobile: { x: 260, y: 80 },
-      tablet: { x: 400, y: 120 },
-      desktop: { x: 760, y: 60 },
+      mobile: { x: 340, y: 60 },
+      tablet: { x: 540, y: 120 },
+      desktop: { x: 880, y: 142 },
     },
     tags: [
       { icon: <BotIcon className='h-3 w-3' />, label: 'Reasoning' },
-      { icon: <LayersIcon className='h-3 w-3' />, label: 'gpt-5' },
+      { icon: <LayersIcon className='h-3 w-3' />, label: 'gpt-4o' },
       { icon: <HammerIcon className='h-3 w-3' />, label: '2 tools' },
     ],
   },
   {
-    id: 'reply',
-    name: 'Agent',
-    color: '#802FFF',
-    icon: <BotIcon className='h-4 w-4' />,
+    id: 'function',
+    name: 'Function',
+    color: '#FF402F',
+    icon: <CodeIcon className='h-4 w-4' />,
     positions: {
-      mobile: { x: 400, y: 180 },
-      tablet: { x: 600, y: 220 },
-      desktop: { x: 760, y: 241 },
+      mobile: { x: 480, y: 220 },
+      tablet: { x: 740, y: 280 },
+      desktop: { x: 880, y: 340 },
     },
     tags: [
-      { icon: <BotIcon className='h-3 w-3' />, label: 'Generate Reply' },
-      { icon: <LayersIcon className='h-3 w-3' />, label: 'gpt-5' },
+      { icon: <CodeIcon className='h-3 w-3' />, label: 'Custom Logic' },
+      { icon: <VariableIcon className='h-3 w-3' />, label: '3 inputs' },
     ],
-  },
-  {
-    id: 'tts',
-    name: 'Text-to-Speech',
-    color: '#FFB300',
-    icon: <Mic className='h-4 w-4' />,
-    positions: {
-      mobile: { x: 560, y: 120 },
-      tablet: { x: 800, y: 160 },
-      desktop: { x: 760, y: 400 },
-    },
   },
 ]
 
@@ -142,10 +132,9 @@ const SAMPLE_WORKFLOW_BLOCKS: LandingManualBlock[] = [
  * Sample workflow edges for the canvas preview
  */
 const SAMPLE_WORKFLOW_EDGES = [
-  { id: 'e1', from: 'start', to: 'kb' },
-  { id: 'e2', from: 'kb', to: 'reason' },
-  { id: 'e3', from: 'reason', to: 'reply' },
-  { id: 'e4', from: 'reply', to: 'tts' },
+  { id: 'e1', from: 'schedule', to: 'knowledge' },
+  { id: 'e2', from: 'knowledge', to: 'agent' },
+  { id: 'e3', from: 'knowledge', to: 'function' },
 ]
 
 /**
@@ -170,8 +159,9 @@ export default function Hero() {
   /**
    * Auto-hover animation state
    */
-  const [autoHoverIndex, setAutoHoverIndex] = React.useState(0)
+  const [autoHoverIndex, setAutoHoverIndex] = React.useState(1)
   const [isUserHovering, setIsUserHovering] = React.useState(false)
+  const [lastHoveredIndex, setLastHoveredIndex] = React.useState<number | null>(null)
   const intervalRef = React.useRef<NodeJS.Timeout | null>(null)
 
   /**
@@ -244,6 +234,10 @@ export default function Hero() {
    */
   const handleIconContainerMouseLeave = () => {
     setIsUserHovering(false)
+    // Start from the next icon after the last hovered one
+    if (lastHoveredIndex !== null) {
+      setAutoHoverIndex((lastHoveredIndex + 1) % serviceIcons.length)
+    }
   }
 
   /**
@@ -277,23 +271,37 @@ export default function Hero() {
           ? 'tablet'
           : 'desktop'
 
-    // Convert sample blocks to React Flow nodes
-    const nodes: Node[] = SAMPLE_WORKFLOW_BLOCKS.map((block, index) => ({
-      id: block.id,
-      type: 'landing',
-      position: block.positions[breakpoint],
-      data: {
-        icon: block.icon,
-        color: block.color,
-        name: block.name,
-        tags: block.tags,
-        delay: index * 0.18,
+    // Convert landing blocks to React Flow nodes
+    const nodes: Node[] = [
+      // Add the loop block node
+      {
+        id: 'loop',
+        type: 'landingLoop',
+        position: { x: 720, y: 20 },
+        data: {
+          label: 'Loop',
+        },
+        draggable: false,
+        selectable: false,
       },
-      draggable: false,
-      selectable: false,
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
-    }))
+      // Convert blocks to nodes
+      ...LANDING_BLOCKS.map((block, index) => ({
+        id: block.id,
+        type: 'landing',
+        position: block.positions[breakpoint],
+        data: {
+          icon: block.icon,
+          color: block.color,
+          name: block.name,
+          tags: block.tags,
+          delay: index * 0.18,
+        },
+        draggable: false,
+        selectable: false,
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+      })),
+    ]
 
     // Convert sample edges to React Flow edges
     const rfEdges: Edge[] = SAMPLE_WORKFLOW_EDGES.map((e) => ({
@@ -335,6 +343,7 @@ export default function Hero() {
               key={service.key}
               aria-label={service.label}
               onClick={() => handleServiceClick(service.key as keyof typeof SERVICE_TEMPLATES)}
+              onMouseEnter={() => setLastHoveredIndex(index)}
               style={service.style}
               isAutoHovered={!isUserHovering && index === autoHoverIndex}
             >
@@ -390,8 +399,8 @@ export default function Hero() {
         </button>
       </div>
 
-      {/* Workflow preview canvas */}
-      <div className='mt-[100px] w-full max-w-[1273px]'>
+      {/* Canvas */}
+      <div className='mt-[106px] w-full max-w-[1273px]'>
         <LandingCanvas
           nodes={rfNodes}
           edges={rfEdges}

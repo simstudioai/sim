@@ -1,5 +1,14 @@
 import React from 'react'
-import type { TagProps } from './types'
+
+/**
+ * Properties for a tag component
+ */
+export interface TagProps {
+  /** Icon element to display in the tag */
+  icon: React.ReactNode
+  /** Text label for the tag */
+  label: string
+}
 
 /**
  * Tag component for displaying labeled icons in a compact format

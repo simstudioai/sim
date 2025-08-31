@@ -3,9 +3,18 @@
 import React from 'react'
 import ReactFlow, { useReactFlow } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { CARD_WIDTH, type LandingCanvasProps } from './landing-canvas'
 import { LandingEdge } from './landing-edge'
+import { LandingLoopNode } from './landing-loop-node'
 import { LandingNode } from './landing-node'
-import type { LandingFlowProps } from './types'
+
+/**
+ * Props for the LandingFlow component
+ */
+export interface LandingFlowProps extends LandingCanvasProps {
+  /** Reference to the wrapper element */
+  wrapperRef: React.RefObject<HTMLDivElement | null>
+}
 
 /**
  * React Flow wrapper component for the landing canvas
@@ -25,7 +34,13 @@ export function LandingFlow({
   const [rfReady, setRfReady] = React.useState(false)
 
   // Node and edge types map
-  const nodeTypes = React.useMemo(() => ({ landing: LandingNode }), [])
+  const nodeTypes = React.useMemo(
+    () => ({
+      landing: LandingNode,
+      landingLoop: LandingLoopNode,
+    }),
+    []
+  )
   const edgeTypes = React.useMemo(() => ({ landingEdge: LandingEdge }), [])
 
   // Compose nodes with optional group overlay
@@ -38,9 +53,8 @@ export function LandingFlow({
 
     const containerWidth = el.clientWidth
     // Derive overflow from actual node positions for accuracy
-    const CARD_W = 256
     const PAD = 16
-    const maxRight = nodes.reduce((m, n) => Math.max(m, (n.position?.x ?? 0) + CARD_W), 0)
+    const maxRight = nodes.reduce((m, n) => Math.max(m, (n.position?.x ?? 0) + CARD_WIDTH), 0)
     const contentWidth = Math.max(worldWidth, maxRight + PAD)
     const overflow = Math.max(0, contentWidth - containerWidth)
 
