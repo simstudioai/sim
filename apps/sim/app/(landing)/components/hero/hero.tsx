@@ -44,31 +44,20 @@ import {
  * Service-specific template messages for the hero input
  */
 const SERVICE_TEMPLATES = {
-  slack:
-    'Build an agent to summarize each new message sent in #general and sends it to me in a direct message',
-  gmail:
-    'Build an agent to automatically categorize and prioritize my emails, flagging urgent items and filtering out spam',
+  slack: 'Summarizer agent that summarizes each new message in #general and sends me a DM',
+  gmail: 'Alert agent that summarizes each new Gmail in my Inbox and flags urgent threads',
   outlook:
-    'Build an agent to manage my calendar, automatically decline conflicting meetings and suggest optimal meeting times',
-  pinecone:
-    'Build an agent to create intelligent embeddings from my documents and enable semantic search across my knowledge base',
-  supabase:
-    'Build an agent to monitor database changes and alert me when specific conditions are met or thresholds exceeded',
-  linear:
-    'Build an agent to automatically triage new issues, assign them to team members based on expertise, and track sprint progress',
-  discord:
-    'Build an agent to moderate my Discord server, welcome new members, and automatically answer frequently asked questions',
-  airtable:
-    'Build an agent to sync data between Airtable and other apps, validate entries, and generate weekly reports',
-  stripe:
-    'Build an agent to monitor payment failures, send custom retry notifications, and analyze subscription churn patterns',
-  notion:
-    'Build an agent to organize my Notion workspace, create templates from recurring patterns, and maintain a knowledge graph',
-  googleSheets:
-    'Build an agent to analyze spreadsheet data, generate insights, and automatically update charts and dashboards',
-  googleDrive:
-    'Build an agent to organize my files, detect duplicates, and automatically share documents based on content type',
-  jira: 'Build an agent to update ticket statuses based on git commits, generate sprint reports, and identify blockers',
+    'Auto-forwarding agent that classifies each new Outlook email and forwards to separate inboxes for further analysis',
+  pinecone: 'RAG chat agent that uses memories stored in Pinecone',
+  supabase: 'Agent that uses Supabase to store context, run SQL, and produce weekly insights',
+  linear: 'Agent that uses Linear to triage issues, assign owners, and draft updates',
+  discord: 'Moderator agent that responds back to users in my Discord server',
+  airtable: 'Alert agent that validates each new record in a table and prepares a weekly report',
+  stripe: 'Agent that analyzes Stripe payment history to spot churn risks and generate summaries',
+  notion: 'Support agent that appends new support tickets to my Notion workspace',
+  googleSheets: 'Data science agent that analyzes Google Sheets data and generates insights',
+  googleDrive: 'Drive reader agent that summarizes content in my Google Drive',
+  jira: 'Engineering manager agent that uses Jira to update ticket statuses, generate sprint reports, and identify blockers',
 } as const
 
 /**
