@@ -14,46 +14,12 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
+import { ACCEPT_ATTRIBUTE, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from '@/lib/uploads/validation'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 
 const logger = createLogger('CreateModal')
-
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
-const ACCEPTED_FILE_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
-  'text/csv',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'text/markdown',
-  'text/x-markdown',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'text/html',
-]
-
-// File extensions to include in accept attribute for better browser compatibility
-const ACCEPTED_FILE_EXTENSIONS = [
-  '.pdf',
-  '.doc',
-  '.docx',
-  '.txt',
-  '.csv',
-  '.xls',
-  '.xlsx',
-  '.md',
-  '.ppt',
-  '.pptx',
-  '.html',
-  '.htm',
-]
-
-// Combined accept string with both MIME types and extensions
-const ACCEPT_ATTRIBUTE = [...ACCEPTED_FILE_TYPES, ...ACCEPTED_FILE_EXTENSIONS].join(',')
 
 interface FileWithPreview extends File {
   preview: string

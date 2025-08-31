@@ -1,5 +1,7 @@
 import path from 'path'
 
+export const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
+
 export const SUPPORTED_DOCUMENT_EXTENSIONS = [
   'pdf',
   'csv',
@@ -18,19 +20,39 @@ export const SUPPORTED_DOCUMENT_EXTENSIONS = [
 export type SupportedDocumentExtension = (typeof SUPPORTED_DOCUMENT_EXTENSIONS)[number]
 
 export const SUPPORTED_MIME_TYPES: Record<SupportedDocumentExtension, string[]> = {
-  pdf: ['application/pdf'],
-  csv: ['text/csv', 'application/csv'],
-  doc: ['application/msword'],
-  docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-  txt: ['text/plain'],
-  md: ['text/markdown', 'text/x-markdown', 'text/plain'],
-  xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-  xls: ['application/vnd.ms-excel'],
-  ppt: ['application/vnd.ms-powerpoint'],
-  pptx: ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
-  html: ['text/html'],
-  htm: ['text/html'],
+  pdf: ['application/pdf', 'application/x-pdf'],
+  csv: ['text/csv', 'application/csv', 'text/comma-separated-values'],
+  doc: ['application/msword', 'application/doc', 'application/vnd.ms-word'],
+  docx: [
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/octet-stream',
+  ],
+  txt: ['text/plain', 'text/x-plain', 'application/txt'],
+  md: ['text/markdown', 'text/x-markdown', 'text/plain', 'application/markdown'],
+  xlsx: [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/octet-stream',
+  ],
+  xls: [
+    'application/vnd.ms-excel',
+    'application/excel',
+    'application/x-excel',
+    'application/x-msexcel',
+  ],
+  ppt: ['application/vnd.ms-powerpoint', 'application/powerpoint', 'application/x-mspowerpoint'],
+  pptx: [
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/octet-stream',
+  ],
+  html: ['text/html', 'application/xhtml+xml'],
+  htm: ['text/html', 'application/xhtml+xml'],
 }
+
+export const ACCEPTED_FILE_TYPES = Object.values(SUPPORTED_MIME_TYPES).flat()
+
+export const ACCEPTED_FILE_EXTENSIONS = SUPPORTED_DOCUMENT_EXTENSIONS.map((ext) => `.${ext}`)
+
+export const ACCEPT_ATTRIBUTE = [...ACCEPTED_FILE_TYPES, ...ACCEPTED_FILE_EXTENSIONS].join(',')
 
 export interface FileValidationError {
   code: 'UNSUPPORTED_FILE_TYPE' | 'MIME_TYPE_MISMATCH'
