@@ -1,4 +1,4 @@
-import Background from '@/app/(landing)/components/hero/components/background'
+import Background from '@/app/(landing)/components/background'
 import Hero from '@/app/(landing)/components/hero/hero'
 import Nav from '@/app/(landing)/components/nav/nav'
 

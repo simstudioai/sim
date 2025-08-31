@@ -7,17 +7,17 @@ type BackgroundProps = {
 
 export default function Background({ className, children }: BackgroundProps) {
   return (
-    <section className={cn('relative w-full', className)}>
+    <section className={cn('relative min-h-screen w-full', className)}>
       <svg
         aria-hidden='true'
         focusable='false'
-        className='-translate-x-1/2 -z-10 pointer-events-none fixed top-0 left-1/2 h-[1213px] w-[1273px]'
+        className='-translate-x-1/2 pointer-events-none absolute top-0 left-1/2 z-10 h-full w-[1273px]'
         width='1273'
         height='1213'
         viewBox='0 0 1273 1213'
         fill='none'
         xmlns='http://www.w3.org/2000/svg'
-        preserveAspectRatio='xMidYMid meet'
+        preserveAspectRatio='xMidYMin slice'
       >
         <path
           d='M933.45 113.4C1035.46 182.044 1130.66 269.914 1257.9 521.85'
@@ -229,7 +229,7 @@ export default function Background({ className, children }: BackgroundProps) {
         />
       </svg>
 
-      <div className='relative z-10 mx-auto w-full max-w-[1273px]'>{children}</div>
+      <div className='relative z-0 mx-auto w-full max-w-[1273px]'>{children}</div>
     </section>
   )
 }

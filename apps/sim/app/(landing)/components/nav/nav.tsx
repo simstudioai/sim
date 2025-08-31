@@ -61,18 +61,6 @@ export default async function Nav() {
         </Link>
         <ul className='flex items-center justify-center gap-[24px] pt-[4px]'>
           <li>
-            <a
-              href='https://github.com/simstudioai/sim'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='flex items-center gap-2 font-normal text-[18px] text-muted-foreground'
-              aria-label='GitHub repository'
-            >
-              <GithubIcon className='h-[18px] w-[18px]' />
-              <span>{formattedStars}</span>
-            </a>
-          </li>
-          <li>
             <Link
               href='https://docs.sim.ai'
               target='_blank'
@@ -91,6 +79,18 @@ export default async function Nav() {
             <Link href='/' className='font-normal text-[18px] text-muted-foreground'>
               Enterprise
             </Link>
+          </li>
+          <li>
+            <a
+              href='https://github.com/simstudioai/sim'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='flex items-center gap-2 font-normal text-[18px] text-muted-foreground'
+              aria-label='GitHub repository'
+            >
+              <GithubIcon className='h-[18px] w-[18px]' />
+              <span>{formattedStars}</span>
+            </a>
           </li>
         </ul>
       </div>
