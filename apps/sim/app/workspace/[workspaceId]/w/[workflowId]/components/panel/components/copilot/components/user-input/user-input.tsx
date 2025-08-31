@@ -708,9 +708,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           ? mentionOptions.filter((o) => o.toLowerCase().includes(mainQ))
           : []
         const isAggregate = !openSubmenuFor && mainQ.length > 0 && filteredMain.length === 0
-        const aggregatedList =
+                  const aggregatedList =
           !openSubmenuFor && mainQ.length > 0
             ? [
+                ...workflowBlocks
+                  .filter((b) => (b.name || b.id).toLowerCase().includes(mainQ))
+                  .map((b) => ({ type: 'Workflow Blocks' as const, value: b })),
                 ...workflows
                   .filter((w) => (w.name || 'Untitled Workflow').toLowerCase().includes(mainQ))
                   .map((w) => ({ type: 'Workflows' as const, value: w })),
@@ -1093,25 +1096,28 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           const selected = filteredMain[mentionActiveIndex]
           if (inAggregated) {
             const q = mainQ
-            const aggregated = [
+            const aggregated: Array<{ type: string; value: any }> = [
+              ...workflowBlocks
+                .filter((b) => (b.name || b.id).toLowerCase().includes(q))
+                .map((b) => ({ type: 'Workflow Blocks', value: b })),
               ...workflows
                 .filter((w) => (w.name || 'Untitled Workflow').toLowerCase().includes(q))
-                .map((w) => ({ type: 'Workflows' as const, value: w })),
+                .map((w) => ({ type: 'Workflows', value: w })),
               ...blocksList
                 .filter((b) => (b.name || b.id).toLowerCase().includes(q))
-                .map((b) => ({ type: 'Blocks' as const, value: b })),
+                .map((b) => ({ type: 'Blocks', value: b })),
               ...knowledgeBases
                 .filter((k) => (k.name || 'Untitled').toLowerCase().includes(q))
-                .map((k) => ({ type: 'Knowledge' as const, value: k })),
+                .map((k) => ({ type: 'Knowledge', value: k })),
               ...templatesList
                 .filter((t) => (t.name || 'Untitled Template').toLowerCase().includes(q))
-                .map((t) => ({ type: 'Templates' as const, value: t })),
+                .map((t) => ({ type: 'Templates', value: t })),
               ...pastChats
                 .filter((c) => (c.title || 'Untitled Chat').toLowerCase().includes(q))
-                .map((c) => ({ type: 'Chats' as const, value: c })),
+                .map((c) => ({ type: 'Chats', value: c })),
               ...logsList
                 .filter((l) => (l.workflowName || 'Untitled Workflow').toLowerCase().includes(q))
-                .map((l) => ({ type: 'Logs' as const, value: l })),
+                .map((l) => ({ type: 'Logs', value: l })),
             ]
             const idx = Math.max(0, Math.min(submenuActiveIndex, aggregated.length - 1))
             const chosen = aggregated[idx]
@@ -1119,6 +1125,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               if (chosen.type === 'Chats') insertPastChatMention(chosen.value as any)
               else if (chosen.type === 'Workflows') insertWorkflowMention(chosen.value as any)
               else if (chosen.type === 'Knowledge') insertKnowledgeMention(chosen.value as any)
+              else if (chosen.type === 'Workflow Blocks') insertWorkflowBlockMention(chosen.value as any)
               else if (chosen.type === 'Blocks') insertBlockMention(chosen.value as any)
               else if (chosen.type === 'Templates') insertTemplateMention(chosen.value as any)
               else if (chosen.type === 'Logs') insertLogMention(chosen.value as any)
@@ -1240,25 +1247,28 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             }
           } else if (isAggregate || inAggregated) {
             const q = mainQ
-            const aggregated = [
+            const aggregated: Array<{ type: string; value: any }> = [
+              ...workflowBlocks
+                .filter((b) => (b.name || b.id).toLowerCase().includes(q))
+                .map((b) => ({ type: 'Workflow Blocks', value: b })),
               ...workflows
                 .filter((w) => (w.name || 'Untitled Workflow').toLowerCase().includes(q))
-                .map((w) => ({ type: 'Workflows' as const, value: w })),
+                .map((w) => ({ type: 'Workflows', value: w })),
               ...blocksList
                 .filter((b) => (b.name || b.id).toLowerCase().includes(q))
-                .map((b) => ({ type: 'Blocks' as const, value: b })),
+                .map((b) => ({ type: 'Blocks', value: b })),
               ...knowledgeBases
                 .filter((k) => (k.name || 'Untitled').toLowerCase().includes(q))
-                .map((k) => ({ type: 'Knowledge' as const, value: k })),
+                .map((k) => ({ type: 'Knowledge', value: k })),
               ...templatesList
                 .filter((t) => (t.name || 'Untitled Template').toLowerCase().includes(q))
-                .map((t) => ({ type: 'Templates' as const, value: t })),
+                .map((t) => ({ type: 'Templates', value: t })),
               ...pastChats
                 .filter((c) => (c.title || 'Untitled Chat').toLowerCase().includes(q))
-                .map((c) => ({ type: 'Chats' as const, value: c })),
+                .map((c) => ({ type: 'Chats', value: c })),
               ...logsList
                 .filter((l) => (l.workflowName || 'Untitled Workflow').toLowerCase().includes(q))
-                .map((l) => ({ type: 'Logs' as const, value: l })),
+                .map((l) => ({ type: 'Logs', value: l })),
             ]
             const idx = Math.max(0, Math.min(submenuActiveIndex, aggregated.length - 1))
             const chosen = aggregated[idx]
@@ -1266,6 +1276,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               if (chosen.type === 'Chats') insertPastChatMention(chosen.value)
               else if (chosen.type === 'Workflows') insertWorkflowMention(chosen.value)
               else if (chosen.type === 'Knowledge') insertKnowledgeMention(chosen.value)
+              else if (chosen.type === 'Workflow Blocks') insertWorkflowBlockMention(chosen.value)
               else if (chosen.type === 'Blocks') insertBlockMention(chosen.value)
               else if (chosen.type === 'Templates') insertTemplateMention(chosen.value)
               else if (chosen.type === 'Logs') insertLogMention(chosen.value)
@@ -1649,6 +1660,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       if (q.length > 0) {
         void ensurePastChatsLoaded()
         void ensureWorkflowsLoaded()
+        void ensureWorkflowBlocksLoaded()
         void ensureKnowledgeLoaded()
         void ensureBlocksLoaded()
         void ensureTemplatesLoaded()
@@ -1852,6 +1864,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const syncWorkflowBlocks = async () => {
       if (!workflowId || !workflowStoreBlocks || Object.keys(workflowStoreBlocks).length === 0) {
         setWorkflowBlocks([])
+        logger.debug('No workflow blocks to sync', { workflowId, hasBlocks: !!workflowStoreBlocks, blockCount: Object.keys(workflowStoreBlocks || {}).length })
         return
       }
       
@@ -1869,6 +1882,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           }
         })
         setWorkflowBlocks(mapped)
+        logger.debug('Synced workflow blocks for mention menu', { count: mapped.length, blocks: mapped.map(b => b.name) })
       } catch (error) {
         logger.debug('Failed to sync workflow blocks:', error)
       }
@@ -1881,6 +1895,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     // Since blocks are now synced from store via useEffect, this can be a no-op
     // or just ensure the blocks are loaded in the store
     if (!workflowId) return
+    
+    // Debug: Log current state
+    logger.debug('ensureWorkflowBlocksLoaded called', { 
+      workflowId, 
+      storeBlocksCount: Object.keys(workflowStoreBlocks || {}).length,
+      workflowBlocksCount: workflowBlocks.length 
+    })
+    
     // Blocks will be automatically synced from the store
   }
 
@@ -2447,6 +2469,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                         if (q.length > 0 && filtered.length === 0) {
                           // Aggregated search view
                           const aggregated = [
+                            ...workflowBlocks
+                              .filter((b) => (b.name || b.id).toLowerCase().includes(q))
+                              .map((b) => ({
+                                type: 'Workflow Blocks' as const,
+                                id: b.id,
+                                value: b,
+                                onClick: () => insertWorkflowBlockMention(b),
+                              })),
                             ...workflows
                               .filter((w) =>
                                 (w.name || 'Untitled Workflow').toLowerCase().includes(q)
@@ -2555,6 +2585,26 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                         </span>
                                       </>
                                     ) : item.type === 'Blocks' ? (
+                                      <>
+                                        <div
+                                          className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
+                                          style={{
+                                            backgroundColor:
+                                              (item.value as any).bgColor || '#6B7280',
+                                          }}
+                                        >
+                                          {(() => {
+                                            const Icon = (item.value as any).iconComponent
+                                            return Icon ? (
+                                              <Icon className='!h-3 !w-3 text-white' />
+                                            ) : null
+                                          })()}
+                                        </div>
+                                        <span className='truncate'>
+                                          {(item.value as any).name || (item.value as any).id}
+                                        </span>
+                                      </>
+                                    ) : item.type === 'Workflow Blocks' ? (
                                       <>
                                         <div
                                           className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
@@ -2710,14 +2760,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             {(() => {
                               const aq = q
                               const aggregated = [
+                                ...workflowBlocks
+                                  .filter((b) => (b.name || b.id).toLowerCase().includes(aq))
+                                  .map((b) => ({ type: 'Workflow Blocks' as const, value: b })),
                                 ...workflows
                                   .filter((w) =>
                                     (w.name || 'Untitled Workflow').toLowerCase().includes(aq)
                                   )
                                   .map((w) => ({ type: 'Workflows' as const, value: w })),
-                                ...workflowBlocks
-                                  .filter((b) => (b.name || b.id).toLowerCase().includes(aq))
-                                  .map((b) => ({ type: 'Workflow Blocks' as const, value: b })),
                                 ...blocksList
                                   .filter((b) => (b.name || b.id).toLowerCase().includes(aq))
                                   .map((b) => ({ type: 'Blocks' as const, value: b })), 
@@ -2828,7 +2878,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                             {(item.value as any).name || (item.value as any).id}
                                           </span>
                                         </>
-                                      ) : (item as any).type === 'Workflow Blocks' ? (
+                                      ) : item.type === 'Workflow Blocks' ? (
                                         <>
                                           <div
                                             className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
