@@ -14,6 +14,7 @@ import {
 import { format } from 'date-fns'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getAssetUrl } from '@/lib/utils'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
@@ -27,6 +28,8 @@ interface InvitationEmailProps {
 }
 
 const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+
+const logger = createLogger('InvitationEmail')
 
 export const InvitationEmail = ({
   inviterName = 'A team member',
@@ -49,7 +52,7 @@ export const InvitationEmail = ({
         enhancedLink = `${baseUrl}/invite/${invitationId}?token=${invitationId}`
       }
     } catch (e) {
-      console.error('Error parsing invite link:', e)
+      logger.error('Error parsing invite link:', e)
     }
   }
 

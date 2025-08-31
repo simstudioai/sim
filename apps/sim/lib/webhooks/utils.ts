@@ -134,7 +134,7 @@ export async function validateSlackSignature(
 
     return result === 0
   } catch (error) {
-    console.error('Error validating Slack signature:', error)
+    logger.error('Error validating Slack signature:', error)
     return false
   }
 }
@@ -149,7 +149,6 @@ export function formatWebhookInput(
   request: NextRequest
 ): any {
   if (foundWebhook.provider === 'whatsapp') {
-    // WhatsApp input formatting logic
     const data = body?.entry?.[0]?.changes?.[0]?.value
     const messages = data?.messages || []
 
@@ -189,12 +188,10 @@ export function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'telegram') {
-    // Telegram input formatting logic
     const message =
       body?.message || body?.edited_message || body?.channel_post || body?.edited_channel_post
 
     if (message) {
-      // Extract message text with fallbacks for different content types
       let input = ''
 
       if (message.text) {
@@ -223,7 +220,6 @@ export function formatWebhookInput(
         input = 'Message received'
       }
 
-      // Create the message object for easier access
       const messageObj = {
         id: message.message_id,
         text: message.text,
@@ -251,7 +247,6 @@ export function formatWebhookInput(
         raw: message,
       }
 
-      // Create sender object
       const senderObj = message.from
         ? {
             id: message.from.id,
@@ -263,7 +258,6 @@ export function formatWebhookInput(
           }
         : null
 
-      // Create chat object
       const chatObj = message.chat
         ? {
             id: message.chat.id,
@@ -276,9 +270,9 @@ export function formatWebhookInput(
         : null
 
       return {
-        input, // Primary workflow input - the message content
+        input,
 
-        // NEW: Top-level properties for backward compatibility with <blockName.message> syntax
+        // Top-level properties for backward compatibility with <blockName.message> syntax
         message: messageObj,
         sender: senderObj,
         chat: chatObj,
@@ -683,7 +677,7 @@ export function validateMicrosoftTeamsSignature(
 
     return result === 0
   } catch (error) {
-    console.error('Error validating Microsoft Teams signature:', error)
+    logger.error('Error validating Microsoft Teams signature:', error)
     return false
   }
 }
@@ -698,12 +692,11 @@ export function verifyProviderWebhook(
 ): NextResponse | null {
   const authHeader = request.headers.get('authorization')
   const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
-  // Keep existing switch statement for github, stripe, generic, default
   switch (foundWebhook.provider) {
     case 'github':
-      break // No specific auth here
+      break
     case 'stripe':
-      break // Stripe verification would go here
+      break
     case 'gmail':
       if (providerConfig.secret) {
         const secretHeader = request.headers.get('X-Webhook-Secret')
@@ -723,22 +716,16 @@ export function verifyProviderWebhook(
       break
     case 'telegram': {
       // Check User-Agent to ensure it's not blocked by middleware
-      // Log the user agent for debugging purposes
       const userAgent = request.headers.get('user-agent') || ''
       logger.debug(`[${requestId}] Telegram webhook request received with User-Agent: ${userAgent}`)
 
-      // Check if the user agent is empty and warn about it
       if (!userAgent) {
         logger.warn(
           `[${requestId}] Telegram webhook request has empty User-Agent header. This may be blocked by middleware.`
         )
       }
 
-      // We'll accept the request anyway since we're in the provider-specific logic,
-      // but we'll log the information for debugging
-
       // Telegram uses IP addresses in specific ranges
-      // This is optional verification that could be added if IP verification is needed
       const clientIp =
         request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
         request.headers.get('x-real-ip') ||
@@ -749,34 +736,27 @@ export function verifyProviderWebhook(
       break
     }
     case 'microsoftteams':
-      // Microsoft Teams webhook authentication is handled separately in the main flow
-      // due to the need for raw body access for HMAC verification
       break
     case 'generic':
-      // Generic auth logic: requireAuth, token, secretHeaderName, allowedIps
       if (providerConfig.requireAuth) {
         let isAuthenticated = false
-        // Check for token in Authorization header (Bearer token)
         if (providerConfig.token) {
           const providedToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
           if (providedToken === providerConfig.token) {
             isAuthenticated = true
           }
-          // Check for token in custom header if specified
           if (!isAuthenticated && providerConfig.secretHeaderName) {
             const customHeaderValue = request.headers.get(providerConfig.secretHeaderName)
             if (customHeaderValue === providerConfig.token) {
               isAuthenticated = true
             }
           }
-          // Return 401 if authentication failed
           if (!isAuthenticated) {
             logger.warn(`[${requestId}] Unauthorized webhook access attempt - invalid token`)
             return new NextResponse('Unauthorized', { status: 401 })
           }
         }
       }
-      // IP restriction check
       if (
         providerConfig.allowedIps &&
         Array.isArray(providerConfig.allowedIps) &&
@@ -821,7 +801,7 @@ export async function fetchAndProcessAirtablePayloads(
   // Logging handles all error logging
   let currentCursor: number | null = null
   let mightHaveMore = true
-  let payloadsFetched = 0 // Track total payloads fetched
+  let payloadsFetched = 0
   let apiCallCount = 0
   // Use a Map to consolidate changes per record ID
   const consolidatedChangesMap = new Map<string, AirtableChange>()
@@ -829,15 +809,7 @@ export async function fetchAndProcessAirtablePayloads(
   const allPayloads = []
   const localProviderConfig = {
     ...((webhookData.providerConfig as Record<string, any>) || {}),
-  } // Local copy
-
-  // DEBUG: Log start of function execution with critical info
-  logger.debug(`[${requestId}] TRACE: fetchAndProcessAirtablePayloads started`, {
-    webhookId: webhookData.id,
-    workflowId: workflowData.id,
-    hasBaseId: !!localProviderConfig.baseId,
-    hasExternalId: !!localProviderConfig.externalId,
-  })
+  }
 
   try {
     // --- Essential IDs & Config from localProviderConfig ---
@@ -848,11 +820,9 @@ export async function fetchAndProcessAirtablePayloads(
       logger.error(
         `[${requestId}] Missing baseId or externalId in providerConfig for webhook ${webhookData.id}. Cannot fetch payloads.`
       )
-      // Error logging handled by logging session
-      return // Exit early
+      return
     }
 
-    // Require credentialId
     const credentialId: string | undefined = localProviderConfig.credentialId
     if (!credentialId) {
       logger.error(
@@ -861,7 +831,6 @@ export async function fetchAndProcessAirtablePayloads(
       return
     }
 
-    // Resolve owner and access token strictly via credentialId (no fallback)
     let ownerUserId: string | null = null
     try {
       const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
@@ -877,18 +846,14 @@ export async function fetchAndProcessAirtablePayloads(
       return
     }
 
-    // --- Retrieve Stored Cursor from localProviderConfig ---
     const storedCursor = localProviderConfig.externalWebhookCursor
 
-    // Initialize cursor in provider config if missing
     if (storedCursor === undefined || storedCursor === null) {
       logger.info(
         `[${requestId}] No cursor found in providerConfig for webhook ${webhookData.id}, initializing...`
       )
-      // Update the local copy
       localProviderConfig.externalWebhookCursor = null
 
-      // Add cursor to the database immediately to fix the configuration
       try {
         await db
           .update(webhook)
@@ -901,7 +866,7 @@ export async function fetchAndProcessAirtablePayloads(
           })
           .where(eq(webhook.id, webhookData.id))
 
-        localProviderConfig.externalWebhookCursor = null // Update local copy too
+        localProviderConfig.externalWebhookCursor = null
         logger.info(`[${requestId}] Successfully initialized cursor for webhook ${webhookData.id}`)
       } catch (initError: any) {
         logger.error(`[${requestId}] Failed to initialize cursor in DB`, {
@@ -909,7 +874,6 @@ export async function fetchAndProcessAirtablePayloads(
           error: initError.message,
           stack: initError.stack,
         })
-        // Error logging handled by logging session
       }
     }
 
@@ -919,13 +883,12 @@ export async function fetchAndProcessAirtablePayloads(
         `[${requestId}] Using stored cursor: ${currentCursor} for webhook ${webhookData.id}`
       )
     } else {
-      currentCursor = null // Airtable API defaults to 1 if omitted
+      currentCursor = null
       logger.debug(
         `[${requestId}] No valid stored cursor for webhook ${webhookData.id}, starting from beginning`
       )
     }
 
-    // --- Get OAuth Token (strict via credentialId) ---
     let accessToken: string | null = null
     try {
       accessToken = await refreshAccessTokenIfNeeded(credentialId, ownerUserId, requestId)
@@ -946,8 +909,7 @@ export async function fetchAndProcessAirtablePayloads(
           credentialId,
         }
       )
-      // Error logging handled by logging session
-      return // Exit early
+      return
     }
 
     const airtableApiBase = 'https://api.airtable.com/v0'

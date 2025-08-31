@@ -360,7 +360,7 @@ export async function isOrganizationOwnerOrAdmin(
     const userRole = memberRecord[0].role
     return ['owner', 'admin'].includes(userRole)
   } catch (error) {
-    console.error('Error checking organization ownership/admin status:', error)
+    logger.error('Error checking organization ownership/admin status:', error)
     return false
   }
 }

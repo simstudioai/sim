@@ -15,8 +15,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import type { EnvironmentVariable as StoreEnvironmentVariable } from '@/stores/settings/environment/types'
+
+const logger = createLogger('EnvironmentVariables')
 
 // Constants
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr),minmax(0,1fr),40px] gap-4'
@@ -263,7 +266,7 @@ export function EnvironmentVariables({
       // Single store update that triggers sync
       useEnvironmentStore.getState().setVariables(validVariables)
     } catch (error) {
-      console.error('Failed to save environment variables:', error)
+      logger.error('Failed to save environment variables:', error)
     }
   }
 
