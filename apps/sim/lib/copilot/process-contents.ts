@@ -48,6 +48,9 @@ export async function processContexts(
           ctx.label ? `@${ctx.label}` : '@'
         )
       }
+      if (ctx.kind === 'logs' && (ctx as any).executionId) {
+        return await processExecutionLogFromDb((ctx as any).executionId, ctx.label ? `@${ctx.label}` : '@')
+      }
       // Other kinds can be added here: workflow, blocks, logs, knowledge, templates
       return null
     } catch (error) {
@@ -88,6 +91,9 @@ export async function processContextsServer(
           (ctx as any).templateId,
           ctx.label ? `@${ctx.label}` : '@'
         )
+      }
+      if (ctx.kind === 'logs' && (ctx as any).executionId) {
+        return await processExecutionLogFromDb((ctx as any).executionId, ctx.label ? `@${ctx.label}` : '@')
       }
       return null
     } catch (error) {
@@ -353,6 +359,58 @@ async function processTemplateFromDb(
     return { type: 'templates', tag, content }
   } catch (error) {
     logger.error('Error processing template context (db)', { templateId, error })
+    return null
+  }
+}
+
+async function processExecutionLogFromDb(executionId: string, tag: string): Promise<AgentContext | null> {
+  try {
+    const { workflowExecutionLogs, workflow } = await import('@/db/schema')
+    const { db } = await import('@/db')
+    const rows = await db
+      .select({
+        id: workflowExecutionLogs.id,
+        workflowId: workflowExecutionLogs.workflowId,
+        executionId: workflowExecutionLogs.executionId,
+        level: workflowExecutionLogs.level,
+        trigger: workflowExecutionLogs.trigger,
+        startedAt: workflowExecutionLogs.startedAt,
+        endedAt: workflowExecutionLogs.endedAt,
+        totalDurationMs: workflowExecutionLogs.totalDurationMs,
+        executionData: workflowExecutionLogs.executionData,
+        cost: workflowExecutionLogs.cost,
+        workflowName: workflow.name,
+      })
+      .from(workflowExecutionLogs)
+      .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+      .where(eq(workflowExecutionLogs.executionId, executionId))
+      .limit(1)
+
+    const log = rows?.[0] as any
+    if (!log) return null
+
+    const summary = {
+      id: log.id,
+      workflowId: log.workflowId,
+      executionId: log.executionId,
+      level: log.level,
+      trigger: log.trigger,
+      startedAt: log.startedAt?.toISOString?.() || String(log.startedAt),
+      endedAt: log.endedAt?.toISOString?.() || (log.endedAt ? String(log.endedAt) : null),
+      totalDurationMs: log.totalDurationMs ?? null,
+      workflowName: log.workflowName || '',
+      // Include trace spans and any available details without being huge
+      executionData: log.executionData ? {
+        traceSpans: (log.executionData as any).traceSpans || undefined,
+        errorDetails: (log.executionData as any).errorDetails || undefined,
+      } : undefined,
+      cost: log.cost || undefined,
+    }
+
+    const content = JSON.stringify(summary)
+    return { type: 'logs', tag, content }
+  } catch (error) {
+    logger.error('Error processing execution log context (db)', { executionId, error })
     return null
   }
 }

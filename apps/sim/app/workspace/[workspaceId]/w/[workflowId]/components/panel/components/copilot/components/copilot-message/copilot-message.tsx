@@ -513,16 +513,31 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                       const i = match.index
                       const before = text.slice(lastIndex, i)
                       if (before) nodes.push(before)
-                      const mention = match[0]
+                      const mentionLabel = match[1]
+                      const ctx = contexts.find((c) => c?.label === mentionLabel)
+                      const icon = ctx?.kind === 'past_chat'
+                        ? <Bot className='h-3 w-3 text-muted-foreground' />
+                        : ctx?.kind === 'workflow'
+                          ? <Workflow className='h-3 w-3 text-muted-foreground' />
+                          : ctx?.kind === 'blocks'
+                            ? <Blocks className='h-3 w-3 text-muted-foreground' />
+                            : ctx?.kind === 'knowledge'
+                              ? <LibraryBig className='h-3 w-3 text-muted-foreground' />
+                              : ctx?.kind === 'templates'
+                                ? <Shapes className='h-3 w-3 text-muted-foreground' />
+                                : <Info className='h-3 w-3 text-muted-foreground' />
                       nodes.push(
                         <span
                           key={`mention-${i}-${lastIndex}`}
-                          className='rounded-[6px] bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)] px-1'
+                          className='rounded-[6px] bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)]'
                         >
-                          {mention}
+                          <span className='inline-flex items-center gap-1 px-1'>
+                            {icon}
+                            <span>{mentionLabel}</span>
+                          </span>
                         </span>
                       )
-                      lastIndex = i + mention.length
+                      lastIndex = i + match[0].length
                     }
                     const tail = text.slice(lastIndex)
                     if (tail) nodes.push(tail)

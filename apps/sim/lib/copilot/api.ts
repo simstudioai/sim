@@ -64,7 +64,7 @@ export interface SendMessageRequest {
   implicitFeedback?: string
   fileAttachments?: MessageFileAttachment[]
   abortSignal?: AbortSignal
-  contexts?: Array<{ kind: string; label?: string; chatId?: string; workflowId?: string }>
+  contexts?: Array<{ kind: string; label?: string; chatId?: string; workflowId?: string; executionId?: string }>
 }
 
 /**

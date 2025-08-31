@@ -57,6 +57,7 @@ const ChatMessageSchema = z.object({
         knowledgeId: z.string().optional(),
         blockId: z.string().optional(),
         templateId: z.string().optional(),
+        executionId: z.string().optional(),
       })
     )
     .optional(),
@@ -105,6 +106,7 @@ export async function POST(req: NextRequest) {
               kind: c?.kind,
               chatId: c?.chatId,
               workflowId: c?.workflowId,
+              executionId: (c as any)?.executionId,
               label: c?.label,
             }))
           : undefined,
@@ -122,6 +124,9 @@ export async function POST(req: NextRequest) {
           kinds: agentContexts.map((c) => c.type),
           lengthPreview: agentContexts.map((c) => c.content?.length ?? 0),
         })
+        if (Array.isArray(contexts) && contexts.length > 0 && agentContexts.length === 0) {
+          logger.warn(`[${tracker.requestId}] Contexts provided but none processed. Check executionId for logs contexts.`)
+        }
       } catch (e) {
         logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
       }

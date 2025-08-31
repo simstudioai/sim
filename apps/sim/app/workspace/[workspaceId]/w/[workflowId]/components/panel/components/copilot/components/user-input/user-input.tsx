@@ -124,11 +124,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const submenuRef = useRef<HTMLDivElement>(null)
     const menuListRef = useRef<HTMLDivElement>(null)
     const [mentionActiveIndex, setMentionActiveIndex] = useState(0)
-    const mentionOptions = ['Chats', 'Workflows', 'Blocks', 'Knowledge', 'Templates']
+    const mentionOptions = ['Chats', 'Workflows', 'Blocks', 'Knowledge', 'Templates', 'Logs']
     const [openSubmenuFor, setOpenSubmenuFor] = useState<string | null>(null)
     const [submenuActiveIndex, setSubmenuActiveIndex] = useState(0)
     const [inAggregated, setInAggregated] = useState(false)
-    const isSubmenu = (v: 'Chats' | 'Workflows' | 'Knowledge' | 'Blocks' | 'Templates') =>
+    const isSubmenu = (v: 'Chats' | 'Workflows' | 'Knowledge' | 'Blocks' | 'Templates' | 'Logs') =>
       openSubmenuFor === v
     const [pastChats, setPastChats] = useState<
       Array<{ id: string; title: string | null; workflowId: string | null; updatedAt?: string }>
@@ -151,6 +151,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     >([])
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
     // const [templatesQuery, setTemplatesQuery] = useState('')
+    // Add logs list state
+    const [logsList, setLogsList] = useState<
+      Array<{ id: string; executionId?: string; level: string; trigger: string | null; createdAt: string; workflowName: string }>
+    >([])
+    const [isLoadingLogs, setIsLoadingLogs] = useState(false)
 
     const { data: session } = useSession()
     const { currentChat, workflowId } = useCopilotStore()
@@ -669,6 +674,20 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             requestAnimationFrame(() => scrollActiveItemIntoView(next))
             return next
           })
+        } else if (openSubmenuFor === 'Logs' && logsList.length > 0) {
+          const q = getSubmenuQuery().toLowerCase()
+          const filtered = logsList.filter((l) =>
+            [l.workflowName, l.trigger || ''].join(' ').toLowerCase().includes(q)
+          )
+          setSubmenuActiveIndex((prev) => {
+            const last = Math.max(0, filtered.length - 1)
+            let next = prev
+            if (filtered.length === 0) next = 0
+            else if (e.key === 'ArrowDown') next = prev >= last ? 0 : prev + 1
+            else next = prev <= 0 ? last : prev - 1
+            requestAnimationFrame(() => scrollActiveItemIntoView(next))
+            return next
+          })
         } else if (isAggregate) {
           const q = mainQ
           const aggregated = [
@@ -687,6 +706,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             ...pastChats
               .filter((c) => (c.title || 'Untitled Chat').toLowerCase().includes(q))
               .map((c) => ({ type: 'Chats' as const, value: c })),
+            ...logsList
+              .filter((l) => (l.workflowName || 'Untitled Workflow').toLowerCase().includes(q))
+              .map((l) => ({ type: 'Logs' as const, value: l })),
           ]
           setInAggregated(true)
           setSubmenuActiveIndex((prev) => {
@@ -810,6 +832,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           setSubmenuActiveIndex(0)
           setSubmenuQueryStart(getCaretPos())
           void ensureTemplatesLoaded()
+        } else if (selected === 'Logs') {
+          resetActiveMentionQuery()
+          setOpenSubmenuFor('Logs')
+          setSubmenuActiveIndex(0)
+          setSubmenuQueryStart(getCaretPos())
+          void ensureLogsLoaded()
         }
         return
       }
@@ -940,6 +968,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               ...pastChats
                 .filter((c) => (c.title || 'Untitled Chat').toLowerCase().includes(q))
                 .map((c) => ({ type: 'Chats' as const, value: c })),
+              ...logsList
+                .filter((l) => (l.workflowName || 'Untitled Workflow').toLowerCase().includes(q))
+                .map((l) => ({ type: 'Logs' as const, value: l })),
             ]
             const idx = Math.max(0, Math.min(submenuActiveIndex, aggregated.length - 1))
             const chosen = aggregated[idx]
@@ -949,6 +980,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               else if (chosen.type === 'Knowledge') insertKnowledgeMention(chosen.value as any)
               else if (chosen.type === 'Blocks') insertBlockMention(chosen.value as any)
               else if (chosen.type === 'Templates') insertTemplateMention(chosen.value as any)
+              else if (chosen.type === 'Logs') insertLogMention(chosen.value as any)
             }
           } else if (!openSubmenuFor && selected === 'Chats') {
             resetActiveMentionQuery()
@@ -1022,6 +1054,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             setSubmenuActiveIndex(0)
             setSubmenuQueryStart(getCaretPos())
             void ensureTemplatesLoaded()
+          } else if (!openSubmenuFor && selected === 'Logs') {
+            resetActiveMentionQuery()
+            setOpenSubmenuFor('Logs')
+            setSubmenuActiveIndex(0)
+            setSubmenuQueryStart(getCaretPos())
+            void ensureLogsLoaded()
           } else if (openSubmenuFor === 'Templates') {
             const q = getSubmenuQuery().toLowerCase()
             const filtered = templatesList.filter((t) =>
@@ -1031,6 +1069,17 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               const chosen =
                 filtered[Math.max(0, Math.min(submenuActiveIndex, filtered.length - 1))]
               insertTemplateMention(chosen)
+              setSubmenuQueryStart(null)
+            }
+          } else if (openSubmenuFor === 'Logs' && logsList.length > 0) {
+            const q = getSubmenuQuery().toLowerCase()
+            const filtered = logsList.filter((l) =>
+              [l.workflowName, l.trigger || ''].join(' ').toLowerCase().includes(q)
+            )
+            if (filtered.length > 0) {
+              const chosen =
+                filtered[Math.max(0, Math.min(submenuActiveIndex, filtered.length - 1))]
+              insertLogMention(chosen)
               setSubmenuQueryStart(null)
             }
           } else if (isAggregate || inAggregated) {
@@ -1051,6 +1100,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               ...pastChats
                 .filter((c) => (c.title || 'Untitled Chat').toLowerCase().includes(q))
                 .map((c) => ({ type: 'Chats' as const, value: c })),
+              ...logsList
+                .filter((l) => (l.workflowName || 'Untitled Workflow').toLowerCase().includes(q))
+                .map((l) => ({ type: 'Logs' as const, value: l })),
             ]
             const idx = Math.max(0, Math.min(submenuActiveIndex, aggregated.length - 1))
             const chosen = aggregated[idx]
@@ -1060,6 +1112,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               else if (chosen.type === 'Knowledge') insertKnowledgeMention(chosen.value)
               else if (chosen.type === 'Blocks') insertBlockMention(chosen.value)
               else if (chosen.type === 'Templates') insertTemplateMention(chosen.value)
+              else if (chosen.type === 'Logs') insertLogMention(chosen.value)
             }
           }
         }
@@ -1200,12 +1253,13 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       if (!active) return false
       const before = message.slice(0, active.start)
       const after = message.slice(active.end)
-      const next = `${before}@${label} ${after}`
+      const insertion = `@${label} `
+      const next = `${before}${insertion}${after}`.replace(/\s{2,}/g, ' ')
       if (controlledValue !== undefined) onControlledChange?.(next)
       else setInternalMessage(next)
       requestAnimationFrame(() => {
-        const caretPos = `${before}@${label} `.length
-        textarea.setSelectionRange(caretPos, caretPos)
+        const cursorPos = before.length + insertion.length
+        textarea.setSelectionRange(cursorPos, cursorPos)
         textarea.focus()
       })
       return true
@@ -1213,8 +1267,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const insertPastChatMention = (chat: { id: string; title: string | null }) => {
       const label = chat.title || 'Untitled Chat'
-      const token = `@${label}`
-      if (!replaceActiveMentionWith(label)) insertAtCursor(`${token} `)
+      replaceActiveMentionWith(label)
       setSelectedContexts((prev) => {
         // Avoid duplicate contexts for same chat
         if (prev.some((c) => c.kind === 'past_chat' && (c as any).chatId === chat.id)) return prev
@@ -1226,8 +1279,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const insertWorkflowMention = (wf: { id: string; name: string }) => {
       const label = wf.name || 'Untitled Workflow'
-      const token = `@${label}`
-      if (!replaceActiveMentionWith(label)) insertAtCursor(`${token} `)
+      replaceActiveMentionWith(label)
       setSelectedContexts((prev) => {
         if (prev.some((c) => c.kind === 'workflow' && (c as any).workflowId === wf.id)) return prev
         return [...prev, { kind: 'workflow', workflowId: wf.id, label } as ChatContext]
@@ -1238,8 +1290,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const insertKnowledgeMention = (kb: { id: string; name: string }) => {
       const label = kb.name || 'Untitled'
-      const token = `@${label}`
-      if (!replaceActiveMentionWith(label)) insertAtCursor(`${token} `)
+      replaceActiveMentionWith(label)
       setSelectedContexts((prev) => {
         if (prev.some((c) => c.kind === 'knowledge' && (c as any).knowledgeId === kb.id))
           return prev
@@ -1251,8 +1302,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const insertBlockMention = (blk: { id: string; name: string }) => {
       const label = blk.name || blk.id
-      const token = `@${label}`
-      if (!replaceActiveMentionWith(label)) insertAtCursor(`${token} `)
+      replaceActiveMentionWith(label)
       setSelectedContexts((prev) => {
         if (prev.some((c) => c.kind === 'blocks' && (c as any).blockId === blk.id)) return prev
         return [...prev, { kind: 'blocks', blockId: blk.id, label } as any]
@@ -1263,8 +1313,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const insertTemplateMention = (tpl: { id: string; name: string }) => {
       const label = tpl.name || 'Untitled Template'
-      const token = `@${label}`
-      if (!replaceActiveMentionWith(label)) insertAtCursor(`${token} `)
+      replaceActiveMentionWith(label)
       setSelectedContexts((prev) => {
         if (prev.some((c) => c.kind === 'templates' && (c as any).templateId === tpl.id))
           return prev
@@ -1391,7 +1440,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       })
     }
 
-    // Keep selected contexts in sync with the text so replacing selections works gracefully
+    // Keep selected contexts in sync with inline @label tokens so deleting inline tokens updates pills
     useEffect(() => {
       if (!message) {
         if (selectedContexts.length > 0) setSelectedContexts([])
@@ -1421,6 +1470,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         void ensureKnowledgeLoaded()
         void ensureBlocksLoaded()
         void ensureTemplatesLoaded()
+        void ensureLogsLoaded()
       }
       if (needAggregate) {
         setSubmenuActiveIndex(0)
@@ -1548,6 +1598,64 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       requestAnimationFrame(() => scrollActiveItemIntoView(0))
     }
 
+    // Load recent logs (executions)
+    const ensureLogsLoaded = async () => {
+      if (isLoadingLogs || logsList.length > 0) return
+      try {
+        setIsLoadingLogs(true)
+        const resp = await fetch(`/api/logs?workspaceId=${workspaceId}&limit=50&details=full`)
+        if (!resp.ok) throw new Error(`Failed to load logs: ${resp.status}`)
+        const data = await resp.json()
+        const items = Array.isArray(data?.data) ? data.data : []
+        const mapped = items.map((l: any) => ({
+          id: l.id,
+          executionId: l.executionId || l.id,
+          level: l.level,
+          trigger: l.trigger || null,
+          createdAt: l.createdAt,
+          workflowName:
+            (l.workflow && (l.workflow.name || l.workflow.title)) || l.workflowName || 'Untitled Workflow',
+        }))
+        setLogsList(mapped)
+      } catch {
+      } finally {
+        setIsLoadingLogs(false)
+      }
+    }
+
+    // Insert a logs mention
+    const insertLogMention = (log: {
+      id: string
+      executionId?: string
+      level: string
+      trigger: string | null
+      createdAt: string
+      workflowName: string
+    }) => {
+      const label = log.workflowName
+      replaceActiveMentionWith(label)
+      setSelectedContexts((prev) => {
+        if (prev.some((c) => c.kind === 'logs' && c.label === label)) return prev
+        return [...prev, { kind: 'logs', executionId: log.executionId, label }]
+      })
+      setShowMentionMenu(false)
+      setOpenSubmenuFor(null)
+    }
+
+    // Helper to format timestamps
+    const formatTimestamp = (iso: string) => {
+      try {
+        const d = new Date(iso)
+        const mm = String(d.getMonth() + 1).padStart(2, '0')
+        const dd = String(d.getDate()).padStart(2, '0')
+        const hh = String(d.getHours()).padStart(2, '0')
+        const min = String(d.getMinutes()).padStart(2, '0')
+        return `${mm}-${dd} ${hh}:${min}`
+      } catch {
+        return iso
+      }
+    }
+
     return (
       <div className={cn('relative flex-none pb-4', className)}>
         <div
@@ -1621,7 +1729,44 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             </div>
           )}
 
-          {/* Textarea Field */}
+          {/* Selected Context Pills */}
+          {selectedContexts.length > 0 && (
+            <div className='mb-2 flex flex-wrap gap-1.5'>
+              {selectedContexts.map((ctx, idx) => (
+                <span
+                  key={`selctx-${idx}-${ctx.label}`}
+                  className='inline-flex items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)] px-1.5 py-0.5 text-[11px] text-foreground'
+                  title={ctx.label}
+                >
+                  {ctx.kind === 'past_chat' ? (
+                    <Bot className='h-3 w-3 text-muted-foreground' />
+                  ) : ctx.kind === 'workflow' ? (
+                    <Workflow className='h-3 w-3 text-muted-foreground' />
+                  ) : ctx.kind === 'blocks' ? (
+                    <Blocks className='h-3 w-3 text-muted-foreground' />
+                  ) : ctx.kind === 'knowledge' ? (
+                    <LibraryBig className='h-3 w-3 text-muted-foreground' />
+                  ) : ctx.kind === 'templates' ? (
+                    <Shapes className='h-3 w-3 text-muted-foreground' />
+                  ) : (
+                    <Info className='h-3 w-3 text-muted-foreground' />
+                  )}
+                  <span className='max-w-[140px] truncate'>{ctx.label}</span>
+                  <button
+                    type='button'
+                    onClick={() => setSelectedContexts((prev) => prev.filter((c) => c.label !== ctx.label))}
+                    className='text-muted-foreground transition-colors hover:text-foreground'
+                    title='Remove context'
+                    aria-label='Remove context'
+                  >
+                    <X className='h-3 w-3' />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Textarea Field with overlay */}
           <div className='relative'>
             {/* Highlight overlay */}
             <div className='pointer-events-none absolute inset-0 z-[1] px-[2px] py-1'>
@@ -1634,7 +1779,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   // Build regex for all labels
                   const labels = contexts.map((c) => c.label).filter(Boolean)
                   const pattern = new RegExp(
-                    `@(${labels.map((l) => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
+                    `@(${labels.map((l) => l.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')).join('|')})`,
                     'g'
                   )
                   let lastIndex = 0
@@ -1644,6 +1789,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     const before = remaining.slice(lastIndex, i)
                     if (before) elements.push(before)
                     const mentionText = match[0]
+                    const mentionLabel = match[1]
                     elements.push(
                       <span
                         key={`${mentionText}-${i}-${lastIndex}`}
@@ -1673,6 +1819,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               className='relative z-[2] mb-2 min-h-[32px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent px-[2px] py-1 font-sans text-sm text-transparent leading-[1.25rem] caret-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
               style={{ height: 'auto' }}
             />
+
             {showMentionMenu && (
               <>
                 <div
@@ -1681,7 +1828,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     'absolute bottom-full left-0 z-50 mb-1 flex max-h-64 flex-col overflow-hidden rounded-[8px] border bg-popover p-1 text-foreground shadow-md',
                     openSubmenuFor === 'Blocks'
                       ? 'w-80'
-                      : openSubmenuFor === 'Templates'
+                      : openSubmenuFor === 'Templates' || openSubmenuFor === 'Logs'
                         ? 'w-96'
                         : 'w-56'
                   )}
@@ -1697,7 +1844,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                               ? 'Knowledge Bases'
                               : openSubmenuFor === 'Blocks'
                                 ? 'Blocks'
-                                : 'Templates'}
+                                : openSubmenuFor === 'Templates'
+                                  ? 'Templates'
+                                  : 'Logs'}
                       </div>
                       <div ref={menuListRef} className='flex-1 overflow-auto overscroll-contain'>
                         {isSubmenu('Chats') && (
@@ -1924,6 +2073,55 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             )}
                           </>
                         )}
+                        {isSubmenu('Logs') && (
+                          <>
+                            {isLoadingLogs ? (
+                              <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                Loading...
+                              </div>
+                            ) : logsList.length === 0 ? (
+                              <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                No executions found
+                              </div>
+                            ) : (
+                              logsList
+                                .filter((l) =>
+                                  [l.workflowName, l.trigger || '']
+                                    .join(' ')
+                                    .toLowerCase()
+                                    .includes(getSubmenuQuery().toLowerCase())
+                                )
+                                .map((log, idx) => (
+                                  <div
+                                    key={log.id}
+                                    data-idx={idx}
+                                    className={cn(
+                                      'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                      submenuActiveIndex === idx && 'bg-muted'
+                                    )}
+                                    role='menuitem'
+                                    aria-selected={submenuActiveIndex === idx}
+                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                    onClick={() => {
+                                      insertLogMention(log)
+                                      setSubmenuQueryStart(null)
+                                    }}
+                                  >
+                                    {log.level === 'error' ? (
+                                      <X className='h-4 w-4 text-red-500' />
+                                    ) : (
+                                      <Check className='h-4 w-4 text-green-500' />
+                                    )}
+                                    <span className='truncate min-w-0'>{log.workflowName}</span>
+                                    <span className='text-muted-foreground'>·</span>
+                                    <span className='whitespace-nowrap'>{formatTimestamp(log.createdAt)}</span>
+                                    <span className='text-muted-foreground'>·</span>
+                                    <span className='capitalize'>{(log.trigger || 'manual').toLowerCase()}</span>
+                                  </div>
+                                ))
+                            )}
+                          </>
+                        )}
                       </div>
                     </>
                   ) : (
@@ -1981,6 +2179,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                 id: c.id,
                                 value: c,
                                 onClick: () => insertPastChatMention(c),
+                              })),
+                            ...logsList
+                              .filter((l) => (l.workflowName || 'Untitled Workflow').toLowerCase().includes(q))
+                              .map((l) => ({
+                                type: 'Logs' as const,
+                                id: l.id,
+                                value: l,
+                                onClick: () => insertLogMention(l),
                               })),
                           ]
                           return (
@@ -2129,6 +2335,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                     setSubmenuActiveIndex(0)
                                     setSubmenuQueryStart(getCaretPos())
                                     void ensureTemplatesLoaded()
+                                  } else if (label === 'Logs') {
+                                    resetActiveMentionQuery()
+                                    setOpenSubmenuFor('Logs')
+                                    setSubmenuActiveIndex(0)
+                                    setSubmenuQueryStart(getCaretPos())
+                                    void ensureLogsLoaded()
                                   }
                                 }}
                               >
@@ -2143,6 +2355,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                     <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
                                   ) : label === 'Templates' ? (
                                     <Shapes className='h-3.5 w-3.5 text-muted-foreground' />
+                                  ) : label === 'Logs' ? (
+                                    <Info className='h-3.5 w-3.5 text-muted-foreground' />
                                   ) : (
                                     <div className='h-3.5 w-3.5' />
                                   )}
@@ -2176,6 +2390,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                     (c.title || 'Untitled Chat').toLowerCase().includes(aq)
                                   )
                                   .map((c) => ({ type: 'Chats' as const, value: c })),
+                                ...logsList
+                                  .filter((l) => (l.workflowName || 'Untitled Workflow').toLowerCase().includes(aq))
+                                  .map((l) => ({ type: 'Logs' as const, value: l })),
                               ]
                               if (!aq || aq.length === 0 || aggregated.length === 0) return null
                               return (
@@ -2209,6 +2426,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                           insertBlockMention(item.value as any)
                                         else if (item.type === 'Templates')
                                           insertTemplateMention(item.value as any)
+                                        else if (item.type === 'Logs')
+                                          insertLogMention(item.value as any)
                                       }}
                                     >
                                       {item.type === 'Chats' ? (
