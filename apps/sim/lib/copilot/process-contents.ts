@@ -12,6 +12,7 @@ export type AgentContextType =
   | 'logs'
   | 'knowledge'
   | 'templates'
+  | 'workflow_block'
 
 export interface AgentContext {
   type: AgentContextType
@@ -50,6 +51,9 @@ export async function processContexts(
       }
       if (ctx.kind === 'logs' && (ctx as any).executionId) {
         return await processExecutionLogFromDb((ctx as any).executionId, ctx.label ? `@${ctx.label}` : '@')
+      }
+      if (ctx.kind === 'workflow_block' && ctx.workflowId && (ctx as any).blockId) {
+        return await processWorkflowBlockFromDb(ctx.workflowId, (ctx as any).blockId, ctx.label)
       }
       // Other kinds can be added here: workflow, blocks, logs, knowledge, templates
       return null
@@ -94,6 +98,9 @@ export async function processContextsServer(
       }
       if (ctx.kind === 'logs' && (ctx as any).executionId) {
         return await processExecutionLogFromDb((ctx as any).executionId, ctx.label ? `@${ctx.label}` : '@')
+      }
+      if (ctx.kind === 'workflow_block' && ctx.workflowId && (ctx as any).blockId) {
+        return await processWorkflowBlockFromDb(ctx.workflowId, (ctx as any).blockId, ctx.label)
       }
       return null
     } catch (error) {
@@ -359,6 +366,31 @@ async function processTemplateFromDb(
     return { type: 'templates', tag, content }
   } catch (error) {
     logger.error('Error processing template context (db)', { templateId, error })
+    return null
+  }
+}
+
+async function processWorkflowBlockFromDb(
+  workflowId: string,
+  blockId: string,
+  label?: string
+): Promise<AgentContext | null> {
+  try {
+    const normalized = await loadWorkflowFromNormalizedTables(workflowId)
+    if (!normalized) return null
+    const block = (normalized.blocks as any)[blockId]
+    if (!block) return null
+    const tag = label ? `@${label} in Workflow` : `@${block.name || blockId} in Workflow`
+
+    // Build content: isolate the block and include its subBlocks fully
+    const contentObj = {
+      workflowId,
+      block: block,
+    }
+    const content = JSON.stringify(contentObj)
+    return { type: 'workflow_block', tag, content }
+  } catch (error) {
+    logger.error('Error processing workflow_block context', { workflowId, blockId, error })
     return null
   }
 }

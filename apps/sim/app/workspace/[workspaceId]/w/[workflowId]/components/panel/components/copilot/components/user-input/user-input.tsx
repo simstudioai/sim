@@ -13,6 +13,7 @@ import {
   AtSign,
   Blocks,
   Bot,
+  Box,
   Brain,
   BrainCircuit,
   Check,
@@ -27,6 +28,7 @@ import {
   Package,
   Paperclip,
   Shapes,
+  SquareChevronRight,
   Workflow,
   X,
   Zap,
@@ -124,11 +126,13 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const submenuRef = useRef<HTMLDivElement>(null)
     const menuListRef = useRef<HTMLDivElement>(null)
     const [mentionActiveIndex, setMentionActiveIndex] = useState(0)
-    const mentionOptions = ['Chats', 'Workflows', 'Blocks', 'Knowledge', 'Templates', 'Logs']
+    const mentionOptions = ['Chats', 'Workflows', 'Workflow Blocks', 'Blocks', 'Knowledge', 'Templates', 'Logs']
     const [openSubmenuFor, setOpenSubmenuFor] = useState<string | null>(null)
     const [submenuActiveIndex, setSubmenuActiveIndex] = useState(0)
     const [inAggregated, setInAggregated] = useState(false)
-    const isSubmenu = (v: 'Chats' | 'Workflows' | 'Knowledge' | 'Blocks' | 'Templates' | 'Logs') =>
+    const isSubmenu = (
+      v: 'Chats' | 'Workflows' | 'Workflow Blocks' | 'Knowledge' | 'Blocks' | 'Templates' | 'Logs'
+    ) =>
       openSubmenuFor === v
     const [pastChats, setPastChats] = useState<
       Array<{ id: string; title: string | null; workflowId: string | null; updatedAt?: string }>
@@ -660,6 +664,18 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             requestAnimationFrame(() => scrollActiveItemIntoView(next))
             return next
           })
+        } else if (openSubmenuFor === 'Workflow Blocks' && workflowBlocks.length > 0) {
+          const q = getSubmenuQuery().toLowerCase()
+          const filtered = workflowBlocks.filter((b) => (b.name || b.id).toLowerCase().includes(q))
+          setSubmenuActiveIndex((prev) => {
+            const last = Math.max(0, filtered.length - 1)
+            let next = prev
+            if (filtered.length === 0) next = 0
+            else if (e.key === 'ArrowDown') next = prev >= last ? 0 : prev + 1
+            else next = prev <= 0 ? last : prev - 1
+            requestAnimationFrame(() => scrollActiveItemIntoView(next))
+            return next
+          })
         } else if (openSubmenuFor === 'Templates' && templatesList.length > 0) {
           const q = getSubmenuQuery().toLowerCase()
           const filtered = templatesList.filter((t) =>
@@ -826,6 +842,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           setSubmenuActiveIndex(0)
           setSubmenuQueryStart(getCaretPos())
           void ensureBlocksLoaded()
+        } else if (selected === 'Workflow Blocks') {
+          resetActiveMentionQuery()
+          setOpenSubmenuFor('Workflow Blocks')
+          setSubmenuActiveIndex(0)
+          setSubmenuQueryStart(getCaretPos())
+          void ensureWorkflowBlocksLoaded()
         } else if (selected === 'Templates') {
           resetActiveMentionQuery()
           setOpenSubmenuFor('Templates')
@@ -1046,6 +1068,21 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               const chosen =
                 filtered[Math.max(0, Math.min(submenuActiveIndex, filtered.length - 1))]
               insertBlockMention(chosen)
+              setSubmenuQueryStart(null)
+            }
+          } else if (!openSubmenuFor && selected === 'Workflow Blocks') {
+            resetActiveMentionQuery()
+            setOpenSubmenuFor('Workflow Blocks')
+            setSubmenuActiveIndex(0)
+            setSubmenuQueryStart(getCaretPos())
+            void ensureWorkflowBlocksLoaded()
+          } else if (openSubmenuFor === 'Workflow Blocks') {
+            const q = getSubmenuQuery().toLowerCase()
+            const filtered = workflowBlocks.filter((b) => (b.name || b.id).toLowerCase().includes(q))
+            if (filtered.length > 0) {
+              const chosen =
+                filtered[Math.max(0, Math.min(submenuActiveIndex, filtered.length - 1))]
+              insertWorkflowBlockMention(chosen)
               setSubmenuQueryStart(null)
             }
           } else if (!openSubmenuFor && selected === 'Templates') {
@@ -1279,7 +1316,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const insertWorkflowMention = (wf: { id: string; name: string }) => {
       const label = wf.name || 'Untitled Workflow'
-      replaceActiveMentionWith(label)
+      const token = `@${label}`
+      if (!replaceActiveMentionWith(label)) insertAtCursor(`${token} `)
       setSelectedContexts((prev) => {
         if (prev.some((c) => c.kind === 'workflow' && (c as any).workflowId === wf.id)) return prev
         return [...prev, { kind: 'workflow', workflowId: wf.id, label } as ChatContext]
@@ -1656,6 +1694,58 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }
 
+    // Workflow Blocks state (from normalized workflow)
+    const [workflowBlocks, setWorkflowBlocks] = useState<
+      Array<{ id: string; name: string; type: string; iconComponent?: any; bgColor?: string }>
+    >([])
+    const [isLoadingWorkflowBlocks, setIsLoadingWorkflowBlocks] = useState(false)
+
+    const ensureWorkflowBlocksLoaded = async () => {
+      if (isLoadingWorkflowBlocks || workflowBlocks.length > 0) return
+      if (!workflowId) return
+      try {
+        setIsLoadingWorkflowBlocks(true)
+        const resp = await fetch(`/api/workflows/${workflowId}`)
+        if (!resp.ok) throw new Error('Failed to load workflow state')
+        const data = await resp.json()
+        const state = data?.data?.state
+        const blocks = state?.blocks || {}
+        // Map to display with block registry icons/colors
+        const { registry: blockRegistry } = await import('@/blocks/registry')
+        const mapped = Object.values(blocks).map((b: any) => {
+          const reg = (blockRegistry as any)[b.type]
+          return {
+            id: b.id,
+            name: b.name || b.id,
+            type: b.type,
+            iconComponent: reg?.icon,
+            bgColor: reg?.bgColor || '#6B7280',
+          }
+        })
+        setWorkflowBlocks(mapped)
+      } catch {
+      } finally {
+        setIsLoadingWorkflowBlocks(false)
+      }
+    }
+
+    const insertWorkflowBlockMention = (blk: { id: string; name: string }) => {
+      const label = `${blk.name}`
+      const token = `@${label}`
+      if (!replaceActiveMentionWith(label)) insertAtCursor(`${token} `)
+      setSelectedContexts((prev) => {
+        if (
+          prev.some(
+            (c) => c.kind === 'workflow_block' && (c as any).workflowId === workflowId && (c as any).blockId === blk.id
+          )
+        )
+          return prev
+        return [...prev, { kind: 'workflow_block', workflowId: workflowId as string, blockId: blk.id, label } as any]
+      })
+      setShowMentionMenu(false)
+      setOpenSubmenuFor(null)
+    }
+
     return (
       <div className={cn('relative flex-none pb-4', className)}>
         <div
@@ -1744,10 +1834,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     <Workflow className='h-3 w-3 text-muted-foreground' />
                   ) : ctx.kind === 'blocks' ? (
                     <Blocks className='h-3 w-3 text-muted-foreground' />
+                  ) : ctx.kind === 'workflow_block' ? (
+                    <Box className='h-3 w-3 text-muted-foreground' />
                   ) : ctx.kind === 'knowledge' ? (
                     <LibraryBig className='h-3 w-3 text-muted-foreground' />
                   ) : ctx.kind === 'templates' ? (
                     <Shapes className='h-3 w-3 text-muted-foreground' />
+                  ) : ctx.kind === 'logs' ? (
+                    <SquareChevronRight className='h-3 w-3 text-muted-foreground' />
                   ) : (
                     <Info className='h-3 w-3 text-muted-foreground' />
                   )}
@@ -1844,9 +1938,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                               ? 'Knowledge Bases'
                               : openSubmenuFor === 'Blocks'
                                 ? 'Blocks'
-                                : openSubmenuFor === 'Templates'
-                                  ? 'Templates'
-                                  : 'Logs'}
+                                : openSubmenuFor === 'Workflow Blocks'
+                                  ? 'Workflow Blocks'
+                                  : openSubmenuFor === 'Templates'
+                                    ? 'Templates'
+                                    : 'Logs'}
                       </div>
                       <div ref={menuListRef} className='flex-1 overflow-auto overscroll-contain'>
                         {isSubmenu('Chats') && (
@@ -2011,6 +2107,53 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                     onMouseEnter={() => setSubmenuActiveIndex(idx)}
                                     onClick={() => {
                                       insertBlockMention(blk)
+                                      setSubmenuQueryStart(null)
+                                    }}
+                                  >
+                                    <div
+                                      className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
+                                      style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+                                    >
+                                      {blk.iconComponent && (
+                                        <blk.iconComponent className='!h-3 !w-3 text-white' />
+                                      )}
+                                    </div>
+                                    <span className='truncate'>{blk.name || blk.id}</span>
+                                  </div>
+                                ))
+                            )}
+                          </>
+                        )}
+                        {isSubmenu('Workflow Blocks') && (
+                          <>
+                            {isLoadingWorkflowBlocks ? (
+                              <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                Loading...
+                              </div>
+                            ) : workflowBlocks.length === 0 ? (
+                              <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                No blocks in this workflow
+                              </div>
+                            ) : (
+                              workflowBlocks
+                                .filter((b) =>
+                                  (b.name || b.id)
+                                    .toLowerCase()
+                                    .includes(getSubmenuQuery().toLowerCase())
+                                )
+                                .map((blk, idx) => (
+                                  <div
+                                    key={blk.id}
+                                    data-idx={idx}
+                                    className={cn(
+                                      'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                      submenuActiveIndex === idx && 'bg-muted'
+                                    )}
+                                    role='menuitem'
+                                    aria-selected={submenuActiveIndex === idx}
+                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                    onClick={() => {
+                                      insertWorkflowBlockMention(blk)
                                       setSubmenuQueryStart(null)
                                     }}
                                   >
@@ -2351,6 +2494,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                     setSubmenuActiveIndex(0)
                                     setSubmenuQueryStart(getCaretPos())
                                     void ensureBlocksLoaded()
+                                  } else if (label === 'Workflow Blocks') {
+                                    resetActiveMentionQuery()
+                                    setOpenSubmenuFor('Workflow Blocks')
+                                    setSubmenuActiveIndex(0)
+                                    setSubmenuQueryStart(getCaretPos())
+                                    void ensureWorkflowBlocksLoaded()
                                   } else if (label === 'Templates') {
                                     resetActiveMentionQuery()
                                     setOpenSubmenuFor('Templates')
@@ -2373,12 +2522,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                     <Workflow className='h-3.5 w-3.5 text-muted-foreground' />
                                   ) : label === 'Blocks' ? (
                                     <Blocks className='h-3.5 w-3.5 text-muted-foreground' />
+                                  ) : label === 'Workflow Blocks' ? (
+                                    <Box className='h-3.5 w-3.5 text-muted-foreground' />
                                   ) : label === 'Knowledge' ? (
                                     <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
                                   ) : label === 'Templates' ? (
                                     <Shapes className='h-3.5 w-3.5 text-muted-foreground' />
                                   ) : label === 'Logs' ? (
-                                    <Info className='h-3.5 w-3.5 text-muted-foreground' />
+                                    <SquareChevronRight className='h-3.5 w-3.5 text-muted-foreground' />
                                   ) : (
                                     <div className='h-3.5 w-3.5' />
                                   )}
@@ -2396,9 +2547,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                     (w.name || 'Untitled Workflow').toLowerCase().includes(aq)
                                   )
                                   .map((w) => ({ type: 'Workflows' as const, value: w })),
+                                ...workflowBlocks
+                                  .filter((b) => (b.name || b.id).toLowerCase().includes(aq))
+                                  .map((b) => ({ type: 'Workflow Blocks' as const, value: b })),
                                 ...blocksList
                                   .filter((b) => (b.name || b.id).toLowerCase().includes(aq))
-                                  .map((b) => ({ type: 'Blocks' as const, value: b })),
+                                  .map((b) => ({ type: 'Blocks' as const, value: b })), 
                                 ...knowledgeBases
                                   .filter((k) => (k.name || 'Untitled').toLowerCase().includes(aq))
                                   .map((k) => ({ type: 'Knowledge' as const, value: k })),
@@ -2446,6 +2600,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                           insertKnowledgeMention(item.value as any)
                                         else if (item.type === 'Blocks')
                                           insertBlockMention(item.value as any)
+                                        else if ((item as any).type === 'Workflow Blocks')
+                                          insertWorkflowBlockMention(item.value as any)
                                         else if (item.type === 'Templates')
                                           insertTemplateMention(item.value as any)
                                         else if (item.type === 'Logs')
@@ -2485,6 +2641,26 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                           </span>
                                         </>
                                       ) : item.type === 'Blocks' ? (
+                                        <>
+                                          <div
+                                            className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
+                                            style={{
+                                              backgroundColor:
+                                                (item.value as any).bgColor || '#6B7280',
+                                            }}
+                                          >
+                                            {(() => {
+                                              const Icon = (item.value as any).iconComponent
+                                              return Icon ? (
+                                                <Icon className='!h-3 !w-3 text-white' />
+                                              ) : null
+                                            })()}
+                                          </div>
+                                          <span className='truncate'>
+                                            {(item.value as any).name || (item.value as any).id}
+                                          </span>
+                                        </>
+                                      ) : (item as any).type === 'Workflow Blocks' ? (
                                         <>
                                           <div
                                             className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'

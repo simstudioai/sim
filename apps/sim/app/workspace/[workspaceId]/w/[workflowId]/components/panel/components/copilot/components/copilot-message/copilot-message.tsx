@@ -4,6 +4,7 @@ import { type FC, memo, useEffect, useMemo, useState } from 'react'
 import {
   Blocks,
   Bot,
+  Box,
   Check,
   Clipboard,
   Info,
@@ -11,6 +12,7 @@ import {
   Loader2,
   RotateCcw,
   Shapes,
+  SquareChevronRight,
   ThumbsDown,
   ThumbsUp,
   Workflow,
@@ -408,10 +410,14 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                               <Workflow className='h-3 w-3 text-muted-foreground' />
                             ) : ctx?.kind === 'blocks' ? (
                               <Blocks className='h-3 w-3 text-muted-foreground' />
+                            ) : ctx?.kind === 'workflow_block' ? (
+                              <Box className='h-3 w-3 text-muted-foreground' />
                             ) : ctx?.kind === 'knowledge' ? (
                               <LibraryBig className='h-3 w-3 text-muted-foreground' />
                             ) : ctx?.kind === 'templates' ? (
                               <Shapes className='h-3 w-3 text-muted-foreground' />
+                            ) : ctx?.kind === 'logs' ? (
+                              <SquareChevronRight className='h-3 w-3 text-muted-foreground' />
                             ) : (
                               <Info className='h-3 w-3 text-muted-foreground' />
                             )}
