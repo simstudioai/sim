@@ -1,5 +1,6 @@
 export * from './base-styles'
 export { BatchInvitationEmail } from './batch-invitation-email'
+export { EnterpriseSubscriptionEmail } from './enterprise-subscription-email'
 export { default as EmailFooter } from './footer'
 export { HelpConfirmationEmail } from './help-confirmation-email'
 export { InvitationEmail } from './invitation-email'

@@ -132,7 +132,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@react-email/preview-server": "4.2.4",
+    "@react-email/preview-server": "4.2.8",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",

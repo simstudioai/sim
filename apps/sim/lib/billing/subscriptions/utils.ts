@@ -4,7 +4,6 @@ import {
   DEFAULT_PRO_TIER_COST_LIMIT,
   DEFAULT_TEAM_TIER_COST_LIMIT,
 } from '@/lib/billing/constants'
-import type { EnterpriseSubscriptionMetadata } from '@/lib/billing/types'
 import { env } from '@/lib/env'
 
 /**
@@ -48,50 +47,9 @@ export function checkTeamPlan(subscription: any): boolean {
 }
 
 /**
- * Calculate the total subscription-level allowance (what the org/user gets for their base payment)
- * - Pro: Fixed amount per user
- * - Team: Seats * base price (pooled for the org)
- * - Enterprise: Seats * per-seat price (pooled, with optional custom pricing in metadata)
- * @param subscription The subscription object
- * @returns The total subscription allowance in dollars
- */
-export function getSubscriptionAllowance(subscription: any): number {
-  if (!subscription || subscription.status !== 'active') {
-    return getFreeTierLimit()
-  }
-
-  const seats = subscription.seats || 1
-
-  if (subscription.plan === 'pro') {
-    return getProTierLimit()
-  }
-  if (subscription.plan === 'team') {
-    return seats * getTeamTierLimitPerSeat()
-  }
-  if (subscription.plan === 'enterprise') {
-    const metadata = subscription.metadata as EnterpriseSubscriptionMetadata | undefined
-
-    // Enterprise uses per-seat pricing (pooled like Team)
-    // Custom per-seat price can be set in metadata
-    let perSeatPrice = getEnterpriseTierLimitPerSeat()
-    if (metadata?.perSeatPrice) {
-      const parsed = Number.parseFloat(String(metadata.perSeatPrice))
-      if (parsed > 0 && !Number.isNaN(parsed)) {
-        perSeatPrice = parsed
-      }
-    }
-
-    return seats * perSeatPrice
-  }
-
-  return getFreeTierLimit()
-}
-
-/**
  * Get the minimum usage limit for an individual user (used for validation)
- * - Pro: User's plan minimum
- * - Team: 0 (pooled model, no individual minimums)
- * - Enterprise: 0 (pooled model, no individual minimums)
+ * Only applicable for plans with individual limits (Free/Pro)
+ * Team and Enterprise plans use organization-level limits instead
  * @param subscription The subscription object
  * @returns The per-user minimum limit in dollars
  */
@@ -100,27 +58,15 @@ export function getPerUserMinimumLimit(subscription: any): number {
     return getFreeTierLimit()
   }
 
-  const seats = subscription.seats || 1
-
   if (subscription.plan === 'pro') {
     return getProTierLimit()
   }
-  if (subscription.plan === 'team') {
-    // For team plans, return the total pooled limit (seats * cost per seat)
-    // This becomes the user's individual limit representing their share of the team pool
-    return seats * getTeamTierLimitPerSeat()
-  }
-  if (subscription.plan === 'enterprise') {
-    // For enterprise plans, return the total pooled limit (seats * cost per seat)
-    // This becomes the user's individual limit representing their share of the enterprise pool
-    let perSeatPrice = getEnterpriseTierLimitPerSeat()
-    if (subscription.metadata?.perSeatPrice) {
-      const parsed = Number.parseFloat(String(subscription.metadata.perSeatPrice))
-      if (parsed > 0 && !Number.isNaN(parsed)) {
-        perSeatPrice = parsed
-      }
-    }
-    return seats * perSeatPrice
+
+  if (subscription.plan === 'team' || subscription.plan === 'enterprise') {
+    // Team and Enterprise don't have individual limits - they use organization limits
+    // This function should not be called for these plans
+    // Returning 0 to indicate no individual minimum
+    return 0
   }
 
   return getFreeTierLimit()
@@ -128,7 +74,8 @@ export function getPerUserMinimumLimit(subscription: any): number {
 
 /**
  * Check if a user can edit their usage limits based on their subscription
- * Free plan users cannot edit limits, paid plan users can
+ * Free and Enterprise plans cannot edit limits
+ * Pro and Team plans can increase their limits
  * @param subscription The subscription object
  * @returns Whether the user can edit their usage limits
  */
@@ -137,19 +84,7 @@ export function canEditUsageLimit(subscription: any): boolean {
     return false // Free plan users cannot edit limits
   }
 
-  return (
-    subscription.plan === 'pro' ||
-    subscription.plan === 'team' ||
-    subscription.plan === 'enterprise'
-  )
-}
-
-/**
- * Get the minimum allowed usage limit for a subscription
- * This prevents users from setting limits below their plan's base amount
- * @param subscription The subscription object
- * @returns The minimum allowed usage limit in dollars
- */
-export function getMinimumUsageLimit(subscription: any): number {
-  return getPerUserMinimumLimit(subscription)
+  // Only Pro and Team plans can edit limits
+  // Enterprise has fixed limits that match their monthly cost
+  return subscription.plan === 'pro' || subscription.plan === 'team'
 }
