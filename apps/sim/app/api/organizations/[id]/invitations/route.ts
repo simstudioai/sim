@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   getEmailSubject,
@@ -284,6 +284,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const workspaceInvitationIds: string[] = []
     if (isBatch && validWorkspaceInvitations.length > 0) {
       for (const email of emailsToInvite) {
+        const orgInviteForEmail = invitationsToCreate.find((inv) => inv.email === email)
         for (const wsInvitation of validWorkspaceInvitations) {
           const wsInvitationId = randomUUID()
           const token = randomUUID()
@@ -297,6 +298,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             status: 'pending',
             token,
             permissions: wsInvitation.permission,
+            orgInvitationId: orgInviteForEmail?.id,
             expiresAt,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -467,9 +469,7 @@ export async function DELETE(
     // Cancel the invitation
     const result = await db
       .update(invitation)
-      .set({
-        status: 'cancelled',
-      })
+      .set({ status: 'cancelled' })
       .where(
         and(
           eq(invitation.id, invitationId),
@@ -485,6 +485,26 @@ export async function DELETE(
         { status: 404 }
       )
     }
+
+    // Also cancel any linked workspace invitations created as part of the batch
+    await db
+      .update(workspaceInvitation)
+      .set({ status: 'cancelled' })
+      .where(eq(workspaceInvitation.orgInvitationId, invitationId))
+
+    // Legacy fallback: cancel any pending workspace invitations for the same email
+    // that do not have an orgInvitationId and were created by the same inviter
+    await db
+      .update(workspaceInvitation)
+      .set({ status: 'cancelled' })
+      .where(
+        and(
+          isNull(workspaceInvitation.orgInvitationId),
+          eq(workspaceInvitation.email, result[0].email),
+          eq(workspaceInvitation.status, 'pending'),
+          eq(workspaceInvitation.inviterId, session.user.id)
+        )
+      )
 
     logger.info('Organization invitation cancelled', {
       organizationId,

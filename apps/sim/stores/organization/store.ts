@@ -578,7 +578,16 @@ export const useOrganizationStore = create<OrganizationStore>()(
         set({ isLoading: true })
 
         try {
-          await client.organization.cancelInvitation({ invitationId })
+          const response = await fetch(
+            `/api/organizations/${activeOrganization.id}/invitations?invitationId=${encodeURIComponent(
+              invitationId
+            )}`,
+            { method: 'DELETE' }
+          )
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}) as any)
+            throw new Error((data as any).error || 'Failed to cancel invitation')
+          }
           await get().refreshOrganization()
         } catch (error) {
           logger.error('Failed to cancel invitation', { error })

@@ -561,6 +561,13 @@
       "when": 1756581886683,
       "tag": "0080_left_riptide",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1756602783877,
+      "tag": "0081_yellow_shadow_king",
+      "breakpoints": true
     }
   ]
 }

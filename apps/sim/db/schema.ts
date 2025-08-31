@@ -624,6 +624,7 @@ export const workspaceInvitation = pgTable('workspace_invitation', {
   status: text('status').notNull().default('pending'),
   token: text('token').notNull().unique(),
   permissions: permissionTypeEnum('permissions').notNull().default('admin'),
+  orgInvitationId: text('org_invitation_id'),
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
