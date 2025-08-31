@@ -50,7 +50,7 @@ const ChatMessageSchema = z.object({
   contexts: z
     .array(
       z.object({
-        kind: z.enum(['past_chat', 'workflow', 'blocks', 'logs', 'workflow_block', 'knowledge', 'templates']),
+        kind: z.enum(['past_chat', 'workflow', 'current_workflow', 'blocks', 'logs', 'workflow_block', 'knowledge', 'templates']),
         label: z.string(),
         chatId: z.string().optional(),
         workflowId: z.string().optional(),

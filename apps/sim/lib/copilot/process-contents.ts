@@ -8,6 +8,7 @@ import type { ChatContext } from '@/stores/copilot/types'
 export type AgentContextType =
   | 'past_chat'
   | 'workflow'
+  | 'current_workflow'
   | 'blocks'
   | 'logs'
   | 'knowledge'
@@ -31,8 +32,8 @@ export async function processContexts(
       if (ctx.kind === 'past_chat') {
         return await processPastChatViaApi(ctx.chatId, ctx.label ? `@${ctx.label}` : '@')
       }
-      if (ctx.kind === 'workflow' && ctx.workflowId) {
-        return await processWorkflowFromDb(ctx.workflowId, ctx.label ? `@${ctx.label}` : '@')
+      if ((ctx.kind === 'workflow' || ctx.kind === 'current_workflow') && ctx.workflowId) {
+        return await processWorkflowFromDb(ctx.workflowId, ctx.label ? `@${ctx.label}` : '@', ctx.kind)
       }
       if (ctx.kind === 'knowledge' && (ctx as any).knowledgeId) {
         return await processKnowledgeFromDb(
@@ -78,8 +79,8 @@ export async function processContextsServer(
       if (ctx.kind === 'past_chat' && ctx.chatId) {
         return await processPastChatFromDb(ctx.chatId, userId, ctx.label ? `@${ctx.label}` : '@')
       }
-      if (ctx.kind === 'workflow' && ctx.workflowId) {
-        return await processWorkflowFromDb(ctx.workflowId, ctx.label ? `@${ctx.label}` : '@')
+      if ((ctx.kind === 'workflow' || ctx.kind === 'current_workflow') && ctx.workflowId) {
+        return await processWorkflowFromDb(ctx.workflowId, ctx.label ? `@${ctx.label}` : '@', ctx.kind)
       }
       if (ctx.kind === 'knowledge' && (ctx as any).knowledgeId) {
         return await processKnowledgeFromDb(
@@ -162,7 +163,8 @@ async function processPastChatFromDb(
 
 async function processWorkflowFromDb(
   workflowId: string,
-  tag: string
+  tag: string,
+  kind: 'workflow' | 'current_workflow' = 'workflow'
 ): Promise<AgentContext | null> {
   try {
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
@@ -183,7 +185,8 @@ async function processWorkflowFromDb(
       blocks: Object.keys(workflowState.blocks || {}).length,
       edges: workflowState.edges.length,
     })
-    return { type: 'workflow', tag, content }
+    // Use the provided kind for the type
+    return { type: kind, tag, content }
   } catch (error) {
     logger.error('Error processing workflow context', { workflowId, error })
     return null

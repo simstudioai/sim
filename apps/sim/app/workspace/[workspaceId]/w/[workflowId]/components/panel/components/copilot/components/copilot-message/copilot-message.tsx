@@ -406,7 +406,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                           >
                             {ctx?.kind === 'past_chat' ? (
                               <Bot className='h-3 w-3 text-muted-foreground' />
-                            ) : ctx?.kind === 'workflow' ? (
+                            ) : ctx?.kind === 'workflow' || ctx?.kind === 'current_workflow' ? (
                               <Workflow className='h-3 w-3 text-muted-foreground' />
                             ) : ctx?.kind === 'blocks' ? (
                               <Blocks className='h-3 w-3 text-muted-foreground' />

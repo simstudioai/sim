@@ -53,6 +53,7 @@ import { cn } from '@/lib/utils'
 import { CopilotSlider } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components/copilot-slider'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { ChatContext } from '@/stores/copilot/types'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('CopilotUserInput')
 
@@ -162,9 +163,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const [isLoadingLogs, setIsLoadingLogs] = useState(false)
 
     const { data: session } = useSession()
-    const { currentChat, workflowId } = useCopilotStore()
-    const params = useParams()
-    const workspaceId = params.workspaceId as string
+      const { currentChat, workflowId } = useCopilotStore()
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+  // Track per-chat preference for auto-adding workflow context
+  const [workflowAutoAddDisabledMap, setWorkflowAutoAddDisabledMap] = useState<Record<string, boolean>>({})
+  const workflowAutoAddDisabled = currentChat?.id ? workflowAutoAddDisabledMap[currentChat.id] || false : false
 
     // Determine placeholder based on mode
     const effectivePlaceholder =
@@ -191,17 +195,88 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const setMessage =
       controlledValue !== undefined ? onControlledChange || (() => {}) : setInternalMessage
 
-    // Auto-resize textarea and toggle vertical scroll when exceeding max height
-    useEffect(() => {
-      const textarea = textareaRef.current
-      if (textarea) {
-        const maxHeight = 120
-        textarea.style.height = 'auto'
-        const nextHeight = Math.min(textarea.scrollHeight, maxHeight)
-        textarea.style.height = `${nextHeight}px`
-        textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
+      // Load workflows on mount if we have a workflowId
+  useEffect(() => {
+    if (workflowId && workflows.length === 0) {
+      ensureWorkflowsLoaded()
+    }
+  }, [workflowId])
+
+  // Track if we've already initialized the workflow context for this chat
+  const [initializedForChat, setInitializedForChat] = useState<string | null>(null)
+  
+  // Reset initialization when chat changes
+  useEffect(() => {
+    const chatKey = currentChat?.id || 'new-chat'
+    if (initializedForChat && initializedForChat !== chatKey) {
+      setInitializedForChat(null)
+    }
+  }, [currentChat?.id])
+  
+  // Auto-add workflow context on mount or when workflow/chat changes
+  useEffect(() => {
+    if (!workflowId || workflowAutoAddDisabled) return
+    
+    // Skip if we've already initialized for this chat
+    const chatKey = currentChat?.id || 'new-chat'
+    if (initializedForChat === chatKey) return
+    
+    // Check if current_workflow context already exists
+    const hasCurrentWorkflowContext = selectedContexts.some(
+      ctx => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
+    )
+    if (hasCurrentWorkflowContext) {
+      setInitializedForChat(chatKey)
+      return
+    }
+    
+    const addWorkflowContext = async () => {
+      // Get workflow name
+      let workflowName = 'Current Workflow'
+      
+      // Try loaded workflows first
+      const existingWorkflow = workflows.find(w => w.id === workflowId)
+      if (existingWorkflow) {
+        workflowName = existingWorkflow.name
+      } else if (workflows.length === 0) {
+        // If workflows not loaded yet, try to fetch this specific one
+        try {
+          const resp = await fetch(`/api/workflows/${workflowId}`)
+          if (resp.ok) {
+            const data = await resp.json()
+            workflowName = data?.data?.name || 'Current Workflow'
+          }
+        } catch {}
       }
-    }, [message])
+      
+      // Add current_workflow context using functional update to prevent duplicates
+      setSelectedContexts(prev => {
+        const alreadyHasCurrentWorkflow = prev.some(
+          ctx => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
+        )
+        if (alreadyHasCurrentWorkflow) return prev
+        
+        return [...prev, { kind: 'current_workflow', workflowId, label: workflowName } as ChatContext]
+      })
+      
+      // Mark as initialized for this chat
+      setInitializedForChat(chatKey)
+    }
+    
+    addWorkflowContext()
+  }, [workflowId, currentChat?.id, workflowAutoAddDisabled, workflows.length]) // Re-run when chat or disabled state changes
+  
+  // Auto-resize textarea and toggle vertical scroll when exceeding max height
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea) {
+      const maxHeight = 120
+      textarea.style.height = 'auto'
+      const nextHeight = Math.min(textarea.scrollHeight, maxHeight)
+      textarea.style.height = `${nextHeight}px`
+      textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
+    }
+  }, [message])
 
     // Close mention menu on outside click
     useEffect(() => {
@@ -515,47 +590,91 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }
 
-    const handleSubmit = () => {
-      const trimmedMessage = message.trim()
-      if (!trimmedMessage || disabled || isLoading) return
+      const handleSubmit = async () => {
+    const trimmedMessage = message.trim()
+    if (!trimmedMessage || disabled || isLoading) return
 
-      // Check for failed uploads and show user feedback
-      const failedUploads = attachedFiles.filter((f) => !f.uploading && !f.key)
-      if (failedUploads.length > 0) {
-        logger.error(`Some files failed to upload: ${failedUploads.map((f) => f.name).join(', ')}`)
-      }
-
-      // Convert attached files to the format expected by the API
-      const fileAttachments = attachedFiles
-        .filter((f) => !f.uploading && f.key) // Only include successfully uploaded files with keys
-        .map((f) => ({
-          id: f.id,
-          key: f.key!, // Use the actual storage key from the upload response
-          filename: f.name,
-          media_type: f.type,
-          size: f.size,
-        }))
-
-      onSubmit(trimmedMessage, fileAttachments, selectedContexts)
-
-      // Clean up preview URLs before clearing
-      attachedFiles.forEach((f) => {
-        if (f.previewUrl) {
-          URL.revokeObjectURL(f.previewUrl)
-        }
-      })
-
-      // Clear the message and files after submit
-      if (controlledValue !== undefined) {
-        onControlledChange?.('')
-      } else {
-        setInternalMessage('')
-      }
-      setAttachedFiles([])
-      setSelectedContexts([])
-      setOpenSubmenuFor(null)
-      setShowMentionMenu(false)
+    // Check for failed uploads and show user feedback
+    const failedUploads = attachedFiles.filter((f) => !f.uploading && !f.key)
+    if (failedUploads.length > 0) {
+      logger.error(`Some files failed to upload: ${failedUploads.map((f) => f.name).join(', ')}`)
     }
+
+    // Convert attached files to the format expected by the API
+    const fileAttachments = attachedFiles
+      .filter((f) => !f.uploading && f.key) // Only include successfully uploaded files with keys
+      .map((f) => ({
+        id: f.id,
+        key: f.key!, // Use the actual storage key from the upload response
+        filename: f.name,
+        media_type: f.type,
+        size: f.size,
+      }))
+
+    // Ensure current_workflow context is added if not disabled
+    let finalContexts = [...selectedContexts]
+    if (workflowId && !workflowAutoAddDisabled) {
+      const hasCurrentWorkflowContext = finalContexts.some(
+        ctx => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
+      )
+      if (!hasCurrentWorkflowContext) {
+        // Try to get workflow name from already loaded workflows first
+        let workflowName = 'Current Workflow'
+        const existingWorkflow = workflows.find(w => w.id === workflowId)
+        if (existingWorkflow) {
+          workflowName = existingWorkflow.name
+        } else {
+          // If not found in loaded workflows, fetch it
+          try {
+            const resp = await fetch(`/api/workflows/${workflowId}`)
+            if (resp.ok) {
+              const data = await resp.json()
+              workflowName = data?.data?.name || 'Current Workflow'
+            }
+          } catch {
+            // Use default name if fetch fails
+          }
+        }
+        finalContexts.push({ kind: 'current_workflow', workflowId, label: workflowName } as ChatContext)
+      }
+    }
+
+    onSubmit(trimmedMessage, fileAttachments, finalContexts)
+
+    // Clean up preview URLs before clearing
+    attachedFiles.forEach((f) => {
+      if (f.previewUrl) {
+        URL.revokeObjectURL(f.previewUrl)
+      }
+    })
+
+    // Clear the message and files after submit, but prepare workflow context for next message
+    if (controlledValue !== undefined) {
+      onControlledChange?.('')
+    } else {
+      setInternalMessage('')
+    }
+    setAttachedFiles([])
+    
+    // Reset contexts but re-add current_workflow if not disabled
+    if (workflowId && !workflowAutoAddDisabled) {
+      // Keep current_workflow context for next message
+      const currentWorkflowCtx = finalContexts.find(
+        ctx => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
+      )
+      if (currentWorkflowCtx) {
+        // Use functional update to avoid duplicate contexts
+        setSelectedContexts([currentWorkflowCtx])
+      } else {
+        setSelectedContexts([])
+      }
+    } else {
+      setSelectedContexts([])
+    }
+    
+    setOpenSubmenuFor(null)
+    setShowMentionMenu(false)
+  }
 
     const handleAbort = () => {
       if (onAbort && isLoading) {
@@ -1478,17 +1597,42 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       })
     }
 
-    // Keep selected contexts in sync with inline @label tokens so deleting inline tokens updates pills
-    useEffect(() => {
-      if (!message) {
-        if (selectedContexts.length > 0) setSelectedContexts([])
-        return
+      // Keep selected contexts in sync with inline @label tokens so deleting inline tokens updates pills
+  useEffect(() => {
+    if (!message) {
+      // Keep current_workflow context even when message is empty if auto-add is enabled
+      if (workflowId && !workflowAutoAddDisabled) {
+        setSelectedContexts((prev) => {
+          const currentWorkflowCtx = prev.find(
+            ctx => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
+          )
+          return currentWorkflowCtx ? [currentWorkflowCtx] : []
+        })
+      } else if (selectedContexts.length > 0) {
+        setSelectedContexts([])
       }
-      const presentLabels = new Set<string>()
-      const ranges = computeMentionRanges()
-      for (const r of ranges) presentLabels.add(r.label)
-      setSelectedContexts((prev) => prev.filter((c) => !!c.label && presentLabels.has(c.label!)))
-    }, [message])
+      return
+    }
+    const presentLabels = new Set<string>()
+    const ranges = computeMentionRanges()
+    for (const r of ranges) presentLabels.add(r.label)
+    setSelectedContexts((prev) => {
+      // Keep current_workflow context if auto-add is enabled, even if not in text
+      const currentWorkflowCtx = workflowId && !workflowAutoAddDisabled 
+        ? prev.find(ctx => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId)
+        : null
+      
+      // Filter other contexts based on @mentions in text
+      const filteredContexts = prev.filter((c) => {
+        // Always keep current_workflow context if auto-add is enabled
+        if (currentWorkflowCtx && c === currentWorkflowCtx) return true
+        // For other contexts, check if they're mentioned in text
+        return !!c.label && presentLabels.has(c.label!)
+      })
+      
+      return filteredContexts
+    })
+  }, [message, workflowId, workflowAutoAddDisabled])
 
     // Manage aggregate mode and preloading when needed
     useEffect(() => {
@@ -1694,25 +1838,27 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }
 
-    // Workflow Blocks state (from normalized workflow)
-    const [workflowBlocks, setWorkflowBlocks] = useState<
-      Array<{ id: string; name: string; type: string; iconComponent?: any; bgColor?: string }>
-    >([])
-    const [isLoadingWorkflowBlocks, setIsLoadingWorkflowBlocks] = useState(false)
+      // Get workflow blocks from the workflow store
+  const workflowStoreBlocks = useWorkflowStore((state) => state.blocks)
+  
+  // Transform workflow store blocks into the format needed for the mention menu
+  const [workflowBlocks, setWorkflowBlocks] = useState<
+    Array<{ id: string; name: string; type: string; iconComponent?: any; bgColor?: string }>
+  >([])
+  const [isLoadingWorkflowBlocks, setIsLoadingWorkflowBlocks] = useState(false)
 
-    const ensureWorkflowBlocksLoaded = async () => {
-      if (isLoadingWorkflowBlocks || workflowBlocks.length > 0) return
-      if (!workflowId) return
+  // Sync workflow blocks from store whenever they change
+  useEffect(() => {
+    const syncWorkflowBlocks = async () => {
+      if (!workflowId || !workflowStoreBlocks || Object.keys(workflowStoreBlocks).length === 0) {
+        setWorkflowBlocks([])
+        return
+      }
+      
       try {
-        setIsLoadingWorkflowBlocks(true)
-        const resp = await fetch(`/api/workflows/${workflowId}`)
-        if (!resp.ok) throw new Error('Failed to load workflow state')
-        const data = await resp.json()
-        const state = data?.data?.state
-        const blocks = state?.blocks || {}
         // Map to display with block registry icons/colors
         const { registry: blockRegistry } = await import('@/blocks/registry')
-        const mapped = Object.values(blocks).map((b: any) => {
+        const mapped = Object.values(workflowStoreBlocks).map((b: any) => {
           const reg = (blockRegistry as any)[b.type]
           return {
             id: b.id,
@@ -1723,11 +1869,20 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           }
         })
         setWorkflowBlocks(mapped)
-      } catch {
-      } finally {
-        setIsLoadingWorkflowBlocks(false)
+      } catch (error) {
+        logger.debug('Failed to sync workflow blocks:', error)
       }
     }
+    
+    syncWorkflowBlocks()
+  }, [workflowStoreBlocks, workflowId])
+
+  const ensureWorkflowBlocksLoaded = async () => {
+    // Since blocks are now synced from store via useEffect, this can be a no-op
+    // or just ensure the blocks are loaded in the store
+    if (!workflowId) return
+    // Blocks will be automatically synced from the store
+  }
 
     const insertWorkflowBlockMention = (blk: { id: string; name: string }) => {
       const label = `${blk.name}`
@@ -1830,7 +1985,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                 >
                   {ctx.kind === 'past_chat' ? (
                     <Bot className='h-3 w-3 text-muted-foreground' />
-                  ) : ctx.kind === 'workflow' ? (
+                  ) : ctx.kind === 'workflow' || ctx.kind === 'current_workflow' ? (
                     <Workflow className='h-3 w-3 text-muted-foreground' />
                   ) : ctx.kind === 'blocks' ? (
                     <Blocks className='h-3 w-3 text-muted-foreground' />
@@ -1848,7 +2003,20 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   <span className='max-w-[140px] truncate'>{ctx.label}</span>
                   <button
                     type='button'
-                    onClick={() => setSelectedContexts((prev) => prev.filter((c) => c.label !== ctx.label))}
+                    onClick={() => {
+                      // If removing current_workflow context, disable auto-add for this chat
+                      if (ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId) {
+                        if (currentChat?.id) {
+                          setWorkflowAutoAddDisabledMap(prev => ({
+                            ...prev,
+                            [currentChat.id]: true
+                          }))
+                        }
+                        // Reset initialized state so it won't interfere with manual additions
+                        setInitializedForChat(null)
+                      }
+                      setSelectedContexts((prev) => prev.filter((c) => c.label !== ctx.label))
+                    }}
                     className='text-muted-foreground transition-colors hover:text-foreground'
                     title='Remove context'
                     aria-label='Remove context'
