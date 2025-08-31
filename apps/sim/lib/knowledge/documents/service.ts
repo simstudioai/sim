@@ -1,9 +1,9 @@
 import crypto, { randomUUID } from 'crypto'
 import { tasks } from '@trigger.dev/sdk'
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
-import { getSlotsForFieldType, type TAG_SLOT_CONFIG } from '@/lib/constants/knowledge'
 import { generateEmbeddings } from '@/lib/embeddings/utils'
 import { env } from '@/lib/env'
+import { getSlotsForFieldType, type TAG_SLOT_CONFIG } from '@/lib/knowledge/consts'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { getNextAvailableSlot } from '@/lib/knowledge/tags/service'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -17,8 +17,8 @@ import type { DocumentSortField, SortOrder } from './types'
 const logger = createLogger('DocumentService')
 
 const TIMEOUTS = {
-  OVERALL_PROCESSING: 600000,
-  EMBEDDINGS_API: 180000,
+  OVERALL_PROCESSING: (env.KB_CONFIG_MAX_DURATION || 300) * 1000,
+  EMBEDDINGS_API: (env.KB_CONFIG_MAX_TIMEOUT || 10000) * 18,
 } as const
 
 /**
@@ -38,17 +38,17 @@ function withTimeout<T>(
 }
 
 const PROCESSING_CONFIG = {
-  maxConcurrentDocuments: 4,
-  batchSize: 10,
-  delayBetweenBatches: 200,
-  delayBetweenDocuments: 100,
+  maxConcurrentDocuments: Math.max(1, Math.floor((env.KB_CONFIG_CONCURRENCY_LIMIT || 20) / 5)) || 4,
+  batchSize: Math.max(1, Math.floor((env.KB_CONFIG_BATCH_SIZE || 20) / 2)) || 10,
+  delayBetweenBatches: (env.KB_CONFIG_DELAY_BETWEEN_BATCHES || 100) * 2,
+  delayBetweenDocuments: (env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS || 50) * 2,
 }
 
 const REDIS_PROCESSING_CONFIG = {
-  maxConcurrentDocuments: 12,
-  batchSize: 20,
-  delayBetweenBatches: 100,
-  delayBetweenDocuments: 50,
+  maxConcurrentDocuments: env.KB_CONFIG_CONCURRENCY_LIMIT || 20,
+  batchSize: env.KB_CONFIG_BATCH_SIZE || 20,
+  delayBetweenBatches: env.KB_CONFIG_DELAY_BETWEEN_BATCHES || 100,
+  delayBetweenDocuments: env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS || 50,
 }
 
 let documentQueue: DocumentProcessingQueue | null = null
@@ -59,8 +59,8 @@ export function getDocumentQueue(): DocumentProcessingQueue {
     const config = redisClient ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
     documentQueue = new DocumentProcessingQueue({
       maxConcurrent: config.maxConcurrentDocuments,
-      retryDelay: 2000,
-      maxRetries: 5,
+      retryDelay: env.KB_CONFIG_MIN_TIMEOUT || 1000,
+      maxRetries: env.KB_CONFIG_MAX_ATTEMPTS || 3,
     })
   }
   return documentQueue

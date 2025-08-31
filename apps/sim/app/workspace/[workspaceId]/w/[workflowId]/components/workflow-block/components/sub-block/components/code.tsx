@@ -385,16 +385,16 @@ export function Code({
 
       <div
         className={cn(
-          'group relative min-h-[100px] rounded-md border bg-background font-mono text-sm transition-colors',
+          'group relative min-h-[100px] rounded-md border border-input bg-background font-mono text-sm transition-colors',
           isConnecting && 'ring-2 ring-blue-500 ring-offset-2',
-          !isValidJson && 'border-2 border-destructive bg-destructive/10'
+          !isValidJson && 'border-destructive bg-destructive/10'
         )}
         title={!isValidJson ? 'Invalid JSON' : undefined}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
         <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
-          {!isCollapsed && !isAiStreaming && !isPreview && (
+          {wandConfig?.enabled && !isCollapsed && !isAiStreaming && !isPreview && (
             <Button
               variant='ghost'
               size='icon'
@@ -486,7 +486,7 @@ export function Code({
               outline: 'none',
             }}
             className={cn(
-              'code-editor-area caret-primary',
+              'code-editor-area caret-primary dark:caret-white',
               'bg-transparent focus:outline-none',
               (isCollapsed || isAiStreaming) && 'cursor-not-allowed opacity-50'
             )}

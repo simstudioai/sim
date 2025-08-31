@@ -9,19 +9,16 @@ const logger = createLogger('DocParser')
 export class DocParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
     try {
-      // Validate input
       if (!filePath) {
         throw new Error('No file path provided')
       }
 
-      // Check if file exists
       if (!existsSync(filePath)) {
         throw new Error(`File not found: ${filePath}`)
       }
 
       logger.info(`Parsing DOC file: ${filePath}`)
 
-      // Read the file
       const buffer = await readFile(filePath)
       return this.parseBuffer(buffer)
     } catch (error) {
@@ -38,45 +35,37 @@ export class DocParser implements FileParser {
         throw new Error('Empty buffer provided')
       }
 
-      // Try to dynamically import the word extractor
-      let WordExtractor
+      let parseOfficeAsync
       try {
-        WordExtractor = (await import('word-extractor')).default
+        const officeParser = await import('officeparser')
+        parseOfficeAsync = officeParser.parseOfficeAsync
       } catch (importError) {
-        logger.warn('word-extractor not available, using fallback extraction')
+        logger.warn('officeparser not available, using fallback extraction')
         return this.fallbackExtraction(buffer)
       }
 
       try {
-        const extractor = new WordExtractor()
-        const extracted = await extractor.extract(buffer)
+        const result = await parseOfficeAsync(buffer)
 
-        const content = sanitizeTextForUTF8(extracted.getBody())
-        const headers = extracted.getHeaders()
-        const footers = extracted.getFooters()
-
-        // Combine body with headers/footers if they exist
-        let fullContent = content
-        if (headers?.trim()) {
-          fullContent = `${sanitizeTextForUTF8(headers)}\n\n${fullContent}`
-        }
-        if (footers?.trim()) {
-          fullContent = `${fullContent}\n\n${sanitizeTextForUTF8(footers)}`
+        if (!result) {
+          throw new Error('officeparser returned no result')
         }
 
-        logger.info('DOC parsing completed successfully')
+        const resultString = typeof result === 'string' ? result : String(result)
+
+        const content = sanitizeTextForUTF8(resultString.trim())
+
+        logger.info('DOC parsing completed successfully with officeparser')
 
         return {
-          content: fullContent.trim(),
+          content: content,
           metadata: {
-            hasHeaders: !!headers?.trim(),
-            hasFooters: !!footers?.trim(),
-            characterCount: fullContent.length,
-            extractionMethod: 'word-extractor',
+            characterCount: content.length,
+            extractionMethod: 'officeparser',
           },
         }
       } catch (extractError) {
-        logger.warn('word-extractor failed, using fallback:', extractError)
+        logger.warn('officeparser failed, using fallback:', extractError)
         return this.fallbackExtraction(buffer)
       }
     } catch (error) {
@@ -85,25 +74,16 @@ export class DocParser implements FileParser {
     }
   }
 
-  /**
-   * Fallback extraction method for when word-extractor is not available
-   * This is a very basic extraction that looks for readable text in the binary
-   */
   private fallbackExtraction(buffer: Buffer): FileParseResult {
     logger.info('Using fallback text extraction for DOC file')
 
-    // Convert buffer to string and try to extract readable text
-    // This is very basic and won't work well for complex DOC files
-    const text = buffer.toString('utf8', 0, Math.min(buffer.length, 100000)) // Limit to first 100KB
+    const text = buffer.toString('utf8', 0, Math.min(buffer.length, 100000))
 
-    // Extract sequences of printable ASCII characters
     const readableText = text
-      .match(/[\x20-\x7E\s]{4,}/g) // Find sequences of 4+ printable characters
+      .match(/[\x20-\x7E\s]{4,}/g)
       ?.filter(
         (chunk) =>
-          chunk.trim().length > 10 && // Minimum length
-          /[a-zA-Z]/.test(chunk) && // Must contain letters
-          !/^[\x00-\x1F]*$/.test(chunk) // Not just control characters
+          chunk.trim().length > 10 && /[a-zA-Z]/.test(chunk) && !/^[\x00-\x1F]*$/.test(chunk)
       )
       .join(' ')
       .replace(/\s+/g, ' ')
@@ -118,8 +98,7 @@ export class DocParser implements FileParser {
       metadata: {
         extractionMethod: 'fallback',
         characterCount: content.length,
-        warning:
-          'Basic text extraction used. For better results, install word-extractor package or convert to DOCX format.',
+        warning: 'Basic text extraction used. For better results, convert to DOCX format.',
       },
     }
   }

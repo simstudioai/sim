@@ -29,6 +29,10 @@ const ACCEPTED_FILE_TYPES = [
   'text/csv',
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/markdown',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/html',
 ]
 
 interface FileWithPreview extends File {
@@ -168,7 +172,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
         // Check file type
         if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
           setFileError(
-            `File ${file.name} has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, or XLSX.`
+            `File ${file.name} has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, or HTML.`
           )
           hasError = true
           continue
@@ -511,7 +515,8 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                                 : 'Drop files here or click to browse'}
                             </p>
                             <p className='text-muted-foreground text-xs'>
-                              Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 100MB each)
+                              Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max
+                              100MB each)
                             </p>
                           </div>
                         </div>
@@ -552,7 +557,8 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                                   : 'Drop more files or click to browse'}
                               </p>
                               <p className='text-muted-foreground text-xs'>
-                                PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 100MB each)
+                                PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max 100MB
+                                each)
                               </p>
                             </div>
                           </div>
