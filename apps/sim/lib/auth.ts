@@ -1046,7 +1046,7 @@ export const auth = betterAuth({
 
               if (!response.ok) {
                 const errorText = await response.text()
-                console.error('Linear API error:', {
+                logger.error('Linear API error:', {
                   status: response.status,
                   statusText: response.statusText,
                   body: errorText,
@@ -1057,12 +1057,12 @@ export const auth = betterAuth({
               const { data, errors } = await response.json()
 
               if (errors) {
-                console.error('GraphQL errors:', errors)
+                logger.error('GraphQL errors:', errors)
                 throw new Error(`GraphQL errors: ${JSON.stringify(errors)}`)
               }
 
               if (!data?.viewer) {
-                console.error('No viewer data in response:', data)
+                logger.error('No viewer data in response:', data)
                 throw new Error('No viewer data in response')
               }
 
@@ -1078,7 +1078,7 @@ export const auth = betterAuth({
                 image: viewer.avatarUrl || null,
               }
             } catch (error) {
-              console.error('Error in getUserInfo:', error)
+              logger.error('Error in getUserInfo:', error)
               throw error
             }
           },

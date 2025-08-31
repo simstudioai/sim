@@ -334,3 +334,33 @@ export async function getOrganizationBillingSummary(organizationId: string) {
     throw error
   }
 }
+
+/**
+ * Check if a user is an owner or admin of a specific organization
+ *
+ * @param userId - The ID of the user to check
+ * @param organizationId - The ID of the organization
+ * @returns Promise<boolean> - True if the user is an owner or admin of the organization
+ */
+export async function isOrganizationOwnerOrAdmin(
+  userId: string,
+  organizationId: string
+): Promise<boolean> {
+  try {
+    const memberRecord = await db
+      .select({ role: member.role })
+      .from(member)
+      .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
+      .limit(1)
+
+    if (memberRecord.length === 0) {
+      return false
+    }
+
+    const userRole = memberRecord[0].role
+    return ['owner', 'admin'].includes(userRole)
+  } catch (error) {
+    logger.error('Error checking organization ownership/admin status:', error)
+    return false
+  }
+}

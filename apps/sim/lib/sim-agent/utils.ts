@@ -1,5 +1,8 @@
 import OpenAI, { AzureOpenAI } from 'openai'
 import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console/logger'
+
+const logger = createLogger('SimAgentUtils')
 
 const azureApiKey = env.AZURE_OPENAI_API_KEY
 const azureEndpoint = env.AZURE_OPENAI_ENDPOINT
@@ -52,7 +55,7 @@ export async function generateChatTitle(message: string): Promise<string | null>
     const title = response.choices[0]?.message?.content?.trim() || null
     return title
   } catch (error) {
-    console.error('Error generating chat title:', error)
+    logger.error('Error generating chat title:', error)
     return null
   }
 }

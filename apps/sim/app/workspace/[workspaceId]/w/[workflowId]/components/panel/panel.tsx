@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
@@ -18,6 +19,8 @@ import { Chat } from './components/chat/chat'
 import { Console } from './components/console/console'
 import { Copilot } from './components/copilot/copilot'
 import { Variables } from './components/variables/variables'
+
+const logger = createLogger('Panel')
 
 export function Panel() {
   const [chatMessage, setChatMessage] = useState<string>('')
@@ -67,7 +70,7 @@ export function Panel() {
       try {
         await deleteChat(chatId)
       } catch (error) {
-        console.error('Error deleting chat:', error)
+        logger.error('Error deleting chat:', error)
       }
     },
     [deleteChat]
@@ -101,7 +104,7 @@ export function Panel() {
           lastLoadedWorkflowRef.current = activeWorkflowId
         }
       } catch (error) {
-        console.error('Failed to load copilot data:', error)
+        logger.error('Failed to load copilot data:', error)
       }
     },
     [
@@ -134,14 +137,14 @@ export function Panel() {
         if (!areChatsFresh(activeWorkflowId)) {
           // Don't await - let it load in background while dropdown is already open
           ensureCopilotDataLoaded(false).catch((error) => {
-            console.error('Failed to load chat history:', error)
+            logger.error('Failed to load chat history:', error)
           })
         }
       }
 
       // If streaming, just log that we're showing cached data
       if (open && isSendingMessage) {
-        console.log('Chat history opened during stream - showing cached data only')
+        logger.info('Chat history opened during stream - showing cached data only')
       }
     },
     [ensureCopilotDataLoaded, activeWorkflowId, areChatsFresh, isSendingMessage]
@@ -278,7 +281,7 @@ export function Panel() {
       // This is a real workflow change, not just a tab switch
       if (copilotWorkflowId !== activeWorkflowId || !copilotWorkflowId) {
         ensureCopilotDataLoaded().catch((error) => {
-          console.error('Failed to auto-load copilot data on workflow change:', error)
+          logger.error('Failed to auto-load copilot data on workflow change:', error)
         })
       }
     }
