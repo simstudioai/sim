@@ -1828,7 +1828,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     'absolute bottom-full left-0 z-50 mb-1 flex max-h-64 flex-col overflow-hidden rounded-[8px] border bg-popover p-1 text-foreground shadow-md',
                     openSubmenuFor === 'Blocks'
                       ? 'w-80'
-                      : openSubmenuFor === 'Templates' || openSubmenuFor === 'Logs'
+                      : openSubmenuFor === 'Templates' || openSubmenuFor === 'Logs' || aggregatedActive
                         ? 'w-96'
                         : 'w-56'
                   )}
@@ -1839,7 +1839,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                         {openSubmenuFor === 'Chats'
                           ? 'Chats'
                           : openSubmenuFor === 'Workflows'
-                            ? 'Workflows'
+                            ? 'All workflows'
                             : openSubmenuFor === 'Knowledge'
                               ? 'Knowledge Bases'
                               : openSubmenuFor === 'Blocks'
@@ -2263,6 +2263,28 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                           {(item.value as any).name || (item.value as any).id}
                                         </span>
                                       </>
+                                    ) : item.type === 'Logs' ? (
+                                      <>
+                                        {(() => {
+                                          const v = item.value as any
+                                          return v.level === 'error' ? (
+                                            <X className='h-3.5 w-3.5 text-red-500' />
+                                          ) : (
+                                            <Check className='h-3.5 w-3.5 text-green-500' />
+                                          )
+                                        })()}
+                                        <span className='truncate min-w-0'>
+                                          {(item.value as any).workflowName}
+                                        </span>
+                                        <span className='text-muted-foreground'>·</span>
+                                        <span className='whitespace-nowrap'>
+                                          {formatTimestamp((item.value as any).createdAt)}
+                                        </span>
+                                        <span className='text-muted-foreground'>·</span>
+                                        <span className='capitalize'>
+                                          {(((item.value as any).trigger as string) || 'manual').toLowerCase()}
+                                        </span>
+                                      </>
                                     ) : (
                                       <>
                                         <div className='flex h-4 w-4 items-center justify-center'>
@@ -2360,7 +2382,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                   ) : (
                                     <div className='h-3.5 w-3.5' />
                                   )}
-                                  <span>{label}</span>
+                                  <span>{label === 'Workflows' ? 'All workflows' : label}</span>
                                 </div>
                                 <ChevronRight className='h-3.5 w-3.5 text-muted-foreground' />
                               </div>
@@ -2480,6 +2502,28 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                           </div>
                                           <span className='truncate'>
                                             {(item.value as any).name || (item.value as any).id}
+                                          </span>
+                                        </>
+                                      ) : item.type === 'Logs' ? (
+                                        <>
+                                          {(() => {
+                                            const v = item.value as any
+                                            return v.level === 'error' ? (
+                                              <X className='h-3.5 w-3.5 text-red-500' />
+                                            ) : (
+                                              <Check className='h-3.5 w-3.5 text-green-500' />
+                                            )
+                                          })()}
+                                          <span className='truncate min-w-0'>
+                                            {(item.value as any).workflowName}
+                                          </span>
+                                          <span className='text-muted-foreground'>·</span>
+                                          <span className='whitespace-nowrap'>
+                                            {formatTimestamp((item.value as any).createdAt)}
+                                          </span>
+                                          <span className='text-muted-foreground'>·</span>
+                                          <span className='capitalize'>
+                                            {(((item.value as any).trigger as string) || 'manual').toLowerCase()}
                                           </span>
                                         </>
                                       ) : (
