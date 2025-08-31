@@ -9,6 +9,10 @@ export const SUPPORTED_DOCUMENT_EXTENSIONS = [
   'md',
   'xlsx',
   'xls',
+  'ppt',
+  'pptx',
+  'html',
+  'htm',
 ] as const
 
 export type SupportedDocumentExtension = (typeof SUPPORTED_DOCUMENT_EXTENSIONS)[number]
@@ -19,9 +23,13 @@ export const SUPPORTED_MIME_TYPES: Record<SupportedDocumentExtension, string[]> 
   doc: ['application/msword'],
   docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
   txt: ['text/plain'],
-  md: ['text/markdown', 'text/x-markdown'],
+  md: ['text/markdown', 'text/x-markdown', 'text/plain'],
   xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
   xls: ['application/vnd.ms-excel'],
+  ppt: ['application/vnd.ms-powerpoint'],
+  pptx: ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+  html: ['text/html'],
+  htm: ['text/html'],
 }
 
 export interface FileValidationError {

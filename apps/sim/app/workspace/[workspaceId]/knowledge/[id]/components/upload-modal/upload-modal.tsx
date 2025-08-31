@@ -22,10 +22,30 @@ const ACCEPTED_FILE_TYPES = [
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/markdown',
+  'text/x-markdown',
   'application/vnd.ms-powerpoint',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'text/html',
 ]
+
+// File extensions to include in accept attribute for better browser compatibility
+const ACCEPTED_FILE_EXTENSIONS = [
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.txt',
+  '.csv',
+  '.xls',
+  '.xlsx',
+  '.md',
+  '.ppt',
+  '.pptx',
+  '.html',
+  '.htm',
+]
+
+// Combined accept string with both MIME types and extensions
+const ACCEPT_ATTRIBUTE = [...ACCEPTED_FILE_TYPES, ...ACCEPTED_FILE_EXTENSIONS].join(',')
 
 interface FileWithPreview extends File {
   preview: string
@@ -197,7 +217,7 @@ export function UploadModal({
                 <input
                   ref={fileInputRef}
                   type='file'
-                  accept={ACCEPTED_FILE_TYPES.join(',')}
+                  accept={ACCEPT_ATTRIBUTE}
                   onChange={handleFileChange}
                   className='hidden'
                   multiple
@@ -228,7 +248,7 @@ export function UploadModal({
                   <input
                     ref={fileInputRef}
                     type='file'
-                    accept={ACCEPTED_FILE_TYPES.join(',')}
+                    accept={ACCEPT_ATTRIBUTE}
                     onChange={handleFileChange}
                     className='hidden'
                     multiple
