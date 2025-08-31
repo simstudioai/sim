@@ -1,9 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getUserUsageLimitInfo, updateUserUsageLimit } from '@/lib/billing'
-import { getOrganizationBillingData } from '@/lib/billing/core/organization-billing'
+import {
+  getOrganizationBillingData,
+  isOrganizationOwnerOrAdmin,
+} from '@/lib/billing/core/organization'
 import { createLogger } from '@/lib/logs/console/logger'
-import { isOrganizationOwnerOrAdmin } from '@/lib/permissions/utils'
 
 const logger = createLogger('UnifiedUsageLimitsAPI')
 
@@ -124,9 +126,7 @@ export async function PUT(request: NextRequest) {
       }
 
       // Use the dedicated function to update org usage limit
-      const { updateOrganizationUsageLimit } = await import(
-        '@/lib/billing/core/organization-billing'
-      )
+      const { updateOrganizationUsageLimit } = await import('@/lib/billing/core/organization')
       const result = await updateOrganizationUsageLimit(organizationId, limit)
 
       if (!result.success) {
