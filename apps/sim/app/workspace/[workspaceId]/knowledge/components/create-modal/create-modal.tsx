@@ -14,26 +14,12 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
+import { ACCEPT_ATTRIBUTE, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from '@/lib/uploads/validation'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 
 const logger = createLogger('CreateModal')
-
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
-const ACCEPTED_FILE_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
-  'text/csv',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'text/markdown',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'text/html',
-]
 
 interface FileWithPreview extends File {
   preview: string
@@ -498,7 +484,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                         <input
                           ref={fileInputRef}
                           type='file'
-                          accept={ACCEPTED_FILE_TYPES.join(',')}
+                          accept={ACCEPT_ATTRIBUTE}
                           onChange={handleFileChange}
                           className='hidden'
                           multiple
@@ -540,7 +526,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                           <input
                             ref={fileInputRef}
                             type='file'
-                            accept={ACCEPTED_FILE_TYPES.join(',')}
+                            accept={ACCEPT_ATTRIBUTE}
                             onChange={handleFileChange}
                             className='hidden'
                             multiple

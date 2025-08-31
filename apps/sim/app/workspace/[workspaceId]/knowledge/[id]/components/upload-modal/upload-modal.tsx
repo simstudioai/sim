@@ -7,25 +7,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { createLogger } from '@/lib/logs/console/logger'
+import { ACCEPT_ATTRIBUTE, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from '@/lib/uploads/validation'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
 const logger = createLogger('UploadModal')
-
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
-const ACCEPTED_FILE_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
-  'text/csv',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'text/markdown',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'text/html',
-]
 
 interface FileWithPreview extends File {
   preview: string
@@ -172,7 +158,7 @@ export function UploadModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className='flex max-h-[95vh] max-w-2xl flex-col overflow-hidden'>
+      <DialogContent className='flex max-h-[95vh] flex-col overflow-hidden sm:max-w-[600px]'>
         <DialogHeader>
           <DialogTitle>Upload Documents</DialogTitle>
         </DialogHeader>
@@ -197,7 +183,7 @@ export function UploadModal({
                 <input
                   ref={fileInputRef}
                   type='file'
-                  accept={ACCEPTED_FILE_TYPES.join(',')}
+                  accept={ACCEPT_ATTRIBUTE}
                   onChange={handleFileChange}
                   className='hidden'
                   multiple
@@ -228,7 +214,7 @@ export function UploadModal({
                   <input
                     ref={fileInputRef}
                     type='file'
-                    accept={ACCEPTED_FILE_TYPES.join(',')}
+                    accept={ACCEPT_ATTRIBUTE}
                     onChange={handleFileChange}
                     className='hidden'
                     multiple
@@ -238,7 +224,7 @@ export function UploadModal({
                   </p>
                 </div>
 
-                <div className='max-h-60 space-y-2 overflow-auto'>
+                <div className='max-h-80 space-y-2 overflow-auto'>
                   {files.map((file, index) => {
                     const fileStatus = uploadProgress.fileStatuses?.[index]
                     const isCurrentlyUploading = fileStatus?.status === 'uploading'
