@@ -235,7 +235,7 @@ export function FileUpload({
             })
           }
         } catch (error) {
-          console.error(`Error uploading ${file.name}:`, error)
+          logger.error(`Error uploading ${file.name}:`, error)
           const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           uploadErrors.push(`${file.name}: ${errorMessage}`)
         }
@@ -428,7 +428,7 @@ export function FileUpload({
           deletionResults.failures.push(`${file.name}: ${errorMessage}`)
         }
       } catch (error) {
-        console.error(`Failed to delete file ${file.name}:`, error)
+        logger.error(`Failed to delete file ${file.name}:`, error)
         deletionResults.failures.push(
           `${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
         )

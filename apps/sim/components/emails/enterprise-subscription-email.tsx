@@ -14,53 +14,32 @@ import {
 import { format } from 'date-fns'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getAssetUrl } from '@/lib/utils'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
 
-interface InvitationEmailProps {
-  inviterName?: string
-  organizationName?: string
-  inviteLink?: string
-  invitedEmail?: string
-  updatedDate?: Date
+interface EnterpriseSubscriptionEmailProps {
+  userName?: string
+  userEmail?: string
+  loginLink?: string
+  createdDate?: Date
 }
 
 const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
 
-const logger = createLogger('InvitationEmail')
-
-export const InvitationEmail = ({
-  inviterName = 'A team member',
-  organizationName = 'an organization',
-  inviteLink = '',
-  invitedEmail = '',
-  updatedDate = new Date(),
-}: InvitationEmailProps) => {
+export const EnterpriseSubscriptionEmail = ({
+  userName = 'Valued User',
+  userEmail = '',
+  loginLink = `${baseUrl}/login`,
+  createdDate = new Date(),
+}: EnterpriseSubscriptionEmailProps) => {
   const brand = getBrandConfig()
-
-  // Extract invitation ID or token from inviteLink if present
-  let enhancedLink = inviteLink
-
-  // Check if link contains an ID (old format) and append token parameter if needed
-  if (inviteLink && !inviteLink.includes('token=')) {
-    try {
-      const url = new URL(inviteLink)
-      const invitationId = url.pathname.split('/').pop()
-      if (invitationId) {
-        enhancedLink = `${baseUrl}/invite/${invitationId}?token=${invitationId}`
-      }
-    } catch (e) {
-      logger.error('Error parsing invite link:', e)
-    }
-  }
 
   return (
     <Html>
       <Head />
       <Body style={baseStyles.main}>
-        <Preview>You've been invited to join {organizationName} on Sim</Preview>
+        <Preview>Your Enterprise Plan is now active on Sim</Preview>
         <Container style={baseStyles.container}>
           <Section style={{ padding: '30px 0', textAlign: 'center' }}>
             <Row>
@@ -86,24 +65,40 @@ export const InvitationEmail = ({
           </Section>
 
           <Section style={baseStyles.content}>
-            <Text style={baseStyles.paragraph}>Hello,</Text>
+            <Text style={baseStyles.paragraph}>Hello {userName},</Text>
             <Text style={baseStyles.paragraph}>
-              <strong>{inviterName}</strong> has invited you to join{' '}
-              <strong>{organizationName}</strong> on Sim. Sim is a powerful, user-friendly platform
-              for building, testing, and optimizing agentic workflows.
+              Great news! Your <strong>Enterprise Plan</strong> has been activated on Sim. You now
+              have access to advanced features and increased capacity for your workflows.
             </Text>
-            <Link href={enhancedLink} style={{ textDecoration: 'none' }}>
-              <Text style={baseStyles.button}>Accept Invitation</Text>
+
+            <Text style={baseStyles.paragraph}>
+              Your account has been set up with full access to your organization. Click below to log
+              in and start exploring your new Enterprise features:
+            </Text>
+
+            <Link href={loginLink} style={{ textDecoration: 'none' }}>
+              <Text style={baseStyles.button}>Access Your Enterprise Account</Text>
             </Link>
+
             <Text style={baseStyles.paragraph}>
-              This invitation will expire in 48 hours. If you believe this invitation was sent in
-              error, please ignore this email.
+              <strong>What's next?</strong>
             </Text>
             <Text style={baseStyles.paragraph}>
-              Best regards,
+              • Invite team members to your organization
+              <br />• Begin building your workflows
+            </Text>
+
+            <Text style={baseStyles.paragraph}>
+              If you have any questions or need assistance getting started, our support team is here
+              to help.
+            </Text>
+
+            <Text style={baseStyles.paragraph}>
+              Welcome to Sim Enterprise!
               <br />
               The Sim Team
             </Text>
+
             <Text
               style={{
                 ...baseStyles.footerText,
@@ -112,8 +107,8 @@ export const InvitationEmail = ({
                 color: '#666666',
               }}
             >
-              This email was sent on {format(updatedDate, 'MMMM do, yyyy')} to {invitedEmail} with
-              an invitation to join {organizationName} on Sim.
+              This email was sent on {format(createdDate, 'MMMM do, yyyy')} to {userEmail}
+              regarding your Enterprise plan activation on Sim.
             </Text>
           </Section>
         </Container>
@@ -124,4 +119,4 @@ export const InvitationEmail = ({
   )
 }
 
-export default InvitationEmail
+export default EnterpriseSubscriptionEmail

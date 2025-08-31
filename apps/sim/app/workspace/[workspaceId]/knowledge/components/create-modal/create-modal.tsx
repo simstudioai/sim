@@ -14,22 +14,12 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
+import { ACCEPT_ATTRIBUTE, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from '@/lib/uploads/validation'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 
 const logger = createLogger('CreateModal')
-
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
-const ACCEPTED_FILE_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
-  'text/csv',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-]
 
 interface FileWithPreview extends File {
   preview: string
@@ -168,7 +158,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
         // Check file type
         if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
           setFileError(
-            `File ${file.name} has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, or XLSX.`
+            `File ${file.name} has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, or HTML.`
           )
           hasError = true
           continue
@@ -494,7 +484,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                         <input
                           ref={fileInputRef}
                           type='file'
-                          accept={ACCEPTED_FILE_TYPES.join(',')}
+                          accept={ACCEPT_ATTRIBUTE}
                           onChange={handleFileChange}
                           className='hidden'
                           multiple
@@ -511,7 +501,8 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                                 : 'Drop files here or click to browse'}
                             </p>
                             <p className='text-muted-foreground text-xs'>
-                              Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 100MB each)
+                              Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max
+                              100MB each)
                             </p>
                           </div>
                         </div>
@@ -535,7 +526,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                           <input
                             ref={fileInputRef}
                             type='file'
-                            accept={ACCEPTED_FILE_TYPES.join(',')}
+                            accept={ACCEPT_ATTRIBUTE}
                             onChange={handleFileChange}
                             className='hidden'
                             multiple
@@ -552,7 +543,8 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                                   : 'Drop more files or click to browse'}
                               </p>
                               <p className='text-muted-foreground text-xs'>
-                                PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 100MB each)
+                                PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max 100MB
+                                each)
                               </p>
                             </div>
                           </div>

@@ -76,11 +76,9 @@ export async function POST(request: NextRequest) {
 
     logger.info('File parse request received:', { filePath, fileType })
 
-    // Handle multiple files
     if (Array.isArray(filePath)) {
       const results = []
       for (const path of filePath) {
-        // Skip empty or invalid paths
         if (!path || (typeof path === 'string' && path.trim() === '')) {
           results.push({
             success: false,
@@ -91,12 +89,10 @@ export async function POST(request: NextRequest) {
         }
 
         const result = await parseFileSingle(path, fileType)
-        // Add processing time to metadata
         if (result.metadata) {
           result.metadata.processingTime = Date.now() - startTime
         }
 
-        // Transform each result to match expected frontend format
         if (result.success) {
           results.push({
             success: true,
@@ -105,7 +101,7 @@ export async function POST(request: NextRequest) {
               name: result.filePath.split('/').pop() || 'unknown',
               fileType: result.metadata?.fileType || 'application/octet-stream',
               size: result.metadata?.size || 0,
-              binary: false, // We only return text content
+              binary: false,
             },
             filePath: result.filePath,
           })
@@ -120,15 +116,12 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Handle single file
     const result = await parseFileSingle(filePath, fileType)
 
-    // Add processing time to metadata
     if (result.metadata) {
       result.metadata.processingTime = Date.now() - startTime
     }
 
-    // Transform single file result to match expected frontend format
     if (result.success) {
       return NextResponse.json({
         success: true,
@@ -142,8 +135,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Only return 500 for actual server errors, not file processing failures
-    // File processing failures (like file not found, parsing errors) should return 200 with success:false
     return NextResponse.json(result)
   } catch (error) {
     logger.error('Error in file parse API:', error)
@@ -164,7 +155,6 @@ export async function POST(request: NextRequest) {
 async function parseFileSingle(filePath: string, fileType?: string): Promise<ParseResult> {
   logger.info('Parsing file:', filePath)
 
-  // Validate that filePath is not empty
   if (!filePath || filePath.trim() === '') {
     return {
       success: false,
@@ -173,7 +163,6 @@ async function parseFileSingle(filePath: string, fileType?: string): Promise<Par
     }
   }
 
-  // Validate path for security before any processing
   const pathValidation = validateFilePath(filePath)
   if (!pathValidation.isValid) {
     return {
@@ -183,49 +172,40 @@ async function parseFileSingle(filePath: string, fileType?: string): Promise<Par
     }
   }
 
-  // Check if this is an external URL
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
     return handleExternalUrl(filePath, fileType)
   }
 
-  // Check if this is a cloud storage path (S3 or Blob)
   const isS3Path = filePath.includes('/api/files/serve/s3/')
   const isBlobPath = filePath.includes('/api/files/serve/blob/')
 
-  // Use cloud handler if it's a cloud path or we're in cloud mode
   if (isS3Path || isBlobPath || isUsingCloudStorage()) {
     return handleCloudFile(filePath, fileType)
   }
 
-  // Use local handler for local files
   return handleLocalFile(filePath, fileType)
 }
 
 /**
- * Validate file path for security
+ * Validate file path for security - prevents null byte injection and path traversal attacks
  */
 function validateFilePath(filePath: string): { isValid: boolean; error?: string } {
-  // Check for null bytes
   if (filePath.includes('\0')) {
     return { isValid: false, error: 'Invalid path: null byte detected' }
   }
 
-  // Check for path traversal attempts
   if (filePath.includes('..')) {
     return { isValid: false, error: 'Access denied: path traversal detected' }
   }
 
-  // Check for tilde characters (home directory access)
   if (filePath.includes('~')) {
     return { isValid: false, error: 'Invalid path: tilde character not allowed' }
   }
 
-  // Check for absolute paths outside allowed directories
   if (filePath.startsWith('/') && !filePath.startsWith('/api/files/serve/')) {
     return { isValid: false, error: 'Path outside allowed directory' }
   }
 
-  // Check for Windows absolute paths
   if (/^[A-Za-z]:\\/.test(filePath)) {
     return { isValid: false, error: 'Path outside allowed directory' }
   }
@@ -260,12 +240,10 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
 
     logger.info(`Downloaded file from URL: ${url}, size: ${buffer.length} bytes`)
 
-    // Extract filename from URL
     const urlPath = new URL(url).pathname
     const filename = urlPath.split('/').pop() || 'download'
     const extension = path.extname(filename).toLowerCase().substring(1)
 
-    // Process the file based on its content type
     if (extension === 'pdf') {
       return await handlePdfBuffer(buffer, filename, fileType, url)
     }
@@ -276,7 +254,6 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
       return await handleGenericTextBuffer(buffer, filename, extension, fileType, url)
     }
 
-    // For binary or unknown files
     return handleGenericBuffer(buffer, filename, extension, fileType)
   } catch (error) {
     logger.error(`Error handling external URL ${url}:`, error)
@@ -289,35 +266,29 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
 }
 
 /**
- * Handle file stored in cloud storage (S3 or Azure Blob)
+ * Handle file stored in cloud storage
  */
 async function handleCloudFile(filePath: string, fileType?: string): Promise<ParseResult> {
   try {
-    // Extract the cloud key from the path
     let cloudKey: string
     if (filePath.includes('/api/files/serve/s3/')) {
       cloudKey = decodeURIComponent(filePath.split('/api/files/serve/s3/')[1])
     } else if (filePath.includes('/api/files/serve/blob/')) {
       cloudKey = decodeURIComponent(filePath.split('/api/files/serve/blob/')[1])
     } else if (filePath.startsWith('/api/files/serve/')) {
-      // Backwards-compatibility: path like "/api/files/serve/<key>"
       cloudKey = decodeURIComponent(filePath.substring('/api/files/serve/'.length))
     } else {
-      // Assume raw key provided
       cloudKey = filePath
     }
 
     logger.info('Extracted cloud key:', cloudKey)
 
-    // Download the file from cloud storage - this can throw for access errors
     const fileBuffer = await downloadFile(cloudKey)
     logger.info(`Downloaded file from cloud storage: ${cloudKey}, size: ${fileBuffer.length} bytes`)
 
-    // Extract the filename from the cloud key
     const filename = cloudKey.split('/').pop() || cloudKey
     const extension = path.extname(filename).toLowerCase().substring(1)
 
-    // Process the file based on its content type
     if (extension === 'pdf') {
       return await handlePdfBuffer(fileBuffer, filename, fileType, filePath)
     }
@@ -325,22 +296,19 @@ async function handleCloudFile(filePath: string, fileType?: string): Promise<Par
       return await handleCsvBuffer(fileBuffer, filename, fileType, filePath)
     }
     if (isSupportedFileType(extension)) {
-      // For other supported types that we have parsers for
       return await handleGenericTextBuffer(fileBuffer, filename, extension, fileType, filePath)
     }
-    // For binary or unknown files
     return handleGenericBuffer(fileBuffer, filename, extension, fileType)
   } catch (error) {
     logger.error(`Error handling cloud file ${filePath}:`, error)
 
-    // Check if this is a download/access error that should trigger a 500 response
+    // For download/access errors, throw to trigger 500 response
     const errorMessage = (error as Error).message
     if (errorMessage.includes('Access denied') || errorMessage.includes('Forbidden')) {
-      // For access errors, throw to trigger 500 response
       throw new Error(`Error accessing file from cloud storage: ${errorMessage}`)
     }
 
-    // For other errors (parsing, processing), return success:false
+    // For other errors (parsing, processing), return success:false and an error message
     return {
       success: false,
       error: `Error accessing file from cloud storage: ${errorMessage}`,
@@ -354,28 +322,23 @@ async function handleCloudFile(filePath: string, fileType?: string): Promise<Par
  */
 async function handleLocalFile(filePath: string, fileType?: string): Promise<ParseResult> {
   try {
-    // Extract filename from path
     const filename = filePath.split('/').pop() || filePath
     const fullPath = path.join(UPLOAD_DIR_SERVER, filename)
 
     logger.info('Processing local file:', fullPath)
 
-    // Check if file exists
     try {
       await fsPromises.access(fullPath)
     } catch {
       throw new Error(`File not found: ${filename}`)
     }
 
-    // Parse the file directly
     const result = await parseFile(fullPath)
 
-    // Get file stats for metadata
     const stats = await fsPromises.stat(fullPath)
     const fileBuffer = await readFile(fullPath)
     const hash = createHash('md5').update(fileBuffer).digest('hex')
 
-    // Extract file extension for type detection
     const extension = path.extname(filename).toLowerCase().substring(1)
 
     return {
@@ -386,7 +349,7 @@ async function handleLocalFile(filePath: string, fileType?: string): Promise<Par
         fileType: fileType || getMimeType(extension),
         size: stats.size,
         hash,
-        processingTime: 0, // Will be set by caller
+        processingTime: 0,
       },
     }
   } catch (error) {
@@ -425,15 +388,14 @@ async function handlePdfBuffer(
         fileType: fileType || 'application/pdf',
         size: fileBuffer.length,
         hash: createHash('md5').update(fileBuffer).digest('hex'),
-        processingTime: 0, // Will be set by caller
+        processingTime: 0,
       },
     }
   } catch (error) {
     logger.error('Failed to parse PDF in memory:', error)
 
-    // Create fallback message for PDF parsing failure
     const content = createPdfFailureMessage(
-      0, // We can't determine page count without parsing
+      0,
       fileBuffer.length,
       originalPath || filename,
       (error as Error).message
@@ -447,7 +409,7 @@ async function handlePdfBuffer(
         fileType: fileType || 'application/pdf',
         size: fileBuffer.length,
         hash: createHash('md5').update(fileBuffer).digest('hex'),
-        processingTime: 0, // Will be set by caller
+        processingTime: 0,
       },
     }
   }
@@ -465,7 +427,6 @@ async function handleCsvBuffer(
   try {
     logger.info(`Parsing CSV in memory: ${filename}`)
 
-    // Use the parseBuffer function from our library
     const { parseBuffer } = await import('@/lib/file-parsers')
     const result = await parseBuffer(fileBuffer, 'csv')
 
@@ -477,7 +438,7 @@ async function handleCsvBuffer(
         fileType: fileType || 'text/csv',
         size: fileBuffer.length,
         hash: createHash('md5').update(fileBuffer).digest('hex'),
-        processingTime: 0, // Will be set by caller
+        processingTime: 0,
       },
     }
   } catch (error) {
@@ -490,7 +451,7 @@ async function handleCsvBuffer(
         fileType: 'text/csv',
         size: 0,
         hash: '',
-        processingTime: 0, // Will be set by caller
+        processingTime: 0,
       },
     }
   }
@@ -509,7 +470,6 @@ async function handleGenericTextBuffer(
   try {
     logger.info(`Parsing text file in memory: ${filename}`)
 
-    // Try to use a specialized parser if available
     try {
       const { parseBuffer, isSupportedFileType } = await import('@/lib/file-parsers')
 
@@ -524,7 +484,7 @@ async function handleGenericTextBuffer(
             fileType: fileType || getMimeType(extension),
             size: fileBuffer.length,
             hash: createHash('md5').update(fileBuffer).digest('hex'),
-            processingTime: 0, // Will be set by caller
+            processingTime: 0,
           },
         }
       }
@@ -532,7 +492,6 @@ async function handleGenericTextBuffer(
       logger.warn('Specialized parser failed, falling back to generic parsing:', parserError)
     }
 
-    // Fallback to generic text parsing
     const content = fileBuffer.toString('utf-8')
 
     return {
@@ -543,7 +502,7 @@ async function handleGenericTextBuffer(
         fileType: fileType || getMimeType(extension),
         size: fileBuffer.length,
         hash: createHash('md5').update(fileBuffer).digest('hex'),
-        processingTime: 0, // Will be set by caller
+        processingTime: 0,
       },
     }
   } catch (error) {
@@ -556,7 +515,7 @@ async function handleGenericTextBuffer(
         fileType: 'text/plain',
         size: 0,
         hash: '',
-        processingTime: 0, // Will be set by caller
+        processingTime: 0,
       },
     }
   }
@@ -584,7 +543,7 @@ function handleGenericBuffer(
       fileType: fileType || getMimeType(extension),
       size: fileBuffer.length,
       hash: createHash('md5').update(fileBuffer).digest('hex'),
-      processingTime: 0, // Will be set by caller
+      processingTime: 0,
     },
   }
 }
@@ -594,8 +553,6 @@ function handleGenericBuffer(
  */
 async function parseBufferAsPdf(buffer: Buffer) {
   try {
-    // Import parsers dynamically to avoid initialization issues in tests
-    // First try to use the main PDF parser
     try {
       const { PdfParser } = await import('@/lib/file-parsers/pdf-parser')
       const parser = new PdfParser()
@@ -606,7 +563,6 @@ async function parseBufferAsPdf(buffer: Buffer) {
       }
       throw new Error('PDF parser does not support buffer parsing')
     } catch (error) {
-      // Fallback to raw PDF parser
       logger.warn('Main PDF parser failed, using raw parser for buffer:', error)
       const { RawPdfParser } = await import('@/lib/file-parsers/raw-pdf-parser')
       const rawParser = new RawPdfParser()
@@ -655,7 +611,7 @@ Please use a PDF viewer for best results.`
 }
 
 /**
- * Create error message for PDF parsing failure
+ * Create error message for PDF parsing failure and make it more readable
  */
 function createPdfFailureMessage(
   pageCount: number,

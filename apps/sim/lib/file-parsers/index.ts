@@ -7,7 +7,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('FileParser')
 
-// Lazy-loaded parsers to avoid initialization issues
 let parserInstances: Record<string, FileParser> | null = null
 
 /**
@@ -18,25 +17,20 @@ function getParserInstances(): Record<string, FileParser> {
     parserInstances = {}
 
     try {
-      // Import parsers only when needed - with try/catch for each one
       try {
         logger.info('Attempting to load PDF parser...')
         try {
-          // First try to use the pdf-parse library
-          // Import the PdfParser using ES module import to avoid test file access
           const { PdfParser } = require('@/lib/file-parsers/pdf-parser')
           parserInstances.pdf = new PdfParser()
           logger.info('PDF parser loaded successfully')
-        } catch (pdfParseError) {
-          // If that fails, fallback to our raw PDF parser
-          logger.error('Failed to load primary PDF parser:', pdfParseError)
+        } catch (pdfLibError) {
+          logger.error('Failed to load primary PDF parser:', pdfLibError)
           logger.info('Falling back to raw PDF parser')
           parserInstances.pdf = new RawPdfParser()
           logger.info('Raw PDF parser loaded successfully')
         }
       } catch (error) {
         logger.error('Failed to load any PDF parser:', error)
-        // Create a simple fallback that just returns the file size and a message
         parserInstances.pdf = {
           async parseFile(filePath: string): Promise<FileParseResult> {
             const buffer = await readFile(filePath)
@@ -100,9 +94,25 @@ function getParserInstances(): Record<string, FileParser> {
       try {
         const { XlsxParser } = require('@/lib/file-parsers/xlsx-parser')
         parserInstances.xlsx = new XlsxParser()
-        parserInstances.xls = new XlsxParser() // Both xls and xlsx use the same parser
+        parserInstances.xls = new XlsxParser()
       } catch (error) {
         logger.error('Failed to load XLSX parser:', error)
+      }
+
+      try {
+        const { PptxParser } = require('@/lib/file-parsers/pptx-parser')
+        parserInstances.pptx = new PptxParser()
+        parserInstances.ppt = new PptxParser()
+      } catch (error) {
+        logger.error('Failed to load PPTX parser:', error)
+      }
+
+      try {
+        const { HtmlParser } = require('@/lib/file-parsers/html-parser')
+        parserInstances.html = new HtmlParser()
+        parserInstances.htm = new HtmlParser()
+      } catch (error) {
+        logger.error('Failed to load HTML parser:', error)
       }
     } catch (error) {
       logger.error('Error loading file parsers:', error)
@@ -119,12 +129,10 @@ function getParserInstances(): Record<string, FileParser> {
  */
 export async function parseFile(filePath: string): Promise<FileParseResult> {
   try {
-    // Validate input
     if (!filePath) {
       throw new Error('No file path provided')
     }
 
-    // Check if file exists
     if (!existsSync(filePath)) {
       throw new Error(`File not found: ${filePath}`)
     }
@@ -158,7 +166,6 @@ export async function parseFile(filePath: string): Promise<FileParseResult> {
  */
 export async function parseBuffer(buffer: Buffer, extension: string): Promise<FileParseResult> {
   try {
-    // Validate input
     if (!buffer || buffer.length === 0) {
       throw new Error('Empty buffer provided')
     }
@@ -182,7 +189,6 @@ export async function parseBuffer(buffer: Buffer, extension: string): Promise<Fi
     logger.info('Using parser for extension:', normalizedExtension)
     const parser = parsers[normalizedExtension]
 
-    // Check if parser supports buffer parsing
     if (parser.parseBuffer) {
       return await parser.parseBuffer(buffer)
     }
@@ -207,5 +213,4 @@ export function isSupportedFileType(extension: string): extension is SupportedFi
   }
 }
 
-// Type exports
 export type { FileParseResult, FileParser, SupportedFileType }

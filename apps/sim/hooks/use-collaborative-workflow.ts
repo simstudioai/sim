@@ -621,7 +621,7 @@ export function useCollaborativeWorkflow() {
       }
 
       if (!blockConfig) {
-        console.error(`Block type ${type} not found`)
+        logger.error(`Block type ${type} not found`)
         return
       }
 

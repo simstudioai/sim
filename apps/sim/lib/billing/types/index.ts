@@ -5,15 +5,15 @@
 
 export interface EnterpriseSubscriptionMetadata {
   plan: 'enterprise'
-  // Custom per-seat pricing (defaults to DEFAULT_ENTERPRISE_TIER_COST_LIMIT)
+  // The referenceId must be provided in Stripe metadata to link to the organization
+  // This gets stored in the subscription.referenceId column
   referenceId: string
-  perSeatPrice?: number
-
-  // Maximum allowed seats (defaults to subscription.seats)
-  maxSeats?: number
-
-  // Whether seats are fixed and cannot be changed
-  fixedSeats?: boolean
+  // The fixed monthly price for this enterprise customer (as string from Stripe metadata)
+  // This will be used to set the organization's usage limit
+  monthlyPrice: string
+  // Number of seats for invitation limits (not for billing) (as string from Stripe metadata)
+  // We set Stripe quantity to 1 and use this for actual seat count
+  seats: string
 }
 
 export interface UsageData {

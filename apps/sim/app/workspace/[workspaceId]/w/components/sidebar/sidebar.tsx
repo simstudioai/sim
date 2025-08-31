@@ -1039,6 +1039,7 @@ export function Sidebar() {
       <HelpModal open={showHelp} onOpenChange={setShowHelp} />
       <InviteModal open={showInviteMembers} onOpenChange={setShowInviteMembers} />
       <SubscriptionModal open={showSubscriptionModal} onOpenChange={setShowSubscriptionModal} />
+
       <SearchModal
         open={showSearchModal}
         onOpenChange={setShowSearchModal}

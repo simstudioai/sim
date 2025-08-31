@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console/logger'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, validateName } from '@/lib/utils'
 import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
@@ -22,6 +23,8 @@ import { useCurrentWorkflow } from '../../hooks'
 import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
 import { SubBlock } from './components/sub-block/sub-block'
+
+const logger = createLogger('WorkflowBlock')
 
 interface WorkflowBlockProps {
   type: string
@@ -232,10 +235,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           fetchScheduleInfo(currentWorkflowId)
         }
       } else {
-        console.error('Failed to reactivate schedule')
+        logger.error('Failed to reactivate schedule')
       }
     } catch (error) {
-      console.error('Error reactivating schedule:', error)
+      logger.error('Error reactivating schedule:', error)
     }
   }
 
@@ -255,10 +258,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           fetchScheduleInfo(currentWorkflowId)
         }
       } else {
-        console.error('Failed to disable schedule')
+        logger.error('Failed to disable schedule')
       }
     } catch (error) {
-      console.error('Error disabling schedule:', error)
+      logger.error('Error disabling schedule:', error)
     }
   }
 
@@ -328,12 +331,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           return
         }
       } catch (err) {
-        console.error('Error fetching schedule status:', err)
+        logger.error('Error fetching schedule status:', err)
       }
 
       setScheduleInfo(baseInfo)
     } catch (error) {
-      console.error('Error fetching schedule info:', error)
+      logger.error('Error fetching schedule info:', error)
       setScheduleInfo(null)
     } finally {
       setIsLoadingScheduleInfo(false)

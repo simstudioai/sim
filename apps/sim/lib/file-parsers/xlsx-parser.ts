@@ -9,19 +9,16 @@ const logger = createLogger('XlsxParser')
 export class XlsxParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
     try {
-      // Validate input
       if (!filePath) {
         throw new Error('No file path provided')
       }
 
-      // Check if file exists
       if (!existsSync(filePath)) {
         throw new Error(`File not found: ${filePath}`)
       }
 
       logger.info(`Parsing XLSX file: ${filePath}`)
 
-      // Read the workbook
       const workbook = XLSX.readFile(filePath)
       return this.processWorkbook(workbook)
     } catch (error) {
@@ -38,7 +35,6 @@ export class XlsxParser implements FileParser {
         throw new Error('Empty buffer provided')
       }
 
-      // Read the workbook from buffer
       const workbook = XLSX.read(buffer, { type: 'buffer' })
       return this.processWorkbook(workbook)
     } catch (error) {
@@ -53,25 +49,20 @@ export class XlsxParser implements FileParser {
     let content = ''
     let totalRows = 0
 
-    // Process each worksheet
     for (const sheetName of sheetNames) {
       const worksheet = workbook.Sheets[sheetName]
 
-      // Convert to array of objects
       const sheetData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
       sheets[sheetName] = sheetData
       totalRows += sheetData.length
 
-      // Add sheet content to the overall content string (clean sheet name)
       const cleanSheetName = sanitizeTextForUTF8(sheetName)
       content += `Sheet: ${cleanSheetName}\n`
       content += `=${'='.repeat(cleanSheetName.length + 6)}\n\n`
 
       if (sheetData.length > 0) {
-        // Process each row
         sheetData.forEach((row: unknown, rowIndex: number) => {
           if (Array.isArray(row) && row.length > 0) {
-            // Convert row to string, handling undefined/null values and cleaning non-UTF8 characters
             const rowString = row
               .map((cell) => {
                 if (cell === null || cell === undefined) {
@@ -93,7 +84,6 @@ export class XlsxParser implements FileParser {
 
     logger.info(`XLSX parsing completed: ${sheetNames.length} sheets, ${totalRows} total rows`)
 
-    // Final cleanup of the entire content to ensure UTF-8 compatibility
     const cleanContent = sanitizeTextForUTF8(content).trim()
 
     return {

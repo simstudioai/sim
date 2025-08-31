@@ -1,5 +1,6 @@
 import { readFile } from 'fs/promises'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
+import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('MdParser')
@@ -7,15 +8,12 @@ const logger = createLogger('MdParser')
 export class MdParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
     try {
-      // Validate input
       if (!filePath) {
         throw new Error('No file path provided')
       }
 
-      // Read the file
       const buffer = await readFile(filePath)
 
-      // Use parseBuffer for consistent implementation
       return this.parseBuffer(buffer)
     } catch (error) {
       logger.error('MD file error:', error)
@@ -27,14 +25,14 @@ export class MdParser implements FileParser {
     try {
       logger.info('Parsing buffer, size:', buffer.length)
 
-      // Extract content
       const result = buffer.toString('utf-8')
+      const content = sanitizeTextForUTF8(result)
 
       return {
-        content: result,
+        content,
         metadata: {
-          characterCount: result.length,
-          tokenCount: result.length / 4,
+          characterCount: content.length,
+          tokenCount: Math.floor(content.length / 4),
         },
       }
     } catch (error) {
