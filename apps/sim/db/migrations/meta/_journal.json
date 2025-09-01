@@ -568,6 +568,13 @@
       "when": 1756602783877,
       "tag": "0081_yellow_shadow_king",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1756767479124,
+      "tag": "0082_light_blockbuster",
+      "breakpoints": true
     }
   ]
 }
