@@ -8,10 +8,13 @@ import type { ChatContext } from '@/stores/copilot/types'
 export type AgentContextType =
   | 'past_chat'
   | 'workflow'
+  | 'current_workflow'
   | 'blocks'
   | 'logs'
   | 'knowledge'
   | 'templates'
+  | 'workflow_block'
+  | 'docs'
 
 export interface AgentContext {
   type: AgentContextType
@@ -30,8 +33,12 @@ export async function processContexts(
       if (ctx.kind === 'past_chat') {
         return await processPastChatViaApi(ctx.chatId, ctx.label ? `@${ctx.label}` : '@')
       }
-      if (ctx.kind === 'workflow' && ctx.workflowId) {
-        return await processWorkflowFromDb(ctx.workflowId, ctx.label ? `@${ctx.label}` : '@')
+      if ((ctx.kind === 'workflow' || ctx.kind === 'current_workflow') && ctx.workflowId) {
+        return await processWorkflowFromDb(
+          ctx.workflowId,
+          ctx.label ? `@${ctx.label}` : '@',
+          ctx.kind
+        )
       }
       if (ctx.kind === 'knowledge' && (ctx as any).knowledgeId) {
         return await processKnowledgeFromDb(
@@ -48,7 +55,16 @@ export async function processContexts(
           ctx.label ? `@${ctx.label}` : '@'
         )
       }
-      // Other kinds can be added here: workflow, blocks, logs, knowledge, templates
+      if (ctx.kind === 'logs' && (ctx as any).executionId) {
+        return await processExecutionLogFromDb(
+          (ctx as any).executionId,
+          ctx.label ? `@${ctx.label}` : '@'
+        )
+      }
+      if (ctx.kind === 'workflow_block' && ctx.workflowId && (ctx as any).blockId) {
+        return await processWorkflowBlockFromDb(ctx.workflowId, (ctx as any).blockId, ctx.label)
+      }
+      // Other kinds can be added here: workflow, blocks, logs, knowledge, templates, docs
       return null
     } catch (error) {
       logger.error('Failed processing context', { ctx, error })
@@ -57,13 +73,14 @@ export async function processContexts(
   })
 
   const results = await Promise.all(tasks)
-  return results.filter((r): r is AgentContext => !!r)
+  return results.filter((r): r is AgentContext => !!r) as AgentContext[]
 }
 
 // Server-side variant (recommended for use in API routes)
 export async function processContextsServer(
   contexts: ChatContext[] | undefined,
-  userId: string
+  userId: string,
+  userMessage?: string
 ): Promise<AgentContext[]> {
   if (!Array.isArray(contexts) || contexts.length === 0) return []
   const tasks = contexts.map(async (ctx) => {
@@ -71,8 +88,12 @@ export async function processContextsServer(
       if (ctx.kind === 'past_chat' && ctx.chatId) {
         return await processPastChatFromDb(ctx.chatId, userId, ctx.label ? `@${ctx.label}` : '@')
       }
-      if (ctx.kind === 'workflow' && ctx.workflowId) {
-        return await processWorkflowFromDb(ctx.workflowId, ctx.label ? `@${ctx.label}` : '@')
+      if ((ctx.kind === 'workflow' || ctx.kind === 'current_workflow') && ctx.workflowId) {
+        return await processWorkflowFromDb(
+          ctx.workflowId,
+          ctx.label ? `@${ctx.label}` : '@',
+          ctx.kind
+        )
       }
       if (ctx.kind === 'knowledge' && (ctx as any).knowledgeId) {
         return await processKnowledgeFromDb(
@@ -88,6 +109,30 @@ export async function processContextsServer(
           (ctx as any).templateId,
           ctx.label ? `@${ctx.label}` : '@'
         )
+      }
+      if (ctx.kind === 'logs' && (ctx as any).executionId) {
+        return await processExecutionLogFromDb(
+          (ctx as any).executionId,
+          ctx.label ? `@${ctx.label}` : '@'
+        )
+      }
+      if (ctx.kind === 'workflow_block' && ctx.workflowId && (ctx as any).blockId) {
+        return await processWorkflowBlockFromDb(ctx.workflowId, (ctx as any).blockId, ctx.label)
+      }
+      if (ctx.kind === 'docs') {
+        try {
+          const { searchDocumentationServerTool } = await import(
+            '@/lib/copilot/tools/server/docs/search-documentation'
+          )
+          const rawQuery = (userMessage || '').trim() || ctx.label || 'Sim documentation'
+          const query = sanitizeMessageForDocs(rawQuery, contexts)
+          const res = await searchDocumentationServerTool.execute({ query, topK: 10 })
+          const content = JSON.stringify(res?.results || [])
+          return { type: 'docs', tag: ctx.label ? `@${ctx.label}` : '@', content }
+        } catch (e) {
+          logger.error('Failed to process docs context', e)
+          return null
+        }
       }
       return null
     } catch (error) {
@@ -105,6 +150,57 @@ export async function processContextsServer(
     kinds: Array.from(filtered.reduce((s, r) => s.add(r.type), new Set<string>())),
   })
   return filtered
+}
+
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function sanitizeMessageForDocs(rawMessage: string, contexts: ChatContext[] | undefined): string {
+  if (!rawMessage) return ''
+  if (!Array.isArray(contexts) || contexts.length === 0) {
+    // No context mapping; conservatively strip all @mentions-like tokens
+    const stripped = rawMessage
+      .replace(/(^|\s)@([^\s]+)/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+    return stripped
+  }
+
+  // Gather labels by kind
+  const blockLabels = new Set(
+    contexts
+      .filter((c) => c.kind === 'blocks')
+      .map((c) => c.label)
+      .filter((l): l is string => typeof l === 'string' && l.length > 0)
+  )
+  const nonBlockLabels = new Set(
+    contexts
+      .filter((c) => c.kind !== 'blocks')
+      .map((c) => c.label)
+      .filter((l): l is string => typeof l === 'string' && l.length > 0)
+  )
+
+  let result = rawMessage
+
+  // 1) Remove all non-block mentions entirely
+  for (const label of nonBlockLabels) {
+    const pattern = new RegExp(`(^|\\s)@${escapeRegExp(label)}(?!\\S)`, 'g')
+    result = result.replace(pattern, ' ')
+  }
+
+  // 2) For block mentions, strip the '@' but keep the block name
+  for (const label of blockLabels) {
+    const pattern = new RegExp(`@${escapeRegExp(label)}(?!\\S)`, 'g')
+    result = result.replace(pattern, label)
+  }
+
+  // 3) Remove any remaining @mentions (unknown or not in contexts)
+  result = result.replace(/(^|\s)@([^\s]+)/g, ' ')
+
+  // Normalize whitespace
+  result = result.replace(/\s{2,}/g, ' ').trim()
+  return result
 }
 
 async function processPastChatFromDb(
@@ -149,7 +245,8 @@ async function processPastChatFromDb(
 
 async function processWorkflowFromDb(
   workflowId: string,
-  tag: string
+  tag: string,
+  kind: 'workflow' | 'current_workflow' = 'workflow'
 ): Promise<AgentContext | null> {
   try {
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
@@ -170,7 +267,8 @@ async function processWorkflowFromDb(
       blocks: Object.keys(workflowState.blocks || {}).length,
       edges: workflowState.edges.length,
     })
-    return { type: 'workflow', tag, content }
+    // Use the provided kind for the type
+    return { type: kind, tag, content }
   } catch (error) {
     logger.error('Error processing workflow context', { workflowId, error })
     return null
@@ -353,6 +451,88 @@ async function processTemplateFromDb(
     return { type: 'templates', tag, content }
   } catch (error) {
     logger.error('Error processing template context (db)', { templateId, error })
+    return null
+  }
+}
+
+async function processWorkflowBlockFromDb(
+  workflowId: string,
+  blockId: string,
+  label?: string
+): Promise<AgentContext | null> {
+  try {
+    const normalized = await loadWorkflowFromNormalizedTables(workflowId)
+    if (!normalized) return null
+    const block = (normalized.blocks as any)[blockId]
+    if (!block) return null
+    const tag = label ? `@${label} in Workflow` : `@${block.name || blockId} in Workflow`
+
+    // Build content: isolate the block and include its subBlocks fully
+    const contentObj = {
+      workflowId,
+      block: block,
+    }
+    const content = JSON.stringify(contentObj)
+    return { type: 'workflow_block', tag, content }
+  } catch (error) {
+    logger.error('Error processing workflow_block context', { workflowId, blockId, error })
+    return null
+  }
+}
+
+async function processExecutionLogFromDb(
+  executionId: string,
+  tag: string
+): Promise<AgentContext | null> {
+  try {
+    const { workflowExecutionLogs, workflow } = await import('@/db/schema')
+    const { db } = await import('@/db')
+    const rows = await db
+      .select({
+        id: workflowExecutionLogs.id,
+        workflowId: workflowExecutionLogs.workflowId,
+        executionId: workflowExecutionLogs.executionId,
+        level: workflowExecutionLogs.level,
+        trigger: workflowExecutionLogs.trigger,
+        startedAt: workflowExecutionLogs.startedAt,
+        endedAt: workflowExecutionLogs.endedAt,
+        totalDurationMs: workflowExecutionLogs.totalDurationMs,
+        executionData: workflowExecutionLogs.executionData,
+        cost: workflowExecutionLogs.cost,
+        workflowName: workflow.name,
+      })
+      .from(workflowExecutionLogs)
+      .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+      .where(eq(workflowExecutionLogs.executionId, executionId))
+      .limit(1)
+
+    const log = rows?.[0] as any
+    if (!log) return null
+
+    const summary = {
+      id: log.id,
+      workflowId: log.workflowId,
+      executionId: log.executionId,
+      level: log.level,
+      trigger: log.trigger,
+      startedAt: log.startedAt?.toISOString?.() || String(log.startedAt),
+      endedAt: log.endedAt?.toISOString?.() || (log.endedAt ? String(log.endedAt) : null),
+      totalDurationMs: log.totalDurationMs ?? null,
+      workflowName: log.workflowName || '',
+      // Include trace spans and any available details without being huge
+      executionData: log.executionData
+        ? {
+            traceSpans: (log.executionData as any).traceSpans || undefined,
+            errorDetails: (log.executionData as any).errorDetails || undefined,
+          }
+        : undefined,
+      cost: log.cost || undefined,
+    }
+
+    const content = JSON.stringify(summary)
+    return { type: 'logs', tag, content }
+  } catch (error) {
+    logger.error('Error processing execution log context (db)', { executionId, error })
     return null
   }
 }

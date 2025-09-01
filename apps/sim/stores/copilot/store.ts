@@ -1266,7 +1266,7 @@ async function* parseSSEStream(
 // Initial state (subset required for UI/streaming)
 const initialState = {
   mode: 'agent' as const,
-  agentDepth: 0 as 0 | 1 | 2 | 3,
+  agentDepth: 1 as 0 | 1 | 2 | 3,
   agentPrefetch: true,
   currentChat: null as CopilotChat | null,
   chats: [] as CopilotChat[],
@@ -1292,6 +1292,7 @@ const initialState = {
   planTodos: [] as Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>,
   showPlanTodos: false,
   toolCallsById: {} as Record<string, CopilotToolCall>,
+  suppressAutoSelect: false,
 }
 
 export const useCopilotStore = create<CopilotStore>()(
@@ -1351,13 +1352,30 @@ export const useCopilotStore = create<CopilotStore>()(
         useWorkflowDiffStore.getState().clearDiff()
       } catch {}
 
+      // Capture previous chat/messages for optimistic background save
+      const previousChat = currentChat
+      const previousMessages = get().messages
+
       // Optimistically set selected chat and normalize messages for UI
       set({
         currentChat: chat,
         messages: normalizeMessagesForUI(chat.messages || []),
         planTodos: [],
         showPlanTodos: false,
+        suppressAutoSelect: false,
       })
+
+      // Background-save the previous chat's latest messages before switching (optimistic)
+      try {
+        if (previousChat && previousChat.id !== chat.id) {
+          const dbMessages = validateMessagesForLLM(previousMessages)
+          fetch('/api/copilot/chat/update-messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chatId: previousChat.id, messages: dbMessages }),
+          }).catch(() => {})
+        }
+      } catch {}
 
       // Refresh selected chat from server to ensure we have latest messages/tool calls
       try {
@@ -1392,12 +1410,27 @@ export const useCopilotStore = create<CopilotStore>()(
         useWorkflowDiffStore.getState().clearDiff()
       } catch {}
 
+      // Background-save the current chat before clearing (optimistic)
+      try {
+        const { currentChat } = get()
+        if (currentChat) {
+          const currentMessages = get().messages
+          const dbMessages = validateMessagesForLLM(currentMessages)
+          fetch('/api/copilot/chat/update-messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chatId: currentChat.id, messages: dbMessages }),
+          }).catch(() => {})
+        }
+      } catch {}
+
       set({
         currentChat: null,
         messages: [],
         messageCheckpoints: {},
         planTodos: [],
         showPlanTodos: false,
+        suppressAutoSelect: true,
       })
     },
 
@@ -1432,7 +1465,7 @@ export const useCopilotStore = create<CopilotStore>()(
           })
 
           if (data.chats.length > 0) {
-            const { currentChat, isSendingMessage } = get()
+            const { currentChat, isSendingMessage, suppressAutoSelect } = get()
             const currentChatStillExists =
               currentChat && data.chats.some((c: CopilotChat) => c.id === currentChat.id)
 
@@ -1451,7 +1484,7 @@ export const useCopilotStore = create<CopilotStore>()(
               try {
                 await get().loadMessageCheckpoints(updatedCurrentChat.id)
               } catch {}
-            } else if (!isSendingMessage) {
+            } else if (!isSendingMessage && !suppressAutoSelect) {
               const mostRecentChat: CopilotChat = data.chats[0]
               set({
                 currentChat: mostRecentChat,
@@ -1565,6 +1598,9 @@ export const useCopilotStore = create<CopilotStore>()(
           } else if (result.status === 402) {
             errorContent =
               '_Usage limit exceeded. To continue using this service, upgrade your plan or top up on credits._'
+          } else if (result.status === 403) {
+            errorContent =
+              '_Provider config not allowed for non-enterprise users. Please remove the provider config and try again_'
           }
 
           const errorMessage = createErrorMessage(streamingMessage.id, errorContent)
@@ -2065,6 +2101,7 @@ export const useCopilotStore = create<CopilotStore>()(
         chatsLoadedForWorkflow: null,
         planTodos: [],
         showPlanTodos: false,
+        suppressAutoSelect: false,
       })
     },
 
