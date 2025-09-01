@@ -1,6 +1,7 @@
 import { render } from '@react-email/components'
 import {
   BatchInvitationEmail,
+  EnterpriseSubscriptionEmail,
   HelpConfirmationEmail,
   InvitationEmail,
   OTPVerificationEmail,
@@ -82,6 +83,23 @@ export async function renderHelpConfirmationEmail(
   )
 }
 
+export async function renderEnterpriseSubscriptionEmail(
+  userName: string,
+  userEmail: string
+): Promise<string> {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+  const loginLink = `${baseUrl}/login`
+
+  return await render(
+    EnterpriseSubscriptionEmail({
+      userName,
+      userEmail,
+      loginLink,
+      createdDate: new Date(),
+    })
+  )
+}
+
 export function getEmailSubject(
   type:
     | 'sign-in'
@@ -91,6 +109,7 @@ export function getEmailSubject(
     | 'invitation'
     | 'batch-invitation'
     | 'help-confirmation'
+    | 'enterprise-subscription'
 ): string {
   const brandName = getBrandConfig().name
 
@@ -109,6 +128,8 @@ export function getEmailSubject(
       return `You've been invited to join a team and workspaces on ${brandName}`
     case 'help-confirmation':
       return 'Your request has been received'
+    case 'enterprise-subscription':
+      return `Your Enterprise Plan is now active on ${brandName}`
     default:
       return brandName
   }

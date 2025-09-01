@@ -175,10 +175,7 @@ describe('Full Executor Test', () => {
       } else {
         expect(result).toBeDefined()
       }
-    } catch (error) {
-      console.error('Execution error:', error)
-      // Log the error but don't fail the test - we want to see what happens
-    }
+    } catch (error) {}
   })
 
   it('should test the executor getNextExecutionLayer method directly', async () => {

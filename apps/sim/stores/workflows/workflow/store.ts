@@ -1070,12 +1070,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 })
 
                 if (!updateResponse.ok) {
-                  console.error('Failed to update webhook status')
+                  logger.error('Failed to update webhook status')
                 }
               }
             }
           } catch (error) {
-            console.error('Error toggling webhook status:', error)
+            logger.error('Error toggling webhook status:', error)
           }
         }
 

@@ -38,7 +38,6 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
     const config = {
       clearExisting: options.clearExisting ?? false,
       docsPath: options.docsPath ?? path.join(process.cwd(), '../../apps/docs/content/docs'),
-      // Use localhost docs in development, production docs otherwise
       baseUrl: options.baseUrl ?? (isDev ? 'http://localhost:3001' : 'https://docs.sim.ai'),
       chunkSize: options.chunkSize ?? 300, // Max 300 tokens per chunk
       minChunkSize: options.minChunkSize ?? 100,
@@ -53,7 +52,6 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
       clearExisting: config.clearExisting,
     })
 
-    // Initialize the docs chunker
     const chunker = new DocsChunker({
       chunkSize: config.chunkSize,
       minChunkSize: config.minChunkSize,
@@ -61,7 +59,6 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
       baseUrl: config.baseUrl,
     })
 
-    // Process all .mdx files first (compute embeddings before clearing)
     logger.info(`📚 Processing docs from: ${config.docsPath}`)
     const chunks = await chunker.chunkAllDocs(config.docsPath)
 
@@ -72,7 +69,6 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
 
     logger.info(`📊 Generated ${chunks.length} chunks with embeddings`)
 
-    // Clear existing embeddings if requested (after computing new ones to minimize downtime)
     if (config.clearExisting) {
       logger.info('🗑️ Clearing existing docs embeddings...')
       try {
@@ -84,7 +80,6 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
       }
     }
 
-    // Save chunks to database in batches for better performance
     const batchSize = 10
     logger.info(`💾 Saving chunks to database (batch size: ${batchSize})...`)
 
@@ -92,7 +87,6 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
       const batch = chunks.slice(i, i + batchSize)
 
       try {
-        // Prepare batch data
         const batchData = batch.map((chunk) => ({
           chunkText: chunk.text,
           sourceDocument: chunk.sourceDocument,
@@ -105,7 +99,6 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
           metadata: chunk.metadata,
         }))
 
-        // Insert batch
         await db.insert(docsEmbeddings).values(batchData)
 
         processedChunks += batch.length
@@ -121,7 +114,6 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
       }
     }
 
-    // Verify results
     const savedCount = await db
       .select({ count: sql<number>`count(*)` })
       .from(docsEmbeddings)
@@ -137,7 +129,6 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
     logger.info(`  • Database total: ${savedCount}`)
     logger.info(`  • Duration: ${Math.round(duration / 1000)}s`)
 
-    // Summary by document
     const documentStats = chunks.reduce(
       (acc, chunk) => {
         if (!acc[chunk.sourceDocument]) {
@@ -153,7 +144,7 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
     logger.info(`📋 Document breakdown:`)
     Object.entries(documentStats)
       .sort(([, a], [, b]) => b.chunks - a.chunks)
-      .slice(0, 10) // Top 10 documents
+      .slice(0, 10)
       .forEach(([doc, stats]) => {
         logger.info(`  • ${doc}: ${stats.chunks} chunks, ${stats.tokens} tokens`)
       })
@@ -188,7 +179,6 @@ async function main() {
   const args = process.argv.slice(2)
   const options: ProcessingOptions = {}
 
-  // Parse command line arguments
   if (args.includes('--clear')) {
     options.clearExisting = true
   }
@@ -215,10 +205,9 @@ Examples:
   }
 }
 
-// Run the script if executed directly
 if (import.meta.url.includes('process-docs-embeddings.ts')) {
   main().catch((error) => {
-    console.error('Script failed:', error)
+    logger.error('Script failed:', error)
     process.exit(1)
   })
 }

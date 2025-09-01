@@ -24,7 +24,7 @@ import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
 import { getPlans } from '@/lib/billing/plans'
-import type { EnterpriseSubscriptionMetadata } from '@/lib/billing/types'
+import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
 import {
   handleInvoiceFinalized,
   handleInvoicePaymentFailed,
@@ -49,121 +49,6 @@ let stripeClient = null
 if (validStripeKey) {
   stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', {
     apiVersion: '2025-02-24.acacia',
-  })
-}
-
-function isEnterpriseMetadata(value: unknown): value is EnterpriseSubscriptionMetadata {
-  return (
-    !!value &&
-    typeof (value as any).plan === 'string' &&
-    (value as any).plan.toLowerCase() === 'enterprise'
-  )
-}
-
-async function handleManualEnterpriseSubscription(event: Stripe.Event) {
-  const stripeSubscription = event.data.object as Stripe.Subscription
-
-  const metaPlan = (stripeSubscription.metadata?.plan as string | undefined)?.toLowerCase() || ''
-
-  if (metaPlan !== 'enterprise') {
-    logger.info('[subscription.created] Skipping non-enterprise subscription', {
-      subscriptionId: stripeSubscription.id,
-      plan: metaPlan || 'unknown',
-    })
-    return
-  }
-
-  const stripeCustomerId = stripeSubscription.customer as string
-
-  if (!stripeCustomerId) {
-    logger.error('[subscription.created] Missing Stripe customer ID', {
-      subscriptionId: stripeSubscription.id,
-    })
-    throw new Error('Missing Stripe customer ID on subscription')
-  }
-
-  const metadata = stripeSubscription.metadata || {}
-
-  const referenceId =
-    typeof metadata.referenceId === 'string' && metadata.referenceId.length > 0
-      ? metadata.referenceId
-      : null
-
-  if (!referenceId) {
-    logger.error('[subscription.created] Unable to resolve referenceId', {
-      subscriptionId: stripeSubscription.id,
-      stripeCustomerId,
-    })
-    throw new Error('Unable to resolve referenceId for subscription')
-  }
-
-  const firstItem = stripeSubscription.items?.data?.[0]
-  const seats = typeof firstItem?.quantity === 'number' ? firstItem.quantity : null
-
-  if (!isEnterpriseMetadata(metadata)) {
-    logger.error('[subscription.created] Invalid enterprise metadata shape', {
-      subscriptionId: stripeSubscription.id,
-      metadata,
-    })
-    throw new Error('Invalid enterprise metadata for subscription')
-  }
-  const enterpriseMetadata = metadata
-  const metadataJson: Record<string, unknown> = { ...enterpriseMetadata }
-
-  const subscriptionRow = {
-    id: crypto.randomUUID(),
-    plan: 'enterprise',
-    referenceId,
-    stripeCustomerId,
-    stripeSubscriptionId: stripeSubscription.id,
-    status: stripeSubscription.status || null,
-    periodStart: stripeSubscription.current_period_start
-      ? new Date(stripeSubscription.current_period_start * 1000)
-      : null,
-    periodEnd: stripeSubscription.current_period_end
-      ? new Date(stripeSubscription.current_period_end * 1000)
-      : null,
-    cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end ?? null,
-    seats,
-    trialStart: stripeSubscription.trial_start
-      ? new Date(stripeSubscription.trial_start * 1000)
-      : null,
-    trialEnd: stripeSubscription.trial_end ? new Date(stripeSubscription.trial_end * 1000) : null,
-    metadata: metadataJson,
-  }
-
-  const existing = await db
-    .select({ id: schema.subscription.id })
-    .from(schema.subscription)
-    .where(eq(schema.subscription.stripeSubscriptionId, stripeSubscription.id))
-    .limit(1)
-
-  if (existing.length > 0) {
-    await db
-      .update(schema.subscription)
-      .set({
-        plan: subscriptionRow.plan,
-        referenceId: subscriptionRow.referenceId,
-        stripeCustomerId: subscriptionRow.stripeCustomerId,
-        status: subscriptionRow.status,
-        periodStart: subscriptionRow.periodStart,
-        periodEnd: subscriptionRow.periodEnd,
-        cancelAtPeriodEnd: subscriptionRow.cancelAtPeriodEnd,
-        seats: subscriptionRow.seats,
-        trialStart: subscriptionRow.trialStart,
-        trialEnd: subscriptionRow.trialEnd,
-        metadata: subscriptionRow.metadata,
-      })
-      .where(eq(schema.subscription.stripeSubscriptionId, stripeSubscription.id))
-  } else {
-    await db.insert(schema.subscription).values(subscriptionRow)
-  }
-
-  logger.info('[subscription.created] Upserted subscription', {
-    subscriptionId: subscriptionRow.id,
-    referenceId: subscriptionRow.referenceId,
-    plan: subscriptionRow.plan,
-    status: subscriptionRow.status,
   })
 }
 
@@ -1161,7 +1046,7 @@ export const auth = betterAuth({
 
               if (!response.ok) {
                 const errorText = await response.text()
-                console.error('Linear API error:', {
+                logger.error('Linear API error:', {
                   status: response.status,
                   statusText: response.statusText,
                   body: errorText,
@@ -1172,12 +1057,12 @@ export const auth = betterAuth({
               const { data, errors } = await response.json()
 
               if (errors) {
-                console.error('GraphQL errors:', errors)
+                logger.error('GraphQL errors:', errors)
                 throw new Error(`GraphQL errors: ${JSON.stringify(errors)}`)
               }
 
               if (!data?.viewer) {
-                console.error('No viewer data in response:', data)
+                logger.error('No viewer data in response:', data)
                 throw new Error('No viewer data in response')
               }
 
@@ -1193,7 +1078,7 @@ export const auth = betterAuth({
                 image: viewer.avatarUrl || null,
               }
             } catch (error) {
-              console.error('Error in getUserInfo:', error)
+              logger.error('Error in getUserInfo:', error)
               throw error
             }
           },

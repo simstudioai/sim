@@ -1,9 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getUserUsageLimitInfo, updateUserUsageLimit } from '@/lib/billing'
-import { getOrganizationBillingData } from '@/lib/billing/core/organization-billing'
+import {
+  getOrganizationBillingData,
+  isOrganizationOwnerOrAdmin,
+} from '@/lib/billing/core/organization'
 import { createLogger } from '@/lib/logs/console/logger'
-import { isOrganizationOwnerOrAdmin } from '@/lib/permissions/utils'
 
 const logger = createLogger('UnifiedUsageLimitsAPI')
 
@@ -25,7 +27,6 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId') || session.user.id
     const organizationId = searchParams.get('organizationId')
 
-    // Validate context
     if (!['user', 'organization'].includes(context)) {
       return NextResponse.json(
         { error: 'Invalid context. Must be "user" or "organization"' },
@@ -33,7 +34,6 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // For user context, ensure they can only view their own info
     if (context === 'user' && userId !== session.user.id) {
       return NextResponse.json(
         { error: "Cannot view other users' usage information" },
@@ -41,7 +41,6 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get usage limit info
     if (context === 'organization') {
       if (!organizationId) {
         return NextResponse.json(
@@ -107,10 +106,8 @@ export async function PUT(request: NextRequest) {
     }
 
     if (context === 'user') {
-      // Update user's own usage limit
       await updateUserUsageLimit(userId, limit)
     } else if (context === 'organization') {
-      // context === 'organization'
       if (!organizationId) {
         return NextResponse.json(
           { error: 'Organization ID is required when context=organization' },
@@ -123,10 +120,7 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
       }
 
-      // Use the dedicated function to update org usage limit
-      const { updateOrganizationUsageLimit } = await import(
-        '@/lib/billing/core/organization-billing'
-      )
+      const { updateOrganizationUsageLimit } = await import('@/lib/billing/core/organization')
       const result = await updateOrganizationUsageLimit(organizationId, limit)
 
       if (!result.success) {
@@ -137,7 +131,6 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: true, context, userId, organizationId, data: updated })
     }
 
-    // Return updated limit info
     const updatedInfo = await getUserUsageLimitInfo(userId)
 
     return NextResponse.json({

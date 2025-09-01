@@ -483,7 +483,7 @@ export function ToolInput({
       try {
         return block.tools.config.tool({ operation })
       } catch (error) {
-        console.error('Error selecting tool for operation:', error)
+        logger.error('Error selecting tool for operation:', error)
       }
     }
 

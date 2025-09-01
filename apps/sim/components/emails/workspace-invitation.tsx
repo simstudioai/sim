@@ -13,9 +13,12 @@ import {
 } from '@react-email/components'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getAssetUrl } from '@/lib/utils'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
+
+const logger = createLogger('WorkspaceInvitationEmail')
 
 interface WorkspaceInvitationEmailProps {
   workspaceName?: string
@@ -45,7 +48,7 @@ export const WorkspaceInvitationEmail = ({
       }
     }
   } catch (e) {
-    console.error('Error enhancing invitation link:', e)
+    logger.error('Error enhancing invitation link:', e)
   }
 
   return (

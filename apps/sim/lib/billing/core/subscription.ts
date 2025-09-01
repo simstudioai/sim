@@ -157,14 +157,26 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
 
     // Calculate usage limit
     let limit = getFreeTierLimit() // Default free tier limit
+
     if (subscription) {
-      limit = getPerUserMinimumLimit(subscription)
-      logger.info('Using subscription-based limit', {
-        userId,
-        plan: subscription.plan,
-        seats: subscription.seats || 1,
-        limit,
-      })
+      // Team/Enterprise: Use organization limit
+      if (subscription.plan === 'team' || subscription.plan === 'enterprise') {
+        const { getUserUsageLimit } = await import('@/lib/billing/core/usage')
+        limit = await getUserUsageLimit(userId)
+        logger.info('Using organization limit', {
+          userId,
+          plan: subscription.plan,
+          limit,
+        })
+      } else {
+        // Pro/Free: Use individual limit
+        limit = getPerUserMinimumLimit(subscription)
+        logger.info('Using subscription-based limit', {
+          userId,
+          plan: subscription.plan,
+          limit,
+        })
+      }
     } else {
       logger.info('Using free tier limit', { userId, limit })
     }
@@ -231,7 +243,14 @@ export async function getUserSubscriptionState(userId: string): Promise<UserSubs
     if (isProd && statsRecords.length > 0) {
       let limit = getFreeTierLimit() // Default free tier limit
       if (subscription) {
-        limit = getPerUserMinimumLimit(subscription)
+        // Team/Enterprise: Use organization limit
+        if (subscription.plan === 'team' || subscription.plan === 'enterprise') {
+          const { getUserUsageLimit } = await import('@/lib/billing/core/usage')
+          limit = await getUserUsageLimit(userId)
+        } else {
+          // Pro/Free: Use individual limit
+          limit = getPerUserMinimumLimit(subscription)
+        }
       }
 
       const currentCost = Number.parseFloat(

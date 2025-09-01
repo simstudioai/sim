@@ -16,8 +16,7 @@ export const env = createEnv({
 
   server: {
     // Core Database & Authentication
-    DATABASE_URL:                          z.string().url(),                       // Primary database connection string (without SSL cert)
-    DATABASE_SSL_CERT:                     z.string().optional(),                  // SSL certificate content for database connection
+    DATABASE_URL:                          z.string().url(),                       // Primary database connection string
     BETTER_AUTH_URL:                       z.string().url(),                       // Base URL for Better Auth service
     BETTER_AUTH_SECRET:                    z.string().min(32),                     // Secret key for Better Auth JWT signing
     DISABLE_REGISTRATION:                  z.boolean().optional(),                 // Flag to disable new user registration
@@ -139,6 +138,17 @@ export const env = createEnv({
     RATE_LIMIT_TEAM_ASYNC:                 z.string().optional().default('500'),   // Team tier async API executions per minute
     RATE_LIMIT_ENTERPRISE_SYNC:            z.string().optional().default('150'),   // Enterprise tier sync API executions per minute
     RATE_LIMIT_ENTERPRISE_ASYNC:           z.string().optional().default('1000'),  // Enterprise tier async API executions per minute
+
+    // Knowledge Base Processing Configuration - Shared across all processing methods
+    KB_CONFIG_MAX_DURATION:                z.number().optional().default(300),     // Max processing duration in s
+    KB_CONFIG_MAX_ATTEMPTS:                z.number().optional().default(3),       // Max retry attempts
+    KB_CONFIG_RETRY_FACTOR:                z.number().optional().default(2),       // Retry backoff factor
+    KB_CONFIG_MIN_TIMEOUT:                 z.number().optional().default(1000),    // Min timeout in ms
+    KB_CONFIG_MAX_TIMEOUT:                 z.number().optional().default(10000),   // Max timeout in ms
+    KB_CONFIG_CONCURRENCY_LIMIT:           z.number().optional().default(20),      // Queue concurrency limit
+    KB_CONFIG_BATCH_SIZE:                  z.number().optional().default(20),      // Processing batch size
+    KB_CONFIG_DELAY_BETWEEN_BATCHES:       z.number().optional().default(100),     // Delay between batches in ms
+    KB_CONFIG_DELAY_BETWEEN_DOCUMENTS:     z.number().optional().default(50),      // Delay between documents in ms
 
     // Real-time Communication
     SOCKET_SERVER_URL:                     z.string().url().optional(),            // WebSocket server URL for real-time features

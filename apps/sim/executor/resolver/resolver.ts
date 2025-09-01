@@ -1254,7 +1254,7 @@ export class InputResolver {
 
               return JSON.parse(normalizedExpression)
             } catch (jsonError) {
-              console.error('Error parsing JSON for loop:', jsonError)
+              logger.error('Error parsing JSON for loop:', jsonError)
               // If JSON parsing fails, continue with expression evaluation
             }
           }
@@ -1267,7 +1267,7 @@ export class InputResolver {
             }
           }
         } catch (e) {
-          console.error('Error evaluating forEach items:', e)
+          logger.error('Error evaluating forEach items:', e)
         }
       }
     }
@@ -1712,7 +1712,7 @@ export class InputResolver {
           }
         }
       } catch (e) {
-        console.error('Error evaluating parallel distribution items:', e)
+        logger.error('Error evaluating parallel distribution items:', e)
       }
     }
 

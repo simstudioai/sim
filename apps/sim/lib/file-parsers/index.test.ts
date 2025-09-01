@@ -51,6 +51,23 @@ const mockMdParseFile = vi.fn().mockResolvedValue({
   },
 })
 
+const mockPptxParseFile = vi.fn().mockResolvedValue({
+  content: 'Parsed PPTX content',
+  metadata: {
+    slideCount: 5,
+    extractionMethod: 'officeparser',
+  },
+})
+
+const mockHtmlParseFile = vi.fn().mockResolvedValue({
+  content: 'Parsed HTML content',
+  metadata: {
+    title: 'Test HTML Document',
+    headingCount: 3,
+    linkCount: 2,
+  },
+})
+
 const createMockModule = () => {
   const mockParsers: Record<string, FileParser> = {
     pdf: { parseFile: mockPdfParseFile },
@@ -58,6 +75,10 @@ const createMockModule = () => {
     docx: { parseFile: mockDocxParseFile },
     txt: { parseFile: mockTxtParseFile },
     md: { parseFile: mockMdParseFile },
+    pptx: { parseFile: mockPptxParseFile },
+    ppt: { parseFile: mockPptxParseFile },
+    html: { parseFile: mockHtmlParseFile },
+    htm: { parseFile: mockHtmlParseFile },
   }
 
   return {
@@ -140,6 +161,18 @@ describe('File Parsers', () => {
     vi.doMock('@/lib/file-parsers/md-parser', () => ({
       MdParser: vi.fn().mockImplementation(() => ({
         parseFile: mockMdParseFile,
+      })),
+    }))
+
+    vi.doMock('@/lib/file-parsers/pptx-parser', () => ({
+      PptxParser: vi.fn().mockImplementation(() => ({
+        parseFile: mockPptxParseFile,
+      })),
+    }))
+
+    vi.doMock('@/lib/file-parsers/html-parser', () => ({
+      HtmlParser: vi.fn().mockImplementation(() => ({
+        parseFile: mockHtmlParseFile,
       })),
     }))
 
@@ -261,6 +294,82 @@ describe('File Parsers', () => {
 
       const { parseFile } = await import('@/lib/file-parsers/index')
       const result = await parseFile('/test/files/document.md')
+
+      expect(result).toEqual(expectedResult)
+    })
+
+    it('should parse PPTX files successfully', async () => {
+      const expectedResult = {
+        content: 'Parsed PPTX content',
+        metadata: {
+          slideCount: 5,
+          extractionMethod: 'officeparser',
+        },
+      }
+
+      mockPptxParseFile.mockResolvedValueOnce(expectedResult)
+      mockExistsSync.mockReturnValue(true)
+
+      const { parseFile } = await import('@/lib/file-parsers/index')
+      const result = await parseFile('/test/files/presentation.pptx')
+
+      expect(result).toEqual(expectedResult)
+    })
+
+    it('should parse PPT files successfully', async () => {
+      const expectedResult = {
+        content: 'Parsed PPTX content',
+        metadata: {
+          slideCount: 5,
+          extractionMethod: 'officeparser',
+        },
+      }
+
+      mockPptxParseFile.mockResolvedValueOnce(expectedResult)
+      mockExistsSync.mockReturnValue(true)
+
+      const { parseFile } = await import('@/lib/file-parsers/index')
+      const result = await parseFile('/test/files/presentation.ppt')
+
+      expect(result).toEqual(expectedResult)
+    })
+
+    it('should parse HTML files successfully', async () => {
+      const expectedResult = {
+        content: 'Parsed HTML content',
+        metadata: {
+          title: 'Test HTML Document',
+          headingCount: 3,
+          linkCount: 2,
+        },
+      }
+
+      mockHtmlParseFile.mockResolvedValueOnce(expectedResult)
+      mockExistsSync.mockReturnValue(true)
+
+      const { parseFile } = await import('@/lib/file-parsers/index')
+      const result = await parseFile('/test/files/document.html')
+
+      expect(result).toEqual(expectedResult)
+    })
+
+    it('should parse HTM files successfully', async () => {
+      const expectedResult = {
+        content: 'Parsed HTML content',
+        metadata: {
+          title: 'Test HTML Document',
+          headingCount: 3,
+          linkCount: 2,
+        },
+      }
+
+      mockHtmlParseFile.mockResolvedValueOnce(expectedResult)
+      mockExistsSync.mockReturnValue(true)
+
+      const { parseFile } = await import('@/lib/file-parsers/index')
+      const result = await parseFile('/test/files/document.htm')
+
+      expect(result).toEqual(expectedResult)
     })
 
     it('should throw error for unsupported file types', async () => {
@@ -292,6 +401,10 @@ describe('File Parsers', () => {
       expect(isSupportedFileType('docx')).toBe(true)
       expect(isSupportedFileType('txt')).toBe(true)
       expect(isSupportedFileType('md')).toBe(true)
+      expect(isSupportedFileType('pptx')).toBe(true)
+      expect(isSupportedFileType('ppt')).toBe(true)
+      expect(isSupportedFileType('html')).toBe(true)
+      expect(isSupportedFileType('htm')).toBe(true)
     })
 
     it('should return false for unsupported file types', async () => {
@@ -308,6 +421,8 @@ describe('File Parsers', () => {
       expect(isSupportedFileType('CSV')).toBe(true)
       expect(isSupportedFileType('TXT')).toBe(true)
       expect(isSupportedFileType('MD')).toBe(true)
+      expect(isSupportedFileType('PPTX')).toBe(true)
+      expect(isSupportedFileType('HTML')).toBe(true)
     })
 
     it('should handle errors gracefully', async () => {
