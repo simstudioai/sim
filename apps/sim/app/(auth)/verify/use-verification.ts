@@ -213,6 +213,13 @@ export function useVerification({
       setErrorMessage('')
     }
     setOtp(value)
+
+    // Auto-submit when OTP is complete (6 digits)
+    if (value.length === 6 && email) {
+      setTimeout(() => {
+        verifyCode()
+      }, 100) // Small delay to ensure state is updated
+    }
   }
 
   useEffect(() => {

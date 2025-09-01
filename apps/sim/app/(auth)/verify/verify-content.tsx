@@ -1,7 +1,6 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { cn } from '@/lib/utils'
 import { useVerification } from '@/app/(auth)/verify/use-verification'
@@ -122,13 +121,15 @@ function VerificationForm({
               </div>
             )}
 
-            <Button
-              onClick={verifyCode}
-              className='h-11 w-full bg-[var(--brand-primary-hex)] font-medium text-base text-white shadow-[var(--brand-primary-hex)]/20 shadow-lg transition-colors duration-200 hover:bg-[var(--brand-primary-hover-hex)]'
-              disabled={!isOtpComplete || isLoading}
-            >
-              {isLoading ? 'Verifying...' : 'Verify Email'}
-            </Button>
+            {/* Auto-verification status */}
+            {isLoading && (
+              <div className='flex items-center justify-center py-4'>
+                <div className='flex items-center space-x-2 text-neutral-400'>
+                  <div className='h-4 w-4 animate-spin rounded-full border-[var(--brand-primary-hex)] border-b-2' />
+                  <span className='text-sm'>Verifying...</span>
+                </div>
+              </div>
+            )}
 
             {hasResendKey && (
               <div className='mt-4 text-center'>
