@@ -94,6 +94,67 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
     }
   },
 
+  // Workspace environment actions
+  loadWorkspaceEnvironment: async (workspaceId: string) => {
+    try {
+      set({ isLoading: true, error: null })
+
+      const response = await fetch(API_ENDPOINTS.WORKSPACE_ENVIRONMENT(workspaceId))
+      if (!response.ok) {
+        throw new Error(`Failed to load workspace environment: ${response.statusText}`)
+      }
+
+      const { data } = await response.json()
+      // The UI component for environment modal will handle workspace section state locally.
+      set({ isLoading: false })
+      return data as {
+        workspace: Record<string, string>
+        personal: Record<string, string>
+        conflicts: string[]
+      }
+    } catch (error) {
+      logger.error('Error loading workspace environment:', { error })
+      set({ error: error instanceof Error ? error.message : 'Unknown error', isLoading: false })
+      return { workspace: {}, personal: {}, conflicts: [] }
+    }
+  },
+
+  upsertWorkspaceEnvironment: async (workspaceId: string, variables: Record<string, string>) => {
+    try {
+      set({ isLoading: true, error: null })
+      const response = await fetch(API_ENDPOINTS.WORKSPACE_ENVIRONMENT(workspaceId), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variables }),
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to update workspace environment: ${response.statusText}`)
+      }
+      set({ isLoading: false })
+    } catch (error) {
+      logger.error('Error updating workspace environment:', { error })
+      set({ error: error instanceof Error ? error.message : 'Unknown error', isLoading: false })
+    }
+  },
+
+  removeWorkspaceEnvironmentKeys: async (workspaceId: string, keys: string[]) => {
+    try {
+      set({ isLoading: true, error: null })
+      const response = await fetch(API_ENDPOINTS.WORKSPACE_ENVIRONMENT(workspaceId), {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys }),
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to remove workspace environment keys: ${response.statusText}`)
+      }
+      set({ isLoading: false })
+    } catch (error) {
+      logger.error('Error removing workspace environment keys:', { error })
+      set({ error: error instanceof Error ? error.message : 'Unknown error', isLoading: false })
+    }
+  },
+
   // Legacy method updated to use the new saveEnvironmentVariables
   setVariables: (variables: Record<string, string>) => {
     get().saveEnvironmentVariables(variables)

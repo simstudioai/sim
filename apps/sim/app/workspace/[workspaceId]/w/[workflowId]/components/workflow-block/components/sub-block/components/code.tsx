@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Wand2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
@@ -73,7 +74,9 @@ export function Code({
   onValidationChange,
   wandConfig,
 }: CodeProps) {
-  // Determine the AI prompt placeholder based on language
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
   const aiPromptPlaceholder = useMemo(() => {
     switch (generationType) {
       case 'json-schema':
@@ -503,6 +506,7 @@ export function Code({
               searchTerm={searchTerm}
               inputValue={code}
               cursorPosition={cursorPosition}
+              workspaceId={workspaceId}
               onClose={() => {
                 setShowEnvVars(false)
                 setSearchTerm('')

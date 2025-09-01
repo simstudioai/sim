@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { useReactFlow } from 'reactflow'
 import { Button } from '@/components/ui/button'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
@@ -45,6 +46,8 @@ export function ComboBox({
   config,
   isWide = false,
 }: ComboBoxProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
   const [storeInitialized, setStoreInitialized] = useState(false)
   const [open, setOpen] = useState(false)
@@ -508,6 +511,7 @@ export function ComboBox({
         searchTerm={searchTerm}
         inputValue={displayValue}
         cursorPosition={cursorPosition}
+        workspaceId={workspaceId}
         onClose={() => {
           setShowEnvVars(false)
           setSearchTerm('')

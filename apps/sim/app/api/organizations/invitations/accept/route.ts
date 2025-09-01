@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
@@ -82,16 +82,6 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Check if user's email is verified
-    if (!userData[0].emailVerified) {
-      return NextResponse.redirect(
-        new URL(
-          `/invite/invite-error?reason=email-not-verified&details=${encodeURIComponent(`You must verify your email address (${userData[0].email}) before accepting invitations.`)}`,
-          env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
-        )
-      )
-    }
-
     // Verify the email matches the current user
     if (orgInvitation.email !== session.user.email) {
       return NextResponse.redirect(
@@ -137,14 +127,21 @@ export async function GET(req: NextRequest) {
       // Mark organization invitation as accepted
       await tx.update(invitation).set({ status: 'accepted' }).where(eq(invitation.id, invitationId))
 
-      // Find and accept any pending workspace invitations for the same email
+      // Find and accept any pending workspace invitations linked to this org invite.
+      // For backward compatibility, also include legacy pending invites by email with no org link.
       const workspaceInvitations = await tx
         .select()
         .from(workspaceInvitation)
         .where(
           and(
-            eq(workspaceInvitation.email, orgInvitation.email),
-            eq(workspaceInvitation.status, 'pending')
+            eq(workspaceInvitation.status, 'pending'),
+            or(
+              eq(workspaceInvitation.orgInvitationId, invitationId),
+              and(
+                isNull(workspaceInvitation.orgInvitationId),
+                eq(workspaceInvitation.email, orgInvitation.email)
+              )
+            )
           )
         )
 
@@ -262,17 +259,6 @@ export async function POST(req: NextRequest) {
 
     if (userData.length === 0) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    // Check if user's email is verified
-    if (!userData[0].emailVerified) {
-      return NextResponse.json(
-        {
-          error: 'Email not verified',
-          message: `You must verify your email address (${userData[0].email}) before accepting invitations.`,
-        },
-        { status: 403 }
-      )
     }
 
     if (orgInvitation.email !== session.user.email) {

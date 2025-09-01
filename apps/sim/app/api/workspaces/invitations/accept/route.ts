@@ -83,16 +83,6 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Check if user's email is verified
-    if (!userData.emailVerified) {
-      return NextResponse.redirect(
-        new URL(
-          `/invite/invite-error?reason=email-not-verified&details=${encodeURIComponent(`You must verify your email address (${userData.email}) before accepting invitations.`)}`,
-          env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
-        )
-      )
-    }
-
     // Check if the logged-in user's email matches the invitation
     const isValidMatch = userEmail === invitationEmail
 

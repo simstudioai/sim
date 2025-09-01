@@ -17,6 +17,18 @@ export interface EnvironmentStore extends EnvironmentState {
   loadEnvironmentVariables: () => Promise<void>
   saveEnvironmentVariables: (variables: Record<string, string>) => Promise<void>
 
+  // Workspace environment
+  loadWorkspaceEnvironment: (workspaceId: string) => Promise<{
+    workspace: Record<string, string>
+    personal: Record<string, string>
+    conflicts: string[]
+  }>
+  upsertWorkspaceEnvironment: (
+    workspaceId: string,
+    variables: Record<string, string>
+  ) => Promise<void>
+  removeWorkspaceEnvironmentKeys: (workspaceId: string, keys: string[]) => Promise<void>
+
   // Utility methods
   getVariable: (key: string) => string | undefined
   getAllVariables: () => Record<string, EnvironmentVariable>
