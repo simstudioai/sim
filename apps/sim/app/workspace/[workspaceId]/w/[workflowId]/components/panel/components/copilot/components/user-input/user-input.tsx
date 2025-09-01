@@ -641,40 +641,16 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         size: f.size,
       }))
 
-    // Use the contexts that the user has selected (don't auto-add if manually removed)
-    let finalContexts = [...selectedContexts]
+    // Build contexts to send: hide current_workflow in UI but always include it in payload
+    const uiContexts = selectedContexts.filter((c) => (c as any).kind !== 'current_workflow')
+    const finalContexts: any[] = [...uiContexts]
     
-    // Only auto-add current_workflow if:
-    // 1. Auto-add is not disabled for this chat
-    // 2. It's not already in the selected contexts
-    // 3. User hasn't manually removed it (indicated by workflowAutoAddDisabled being false)
-    if (workflowId && !workflowAutoAddDisabled) {
-      const hasCurrentWorkflowContext = finalContexts.some(
-        ctx => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
-      )
-      if (!hasCurrentWorkflowContext) {
-        // Try to get workflow name from already loaded workflows first
-        let workflowName = 'Current Workflow'
-        const existingWorkflow = workflows.find(w => w.id === workflowId)
-        if (existingWorkflow) {
-          workflowName = existingWorkflow.name
-        } else {
-          // If not found in loaded workflows, fetch it
-          try {
-            const resp = await fetch(`/api/workflows/${workflowId}`)
-            if (resp.ok) {
-              const data = await resp.json()
-              workflowName = data?.data?.name || 'Current Workflow'
-            }
-          } catch {
-            // Use default name if fetch fails
-          }
-        }
-        finalContexts.push({ kind: 'current_workflow', workflowId, label: workflowName } as ChatContext)
-      }
+    if (workflowId) {
+      // Include current_workflow for the agent; label not shown in UI
+      finalContexts.push({ kind: 'current_workflow', workflowId, label: 'Current Workflow' })
     }
 
-    onSubmit(trimmedMessage, fileAttachments, finalContexts)
+    onSubmit(trimmedMessage, fileAttachments, finalContexts as any)
 
     // Clean up preview URLs before clearing
     attachedFiles.forEach((f) => {
@@ -2047,9 +2023,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           )}
 
           {/* Selected Context Pills */}
-          {selectedContexts.length > 0 && (
+          {selectedContexts.filter((c) => c.kind !== 'current_workflow').length > 0 && (
             <div className='mb-2 flex flex-wrap gap-1.5'>
-              {selectedContexts.map((ctx, idx) => (
+              {selectedContexts
+                .filter((c) => c.kind !== 'current_workflow')
+                .map((ctx, idx) => (
                 <span
                   key={`selctx-${idx}-${ctx.label}`}
                   className='inline-flex items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)] px-1.5 py-0.5 text-[11px] text-foreground'
@@ -2057,7 +2035,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                 >
                   {ctx.kind === 'past_chat' ? (
                     <Bot className='h-3 w-3 text-muted-foreground' />
-                  ) : ctx.kind === 'workflow' || ctx.kind === 'current_workflow' ? (
+                  ) : ctx.kind === 'workflow' ? (
                     <Workflow className='h-3 w-3 text-muted-foreground' />
                   ) : ctx.kind === 'blocks' ? (
                     <Blocks className='h-3 w-3 text-muted-foreground' />
@@ -2078,18 +2056,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   <button
                     type='button'
                     onClick={() => {
-                      // If removing current_workflow context, disable auto-add for this chat
-                      if (ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId) {
-                        if (currentChat?.id) {
-                          setWorkflowAutoAddDisabledMap(prev => ({
-                            ...prev,
-                            [currentChat.id]: true
-                          }))
-                        } else {
-                          // For new chats without ID
-                          setNewChatWorkflowDisabled(true)
-                        }
-                      }
+                      // Remove only non-hidden contexts; current_workflow is never shown
                       setSelectedContexts((prev) => prev.filter((c) => c.label !== ctx.label))
                     }}
                     className='text-muted-foreground transition-colors hover:text-foreground'

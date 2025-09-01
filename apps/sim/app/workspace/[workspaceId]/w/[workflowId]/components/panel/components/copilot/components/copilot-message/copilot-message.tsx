@@ -392,7 +392,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                     const fromBlock = Array.isArray((block as any)?.contexts)
                       ? ((block as any).contexts as any[])
                       : []
-                    const allContexts = direct.length > 0 ? direct : fromBlock
+                    const allContexts = (direct.length > 0 ? direct : fromBlock).filter((c: any) => c?.kind !== 'current_workflow')
                     const MAX_VISIBLE = 4
                     const visible = showAllContexts
                       ? allContexts
@@ -509,7 +509,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                     const contexts: any[] = Array.isArray((message as any).contexts)
                       ? ((message as any).contexts as any[])
                       : []
-                    const labels = contexts.map((c) => c?.label).filter(Boolean) as string[]
+                    const labels = contexts.filter((c) => c?.kind !== 'current_workflow').map((c) => c?.label).filter(Boolean) as string[]
                     if (!labels.length) return <WordWrap text={text} />
 
                     const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
