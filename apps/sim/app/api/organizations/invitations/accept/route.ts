@@ -82,16 +82,6 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Check if user's email is verified
-    if (!userData[0].emailVerified) {
-      return NextResponse.redirect(
-        new URL(
-          `/invite/invite-error?reason=email-not-verified&details=${encodeURIComponent(`You must verify your email address (${userData[0].email}) before accepting invitations.`)}`,
-          env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
-        )
-      )
-    }
-
     // Verify the email matches the current user
     if (orgInvitation.email !== session.user.email) {
       return NextResponse.redirect(
@@ -269,17 +259,6 @@ export async function POST(req: NextRequest) {
 
     if (userData.length === 0) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    // Check if user's email is verified
-    if (!userData[0].emailVerified) {
-      return NextResponse.json(
-        {
-          error: 'Email not verified',
-          message: `You must verify your email address (${userData[0].email}) before accepting invitations.`,
-        },
-        { status: 403 }
-      )
     }
 
     if (orgInvitation.email !== session.user.email) {

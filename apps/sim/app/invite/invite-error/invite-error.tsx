@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Mail, RotateCcw, ShieldX } from 'lucide-react'
+import { RotateCcw, ShieldX } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -26,10 +26,6 @@ function getErrorMessage(reason: string, details?: string): string {
       return 'The workspace associated with this invitation could not be found.'
     case 'user-not-found':
       return 'Your user account could not be found. Please try logging out and logging back in.'
-    case 'email-not-verified':
-      return details
-        ? details
-        : 'You must verify your email address before accepting invitations. Please check your email for a verification link.'
     case 'already-member':
       return 'You are already a member of this organization or workspace.'
     case 'invalid-invitation':
@@ -57,8 +53,6 @@ export default function InviteError() {
 
   // Provide a fallback message for SSR
   const displayMessage = errorMessage || 'Loading error details...'
-
-  const isEmailVerificationError = reason === 'email-not-verified'
 
   const isExpiredError = reason === 'expired'
 
@@ -88,20 +82,6 @@ export default function InviteError() {
         </p>
 
         <div className='flex w-full flex-col gap-3'>
-          {isEmailVerificationError && (
-            <Button
-              variant='default'
-              className='w-full'
-              style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
-              asChild
-            >
-              <Link href='/verify'>
-                <Mail className='mr-2 h-4 w-4' />
-                Verify Email
-              </Link>
-            </Button>
-          )}
-
           {isExpiredError && (
             <Button
               variant='outline'

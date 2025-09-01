@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button'
 import { LoadingAgent } from '@/components/ui/loading-agent'
 import { client, useSession } from '@/lib/auth-client'
 import { useBrandConfig } from '@/lib/branding/branding'
+import { createLogger } from '@/lib/logs/console/logger'
+
+const logger = createLogger('InviteByIDAPI')
 
 export default function Invite() {
   const router = useRouter()
@@ -102,7 +105,7 @@ export default function Invite() {
           throw new Error('Invitation not found or has expired')
         }
       } catch (err: any) {
-        console.error('Error fetching invitation:', err)
+        logger.error('Error fetching invitation:', err)
         setError(err.message || 'Failed to load invitation details')
       } finally {
         setIsLoading(false)
@@ -117,25 +120,11 @@ export default function Invite() {
     if (!session?.user) return
 
     setIsAccepting(true)
-    try {
-      if (invitationType === 'workspace') {
-        // For workspace invites, call the API route with token
-        const response = await fetch(
-          `/api/workspaces/invitations/accept?token=${encodeURIComponent(token || '')}`
-        )
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || 'Failed to accept invitation')
-        }
-
-        setAccepted(true)
-
-        // Redirect to workspace after a brief delay
-        setTimeout(() => {
-          router.push('/workspace')
-        }, 2000)
-      } else {
+    if (invitationType === 'workspace') {
+      window.location.href = `/api/workspaces/invitations/accept?token=${encodeURIComponent(token || '')}`
+    } else {
+      try {
         // For organization invites, use the client API
         const response = await client.organization.acceptInvitation({
           invitationId: inviteId,
@@ -157,12 +146,12 @@ export default function Invite() {
         setTimeout(() => {
           router.push('/workspace')
         }, 2000)
+      } catch (err: any) {
+        logger.error('Error accepting invitation:', err)
+        setError(err.message || 'Failed to accept invitation')
+      } finally {
+        setIsAccepting(false)
       }
-    } catch (err: any) {
-      console.error('Error accepting invitation:', err)
-      setError(err.message || 'Failed to accept invitation')
-    } finally {
-      setIsAccepting(false)
     }
   }
 
