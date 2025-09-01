@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { getEnv, isTruthy } from '@/lib/env'
 import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
-import { cn } from '@/lib/utils'
 import {
   Account,
   ApiKeys,
@@ -129,12 +128,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           {/* Content Area */}
           <div className='flex-1 overflow-y-auto'>
             {activeSection === 'general' && (
-              <div className={cn('h-full', 'block')}>
+              <div className='h-full'>
                 <General />
               </div>
             )}
             {activeSection === 'environment' && (
-              <div className={cn('h-full', 'block')}>
+              <div className='h-full'>
                 <EnvironmentVariables
                   onOpenChange={onOpenChange}
                   registerCloseHandler={(handler) => {
@@ -144,12 +143,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               </div>
             )}
             {activeSection === 'account' && (
-              <div className={cn('h-full', 'block')}>
+              <div className='h-full'>
                 <Account onOpenChange={onOpenChange} />
               </div>
             )}
             {activeSection === 'credentials' && (
-              <div className={cn('h-full', 'block')}>
+              <div className='h-full'>
                 <Credentials
                   onOpenChange={onOpenChange}
                   registerCloseHandler={(handler) => {
@@ -159,27 +158,27 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               </div>
             )}
             {activeSection === 'apikeys' && (
-              <div className={cn('h-full', 'block')}>
+              <div className='h-full'>
                 <ApiKeys onOpenChange={onOpenChange} />
               </div>
             )}
             {isSubscriptionEnabled && activeSection === 'subscription' && (
-              <div className={cn('h-full', 'block')}>
+              <div className='h-full'>
                 <Subscription onOpenChange={onOpenChange} />
               </div>
             )}
             {isBillingEnabled && activeSection === 'team' && (
-              <div className={cn('h-full', 'block')}>
+              <div className='h-full'>
                 <TeamManagement />
               </div>
             )}
             {isHosted && activeSection === 'copilot' && (
-              <div className={cn('h-full', 'block')}>
+              <div className='h-full'>
                 <Copilot />
               </div>
             )}
             {activeSection === 'privacy' && (
-              <div className={cn('h-full', 'block')}>
+              <div className='h-full'>
                 <Privacy />
               </div>
             )}

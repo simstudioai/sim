@@ -120,14 +120,12 @@ export async function PUT(request: NextRequest) {
       }
 
       // Only encrypt the variables that are new or changed
-      const newlyEncryptedVariables = await Object.entries(variablesToEncrypt).reduce(
-        async (accPromise, [key, value]) => {
-          const acc = await accPromise
+      const newlyEncryptedVariables = await Promise.all(
+        Object.entries(variablesToEncrypt).map(async ([key, value]) => {
           const { encrypted } = await encryptSecret(value)
-          return { ...acc, [key]: encrypted }
-        },
-        Promise.resolve({})
-      )
+          return [key, encrypted] as const
+        })
+      ).then((entries) => Object.fromEntries(entries))
 
       // Merge existing encrypted variables with newly encrypted ones
       const finalEncryptedVariables = { ...existingEncryptedVariables, ...newlyEncryptedVariables }

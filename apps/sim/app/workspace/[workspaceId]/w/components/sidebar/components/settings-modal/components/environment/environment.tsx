@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Search, Share2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -103,7 +103,7 @@ export function EnvironmentVariables({
     const afterKeys = Object.keys(after)
     if (beforeKeys.length !== afterKeys.length) return true
     for (const key of new Set([...beforeKeys, ...afterKeys])) {
-      if ((before as any)[key] !== (after as any)[key]) return true
+      if (before[key] !== after[key]) return true
     }
 
     return false
@@ -176,13 +176,32 @@ export function EnvironmentVariables({
     }
   }, [shouldScrollToBottom])
 
-  // Variable management functions
+  const handleWorkspaceKeyRename = useCallback(
+    (currentKey: string, currentValue: string) => {
+      const newKey = pendingKeyValue.trim()
+      if (!renamingKey || renamingKey !== currentKey) return
+      setRenamingKey(null)
+      if (!newKey || newKey === currentKey) return
+
+      setWorkspaceVars((prev) => {
+        const next = { ...prev }
+        delete next[currentKey]
+        next[newKey] = currentValue
+        return next
+      })
+
+      setConflicts((prev) => {
+        const withoutOld = prev.filter((k) => k !== currentKey)
+        const personalHasNew = !!useEnvironmentStore.getState().variables[newKey]
+        return personalHasNew && !withoutOld.includes(newKey) ? [...withoutOld, newKey] : withoutOld
+      })
+    },
+    [pendingKeyValue, renamingKey, setWorkspaceVars, setConflicts]
+  )
   const addEnvVar = () => {
     const newVar = { key: '', value: '', id: Date.now() }
     setEnvVars([...envVars, newVar])
-    // Clear search to ensure the new variable is visible
     setSearchTerm('')
-    // Trigger scroll to bottom
     setShouldScrollToBottom(true)
   }
 
@@ -197,7 +216,6 @@ export function EnvironmentVariables({
     setEnvVars(newEnvVars.length ? newEnvVars : [INITIAL_ENV_VAR])
   }
 
-  // Input event handlers
   const handleValueFocus = (index: number, e: React.FocusEvent<HTMLInputElement>) => {
     setFocusedValueIndex(index)
     e.target.scrollLeft = 0
@@ -221,9 +239,7 @@ export function EnvironmentVariables({
       | 'key'
       | 'value'
 
-    // If we're in a specific input field, check if this looks like environment variable key-value pairs
     if (inputType) {
-      // Check if this looks like valid environment variable key-value pairs
       const hasValidEnvVarPattern = lines.some((line) => {
         const equalIndex = line.indexOf('=')
         if (equalIndex === -1 || equalIndex === 0) return false
@@ -233,14 +249,12 @@ export function EnvironmentVariables({
         return envVarPattern.test(potentialKey)
       })
 
-      // If it doesn't look like env vars, treat as single value paste
       if (!hasValidEnvVarPattern) {
         handleSingleValuePaste(text, index, inputType)
         return
       }
     }
 
-    // Try to parse as key-value pairs
     handleKeyValuePaste(lines)
   }
 
@@ -253,21 +267,16 @@ export function EnvironmentVariables({
   const handleKeyValuePaste = (lines: string[]) => {
     const parsedVars = lines
       .map((line) => {
-        // Only split on = if it looks like a proper environment variable (key=value format)
         const equalIndex = line.indexOf('=')
 
-        // If no = found or = is at the beginning, skip this line
         if (equalIndex === -1 || equalIndex === 0) {
           return null
         }
 
         const potentialKey = line.substring(0, equalIndex).trim()
 
-        // Check if the potential key looks like an environment variable name
-        // Should be letters, numbers, underscores, and not contain spaces, URLs, etc.
         const envVarPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
 
-        // If it doesn't look like an env var name, skip this line
         if (!envVarPattern.test(potentialKey)) {
           return null
         }
@@ -287,12 +296,9 @@ export function EnvironmentVariables({
     if (parsedVars.length > 0) {
       const existingVars = envVars.filter((v) => v.key || v.value)
       setEnvVars([...existingVars, ...parsedVars])
-      // Scroll to bottom when pasting multiple variables
       setShouldScrollToBottom(true)
     }
   }
-
-  // Dialog management
 
   const handleCancel = () => {
     setEnvVars(JSON.parse(JSON.stringify(initialVarsRef.current)))
@@ -304,11 +310,9 @@ export function EnvironmentVariables({
 
   const handleSave = async () => {
     try {
-      // Close modal immediately for optimistic updates
       setShowUnsavedChanges(false)
       onOpenChange(false)
 
-      // Convert valid env vars to Record<string, string>
       const validVariables = envVars
         .filter((v) => v.key && v.value)
         .reduce(
@@ -319,10 +323,8 @@ export function EnvironmentVariables({
           {}
         )
 
-      // Single store update that triggers sync
       useEnvironmentStore.getState().setVariables(validVariables)
 
-      // Workspace diffs commit
       const before = initialWorkspaceVarsRef.current
       const after = workspaceVars
       const toUpsert: Record<string, string> = {}
@@ -399,12 +401,10 @@ export function EnvironmentVariables({
                   disabled={!envVar.key || !envVar.value || isConflict || !workspaceId}
                   onClick={() => {
                     if (!envVar.key || !envVar.value || !workspaceId) return
-                    // Add to workspace
                     setWorkspaceVars((prev) => ({ ...prev, [envVar.key]: envVar.value }))
                     setConflicts((prev) =>
                       prev.includes(envVar.key) ? prev : [...prev, envVar.key]
                     )
-                    // Remove from personal env vars to prevent conflict
                     removeEnvVar(originalIndex)
                   }}
                   className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
@@ -492,26 +492,7 @@ export function EnvironmentVariables({
                           if (renamingKey !== key) setRenamingKey(key)
                           setPendingKeyValue(e.target.value)
                         }}
-                        onBlur={() => {
-                          const newKey = pendingKeyValue.trim()
-                          if (!renamingKey || renamingKey !== key) return
-                          setRenamingKey(null)
-                          if (!newKey || newKey === key) return
-                          setWorkspaceVars((prev) => {
-                            const next = { ...prev }
-                            delete next[key]
-                            next[newKey] = value
-                            return next
-                          })
-                          setConflicts((prev) => {
-                            const withoutOld = prev.filter((k) => k !== key)
-                            const personalHasNew =
-                              !!useEnvironmentStore.getState().variables[newKey]
-                            return personalHasNew && !withoutOld.includes(newKey)
-                              ? [...withoutOld, newKey]
-                              : withoutOld
-                          })
-                        }}
+                        onBlur={() => handleWorkspaceKeyRename(key, value)}
                         className='h-9 rounded-[8px] border-none bg-muted px-3 text-sm'
                       />
                       <Input

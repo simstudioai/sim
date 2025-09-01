@@ -131,14 +131,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const existingEncrypted: Record<string, string> = (existingRows[0]?.variables as any) || {}
 
     // Encrypt incoming
-    const encryptedIncoming = await Object.entries(variables).reduce(
-      async (accPromise, [key, value]) => {
-        const acc = await accPromise
+    const encryptedIncoming = await Promise.all(
+      Object.entries(variables).map(async ([key, value]) => {
         const { encrypted } = await encryptSecret(value)
-        return { ...acc, [key]: encrypted }
-      },
-      Promise.resolve({} as Record<string, string>)
-    )
+        return [key, encrypted] as const
+      })
+    ).then((entries) => Object.fromEntries(entries))
 
     const merged = { ...existingEncrypted, ...encryptedIncoming }
 
