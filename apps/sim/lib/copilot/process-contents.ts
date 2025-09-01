@@ -108,7 +108,8 @@ export async function processContextsServer(
       if (ctx.kind === 'docs') {
         try {
           const { searchDocumentationServerTool } = await import('@/lib/copilot/tools/server/docs/search-documentation')
-          const query = (userMessage || '').trim() || ctx.label || 'Sim documentation'
+          const rawQuery = (userMessage || '').trim() || ctx.label || 'Sim documentation'
+          const query = sanitizeMessageForDocs(rawQuery, contexts)
           const res = await searchDocumentationServerTool.execute({ query, topK: 10 })
           const content = JSON.stringify(res?.results || [])
           return { type: 'docs', tag: ctx.label ? `@${ctx.label}` : '@', content }
@@ -133,6 +134,54 @@ export async function processContextsServer(
     kinds: Array.from(filtered.reduce((s, r) => s.add(r.type), new Set<string>())),
   })
   return filtered
+}
+
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function sanitizeMessageForDocs(rawMessage: string, contexts: ChatContext[] | undefined): string {
+  if (!rawMessage) return ''
+  if (!Array.isArray(contexts) || contexts.length === 0) {
+    // No context mapping; conservatively strip all @mentions-like tokens
+    const stripped = rawMessage.replace(/(^|\s)@([^\s]+)/g, ' ').replace(/\s{2,}/g, ' ').trim()
+    return stripped
+  }
+
+  // Gather labels by kind
+  const blockLabels = new Set(
+    contexts
+      .filter((c) => c.kind === 'blocks')
+      .map((c) => c.label)
+      .filter((l): l is string => typeof l === 'string' && l.length > 0)
+  )
+  const nonBlockLabels = new Set(
+    contexts
+      .filter((c) => c.kind !== 'blocks')
+      .map((c) => c.label)
+      .filter((l): l is string => typeof l === 'string' && l.length > 0)
+  )
+
+  let result = rawMessage
+
+  // 1) Remove all non-block mentions entirely
+  for (const label of nonBlockLabels) {
+    const pattern = new RegExp(`(^|\\s)@${escapeRegExp(label)}(?!\\S)`, 'g')
+    result = result.replace(pattern, ' ')
+  }
+
+  // 2) For block mentions, strip the '@' but keep the block name
+  for (const label of blockLabels) {
+    const pattern = new RegExp(`@${escapeRegExp(label)}(?!\\S)`, 'g')
+    result = result.replace(pattern, label)
+  }
+
+  // 3) Remove any remaining @mentions (unknown or not in contexts)
+  result = result.replace(/(^|\s)@([^\s]+)/g, ' ')
+
+  // Normalize whitespace
+  result = result.replace(/\s{2,}/g, ' ').trim()
+  return result
 }
 
 async function processPastChatFromDb(

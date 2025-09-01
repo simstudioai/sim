@@ -691,9 +691,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
     setAttachedFiles([])
     
-    // Clear contexts after submission
-    // Don't auto-add current_workflow if user has disabled it
-    setSelectedContexts([])
+    // Clear @mention contexts after submission, but preserve current_workflow if not disabled
+    setSelectedContexts((prev) => {
+      // Keep current_workflow context if it's not disabled
+      const currentWorkflowCtx = prev.find(
+        ctx => ctx.kind === 'current_workflow' && !workflowAutoAddDisabled
+      )
+      return currentWorkflowCtx ? [currentWorkflowCtx] : []
+    })
     
     // Mark that we just sent a message to prevent auto-add
     setJustSentMessage(true)
@@ -1241,6 +1246,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               insertWorkflowBlockMention(chosen)
               setSubmenuQueryStart(null)
             }
+          } else if (!openSubmenuFor && selected === 'Docs') {
+            resetActiveMentionQuery()
+            insertDocsMention()
           } else if (!openSubmenuFor && selected === 'Templates') {
             resetActiveMentionQuery()
             setOpenSubmenuFor('Templates')
@@ -1658,25 +1666,34 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       // Keep selected contexts in sync with inline @label tokens so deleting inline tokens updates pills
   useEffect(() => {
     if (!message) {
-      // Clear all contexts when message is empty
-      // Don't auto-add anything here - let the mount effect handle initial auto-add
-      if (selectedContexts.length > 0) {
-        setSelectedContexts([])
-      }
+      // When message is empty, preserve current_workflow if not disabled
+      // Clear other contexts
+      setSelectedContexts((prev) => {
+        const currentWorkflowCtx = prev.find(
+          ctx => ctx.kind === 'current_workflow' && !workflowAutoAddDisabled
+        )
+        return currentWorkflowCtx ? [currentWorkflowCtx] : []
+      })
       return
     }
     const presentLabels = new Set<string>()
     const ranges = computeMentionRanges()
     for (const r of ranges) presentLabels.add(r.label)
     setSelectedContexts((prev) => {
-      // Only keep contexts that are mentioned in the text
+      // Keep contexts that are mentioned in text OR are current_workflow (unless disabled)
       const filteredContexts = prev.filter((c) => {
+        // Always preserve current_workflow context if it's not disabled
+        // It should only be removable via the X button
+        if (c.kind === 'current_workflow' && !workflowAutoAddDisabled) {
+          return true
+        }
+        // For other contexts, check if they're mentioned in text
         return !!c.label && presentLabels.has(c.label!)
       })
       
       return filteredContexts
     })
-  }, [message])
+  }, [message, workflowAutoAddDisabled])
 
     // Manage aggregate mode and preloading when needed
     useEffect(() => {
@@ -2794,12 +2811,17 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                   )}
                                   <span>{label === 'Workflows' ? 'All workflows' : label}</span>
                                 </div>
-                                <ChevronRight className='h-3.5 w-3.5 text-muted-foreground' />
+                                {label !== 'Docs' && (
+                                  <ChevronRight className='h-3.5 w-3.5 text-muted-foreground' />
+                                )}
                               </div>
                             ))}
 
                             {(() => {
-                              const aq = q
+                              const aq = (getActiveMentionQueryAtPosition(getCaretPos())?.query || '').toLowerCase()
+                              const filteredLen = mentionOptions.filter((label) =>
+                                label.toLowerCase().includes(aq)
+                              ).length
                               const aggregated = [
                                 ...workflowBlocks
                                   .filter((b) => (b.name || b.id).toLowerCase().includes(aq))
@@ -2839,7 +2861,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                   {aggregated.map((item, idx) => (
                                     <div
                                       key={`${item.type}-${(item.value as any).id}`}
-                                      data-idx={filtered.length + idx}
+                                      data-idx={filteredLen + idx}
                                       className={cn(
                                         'flex cursor-default items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
                                         inAggregated && submenuActiveIndex === idx && 'bg-muted'
