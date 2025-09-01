@@ -104,6 +104,9 @@ export interface CopilotState {
 
   // Map of toolCallId -> CopilotToolCall for quick access during streaming
   toolCallsById: Record<string, CopilotToolCall>
+
+  // Transient flag to prevent auto-selecting a chat during new-chat UX
+  suppressAutoSelect?: boolean
 }
 
 export interface CopilotActions {
