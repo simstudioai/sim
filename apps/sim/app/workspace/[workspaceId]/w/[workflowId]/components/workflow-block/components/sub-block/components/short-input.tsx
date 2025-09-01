@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Wand2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { useReactFlow } from 'reactflow'
 import { Button } from '@/components/ui/button'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
@@ -84,6 +85,9 @@ export function ShortInput({
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
 
   const emitTagSelection = useTagSelection(blockId, subBlockId)
+
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
 
   // Get ReactFlow instance for zoom control
   const reactFlowInstance = useReactFlow()
@@ -199,7 +203,7 @@ export function ShortInput({
   }, [value])
 
   // Handle paste events to ensure long values are handled correctly
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+  const handlePaste = (_e: React.ClipboardEvent<HTMLInputElement>) => {
     // Let the paste happen normally
     // Then ensure scroll positions are synced after the content is updated
     setTimeout(() => {
@@ -447,6 +451,7 @@ export function ShortInput({
               searchTerm={searchTerm}
               inputValue={value?.toString() ?? ''}
               cursorPosition={cursorPosition}
+              workspaceId={workspaceId}
               onClose={() => {
                 setShowEnvVars(false)
                 setSearchTerm('')

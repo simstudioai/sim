@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import type { EnvironmentVariable as StoreEnvironmentVariable } from '@/stores/settings/environment/types'
@@ -106,6 +107,11 @@ export function EnvironmentVariables({
     }
 
     return false
+  }, [envVars, workspaceVars])
+
+  // Check if there are any active conflicts
+  const hasConflicts = useMemo(() => {
+    return envVars.some((envVar) => !!envVar.key && Object.hasOwn(workspaceVars, envVar.key))
   }, [envVars, workspaceVars])
 
   // Intercept close attempts to check for unsaved changes
@@ -351,11 +357,7 @@ export function EnvironmentVariables({
     const isConflict = !!envVar.key && Object.hasOwn(workspaceVars, envVar.key)
     return (
       <>
-<<<<<<< HEAD
         <div className={`${GRID_COLS} items-center`}>
-=======
-        <div key={envVar.id || originalIndex} className={`${GRID_COLS} items-center`}>
->>>>>>> 3400df56e (feat(env-vars): workspace scoped environment variables)
           <Input
             data-input-type='key'
             value={envVar.key}
@@ -367,7 +369,7 @@ export function EnvironmentVariables({
             autoCapitalize='off'
             spellCheck='false'
             name={`env-var-key-${envVar.id || originalIndex}-${Math.random()}`}
-            className={`h-9 rounded-[8px] border-none bg-muted px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 ${isConflict ? 'outline-none ring-0 border border-destructive/50 text-destructive' : ''}`}
+            className={`h-9 rounded-[8px] border-none px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 ${isConflict ? 'border border-red-500 bg-[#F6D2D2] outline-none ring-0 disabled:bg-[#F6D2D2] disabled:opacity-100 dark:bg-[#442929] disabled:dark:bg-[#442929]' : 'bg-muted'}`}
           />
           <Input
             data-input-type='value'
@@ -381,41 +383,54 @@ export function EnvironmentVariables({
             placeholder={isConflict ? 'Workspace override active' : 'Enter value'}
             disabled={isConflict}
             aria-disabled={isConflict}
-            className={`allow-scroll h-9 rounded-[8px] border-none bg-muted px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 ${isConflict ? 'outline-none ring-0 border border-destructive/50 text-destructive/80 cursor-not-allowed' : ''}`}
+            className={`allow-scroll h-9 rounded-[8px] border-none px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 ${isConflict ? 'cursor-not-allowed border border-red-500 bg-[#F6D2D2] outline-none ring-0 disabled:bg-[#F6D2D2] disabled:opacity-100 dark:bg-[#442929] disabled:dark:bg-[#442929]' : 'bg-muted'}`}
             autoComplete='off'
             autoCorrect='off'
             autoCapitalize='off'
             spellCheck='false'
             name={`env-var-value-${envVar.id || originalIndex}-${Math.random()}`}
           />
-          <div className='flex items-center gap-2'>
-            <Button
-              variant='ghost'
-              size='icon'
-              onClick={() => removeEnvVar(originalIndex)}
-              className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
-            >
-              ×
-            </Button>
-            <Button
-              variant='ghost'
-              size='icon'
-              title='Make it Workspace Scoped'
-              aria-label='Make it Workspace Scoped'
-              disabled={!envVar.key || !envVar.value || isConflict || !workspaceId}
-              onClick={() => {
-                if (!envVar.key || !envVar.value || !workspaceId) return
-                setWorkspaceVars((prev) => ({ ...prev, [envVar.key]: envVar.value }))
-                setConflicts((prev) => (prev.includes(envVar.key) ? prev : [...prev, envVar.key]))
-              }}
-              className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
-            >
-              <Share2 className='h-4 w-4' />
-            </Button>
+          <div className='flex items-center justify-end gap-2'>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant='ghost'
+                  size='icon'
+                  disabled={!envVar.key || !envVar.value || isConflict || !workspaceId}
+                  onClick={() => {
+                    if (!envVar.key || !envVar.value || !workspaceId) return
+                    // Add to workspace
+                    setWorkspaceVars((prev) => ({ ...prev, [envVar.key]: envVar.value }))
+                    setConflicts((prev) =>
+                      prev.includes(envVar.key) ? prev : [...prev, envVar.key]
+                    )
+                    // Remove from personal env vars to prevent conflict
+                    removeEnvVar(originalIndex)
+                  }}
+                  className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
+                >
+                  <Share2 className='h-4 w-4' />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Make it workspace scoped</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant='ghost'
+                  size='icon'
+                  onClick={() => removeEnvVar(originalIndex)}
+                  className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
+                >
+                  ×
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Delete environment variable</TooltipContent>
+            </Tooltip>
           </div>
         </div>
         {isConflict && (
-          <div className='col-span-3 -mt-1 mb-2 text-[12px] leading-tight text-destructive/80'>
+          <div className='col-span-3 mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
             Workspace variable with the same name overrides this. Rename your personal key to use
             it.
           </div>
@@ -465,7 +480,7 @@ export function EnvironmentVariables({
             <>
               {/* Workspace section */}
               <div className='mb-6 space-y-2'>
-                <div className='text-[13px] font-medium text-foreground'>Workspace Environment</div>
+                <div className='font-medium text-[13px] text-foreground'>Workspace</div>
                 {Object.keys(workspaceVars).length === 0 ? (
                   <div className='text-muted-foreground text-sm'>No workspace variables yet.</div>
                 ) : (
@@ -500,34 +515,39 @@ export function EnvironmentVariables({
                         className='h-9 rounded-[8px] border-none bg-muted px-3 text-sm'
                       />
                       <Input
-                        value={value ? '••••••••' : ''}
+                        value={value ? '•'.repeat(value.length) : ''}
                         readOnly
                         className='h-9 rounded-[8px] border-none bg-muted px-3 text-sm'
                       />
-                      <Button
-                        variant='ghost'
-                        size='icon'
-                        onClick={() => {
-                          setWorkspaceVars((prev) => {
-                            const next = { ...prev }
-                            delete next[key]
-                            return next
-                          })
-                          setConflicts((prev) => prev.filter((k) => k !== key))
-                        }}
-                        className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
-                      >
-                        ×
-                      </Button>
+                      <div className='flex justify-end'>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant='ghost'
+                              size='icon'
+                              onClick={() => {
+                                setWorkspaceVars((prev) => {
+                                  const next = { ...prev }
+                                  delete next[key]
+                                  return next
+                                })
+                                setConflicts((prev) => prev.filter((k) => k !== key))
+                              }}
+                              className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
+                            >
+                              ×
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete environment variable</TooltipContent>
+                        </Tooltip>
+                      </div>
                     </div>
                   ))
                 )}
               </div>
 
               {/* Personal section */}
-              <div className='mt-8 mb-2 text-[13px] font-medium text-foreground'>
-                Personal Environment
-              </div>
+              <div className='mt-8 mb-2 font-medium text-[13px] text-foreground'> Personal </div>
               {filteredEnvVars.map(({ envVar, originalIndex }) => (
                 <div key={envVar.id || originalIndex}>{renderEnvVarRow(envVar, originalIndex)}</div>
               ))}
@@ -561,9 +581,20 @@ export function EnvironmentVariables({
                 Add Variable
               </Button>
 
-              <Button onClick={handleSave} disabled={!hasChanges} className='h-9 rounded-[8px]'>
-                Save Changes
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={handleSave}
+                    disabled={!hasChanges || hasConflicts}
+                    className={`h-9 rounded-[8px] ${hasConflicts ? 'cursor-not-allowed opacity-50' : ''}`}
+                  >
+                    Save Changes
+                  </Button>
+                </TooltipTrigger>
+                {hasConflicts && (
+                  <TooltipContent>Resolve all conflicts before saving</TooltipContent>
+                )}
+              </Tooltip>
             </>
           )}
         </div>
@@ -574,19 +605,35 @@ export function EnvironmentVariables({
           <AlertDialogHeader>
             <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
             <AlertDialogDescription>
-              You have unsaved changes. Do you want to save them before closing?
+              {hasConflicts
+                ? 'You have unsaved changes, but conflicts must be resolved before saving. You can discard your changes to close the modal.'
+                : 'You have unsaved changes. Do you want to save them before closing?'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className='flex'>
             <AlertDialogCancel onClick={handleCancel} className='h-9 w-full rounded-[8px]'>
               Discard Changes
             </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleSave}
-              className='h-9 w-full rounded-[8px] transition-all duration-200'
-            >
-              Save Changes
-            </AlertDialogAction>
+            {hasConflicts ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AlertDialogAction
+                    disabled={true}
+                    className='h-9 w-full cursor-not-allowed rounded-[8px] opacity-50 transition-all duration-200'
+                  >
+                    Save Changes
+                  </AlertDialogAction>
+                </TooltipTrigger>
+                <TooltipContent>Resolve all conflicts before saving</TooltipContent>
+              </Tooltip>
+            ) : (
+              <AlertDialogAction
+                onClick={handleSave}
+                className='h-9 w-full rounded-[8px] transition-all duration-200'
+              >
+                Save Changes
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

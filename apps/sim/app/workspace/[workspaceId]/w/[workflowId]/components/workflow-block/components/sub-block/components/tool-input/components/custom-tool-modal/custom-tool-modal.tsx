@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Code, FileJson, Trash2, Wand2, X } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,6 +67,8 @@ export function CustomToolModal({
   blockId,
   initialValues,
 }: CustomToolModalProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const [activeSection, setActiveSection] = useState<ToolSection>('schema')
   const [jsonSchema, setJsonSchema] = useState('')
   const [functionCode, setFunctionCode] = useState('')
@@ -1070,6 +1073,7 @@ try {
                       searchTerm={searchTerm}
                       inputValue={functionCode}
                       cursorPosition={cursorPosition}
+                      workspaceId={workspaceId}
                       onClose={() => {
                         setShowEnvVars(false)
                         setSearchTerm('')
