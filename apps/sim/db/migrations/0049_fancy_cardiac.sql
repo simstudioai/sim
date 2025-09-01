@@ -1,20 +1,3 @@
--- Create workspace_environment table for workspace-scoped environment variables
-CREATE TABLE IF NOT EXISTS "workspace_environment" (
-  "id" text PRIMARY KEY NOT NULL,
-  "workspace_id" text NOT NULL,
-  "variables" json NOT NULL DEFAULT '{}',
-  "created_at" timestamp DEFAULT now() NOT NULL,
-  "updated_at" timestamp DEFAULT now() NOT NULL
-);
-
--- Foreign key to workspace
-ALTER TABLE "workspace_environment"
-  ADD CONSTRAINT "workspace_environment_workspace_id_workspace_id_fk"
-  FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;
-
--- Ensure one row per workspace
-CREATE UNIQUE INDEX IF NOT EXISTS "workspace_environment_workspace_unique" ON "workspace_environment" ("workspace_id");
-CREATE INDEX IF NOT EXISTS "workspace_environment_workspace_id_idx" ON "workspace_environment" ("workspace_id");
 CREATE TABLE "workflow_execution_blocks" (
 	"id" text PRIMARY KEY NOT NULL,
 	"execution_id" text NOT NULL,
