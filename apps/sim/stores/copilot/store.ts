@@ -1266,7 +1266,7 @@ async function* parseSSEStream(
 // Initial state (subset required for UI/streaming)
 const initialState = {
   mode: 'agent' as const,
-  agentDepth: 0 as 0 | 1 | 2 | 3,
+  agentDepth: 1 as 0 | 1 | 2 | 3,
   agentPrefetch: true,
   currentChat: null as CopilotChat | null,
   chats: [] as CopilotChat[],

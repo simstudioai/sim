@@ -12,6 +12,7 @@ import {
   ArrowUp,
   AtSign,
   Blocks,
+  BookOpen,
   Bot,
   Box,
   Brain,
@@ -29,7 +30,6 @@ import {
   Paperclip,
   Shapes,
   SquareChevronRight,
-  BookOpen,
   Workflow,
   X,
   Zap,
@@ -128,14 +128,22 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const submenuRef = useRef<HTMLDivElement>(null)
     const menuListRef = useRef<HTMLDivElement>(null)
     const [mentionActiveIndex, setMentionActiveIndex] = useState(0)
-    const mentionOptions = ['Chats', 'Workflows', 'Workflow Blocks', 'Blocks', 'Knowledge', 'Docs', 'Templates', 'Logs']
+    const mentionOptions = [
+      'Chats',
+      'Workflows',
+      'Workflow Blocks',
+      'Blocks',
+      'Knowledge',
+      'Docs',
+      'Templates',
+      'Logs',
+    ]
     const [openSubmenuFor, setOpenSubmenuFor] = useState<string | null>(null)
     const [submenuActiveIndex, setSubmenuActiveIndex] = useState(0)
     const [inAggregated, setInAggregated] = useState(false)
     const isSubmenu = (
       v: 'Chats' | 'Workflows' | 'Workflow Blocks' | 'Knowledge' | 'Blocks' | 'Templates' | 'Logs'
-    ) =>
-      openSubmenuFor === v
+    ) => openSubmenuFor === v
     const [pastChats, setPastChats] = useState<
       Array<{ id: string; title: string | null; workflowId: string | null; updatedAt?: string }>
     >([])
@@ -159,21 +167,30 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     // const [templatesQuery, setTemplatesQuery] = useState('')
     // Add logs list state
     const [logsList, setLogsList] = useState<
-      Array<{ id: string; executionId?: string; level: string; trigger: string | null; createdAt: string; workflowName: string }>
+      Array<{
+        id: string
+        executionId?: string
+        level: string
+        trigger: string | null
+        createdAt: string
+        workflowName: string
+      }>
     >([])
     const [isLoadingLogs, setIsLoadingLogs] = useState(false)
 
     const { data: session } = useSession()
-      const { currentChat, workflowId } = useCopilotStore()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
-  // Track per-chat preference for auto-adding workflow context
-  const [workflowAutoAddDisabledMap, setWorkflowAutoAddDisabledMap] = useState<Record<string, boolean>>({})
-  // Also track for new chats (no ID yet)
-  const [newChatWorkflowDisabled, setNewChatWorkflowDisabled] = useState(false)
-  const workflowAutoAddDisabled = currentChat?.id 
-    ? workflowAutoAddDisabledMap[currentChat.id] || false 
-    : newChatWorkflowDisabled
+    const { currentChat, workflowId } = useCopilotStore()
+    const params = useParams()
+    const workspaceId = params.workspaceId as string
+    // Track per-chat preference for auto-adding workflow context
+    const [workflowAutoAddDisabledMap, setWorkflowAutoAddDisabledMap] = useState<
+      Record<string, boolean>
+    >({})
+    // Also track for new chats (no ID yet)
+    const [newChatWorkflowDisabled, setNewChatWorkflowDisabled] = useState(false)
+    const workflowAutoAddDisabled = currentChat?.id
+      ? workflowAutoAddDisabledMap[currentChat.id] || false
+      : newChatWorkflowDisabled
 
     // Determine placeholder based on mode
     const effectivePlaceholder =
@@ -200,113 +217,116 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const setMessage =
       controlledValue !== undefined ? onControlledChange || (() => {}) : setInternalMessage
 
-      // Load workflows on mount if we have a workflowId
-  useEffect(() => {
-    if (workflowId && workflows.length === 0) {
-      ensureWorkflowsLoaded()
-    }
-  }, [workflowId])
+    // Load workflows on mount if we have a workflowId
+    useEffect(() => {
+      if (workflowId && workflows.length === 0) {
+        ensureWorkflowsLoaded()
+      }
+    }, [workflowId])
 
-  // Track the last chat ID we've seen to detect chat changes
-  const [lastChatId, setLastChatId] = useState<string | undefined>(undefined)
-  // Track if we just sent a message to avoid re-adding context after submit
-  const [justSentMessage, setJustSentMessage] = useState(false)
-  
-  // Reset states when switching to a truly new chat
-  useEffect(() => {
-    const currentChatId = currentChat?.id
-    
-    // Detect when we're switching to a different chat
-    if (lastChatId !== currentChatId) {
-      // If switching to a new chat (undefined ID) from a different state
-      // reset the disabled flag so each new chat starts fresh
-      if (!currentChatId && lastChatId !== undefined) {
-        setNewChatWorkflowDisabled(false)
+    // Track the last chat ID we've seen to detect chat changes
+    const [lastChatId, setLastChatId] = useState<string | undefined>(undefined)
+    // Track if we just sent a message to avoid re-adding context after submit
+    const [justSentMessage, setJustSentMessage] = useState(false)
+
+    // Reset states when switching to a truly new chat
+    useEffect(() => {
+      const currentChatId = currentChat?.id
+
+      // Detect when we're switching to a different chat
+      if (lastChatId !== currentChatId) {
+        // If switching to a new chat (undefined ID) from a different state
+        // reset the disabled flag so each new chat starts fresh
+        if (!currentChatId && lastChatId !== undefined) {
+          setNewChatWorkflowDisabled(false)
+        }
+
+        // If a new chat just got an ID assigned, transfer the disabled state
+        if (currentChatId && !lastChatId && newChatWorkflowDisabled) {
+          setWorkflowAutoAddDisabledMap((prev) => ({
+            ...prev,
+            [currentChatId]: true,
+          }))
+          // Keep newChatWorkflowDisabled as false for the next new chat
+          setNewChatWorkflowDisabled(false)
+        }
+
+        // Reset the "just sent" flag when switching chats
+        setJustSentMessage(false)
+
+        setLastChatId(currentChatId)
       }
-      
-      // If a new chat just got an ID assigned, transfer the disabled state
-      if (currentChatId && !lastChatId && newChatWorkflowDisabled) {
-        setWorkflowAutoAddDisabledMap(prev => ({
-          ...prev,
-          [currentChatId]: true
-        }))
-        // Keep newChatWorkflowDisabled as false for the next new chat
-        setNewChatWorkflowDisabled(false)
+    }, [currentChat?.id, lastChatId, newChatWorkflowDisabled])
+
+    // Auto-add workflow context when message is empty and not disabled
+    useEffect(() => {
+      // Don't auto-add if disabled or no workflow
+      if (!workflowId || workflowAutoAddDisabled) return
+
+      // Don't auto-add right after sending a message
+      if (justSentMessage) return
+
+      // Only add when message is empty (new message being composed)
+      if (message && message.trim().length > 0) return
+
+      // Check if current_workflow context already exists
+      const hasCurrentWorkflowContext = selectedContexts.some(
+        (ctx) => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
+      )
+      if (hasCurrentWorkflowContext) {
+        return
       }
-      
-      // Reset the "just sent" flag when switching chats
-      setJustSentMessage(false)
-      
-      setLastChatId(currentChatId)
-    }
-  }, [currentChat?.id, lastChatId, newChatWorkflowDisabled])
-  
-  // Auto-add workflow context when message is empty and not disabled
-  useEffect(() => {
-    // Don't auto-add if disabled or no workflow
-    if (!workflowId || workflowAutoAddDisabled) return
-    
-    // Don't auto-add right after sending a message
-    if (justSentMessage) return
-    
-    // Only add when message is empty (new message being composed)
-    if (message && message.trim().length > 0) return
-    
-    // Check if current_workflow context already exists
-    const hasCurrentWorkflowContext = selectedContexts.some(
-      ctx => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
-    )
-    if (hasCurrentWorkflowContext) {
-      return
-    }
-    
-    const addWorkflowContext = async () => {
-      // Double-check disabled state right before adding
-      if (workflowAutoAddDisabled) return
-      
-      // Get workflow name
-      let workflowName = 'Current Workflow'
-      
-      // Try loaded workflows first
-      const existingWorkflow = workflows.find(w => w.id === workflowId)
-      if (existingWorkflow) {
-        workflowName = existingWorkflow.name
-      } else if (workflows.length === 0) {
-        // If workflows not loaded yet, try to fetch this specific one
-        try {
-          const resp = await fetch(`/api/workflows/${workflowId}`)
-          if (resp.ok) {
-            const data = await resp.json()
-            workflowName = data?.data?.name || 'Current Workflow'
-          }
-        } catch {}
+
+      const addWorkflowContext = async () => {
+        // Double-check disabled state right before adding
+        if (workflowAutoAddDisabled) return
+
+        // Get workflow name
+        let workflowName = 'Current Workflow'
+
+        // Try loaded workflows first
+        const existingWorkflow = workflows.find((w) => w.id === workflowId)
+        if (existingWorkflow) {
+          workflowName = existingWorkflow.name
+        } else if (workflows.length === 0) {
+          // If workflows not loaded yet, try to fetch this specific one
+          try {
+            const resp = await fetch(`/api/workflows/${workflowId}`)
+            if (resp.ok) {
+              const data = await resp.json()
+              workflowName = data?.data?.name || 'Current Workflow'
+            }
+          } catch {}
+        }
+
+        // Add current_workflow context using functional update to prevent duplicates
+        setSelectedContexts((prev) => {
+          const alreadyHasCurrentWorkflow = prev.some(
+            (ctx) => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
+          )
+          if (alreadyHasCurrentWorkflow) return prev
+
+          return [
+            ...prev,
+            { kind: 'current_workflow', workflowId, label: workflowName } as ChatContext,
+          ]
+        })
       }
-      
-      // Add current_workflow context using functional update to prevent duplicates
-      setSelectedContexts(prev => {
-        const alreadyHasCurrentWorkflow = prev.some(
-          ctx => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
-        )
-        if (alreadyHasCurrentWorkflow) return prev
-        
-        return [...prev, { kind: 'current_workflow', workflowId, label: workflowName } as ChatContext]
-      })
-    }
-    
-    addWorkflowContext()
-  }, [workflowId, workflowAutoAddDisabled, workflows.length, message, justSentMessage]) // Re-run when message changes
-  
-  // Auto-resize textarea and toggle vertical scroll when exceeding max height
-  useEffect(() => {
-    const textarea = textareaRef.current
-    if (textarea) {
-      const maxHeight = 120
-      textarea.style.height = 'auto'
-      const nextHeight = Math.min(textarea.scrollHeight, maxHeight)
-      textarea.style.height = `${nextHeight}px`
-      textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
-    }
-  }, [message])
+
+      addWorkflowContext()
+    }, [workflowId, workflowAutoAddDisabled, workflows.length, message, justSentMessage]) // Re-run when message changes
+
+    // Auto-resize textarea and toggle vertical scroll when exceeding max height
+    useEffect(() => {
+      const textarea = textareaRef.current
+      if (textarea) {
+        const maxHeight = 120
+        textarea.style.height = 'auto'
+        const nextHeight = Math.min(textarea.scrollHeight, maxHeight)
+        textarea.style.height = `${nextHeight}px`
+        textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
+      }
+    }, [message])
 
     // Close mention menu on outside click
     useEffect(() => {
@@ -620,68 +640,68 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }
 
-      const handleSubmit = async () => {
-    const trimmedMessage = message.trim()
-    if (!trimmedMessage || disabled || isLoading) return
+    const handleSubmit = async () => {
+      const trimmedMessage = message.trim()
+      if (!trimmedMessage || disabled || isLoading) return
 
-    // Check for failed uploads and show user feedback
-    const failedUploads = attachedFiles.filter((f) => !f.uploading && !f.key)
-    if (failedUploads.length > 0) {
-      logger.error(`Some files failed to upload: ${failedUploads.map((f) => f.name).join(', ')}`)
-    }
-
-    // Convert attached files to the format expected by the API
-    const fileAttachments = attachedFiles
-      .filter((f) => !f.uploading && f.key) // Only include successfully uploaded files with keys
-      .map((f) => ({
-        id: f.id,
-        key: f.key!, // Use the actual storage key from the upload response
-        filename: f.name,
-        media_type: f.type,
-        size: f.size,
-      }))
-
-    // Build contexts to send: hide current_workflow in UI but always include it in payload
-    const uiContexts = selectedContexts.filter((c) => (c as any).kind !== 'current_workflow')
-    const finalContexts: any[] = [...uiContexts]
-    
-    if (workflowId) {
-      // Include current_workflow for the agent; label not shown in UI
-      finalContexts.push({ kind: 'current_workflow', workflowId, label: 'Current Workflow' })
-    }
-
-    onSubmit(trimmedMessage, fileAttachments, finalContexts as any)
-
-    // Clean up preview URLs before clearing
-    attachedFiles.forEach((f) => {
-      if (f.previewUrl) {
-        URL.revokeObjectURL(f.previewUrl)
+      // Check for failed uploads and show user feedback
+      const failedUploads = attachedFiles.filter((f) => !f.uploading && !f.key)
+      if (failedUploads.length > 0) {
+        logger.error(`Some files failed to upload: ${failedUploads.map((f) => f.name).join(', ')}`)
       }
-    })
 
-    // Clear the message and files after submit
-    if (controlledValue !== undefined) {
-      onControlledChange?.('')
-    } else {
-      setInternalMessage('')
+      // Convert attached files to the format expected by the API
+      const fileAttachments = attachedFiles
+        .filter((f) => !f.uploading && f.key) // Only include successfully uploaded files with keys
+        .map((f) => ({
+          id: f.id,
+          key: f.key!, // Use the actual storage key from the upload response
+          filename: f.name,
+          media_type: f.type,
+          size: f.size,
+        }))
+
+      // Build contexts to send: hide current_workflow in UI but always include it in payload
+      const uiContexts = selectedContexts.filter((c) => (c as any).kind !== 'current_workflow')
+      const finalContexts: any[] = [...uiContexts]
+
+      if (workflowId) {
+        // Include current_workflow for the agent; label not shown in UI
+        finalContexts.push({ kind: 'current_workflow', workflowId, label: 'Current Workflow' })
+      }
+
+      onSubmit(trimmedMessage, fileAttachments, finalContexts as any)
+
+      // Clean up preview URLs before clearing
+      attachedFiles.forEach((f) => {
+        if (f.previewUrl) {
+          URL.revokeObjectURL(f.previewUrl)
+        }
+      })
+
+      // Clear the message and files after submit
+      if (controlledValue !== undefined) {
+        onControlledChange?.('')
+      } else {
+        setInternalMessage('')
+      }
+      setAttachedFiles([])
+
+      // Clear @mention contexts after submission, but preserve current_workflow if not disabled
+      setSelectedContexts((prev) => {
+        // Keep current_workflow context if it's not disabled
+        const currentWorkflowCtx = prev.find(
+          (ctx) => ctx.kind === 'current_workflow' && !workflowAutoAddDisabled
+        )
+        return currentWorkflowCtx ? [currentWorkflowCtx] : []
+      })
+
+      // Mark that we just sent a message to prevent auto-add
+      setJustSentMessage(true)
+
+      setOpenSubmenuFor(null)
+      setShowMentionMenu(false)
     }
-    setAttachedFiles([])
-    
-    // Clear @mention contexts after submission, but preserve current_workflow if not disabled
-    setSelectedContexts((prev) => {
-      // Keep current_workflow context if it's not disabled
-      const currentWorkflowCtx = prev.find(
-        ctx => ctx.kind === 'current_workflow' && !workflowAutoAddDisabled
-      )
-      return currentWorkflowCtx ? [currentWorkflowCtx] : []
-    })
-    
-    // Mark that we just sent a message to prevent auto-add
-    setJustSentMessage(true)
-    
-    setOpenSubmenuFor(null)
-    setShowMentionMenu(false)
-  }
 
     const handleAbort = () => {
       if (onAbort && isLoading) {
@@ -715,7 +735,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           ? mentionOptions.filter((o) => o.toLowerCase().includes(mainQ))
           : []
         const isAggregate = !openSubmenuFor && mainQ.length > 0 && filteredMain.length === 0
-                  const aggregatedList =
+        const aggregatedList =
           !openSubmenuFor && mainQ.length > 0
             ? [
                 ...workflowBlocks
@@ -1136,7 +1156,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               if (chosen.type === 'Chats') insertPastChatMention(chosen.value as any)
               else if (chosen.type === 'Workflows') insertWorkflowMention(chosen.value as any)
               else if (chosen.type === 'Knowledge') insertKnowledgeMention(chosen.value as any)
-              else if (chosen.type === 'Workflow Blocks') insertWorkflowBlockMention(chosen.value as any)
+              else if (chosen.type === 'Workflow Blocks')
+                insertWorkflowBlockMention(chosen.value as any)
               else if (chosen.type === 'Blocks') insertBlockMention(chosen.value as any)
               else if (chosen.type === 'Templates') insertTemplateMention(chosen.value as any)
               else if (chosen.type === 'Logs') insertLogMention(chosen.value as any)
@@ -1215,7 +1236,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             void ensureWorkflowBlocksLoaded()
           } else if (openSubmenuFor === 'Workflow Blocks') {
             const q = getSubmenuQuery().toLowerCase()
-            const filtered = workflowBlocks.filter((b) => (b.name || b.id).toLowerCase().includes(q))
+            const filtered = workflowBlocks.filter((b) =>
+              (b.name || b.id).toLowerCase().includes(q)
+            )
             if (filtered.length > 0) {
               const chosen =
                 filtered[Math.max(0, Math.min(submenuActiveIndex, filtered.length - 1))]
@@ -1367,12 +1390,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       } else {
         setInternalMessage(newValue)
       }
-      
+
       // Reset the "just sent" flag when user starts typing
       if (justSentMessage && newValue.length > 0) {
         setJustSentMessage(false)
       }
-      
+
       const caret = e.target.selectionStart ?? newValue.length
       const active = getActiveMentionQueryAtPosition(caret, newValue)
       if (active) {
@@ -1639,37 +1662,37 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       })
     }
 
-      // Keep selected contexts in sync with inline @label tokens so deleting inline tokens updates pills
-  useEffect(() => {
-    if (!message) {
-      // When message is empty, preserve current_workflow if not disabled
-      // Clear other contexts
+    // Keep selected contexts in sync with inline @label tokens so deleting inline tokens updates pills
+    useEffect(() => {
+      if (!message) {
+        // When message is empty, preserve current_workflow if not disabled
+        // Clear other contexts
+        setSelectedContexts((prev) => {
+          const currentWorkflowCtx = prev.find(
+            (ctx) => ctx.kind === 'current_workflow' && !workflowAutoAddDisabled
+          )
+          return currentWorkflowCtx ? [currentWorkflowCtx] : []
+        })
+        return
+      }
+      const presentLabels = new Set<string>()
+      const ranges = computeMentionRanges()
+      for (const r of ranges) presentLabels.add(r.label)
       setSelectedContexts((prev) => {
-        const currentWorkflowCtx = prev.find(
-          ctx => ctx.kind === 'current_workflow' && !workflowAutoAddDisabled
-        )
-        return currentWorkflowCtx ? [currentWorkflowCtx] : []
+        // Keep contexts that are mentioned in text OR are current_workflow (unless disabled)
+        const filteredContexts = prev.filter((c) => {
+          // Always preserve current_workflow context if it's not disabled
+          // It should only be removable via the X button
+          if (c.kind === 'current_workflow' && !workflowAutoAddDisabled) {
+            return true
+          }
+          // For other contexts, check if they're mentioned in text
+          return !!c.label && presentLabels.has(c.label!)
+        })
+
+        return filteredContexts
       })
-      return
-    }
-    const presentLabels = new Set<string>()
-    const ranges = computeMentionRanges()
-    for (const r of ranges) presentLabels.add(r.label)
-    setSelectedContexts((prev) => {
-      // Keep contexts that are mentioned in text OR are current_workflow (unless disabled)
-      const filteredContexts = prev.filter((c) => {
-        // Always preserve current_workflow context if it's not disabled
-        // It should only be removable via the X button
-        if (c.kind === 'current_workflow' && !workflowAutoAddDisabled) {
-          return true
-        }
-        // For other contexts, check if they're mentioned in text
-        return !!c.label && presentLabels.has(c.label!)
-      })
-      
-      return filteredContexts
-    })
-  }, [message, workflowAutoAddDisabled])
+    }, [message, workflowAutoAddDisabled])
 
     // Manage aggregate mode and preloading when needed
     useEffect(() => {
@@ -1834,7 +1857,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           trigger: l.trigger || null,
           createdAt: l.createdAt,
           workflowName:
-            (l.workflow && (l.workflow.name || l.workflow.title)) || l.workflowName || 'Untitled Workflow',
+            (l.workflow && (l.workflow.name || l.workflow.title)) ||
+            l.workflowName ||
+            'Untitled Workflow',
         }))
         setLogsList(mapped)
       } catch {
@@ -1876,61 +1901,68 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }
 
-      // Get workflow blocks from the workflow store
-  const workflowStoreBlocks = useWorkflowStore((state) => state.blocks)
-  
-  // Transform workflow store blocks into the format needed for the mention menu
-  const [workflowBlocks, setWorkflowBlocks] = useState<
-    Array<{ id: string; name: string; type: string; iconComponent?: any; bgColor?: string }>
-  >([])
-  const [isLoadingWorkflowBlocks, setIsLoadingWorkflowBlocks] = useState(false)
+    // Get workflow blocks from the workflow store
+    const workflowStoreBlocks = useWorkflowStore((state) => state.blocks)
 
-  // Sync workflow blocks from store whenever they change
-  useEffect(() => {
-    const syncWorkflowBlocks = async () => {
-      if (!workflowId || !workflowStoreBlocks || Object.keys(workflowStoreBlocks).length === 0) {
-        setWorkflowBlocks([])
-        logger.debug('No workflow blocks to sync', { workflowId, hasBlocks: !!workflowStoreBlocks, blockCount: Object.keys(workflowStoreBlocks || {}).length })
-        return
+    // Transform workflow store blocks into the format needed for the mention menu
+    const [workflowBlocks, setWorkflowBlocks] = useState<
+      Array<{ id: string; name: string; type: string; iconComponent?: any; bgColor?: string }>
+    >([])
+    const [isLoadingWorkflowBlocks, setIsLoadingWorkflowBlocks] = useState(false)
+
+    // Sync workflow blocks from store whenever they change
+    useEffect(() => {
+      const syncWorkflowBlocks = async () => {
+        if (!workflowId || !workflowStoreBlocks || Object.keys(workflowStoreBlocks).length === 0) {
+          setWorkflowBlocks([])
+          logger.debug('No workflow blocks to sync', {
+            workflowId,
+            hasBlocks: !!workflowStoreBlocks,
+            blockCount: Object.keys(workflowStoreBlocks || {}).length,
+          })
+          return
+        }
+
+        try {
+          // Map to display with block registry icons/colors
+          const { registry: blockRegistry } = await import('@/blocks/registry')
+          const mapped = Object.values(workflowStoreBlocks).map((b: any) => {
+            const reg = (blockRegistry as any)[b.type]
+            return {
+              id: b.id,
+              name: b.name || b.id,
+              type: b.type,
+              iconComponent: reg?.icon,
+              bgColor: reg?.bgColor || '#6B7280',
+            }
+          })
+          setWorkflowBlocks(mapped)
+          logger.debug('Synced workflow blocks for mention menu', {
+            count: mapped.length,
+            blocks: mapped.map((b) => b.name),
+          })
+        } catch (error) {
+          logger.debug('Failed to sync workflow blocks:', error)
+        }
       }
-      
-      try {
-        // Map to display with block registry icons/colors
-        const { registry: blockRegistry } = await import('@/blocks/registry')
-        const mapped = Object.values(workflowStoreBlocks).map((b: any) => {
-          const reg = (blockRegistry as any)[b.type]
-          return {
-            id: b.id,
-            name: b.name || b.id,
-            type: b.type,
-            iconComponent: reg?.icon,
-            bgColor: reg?.bgColor || '#6B7280',
-          }
-        })
-        setWorkflowBlocks(mapped)
-        logger.debug('Synced workflow blocks for mention menu', { count: mapped.length, blocks: mapped.map(b => b.name) })
-      } catch (error) {
-        logger.debug('Failed to sync workflow blocks:', error)
-      }
+
+      syncWorkflowBlocks()
+    }, [workflowStoreBlocks, workflowId])
+
+    const ensureWorkflowBlocksLoaded = async () => {
+      // Since blocks are now synced from store via useEffect, this can be a no-op
+      // or just ensure the blocks are loaded in the store
+      if (!workflowId) return
+
+      // Debug: Log current state
+      logger.debug('ensureWorkflowBlocksLoaded called', {
+        workflowId,
+        storeBlocksCount: Object.keys(workflowStoreBlocks || {}).length,
+        workflowBlocksCount: workflowBlocks.length,
+      })
+
+      // Blocks will be automatically synced from the store
     }
-    
-    syncWorkflowBlocks()
-  }, [workflowStoreBlocks, workflowId])
-
-  const ensureWorkflowBlocksLoaded = async () => {
-    // Since blocks are now synced from store via useEffect, this can be a no-op
-    // or just ensure the blocks are loaded in the store
-    if (!workflowId) return
-    
-    // Debug: Log current state
-    logger.debug('ensureWorkflowBlocksLoaded called', { 
-      workflowId, 
-      storeBlocksCount: Object.keys(workflowStoreBlocks || {}).length,
-      workflowBlocksCount: workflowBlocks.length 
-    })
-    
-    // Blocks will be automatically synced from the store
-  }
 
     const insertWorkflowBlockMention = (blk: { id: string; name: string }) => {
       const label = `${blk.name}`
@@ -1939,11 +1971,22 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       setSelectedContexts((prev) => {
         if (
           prev.some(
-            (c) => c.kind === 'workflow_block' && (c as any).workflowId === workflowId && (c as any).blockId === blk.id
+            (c) =>
+              c.kind === 'workflow_block' &&
+              (c as any).workflowId === workflowId &&
+              (c as any).blockId === blk.id
           )
         )
           return prev
-        return [...prev, { kind: 'workflow_block', workflowId: workflowId as string, blockId: blk.id, label } as any]
+        return [
+          ...prev,
+          {
+            kind: 'workflow_block',
+            workflowId: workflowId as string,
+            blockId: blk.id,
+            label,
+          } as any,
+        ]
       })
       setShowMentionMenu(false)
       setOpenSubmenuFor(null)
@@ -2028,45 +2071,45 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               {selectedContexts
                 .filter((c) => c.kind !== 'current_workflow')
                 .map((ctx, idx) => (
-                <span
-                  key={`selctx-${idx}-${ctx.label}`}
-                  className='inline-flex items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)] px-1.5 py-0.5 text-[11px] text-foreground'
-                  title={ctx.label}
-                >
-                  {ctx.kind === 'past_chat' ? (
-                    <Bot className='h-3 w-3 text-muted-foreground' />
-                  ) : ctx.kind === 'workflow' ? (
-                    <Workflow className='h-3 w-3 text-muted-foreground' />
-                  ) : ctx.kind === 'blocks' ? (
-                    <Blocks className='h-3 w-3 text-muted-foreground' />
-                  ) : ctx.kind === 'workflow_block' ? (
-                    <Box className='h-3 w-3 text-muted-foreground' />
-                  ) : ctx.kind === 'knowledge' ? (
-                    <LibraryBig className='h-3 w-3 text-muted-foreground' />
-                  ) : ctx.kind === 'templates' ? (
-                    <Shapes className='h-3 w-3 text-muted-foreground' />
-                  ) : ctx.kind === 'docs' ? (
-                    <BookOpen className='h-3 w-3 text-muted-foreground' />
-                  ) : ctx.kind === 'logs' ? (
-                    <SquareChevronRight className='h-3 w-3 text-muted-foreground' />
-                  ) : (
-                    <Info className='h-3 w-3 text-muted-foreground' />
-                  )}
-                  <span className='max-w-[140px] truncate'>{ctx.label}</span>
-                  <button
-                    type='button'
-                    onClick={() => {
-                      // Remove only non-hidden contexts; current_workflow is never shown
-                      setSelectedContexts((prev) => prev.filter((c) => c.label !== ctx.label))
-                    }}
-                    className='text-muted-foreground transition-colors hover:text-foreground'
-                    title='Remove context'
-                    aria-label='Remove context'
+                  <span
+                    key={`selctx-${idx}-${ctx.label}`}
+                    className='inline-flex items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)] px-1.5 py-0.5 text-[11px] text-foreground'
+                    title={ctx.label}
                   >
-                    <X className='h-3 w-3' />
-                  </button>
-                </span>
-              ))}
+                    {ctx.kind === 'past_chat' ? (
+                      <Bot className='h-3 w-3 text-muted-foreground' />
+                    ) : ctx.kind === 'workflow' ? (
+                      <Workflow className='h-3 w-3 text-muted-foreground' />
+                    ) : ctx.kind === 'blocks' ? (
+                      <Blocks className='h-3 w-3 text-muted-foreground' />
+                    ) : ctx.kind === 'workflow_block' ? (
+                      <Box className='h-3 w-3 text-muted-foreground' />
+                    ) : ctx.kind === 'knowledge' ? (
+                      <LibraryBig className='h-3 w-3 text-muted-foreground' />
+                    ) : ctx.kind === 'templates' ? (
+                      <Shapes className='h-3 w-3 text-muted-foreground' />
+                    ) : ctx.kind === 'docs' ? (
+                      <BookOpen className='h-3 w-3 text-muted-foreground' />
+                    ) : ctx.kind === 'logs' ? (
+                      <SquareChevronRight className='h-3 w-3 text-muted-foreground' />
+                    ) : (
+                      <Info className='h-3 w-3 text-muted-foreground' />
+                    )}
+                    <span className='max-w-[140px] truncate'>{ctx.label}</span>
+                    <button
+                      type='button'
+                      onClick={() => {
+                        // Remove only non-hidden contexts; current_workflow is never shown
+                        setSelectedContexts((prev) => prev.filter((c) => c.label !== ctx.label))
+                      }}
+                      className='text-muted-foreground transition-colors hover:text-foreground'
+                      title='Remove context'
+                      aria-label='Remove context'
+                    >
+                      <X className='h-3 w-3' />
+                    </button>
+                  </span>
+                ))}
             </div>
           )}
 
@@ -2132,7 +2175,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     'absolute bottom-full left-0 z-50 mb-1 flex max-h-64 flex-col overflow-hidden rounded-[8px] border bg-popover p-1 text-foreground shadow-md',
                     openSubmenuFor === 'Blocks'
                       ? 'w-80'
-                      : openSubmenuFor === 'Templates' || openSubmenuFor === 'Logs' || aggregatedActive
+                      : openSubmenuFor === 'Templates' ||
+                          openSubmenuFor === 'Logs' ||
+                          aggregatedActive
                         ? 'w-96'
                         : 'w-56'
                   )}
@@ -2465,11 +2510,15 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                     ) : (
                                       <Check className='h-4 w-4 text-green-500' />
                                     )}
-                                    <span className='truncate min-w-0'>{log.workflowName}</span>
+                                    <span className='min-w-0 truncate'>{log.workflowName}</span>
                                     <span className='text-muted-foreground'>·</span>
-                                    <span className='whitespace-nowrap'>{formatTimestamp(log.createdAt)}</span>
+                                    <span className='whitespace-nowrap'>
+                                      {formatTimestamp(log.createdAt)}
+                                    </span>
                                     <span className='text-muted-foreground'>·</span>
-                                    <span className='capitalize'>{(log.trigger || 'manual').toLowerCase()}</span>
+                                    <span className='capitalize'>
+                                      {(log.trigger || 'manual').toLowerCase()}
+                                    </span>
                                   </div>
                                 ))
                             )}
@@ -2542,7 +2591,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                 onClick: () => insertPastChatMention(c),
                               })),
                             ...logsList
-                              .filter((l) => (l.workflowName || 'Untitled Workflow').toLowerCase().includes(q))
+                              .filter((l) =>
+                                (l.workflowName || 'Untitled Workflow').toLowerCase().includes(q)
+                              )
                               .map((l) => ({
                                 type: 'Logs' as const,
                                 id: l.id,
@@ -2654,7 +2705,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                             <Check className='h-3.5 w-3.5 text-green-500' />
                                           )
                                         })()}
-                                        <span className='truncate min-w-0'>
+                                        <span className='min-w-0 truncate'>
                                           {(item.value as any).workflowName}
                                         </span>
                                         <span className='text-muted-foreground'>·</span>
@@ -2663,7 +2714,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                         </span>
                                         <span className='text-muted-foreground'>·</span>
                                         <span className='capitalize'>
-                                          {(((item.value as any).trigger as string) || 'manual').toLowerCase()}
+                                          {(
+                                            ((item.value as any).trigger as string) || 'manual'
+                                          ).toLowerCase()}
                                         </span>
                                       </>
                                     ) : (
@@ -2785,7 +2838,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             ))}
 
                             {(() => {
-                              const aq = (getActiveMentionQueryAtPosition(getCaretPos())?.query || '').toLowerCase()
+                              const aq = (
+                                getActiveMentionQueryAtPosition(getCaretPos())?.query || ''
+                              ).toLowerCase()
                               const filteredLen = mentionOptions.filter((label) =>
                                 label.toLowerCase().includes(aq)
                               ).length
@@ -2800,7 +2855,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                   .map((w) => ({ type: 'Workflows' as const, value: w })),
                                 ...blocksList
                                   .filter((b) => (b.name || b.id).toLowerCase().includes(aq))
-                                  .map((b) => ({ type: 'Blocks' as const, value: b })), 
+                                  .map((b) => ({ type: 'Blocks' as const, value: b })),
                                 ...knowledgeBases
                                   .filter((k) => (k.name || 'Untitled').toLowerCase().includes(aq))
                                   .map((k) => ({ type: 'Knowledge' as const, value: k })),
@@ -2815,7 +2870,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                   )
                                   .map((c) => ({ type: 'Chats' as const, value: c })),
                                 ...logsList
-                                  .filter((l) => (l.workflowName || 'Untitled Workflow').toLowerCase().includes(aq))
+                                  .filter((l) =>
+                                    (l.workflowName || 'Untitled Workflow')
+                                      .toLowerCase()
+                                      .includes(aq)
+                                  )
                                   .map((l) => ({ type: 'Logs' as const, value: l })),
                               ]
                               if (!aq || aq.length === 0 || aggregated.length === 0) return null
@@ -2938,7 +2997,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                               <Check className='h-3.5 w-3.5 text-green-500' />
                                             )
                                           })()}
-                                          <span className='truncate min-w-0'>
+                                          <span className='min-w-0 truncate'>
                                             {(item.value as any).workflowName}
                                           </span>
                                           <span className='text-muted-foreground'>·</span>
@@ -2947,7 +3006,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                           </span>
                                           <span className='text-muted-foreground'>·</span>
                                           <span className='capitalize'>
-                                            {(((item.value as any).trigger as string) || 'manual').toLowerCase()}
+                                            {(
+                                              ((item.value as any).trigger as string) || 'manual'
+                                            ).toLowerCase()}
                                           </span>
                                         </>
                                       ) : (

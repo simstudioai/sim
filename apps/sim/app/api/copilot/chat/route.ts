@@ -50,7 +50,17 @@ const ChatMessageSchema = z.object({
   contexts: z
     .array(
       z.object({
-        kind: z.enum(['past_chat', 'workflow', 'current_workflow', 'blocks', 'logs', 'workflow_block', 'knowledge', 'templates', 'docs']),
+        kind: z.enum([
+          'past_chat',
+          'workflow',
+          'current_workflow',
+          'blocks',
+          'logs',
+          'workflow_block',
+          'knowledge',
+          'templates',
+          'docs',
+        ]),
         label: z.string(),
         chatId: z.string().optional(),
         workflowId: z.string().optional(),
@@ -126,7 +136,9 @@ export async function POST(req: NextRequest) {
           lengthPreview: agentContexts.map((c) => c.content?.length ?? 0),
         })
         if (Array.isArray(contexts) && contexts.length > 0 && agentContexts.length === 0) {
-          logger.warn(`[${tracker.requestId}] Contexts provided but none processed. Check executionId for logs contexts.`)
+          logger.warn(
+            `[${tracker.requestId}] Contexts provided but none processed. Check executionId for logs contexts.`
+          )
         }
       } catch (e) {
         logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
@@ -477,16 +489,6 @@ export async function POST(req: NextRequest) {
             while (true) {
               const { done, value } = await reader.read()
               if (done) {
-                break
-              }
-
-              // Check if client disconnected before processing chunk
-              try {
-                // Forwarding will now occur after parsing, per-event
-                // This try/catch remains to preserve structure
-              } catch (error) {
-                // Client disconnected - stop reading from sim agent
-                reader.cancel() // Stop reading from sim agent
                 break
               }
 

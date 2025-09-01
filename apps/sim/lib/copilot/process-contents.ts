@@ -34,7 +34,11 @@ export async function processContexts(
         return await processPastChatViaApi(ctx.chatId, ctx.label ? `@${ctx.label}` : '@')
       }
       if ((ctx.kind === 'workflow' || ctx.kind === 'current_workflow') && ctx.workflowId) {
-        return await processWorkflowFromDb(ctx.workflowId, ctx.label ? `@${ctx.label}` : '@', ctx.kind)
+        return await processWorkflowFromDb(
+          ctx.workflowId,
+          ctx.label ? `@${ctx.label}` : '@',
+          ctx.kind
+        )
       }
       if (ctx.kind === 'knowledge' && (ctx as any).knowledgeId) {
         return await processKnowledgeFromDb(
@@ -52,7 +56,10 @@ export async function processContexts(
         )
       }
       if (ctx.kind === 'logs' && (ctx as any).executionId) {
-        return await processExecutionLogFromDb((ctx as any).executionId, ctx.label ? `@${ctx.label}` : '@')
+        return await processExecutionLogFromDb(
+          (ctx as any).executionId,
+          ctx.label ? `@${ctx.label}` : '@'
+        )
       }
       if (ctx.kind === 'workflow_block' && ctx.workflowId && (ctx as any).blockId) {
         return await processWorkflowBlockFromDb(ctx.workflowId, (ctx as any).blockId, ctx.label)
@@ -82,7 +89,11 @@ export async function processContextsServer(
         return await processPastChatFromDb(ctx.chatId, userId, ctx.label ? `@${ctx.label}` : '@')
       }
       if ((ctx.kind === 'workflow' || ctx.kind === 'current_workflow') && ctx.workflowId) {
-        return await processWorkflowFromDb(ctx.workflowId, ctx.label ? `@${ctx.label}` : '@', ctx.kind)
+        return await processWorkflowFromDb(
+          ctx.workflowId,
+          ctx.label ? `@${ctx.label}` : '@',
+          ctx.kind
+        )
       }
       if (ctx.kind === 'knowledge' && (ctx as any).knowledgeId) {
         return await processKnowledgeFromDb(
@@ -100,14 +111,19 @@ export async function processContextsServer(
         )
       }
       if (ctx.kind === 'logs' && (ctx as any).executionId) {
-        return await processExecutionLogFromDb((ctx as any).executionId, ctx.label ? `@${ctx.label}` : '@')
+        return await processExecutionLogFromDb(
+          (ctx as any).executionId,
+          ctx.label ? `@${ctx.label}` : '@'
+        )
       }
       if (ctx.kind === 'workflow_block' && ctx.workflowId && (ctx as any).blockId) {
         return await processWorkflowBlockFromDb(ctx.workflowId, (ctx as any).blockId, ctx.label)
       }
       if (ctx.kind === 'docs') {
         try {
-          const { searchDocumentationServerTool } = await import('@/lib/copilot/tools/server/docs/search-documentation')
+          const { searchDocumentationServerTool } = await import(
+            '@/lib/copilot/tools/server/docs/search-documentation'
+          )
           const rawQuery = (userMessage || '').trim() || ctx.label || 'Sim documentation'
           const query = sanitizeMessageForDocs(rawQuery, contexts)
           const res = await searchDocumentationServerTool.execute({ query, topK: 10 })
@@ -144,7 +160,10 @@ function sanitizeMessageForDocs(rawMessage: string, contexts: ChatContext[] | un
   if (!rawMessage) return ''
   if (!Array.isArray(contexts) || contexts.length === 0) {
     // No context mapping; conservatively strip all @mentions-like tokens
-    const stripped = rawMessage.replace(/(^|\s)@([^\s]+)/g, ' ').replace(/\s{2,}/g, ' ').trim()
+    const stripped = rawMessage
+      .replace(/(^|\s)@([^\s]+)/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
     return stripped
   }
 
@@ -461,7 +480,10 @@ async function processWorkflowBlockFromDb(
   }
 }
 
-async function processExecutionLogFromDb(executionId: string, tag: string): Promise<AgentContext | null> {
+async function processExecutionLogFromDb(
+  executionId: string,
+  tag: string
+): Promise<AgentContext | null> {
   try {
     const { workflowExecutionLogs, workflow } = await import('@/db/schema')
     const { db } = await import('@/db')
@@ -498,10 +520,12 @@ async function processExecutionLogFromDb(executionId: string, tag: string): Prom
       totalDurationMs: log.totalDurationMs ?? null,
       workflowName: log.workflowName || '',
       // Include trace spans and any available details without being huge
-      executionData: log.executionData ? {
-        traceSpans: (log.executionData as any).traceSpans || undefined,
-        errorDetails: (log.executionData as any).errorDetails || undefined,
-      } : undefined,
+      executionData: log.executionData
+        ? {
+            traceSpans: (log.executionData as any).traceSpans || undefined,
+            errorDetails: (log.executionData as any).errorDetails || undefined,
+          }
+        : undefined,
       cost: log.cost || undefined,
     }
 
