@@ -2,8 +2,7 @@ name: Build and Publish Docker Image
 
 on:
   push:
-    branches: [main]
-    tags: ['v*']
+    branches: [main, staging]
 
 jobs:
   build-and-push:
@@ -56,7 +55,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to the Container registry
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -70,10 +69,7 @@ jobs:
           images: ${{ matrix.image }}
           tags: |
             type=raw,value=latest-${{ matrix.arch }},enable=${{ github.ref == 'refs/heads/main' }}
-            type=ref,event=pr,suffix=-${{ matrix.arch }}
-            type=semver,pattern={{version}},suffix=-${{ matrix.arch }}
-            type=semver,pattern={{major}}.{{minor}},suffix=-${{ matrix.arch }}
-            type=semver,pattern={{major}}.{{minor}}.{{patch}},suffix=-${{ matrix.arch }}
+            type=raw,value=staging-${{ github.sha }}-${{ matrix.arch }},enable=${{ github.ref == 'refs/heads/staging' }}
             type=sha,format=long,suffix=-${{ matrix.arch }}
 
       - name: Build and push Docker image
@@ -82,7 +78,7 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platform }}
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=build-v3
@@ -93,7 +89,7 @@ jobs:
   create-manifests:
     runs-on: ubuntu-latest
     needs: build-and-push
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     strategy:
       matrix:
         include:
@@ -119,10 +115,6 @@ jobs:
           images: ${{ matrix.image }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}.{{minor}}.{{patch}}
             type=sha,format=long
 
       - name: Create and push manifest
