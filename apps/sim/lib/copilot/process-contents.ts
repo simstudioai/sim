@@ -14,6 +14,7 @@ export type AgentContextType =
   | 'knowledge'
   | 'templates'
   | 'workflow_block'
+  | 'docs'
 
 export interface AgentContext {
   type: AgentContextType
@@ -56,7 +57,7 @@ export async function processContexts(
       if (ctx.kind === 'workflow_block' && ctx.workflowId && (ctx as any).blockId) {
         return await processWorkflowBlockFromDb(ctx.workflowId, (ctx as any).blockId, ctx.label)
       }
-      // Other kinds can be added here: workflow, blocks, logs, knowledge, templates
+      // Other kinds can be added here: workflow, blocks, logs, knowledge, templates, docs
       return null
     } catch (error) {
       logger.error('Failed processing context', { ctx, error })
@@ -65,13 +66,14 @@ export async function processContexts(
   })
 
   const results = await Promise.all(tasks)
-  return results.filter((r): r is AgentContext => !!r)
+  return results.filter((r): r is AgentContext => !!r) as AgentContext[]
 }
 
 // Server-side variant (recommended for use in API routes)
 export async function processContextsServer(
   contexts: ChatContext[] | undefined,
-  userId: string
+  userId: string,
+  userMessage?: string
 ): Promise<AgentContext[]> {
   if (!Array.isArray(contexts) || contexts.length === 0) return []
   const tasks = contexts.map(async (ctx) => {
@@ -102,6 +104,18 @@ export async function processContextsServer(
       }
       if (ctx.kind === 'workflow_block' && ctx.workflowId && (ctx as any).blockId) {
         return await processWorkflowBlockFromDb(ctx.workflowId, (ctx as any).blockId, ctx.label)
+      }
+      if (ctx.kind === 'docs') {
+        try {
+          const { searchDocumentationServerTool } = await import('@/lib/copilot/tools/server/docs/search-documentation')
+          const query = (userMessage || '').trim() || ctx.label || 'Sim documentation'
+          const res = await searchDocumentationServerTool.execute({ query, topK: 10 })
+          const content = JSON.stringify(res?.results || [])
+          return { type: 'docs', tag: ctx.label ? `@${ctx.label}` : '@', content }
+        } catch (e) {
+          logger.error('Failed to process docs context', e)
+          return null
+        }
       }
       return null
     } catch (error) {

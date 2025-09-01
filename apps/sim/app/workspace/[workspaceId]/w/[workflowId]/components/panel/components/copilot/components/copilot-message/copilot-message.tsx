@@ -7,6 +7,7 @@ import {
   Box,
   Check,
   Clipboard,
+  BookOpen,
   Info,
   LibraryBig,
   Loader2,
@@ -416,6 +417,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                               <LibraryBig className='h-3 w-3 text-muted-foreground' />
                             ) : ctx?.kind === 'templates' ? (
                               <Shapes className='h-3 w-3 text-muted-foreground' />
+                            ) : ctx?.kind === 'docs' ? (
+                              <BookOpen className='h-3 w-3 text-muted-foreground' />
                             ) : ctx?.kind === 'logs' ? (
                               <SquareChevronRight className='h-3 w-3 text-muted-foreground' />
                             ) : (

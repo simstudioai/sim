@@ -29,6 +29,7 @@ import {
   Paperclip,
   Shapes,
   SquareChevronRight,
+  BookOpen,
   Workflow,
   X,
   Zap,
@@ -127,7 +128,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const submenuRef = useRef<HTMLDivElement>(null)
     const menuListRef = useRef<HTMLDivElement>(null)
     const [mentionActiveIndex, setMentionActiveIndex] = useState(0)
-    const mentionOptions = ['Chats', 'Workflows', 'Workflow Blocks', 'Blocks', 'Knowledge', 'Templates', 'Logs']
+    const mentionOptions = ['Chats', 'Workflows', 'Workflow Blocks', 'Blocks', 'Knowledge', 'Docs', 'Templates', 'Logs']
     const [openSubmenuFor, setOpenSubmenuFor] = useState<string | null>(null)
     const [submenuActiveIndex, setSubmenuActiveIndex] = useState(0)
     const [inAggregated, setInAggregated] = useState(false)
@@ -168,7 +169,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
   const workspaceId = params.workspaceId as string
   // Track per-chat preference for auto-adding workflow context
   const [workflowAutoAddDisabledMap, setWorkflowAutoAddDisabledMap] = useState<Record<string, boolean>>({})
-  const workflowAutoAddDisabled = currentChat?.id ? workflowAutoAddDisabledMap[currentChat.id] || false : false
+  // Also track for new chats (no ID yet)
+  const [newChatWorkflowDisabled, setNewChatWorkflowDisabled] = useState(false)
+  const workflowAutoAddDisabled = currentChat?.id 
+    ? workflowAutoAddDisabledMap[currentChat.id] || false 
+    : newChatWorkflowDisabled
 
     // Determine placeholder based on mode
     const effectivePlaceholder =
@@ -202,35 +207,63 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
   }, [workflowId])
 
-  // Track if we've already initialized the workflow context for this chat
-  const [initializedForChat, setInitializedForChat] = useState<string | null>(null)
+  // Track the last chat ID we've seen to detect chat changes
+  const [lastChatId, setLastChatId] = useState<string | undefined>(undefined)
+  // Track if we just sent a message to avoid re-adding context after submit
+  const [justSentMessage, setJustSentMessage] = useState(false)
   
-  // Reset initialization when chat changes
+  // Reset states when switching to a truly new chat
   useEffect(() => {
-    const chatKey = currentChat?.id || 'new-chat'
-    if (initializedForChat && initializedForChat !== chatKey) {
-      setInitializedForChat(null)
+    const currentChatId = currentChat?.id
+    
+    // Detect when we're switching to a different chat
+    if (lastChatId !== currentChatId) {
+      // If switching to a new chat (undefined ID) from a different state
+      // reset the disabled flag so each new chat starts fresh
+      if (!currentChatId && lastChatId !== undefined) {
+        setNewChatWorkflowDisabled(false)
+      }
+      
+      // If a new chat just got an ID assigned, transfer the disabled state
+      if (currentChatId && !lastChatId && newChatWorkflowDisabled) {
+        setWorkflowAutoAddDisabledMap(prev => ({
+          ...prev,
+          [currentChatId]: true
+        }))
+        // Keep newChatWorkflowDisabled as false for the next new chat
+        setNewChatWorkflowDisabled(false)
+      }
+      
+      // Reset the "just sent" flag when switching chats
+      setJustSentMessage(false)
+      
+      setLastChatId(currentChatId)
     }
-  }, [currentChat?.id])
+  }, [currentChat?.id, lastChatId, newChatWorkflowDisabled])
   
-  // Auto-add workflow context on mount or when workflow/chat changes
+  // Auto-add workflow context when message is empty and not disabled
   useEffect(() => {
+    // Don't auto-add if disabled or no workflow
     if (!workflowId || workflowAutoAddDisabled) return
     
-    // Skip if we've already initialized for this chat
-    const chatKey = currentChat?.id || 'new-chat'
-    if (initializedForChat === chatKey) return
+    // Don't auto-add right after sending a message
+    if (justSentMessage) return
+    
+    // Only add when message is empty (new message being composed)
+    if (message && message.trim().length > 0) return
     
     // Check if current_workflow context already exists
     const hasCurrentWorkflowContext = selectedContexts.some(
       ctx => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
     )
     if (hasCurrentWorkflowContext) {
-      setInitializedForChat(chatKey)
       return
     }
     
     const addWorkflowContext = async () => {
+      // Double-check disabled state right before adding
+      if (workflowAutoAddDisabled) return
+      
       // Get workflow name
       let workflowName = 'Current Workflow'
       
@@ -258,13 +291,10 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         
         return [...prev, { kind: 'current_workflow', workflowId, label: workflowName } as ChatContext]
       })
-      
-      // Mark as initialized for this chat
-      setInitializedForChat(chatKey)
     }
     
     addWorkflowContext()
-  }, [workflowId, currentChat?.id, workflowAutoAddDisabled, workflows.length]) // Re-run when chat or disabled state changes
+  }, [workflowId, workflowAutoAddDisabled, workflows.length, message, justSentMessage]) // Re-run when message changes
   
   // Auto-resize textarea and toggle vertical scroll when exceeding max height
   useEffect(() => {
@@ -611,8 +641,13 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         size: f.size,
       }))
 
-    // Ensure current_workflow context is added if not disabled
+    // Use the contexts that the user has selected (don't auto-add if manually removed)
     let finalContexts = [...selectedContexts]
+    
+    // Only auto-add current_workflow if:
+    // 1. Auto-add is not disabled for this chat
+    // 2. It's not already in the selected contexts
+    // 3. User hasn't manually removed it (indicated by workflowAutoAddDisabled being false)
     if (workflowId && !workflowAutoAddDisabled) {
       const hasCurrentWorkflowContext = finalContexts.some(
         ctx => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
@@ -648,7 +683,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     })
 
-    // Clear the message and files after submit, but prepare workflow context for next message
+    // Clear the message and files after submit
     if (controlledValue !== undefined) {
       onControlledChange?.('')
     } else {
@@ -656,21 +691,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
     setAttachedFiles([])
     
-    // Reset contexts but re-add current_workflow if not disabled
-    if (workflowId && !workflowAutoAddDisabled) {
-      // Keep current_workflow context for next message
-      const currentWorkflowCtx = finalContexts.find(
-        ctx => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
-      )
-      if (currentWorkflowCtx) {
-        // Use functional update to avoid duplicate contexts
-        setSelectedContexts([currentWorkflowCtx])
-      } else {
-        setSelectedContexts([])
-      }
-    } else {
-      setSelectedContexts([])
-    }
+    // Clear contexts after submission
+    // Don't auto-add current_workflow if user has disabled it
+    setSelectedContexts([])
+    
+    // Mark that we just sent a message to prevent auto-add
+    setJustSentMessage(true)
     
     setOpenSubmenuFor(null)
     setShowMentionMenu(false)
@@ -970,6 +996,10 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           setSubmenuActiveIndex(0)
           setSubmenuQueryStart(getCaretPos())
           void ensureWorkflowBlocksLoaded()
+        } else if (selected === 'Docs') {
+          // No submenu; insert immediately
+          resetActiveMentionQuery()
+          insertDocsMention()
         } else if (selected === 'Templates') {
           resetActiveMentionQuery()
           setOpenSubmenuFor('Templates')
@@ -1353,6 +1383,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       } else {
         setInternalMessage(newValue)
       }
+      
+      // Reset the "just sent" flag when user starts typing
+      if (justSentMessage && newValue.length > 0) {
+        setJustSentMessage(false)
+      }
+      
       const caret = e.target.selectionStart ?? newValue.length
       const active = getActiveMentionQueryAtPosition(caret, newValue)
       if (active) {
@@ -1491,6 +1527,17 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       setOpenSubmenuFor(null)
     }
 
+    const insertDocsMention = () => {
+      const label = 'Docs'
+      if (!replaceActiveMentionWith(label)) insertAtCursor(`@${label} `)
+      setSelectedContexts((prev) => {
+        if (prev.some((c) => c.kind === 'docs')) return prev
+        return [...prev, { kind: 'docs', label } as any]
+      })
+      setShowMentionMenu(false)
+      setOpenSubmenuFor(null)
+    }
+
     const handleFileSelect = () => {
       if (disabled || isLoading) {
         return
@@ -1611,15 +1658,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       // Keep selected contexts in sync with inline @label tokens so deleting inline tokens updates pills
   useEffect(() => {
     if (!message) {
-      // Keep current_workflow context even when message is empty if auto-add is enabled
-      if (workflowId && !workflowAutoAddDisabled) {
-        setSelectedContexts((prev) => {
-          const currentWorkflowCtx = prev.find(
-            ctx => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
-          )
-          return currentWorkflowCtx ? [currentWorkflowCtx] : []
-        })
-      } else if (selectedContexts.length > 0) {
+      // Clear all contexts when message is empty
+      // Don't auto-add anything here - let the mount effect handle initial auto-add
+      if (selectedContexts.length > 0) {
         setSelectedContexts([])
       }
       return
@@ -1628,22 +1669,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const ranges = computeMentionRanges()
     for (const r of ranges) presentLabels.add(r.label)
     setSelectedContexts((prev) => {
-      // Keep current_workflow context if auto-add is enabled, even if not in text
-      const currentWorkflowCtx = workflowId && !workflowAutoAddDisabled 
-        ? prev.find(ctx => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId)
-        : null
-      
-      // Filter other contexts based on @mentions in text
+      // Only keep contexts that are mentioned in the text
       const filteredContexts = prev.filter((c) => {
-        // Always keep current_workflow context if auto-add is enabled
-        if (currentWorkflowCtx && c === currentWorkflowCtx) return true
-        // For other contexts, check if they're mentioned in text
         return !!c.label && presentLabels.has(c.label!)
       })
       
       return filteredContexts
     })
-  }, [message, workflowId, workflowAutoAddDisabled])
+  }, [message])
 
     // Manage aggregate mode and preloading when needed
     useEffect(() => {
@@ -2017,6 +2050,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     <LibraryBig className='h-3 w-3 text-muted-foreground' />
                   ) : ctx.kind === 'templates' ? (
                     <Shapes className='h-3 w-3 text-muted-foreground' />
+                  ) : ctx.kind === 'docs' ? (
+                    <BookOpen className='h-3 w-3 text-muted-foreground' />
                   ) : ctx.kind === 'logs' ? (
                     <SquareChevronRight className='h-3 w-3 text-muted-foreground' />
                   ) : (
@@ -2033,9 +2068,10 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                             ...prev,
                             [currentChat.id]: true
                           }))
+                        } else {
+                          // For new chats without ID
+                          setNewChatWorkflowDisabled(true)
                         }
-                        // Reset initialized state so it won't interfere with manual additions
-                        setInitializedForChat(null)
                       }
                       setSelectedContexts((prev) => prev.filter((c) => c.label !== ctx.label))
                     }}
@@ -2718,6 +2754,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                     setSubmenuActiveIndex(0)
                                     setSubmenuQueryStart(getCaretPos())
                                     void ensureWorkflowBlocksLoaded()
+                                  } else if (label === 'Docs') {
+                                    // No submenu; insert immediately
+                                    insertDocsMention()
                                   } else if (label === 'Templates') {
                                     resetActiveMentionQuery()
                                     setOpenSubmenuFor('Templates')
@@ -2744,6 +2783,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                     <Box className='h-3.5 w-3.5 text-muted-foreground' />
                                   ) : label === 'Knowledge' ? (
                                     <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
+                                  ) : label === 'Docs' ? (
+                                    <BookOpen className='h-3.5 w-3.5 text-muted-foreground' />
                                   ) : label === 'Templates' ? (
                                     <Shapes className='h-3.5 w-3.5 text-muted-foreground' />
                                   ) : label === 'Logs' ? (

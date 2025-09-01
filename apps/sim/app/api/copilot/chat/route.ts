@@ -50,7 +50,7 @@ const ChatMessageSchema = z.object({
   contexts: z
     .array(
       z.object({
-        kind: z.enum(['past_chat', 'workflow', 'current_workflow', 'blocks', 'logs', 'workflow_block', 'knowledge', 'templates']),
+        kind: z.enum(['past_chat', 'workflow', 'current_workflow', 'blocks', 'logs', 'workflow_block', 'knowledge', 'templates', 'docs']),
         label: z.string(),
         chatId: z.string().optional(),
         workflowId: z.string().optional(),
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(contexts) && contexts.length > 0) {
       try {
         const { processContextsServer } = await import('@/lib/copilot/process-contents')
-        const processed = await processContextsServer(contexts as any, authenticatedUserId)
+        const processed = await processContextsServer(contexts as any, authenticatedUserId, message)
         agentContexts = processed
         logger.info(`[${tracker.requestId}] Contexts processed for request`, {
           processedCount: agentContexts.length,
