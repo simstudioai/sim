@@ -482,8 +482,8 @@ export async function POST(req: NextRequest) {
 
               // Check if client disconnected before processing chunk
               try {
-                // Forward the chunk to client immediately
-                controller.enqueue(value)
+                // Forwarding will now occur after parsing, per-event
+                // This try/catch remains to preserve structure
               } catch (error) {
                 // Client disconnected - stop reading from sim agent
                 reader.cancel() // Stop reading from sim agent
@@ -589,6 +589,47 @@ export async function POST(req: NextRequest) {
 
                       default:
                     }
+
+                    // Emit to client: rewrite 'error' events into user-friendly assistant message
+                    if (event?.type === 'error') {
+                      try {
+                        const displayMessage: string =
+                          (event?.data && (event.data.displayMessage as string)) ||
+                          'Sorry, I encountered an error. Please try again.'
+                        const formatted = `_${displayMessage}_`
+                        // Accumulate so it persists to DB as assistant content
+                        assistantContent += formatted
+                        // Send as content chunk
+                        try {
+                          controller.enqueue(
+                            encoder.encode(
+                              `data: ${JSON.stringify({ type: 'content', data: formatted })}\n\n`
+                            )
+                          )
+                        } catch (enqueueErr) {
+                          reader.cancel()
+                          break
+                        }
+                        // Then close this response cleanly for the client
+                        try {
+                          controller.enqueue(
+                            encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
+                          )
+                        } catch (enqueueErr) {
+                          reader.cancel()
+                          break
+                        }
+                      } catch {}
+                      // Do not forward the original error event
+                    } else {
+                      // Forward original event to client
+                      try {
+                        controller.enqueue(encoder.encode(`data: ${jsonStr}\n\n`))
+                      } catch (enqueueErr) {
+                        reader.cancel()
+                        break
+                      }
+                    }
                   } catch (e) {
                     // Enhanced error handling for large payloads and parsing issues
                     const lineLength = line.length
@@ -621,9 +662,36 @@ export async function POST(req: NextRequest) {
               logger.debug(`[${tracker.requestId}] Processing remaining buffer: "${buffer}"`)
               if (buffer.startsWith('data: ')) {
                 try {
-                  const event = JSON.parse(buffer.slice(6))
+                  const jsonStr = buffer.slice(6)
+                  const event = JSON.parse(jsonStr)
                   if (event.type === 'content' && event.data) {
                     assistantContent += event.data
+                  }
+                  // Forward remaining event, applying same error rewrite behavior
+                  if (event?.type === 'error') {
+                    const displayMessage: string =
+                      (event?.data && (event.data.displayMessage as string)) ||
+                      'Sorry, I encountered an error. Please try again.'
+                    const formatted = `_${displayMessage}_`
+                    assistantContent += formatted
+                    try {
+                      controller.enqueue(
+                        encoder.encode(
+                          `data: ${JSON.stringify({ type: 'content', data: formatted })}\n\n`
+                        )
+                      )
+                      controller.enqueue(
+                        encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
+                      )
+                    } catch (enqueueErr) {
+                      reader.cancel()
+                    }
+                  } else {
+                    try {
+                      controller.enqueue(encoder.encode(`data: ${jsonStr}\n\n`))
+                    } catch (enqueueErr) {
+                      reader.cancel()
+                    }
                   }
                 } catch (e) {
                   logger.warn(`[${tracker.requestId}] Failed to parse final buffer: "${buffer}"`)

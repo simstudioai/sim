@@ -1565,6 +1565,9 @@ export const useCopilotStore = create<CopilotStore>()(
           } else if (result.status === 402) {
             errorContent =
               '_Usage limit exceeded. To continue using this service, upgrade your plan or top up on credits._'
+          } else if (result.status === 403) {
+            errorContent =
+              '_Provider config not allowed for non-enterprise users. Please remove the provider config and try again_'
           }
 
           const errorMessage = createErrorMessage(streamingMessage.id, errorContent)
