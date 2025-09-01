@@ -553,22 +553,11 @@ function handleGenericBuffer(
  */
 async function parseBufferAsPdf(buffer: Buffer) {
   try {
-    try {
-      const { PdfParser } = await import('@/lib/file-parsers/pdf-parser')
-      const parser = new PdfParser()
-      logger.info('Using main PDF parser for buffer')
+    const { PdfParser } = await import('@/lib/file-parsers/pdf-parser')
+    const parser = new PdfParser()
+    logger.info('Using main PDF parser for buffer')
 
-      if (parser.parseBuffer) {
-        return await parser.parseBuffer(buffer)
-      }
-      throw new Error('PDF parser does not support buffer parsing')
-    } catch (error) {
-      logger.warn('Main PDF parser failed, using raw parser for buffer:', error)
-      const { RawPdfParser } = await import('@/lib/file-parsers/raw-pdf-parser')
-      const rawParser = new RawPdfParser()
-
-      return await rawParser.parseBuffer(buffer)
-    }
+    return await parser.parseBuffer(buffer)
   } catch (error) {
     throw new Error(`PDF parsing failed: ${(error as Error).message}`)
   }

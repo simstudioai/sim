@@ -1,7 +1,5 @@
 import { existsSync } from 'fs'
-import { readFile } from 'fs/promises'
 import path from 'path'
-import { RawPdfParser } from '@/lib/file-parsers/raw-pdf-parser'
 import type { FileParseResult, FileParser, SupportedFileType } from '@/lib/file-parsers/types'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -18,42 +16,12 @@ function getParserInstances(): Record<string, FileParser> {
 
     try {
       try {
-        logger.info('Attempting to load PDF parser...')
-        try {
-          const { PdfParser } = require('@/lib/file-parsers/pdf-parser')
-          parserInstances.pdf = new PdfParser()
-          logger.info('PDF parser loaded successfully')
-        } catch (pdfLibError) {
-          logger.error('Failed to load primary PDF parser:', pdfLibError)
-          logger.info('Falling back to raw PDF parser')
-          parserInstances.pdf = new RawPdfParser()
-          logger.info('Raw PDF parser loaded successfully')
-        }
+        logger.info('Loading PDF parser...')
+        const { PdfParser } = require('@/lib/file-parsers/pdf-parser')
+        parserInstances.pdf = new PdfParser()
+        logger.info('PDF parser loaded successfully')
       } catch (error) {
-        logger.error('Failed to load any PDF parser:', error)
-        parserInstances.pdf = {
-          async parseFile(filePath: string): Promise<FileParseResult> {
-            const buffer = await readFile(filePath)
-            return {
-              content: `PDF parsing is not available. File size: ${buffer.length} bytes`,
-              metadata: {
-                info: { Error: 'PDF parsing unavailable' },
-                pageCount: 0,
-                version: 'unknown',
-              },
-            }
-          },
-          async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
-            return {
-              content: `PDF parsing is not available. File size: ${buffer.length} bytes`,
-              metadata: {
-                info: { Error: 'PDF parsing unavailable' },
-                pageCount: 0,
-                version: 'unknown',
-              },
-            }
-          },
-        }
+        logger.error('Failed to load PDF parser:', error)
       }
 
       try {
