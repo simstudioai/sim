@@ -4,7 +4,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { workflowExecutionLogs, workflowExecutionSnapshots } from '@/db/schema'
 
-const logger = createLogger('FrozenCanvasAPI')
+const logger = createLogger('LogsByExecutionIdAPI')
 
 export async function GET(
   _request: NextRequest,
@@ -13,7 +13,7 @@ export async function GET(
   try {
     const { executionId } = await params
 
-    logger.debug(`Fetching frozen canvas data for execution: ${executionId}`)
+    logger.debug(`Fetching execution data for: ${executionId}`)
 
     // Get the workflow execution log to find the snapshot
     const [workflowLog] = await db
@@ -50,14 +50,14 @@ export async function GET(
       },
     }
 
-    logger.debug(`Successfully fetched frozen canvas data for execution: ${executionId}`)
+    logger.debug(`Successfully fetched execution data for: ${executionId}`)
     logger.debug(
       `Workflow state contains ${Object.keys((snapshot.stateData as any)?.blocks || {}).length} blocks`
     )
 
     return NextResponse.json(response)
   } catch (error) {
-    logger.error('Error fetching frozen canvas data:', error)
-    return NextResponse.json({ error: 'Failed to fetch frozen canvas data' }, { status: 500 })
+    logger.error('Error fetching execution data:', error)
+    return NextResponse.json({ error: 'Failed to fetch execution data' }, { status: 500 })
   }
 }
