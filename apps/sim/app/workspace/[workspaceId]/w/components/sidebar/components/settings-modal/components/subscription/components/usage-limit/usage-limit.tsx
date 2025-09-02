@@ -113,7 +113,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
             throw new Error('Organization ID is required')
           }
 
-          const response = await fetch('/api/usage-limits', {
+          const response = await fetch('/api/usage', {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
