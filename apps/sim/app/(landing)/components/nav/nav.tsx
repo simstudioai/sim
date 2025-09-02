@@ -65,18 +65,18 @@ export default async function Nav() {
               href='https://docs.sim.ai'
               target='_blank'
               rel='noopener noreferrer'
-              className='font-normal text-[18px] text-muted-foreground'
+              className='text-[18px] text-muted-foreground'
             >
               Docs
             </Link>
           </li>
           <li>
-            <Link href='/' className='font-normal text-[18px] text-muted-foreground'>
+            <Link href='/' className='text-[18px] text-muted-foreground'>
               Pricing
             </Link>
           </li>
           <li>
-            <Link href='/' className='font-normal text-[18px] text-muted-foreground'>
+            <Link href='/' className='text-[18px] text-muted-foreground'>
               Enterprise
             </Link>
           </li>
@@ -85,7 +85,7 @@ export default async function Nav() {
               href='https://github.com/simstudioai/sim'
               target='_blank'
               rel='noopener noreferrer'
-              className='flex items-center gap-2 font-normal text-[18px] text-muted-foreground'
+              className='flex items-center gap-2 text-[18px] text-muted-foreground'
               aria-label='GitHub repository'
             >
               <GithubIcon className='h-[18px] w-[18px]' />
@@ -95,12 +95,12 @@ export default async function Nav() {
         </ul>
       </div>
       <div className='flex items-center justify-center gap-[24px]'>
-        <Link href='/login' className='font-normal text-[#2E2E2E] text-[18px]'>
+        <Link href='/login' className='text-[#2E2E2E] text-[18px]'>
           Log in
         </Link>
         <Link
           href='/signup'
-          className='inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] px-3 py-[6px] font-normal text-[18px] text-white shadow-[inset_0_2px_4px_0_#9B77FF]'
+          className='inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] px-3 py-[6px] text-[18px] text-white shadow-[inset_0_2px_4px_0_#9B77FF]'
           aria-label='Get started'
         >
           Get started

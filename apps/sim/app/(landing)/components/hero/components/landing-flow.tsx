@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import ReactFlow, { useReactFlow } from 'reactflow'
+import ReactFlow, { applyNodeChanges, type NodeChange, useReactFlow } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { CARD_WIDTH, type LandingCanvasProps } from './landing-canvas'
 import { LandingEdge } from './landing-edge'
@@ -32,29 +32,41 @@ export function LandingFlow({
 }: LandingFlowProps) {
   const { setViewport, getViewport } = useReactFlow()
   const [rfReady, setRfReady] = React.useState(false)
+  const [localNodes, setLocalNodes] = React.useState(nodes)
+
+  // Update local nodes when props change
+  React.useEffect(() => {
+    setLocalNodes(nodes)
+  }, [nodes])
+
+  // Handle node changes (dragging)
+  const onNodesChange = React.useCallback((changes: NodeChange[]) => {
+    setLocalNodes((nds) => applyNodeChanges(changes, nds))
+  }, [])
 
   // Node and edge types map
   const nodeTypes = React.useMemo(
     () => ({
       landing: LandingNode,
       landingLoop: LandingLoopNode,
+      group: LandingLoopNode, // Use our custom loop node for group type
     }),
     []
   )
   const edgeTypes = React.useMemo(() => ({ landingEdge: LandingEdge }), [])
 
   // Compose nodes with optional group overlay
-  const flowNodes = nodes
+  const flowNodes = localNodes
 
   // Auto-pan to the right only if content overflows the wrapper
   React.useEffect(() => {
     const el = wrapperRef.current as HTMLDivElement | null
-    if (!el || !rfReady || nodes.length === 0) return
+    if (!el || !rfReady || localNodes.length === 0) return
 
     const containerWidth = el.clientWidth
     // Derive overflow from actual node positions for accuracy
     const PAD = 16
-    const maxRight = nodes.reduce((m, n) => Math.max(m, (n.position?.x ?? 0) + CARD_WIDTH), 0)
+    const maxRight = localNodes.reduce((m, n) => Math.max(m, (n.position?.x ?? 0) + CARD_WIDTH), 0)
     const contentWidth = Math.max(worldWidth, maxRight + PAD)
     const overflow = Math.max(0, contentWidth - containerWidth)
 
@@ -66,22 +78,28 @@ export function LandingFlow({
     }, 1400)
 
     return () => window.clearTimeout(timer)
-  }, [worldWidth, wrapperRef, setViewport, rfReady, nodes])
+  }, [worldWidth, wrapperRef, setViewport, rfReady, localNodes])
 
   return (
     <ReactFlow
       nodes={flowNodes}
       edges={edges}
+      onNodesChange={onNodesChange}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
       defaultEdgeOptions={{ type: 'smoothstep' }}
-      elementsSelectable={false}
-      nodesDraggable={false}
+      elementsSelectable={true}
+      selectNodesOnDrag={false}
+      nodesDraggable={true}
       nodesConnectable={false}
       zoomOnScroll={false}
+      zoomOnDoubleClick={false}
       panOnScroll={false}
       zoomOnPinch={false}
       panOnDrag={false}
+      draggable={false}
+      preventScrolling={false}
+      autoPanOnNodeDrag={false}
       proOptions={{ hideAttribution: true }}
       fitView={false}
       defaultViewport={{ x: 0, y: 0, zoom: 1 }}
@@ -95,7 +113,7 @@ export function LandingFlow({
           getViewport: () => getViewport(),
         }
       }}
-      className='pointer-events-none h-full w-full'
+      className='h-full w-full'
     >
       {null}
     </ReactFlow>

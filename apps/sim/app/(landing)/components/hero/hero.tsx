@@ -5,11 +5,10 @@ import {
   ArrowUp,
   BinaryIcon,
   BookIcon,
-  BotIcon,
   CalendarIcon,
   CodeIcon,
-  HammerIcon,
-  LayersIcon,
+  Globe2Icon,
+  MessageSquareIcon,
   VariableIcon,
 } from 'lucide-react'
 import { type Edge, type Node, Position } from 'reactflow'
@@ -24,6 +23,7 @@ import {
   JiraIcon,
   LinearIcon,
   NotionIcon,
+  OpenAIIcon,
   OutlookIcon,
   PackageSearchIcon,
   PineconeIcon,
@@ -71,13 +71,13 @@ const LANDING_BLOCKS: LandingManualBlock[] = [
     color: '#7B68EE',
     icon: <ScheduleIcon className='h-4 w-4' />,
     positions: {
-      mobile: { x: 24, y: 120 },
-      tablet: { x: 60, y: 180 },
-      desktop: { x: 80, y: 241 },
+      mobile: { x: 8, y: 60 },
+      tablet: { x: 40, y: 120 },
+      desktop: { x: 60, y: 180 },
     },
     tags: [
       { icon: <CalendarIcon className='h-3 w-3' />, label: '09:00AM Daily' },
-      { icon: <VariableIcon className='h-3 w-3' />, label: '2 fields' },
+      { icon: <Globe2Icon className='h-3 w-3' />, label: 'PST' },
     ],
   },
   {
@@ -91,7 +91,7 @@ const LANDING_BLOCKS: LandingManualBlock[] = [
       desktop: { x: 420, y: 241 },
     },
     tags: [
-      { icon: <BookIcon className='h-3 w-3' />, label: 'Product Info' },
+      { icon: <BookIcon className='h-3 w-3' />, label: 'Product Vector DB' },
       { icon: <BinaryIcon className='h-3 w-3' />, label: 'Limit: 10' },
     ],
   },
@@ -106,9 +106,8 @@ const LANDING_BLOCKS: LandingManualBlock[] = [
       desktop: { x: 880, y: 142 },
     },
     tags: [
-      { icon: <BotIcon className='h-3 w-3' />, label: 'Reasoning' },
-      { icon: <LayersIcon className='h-3 w-3' />, label: 'gpt-4o' },
-      { icon: <HammerIcon className='h-3 w-3' />, label: '2 tools' },
+      { icon: <OpenAIIcon className='h-3 w-3' />, label: 'gpt-5' },
+      { icon: <MessageSquareIcon className='h-3 w-3' />, label: 'You are a support ag...' },
     ],
   },
   {
@@ -122,8 +121,8 @@ const LANDING_BLOCKS: LandingManualBlock[] = [
       desktop: { x: 880, y: 340 },
     },
     tags: [
-      { icon: <CodeIcon className='h-3 w-3' />, label: 'Custom Logic' },
-      { icon: <VariableIcon className='h-3 w-3' />, label: '3 inputs' },
+      { icon: <CodeIcon className='h-3 w-3' />, label: 'Python' },
+      { icon: <VariableIcon className='h-3 w-3' />, label: 'time = "2025-09-01...' },
     ],
   },
 ]
@@ -273,34 +272,65 @@ export default function Hero() {
 
     // Convert landing blocks to React Flow nodes
     const nodes: Node[] = [
-      // Add the loop block node
+      // Add the loop block node as a group with custom rendering
       {
         id: 'loop',
-        type: 'landingLoop',
+        type: 'group',
         position: { x: 720, y: 20 },
         data: {
           label: 'Loop',
         },
         draggable: false,
         selectable: false,
+        focusable: false,
+        connectable: false,
+        // Group node properties for subflow functionality
+        style: {
+          width: 1198,
+          height: 528,
+          backgroundColor: 'transparent',
+          border: 'none',
+          padding: 0,
+        },
       },
       // Convert blocks to nodes
-      ...LANDING_BLOCKS.map((block, index) => ({
-        id: block.id,
-        type: 'landing',
-        position: block.positions[breakpoint],
-        data: {
-          icon: block.icon,
-          color: block.color,
-          name: block.name,
-          tags: block.tags,
-          delay: index * 0.18,
-        },
-        draggable: false,
-        selectable: false,
-        sourcePosition: Position.Right,
-        targetPosition: Position.Left,
-      })),
+      ...LANDING_BLOCKS.map((block, index) => {
+        // Make agent and function nodes children of the loop
+        const isLoopChild = block.id === 'agent' || block.id === 'function'
+        const baseNode = {
+          id: block.id,
+          type: 'landing',
+          position: isLoopChild
+            ? {
+                // Adjust positions relative to loop parent (original positions - loop position)
+                x: block.id === 'agent' ? 160 : 160,
+                y: block.id === 'agent' ? 122 : 320,
+              }
+            : block.positions[breakpoint],
+          data: {
+            icon: block.icon,
+            color: block.color,
+            name: block.name,
+            tags: block.tags,
+            delay: index * 0.18,
+            hideTargetHandle: block.id === 'schedule', // Hide target handle for schedule node
+            hideSourceHandle: block.id === 'agent' || block.id === 'function', // Hide source handle for agent and function nodes
+          },
+          sourcePosition: Position.Right,
+          targetPosition: Position.Left,
+        }
+
+        // Add parent properties for loop children
+        if (isLoopChild) {
+          return {
+            ...baseNode,
+            parentId: 'loop',
+            extent: 'parent',
+          }
+        }
+
+        return baseNode
+      }),
     ]
 
     // Convert sample edges to React Flow edges
@@ -309,9 +339,8 @@ export default function Hero() {
       source: e.from,
       target: e.to,
       type: 'landingEdge',
-      animated: true,
-      data: { delay: 0.3 },
-      style: { strokeDasharray: '6 6', strokeWidth: 2, stroke: '#E1E1E1' },
+      animated: false,
+      data: { delay: 0.6 },
     }))
 
     setRfNodes(nodes)
@@ -327,7 +356,7 @@ export default function Hero() {
       className={`${soehne.className} flex w-full flex-col items-center justify-center pt-[80px]`}
     >
       <h1 className='font-medium text-[74px] leading-none tracking-tight'>Workflows for LLMs</h1>
-      <h2 className='pt-[16px] text-center font-normal text-[22px] opacity-70'>
+      <h2 className='pt-[14px] text-center text-[22px] opacity-70'>
         Build and deploy AI agent workflows
       </h2>
       <div
@@ -355,7 +384,7 @@ export default function Hero() {
       <div className='relative flex items-center justify-center pt-[12px]'>
         <textarea
           placeholder='Ask Sim to build an agent to read my emails...'
-          className='h-[120px] w-[640px] resize-none px-4 py-3 font-normal'
+          className='h-[120px] w-[640px] resize-none px-4 py-3'
           value={textValue}
           onChange={(e) => setTextValue(e.target.value)}
           onKeyDown={handleKeyDown}

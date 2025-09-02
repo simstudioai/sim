@@ -121,7 +121,7 @@ export function LandingCanvas({
 
   return (
     <div className='relative mx-auto flex h-[36rem] w-full max-w-[1250px] overflow-hidden rounded-t-[10px] bg-background/80 shadow-sm'>
-      <DotPattern className='pointer-events-none absolute top-0 left-0 z-0 h-full w-full opacity-20' />
+      <DotPattern className='pointer-events-none absolute inset-0 z-0 h-full w-full opacity-20' />
       <div ref={flowWrapRef} className='relative z-10 h-full w-full'>
         <ReactFlowProvider>
           <LandingFlow

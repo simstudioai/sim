@@ -1,7 +1,6 @@
 'use client'
 
 import React from 'react'
-import { Handle, Position } from 'reactflow'
 import { LoopBlock } from './loop-block'
 
 /**
@@ -16,39 +15,30 @@ export interface LoopNodeData {
 
 /**
  * React Flow node component for the loop block
+ * Acts as a group node for subflow functionality
  * @param props - Component properties containing node data
  * @returns A React Flow compatible loop node component
  */
 export const LandingLoopNode = React.memo(function LandingLoopNode({
   data,
+  style,
 }: {
   data: LoopNodeData
+  style?: React.CSSProperties
 }) {
   return (
-    <div className='landing-loop-node relative'>
-      <Handle
-        type='target'
-        position={Position.Left}
-        style={{
-          opacity: 0,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          pointerEvents: 'none',
-        }}
-        isConnectable={false}
-      />
-      <Handle
-        type='source'
-        position={Position.Right}
-        style={{
-          opacity: 0,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          pointerEvents: 'none',
-        }}
-        isConnectable={false}
-      />
-      <LoopBlock>
+    <div
+      className='nodrag nopan nowheel relative'
+      style={{
+        width: style?.width || 1198,
+        height: style?.height || 528,
+        backgroundColor: 'transparent',
+        outline: 'none !important',
+        boxShadow: 'none !important',
+        border: 'none !important',
+      }}
+    >
+      <LoopBlock style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>
         <div className='flex items-start gap-3 px-6 py-4'>
           <span className='font-medium text-base text-blue-500'>Loop</span>
         </div>

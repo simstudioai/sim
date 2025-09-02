@@ -1,5 +1,5 @@
 import React from 'react'
-import { BookIcon, ChevronUpIcon } from 'lucide-react'
+import { BookIcon } from 'lucide-react'
 import { Tag, type TagProps } from './tag'
 
 /**
@@ -51,12 +51,9 @@ export const LandingBlock = React.memo(function LandingBlock({
           >
             {icon}
           </div>
-          <p className='font-medium text-base text-card-foreground'>{name}</p>
+          <p className='text-base text-card-foreground'>{name}</p>
         </div>
-        <div className='flex items-center gap-4'>
-          <BookIcon className='h-4 w-4 text-muted-foreground' />
-          <ChevronUpIcon className='h-4 w-4 text-muted-foreground' />
-        </div>
+        <BookIcon className='h-4 w-4 text-muted-foreground' />
       </div>
 
       {tags && tags.length > 0 ? (

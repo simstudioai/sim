@@ -39,33 +39,51 @@ export const LandingNode = React.memo(function LandingNode({ data }: { data: Lan
     }
   }, [data])
 
+  // Check if this node should have a target handle (schedule node shouldn't)
+  const hideTargetHandle = (data as any)?.hideTargetHandle || false
+  // Check if this node should have a source handle (agent and function nodes shouldn't)
+  const hideSourceHandle = (data as any)?.hideSourceHandle || false
+
   return (
-    <div ref={wrapperRef} className='landing-node relative'>
-      <Handle
-        type='target'
-        position={Position.Left}
-        style={{
-          opacity: 0,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          pointerEvents: 'none',
-        }}
-        isConnectable={false}
-      />
-      <Handle
-        type='source'
-        position={Position.Right}
-        style={{
-          opacity: 0,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          pointerEvents: 'none',
-        }}
-        isConnectable={false}
-      />
+    <div ref={wrapperRef} className='relative cursor-move'>
+      {!hideTargetHandle && (
+        <Handle
+          type='target'
+          position={Position.Left}
+          style={{
+            width: '12px',
+            height: '12px',
+            background: '#FEFEFE',
+            border: '1px solid #E5E5E5',
+            borderRadius: '50%',
+            top: '50%',
+            left: '-20px',
+            transform: 'translateY(-50%)',
+            zIndex: 2,
+          }}
+          isConnectable={false}
+        />
+      )}
+      {!hideSourceHandle && (
+        <Handle
+          type='source'
+          position={Position.Right}
+          style={{
+            width: '12px',
+            height: '12px',
+            background: '#FEFEFE',
+            border: '1px solid #E5E5E5',
+            borderRadius: '50%',
+            top: '50%',
+            right: '-20px',
+            transform: 'translateY(-50%)',
+            zIndex: 2,
+          }}
+          isConnectable={false}
+        />
+      )}
       <div
         ref={innerRef}
-        className='landing-node-inner'
         style={{
           opacity: 0,
           transform: 'translateY(8px) scale(0.98)',

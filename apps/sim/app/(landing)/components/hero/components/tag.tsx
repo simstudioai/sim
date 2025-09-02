@@ -17,7 +17,7 @@ export interface TagProps {
  */
 export const Tag = React.memo(function Tag({ icon, label }: TagProps) {
   return (
-    <div className='flex w-fit items-center gap-1 rounded-[8px] bg-secondary px-2 py-0.5'>
+    <div className='flex w-fit items-center gap-1 rounded-[8px] border border-gray-300 bg-white px-2 py-0.5'>
       <div className='h-3 w-3 text-muted-foreground'>{icon}</div>
       <p className='text-muted-foreground text-xs leading-normal'>{label}</p>
     </div>
