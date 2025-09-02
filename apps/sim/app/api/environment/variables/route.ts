@@ -14,41 +14,6 @@ const EnvVarSchema = z.object({
   variables: z.record(z.string()),
 })
 
-export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
-
-  try {
-    const { searchParams } = new URL(request.url)
-    const workflowId = searchParams.get('workflowId')
-
-    const userId = await getUserId(requestId, workflowId || undefined)
-
-    if (!userId) {
-      logger.warn(`[${requestId}] Unauthorized environment variables access attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const result = await getEnvironmentVariableKeys(userId)
-
-    return NextResponse.json(
-      {
-        success: true,
-        output: result,
-      },
-      { status: 200 }
-    )
-  } catch (error: any) {
-    logger.error(`[${requestId}] Environment variables fetch error`, error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || 'Failed to get environment variables',
-      },
-      { status: 500 }
-    )
-  }
-}
-
 export async function PUT(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
