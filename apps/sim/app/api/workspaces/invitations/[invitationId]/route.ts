@@ -181,65 +181,6 @@ export async function GET(
   }
 }
 
-// PUT /api/workspaces/invitations/[invitationId] - Accept/reject invitation (API-only)
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ invitationId: string }> }
-) {
-  const { invitationId } = await params
-  const session = await getSession()
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  try {
-    const { status } = await req.json()
-
-    if (!status || !['accepted', 'rejected'].includes(status)) {
-      return NextResponse.json(
-        { error: 'Invalid status. Must be "accepted" or "rejected"' },
-        { status: 400 }
-      )
-    }
-
-    const invitation = await db
-      .select()
-      .from(workspaceInvitation)
-      .where(eq(workspaceInvitation.id, invitationId))
-      .then((rows) => rows[0])
-
-    if (!invitation) {
-      return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
-    }
-
-    if (new Date() > new Date(invitation.expiresAt)) {
-      return NextResponse.json({ error: 'Invitation has expired' }, { status: 400 })
-    }
-
-    if (invitation.status !== ('pending' as WorkspaceInvitationStatus)) {
-      return NextResponse.json({ error: 'Invitation already processed' }, { status: 400 })
-    }
-
-    await db
-      .update(workspaceInvitation)
-      .set({
-        status: status as WorkspaceInvitationStatus,
-        updatedAt: new Date(),
-      })
-      .where(eq(workspaceInvitation.id, invitationId))
-
-    return NextResponse.json({
-      success: true,
-      message: `Invitation ${status}`,
-      invitation: { ...invitation, status },
-    })
-  } catch (error) {
-    console.error('Error updating invitation:', error)
-    return NextResponse.json({ error: 'Failed to update invitation' }, { status: 500 })
-  }
-}
-
 // DELETE /api/workspaces/invitations/[invitationId] - Delete a workspace invitation
 export async function DELETE(
   _req: NextRequest,

@@ -1,5 +1,4 @@
 export const API_ENDPOINTS = {
-  SYNC: '/api/workflows/sync',
   ENVIRONMENT: '/api/environment',
   SCHEDULE: '/api/schedules',
   SETTINGS: '/api/settings',
