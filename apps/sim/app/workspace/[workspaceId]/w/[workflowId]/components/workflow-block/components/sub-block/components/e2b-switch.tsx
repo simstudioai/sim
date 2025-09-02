@@ -52,7 +52,7 @@ export function E2BSwitch({
           <Info className='h-4 w-4 cursor-pointer text-muted-foreground' />
         </TooltipTrigger>
         <TooltipContent side='top' className='max-w-[320px] select-text whitespace-pre-wrap'>
-          Python/Javascript code run in a sandbox environment. Slower execution times.
+          Python/Javascript code run in a sandbox environment. Can have slower execution times.
         </TooltipContent>
       </Tooltip>
     </div>
