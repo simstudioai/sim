@@ -350,9 +350,7 @@ export const workspaceEnvironment = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    // Ensure one row per workspace
     workspaceUnique: uniqueIndex('workspace_environment_workspace_unique').on(table.workspaceId),
-    workspaceIdIdx: index('workspace_environment_workspace_id_idx').on(table.workspaceId),
   })
 )
 
