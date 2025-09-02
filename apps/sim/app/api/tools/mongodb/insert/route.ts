@@ -10,12 +10,27 @@ const InsertSchema = z.object({
   host: z.string().min(1, 'Host is required'),
   port: z.coerce.number().int().positive('Port must be a positive integer'),
   database: z.string().min(1, 'Database name is required'),
-  username: z.string().optional(),
-  password: z.string().optional(),
+  username: z.string().min(1, 'Username is required'),
+  password: z.string().min(1, 'Password is required'),
   authSource: z.string().optional(),
   ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
   collection: z.string().min(1, 'Collection name is required'),
-  documents: z.array(z.unknown()).min(1, 'At least one document is required'),
+  documents: z
+    .union([z.array(z.record(z.unknown())), z.string()])
+    .transform((val) => {
+      if (typeof val === 'string') {
+        try {
+          const parsed = JSON.parse(val)
+          return Array.isArray(parsed) ? parsed : [parsed]
+        } catch {
+          throw new Error('Invalid JSON in documents field')
+        }
+      }
+      return val
+    })
+    .refine((val) => Array.isArray(val) && val.length > 0, {
+      message: 'At least one document is required',
+    }),
 })
 
 export async function POST(request: NextRequest) {
@@ -46,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     let result
     if (params.documents.length === 1) {
-      result = await coll.insertOne(params.documents[0])
+      result = await coll.insertOne(params.documents[0] as Record<string, unknown>)
       logger.info(`[${requestId}] Single document inserted successfully`)
       return NextResponse.json({
         message: 'Document inserted successfully',
@@ -54,7 +69,7 @@ export async function POST(request: NextRequest) {
         documentCount: 1,
       })
     }
-    result = await coll.insertMany(params.documents)
+    result = await coll.insertMany(params.documents as Record<string, unknown>[])
     const insertedCount = Object.keys(result.insertedIds).length
     logger.info(`[${requestId}] ${insertedCount} documents inserted successfully`)
     return NextResponse.json({

@@ -1,7 +1,7 @@
 import type { MongoDBExecuteParams, MongoDBResponse } from '@/tools/mongodb/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const mongodbExecuteTool: ToolConfig<MongoDBExecuteParams, MongoDBResponse> = {
+export const executeTool: ToolConfig<MongoDBExecuteParams, MongoDBResponse> = {
   id: 'mongodb_execute',
   name: 'MongoDB Execute',
   description: 'Execute MongoDB aggregation pipeline',

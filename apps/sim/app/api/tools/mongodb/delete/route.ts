@@ -10,13 +10,30 @@ const DeleteSchema = z.object({
   host: z.string().min(1, 'Host is required'),
   port: z.coerce.number().int().positive('Port must be a positive integer'),
   database: z.string().min(1, 'Database name is required'),
-  username: z.string().optional(),
-  password: z.string().optional(),
+  username: z.string().min(1, 'Username is required'),
+  password: z.string().min(1, 'Password is required'),
   authSource: z.string().optional(),
   ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
   collection: z.string().min(1, 'Collection name is required'),
-  filter: z.string().min(1, 'Filter is required'),
-  multi: z.boolean().default(false),
+  filter: z
+    .union([z.string(), z.object({}).passthrough()])
+    .transform((val) => {
+      if (typeof val === 'object' && val !== null) {
+        return JSON.stringify(val)
+      }
+      return val
+    })
+    .refine((val) => val && val.trim() !== '' && val !== '{}', {
+      message: 'Filter is required for MongoDB Delete',
+    }),
+  multi: z
+    .union([z.boolean(), z.string(), z.undefined()])
+    .optional()
+    .transform((val) => {
+      if (val === 'true' || val === true) return true
+      if (val === 'false' || val === false) return false
+      return false // Default to false
+    }),
 })
 
 export async function POST(request: NextRequest) {

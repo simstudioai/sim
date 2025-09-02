@@ -1,7 +1,7 @@
 import type { MongoDBQueryParams, MongoDBResponse } from '@/tools/mongodb/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const mongodbQueryTool: ToolConfig<MongoDBQueryParams, MongoDBResponse> = {
+export const queryTool: ToolConfig<MongoDBQueryParams, MongoDBResponse> = {
   id: 'mongodb_query',
   name: 'MongoDB Query',
   description: 'Execute find operation on MongoDB collection',

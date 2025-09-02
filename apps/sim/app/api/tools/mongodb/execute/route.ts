@@ -10,12 +10,22 @@ const ExecuteSchema = z.object({
   host: z.string().min(1, 'Host is required'),
   port: z.coerce.number().int().positive('Port must be a positive integer'),
   database: z.string().min(1, 'Database name is required'),
-  username: z.string().optional(),
-  password: z.string().optional(),
+  username: z.string().min(1, 'Username is required'),
+  password: z.string().min(1, 'Password is required'),
   authSource: z.string().optional(),
   ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
   collection: z.string().min(1, 'Collection name is required'),
-  pipeline: z.string().min(1, 'Pipeline is required'),
+  pipeline: z
+    .union([z.string(), z.array(z.object({}).passthrough())])
+    .transform((val) => {
+      if (Array.isArray(val)) {
+        return JSON.stringify(val)
+      }
+      return val
+    })
+    .refine((val) => val && val.trim() !== '', {
+      message: 'Pipeline is required',
+    }),
 })
 
 export async function POST(request: NextRequest) {

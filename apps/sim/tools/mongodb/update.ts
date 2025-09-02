@@ -1,7 +1,7 @@
 import type { MongoDBResponse, MongoDBUpdateParams } from '@/tools/mongodb/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const mongodbUpdateTool: ToolConfig<MongoDBUpdateParams, MongoDBResponse> = {
+export const updateTool: ToolConfig<MongoDBUpdateParams, MongoDBResponse> = {
   id: 'mongodb_update',
   name: 'MongoDB Update',
   description: 'Update documents in MongoDB collection',

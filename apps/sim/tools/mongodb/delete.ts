@@ -1,7 +1,7 @@
 import type { MongoDBDeleteParams, MongoDBResponse } from '@/tools/mongodb/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const mongodbDeleteTool: ToolConfig<MongoDBDeleteParams, MongoDBResponse> = {
+export const deleteTool: ToolConfig<MongoDBDeleteParams, MongoDBResponse> = {
   id: 'mongodb_delete',
   name: 'MongoDB Delete',
   description: 'Delete documents from MongoDB collection',

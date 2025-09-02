@@ -1,7 +1,7 @@
 import type { MongoDBInsertParams, MongoDBResponse } from '@/tools/mongodb/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const mongodbInsertTool: ToolConfig<MongoDBInsertParams, MongoDBResponse> = {
+export const insertTool: ToolConfig<MongoDBInsertParams, MongoDBResponse> = {
   id: 'mongodb_insert',
   name: 'MongoDB Insert',
   description: 'Insert documents into MongoDB collection',

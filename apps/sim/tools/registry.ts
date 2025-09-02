@@ -92,11 +92,11 @@ import {
 } from '@/tools/microsoft_teams'
 import { mistralParserTool } from '@/tools/mistral'
 import {
-  mongodbDeleteTool,
-  mongodbExecuteTool,
-  mongodbInsertTool,
-  mongodbQueryTool,
-  mongodbUpdateTool,
+  deleteTool as mongodbDeleteTool,
+  executeTool as mongodbExecuteTool,
+  insertTool as mongodbInsertTool,
+  queryTool as mongodbQueryTool,
+  updateTool as mongodbUpdateTool,
 } from '@/tools/mongodb'
 import {
   deleteTool as mysqlDeleteTool,

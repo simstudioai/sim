@@ -10,14 +10,39 @@ const QuerySchema = z.object({
   host: z.string().min(1, 'Host is required'),
   port: z.coerce.number().int().positive('Port must be a positive integer'),
   database: z.string().min(1, 'Database name is required'),
-  username: z.string().optional(),
-  password: z.string().optional(),
+  username: z.string().min(1, 'Username is required'),
+  password: z.string().min(1, 'Password is required'),
   authSource: z.string().optional(),
   ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
   collection: z.string().min(1, 'Collection name is required'),
-  query: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(1000).optional(),
-  sort: z.string().optional(),
+  query: z
+    .union([z.string(), z.object({}).passthrough()])
+    .optional()
+    .default('{}')
+    .transform((val) => {
+      if (typeof val === 'object' && val !== null) {
+        return JSON.stringify(val)
+      }
+      return val || '{}'
+    }),
+  limit: z
+    .union([z.coerce.number().int().positive(), z.literal(''), z.undefined()])
+    .optional()
+    .transform((val) => {
+      if (val === '' || val === undefined || val === null) {
+        return 100
+      }
+      return val
+    }),
+  sort: z
+    .union([z.string(), z.object({}).passthrough(), z.null()])
+    .optional()
+    .transform((val) => {
+      if (typeof val === 'object' && val !== null) {
+        return JSON.stringify(val)
+      }
+      return val
+    }),
 })
 
 export async function POST(request: NextRequest) {

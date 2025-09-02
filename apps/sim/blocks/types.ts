@@ -18,6 +18,9 @@ export type GenerationType =
   | 'postgrest'
   | 'mongodb-filter'
   | 'mongodb-pipeline'
+  | 'mongodb-sort'
+  | 'mongodb-documents'
+  | 'mongodb-update'
 
 export type SubBlockType =
   | 'short-input' // Single line input

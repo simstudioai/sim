@@ -179,20 +179,13 @@ IMPORTANT FORMATTING RULES:
     return wandConfig
   }, [wandConfig, remoteExecution, languageValue])
 
-  const wandHook = dynamicWandConfig?.enabled
-    ? useWand({
-        wandConfig: dynamicWandConfig,
-        currentValue: code,
-        onStreamStart: () => handleStreamStartRef.current?.(),
-        onStreamChunk: (chunk: string) => {
-          setCode((prev) => prev + chunk)
-          handleStreamChunkRef.current?.(chunk)
-        },
-        onGeneratedContent: (content: string) => {
-          handleGeneratedContentRef.current?.(content)
-        },
-      })
-    : null
+  const wandHook = useWand({
+    wandConfig: wandConfig || { enabled: false, prompt: '' },
+    currentValue: code,
+    onStreamStart: () => handleStreamStartRef.current?.(),
+    onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
+    onGeneratedContent: (content: string) => handleGeneratedContentRef.current?.(content),
+  })
 
   const isAiLoading = wandHook?.isLoading || false
   const isAiStreaming = wandHook?.isStreaming || false
