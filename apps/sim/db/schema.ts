@@ -641,8 +641,17 @@ export const workspace = pgTable('workspace', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-// Define the permission enum
 export const permissionTypeEnum = pgEnum('permission_type', ['admin', 'write', 'read'])
+
+export const workspaceInvitationStatusEnum = pgEnum('workspace_invitation_status', [
+  'pending',
+  'accepted',
+  'rejected',
+  'cancelled',
+])
+
+// Export the TypeScript type for the enum
+export type WorkspaceInvitationStatus = (typeof workspaceInvitationStatusEnum.enumValues)[number]
 
 export const workspaceInvitation = pgTable('workspace_invitation', {
   id: text('id').primaryKey(),
@@ -654,7 +663,7 @@ export const workspaceInvitation = pgTable('workspace_invitation', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
   role: text('role').notNull().default('member'),
-  status: text('status').notNull().default('pending'),
+  status: workspaceInvitationStatusEnum('status').notNull().default('pending'),
   token: text('token').notNull().unique(),
   permissions: permissionTypeEnum('permissions').notNull().default('admin'),
   orgInvitationId: text('org_invitation_id'),

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle2, Mail, UserPlus, Users2 } from 'lucide-react'
+import { CheckCircle2, Mail, RotateCcw, ShieldX, UserPlus, Users2 } from 'lucide-react'
 import Image from 'next/image'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,35 @@ import { useBrandConfig } from '@/lib/branding/branding'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('InviteByIDAPI')
+
+function getErrorMessage(reason: string): string {
+  switch (reason) {
+    case 'missing-token':
+      return 'The invitation link is invalid or missing a required parameter.'
+    case 'invalid-token':
+      return 'The invitation link is invalid or has already been used.'
+    case 'expired':
+      return 'This invitation has expired. Please ask for a new invitation.'
+    case 'already-processed':
+      return 'This invitation has already been accepted or declined.'
+    case 'email-mismatch':
+      return 'This invitation was sent to a different email address. Please log in with the correct account or contact the person who invited you.'
+    case 'workspace-not-found':
+      return 'The workspace associated with this invitation could not be found.'
+    case 'user-not-found':
+      return 'Your user account could not be found. Please try logging out and logging back in.'
+    case 'already-member':
+      return 'You are already a member of this organization or workspace.'
+    case 'invalid-invitation':
+      return 'This invitation is invalid or no longer exists.'
+    case 'missing-invitation-id':
+      return 'The invitation link is missing required information. Please use the original invitation link.'
+    case 'server-error':
+      return 'An unexpected error occurred while processing your invitation. Please try again later.'
+    default:
+      return 'An unknown error occurred while processing your invitation.'
+  }
+}
 
 export default function Invite() {
   const router = useRouter()
@@ -28,8 +57,16 @@ export default function Invite() {
   const [token, setToken] = useState<string | null>(null)
   const [invitationType, setInvitationType] = useState<'organization' | 'workspace'>('workspace')
 
-  // Check if this is a new user vs. existing user and get token from query
+  // Check for error parameters and set initial state
   useEffect(() => {
+    const errorReason = searchParams.get('error')
+
+    if (errorReason) {
+      setError(getErrorMessage(errorReason))
+      setIsLoading(false)
+      return
+    }
+
     const isNew = searchParams.get('new') === 'true'
     setIsNewUser(isNew)
 
@@ -52,7 +89,7 @@ export default function Invite() {
       try {
         // First try to fetch workspace invitation details
         const workspaceInviteResponse = await fetch(
-          `/api/workspaces/invitations/details?token=${token}`,
+          `/api/workspaces/invitations/${token}?token=${token}`,
           {
             method: 'GET',
           }
@@ -122,7 +159,7 @@ export default function Invite() {
     setIsAccepting(true)
 
     if (invitationType === 'workspace') {
-      window.location.href = `/api/workspaces/invitations/accept?token=${encodeURIComponent(token || '')}`
+      window.location.href = `/api/workspaces/invitations/${encodeURIComponent(token || '')}?token=${encodeURIComponent(token || '')}`
     } else {
       try {
         // For organization invites, use the client API
@@ -280,6 +317,9 @@ export default function Invite() {
 
   // Show error state
   if (error) {
+    const errorReason = searchParams.get('error')
+    const isExpiredError = errorReason === 'expired'
+
     return (
       <div className='flex min-h-screen flex-col items-center justify-center bg-white px-4 dark:bg-black'>
         <div className='mb-8'>
@@ -294,20 +334,33 @@ export default function Invite() {
         </div>
         <div className='flex w-full max-w-md flex-col items-center text-center'>
           <div className='mb-6 rounded-full bg-red-50 p-3 dark:bg-red-950/20'>
-            <AlertCircle className='h-8 w-8 text-red-500 dark:text-red-400' />
+            <ShieldX className='h-8 w-8 text-red-500 dark:text-red-400' />
           </div>
           <h1 className='mb-2 font-semibold text-black text-xl dark:text-white'>
             Invitation Error
           </h1>
           <p className='mb-6 text-gray-600 text-sm leading-relaxed dark:text-gray-300'>{error}</p>
 
-          <Button
-            className='w-full'
-            style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
-            onClick={() => router.push('/')}
-          >
-            Return to Home
-          </Button>
+          <div className='flex w-full flex-col gap-3'>
+            {isExpiredError && (
+              <Button
+                variant='outline'
+                className='w-full border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white'
+                onClick={() => router.push('/')}
+              >
+                <RotateCcw className='mr-2 h-4 w-4' />
+                Request New Invitation
+              </Button>
+            )}
+
+            <Button
+              className='w-full'
+              style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
+              onClick={() => router.push('/')}
+            >
+              Return to Home
+            </Button>
+          </div>
         </div>
 
         <footer className='mt-8 text-center text-gray-500 text-xs'>

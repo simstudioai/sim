@@ -13,6 +13,7 @@ import {
   permissions,
   type permissionTypeEnum,
   user,
+  type WorkspaceInvitationStatus,
   workspace,
   workspaceInvitation,
 } from '@/db/schema'
@@ -162,7 +163,7 @@ export async function POST(req: NextRequest) {
         and(
           eq(workspaceInvitation.workspaceId, workspaceId),
           eq(workspaceInvitation.email, email),
-          eq(workspaceInvitation.status, 'pending')
+          eq(workspaceInvitation.status, 'pending' as WorkspaceInvitationStatus)
         )
       )
       .then((rows) => rows[0])
@@ -189,7 +190,7 @@ export async function POST(req: NextRequest) {
       email,
       inviterId: session.user.id,
       role,
-      status: 'pending',
+      status: 'pending' as WorkspaceInvitationStatus,
       token,
       permissions: permission,
       expiresAt,

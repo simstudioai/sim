@@ -17,7 +17,15 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import { db } from '@/db'
-import { invitation, member, organization, user, workspace, workspaceInvitation } from '@/db/schema'
+import {
+  invitation,
+  member,
+  organization,
+  user,
+  type WorkspaceInvitationStatus,
+  workspace,
+  workspaceInvitation,
+} from '@/db/schema'
 
 const logger = createLogger('OrganizationInvitationsAPI')
 
@@ -348,7 +356,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           organizationEntry[0]?.name || 'organization',
           role,
           workspaceInvitationsWithNames,
-          `${env.NEXT_PUBLIC_APP_URL}/api/organizations/invitations/accept?id=${orgInvitation.id}`
+          `${env.NEXT_PUBLIC_APP_URL}/invite/organization?id=${orgInvitation.id}`
         )
 
         emailResult = await sendEmail({
@@ -361,7 +369,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const emailHtml = await renderInvitationEmail(
           inviter[0]?.name || 'Someone',
           organizationEntry[0]?.name || 'organization',
-          `${env.NEXT_PUBLIC_APP_URL}/api/organizations/invitations/accept?id=${orgInvitation.id}`,
+          `${env.NEXT_PUBLIC_APP_URL}/invite/organization?id=${orgInvitation.id}`,
           email
         )
 
@@ -489,19 +497,19 @@ export async function DELETE(
     // Also cancel any linked workspace invitations created as part of the batch
     await db
       .update(workspaceInvitation)
-      .set({ status: 'cancelled' })
+      .set({ status: 'cancelled' as WorkspaceInvitationStatus })
       .where(eq(workspaceInvitation.orgInvitationId, invitationId))
 
     // Legacy fallback: cancel any pending workspace invitations for the same email
     // that do not have an orgInvitationId and were created by the same inviter
     await db
       .update(workspaceInvitation)
-      .set({ status: 'cancelled' })
+      .set({ status: 'cancelled' as WorkspaceInvitationStatus })
       .where(
         and(
           isNull(workspaceInvitation.orgInvitationId),
           eq(workspaceInvitation.email, result[0].email),
-          eq(workspaceInvitation.status, 'pending'),
+          eq(workspaceInvitation.status, 'pending' as WorkspaceInvitationStatus),
           eq(workspaceInvitation.inviterId, session.user.id)
         )
       )
