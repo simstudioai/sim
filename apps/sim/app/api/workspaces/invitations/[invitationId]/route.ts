@@ -21,7 +21,7 @@ export async function GET(
   const { invitationId } = await params
   const session = await getSession()
   const token = req.nextUrl.searchParams.get('token')
-  const isAcceptFlow = token && req.nextUrl.searchParams.has('token') // If token is provided, this is an acceptance flow
+  const isAcceptFlow = !!token // If token is provided, this is an acceptance flow
 
   if (!session?.user?.id) {
     // For token-based acceptance flows, redirect to login

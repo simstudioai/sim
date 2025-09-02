@@ -23,7 +23,6 @@ import type { EnvironmentVariable as StoreEnvironmentVariable } from '@/stores/s
 
 const logger = createLogger('EnvironmentVariables')
 
-// Constants
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr),minmax(0,1fr),88px] gap-4'
 const INITIAL_ENV_VAR: UIEnvironmentVariable = { key: '', value: '' }
 
@@ -66,7 +65,6 @@ export function EnvironmentVariables({
   const pendingClose = useRef(false)
   const initialVarsRef = useRef<UIEnvironmentVariable[]>([])
 
-  // Filter environment variables based on search term
   const filteredEnvVars = useMemo(() => {
     if (!searchTerm.trim()) {
       return envVars.map((envVar, index) => ({ envVar, originalIndex: index }))
@@ -77,7 +75,6 @@ export function EnvironmentVariables({
       .filter(({ envVar }) => envVar.key.toLowerCase().includes(searchTerm.toLowerCase()))
   }, [envVars, searchTerm])
 
-  // Derived state
   const hasChanges = useMemo(() => {
     const initialVars = initialVarsRef.current.filter((v) => v.key || v.value)
     const currentVars = envVars.filter((v) => v.key || v.value)
@@ -96,7 +93,6 @@ export function EnvironmentVariables({
       if (!currentMap.has(key)) return true
     }
 
-    // Workspace diffs
     const before = initialWorkspaceVarsRef.current
     const after = workspaceVars
     const beforeKeys = Object.keys(before)
@@ -109,12 +105,10 @@ export function EnvironmentVariables({
     return false
   }, [envVars, workspaceVars])
 
-  // Check if there are any active conflicts
   const hasConflicts = useMemo(() => {
     return envVars.some((envVar) => !!envVar.key && Object.hasOwn(workspaceVars, envVar.key))
   }, [envVars, workspaceVars])
 
-  // Intercept close attempts to check for unsaved changes
   const handleModalClose = (open: boolean) => {
     if (!open && hasChanges) {
       setShowUnsavedChanges(true)
@@ -124,7 +118,6 @@ export function EnvironmentVariables({
     }
   }
 
-  // Initialization effect
   useEffect(() => {
     const existingVars = Object.values(variables)
     const initialVars = existingVars.length ? existingVars : [INITIAL_ENV_VAR]
@@ -158,14 +151,12 @@ export function EnvironmentVariables({
     }
   }, [workspaceId, loadWorkspaceEnvironment])
 
-  // Register close handler with parent
   useEffect(() => {
     if (registerCloseHandler) {
       registerCloseHandler(handleModalClose)
     }
   }, [registerCloseHandler, hasChanges])
 
-  // Scroll effect - only when explicitly adding a new variable
   useEffect(() => {
     if (shouldScrollToBottom && scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({
@@ -322,8 +313,7 @@ export function EnvironmentVariables({
           }),
           {}
         )
-
-      useEnvironmentStore.getState().setVariables(validVariables)
+      await useEnvironmentStore.getState().saveEnvironmentVariables(validVariables)
 
       const before = initialWorkspaceVarsRef.current
       const after = workspaceVars
@@ -354,7 +344,6 @@ export function EnvironmentVariables({
     }
   }
 
-  // UI rendering
   const renderEnvVarRow = (envVar: UIEnvironmentVariable, originalIndex: number) => {
     const isConflict = !!envVar.key && Object.hasOwn(workspaceVars, envVar.key)
     return (
