@@ -11,15 +11,12 @@ const logger = createLogger('RateLimitAPI')
 
 export async function GET(request: NextRequest) {
   try {
-    // Try session auth first (for web UI)
     const session = await getSession()
     let authenticatedUserId: string | null = session?.user?.id || null
 
-    // If no session, check for API key auth
     if (!authenticatedUserId) {
       const apiKeyHeader = request.headers.get('x-api-key')
       if (apiKeyHeader) {
-        // Verify API key
         const [apiKeyRecord] = await db
           .select({ userId: apiKeyTable.userId })
           .from(apiKeyTable)
@@ -36,7 +33,6 @@ export async function GET(request: NextRequest) {
       return createErrorResponse('Authentication required', 401)
     }
 
-    // Get user subscription
     const [subscriptionRecord] = await db
       .select({ plan: subscription.plan })
       .from(subscription)

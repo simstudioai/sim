@@ -321,7 +321,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
     try {
       // Primary: call server-side usage check to mirror backend enforcement
-      const res = await fetch('/api/usage/check', { cache: 'no-store' })
+      const res = await fetch('/api/usage?context=user', { cache: 'no-store' })
       if (res.ok) {
         const payload = await res.json()
         const usage = payload?.data

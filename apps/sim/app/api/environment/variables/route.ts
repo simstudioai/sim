@@ -10,7 +10,6 @@ import { environment } from '@/db/schema'
 
 const logger = createLogger('EnvironmentVariablesAPI')
 
-// Schema for environment variable updates
 const EnvVarSchema = z.object({
   variables: z.record(z.string()),
 })
@@ -19,11 +18,9 @@ export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
-    // For GET requests, check for workflowId in query params
     const { searchParams } = new URL(request.url)
     const workflowId = searchParams.get('workflowId')
 
-    // Use dual authentication pattern like other copilot tools
     const userId = await getUserId(requestId, workflowId || undefined)
 
     if (!userId) {
@@ -31,7 +28,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get only the variable names (keys), not values
     const result = await getEnvironmentVariableKeys(userId)
 
     return NextResponse.json(
@@ -60,7 +56,6 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const { workflowId, variables } = body
 
-    // Use dual authentication pattern like other copilot tools
     const userId = await getUserId(requestId, workflowId)
 
     if (!userId) {
@@ -71,42 +66,34 @@ export async function PUT(request: NextRequest) {
     try {
       const { variables: validatedVariables } = EnvVarSchema.parse({ variables })
 
-      // Get existing environment variables for this user
       const existingData = await db
         .select()
         .from(environment)
         .where(eq(environment.userId, userId))
         .limit(1)
 
-      // Start with existing encrypted variables or empty object
       const existingEncryptedVariables =
         (existingData[0]?.variables as Record<string, string>) || {}
 
-      // Determine which variables are new or changed by comparing with decrypted existing values
       const variablesToEncrypt: Record<string, string> = {}
       const addedVariables: string[] = []
       const updatedVariables: string[] = []
 
       for (const [key, newValue] of Object.entries(validatedVariables)) {
         if (!(key in existingEncryptedVariables)) {
-          // New variable
           variablesToEncrypt[key] = newValue
           addedVariables.push(key)
         } else {
-          // Check if the value has actually changed by decrypting the existing value
           try {
             const { decrypted: existingValue } = await decryptSecret(
               existingEncryptedVariables[key]
             )
 
             if (existingValue !== newValue) {
-              // Value changed, needs re-encryption
               variablesToEncrypt[key] = newValue
               updatedVariables.push(key)
             }
-            // If values are the same, keep the existing encrypted value
           } catch (decryptError) {
-            // If we can't decrypt the existing value, treat as changed and re-encrypt
             logger.warn(
               `[${requestId}] Could not decrypt existing variable ${key}, re-encrypting`,
               {
@@ -119,7 +106,6 @@ export async function PUT(request: NextRequest) {
         }
       }
 
-      // Only encrypt the variables that are new or changed
       const newlyEncryptedVariables = await Promise.all(
         Object.entries(variablesToEncrypt).map(async ([key, value]) => {
           const { encrypted } = await encryptSecret(value)
@@ -127,10 +113,8 @@ export async function PUT(request: NextRequest) {
         })
       ).then((entries) => Object.fromEntries(entries))
 
-      // Merge existing encrypted variables with newly encrypted ones
       const finalEncryptedVariables = { ...existingEncryptedVariables, ...newlyEncryptedVariables }
 
-      // Update or insert environment variables for user
       await db
         .insert(environment)
         .values({
@@ -192,7 +176,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { workflowId } = body
 
-    // Use dual authentication pattern like other copilot tools
     const userId = await getUserId(requestId, workflowId)
 
     if (!userId) {
@@ -200,7 +183,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get only the variable names (keys), not values
     const result = await getEnvironmentVariableKeys(userId)
 
     return NextResponse.json(

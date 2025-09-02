@@ -7,11 +7,11 @@ import {
 } from '@/lib/billing/core/organization'
 import { createLogger } from '@/lib/logs/console/logger'
 
-const logger = createLogger('UnifiedUsageLimitsAPI')
+const logger = createLogger('UnifiedUsageAPI')
 
 /**
- * Unified Usage Limits Endpoint
- * GET/PUT /api/usage-limits?context=user|organization&userId=<id>&organizationId=<id>
+ * Unified Usage Endpoint
+ * GET/PUT /api/usage?context=user|organization&userId=<id>&organizationId=<id>
  *
  */
 export async function GET(request: NextRequest) {
