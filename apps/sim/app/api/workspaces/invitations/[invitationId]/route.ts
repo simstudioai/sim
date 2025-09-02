@@ -34,7 +34,6 @@ export async function GET(
   }
 
   try {
-    // Find invitation by ID or token
     const whereClause = token
       ? eq(workspaceInvitation.token, token)
       : eq(workspaceInvitation.id, invitationId)
@@ -49,7 +48,6 @@ export async function GET(
       return NextResponse.json({ error: 'Invitation not found or has expired' }, { status: 404 })
     }
 
-    // Check if invitation has expired
     if (new Date() > new Date(invitation.expiresAt)) {
       if (isAcceptFlow) {
         return NextResponse.redirect(
@@ -59,7 +57,6 @@ export async function GET(
       return NextResponse.json({ error: 'Invitation has expired' }, { status: 400 })
     }
 
-    // Get workspace details
     const workspaceDetails = await db
       .select()
       .from(workspace)
@@ -78,11 +75,7 @@ export async function GET(
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
-    // If this is a token-based acceptance flow, perform the acceptance
     if (isAcceptFlow) {
-      // This replicates the original /accept endpoint behavior exactly
-
-      // Check if invitation is already accepted
       if (invitation.status !== ('pending' as WorkspaceInvitationStatus)) {
         return NextResponse.redirect(
           new URL(
@@ -92,11 +85,9 @@ export async function GET(
         )
       }
 
-      // Get the user's email from the session
       const userEmail = session.user.email.toLowerCase()
       const invitationEmail = invitation.email.toLowerCase()
 
-      // Get user data to check email verification status and for error messages
       const userData = await db
         .select()
         .from(user)
@@ -112,7 +103,6 @@ export async function GET(
         )
       }
 
-      // Check if the logged-in user's email matches the invitation
       const isValidMatch = userEmail === invitationEmail
 
       if (!isValidMatch) {
@@ -124,7 +114,6 @@ export async function GET(
         )
       }
 
-      // Check if user already has permissions for this workspace
       const existingPermission = await db
         .select()
         .from(permissions)
@@ -138,7 +127,6 @@ export async function GET(
         .then((rows) => rows[0])
 
       if (existingPermission) {
-        // User already has permissions, just mark the invitation as accepted and redirect
         await db
           .update(workspaceInvitation)
           .set({
@@ -155,9 +143,7 @@ export async function GET(
         )
       }
 
-      // Add user permissions and mark invitation as accepted in a transaction
       await db.transaction(async (tx) => {
-        // Create permissions for the user
         await tx.insert(permissions).values({
           id: randomUUID(),
           entityType: 'workspace' as const,
@@ -168,7 +154,6 @@ export async function GET(
           updatedAt: new Date(),
         })
 
-        // Mark invitation as accepted
         await tx
           .update(workspaceInvitation)
           .set({
@@ -178,7 +163,6 @@ export async function GET(
           .where(eq(workspaceInvitation.id, invitation.id))
       })
 
-      // Redirect to the workspace
       return NextResponse.redirect(
         new URL(
           `/workspace/${invitation.workspaceId}/w`,
@@ -187,7 +171,6 @@ export async function GET(
       )
     }
 
-    // For non-token requests, just return invitation details
     return NextResponse.json({
       ...invitation,
       workspaceName: workspaceDetails.name,
@@ -230,17 +213,14 @@ export async function PUT(
       return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
     }
 
-    // Check if invitation has expired
     if (new Date() > new Date(invitation.expiresAt)) {
       return NextResponse.json({ error: 'Invitation has expired' }, { status: 400 })
     }
 
-    // Check if invitation is already processed
     if (invitation.status !== ('pending' as WorkspaceInvitationStatus)) {
       return NextResponse.json({ error: 'Invitation already processed' }, { status: 400 })
     }
 
-    // Update invitation status
     await db
       .update(workspaceInvitation)
       .set({
@@ -273,7 +253,6 @@ export async function DELETE(
   }
 
   try {
-    // Get the invitation to delete
     const invitation = await db
       .select({
         id: workspaceInvitation.id,
@@ -290,19 +269,16 @@ export async function DELETE(
       return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
     }
 
-    // Check if current user has admin access to the workspace
     const hasAdminAccess = await hasWorkspaceAdminAccess(session.user.id, invitation.workspaceId)
 
     if (!hasAdminAccess) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    // Only allow deleting pending invitations
     if (invitation.status !== ('pending' as WorkspaceInvitationStatus)) {
       return NextResponse.json({ error: 'Can only delete pending invitations' }, { status: 400 })
     }
 
-    // Delete the invitation
     await db.delete(workspaceInvitation).where(eq(workspaceInvitation.id, invitationId))
 
     return NextResponse.json({ success: true })

@@ -16,9 +16,6 @@ export interface Invitation {
   status: string
 }
 
-// Re-export the workspace invitation status type from schema
-export type { WorkspaceInvitationStatus } from '@/db/schema'
-
 export interface Organization {
   id: string
   name: string

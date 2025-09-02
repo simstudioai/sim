@@ -14,7 +14,7 @@ import {
   workspaceInvitation,
 } from '@/db/schema'
 
-const logger = createLogger('OrganizationInvitationAPI')
+const logger = createLogger('OrganizationInvitation')
 
 // Get invitation details
 export async function GET(
@@ -29,7 +29,6 @@ export async function GET(
   }
 
   try {
-    // Find the organization invitation
     const orgInvitation = await db
       .select()
       .from(invitation)
@@ -40,7 +39,6 @@ export async function GET(
       return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
     }
 
-    // Get organization details
     const org = await db
       .select()
       .from(organization)
@@ -61,7 +59,6 @@ export async function GET(
   }
 }
 
-// Update invitation status (accept, reject, cancel)
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; invitationId: string }> }
@@ -83,7 +80,6 @@ export async function PUT(
       )
     }
 
-    // Find the organization invitation
     const orgInvitation = await db
       .select()
       .from(invitation)
@@ -94,12 +90,10 @@ export async function PUT(
       return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
     }
 
-    // Check if invitation is still pending
     if (orgInvitation.status !== 'pending') {
       return NextResponse.json({ error: 'Invitation already processed' }, { status: 400 })
     }
 
-    // For acceptance, verify the user's email matches the invitation
     if (status === 'accepted') {
       const userData = await db
         .select()
@@ -115,7 +109,6 @@ export async function PUT(
       }
     }
 
-    // For cancellation, verify the user has admin access to the organization
     if (status === 'cancelled') {
       const isAdmin = await db
         .select()
@@ -137,13 +130,10 @@ export async function PUT(
       }
     }
 
-    // Update the invitation status
     await db.transaction(async (tx) => {
-      // Update organization invitation
       await tx.update(invitation).set({ status }).where(eq(invitation.id, invitationId))
 
       if (status === 'accepted') {
-        // Add user as member of the organization
         await tx.insert(member).values({
           id: randomUUID(),
           userId: session.user.id,
@@ -152,7 +142,6 @@ export async function PUT(
           createdAt: new Date(),
         })
 
-        // Accept any linked workspace invitations
         const linkedWorkspaceInvitations = await tx
           .select()
           .from(workspaceInvitation)
@@ -164,7 +153,6 @@ export async function PUT(
           )
 
         for (const wsInvitation of linkedWorkspaceInvitations) {
-          // Accept the workspace invitation
           await tx
             .update(workspaceInvitation)
             .set({
@@ -173,7 +161,6 @@ export async function PUT(
             })
             .where(eq(workspaceInvitation.id, wsInvitation.id))
 
-          // Grant workspace permissions
           await tx.insert(permissions).values({
             id: randomUUID(),
             entityType: 'workspace',
@@ -185,7 +172,6 @@ export async function PUT(
           })
         }
       } else if (status === 'cancelled') {
-        // Cancel any linked workspace invitations
         await tx
           .update(workspaceInvitation)
           .set({ status: 'cancelled' as WorkspaceInvitationStatus })

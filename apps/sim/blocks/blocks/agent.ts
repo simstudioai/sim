@@ -16,11 +16,10 @@ import {
 
 // Get current Ollama models dynamically
 const getCurrentOllamaModels = () => {
-  return useOllamaStore.getState().models
+  return useProvidersStore.getState().providers.ollama.models
 }
 
-import { useOllamaStore } from '@/stores/ollama/store'
-import { useOpenRouterStore } from '@/stores/openrouter/store'
+import { useProvidersStore } from '@/stores/providers/store'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgentBlock')
@@ -158,8 +157,9 @@ Create a system prompt appropriately detailed for the request, using clear langu
       placeholder: 'Type or select a model...',
       required: true,
       options: () => {
-        const ollamaModels = useOllamaStore.getState().models
-        const openrouterModels = useOpenRouterStore.getState().models
+        const providersState = useProvidersStore.getState()
+        const ollamaModels = providersState.providers.ollama.models
+        const openrouterModels = providersState.providers.openrouter.models
         const baseModels = Object.keys(getBaseModelProviders())
         const allModels = Array.from(new Set([...baseModels, ...ollamaModels, ...openrouterModels]))
 

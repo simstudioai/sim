@@ -27,7 +27,7 @@ import {
   workspaceInvitation,
 } from '@/db/schema'
 
-const logger = createLogger('OrganizationInvitationsAPI')
+const logger = createLogger('OrganizationInvitations')
 
 interface WorkspaceInvitation {
   workspaceId: string
@@ -48,7 +48,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id: organizationId } = await params
 
-    // Verify user has access to this organization
     const memberEntry = await db
       .select()
       .from(member)
@@ -69,7 +68,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    // Get all pending invitations for the organization
     const invitations = await db
       .select({
         id: invitation.id,
@@ -126,10 +124,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json()
     const { email, emails, role = 'member', workspaceInvitations } = body
 
-    // Handle single invitation vs batch
     const invitationEmails = email ? [email] : emails
 
-    // Validate input
     if (!invitationEmails || !Array.isArray(invitationEmails) || invitationEmails.length === 0) {
       return NextResponse.json({ error: 'Email or emails array is required' }, { status: 400 })
     }
@@ -138,7 +134,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
-    // Verify user has admin access
     const memberEntry = await db
       .select()
       .from(member)
@@ -156,7 +151,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    // Handle validation-only requests
     if (validateOnly) {
       const validationResult = await validateBulkInvitations(organizationId, invitationEmails)
 
@@ -175,7 +169,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })
     }
 
-    // Validate seat availability
     const seatValidation = await validateSeatAvailability(organizationId, invitationEmails.length)
 
     if (!seatValidation.canInvite) {
@@ -193,7 +186,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    // Get organization details
     const organizationEntry = await db
       .select({ name: organization.name })
       .from(organization)
@@ -204,7 +196,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    // Validate and normalize emails
     const processedEmails = invitationEmails
       .map((email: string) => {
         const normalized = email.trim().toLowerCase()
@@ -217,11 +208,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'No valid emails provided' }, { status: 400 })
     }
 
-    // Handle batch workspace invitations if provided
     const validWorkspaceInvitations: WorkspaceInvitation[] = []
     if (isBatch && workspaceInvitations && workspaceInvitations.length > 0) {
       for (const wsInvitation of workspaceInvitations) {
-        // Check if user has admin permission on this workspace
         const canInvite = await hasWorkspaceAdminAccess(session.user.id, wsInvitation.workspaceId)
 
         if (!canInvite) {
@@ -237,7 +226,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    // Check for existing members
     const existingMembers = await db
       .select({ userEmail: user.email })
       .from(member)
@@ -247,7 +235,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const existingEmails = existingMembers.map((m) => m.userEmail)
     const newEmails = processedEmails.filter((email: string) => !existingEmails.includes(email))
 
-    // Check for existing pending invitations
     const existingInvitations = await db
       .select({ email: invitation.email })
       .from(invitation)
@@ -273,7 +260,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    // Create invitations
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
     const invitationsToCreate = emailsToInvite.map((email: string) => ({
       id: randomUUID(),
@@ -288,7 +274,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     await db.insert(invitation).values(invitationsToCreate)
 
-    // Create workspace invitations if batch mode
     const workspaceInvitationIds: string[] = []
     if (isBatch && validWorkspaceInvitations.length > 0) {
       for (const email of emailsToInvite) {
@@ -317,7 +302,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    // Send invitation emails
     const inviter = await db
       .select({ name: user.name })
       .from(user)
@@ -330,7 +314,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       let emailResult
       if (isBatch && validWorkspaceInvitations.length > 0) {
-        // Get workspace details for batch email
         const workspaceDetails = await db
           .select({
             id: workspace.id,
@@ -456,7 +439,6 @@ export async function DELETE(
       )
     }
 
-    // Verify user has admin access
     const memberEntry = await db
       .select()
       .from(member)
@@ -474,7 +456,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    // Cancel the invitation
     const result = await db
       .update(invitation)
       .set({ status: 'cancelled' })
@@ -494,14 +475,11 @@ export async function DELETE(
       )
     }
 
-    // Also cancel any linked workspace invitations created as part of the batch
     await db
       .update(workspaceInvitation)
       .set({ status: 'cancelled' as WorkspaceInvitationStatus })
       .where(eq(workspaceInvitation.orgInvitationId, invitationId))
 
-    // Legacy fallback: cancel any pending workspace invitations for the same email
-    // that do not have an orgInvitationId and were created by the same inviter
     await db
       .update(workspaceInvitation)
       .set({ status: 'cancelled' as WorkspaceInvitationStatus })

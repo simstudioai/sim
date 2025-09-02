@@ -3,7 +3,7 @@ import { isHosted } from '@/lib/environment'
 import type { BlockConfig } from '@/blocks/types'
 import type { ProviderId } from '@/providers/types'
 import { getAllModelProviders, getBaseModelProviders, getHostedModels } from '@/providers/utils'
-import { useOllamaStore } from '@/stores/ollama/store'
+import { useProvidersStore } from '@/stores/providers/store'
 import type { ToolResponse } from '@/tools/types'
 
 interface RouterResponse extends ToolResponse {
@@ -119,7 +119,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       type: 'dropdown',
       layout: 'half',
       options: () => {
-        const ollamaModels = useOllamaStore.getState().models
+        const ollamaModels = useProvidersStore.getState().providers.ollama.models
         const baseModels = Object.keys(getBaseModelProviders())
         return [...baseModels, ...ollamaModels].map((model) => ({
           label: model,

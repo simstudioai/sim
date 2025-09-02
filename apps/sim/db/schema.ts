@@ -650,7 +650,6 @@ export const workspaceInvitationStatusEnum = pgEnum('workspace_invitation_status
   'cancelled',
 ])
 
-// Export the TypeScript type for the enum
 export type WorkspaceInvitationStatus = (typeof workspaceInvitationStatusEnum.enumValues)[number]
 
 export const workspaceInvitation = pgTable('workspace_invitation', {
