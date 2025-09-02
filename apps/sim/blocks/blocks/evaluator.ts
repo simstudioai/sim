@@ -3,11 +3,21 @@ import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig, ParamType } from '@/blocks/types'
 import type { ProviderId } from '@/providers/types'
-import { getAllModelProviders, getBaseModelProviders, getHostedModels } from '@/providers/utils'
+import {
+  getAllModelProviders,
+  getBaseModelProviders,
+  getHostedModels,
+  getProviderIcon,
+  providers,
+} from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('EvaluatorBlock')
+
+const getCurrentOllamaModels = () => {
+  return useProvidersStore.getState().providers.ollama.models
+}
 
 interface Metric {
   name: string
@@ -173,16 +183,21 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
     {
       id: 'model',
       title: 'Model',
-      type: 'dropdown',
+      type: 'combobox',
       layout: 'half',
+      placeholder: 'Type or select a model...',
       required: true,
       options: () => {
-        const ollamaModels = useProvidersStore.getState().providers.ollama.models
+        const providersState = useProvidersStore.getState()
+        const ollamaModels = providersState.providers.ollama.models
+        const openrouterModels = providersState.providers.openrouter.models
         const baseModels = Object.keys(getBaseModelProviders())
-        return [...baseModels, ...ollamaModels].map((model) => ({
-          label: model,
-          id: model,
-        }))
+        const allModels = Array.from(new Set([...baseModels, ...ollamaModels, ...openrouterModels]))
+
+        return allModels.map((model) => {
+          const icon = getProviderIcon(model)
+          return { label: model, id: model, ...(icon && { icon }) }
+        })
       },
     },
     {
@@ -198,9 +213,48 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
         ? {
             field: 'model',
             value: getHostedModels(),
-            not: true,
+            not: true, // Show for all models EXCEPT those listed
           }
-        : undefined,
+        : () => ({
+            field: 'model',
+            value: getCurrentOllamaModels(),
+            not: true, // Show for all models EXCEPT Ollama models
+          }),
+    },
+    {
+      id: 'azureEndpoint',
+      title: 'Azure OpenAI Endpoint',
+      type: 'short-input',
+      layout: 'full',
+      password: true,
+      placeholder: 'https://your-resource.openai.azure.com',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers['azure-openai'].models,
+      },
+    },
+    {
+      id: 'azureApiVersion',
+      title: 'Azure API Version',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: '2024-07-01-preview',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers['azure-openai'].models,
+      },
+    },
+    {
+      id: 'temperature',
+      title: 'Temperature',
+      type: 'slider',
+      layout: 'half',
+      min: 0,
+      max: 2,
+      value: () => '0.1',
+      hidden: true,
     },
     {
       id: 'systemPrompt',
@@ -310,6 +364,12 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
     },
     model: { type: 'string' as ParamType, description: 'AI model to use' },
     apiKey: { type: 'string' as ParamType, description: 'Provider API key' },
+    azureEndpoint: { type: 'string' as ParamType, description: 'Azure OpenAI endpoint URL' },
+    azureApiVersion: { type: 'string' as ParamType, description: 'Azure API version' },
+    temperature: {
+      type: 'number' as ParamType,
+      description: 'Response randomness level (low for consistent evaluation)',
+    },
     content: { type: 'string' as ParamType, description: 'Content to evaluate' },
   },
   outputs: {

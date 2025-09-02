@@ -14,7 +14,6 @@ import {
   supportsTemperature,
 } from '@/providers/utils'
 
-// Get current Ollama models dynamically
 const getCurrentOllamaModels = () => {
   return useProvidersStore.getState().providers.ollama.models
 }

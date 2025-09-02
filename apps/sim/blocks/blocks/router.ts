@@ -2,9 +2,19 @@ import { ConnectIcon } from '@/components/icons'
 import { isHosted } from '@/lib/environment'
 import type { BlockConfig } from '@/blocks/types'
 import type { ProviderId } from '@/providers/types'
-import { getAllModelProviders, getBaseModelProviders, getHostedModels } from '@/providers/utils'
+import {
+  getAllModelProviders,
+  getBaseModelProviders,
+  getHostedModels,
+  getProviderIcon,
+  providers,
+} from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 import type { ToolResponse } from '@/tools/types'
+
+const getCurrentOllamaModels = () => {
+  return useProvidersStore.getState().providers.ollama.models
+}
 
 interface RouterResponse extends ToolResponse {
   output: {
@@ -116,17 +126,22 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
     {
       id: 'model',
       title: 'Model',
-      type: 'dropdown',
+      type: 'combobox',
       layout: 'half',
-      options: () => {
-        const ollamaModels = useProvidersStore.getState().providers.ollama.models
-        const baseModels = Object.keys(getBaseModelProviders())
-        return [...baseModels, ...ollamaModels].map((model) => ({
-          label: model,
-          id: model,
-        }))
-      },
+      placeholder: 'Type or select a model...',
       required: true,
+      options: () => {
+        const providersState = useProvidersStore.getState()
+        const ollamaModels = providersState.providers.ollama.models
+        const openrouterModels = providersState.providers.openrouter.models
+        const baseModels = Object.keys(getBaseModelProviders())
+        const allModels = Array.from(new Set([...baseModels, ...ollamaModels, ...openrouterModels]))
+
+        return allModels.map((model) => {
+          const icon = getProviderIcon(model)
+          return { label: model, id: model, ...(icon && { icon }) }
+        })
+      },
     },
     {
       id: 'apiKey',
@@ -137,14 +152,53 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       password: true,
       connectionDroppable: false,
       required: true,
-      // Hide API key for all hosted models when running on hosted version
+      // Hide API key for hosted models and Ollama models
       condition: isHosted
         ? {
             field: 'model',
             value: getHostedModels(),
             not: true, // Show for all models EXCEPT those listed
           }
-        : undefined, // Show for all models in non-hosted environments
+        : () => ({
+            field: 'model',
+            value: getCurrentOllamaModels(),
+            not: true, // Show for all models EXCEPT Ollama models
+          }),
+    },
+    {
+      id: 'azureEndpoint',
+      title: 'Azure OpenAI Endpoint',
+      type: 'short-input',
+      layout: 'full',
+      password: true,
+      placeholder: 'https://your-resource.openai.azure.com',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers['azure-openai'].models,
+      },
+    },
+    {
+      id: 'azureApiVersion',
+      title: 'Azure API Version',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: '2024-07-01-preview',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers['azure-openai'].models,
+      },
+    },
+    {
+      id: 'temperature',
+      title: 'Temperature',
+      type: 'slider',
+      layout: 'half',
+      hidden: true,
+      min: 0,
+      max: 2,
+      value: () => '0.1',
     },
     {
       id: 'systemPrompt',
@@ -184,6 +238,12 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
     prompt: { type: 'string', description: 'Routing prompt content' },
     model: { type: 'string', description: 'AI model to use' },
     apiKey: { type: 'string', description: 'Provider API key' },
+    azureEndpoint: { type: 'string', description: 'Azure OpenAI endpoint URL' },
+    azureApiVersion: { type: 'string', description: 'Azure API version' },
+    temperature: {
+      type: 'number',
+      description: 'Response randomness level (low for consistent routing)',
+    },
   },
   outputs: {
     content: { type: 'string', description: 'Routing response content' },
