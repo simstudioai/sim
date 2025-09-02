@@ -47,7 +47,7 @@ export default async function Nav() {
   return (
     <nav
       aria-label='Primary'
-      className={`${soehne.className} flex w-full items-center justify-between px-[60px] pt-[17px] pb-[32px]`}
+      className={`${soehne.className} flex w-full items-center justify-between px-[56px] pt-[17px] pb-[32px]`}
     >
       <div className='flex items-center gap-[40px]'>
         <Link href='/' aria-label='Sim home'>

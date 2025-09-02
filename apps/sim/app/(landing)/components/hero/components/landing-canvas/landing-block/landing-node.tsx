@@ -1,41 +1,28 @@
 'use client'
 
 import React from 'react'
-import { gsap } from 'gsap'
 import { Handle, Position } from 'reactflow'
 import { LandingBlock, type LandingCardData } from './landing-block'
 
 /**
  * React Flow node component for the landing canvas
- * Includes GSAP animations and connection handles
+ * Includes CSS animations and connection handles
  * @param props - Component properties containing node data
  * @returns A React Flow compatible node component
  */
 export const LandingNode = React.memo(function LandingNode({ data }: { data: LandingCardData }) {
   const wrapperRef = React.useRef<HTMLDivElement | null>(null)
   const innerRef = React.useRef<HTMLDivElement | null>(null)
+  const [isAnimated, setIsAnimated] = React.useState(false)
 
   React.useEffect(() => {
-    if (!innerRef.current) return
-    const el = innerRef.current
-
-    // Ensure hidden on mount to avoid any flash before GSAP runs
-    el.style.opacity = '0'
-    el.style.transform = 'translateY(8px) scale(0.98)'
-
     const delay = (data as any)?.delay ?? 0
-    const dc = gsap.delayedCall(delay, () => {
-      gsap.to(el, {
-        opacity: 1,
-        y: 0,
-        scale: 1,
-        duration: 0.6,
-        ease: 'power3.out',
-      })
-    })
+    const timer = setTimeout(() => {
+      setIsAnimated(true)
+    }, delay * 1000)
 
     return () => {
-      dc.kill()
+      clearTimeout(timer)
     }
   }, [data])
 
@@ -84,9 +71,12 @@ export const LandingNode = React.memo(function LandingNode({ data }: { data: Lan
       )}
       <div
         ref={innerRef}
+        className={isAnimated ? 'landing-node-animated' : 'landing-node-initial'}
         style={{
-          opacity: 0,
-          transform: 'translateY(8px) scale(0.98)',
+          opacity: isAnimated ? 1 : 0,
+          transform: isAnimated ? 'translateY(0) scale(1)' : 'translateY(8px) scale(0.98)',
+          transition:
+            'opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)',
           willChange: 'transform, opacity',
         }}
       >

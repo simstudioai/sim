@@ -120,7 +120,7 @@ export function LandingCanvas({
   const flowWrapRef = React.useRef<HTMLDivElement | null>(null)
 
   return (
-    <div className='relative mx-auto flex h-[36rem] w-full max-w-[1285px] overflow-hidden rounded-t-[10px] bg-background/80 shadow-sm'>
+    <div className='relative mx-auto flex h-[612px] w-full max-w-[1285px] border-none bg-background/80 shadow-sm'>
       <DotPattern className='pointer-events-none absolute inset-0 z-0 h-full w-full opacity-20' />
 
       {/* Use template button overlay */}
