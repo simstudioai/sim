@@ -29,17 +29,17 @@ const iconMap = {
 }
 
 const iconColorMap = {
-  userPlus: 'text-blue-500 dark:text-blue-400',
-  mail: 'text-blue-500 dark:text-blue-400',
-  users: 'text-blue-500 dark:text-blue-400',
+  userPlus: 'text-[#701ffc]',
+  mail: 'text-[#701ffc]',
+  users: 'text-[#701ffc]',
   error: 'text-red-500 dark:text-red-400',
   success: 'text-green-500 dark:text-green-400',
 }
 
 const iconBgMap = {
-  userPlus: 'bg-blue-50 dark:bg-blue-950/20',
-  mail: 'bg-blue-50 dark:bg-blue-950/20',
-  users: 'bg-blue-50 dark:bg-blue-950/20',
+  userPlus: 'bg-[#701ffc]/10',
+  mail: 'bg-[#701ffc]/10',
+  users: 'bg-[#701ffc]/10',
   error: 'bg-red-50 dark:bg-red-950/20',
   success: 'bg-green-50 dark:bg-green-950/20',
 }
@@ -58,7 +58,7 @@ export function InviteStatusCard({
     return (
       <div className='flex w-full max-w-md flex-col items-center'>
         <LoadingAgent size='lg' />
-        <p className='mt-4 text-gray-400 text-sm'>{description}</p>
+        <p className='mt-4 text-muted-foreground text-sm'>{description}</p>
       </div>
     )
   }
@@ -75,15 +75,15 @@ export function InviteStatusCard({
         </div>
       )}
 
-      <h1 className='mb-2 font-semibold text-black text-xl dark:text-white'>{title}</h1>
+      <h1 className='mb-2 font-semibold text-[32px] text-white tracking-tight'>{title}</h1>
 
-      <p className='mb-6 text-gray-600 text-sm leading-relaxed dark:text-gray-300'>{description}</p>
+      <p className='mb-6 text-neutral-400 text-sm leading-relaxed'>{description}</p>
 
       <div className='flex w-full flex-col gap-3'>
         {isExpiredError && (
           <Button
             variant='outline'
-            className='w-full border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white'
+            className='h-11 w-full border-[var(--brand-primary-hex)] font-medium text-[var(--brand-primary-hex)] text-base transition-colors duration-200 hover:bg-[var(--brand-primary-hex)] hover:text-white'
             onClick={() => router.push('/')}
           >
             <RotateCcw className='mr-2 h-4 w-4' />
@@ -96,16 +96,11 @@ export function InviteStatusCard({
             key={index}
             variant={action.variant || 'default'}
             className={
-              action.variant === 'default'
-                ? 'w-full'
+              (action.variant || 'default') === 'default'
+                ? 'h-11 w-full bg-brand-primary font-medium text-base text-white shadow-[var(--brand-primary-hex)]/20 shadow-lg transition-colors duration-200 hover:bg-brand-primary-hover'
                 : action.variant === 'outline'
-                  ? 'w-full border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white'
-                  : 'w-full text-gray-600 hover:bg-gray-200 hover:text-black dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
-            }
-            style={
-              action.variant === 'default'
-                ? { backgroundColor: 'var(--brand-primary-hex)', color: 'white' }
-                : undefined
+                  ? 'h-11 w-full border-[var(--brand-primary-hex)] font-medium text-[var(--brand-primary-hex)] text-base transition-colors duration-200 hover:bg-[var(--brand-primary-hex)] hover:text-white'
+                  : 'h-11 w-full text-muted-foreground hover:bg-secondary hover:text-foreground'
             }
             onClick={action.onClick}
             disabled={action.disabled || action.loading}

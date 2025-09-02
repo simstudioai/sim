@@ -221,7 +221,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
 
       expect(response.status).toBe(307)
       expect(response.headers.get('location')).toBe(
-        'https://test.sim.ai/invite/token-abc123?error=expired'
+        'https://test.sim.ai/invite/invitation-789?error=expired'
       )
     })
 
@@ -245,7 +245,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
 
       expect(response.status).toBe(307)
       expect(response.headers.get('location')).toBe(
-        'https://test.sim.ai/invite/token-abc123?error=email-mismatch'
+        'https://test.sim.ai/invite/invitation-789?error=email-mismatch'
       )
     })
   })
