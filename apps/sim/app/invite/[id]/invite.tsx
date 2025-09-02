@@ -1,45 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Mail, RotateCcw, ShieldX, UserPlus, Users2 } from 'lucide-react'
-import Image from 'next/image'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { LoadingAgent } from '@/components/ui/loading-agent'
 import { client, useSession } from '@/lib/auth-client'
-import { useBrandConfig } from '@/lib/branding/branding'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getErrorMessage } from '@/app/invite/[id]/utils'
+import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 
-const logger = createLogger('InviteByIDAPI')
-
-function getErrorMessage(reason: string): string {
-  switch (reason) {
-    case 'missing-token':
-      return 'The invitation link is invalid or missing a required parameter.'
-    case 'invalid-token':
-      return 'The invitation link is invalid or has already been used.'
-    case 'expired':
-      return 'This invitation has expired. Please ask for a new invitation.'
-    case 'already-processed':
-      return 'This invitation has already been accepted or declined.'
-    case 'email-mismatch':
-      return 'This invitation was sent to a different email address. Please log in with the correct account or contact the person who invited you.'
-    case 'workspace-not-found':
-      return 'The workspace associated with this invitation could not be found.'
-    case 'user-not-found':
-      return 'Your user account could not be found. Please try logging out and logging back in.'
-    case 'already-member':
-      return 'You are already a member of this organization or workspace.'
-    case 'invalid-invitation':
-      return 'This invitation is invalid or no longer exists.'
-    case 'missing-invitation-id':
-      return 'The invitation link is missing required information. Please use the original invitation link.'
-    case 'server-error':
-      return 'An unexpected error occurred while processing your invitation. Please try again later.'
-    default:
-      return 'An unknown error occurred while processing your invitation.'
-  }
-}
+const logger = createLogger('InviteById')
 
 export default function Invite() {
   const router = useRouter()
@@ -47,7 +15,6 @@ export default function Invite() {
   const inviteId = params.id as string
   const searchParams = useSearchParams()
   const { data: session, isPending } = useSession()
-  const brandConfig = useBrandConfig()
   const [invitationDetails, setInvitationDetails] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -57,7 +24,6 @@ export default function Invite() {
   const [token, setToken] = useState<string | null>(null)
   const [invitationType, setInvitationType] = useState<'organization' | 'workspace'>('workspace')
 
-  // Check for error parameters and set initial state
   useEffect(() => {
     const errorReason = searchParams.get('error')
 
@@ -70,7 +36,6 @@ export default function Invite() {
     const isNew = searchParams.get('new') === 'true'
     setIsNewUser(isNew)
 
-    // Get token from URL or use inviteId as token
     const tokenFromQuery = searchParams.get('token')
     const effectiveToken = tokenFromQuery || inviteId
 
@@ -80,14 +45,12 @@ export default function Invite() {
     }
   }, [searchParams, inviteId])
 
-  // Auto-fetch invitation details when logged in
   useEffect(() => {
     if (!session?.user || !token) return
 
     async function fetchInvitationDetails() {
       setIsLoading(true)
       try {
-        // First try to fetch workspace invitation details
         const workspaceInviteResponse = await fetch(
           `/api/workspaces/invitations/${token}?token=${token}`,
           {
@@ -107,7 +70,6 @@ export default function Invite() {
           return
         }
 
-        // If workspace invitation not found, try organization invitation
         try {
           const { data } = await client.organization.getInvitation({
             query: { id: inviteId },
@@ -121,7 +83,6 @@ export default function Invite() {
               name: data.organizationName || 'an organization',
             })
 
-            // Get organization details
             if (data.organizationId) {
               const orgResponse = await client.organization.getFullOrganization({
                 query: { organizationId: data.organizationId },
@@ -138,7 +99,6 @@ export default function Invite() {
             throw new Error('Invitation not found or has expired')
           }
         } catch (_err) {
-          // If neither workspace nor organization invitation is found
           throw new Error('Invitation not found or has expired')
         }
       } catch (err: any) {
@@ -152,7 +112,6 @@ export default function Invite() {
     fetchInvitationDetails()
   }, [session?.user, inviteId, token])
 
-  // Handle invitation acceptance
   const handleAcceptInvitation = async () => {
     if (!session?.user) return
 
@@ -162,12 +121,10 @@ export default function Invite() {
       window.location.href = `/api/workspaces/invitations/${encodeURIComponent(token || '')}?token=${encodeURIComponent(token || '')}`
     } else {
       try {
-        // For organization invites, use the client API
         const response = await client.organization.acceptInvitation({
           invitationId: inviteId,
         })
 
-        // Set the active organization to the one just joined
         const orgId =
           response.data?.invitation.organizationId || invitationDetails?.data?.organizationId
 
@@ -179,7 +136,6 @@ export default function Invite() {
 
         setAccepted(true)
 
-        // Redirect to workspace after a brief delay
         setTimeout(() => {
           router.push('/workspace')
         }, 2000)
@@ -192,297 +148,135 @@ export default function Invite() {
     }
   }
 
-  // Prepare the callback URL - this ensures after login, user returns to invite page
   const getCallbackUrl = () => {
     return `/invite/${inviteId}${token && token !== inviteId ? `?token=${token}` : ''}`
   }
 
-  // Show login/signup prompt if not logged in
   if (!session?.user && !isPending) {
     const callbackUrl = encodeURIComponent(getCallbackUrl())
 
     return (
-      <div className='flex min-h-screen flex-col items-center justify-center bg-white px-4 dark:bg-black'>
-        <div className='mb-8'>
-          <Image
-            src={brandConfig.logoUrl || '/logo/b&w/medium.png'}
-            alt='Sim Logo'
-            width={120}
-            height={67}
-            className='dark:invert'
-            priority
-          />
-        </div>
-
-        <div className='flex w-full max-w-md flex-col items-center text-center'>
-          <div className='mb-6 rounded-full bg-blue-50 p-3 dark:bg-blue-950/20'>
-            <UserPlus className='h-8 w-8 text-blue-500 dark:text-blue-400' />
-          </div>
-
-          <h1 className='mb-2 font-semibold text-black text-xl dark:text-white'>
-            You've been invited!
-          </h1>
-
-          <p className='mb-6 text-gray-600 text-sm leading-relaxed dark:text-gray-300'>
-            {isNewUser
+      <InviteLayout>
+        <InviteStatusCard
+          type='login'
+          title="You've been invited!"
+          description={
+            isNewUser
               ? 'Create an account to join this workspace on Sim'
-              : 'Sign in to your account to accept this invitation'}
-          </p>
-
-          <div className='flex w-full flex-col gap-3'>
-            {isNewUser ? (
-              <>
-                <Button
-                  className='w-full'
-                  style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
-                  onClick={() => router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true`)}
-                >
-                  Create an account
-                </Button>
-                <Button
-                  variant='outline'
-                  className='w-full border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white'
-                  onClick={() => router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`)}
-                >
-                  I already have an account
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  className='w-full'
-                  style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
-                  onClick={() => router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`)}
-                >
-                  Sign in
-                </Button>
-                <Button
-                  variant='outline'
-                  className='w-full border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white'
-                  onClick={() =>
-                    router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true&new=true`)
-                  }
-                >
-                  Create an account
-                </Button>
-              </>
-            )}
-
-            <Button
-              className='w-full'
-              style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
-              onClick={() => router.push('/')}
-            >
-              Return to Home
-            </Button>
-          </div>
-        </div>
-
-        <footer className='mt-8 text-center text-gray-500 text-xs'>
-          Need help?{' '}
-          <a href='mailto:help@sim.ai' className='text-blue-400 hover:text-blue-300'>
-            Contact support
-          </a>
-        </footer>
-      </div>
+              : 'Sign in to your account to accept this invitation'
+          }
+          icon='userPlus'
+          actions={[
+            ...(isNewUser
+              ? [
+                  {
+                    label: 'Create an account',
+                    onClick: () =>
+                      router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true`),
+                  },
+                  {
+                    label: 'I already have an account',
+                    onClick: () =>
+                      router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`),
+                    variant: 'outline' as const,
+                  },
+                ]
+              : [
+                  {
+                    label: 'Sign in',
+                    onClick: () =>
+                      router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`),
+                  },
+                  {
+                    label: 'Create an account',
+                    onClick: () =>
+                      router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true&new=true`),
+                    variant: 'outline' as const,
+                  },
+                ]),
+            {
+              label: 'Return to Home',
+              onClick: () => router.push('/'),
+            },
+          ]}
+        />
+      </InviteLayout>
     )
   }
 
-  // Show loading state
   if (isLoading || isPending) {
     return (
-      <div className='flex min-h-screen flex-col items-center justify-center bg-white px-4 dark:bg-black'>
-        <div className='mb-8'>
-          <Image
-            src={brandConfig.logoUrl || '/logo/b&w/medium.png'}
-            alt='Sim Logo'
-            width={120}
-            height={67}
-            className='dark:invert'
-            priority
-          />
-        </div>
-        <LoadingAgent size='lg' />
-        <p className='mt-4 text-gray-400 text-sm'>Loading invitation...</p>
-
-        <footer className='mt-8 text-center text-gray-500 text-xs'>
-          Need help?{' '}
-          <a href='mailto:help@sim.ai' className='text-blue-400 hover:text-blue-300'>
-            Contact support
-          </a>
-        </footer>
-      </div>
+      <InviteLayout>
+        <InviteStatusCard type='loading' title='' description='Loading invitation...' />
+      </InviteLayout>
     )
   }
 
-  // Show error state
   if (error) {
     const errorReason = searchParams.get('error')
     const isExpiredError = errorReason === 'expired'
 
     return (
-      <div className='flex min-h-screen flex-col items-center justify-center bg-white px-4 dark:bg-black'>
-        <div className='mb-8'>
-          <Image
-            src={brandConfig.logoUrl || '/logo/b&w/medium.png'}
-            alt='Sim Logo'
-            width={120}
-            height={67}
-            className='dark:invert'
-            priority
-          />
-        </div>
-        <div className='flex w-full max-w-md flex-col items-center text-center'>
-          <div className='mb-6 rounded-full bg-red-50 p-3 dark:bg-red-950/20'>
-            <ShieldX className='h-8 w-8 text-red-500 dark:text-red-400' />
-          </div>
-          <h1 className='mb-2 font-semibold text-black text-xl dark:text-white'>
-            Invitation Error
-          </h1>
-          <p className='mb-6 text-gray-600 text-sm leading-relaxed dark:text-gray-300'>{error}</p>
-
-          <div className='flex w-full flex-col gap-3'>
-            {isExpiredError && (
-              <Button
-                variant='outline'
-                className='w-full border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white'
-                onClick={() => router.push('/')}
-              >
-                <RotateCcw className='mr-2 h-4 w-4' />
-                Request New Invitation
-              </Button>
-            )}
-
-            <Button
-              className='w-full'
-              style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
-              onClick={() => router.push('/')}
-            >
-              Return to Home
-            </Button>
-          </div>
-        </div>
-
-        <footer className='mt-8 text-center text-gray-500 text-xs'>
-          Need help?{' '}
-          <a href='mailto:help@sim.ai' className='text-blue-400 hover:text-blue-300'>
-            Contact support
-          </a>
-        </footer>
-      </div>
+      <InviteLayout>
+        <InviteStatusCard
+          type='error'
+          title='Invitation Error'
+          description={error}
+          icon='error'
+          isExpiredError={isExpiredError}
+          actions={[
+            {
+              label: 'Return to Home',
+              onClick: () => router.push('/'),
+            },
+          ]}
+        />
+      </InviteLayout>
     )
   }
 
-  // Show success state
   if (accepted) {
     return (
-      <div className='flex min-h-screen flex-col items-center justify-center bg-white px-4 dark:bg-black'>
-        <div className='mb-8'>
-          <Image
-            src={brandConfig.logoUrl || '/logo/b&w/medium.png'}
-            alt='Sim Logo'
-            width={120}
-            height={67}
-            className='dark:invert'
-            priority
-          />
-        </div>
-        <div className='flex w-full max-w-md flex-col items-center text-center'>
-          <div className='mb-6 rounded-full bg-green-50 p-3 dark:bg-green-950/20'>
-            <CheckCircle2 className='h-8 w-8 text-green-500 dark:text-green-400' />
-          </div>
-          <h1 className='mb-2 font-semibold text-black text-xl dark:text-white'>Welcome!</h1>
-          <p className='mb-6 text-gray-600 text-sm leading-relaxed dark:text-gray-300'>
-            You have successfully joined {invitationDetails?.name || 'the workspace'}. Redirecting
-            to your workspace...
-          </p>
-
-          <Button
-            className='w-full'
-            style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
-            onClick={() => router.push('/')}
-          >
-            Return to Home
-          </Button>
-        </div>
-
-        <footer className='mt-8 text-center text-gray-500 text-xs'>
-          Need help?{' '}
-          <a href='mailto:help@sim.ai' className='text-blue-400 hover:text-blue-300'>
-            Contact support
-          </a>
-        </footer>
-      </div>
+      <InviteLayout>
+        <InviteStatusCard
+          type='success'
+          title='Welcome!'
+          description={`You have successfully joined ${invitationDetails?.name || 'the workspace'}. Redirecting to your workspace...`}
+          icon='success'
+          actions={[
+            {
+              label: 'Return to Home',
+              onClick: () => router.push('/'),
+            },
+          ]}
+        />
+      </InviteLayout>
     )
   }
 
-  // Show invitation details
   return (
-    <div className='flex min-h-screen flex-col items-center justify-center bg-white px-4 dark:bg-black'>
-      <div className='mb-8'>
-        <Image
-          src='/logo/b&w/medium.png'
-          alt='Sim Logo'
-          width={120}
-          height={67}
-          className='dark:invert'
-          priority
-        />
-      </div>
-
-      <div className='flex w-full max-w-md flex-col items-center text-center'>
-        <div className='mb-6 rounded-full bg-blue-50 p-3 dark:bg-blue-950/20'>
-          {invitationType === 'organization' ? (
-            <Users2 className='h-8 w-8 text-blue-500 dark:text-blue-400' />
-          ) : (
-            <Mail className='h-8 w-8 text-blue-500 dark:text-blue-400' />
-          )}
-        </div>
-
-        <h1 className='mb-2 font-semibold text-black text-xl dark:text-white'>
-          {invitationType === 'organization' ? 'Organization Invitation' : 'Workspace Invitation'}
-        </h1>
-
-        <p className='mb-6 text-gray-600 text-sm leading-relaxed dark:text-gray-300'>
-          You've been invited to join{' '}
-          <span className='font-medium text-black dark:text-white'>
-            {invitationDetails?.name || `a ${invitationType}`}
-          </span>
-          . Click accept below to join.
-        </p>
-
-        <div className='flex w-full flex-col gap-3'>
-          <Button
-            onClick={handleAcceptInvitation}
-            disabled={isAccepting}
-            className='w-full'
-            style={{ backgroundColor: 'var(--brand-primary-hex)', color: 'white' }}
-          >
-            {isAccepting ? (
-              <>
-                <LoadingAgent size='sm' />
-                Accepting...
-              </>
-            ) : (
-              'Accept Invitation'
-            )}
-          </Button>
-          <Button
-            variant='ghost'
-            className='w-full text-gray-600 hover:bg-gray-200 hover:text-black dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
-            onClick={() => router.push('/')}
-          >
-            Return to Home
-          </Button>
-        </div>
-      </div>
-
-      <footer className='mt-8 text-center text-gray-500 text-xs'>
-        Need help?{' '}
-        <a href='mailto:help@sim.ai' className='text-blue-400 hover:text-blue-300'>
-          Contact support
-        </a>
-      </footer>
-    </div>
+    <InviteLayout>
+      <InviteStatusCard
+        type='invitation'
+        title={
+          invitationType === 'organization' ? 'Organization Invitation' : 'Workspace Invitation'
+        }
+        description={`You've been invited to join ${invitationDetails?.name || `a ${invitationType}`}. Click accept below to join.`}
+        icon={invitationType === 'organization' ? 'users' : 'mail'}
+        actions={[
+          {
+            label: 'Accept Invitation',
+            onClick: handleAcceptInvitation,
+            disabled: isAccepting,
+            loading: isAccepting,
+          },
+          {
+            label: 'Return to Home',
+            onClick: () => router.push('/'),
+            variant: 'ghost',
+          },
+        ]}
+      />
+    </InviteLayout>
   )
 }

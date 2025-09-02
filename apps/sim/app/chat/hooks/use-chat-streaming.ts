@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { ChatMessage } from '@/app/chat/[subdomain]/components/message/message'
+import type { ChatMessage } from '@/app/chat/components/message/message'
 // No longer need complex output extraction - backend handles this
 import type { ExecutionResult } from '@/executor/types'
 

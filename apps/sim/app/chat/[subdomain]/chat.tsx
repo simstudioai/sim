@@ -15,8 +15,8 @@ import {
   EmailAuth,
   PasswordAuth,
   VoiceInterface,
-} from '@/app/chat/[subdomain]/components'
-import { useAudioStreaming, useChatStreaming } from '@/app/chat/[subdomain]/hooks'
+} from '@/app/chat/components'
+import { useAudioStreaming, useChatStreaming } from '@/app/chat/hooks'
 
 const logger = createLogger('ChatClient')
 
