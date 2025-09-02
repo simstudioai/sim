@@ -1,5 +1,6 @@
 import { createContext, Script } from 'vm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { executeInE2B } from '@/lib/execution/e2b'
 import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
@@ -442,6 +443,8 @@ export async function POST(req: NextRequest) {
       code,
       params = {},
       timeout = 5000,
+      language = 'javascript',
+      fastMode = false,
       envVars = {},
       blockData = {},
       blockNameMapping = {},
@@ -474,19 +477,107 @@ export async function POST(req: NextRequest) {
     resolvedCode = codeResolution.resolvedCode
     const contextVariables = codeResolution.contextVariables
 
-    const executionMethod = 'vm' // Default execution method
+    const e2bEnabled = process.env.E2B_ENABLED === 'true'
+    const lang = (typeof language === 'string' ? language : 'javascript') as 'javascript' | 'python'
+    const useE2B = e2bEnabled && !fastMode && (lang === 'javascript' || lang === 'python')
 
-    logger.info(`[${requestId}] Using VM for code execution`, {
-      hasEnvVars: Object.keys(envVars).length > 0,
-      hasWorkflowVariables: Object.keys(workflowVariables).length > 0,
-    })
+    if (useE2B) {
+      logger.info(`[${requestId}] E2B status`, {
+        enabled: e2bEnabled,
+        hasApiKey: Boolean(process.env.E2B_API_KEY),
+        language: lang,
+      })
+      let prologue = ''
+      const epilogue = ''
 
-    // Create a secure context with console logging
+      if (lang === 'javascript') {
+        prologue += `const params = JSON.parse(${JSON.stringify(JSON.stringify(executionParams))});\n`
+        prologue += `const environmentVariables = JSON.parse(${JSON.stringify(JSON.stringify(envVars))});\n`
+        for (const [k, v] of Object.entries(contextVariables)) {
+          prologue += `const ${k} = JSON.parse(${JSON.stringify(JSON.stringify(v))});\n`
+        }
+        const wrapped = [
+          ';(async () => {',
+          '  try {',
+          '    const __sim_result = await (async () => {',
+          `      ${resolvedCode.split('\n').join('\n      ')}`,
+          '    })();',
+          "    console.log('__SIM_RESULT__=' + JSON.stringify(__sim_result));",
+          '  } catch (error) {',
+          '    console.log(String((error && (error.stack || error.message)) || error));',
+          '    throw error;',
+          '  }',
+          '})();',
+        ].join('\n')
+        const codeForE2B = prologue + wrapped + epilogue
+
+        const execStart = Date.now()
+        const {
+          result: e2bResult,
+          stdout: e2bStdout,
+          sandboxId,
+        } = await executeInE2B({
+          code: codeForE2B,
+          language: 'javascript',
+          timeoutMs: timeout,
+        })
+        const executionTime = Date.now() - execStart
+        stdout += e2bStdout
+
+        logger.info(`[${requestId}] E2B JS sandbox`, {
+          sandboxId,
+          stdoutPreview: e2bStdout?.slice(0, 200),
+        })
+
+        return NextResponse.json({
+          success: true,
+          output: { result: e2bResult ?? null, stdout, executionTime },
+        })
+      }
+      prologue += 'import json\n'
+      prologue += `params = json.loads(${JSON.stringify(JSON.stringify(executionParams))})\n`
+      prologue += `environmentVariables = json.loads(${JSON.stringify(JSON.stringify(envVars))})\n`
+      for (const [k, v] of Object.entries(contextVariables)) {
+        prologue += `${k} = json.loads(${JSON.stringify(JSON.stringify(v))})\n`
+      }
+      const wrapped = [
+        'def __sim_main__():',
+        ...resolvedCode.split('\n').map((l) => `    ${l}`),
+        '__sim_result__ = __sim_main__()',
+        "print('__SIM_RESULT__=' + json.dumps(__sim_result__))",
+      ].join('\n')
+      const codeForE2B = prologue + wrapped + epilogue
+
+      const execStart = Date.now()
+      const {
+        result: e2bResult,
+        stdout: e2bStdout,
+        sandboxId,
+      } = await executeInE2B({
+        code: codeForE2B,
+        language: 'python',
+        timeoutMs: timeout,
+      })
+      const executionTime = Date.now() - execStart
+      stdout += e2bStdout
+
+      logger.info(`[${requestId}] E2B Py sandbox`, {
+        sandboxId,
+        stdoutPreview: e2bStdout?.slice(0, 200),
+      })
+
+      return NextResponse.json({
+        success: true,
+        output: { result: e2bResult ?? null, stdout, executionTime },
+      })
+    }
+
+    const executionMethod = 'vm'
     const context = createContext({
       params: executionParams,
       environmentVariables: envVars,
-      ...contextVariables, // Add resolved variables directly to context
-      fetch: globalThis.fetch || require('node-fetch').default,
+      ...contextVariables,
+      fetch: (globalThis as any).fetch || require('node-fetch').default,
       console: {
         log: (...args: any[]) => {
           const logMessage = `${args
@@ -504,23 +595,17 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Calculate line offset for user code to provide accurate error reporting
     const wrapperLines = ['(async () => {', '  try {']
-
-    // Add custom tool parameter declarations if needed
     if (isCustomTool) {
       wrapperLines.push('    // For custom tools, make parameters directly accessible')
       Object.keys(executionParams).forEach((key) => {
         wrapperLines.push(`    const ${key} = params.${key};`)
       })
     }
-
-    userCodeStartLine = wrapperLines.length + 1 // +1 because user code starts on next line
-
-    // Build the complete script with proper formatting for line numbers
+    userCodeStartLine = wrapperLines.length + 1
     const fullScript = [
       ...wrapperLines,
-      `    ${resolvedCode.split('\n').join('\n    ')}`, // Indent user code
+      `    ${resolvedCode.split('\n').join('\n    ')}`,
       '  } catch (error) {',
       '    console.error(error);',
       '    throw error;',
@@ -529,33 +614,26 @@ export async function POST(req: NextRequest) {
     ].join('\n')
 
     const script = new Script(fullScript, {
-      filename: 'user-function.js', // This filename will appear in stack traces
-      lineOffset: 0, // Start line numbering from 0
-      columnOffset: 0, // Start column numbering from 0
+      filename: 'user-function.js',
+      lineOffset: 0,
+      columnOffset: 0,
     })
 
     const result = await script.runInContext(context, {
       timeout,
       displayErrors: true,
-      breakOnSigint: true, // Allow breaking on SIGINT for better debugging
+      breakOnSigint: true,
     })
-    // }
 
     const executionTime = Date.now() - startTime
     logger.info(`[${requestId}] Function executed successfully using ${executionMethod}`, {
       executionTime,
     })
 
-    const response = {
+    return NextResponse.json({
       success: true,
-      output: {
-        result,
-        stdout,
-        executionTime,
-      },
-    }
-
-    return NextResponse.json(response)
+      output: { result, stdout, executionTime },
+    })
   } catch (error: any) {
     const executionTime = Date.now() - startTime
     logger.error(`[${requestId}] Function execution failed`, {

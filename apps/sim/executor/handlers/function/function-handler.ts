@@ -58,6 +58,8 @@ export class FunctionBlockHandler implements BlockHandler {
       'function_execute',
       {
         code: codeContent,
+        language: inputs.language || 'javascript',
+        fastMode: inputs.fastMode || false,
         timeout: inputs.timeout || 5000,
         envVars: context.environmentVariables || {},
         workflowVariables: context.workflowVariables || {},

@@ -7,12 +7,23 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
   name: 'Function',
   description: 'Run custom logic',
   longDescription:
-    'Execute custom JavaScript or TypeScript code within your workflow to transform data or implement complex logic. Create reusable functions to process inputs and generate outputs for other blocks.',
+    'Execute custom JavaScript or Python code within your workflow. Use E2B for remote execution with imports or enable Fast Mode (bolt) to run JavaScript locally for lowest latency.',
   docsLink: 'https://docs.sim.ai/blocks/function',
   category: 'blocks',
   bgColor: '#FF402F',
   icon: CodeIcon,
   subBlocks: [
+    {
+      id: 'language',
+      type: 'dropdown',
+      layout: 'half',
+      options: [
+        { label: 'JavaScript', id: 'javascript' },
+        { label: 'Python', id: 'python' },
+      ],
+      placeholder: 'Select language',
+      value: () => 'javascript',
+    },
     {
       id: 'code',
       type: 'code',
@@ -71,12 +82,21 @@ try {
         generationType: 'javascript-function-body',
       },
     },
+    {
+      id: 'fastMode',
+      type: 'switch',
+      layout: 'half',
+      title: 'Fast mode',
+      description: 'Run locally in JavaScript VM',
+    },
   ],
   tools: {
     access: ['function_execute'],
   },
   inputs: {
-    code: { type: 'string', description: 'JavaScript/TypeScript code to execute' },
+    code: { type: 'string', description: 'JavaScript or Python code to execute' },
+    language: { type: 'string', description: 'Language (javascript or python)' },
+    fastMode: { type: 'boolean', description: 'Fast mode (bolt): run JavaScript locally' },
     timeout: { type: 'number', description: 'Execution timeout' },
   },
   outputs: {

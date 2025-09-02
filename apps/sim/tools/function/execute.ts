@@ -17,6 +17,20 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       visibility: 'user-or-llm',
       description: 'The code to execute',
     },
+    language: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Language to execute (javascript or python)',
+      default: 'javascript',
+    },
+    fastMode: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Run locally in JS VM (bolt mode)',
+      default: false,
+    },
     timeout: {
       type: 'number',
       required: false,
@@ -67,6 +81,8 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
 
       return {
         code: codeContent,
+        language: params.language || 'javascript',
+        fastMode: params.fastMode || false,
         timeout: params.timeout || DEFAULT_TIMEOUT,
         envVars: params.envVars || {},
         workflowVariables: params.workflowVariables || {},
