@@ -385,7 +385,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       if (isLoadingWorkflows || workflows.length > 0) return
       try {
         setIsLoadingWorkflows(true)
-        const resp = await fetch('/api/workflows/sync')
+        const resp = await fetch('/api/workflows')
         if (!resp.ok) throw new Error(`Failed to load workflows: ${resp.status}`)
         const data = await resp.json()
         const items = Array.isArray(data?.data) ? data.data : []

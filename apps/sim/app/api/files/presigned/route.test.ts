@@ -1,6 +1,12 @@
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setupFileApiMocks } from '@/app/api/__test-utils__/utils'
+
+/**
+ * Tests for file presigned API route
+ *
+ * @vitest-environment node
+ */
 
 describe('/api/files/presigned', () => {
   beforeEach(() => {
@@ -19,7 +25,7 @@ describe('/api/files/presigned', () => {
   })
 
   describe('POST', () => {
-    test('should return error when cloud storage is not enabled', async () => {
+    it('should return error when cloud storage is not enabled', async () => {
       setupFileApiMocks({
         cloudEnabled: false,
         storageProvider: 's3',
@@ -39,7 +45,7 @@ describe('/api/files/presigned', () => {
       const response = await POST(request)
       const data = await response.json()
 
-      expect(response.status).toBe(500) // Changed from 400 to 500 (StorageConfigError)
+      expect(response.status).toBe(500)
       expect(data.error).toBe('Direct uploads are only available when cloud storage is enabled')
       expect(data.code).toBe('STORAGE_CONFIG_ERROR')
       expect(data.directUploadSupported).toBe(false)

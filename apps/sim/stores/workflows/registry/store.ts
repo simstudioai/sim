@@ -34,7 +34,7 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
   try {
     useWorkflowRegistry.getState().setLoading(true)
 
-    const url = new URL(API_ENDPOINTS.SYNC, window.location.origin)
+    const url = new URL(API_ENDPOINTS.WORKFLOWS, window.location.origin)
 
     if (workspaceId) {
       url.searchParams.append('workspaceId', workspaceId)
@@ -940,7 +940,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               },
             }
 
-            const response = await fetch('/api/workflows/sync', {
+            const response = await fetch('/api/workflows', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({

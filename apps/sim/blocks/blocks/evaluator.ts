@@ -4,7 +4,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig, ParamType } from '@/blocks/types'
 import type { ProviderId } from '@/providers/types'
 import { getAllModelProviders, getBaseModelProviders, getHostedModels } from '@/providers/utils'
-import { useOllamaStore } from '@/stores/ollama/store'
+import { useProvidersStore } from '@/stores/providers/store'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('EvaluatorBlock')
@@ -177,7 +177,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       layout: 'half',
       required: true,
       options: () => {
-        const ollamaModels = useOllamaStore.getState().models
+        const ollamaModels = useProvidersStore.getState().providers.ollama.models
         const baseModels = Object.keys(getBaseModelProviders())
         return [...baseModels, ...ollamaModels].map((model) => ({
           label: model,

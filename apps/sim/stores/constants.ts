@@ -1,5 +1,4 @@
 export const API_ENDPOINTS = {
-  SYNC: '/api/workflows/sync',
   ENVIRONMENT: '/api/environment',
   SCHEDULE: '/api/schedules',
   SETTINGS: '/api/settings',
@@ -8,9 +7,6 @@ export const API_ENDPOINTS = {
   WORKSPACE_ENVIRONMENT: (id: string) => `/api/workspaces/${id}/environment`,
 }
 
-// Removed SYNC_INTERVALS - Socket.IO handles real-time sync
-
-// Copilot tool display names - shared between client and server
 export const COPILOT_TOOL_DISPLAY_NAMES: Record<string, string> = {
   search_documentation: 'Searching documentation',
   get_user_workflow: 'Analyzing your workflow',
@@ -30,7 +26,6 @@ export const COPILOT_TOOL_DISPLAY_NAMES: Record<string, string> = {
   reason: 'Reasoning about your workflow',
 } as const
 
-// Past tense versions for completed tool calls
 export const COPILOT_TOOL_PAST_TENSE: Record<string, string> = {
   search_documentation: 'Searched documentation',
   get_user_workflow: 'Analyzed your workflow',
@@ -50,7 +45,6 @@ export const COPILOT_TOOL_PAST_TENSE: Record<string, string> = {
   reason: 'Finished reasoning',
 } as const
 
-// Error versions for failed tool calls
 export const COPILOT_TOOL_ERROR_NAMES: Record<string, string> = {
   search_documentation: 'Errored searching documentation',
   get_user_workflow: 'Errored analyzing your workflow',

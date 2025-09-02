@@ -114,7 +114,6 @@ export async function getOrganizationSeatInfo(
   organizationId: string
 ): Promise<OrganizationSeatInfo | null> {
   try {
-    // Get organization details
     const organizationData = await db
       .select({
         id: organization.id,
@@ -128,14 +127,12 @@ export async function getOrganizationSeatInfo(
       return null
     }
 
-    // Get organization subscription directly (referenceId = organizationId)
     const subscription = await getOrganizationSubscription(organizationId)
 
     if (!subscription) {
       return null
     }
 
-    // Get current member count
     const memberCount = await db
       .select({ count: count() })
       .from(member)
@@ -143,11 +140,8 @@ export async function getOrganizationSeatInfo(
 
     const currentSeats = memberCount[0]?.count || 0
 
-    // Determine seat limits
     const maxSeats = subscription.seats || 1
 
-    // Enterprise plans have fixed seats (can't self-serve changes)
-    // Team plans can add seats through Stripe
     const canAddSeats = subscription.plan !== 'enterprise'
 
     const availableSeats = Math.max(0, maxSeats - currentSeats)
@@ -183,14 +177,12 @@ export async function validateBulkInvitations(
   validationResult: SeatValidationResult
 }> {
   try {
-    // Remove duplicates and validate email format
     const uniqueEmails = [...new Set(emailList)]
     const validEmails = uniqueEmails.filter(
       (email) => quickValidateEmail(email.trim().toLowerCase()).isValid
     )
     const duplicateEmails = emailList.filter((email, index) => emailList.indexOf(email) !== index)
 
-    // Check for existing members
     const existingMembers = await db
       .select({ userEmail: user.email })
       .from(member)
@@ -200,7 +192,6 @@ export async function validateBulkInvitations(
     const existingEmails = existingMembers.map((m) => m.userEmail)
     const newEmails = validEmails.filter((email) => !existingEmails.includes(email))
 
-    // Check for pending invitations
     const pendingInvitations = await db
       .select({ email: invitation.email })
       .from(invitation)
@@ -209,7 +200,6 @@ export async function validateBulkInvitations(
     const pendingEmails = pendingInvitations.map((i) => i.email)
     const finalEmailsToInvite = newEmails.filter((email) => !pendingEmails.includes(email))
 
-    // Validate seat availability
     const seatsNeeded = finalEmailsToInvite.length
     const validationResult = await validateSeatAvailability(organizationId, seatsNeeded)
 
@@ -258,14 +248,12 @@ export async function updateOrganizationSeats(
   updatedBy: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Get current organization subscription directly (referenceId = organizationId)
     const subscriptionRecord = await getOrganizationSubscription(organizationId)
 
     if (!subscriptionRecord) {
       return { success: false, error: 'No active subscription found' }
     }
 
-    // Validate minimum seat requirements
     const memberCount = await db
       .select({ count: count() })
       .from(member)
@@ -280,7 +268,6 @@ export async function updateOrganizationSeats(
       }
     }
 
-    // Update subscription seat count
     await db
       .update(subscription)
       .set({
@@ -320,7 +307,6 @@ export async function validateMemberRemoval(
   removedBy: string
 ): Promise<{ canRemove: boolean; reason?: string }> {
   try {
-    // Get member details
     const memberRecord = await db
       .select({ role: member.role })
       .from(member)
@@ -331,12 +317,10 @@ export async function validateMemberRemoval(
       return { canRemove: false, reason: 'Member not found in organization' }
     }
 
-    // Check if trying to remove the organization owner
     if (memberRecord[0].role === 'owner') {
       return { canRemove: false, reason: 'Cannot remove organization owner' }
     }
 
-    // Check if the person removing has sufficient permissions
     const removerMemberRecord = await db
       .select({ role: member.role })
       .from(member)
@@ -350,22 +334,18 @@ export async function validateMemberRemoval(
     const removerRole = removerMemberRecord[0].role
     const targetRole = memberRecord[0].role
 
-    // Permission hierarchy: owner > admin > member
     if (removerRole === 'owner') {
-      // Owners can remove anyone except themselves
       return userIdToRemove === removedBy
         ? { canRemove: false, reason: 'Cannot remove yourself as owner' }
         : { canRemove: true }
     }
 
     if (removerRole === 'admin') {
-      // Admins can remove members but not other admins or owners
       return targetRole === 'member'
         ? { canRemove: true }
         : { canRemove: false, reason: 'Insufficient permissions to remove this member' }
     }
 
-    // Members cannot remove other members
     return { canRemove: false, reason: 'Insufficient permissions' }
   } catch (error) {
     logger.error('Failed to validate member removal', {
@@ -390,7 +370,6 @@ export async function getOrganizationSeatAnalytics(organizationId: string) {
       return null
     }
 
-    // Get member activity data
     const memberActivity = await db
       .select({
         userId: member.userId,
@@ -405,7 +384,6 @@ export async function getOrganizationSeatAnalytics(organizationId: string) {
       .leftJoin(userStats, eq(member.userId, userStats.userId))
       .where(eq(member.organizationId, organizationId))
 
-    // Calculate utilization metrics
     const utilizationRate =
       seatInfo.maxSeats > 0 ? (seatInfo.currentSeats / seatInfo.maxSeats) * 100 : 0
 

@@ -10,7 +10,6 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
   isLoading: false,
   error: null,
 
-  // Load environment variables from DB
   loadEnvironmentVariables: async () => {
     try {
       set({ isLoading: true, error: null })
@@ -43,12 +42,10 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
     }
   },
 
-  // Save environment variables to DB
   saveEnvironmentVariables: async (variables: Record<string, string>) => {
     try {
       set({ isLoading: true, error: null })
 
-      // Transform variables to the format expected by the store
       const transformedVariables = Object.entries(variables).reduce(
         (acc, [key, value]) => ({
           ...acc,
@@ -57,10 +54,8 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
         {}
       )
 
-      // Update local state immediately (optimistic update)
       set({ variables: transformedVariables })
 
-      // Send to DB
       const response = await fetch(API_ENDPOINTS.ENVIRONMENT, {
         method: 'POST',
         headers: {
@@ -89,12 +84,10 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
         isLoading: false,
       })
 
-      // Reload from DB to ensure consistency
       get().loadEnvironmentVariables()
     }
   },
 
-  // Workspace environment actions
   loadWorkspaceEnvironment: async (workspaceId: string) => {
     try {
       set({ isLoading: true, error: null })
@@ -105,7 +98,6 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
       }
 
       const { data } = await response.json()
-      // The UI component for environment modal will handle workspace section state locally.
       set({ isLoading: false })
       return data as {
         workspace: Record<string, string>
@@ -153,15 +145,6 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
       logger.error('Error removing workspace environment keys:', { error })
       set({ error: error instanceof Error ? error.message : 'Unknown error', isLoading: false })
     }
-  },
-
-  // Legacy method updated to use the new saveEnvironmentVariables
-  setVariables: (variables: Record<string, string>) => {
-    get().saveEnvironmentVariables(variables)
-  },
-
-  getVariable: (key: string): string | undefined => {
-    return get().variables[key]?.value
   },
 
   getAllVariables: (): Record<string, EnvironmentVariable> => {

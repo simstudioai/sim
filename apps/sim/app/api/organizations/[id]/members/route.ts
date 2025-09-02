@@ -260,7 +260,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const emailHtml = await renderInvitationEmail(
       inviter[0]?.name || 'Someone',
       organizationEntry[0]?.name || 'organization',
-      `${env.NEXT_PUBLIC_APP_URL}/api/organizations/invitations/accept?id=${invitationId}`,
+      `${env.NEXT_PUBLIC_APP_URL}/invite/organization?id=${invitationId}`,
       normalizedEmail
     )
 
