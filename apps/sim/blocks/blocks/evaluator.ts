@@ -15,7 +15,6 @@ import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('EvaluatorBlock')
 
-// Get current Ollama models dynamically
 const getCurrentOllamaModels = () => {
   return useProvidersStore.getState().providers.ollama.models
 }
@@ -248,6 +247,16 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       },
     },
     {
+      id: 'temperature',
+      title: 'Temperature',
+      type: 'slider',
+      layout: 'half',
+      min: 0,
+      max: 2,
+      value: () => '0.1',
+      hidden: true,
+    },
+    {
       id: 'systemPrompt',
       title: 'System Prompt',
       type: 'code',
@@ -357,6 +366,10 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
     apiKey: { type: 'string' as ParamType, description: 'Provider API key' },
     azureEndpoint: { type: 'string' as ParamType, description: 'Azure OpenAI endpoint URL' },
     azureApiVersion: { type: 'string' as ParamType, description: 'Azure API version' },
+    temperature: {
+      type: 'number' as ParamType,
+      description: 'Response randomness level (low for consistent evaluation)',
+    },
     content: { type: 'string' as ParamType, description: 'Content to evaluate' },
   },
   outputs: {

@@ -10,7 +10,6 @@ import {
 } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 
-// Get current Ollama models dynamically
 const getCurrentOllamaModels = () => {
   return useProvidersStore.getState().providers.ollama.models
 }

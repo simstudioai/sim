@@ -12,7 +12,6 @@ import {
 import { useProvidersStore } from '@/stores/providers/store'
 import type { ToolResponse } from '@/tools/types'
 
-// Get current Ollama models dynamically
 const getCurrentOllamaModels = () => {
   return useProvidersStore.getState().providers.ollama.models
 }
@@ -192,6 +191,16 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       },
     },
     {
+      id: 'temperature',
+      title: 'Temperature',
+      type: 'slider',
+      layout: 'half',
+      hidden: true,
+      min: 0,
+      max: 2,
+      value: () => '0.1',
+    },
+    {
       id: 'systemPrompt',
       title: 'System Prompt',
       type: 'code',
@@ -231,6 +240,10 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
     apiKey: { type: 'string', description: 'Provider API key' },
     azureEndpoint: { type: 'string', description: 'Azure OpenAI endpoint URL' },
     azureApiVersion: { type: 'string', description: 'Azure API version' },
+    temperature: {
+      type: 'number',
+      description: 'Response randomness level (low for consistent routing)',
+    },
   },
   outputs: {
     content: { type: 'string', description: 'Routing response content' },
