@@ -131,14 +131,7 @@ export const TranslateBlock: BlockConfig = {
     },
   ],
   tools: {
-    access: [
-      'openai_chat',
-      'anthropic_chat',
-      'google_chat',
-      'xai_chat',
-      'deepseek_chat',
-      'deepseek_reasoner',
-    ],
+    access: ['openai_chat', 'anthropic_chat', 'google_chat'],
     config: {
       tool: (params: Record<string, any>) => {
         const model = params.model || 'gpt-4o'
