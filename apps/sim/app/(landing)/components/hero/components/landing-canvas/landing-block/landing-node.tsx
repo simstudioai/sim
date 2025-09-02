@@ -45,7 +45,7 @@ export const LandingNode = React.memo(function LandingNode({ data }: { data: Lan
   const hideSourceHandle = (data as any)?.hideSourceHandle || false
 
   return (
-    <div ref={wrapperRef} className='relative cursor-move'>
+    <div ref={wrapperRef} className='relative cursor-grab active:cursor-grabbing'>
       {!hideTargetHandle && (
         <Handle
           type='target'

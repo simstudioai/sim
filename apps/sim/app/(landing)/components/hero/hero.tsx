@@ -12,7 +12,6 @@ import {
   VariableIcon,
 } from 'lucide-react'
 import { type Edge, type Node, Position } from 'reactflow'
-import { IconButton } from '@/components/icon-button'
 import {
   AgentIcon,
   AirtableIcon,
@@ -32,6 +31,7 @@ import {
   StripeIcon,
   SupabaseIcon,
 } from '@/components/icons'
+import { IconButton } from '@/app/(landing)/components/hero/components/icon-button'
 import { soehne } from '@/app/fonts/soehne/soehne'
 import {
   CARD_WIDTH,
@@ -39,7 +39,7 @@ import {
   type LandingGroupData,
   type LandingManualBlock,
   type LandingViewportApi,
-} from './components/landing-canvas'
+} from './components/landing-canvas/landing-canvas'
 
 /**
  * Service-specific template messages for the hero input
@@ -429,7 +429,7 @@ export default function Hero() {
       </div>
 
       {/* Canvas */}
-      <div className='mt-[106px] w-full max-w-[1273px]'>
+      <div className='mt-[126px] w-full max-w-[1308px]'>
         <LandingCanvas
           nodes={rfNodes}
           edges={rfEdges}

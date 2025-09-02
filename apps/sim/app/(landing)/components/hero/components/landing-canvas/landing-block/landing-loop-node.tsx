@@ -28,7 +28,7 @@ export const LandingLoopNode = React.memo(function LandingLoopNode({
 }) {
   return (
     <div
-      className='nodrag nopan nowheel relative'
+      className='nodrag nopan nowheel relative cursor-grab active:cursor-grabbing'
       style={{
         width: style?.width || 1198,
         height: style?.height || 528,

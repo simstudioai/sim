@@ -3,10 +3,10 @@
 import React from 'react'
 import ReactFlow, { applyNodeChanges, type NodeChange, useReactFlow } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { LandingLoopNode } from './landing-block/landing-loop-node'
+import { LandingNode } from './landing-block/landing-node'
 import { CARD_WIDTH, type LandingCanvasProps } from './landing-canvas'
-import { LandingEdge } from './landing-edge'
-import { LandingLoopNode } from './landing-loop-node'
-import { LandingNode } from './landing-node'
+import { LandingEdge } from './landing-edge/landing-edge'
 
 /**
  * Props for the LandingFlow component
@@ -114,7 +114,34 @@ export function LandingFlow({
         }
       }}
       className='h-full w-full'
+      style={{
+        // Override React Flow's default cursor styles
+        cursor: 'default',
+      }}
     >
+      <style>
+        {`
+          /* Force default cursor on the canvas/pane */
+          .react-flow__pane {
+            cursor: default !important;
+          }
+          
+          /* Force grab cursor on nodes */
+          .react-flow__node {
+            cursor: grab !important;
+          }
+          
+          /* Force grabbing cursor when dragging nodes */
+          .react-flow__node.dragging {
+            cursor: grabbing !important;
+          }
+          
+          /* Ensure viewport also has default cursor */
+          .react-flow__viewport {
+            cursor: default !important;
+          }
+        `}
+      </style>
       {null}
     </ReactFlow>
   )

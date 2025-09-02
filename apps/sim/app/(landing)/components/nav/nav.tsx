@@ -47,9 +47,9 @@ export default async function Nav() {
   return (
     <nav
       aria-label='Primary'
-      className={`${soehne.className} flex w-full items-center justify-between px-[70px] pt-[20px] pb-[34px]`}
+      className={`${soehne.className} flex w-full items-center justify-between px-[60px] pt-[17px] pb-[32px]`}
     >
-      <div className='flex items-center gap-[50px]'>
+      <div className='flex items-center gap-[40px]'>
         <Link href='/' aria-label='Sim home'>
           <Image
             src='/logo/b&w/text/b&w.svg'
@@ -94,7 +94,7 @@ export default async function Nav() {
           </li>
         </ul>
       </div>
-      <div className='flex items-center justify-center gap-[24px]'>
+      <div className='flex items-center justify-center gap-[20px]'>
         <Link href='/login' className='text-[#2E2E2E] text-[18px]'>
           Log in
         </Link>
