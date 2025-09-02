@@ -27,7 +27,10 @@ export async function GET(
     // For token-based acceptance flows, redirect to login
     if (isAcceptFlow) {
       return NextResponse.redirect(
-        new URL(`/invite/${token}?token=${token}`, env.NEXT_PUBLIC_APP_URL || 'https://sim.ai')
+        new URL(
+          `/invite/${invitationId}?token=${token}`,
+          env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+        )
       )
     }
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -51,7 +54,10 @@ export async function GET(
     if (new Date() > new Date(invitation.expiresAt)) {
       if (isAcceptFlow) {
         return NextResponse.redirect(
-          new URL(`/invite/${token}?error=expired`, env.NEXT_PUBLIC_APP_URL || 'https://sim.ai')
+          new URL(
+            `/invite/${invitation.id}?error=expired`,
+            env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+          )
         )
       }
       return NextResponse.json({ error: 'Invitation has expired' }, { status: 400 })
@@ -67,7 +73,7 @@ export async function GET(
       if (isAcceptFlow) {
         return NextResponse.redirect(
           new URL(
-            `/invite/${token}?error=workspace-not-found`,
+            `/invite/${invitation.id}?error=workspace-not-found`,
             env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
           )
         )
@@ -79,7 +85,7 @@ export async function GET(
       if (invitation.status !== ('pending' as WorkspaceInvitationStatus)) {
         return NextResponse.redirect(
           new URL(
-            `/invite/${token}?error=already-processed`,
+            `/invite/${invitation.id}?error=already-processed`,
             env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
           )
         )
@@ -97,7 +103,7 @@ export async function GET(
       if (!userData) {
         return NextResponse.redirect(
           new URL(
-            `/invite/${token}?error=user-not-found`,
+            `/invite/${invitation.id}?error=user-not-found`,
             env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
           )
         )
@@ -108,7 +114,7 @@ export async function GET(
       if (!isValidMatch) {
         return NextResponse.redirect(
           new URL(
-            `/invite/${token}?error=email-mismatch`,
+            `/invite/${invitation.id}?error=email-mismatch`,
             env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
           )
         )

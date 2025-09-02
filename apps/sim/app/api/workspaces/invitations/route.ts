@@ -206,6 +206,7 @@ export async function POST(req: NextRequest) {
       to: email,
       inviterName: session.user.name || session.user.email || 'A user',
       workspaceName: workspaceDetails.name,
+      invitationId: invitationData.id,
       token: token,
     })
 
@@ -221,17 +222,19 @@ async function sendInvitationEmail({
   to,
   inviterName,
   workspaceName,
+  invitationId,
   token,
 }: {
   to: string
   inviterName: string
   workspaceName: string
+  invitationId: string
   token: string
 }) {
   try {
     const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
-    // Always use the client-side invite route with token parameter
-    const invitationLink = `${baseUrl}/invite/${token}?token=${token}`
+    // Use invitation ID in path, token in query parameter for security
+    const invitationLink = `${baseUrl}/invite/${invitationId}?token=${token}`
 
     const emailHtml = await render(
       WorkspaceInvitationEmail({

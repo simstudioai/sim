@@ -51,12 +51,10 @@ export default function Invite() {
     async function fetchInvitationDetails() {
       setIsLoading(true)
       try {
-        const workspaceInviteResponse = await fetch(
-          `/api/workspaces/invitations/${token}?token=${token}`,
-          {
-            method: 'GET',
-          }
-        )
+        // Fetch invitation details using the invitation ID from the URL path
+        const workspaceInviteResponse = await fetch(`/api/workspaces/invitations/${inviteId}`, {
+          method: 'GET',
+        })
 
         if (workspaceInviteResponse.ok) {
           const data = await workspaceInviteResponse.json()
@@ -118,7 +116,7 @@ export default function Invite() {
     setIsAccepting(true)
 
     if (invitationType === 'workspace') {
-      window.location.href = `/api/workspaces/invitations/${encodeURIComponent(token || '')}?token=${encodeURIComponent(token || '')}`
+      window.location.href = `/api/workspaces/invitations/${encodeURIComponent(inviteId)}?token=${encodeURIComponent(token || '')}`
     } else {
       try {
         const response = await client.organization.acceptInvitation({
