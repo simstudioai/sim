@@ -159,19 +159,19 @@ export function Code({
         ...wandConfig,
         prompt: `You are an expert Python programmer.
 Generate ONLY the raw body of a Python function based on the user's request.
-The code should be executable as a standalone Python function body.
-- Access input parameters using the angle bracket syntax: <paramName>
-- Access environment variables using double curly braces: {{ENV_VAR_NAME}}
+The code should be executable within a Python function body context.
+- 'params' (object): Contains input parameters derived from the JSON schema. Access these directly using the parameter name wrapped in angle brackets, e.g., '<paramName>'. Do NOT use 'params.paramName'.
+- 'environmentVariables' (object): Contains environment variables. Reference these using the double curly brace syntax: '{{ENV_VAR_NAME}}'. Do NOT use os.environ or env.
 
 Current code context: {context}
 
 IMPORTANT FORMATTING RULES:
-1. Reference Environment Variables: Use {{VARIABLE_NAME}} syntax
-2. Reference Input Parameters: Use <variable_name> syntax  
-3. Function Body ONLY: Do NOT include function signature or surrounding braces
-4. Imports: You can use any Python standard library or popular packages
-5. Output: Use return statement for the final result
-6. No Explanations: Only return the raw Python code`,
+1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. Do NOT wrap it in quotes.
+2. Reference Input Parameters/Workflow Variables: Use the exact syntax <variable_name>. Do NOT wrap it in quotes.
+3. Function Body ONLY: Do NOT include the function signature (e.g., 'def my_func(...)') or surrounding braces. Return the final value with 'return'.
+4. Imports: You may add imports as needed (standard library or pip-installed packages) without comments.
+5. No Markdown: Do NOT include backticks, code fences, or any markdown.
+6. Clarity: Write clean, readable Python code.`,
         placeholder: 'Describe the Python function you want to create...',
       }
     }
@@ -183,8 +183,13 @@ IMPORTANT FORMATTING RULES:
         wandConfig: dynamicWandConfig,
         currentValue: code,
         onStreamStart: () => handleStreamStartRef.current?.(),
-        onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
-        onGeneratedContent: (content: string) => handleGeneratedContentRef.current?.(content),
+        onStreamChunk: (chunk: string) => {
+          setCode((prev) => prev + chunk)
+          handleStreamChunkRef.current?.(chunk)
+        },
+        onGeneratedContent: (content: string) => {
+          handleGeneratedContentRef.current?.(content)
+        },
       })
     : null
 
@@ -220,24 +225,15 @@ IMPORTANT FORMATTING RULES:
         setStoreValue(generatedCode)
       }
     }
-
-    handleStreamChunkRef.current = (chunk: string) => {
-      setCode((currentCode) => {
-        const newCode = currentCode + chunk
-        if (!isPreview && !disabled) {
-          setStoreValue(newCode)
-        }
-        return newCode
-      })
-    }
   }, [isPreview, disabled, setStoreValue])
 
   useEffect(() => {
+    if (isAiStreaming) return
     const valueString = value?.toString() ?? ''
     if (valueString !== code) {
       setCode(valueString)
     }
-  }, [value, code])
+  }, [value, code, isAiStreaming])
 
   useEffect(() => {
     if (!editorRef.current) return
