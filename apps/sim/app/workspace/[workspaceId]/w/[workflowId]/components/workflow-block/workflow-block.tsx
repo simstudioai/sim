@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, validateName } from '@/lib/utils'
@@ -446,6 +447,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
       if (block.hidden) return false
+
+      // Filter out E2B-related blocks if E2B is not enabled on the client
+      const e2bClientEnabled = env.NEXT_PUBLIC_E2B_ENABLED === 'true'
+      if (!e2bClientEnabled && (block.id === 'remoteExecution' || block.id === 'language')) {
+        return false
+      }
 
       // Special handling for trigger mode
       if (block.type === ('trigger-config' as SubBlockType)) {
