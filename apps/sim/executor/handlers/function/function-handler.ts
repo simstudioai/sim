@@ -59,7 +59,7 @@ export class FunctionBlockHandler implements BlockHandler {
       {
         code: codeContent,
         language: inputs.language || 'javascript',
-        fastMode: inputs.fastMode || false,
+        fastMode: !inputs.remoteExecution,
         timeout: inputs.timeout || 5000,
         envVars: context.environmentVariables || {},
         workflowVariables: context.workflowVariables || {},

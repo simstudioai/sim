@@ -14,15 +14,26 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
   icon: CodeIcon,
   subBlocks: [
     {
+      id: 'remoteExecution',
+      type: 'switch',
+      layout: 'full',
+      title: 'Remote Code Execution',
+      description: 'Python/Javascript code run in a sandbox environment. Slower execution times.',
+    },
+    {
       id: 'language',
       type: 'dropdown',
-      layout: 'half',
+      layout: 'full',
       options: [
         { label: 'JavaScript', id: 'javascript' },
         { label: 'Python', id: 'python' },
       ],
       placeholder: 'Select language',
       value: () => 'javascript',
+      condition: {
+        field: 'remoteExecution',
+        value: true,
+      },
     },
     {
       id: 'code',
@@ -82,21 +93,14 @@ try {
         generationType: 'javascript-function-body',
       },
     },
-    {
-      id: 'fastMode',
-      type: 'switch',
-      layout: 'half',
-      title: 'Fast mode',
-      description: 'Run locally in JavaScript VM',
-    },
   ],
   tools: {
     access: ['function_execute'],
   },
   inputs: {
     code: { type: 'string', description: 'JavaScript or Python code to execute' },
+    remoteExecution: { type: 'boolean', description: 'Use E2B remote execution' },
     language: { type: 'string', description: 'Language (javascript or python)' },
-    fastMode: { type: 'boolean', description: 'Fast mode (bolt): run JavaScript locally' },
     timeout: { type: 'number', description: 'Execution timeout' },
   },
   outputs: {

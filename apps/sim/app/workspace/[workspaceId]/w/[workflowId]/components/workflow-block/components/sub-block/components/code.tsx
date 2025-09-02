@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Wand2, Zap } from 'lucide-react'
+import { Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
@@ -141,9 +141,46 @@ export function Code({
   const handleGeneratedContentRef = useRef<(generatedCode: string) => void>(() => {})
   const handleStreamChunkRef = useRef<(chunk: string) => void>(() => {})
 
-  const wandHook = wandConfig?.enabled
+  const [languageValue] = useSubBlockValue<string>(blockId, 'language')
+  const [remoteExecution] = useSubBlockValue<boolean>(blockId, 'remoteExecution')
+
+  const effectiveLanguage = (languageValue as 'javascript' | 'python' | 'json') || language
+
+  const dynamicPlaceholder = useMemo(() => {
+    if (remoteExecution && languageValue === 'python') {
+      return 'Write Python...'
+    }
+    return placeholder
+  }, [remoteExecution, languageValue, placeholder])
+
+  const dynamicWandConfig = useMemo(() => {
+    if (remoteExecution && languageValue === 'python') {
+      return {
+        ...wandConfig,
+        prompt: `You are an expert Python programmer.
+Generate ONLY the raw body of a Python function based on the user's request.
+The code should be executable as a standalone Python function body.
+- Access input parameters using the angle bracket syntax: <paramName>
+- Access environment variables using double curly braces: {{ENV_VAR_NAME}}
+
+Current code context: {context}
+
+IMPORTANT FORMATTING RULES:
+1. Reference Environment Variables: Use {{VARIABLE_NAME}} syntax
+2. Reference Input Parameters: Use <variable_name> syntax  
+3. Function Body ONLY: Do NOT include function signature or surrounding braces
+4. Imports: You can use any Python standard library or popular packages
+5. Output: Use return statement for the final result
+6. No Explanations: Only return the raw Python code`,
+        placeholder: 'Describe the Python function you want to create...',
+      }
+    }
+    return wandConfig
+  }, [wandConfig, remoteExecution, languageValue])
+
+  const wandHook = dynamicWandConfig?.enabled
     ? useWand({
-        wandConfig,
+        wandConfig: dynamicWandConfig,
         currentValue: code,
         onStreamStart: () => handleStreamStartRef.current?.(),
         onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
@@ -200,7 +237,7 @@ export function Code({
     if (valueString !== code) {
       setCode(valueString)
     }
-  }, [value])
+  }, [value, code])
 
   useEffect(() => {
     if (!editorRef.current) return
@@ -327,20 +364,6 @@ export function Code({
     }, 0)
   }
 
-  const [fastMode, setFastMode] = useSubBlockValue<boolean>(blockId, 'fastMode')
-  const [languageValue, setLanguageValue] = useSubBlockValue<string>(blockId, 'language')
-
-  const toggleFastMode = () => {
-    if (isPreview || disabled) return
-    const next = !fastMode
-    setFastMode(next)
-    if (next) {
-      setLanguageValue('javascript')
-    }
-  }
-
-  const effectiveLanguage = (languageValue as 'javascript' | 'python' | 'json') || language
-
   const renderLineNumbers = (): ReactElement[] => {
     const numbers: ReactElement[] = []
     let lineNumber = 1
@@ -385,7 +408,7 @@ export function Code({
         onSubmit={(prompt: string) => generateCodeStream({ prompt })}
         onCancel={isAiStreaming ? cancelGeneration : hidePromptInline}
         onChange={updatePromptValue}
-        placeholder={wandConfig?.placeholder || aiPromptPlaceholder}
+        placeholder={dynamicWandConfig?.placeholder || aiPromptPlaceholder}
       />
 
       <div
@@ -409,23 +432,6 @@ export function Code({
               className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow'
             >
               <Wand2 className='h-4 w-4' />
-            </Button>
-          )}
-
-          {!isCollapsed && !isAiStreaming && !isPreview && (
-            <Button
-              variant={fastMode ? 'default' : 'ghost'}
-              size='icon'
-              onClick={toggleFastMode}
-              aria-label='Fast mode (local JS VM)'
-              className={cn(
-                'h-8 w-8 rounded-full border border-transparent text-muted-foreground shadow-sm transition-all duration-200',
-                fastMode
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted/80 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow'
-              )}
-            >
-              <Zap className='h-4 w-4' />
             </Button>
           )}
 
@@ -459,7 +465,7 @@ export function Code({
         >
           {code.length === 0 && !isCollapsed && (
             <div className='pointer-events-none absolute top-[12px] left-[42px] select-none text-muted-foreground/50'>
-              {placeholder}
+              {dynamicPlaceholder}
             </div>
           )}
 
