@@ -1221,3 +1221,13 @@ export const copilotFeedback = pgTable(
     createdAtIdx: index('copilot_feedback_created_at_idx').on(table.createdAt),
   })
 )
+
+export const copilotStats = pgTable('copilot_stats', {
+  userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+  chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
+  messageId: text('message_id'),
+  depth: integer('depth'),
+  createdAt: timestamp('created_at').defaultNow(),
+  diffCreated: boolean('diff_created'),
+  diffAccepted: boolean('diff_accepted'),
+})
