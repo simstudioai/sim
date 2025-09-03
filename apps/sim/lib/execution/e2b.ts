@@ -12,6 +12,7 @@ export interface E2BExecutionResult {
   result: unknown
   stdout: string
   sandboxId?: string
+  error?: string
 }
 
 const logger = createLogger('E2BExecution')
@@ -40,6 +41,25 @@ export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecuti
       language: language === CodeLanguage.Python ? 'python' : 'javascript',
       timeoutMs,
     })
+
+    // Check for execution errors
+    if (execution.error) {
+      const errorMessage = `${execution.error.name}: ${execution.error.value}`
+      logger.error(`E2B execution error`, {
+        sandboxId,
+        error: execution.error,
+        errorMessage,
+      })
+
+      // Include error traceback in stdout if available
+      const errorOutput = execution.error.traceback || errorMessage
+      return {
+        result: null,
+        stdout: errorOutput,
+        error: errorMessage,
+        sandboxId,
+      }
+    }
 
     // Get output from execution
     if (execution.text) {
