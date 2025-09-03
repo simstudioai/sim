@@ -582,13 +582,6 @@
       "when": 1756768177306,
       "tag": "0083_ambiguous_dreadnoughts",
       "breakpoints": true
-    },
-    {
-      "idx": 84,
-      "version": "7",
-      "when": 1756851363440,
-      "tag": "0084_classy_alex_wilder",
-      "breakpoints": true
     }
   ]
 }
