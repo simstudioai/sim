@@ -463,10 +463,18 @@ export class InputResolver {
     const blockMatches = value.match(/<([^>]+)>/g)
     if (!blockMatches) return value
 
-    // If we're in an API block body, check each match to see if it looks like XML rather than a reference
+    // Filter out patterns that are clearly not variable references (e.g., comparison operators)
+    const validBlockMatches = blockMatches.filter((match) => this.isValidVariableReference(match))
+
+    // If no valid matches found after filtering, return original value
+    if (validBlockMatches.length === 0) {
+      return value
+    }
+
+    // If we're in an API block body, check each valid match to see if it looks like XML rather than a reference
     if (
       currentBlock.metadata?.id === 'api' &&
-      blockMatches.some((match) => {
+      validBlockMatches.some((match) => {
         const innerContent = match.slice(1, -1)
         // Patterns that suggest this is XML, not a block reference:
         return (
@@ -490,7 +498,7 @@ export class InputResolver {
       value.includes('}') &&
       value.includes('`')
 
-    for (const match of blockMatches) {
+    for (const match of validBlockMatches) {
       // Skip variables - they've already been processed
       if (match.startsWith('<variable.')) {
         continue
@@ -812,6 +820,63 @@ export class InputResolver {
     }
 
     return resolvedValue
+  }
+
+  /**
+   * Validates if a match with < and > is actually a variable reference.
+   * Valid variable references must:
+   * - Have no space after the opening <
+   * - Contain a dot (.)
+   * - Have no spaces until the closing >
+   * - Not be comparison operators or HTML tags
+   *
+   * @param match - The matched string including < and >
+   * @returns Whether this is a valid variable reference
+   */
+  private isValidVariableReference(match: string): boolean {
+    const innerContent = match.slice(1, -1)
+
+    if (!innerContent.includes('.')) {
+      return false
+    }
+
+    const dotIndex = innerContent.indexOf('.')
+    const beforeDot = innerContent.substring(0, dotIndex)
+    const afterDot = innerContent.substring(dotIndex + 1)
+
+    if (afterDot.includes(' ')) {
+      return false
+    }
+
+    if (
+      beforeDot.match(/^\s*[<>=!]+\s*$/) ||
+      beforeDot.match(/\s[<>=!]+\s/) ||
+      beforeDot.match(/^[<>=!]+\s/)
+    ) {
+      return false
+    }
+
+    if (innerContent.startsWith(' ')) {
+      return false
+    }
+
+    if (innerContent.match(/^[a-zA-Z][a-zA-Z0-9]*$/) && !innerContent.includes('.')) {
+      return false
+    }
+
+    if (innerContent.match(/^[<>=!]+\s/)) {
+      return false
+    }
+
+    if (beforeDot.match(/[+*/=<>!]/)) {
+      return false
+    }
+
+    if (afterDot.match(/[+\-*/=<>!]/)) {
+      return false
+    }
+
+    return true
   }
 
   /**
@@ -1146,6 +1211,24 @@ export class InputResolver {
   }
 
   /**
+   * Gets user-friendly block names for error messages.
+   * Only returns the actual block names that users see in the UI.
+   */
+  private getAccessibleBlockNamesForError(currentBlockId: string): string[] {
+    const accessibleBlockIds = this.getAccessibleBlocks(currentBlockId)
+    const names: string[] = []
+
+    for (const blockId of accessibleBlockIds) {
+      const block = this.blockById.get(blockId)
+      if (block?.metadata?.name) {
+        names.push(block.metadata.name)
+      }
+    }
+
+    return [...new Set(names)] // Remove duplicates
+  }
+
+  /**
    * Checks if a block reference could potentially be valid without throwing errors.
    * Used to filter out non-block patterns like <test> from block reference resolution.
    *
@@ -1197,7 +1280,7 @@ export class InputResolver {
     }
 
     if (!sourceBlock) {
-      const accessibleNames = this.getAccessibleBlockNames(currentBlockId)
+      const accessibleNames = this.getAccessibleBlockNamesForError(currentBlockId)
       return {
         isValid: false,
         errorMessage: `Block "${blockRef}" was not found. Available connected blocks: ${accessibleNames.join(', ')}`,
@@ -1207,7 +1290,7 @@ export class InputResolver {
     // Check if block is accessible (connected)
     const accessibleBlocks = this.getAccessibleBlocks(currentBlockId)
     if (!accessibleBlocks.has(sourceBlock.id)) {
-      const accessibleNames = this.getAccessibleBlockNames(currentBlockId)
+      const accessibleNames = this.getAccessibleBlockNamesForError(currentBlockId)
       return {
         isValid: false,
         errorMessage: `Block "${blockRef}" is not connected to this block. Available connected blocks: ${accessibleNames.join(', ')}`,

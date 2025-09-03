@@ -6,6 +6,7 @@ import 'prismjs/components/prism-json'
 import 'prismjs/themes/prism.css'
 import { Wand2 } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 interface CodeEditorProps {
@@ -213,19 +214,16 @@ export function CodeEditor({
       )}
     >
       {showWandButton && onWandClick && (
-        <button
+        <Button
+          variant='ghost'
+          size='icon'
           onClick={onWandClick}
           disabled={wandButtonDisabled}
-          className={cn(
-            'absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-transparent bg-muted/80 p-0 text-foreground shadow-sm transition-all duration-200',
-            'hover:border-primary/20 hover:bg-muted hover:text-foreground hover:shadow',
-            'opacity-0 transition-opacity group-hover:opacity-100',
-            wandButtonDisabled && 'cursor-not-allowed opacity-50'
-          )}
           aria-label='Generate with AI'
+          className='absolute top-2 right-3 z-10 h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground opacity-0 shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-foreground hover:shadow group-hover:opacity-100'
         >
           <Wand2 className='h-4 w-4' />
-        </button>
+        </Button>
       )}
 
       {!showWandButton && code.split('\n').length > 5 && (
