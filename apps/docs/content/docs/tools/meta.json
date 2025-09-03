@@ -33,6 +33,7 @@
     "microsoft_planner",
     "microsoft_teams",
     "mistral_parse",
+    "mongodb",
     "mysql",
     "notion",
     "onedrive",

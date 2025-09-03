@@ -1,7 +1,12 @@
+import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { env } from '@/lib/env'
+import { getCostMultiplier, isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { db } from '@/db'
+import { userStats, workflow } from '@/db/schema'
+import { getModelPricing } from '@/providers/utils'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -47,6 +52,7 @@ interface RequestBody {
   systemPrompt?: string
   stream?: boolean
   history?: ChatMessage[]
+  workflowId?: string
 }
 
 function safeStringify(value: unknown): string {
@@ -54,6 +60,80 @@ function safeStringify(value: unknown): string {
     return JSON.stringify(value)
   } catch {
     return '[unserializable]'
+  }
+}
+
+async function updateUserStatsForWand(
+  workflowId: string,
+  usage: {
+    prompt_tokens?: number
+    completion_tokens?: number
+    total_tokens?: number
+  },
+  requestId: string
+): Promise<void> {
+  if (!isBillingEnabled) {
+    logger.debug(`[${requestId}] Billing is disabled, skipping wand usage cost update`)
+    return
+  }
+
+  if (!usage.total_tokens || usage.total_tokens <= 0) {
+    logger.debug(`[${requestId}] No tokens to update in user stats`)
+    return
+  }
+
+  try {
+    const [workflowRecord] = await db
+      .select({ userId: workflow.userId })
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .limit(1)
+
+    if (!workflowRecord?.userId) {
+      logger.warn(
+        `[${requestId}] No user found for workflow ${workflowId}, cannot update user stats`
+      )
+      return
+    }
+
+    const userId = workflowRecord.userId
+    const totalTokens = usage.total_tokens || 0
+    const promptTokens = usage.prompt_tokens || 0
+    const completionTokens = usage.completion_tokens || 0
+
+    const modelName = useWandAzure ? wandModelName : 'gpt-4o'
+    const pricing = getModelPricing(modelName)
+
+    const costMultiplier = getCostMultiplier()
+    let modelCost = 0
+
+    if (pricing) {
+      const inputCost = (promptTokens / 1000000) * pricing.input
+      const outputCost = (completionTokens / 1000000) * pricing.output
+      modelCost = inputCost + outputCost
+    } else {
+      modelCost = (promptTokens / 1000000) * 0.005 + (completionTokens / 1000000) * 0.015
+    }
+
+    const costToStore = modelCost * costMultiplier
+
+    await db
+      .update(userStats)
+      .set({
+        totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
+        totalCost: sql`total_cost + ${costToStore}`,
+        currentPeriodCost: sql`current_period_cost + ${costToStore}`,
+        lastActive: new Date(),
+      })
+      .where(eq(userStats.userId, userId))
+
+    logger.debug(`[${requestId}] Updated user stats for wand usage`, {
+      userId,
+      tokensUsed: totalTokens,
+      costAdded: costToStore,
+    })
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to update user stats for wand usage`, error)
   }
 }
 
@@ -72,7 +152,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as RequestBody
 
-    const { prompt, systemPrompt, stream = false, history = [] } = body
+    const { prompt, systemPrompt, stream = false, history = [], workflowId } = body
 
     if (!prompt) {
       logger.warn(`[${requestId}] Invalid request: Missing prompt.`)
@@ -135,7 +215,7 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             model: useWandAzure ? wandModelName : 'gpt-4o',
             messages: messages,
-            temperature: 0.3,
+            temperature: 0.2,
             max_tokens: 10000,
             stream: true,
             stream_options: { include_usage: true },
@@ -168,6 +248,7 @@ export async function POST(req: NextRequest) {
             try {
               let buffer = ''
               let chunkCount = 0
+              let finalUsage: any = null
 
               while (true) {
                 const { done, value } = await reader.read()
@@ -213,6 +294,7 @@ export async function POST(req: NextRequest) {
                       }
 
                       if (parsed.usage) {
+                        finalUsage = parsed.usage
                         logger.info(
                           `[${requestId}] Received usage data: ${JSON.stringify(parsed.usage)}`
                         )
@@ -231,6 +313,10 @@ export async function POST(req: NextRequest) {
               }
 
               logger.info(`[${requestId}] Wand generation streaming completed successfully`)
+
+              if (finalUsage && workflowId) {
+                await updateUserStatsForWand(workflowId, finalUsage, requestId)
+              }
             } catch (streamError: any) {
               logger.error(`[${requestId}] Streaming error`, {
                 name: streamError?.name,
@@ -297,6 +383,11 @@ export async function POST(req: NextRequest) {
     }
 
     logger.info(`[${requestId}] Wand generation successful`)
+
+    if (completion.usage && workflowId) {
+      await updateUserStatsForWand(workflowId, completion.usage, requestId)
+    }
+
     return NextResponse.json({ success: true, content: generatedContent })
   } catch (error: any) {
     logger.error(`[${requestId}] Wand generation failed`, {
