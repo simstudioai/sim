@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, Trash } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
@@ -52,6 +53,8 @@ export function ConditionInput({
   previewValue,
   disabled = false,
 }: ConditionInputProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
 
   const emitTagSelection = useTagSelection(blockId, subBlockId)
@@ -796,6 +799,7 @@ export function ConditionInput({
                     searchTerm={block.searchTerm}
                     inputValue={block.value}
                     cursorPosition={block.cursorPosition}
+                    workspaceId={workspaceId}
                     onClose={() => {
                       setConditionalBlocks((blocks) =>
                         blocks.map((b) =>

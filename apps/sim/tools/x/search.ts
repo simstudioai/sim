@@ -1,5 +1,8 @@
+import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { XSearchParams, XSearchResponse, XTweet, XUser } from '@/tools/x/types'
+
+const logger = createLogger('XSearchTool')
 
 export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
   id: 'x_search',
@@ -92,7 +95,7 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
 
     // Check if data.data is undefined/null or not an array
     if (!data.data || !Array.isArray(data.data)) {
-      console.error('X Search API Error:', JSON.stringify(data, null, 2))
+      logger.error('X Search API Error:', JSON.stringify(data, null, 2))
       return {
         success: false,
         error:

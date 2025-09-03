@@ -154,9 +154,8 @@ export function useSubscriptionUpgrade() {
       } catch (error) {
         logger.error('Failed to initiate subscription upgrade:', error)
 
-        // Log detailed error information for debugging
         if (error instanceof Error) {
-          console.error('Detailed error:', {
+          logger.error('Detailed error:', {
             message: error.message,
             stack: error.stack,
             cause: error.cause,

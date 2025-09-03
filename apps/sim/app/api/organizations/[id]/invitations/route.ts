@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   getEmailSubject,
@@ -17,9 +17,17 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import { db } from '@/db'
-import { invitation, member, organization, user, workspace, workspaceInvitation } from '@/db/schema'
+import {
+  invitation,
+  member,
+  organization,
+  user,
+  type WorkspaceInvitationStatus,
+  workspace,
+  workspaceInvitation,
+} from '@/db/schema'
 
-const logger = createLogger('OrganizationInvitationsAPI')
+const logger = createLogger('OrganizationInvitations')
 
 interface WorkspaceInvitation {
   workspaceId: string
@@ -40,7 +48,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id: organizationId } = await params
 
-    // Verify user has access to this organization
     const memberEntry = await db
       .select()
       .from(member)
@@ -61,7 +68,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    // Get all pending invitations for the organization
     const invitations = await db
       .select({
         id: invitation.id,
@@ -118,10 +124,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json()
     const { email, emails, role = 'member', workspaceInvitations } = body
 
-    // Handle single invitation vs batch
     const invitationEmails = email ? [email] : emails
 
-    // Validate input
     if (!invitationEmails || !Array.isArray(invitationEmails) || invitationEmails.length === 0) {
       return NextResponse.json({ error: 'Email or emails array is required' }, { status: 400 })
     }
@@ -130,7 +134,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
-    // Verify user has admin access
     const memberEntry = await db
       .select()
       .from(member)
@@ -148,7 +151,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    // Handle validation-only requests
     if (validateOnly) {
       const validationResult = await validateBulkInvitations(organizationId, invitationEmails)
 
@@ -167,7 +169,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })
     }
 
-    // Validate seat availability
     const seatValidation = await validateSeatAvailability(organizationId, invitationEmails.length)
 
     if (!seatValidation.canInvite) {
@@ -185,7 +186,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    // Get organization details
     const organizationEntry = await db
       .select({ name: organization.name })
       .from(organization)
@@ -196,7 +196,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    // Validate and normalize emails
     const processedEmails = invitationEmails
       .map((email: string) => {
         const normalized = email.trim().toLowerCase()
@@ -209,11 +208,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'No valid emails provided' }, { status: 400 })
     }
 
-    // Handle batch workspace invitations if provided
     const validWorkspaceInvitations: WorkspaceInvitation[] = []
     if (isBatch && workspaceInvitations && workspaceInvitations.length > 0) {
       for (const wsInvitation of workspaceInvitations) {
-        // Check if user has admin permission on this workspace
         const canInvite = await hasWorkspaceAdminAccess(session.user.id, wsInvitation.workspaceId)
 
         if (!canInvite) {
@@ -229,7 +226,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    // Check for existing members
     const existingMembers = await db
       .select({ userEmail: user.email })
       .from(member)
@@ -239,7 +235,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const existingEmails = existingMembers.map((m) => m.userEmail)
     const newEmails = processedEmails.filter((email: string) => !existingEmails.includes(email))
 
-    // Check for existing pending invitations
     const existingInvitations = await db
       .select({ email: invitation.email })
       .from(invitation)
@@ -265,7 +260,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    // Create invitations
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
     const invitationsToCreate = emailsToInvite.map((email: string) => ({
       id: randomUUID(),
@@ -280,10 +274,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     await db.insert(invitation).values(invitationsToCreate)
 
-    // Create workspace invitations if batch mode
     const workspaceInvitationIds: string[] = []
     if (isBatch && validWorkspaceInvitations.length > 0) {
       for (const email of emailsToInvite) {
+        const orgInviteForEmail = invitationsToCreate.find((inv) => inv.email === email)
         for (const wsInvitation of validWorkspaceInvitations) {
           const wsInvitationId = randomUUID()
           const token = randomUUID()
@@ -297,6 +291,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             status: 'pending',
             token,
             permissions: wsInvitation.permission,
+            orgInvitationId: orgInviteForEmail?.id,
             expiresAt,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -307,7 +302,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    // Send invitation emails
     const inviter = await db
       .select({ name: user.name })
       .from(user)
@@ -320,7 +314,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       let emailResult
       if (isBatch && validWorkspaceInvitations.length > 0) {
-        // Get workspace details for batch email
         const workspaceDetails = await db
           .select({
             id: workspace.id,
@@ -346,7 +339,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           organizationEntry[0]?.name || 'organization',
           role,
           workspaceInvitationsWithNames,
-          `${env.NEXT_PUBLIC_APP_URL}/api/organizations/invitations/accept?id=${orgInvitation.id}`
+          `${env.NEXT_PUBLIC_APP_URL}/invite/organization?id=${orgInvitation.id}`
         )
 
         emailResult = await sendEmail({
@@ -359,7 +352,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const emailHtml = await renderInvitationEmail(
           inviter[0]?.name || 'Someone',
           organizationEntry[0]?.name || 'organization',
-          `${env.NEXT_PUBLIC_APP_URL}/api/organizations/invitations/accept?id=${orgInvitation.id}`,
+          `${env.NEXT_PUBLIC_APP_URL}/invite/organization?id=${orgInvitation.id}`,
           email
         )
 
@@ -446,7 +439,6 @@ export async function DELETE(
       )
     }
 
-    // Verify user has admin access
     const memberEntry = await db
       .select()
       .from(member)
@@ -464,12 +456,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    // Cancel the invitation
     const result = await db
       .update(invitation)
-      .set({
-        status: 'cancelled',
-      })
+      .set({ status: 'cancelled' })
       .where(
         and(
           eq(invitation.id, invitationId),
@@ -485,6 +474,23 @@ export async function DELETE(
         { status: 404 }
       )
     }
+
+    await db
+      .update(workspaceInvitation)
+      .set({ status: 'cancelled' as WorkspaceInvitationStatus })
+      .where(eq(workspaceInvitation.orgInvitationId, invitationId))
+
+    await db
+      .update(workspaceInvitation)
+      .set({ status: 'cancelled' as WorkspaceInvitationStatus })
+      .where(
+        and(
+          isNull(workspaceInvitation.orgInvitationId),
+          eq(workspaceInvitation.email, result[0].email),
+          eq(workspaceInvitation.status, 'pending' as WorkspaceInvitationStatus),
+          eq(workspaceInvitation.inviterId, session.user.id)
+        )
+      )
 
     logger.info('Organization invitation cancelled', {
       organizationId,

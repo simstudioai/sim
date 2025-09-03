@@ -59,7 +59,6 @@ export interface OrganizationFormData {
   logo: string
 }
 
-// Organization billing and usage types
 export interface MemberUsageData {
   userId: string
   userName: string

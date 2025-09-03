@@ -215,20 +215,28 @@ export function useVerification({
     setOtp(value)
   }
 
+  // Auto-submit when OTP is complete
+  useEffect(() => {
+    if (otp.length === 6 && email && !isLoading && !isVerified) {
+      const timeoutId = setTimeout(() => {
+        verifyCode()
+      }, 300) // Small delay to ensure UI is ready
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [otp, email, isLoading, isVerified])
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       if (!isProduction || !hasResendKey) {
         const storedEmail = sessionStorage.getItem('verificationEmail')
-        logger.info('Auto-verifying user', { email: storedEmail })
       }
 
       const isDevOrDocker = !isProduction || isTruthy(env.DOCKER_BUILD)
 
-      // Auto-verify and redirect in development/docker environments
       if (isDevOrDocker || !hasResendKey) {
         setIsVerified(true)
 
-        // Clear verification requirement cookie (same as manual verification)
         document.cookie =
           'requiresEmailVerification=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
 

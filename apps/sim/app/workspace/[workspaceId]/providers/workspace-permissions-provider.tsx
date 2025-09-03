@@ -19,6 +19,7 @@ interface WorkspacePermissionsContextType {
   permissionsLoading: boolean
   permissionsError: string | null
   updatePermissions: (newPermissions: WorkspacePermissions) => void
+  refetchPermissions: () => Promise<void>
 
   // Computed user permissions (connection-aware)
   userPermissions: WorkspaceUserPermissions & { isOfflineMode?: boolean }
@@ -32,6 +33,7 @@ const WorkspacePermissionsContext = createContext<WorkspacePermissionsContextTyp
   permissionsLoading: false,
   permissionsError: null,
   updatePermissions: () => {},
+  refetchPermissions: async () => {},
   userPermissions: {
     canRead: false,
     canEdit: false,
@@ -74,6 +76,7 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
     loading: permissionsLoading,
     error: permissionsError,
     updatePermissions,
+    refetch: refetchPermissions,
   } = useWorkspacePermissions(workspaceId)
 
   // Get base user permissions from workspace permissions
@@ -113,10 +116,18 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
       permissionsLoading,
       permissionsError,
       updatePermissions,
+      refetchPermissions,
       userPermissions,
       setOfflineMode: setIsOfflineMode,
     }),
-    [workspacePermissions, permissionsLoading, permissionsError, updatePermissions, userPermissions]
+    [
+      workspacePermissions,
+      permissionsLoading,
+      permissionsError,
+      updatePermissions,
+      refetchPermissions,
+      userPermissions,
+    ]
   )
 
   return (

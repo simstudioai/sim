@@ -1,5 +1,8 @@
 import { createContext, Script } from 'vm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { env, isTruthy } from '@/lib/env'
+import { executeInE2B } from '@/lib/execution/e2b'
+import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
@@ -7,6 +10,10 @@ export const runtime = 'nodejs'
 export const maxDuration = 60
 
 const logger = createLogger('FunctionExecuteAPI')
+
+// Constants for E2B code wrapping line counts
+const E2B_JS_WRAPPER_LINES = 3 // Lines before user code: ';(async () => {', '  try {', '    const __sim_result = await (async () => {'
+const E2B_PYTHON_WRAPPER_LINES = 1 // Lines before user code: 'def __sim_main__():'
 
 /**
  * Enhanced error information interface
@@ -122,6 +129,103 @@ function extractEnhancedError(
   // The error type will be added later in createUserFriendlyErrorMessage
 
   return enhanced
+}
+
+/**
+ * Parse and format E2B error message
+ * Removes E2B-specific line references and adds correct user line numbers
+ */
+function formatE2BError(
+  errorMessage: string,
+  errorOutput: string,
+  language: CodeLanguage,
+  userCode: string,
+  prologueLineCount: number
+): { formattedError: string; cleanedOutput: string } {
+  // Calculate line offset based on language and prologue
+  const wrapperLines =
+    language === CodeLanguage.Python ? E2B_PYTHON_WRAPPER_LINES : E2B_JS_WRAPPER_LINES
+  const totalOffset = prologueLineCount + wrapperLines
+
+  let userLine: number | undefined
+  let cleanErrorType = ''
+  let cleanErrorMsg = ''
+
+  if (language === CodeLanguage.Python) {
+    // Python error format: "Cell In[X], line Y" followed by error details
+    // Extract line number from the Cell reference
+    const cellMatch = errorOutput.match(/Cell In\[\d+\], line (\d+)/)
+    if (cellMatch) {
+      const originalLine = Number.parseInt(cellMatch[1], 10)
+      userLine = originalLine - totalOffset
+    }
+
+    // Extract clean error message from the error string
+    // Remove file references like "(detected at line X) (file.py, line Y)"
+    cleanErrorMsg = errorMessage
+      .replace(/\s*\(detected at line \d+\)/g, '')
+      .replace(/\s*\([^)]+\.py, line \d+\)/g, '')
+      .trim()
+  } else if (language === CodeLanguage.JavaScript) {
+    // JavaScript error format from E2B: "SyntaxError: /path/file.ts: Message. (line:col)\n\n   9 | ..."
+    // First, extract the error type and message from the first line
+    const firstLineEnd = errorMessage.indexOf('\n')
+    const firstLine = firstLineEnd > 0 ? errorMessage.substring(0, firstLineEnd) : errorMessage
+
+    // Parse: "SyntaxError: /home/user/index.ts: Missing semicolon. (11:9)"
+    const jsErrorMatch = firstLine.match(/^(\w+Error):\s*[^:]+:\s*([^(]+)\.\s*\((\d+):(\d+)\)/)
+    if (jsErrorMatch) {
+      cleanErrorType = jsErrorMatch[1]
+      cleanErrorMsg = jsErrorMatch[2].trim()
+      const originalLine = Number.parseInt(jsErrorMatch[3], 10)
+      userLine = originalLine - totalOffset
+    } else {
+      // Fallback: look for line number in the arrow pointer line (> 11 |)
+      const arrowMatch = errorMessage.match(/^>\s*(\d+)\s*\|/m)
+      if (arrowMatch) {
+        const originalLine = Number.parseInt(arrowMatch[1], 10)
+        userLine = originalLine - totalOffset
+      }
+      // Try to extract error type and message
+      const errorMatch = firstLine.match(/^(\w+Error):\s*(.+)/)
+      if (errorMatch) {
+        cleanErrorType = errorMatch[1]
+        cleanErrorMsg = errorMatch[2]
+          .replace(/^[^:]+:\s*/, '') // Remove file path
+          .replace(/\s*\(\d+:\d+\)\s*$/, '') // Remove line:col at end
+          .trim()
+      } else {
+        cleanErrorMsg = firstLine
+      }
+    }
+  }
+
+  // Build the final clean error message
+  const finalErrorMsg =
+    cleanErrorType && cleanErrorMsg
+      ? `${cleanErrorType}: ${cleanErrorMsg}`
+      : cleanErrorMsg || errorMessage
+
+  // Format with line number if available
+  let formattedError = finalErrorMsg
+  if (userLine && userLine > 0) {
+    const codeLines = userCode.split('\n')
+    // Clamp userLine to the actual user code range
+    const actualUserLine = Math.min(userLine, codeLines.length)
+    if (actualUserLine > 0 && actualUserLine <= codeLines.length) {
+      const lineContent = codeLines[actualUserLine - 1]?.trim()
+      if (lineContent) {
+        formattedError = `Line ${actualUserLine}: \`${lineContent}\` - ${finalErrorMsg}`
+      } else {
+        formattedError = `Line ${actualUserLine} - ${finalErrorMsg}`
+      }
+    }
+  }
+
+  // For stdout, just return the clean error message without the full traceback
+  const cleanedOutput = finalErrorMsg
+
+  return { formattedError, cleanedOutput }
 }
 
 /**
@@ -442,6 +546,8 @@ export async function POST(req: NextRequest) {
       code,
       params = {},
       timeout = 5000,
+      language = DEFAULT_CODE_LANGUAGE,
+      useLocalVM = false,
       envVars = {},
       blockData = {},
       blockNameMapping = {},
@@ -474,19 +580,163 @@ export async function POST(req: NextRequest) {
     resolvedCode = codeResolution.resolvedCode
     const contextVariables = codeResolution.contextVariables
 
-    const executionMethod = 'vm' // Default execution method
+    const e2bEnabled = isTruthy(env.E2B_ENABLED)
+    const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
+    const useE2B =
+      e2bEnabled &&
+      !useLocalVM &&
+      (lang === CodeLanguage.JavaScript || lang === CodeLanguage.Python)
 
-    logger.info(`[${requestId}] Using VM for code execution`, {
-      hasEnvVars: Object.keys(envVars).length > 0,
-      hasWorkflowVariables: Object.keys(workflowVariables).length > 0,
-    })
+    if (useE2B) {
+      logger.info(`[${requestId}] E2B status`, {
+        enabled: e2bEnabled,
+        hasApiKey: Boolean(process.env.E2B_API_KEY),
+        language: lang,
+      })
+      let prologue = ''
+      const epilogue = ''
 
-    // Create a secure context with console logging
+      if (lang === CodeLanguage.JavaScript) {
+        // Track prologue lines for error adjustment
+        let prologueLineCount = 0
+        prologue += `const params = JSON.parse(${JSON.stringify(JSON.stringify(executionParams))});\n`
+        prologueLineCount++
+        prologue += `const environmentVariables = JSON.parse(${JSON.stringify(JSON.stringify(envVars))});\n`
+        prologueLineCount++
+        for (const [k, v] of Object.entries(contextVariables)) {
+          prologue += `const ${k} = JSON.parse(${JSON.stringify(JSON.stringify(v))});\n`
+          prologueLineCount++
+        }
+        const wrapped = [
+          ';(async () => {',
+          '  try {',
+          '    const __sim_result = await (async () => {',
+          `      ${resolvedCode.split('\n').join('\n      ')}`,
+          '    })();',
+          "    console.log('__SIM_RESULT__=' + JSON.stringify(__sim_result));",
+          '  } catch (error) {',
+          '    console.log(String((error && (error.stack || error.message)) || error));',
+          '    throw error;',
+          '  }',
+          '})();',
+        ].join('\n')
+        const codeForE2B = prologue + wrapped + epilogue
+
+        const execStart = Date.now()
+        const {
+          result: e2bResult,
+          stdout: e2bStdout,
+          sandboxId,
+          error: e2bError,
+        } = await executeInE2B({
+          code: codeForE2B,
+          language: CodeLanguage.JavaScript,
+          timeoutMs: timeout,
+        })
+        const executionTime = Date.now() - execStart
+        stdout += e2bStdout
+
+        logger.info(`[${requestId}] E2B JS sandbox`, {
+          sandboxId,
+          stdoutPreview: e2bStdout?.slice(0, 200),
+          error: e2bError,
+        })
+
+        // If there was an execution error, format it properly
+        if (e2bError) {
+          const { formattedError, cleanedOutput } = formatE2BError(
+            e2bError,
+            e2bStdout,
+            lang,
+            resolvedCode,
+            prologueLineCount
+          )
+          return NextResponse.json(
+            {
+              success: false,
+              error: formattedError,
+              output: { result: null, stdout: cleanedOutput, executionTime },
+            },
+            { status: 500 }
+          )
+        }
+
+        return NextResponse.json({
+          success: true,
+          output: { result: e2bResult ?? null, stdout, executionTime },
+        })
+      }
+      // Track prologue lines for error adjustment
+      let prologueLineCount = 0
+      prologue += 'import json\n'
+      prologueLineCount++
+      prologue += `params = json.loads(${JSON.stringify(JSON.stringify(executionParams))})\n`
+      prologueLineCount++
+      prologue += `environmentVariables = json.loads(${JSON.stringify(JSON.stringify(envVars))})\n`
+      prologueLineCount++
+      for (const [k, v] of Object.entries(contextVariables)) {
+        prologue += `${k} = json.loads(${JSON.stringify(JSON.stringify(v))})\n`
+        prologueLineCount++
+      }
+      const wrapped = [
+        'def __sim_main__():',
+        ...resolvedCode.split('\n').map((l) => `    ${l}`),
+        '__sim_result__ = __sim_main__()',
+        "print('__SIM_RESULT__=' + json.dumps(__sim_result__))",
+      ].join('\n')
+      const codeForE2B = prologue + wrapped + epilogue
+
+      const execStart = Date.now()
+      const {
+        result: e2bResult,
+        stdout: e2bStdout,
+        sandboxId,
+        error: e2bError,
+      } = await executeInE2B({
+        code: codeForE2B,
+        language: CodeLanguage.Python,
+        timeoutMs: timeout,
+      })
+      const executionTime = Date.now() - execStart
+      stdout += e2bStdout
+
+      logger.info(`[${requestId}] E2B Py sandbox`, {
+        sandboxId,
+        stdoutPreview: e2bStdout?.slice(0, 200),
+        error: e2bError,
+      })
+
+      // If there was an execution error, format it properly
+      if (e2bError) {
+        const { formattedError, cleanedOutput } = formatE2BError(
+          e2bError,
+          e2bStdout,
+          lang,
+          resolvedCode,
+          prologueLineCount
+        )
+        return NextResponse.json(
+          {
+            success: false,
+            error: formattedError,
+            output: { result: null, stdout: cleanedOutput, executionTime },
+          },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({
+        success: true,
+        output: { result: e2bResult ?? null, stdout, executionTime },
+      })
+    }
+
+    const executionMethod = 'vm'
     const context = createContext({
       params: executionParams,
       environmentVariables: envVars,
-      ...contextVariables, // Add resolved variables directly to context
-      fetch: globalThis.fetch || require('node-fetch').default,
+      ...contextVariables,
+      fetch: (globalThis as any).fetch || require('node-fetch').default,
       console: {
         log: (...args: any[]) => {
           const logMessage = `${args
@@ -504,23 +754,17 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Calculate line offset for user code to provide accurate error reporting
     const wrapperLines = ['(async () => {', '  try {']
-
-    // Add custom tool parameter declarations if needed
     if (isCustomTool) {
       wrapperLines.push('    // For custom tools, make parameters directly accessible')
       Object.keys(executionParams).forEach((key) => {
         wrapperLines.push(`    const ${key} = params.${key};`)
       })
     }
-
-    userCodeStartLine = wrapperLines.length + 1 // +1 because user code starts on next line
-
-    // Build the complete script with proper formatting for line numbers
+    userCodeStartLine = wrapperLines.length + 1
     const fullScript = [
       ...wrapperLines,
-      `    ${resolvedCode.split('\n').join('\n    ')}`, // Indent user code
+      `    ${resolvedCode.split('\n').join('\n    ')}`,
       '  } catch (error) {',
       '    console.error(error);',
       '    throw error;',
@@ -529,33 +773,26 @@ export async function POST(req: NextRequest) {
     ].join('\n')
 
     const script = new Script(fullScript, {
-      filename: 'user-function.js', // This filename will appear in stack traces
-      lineOffset: 0, // Start line numbering from 0
-      columnOffset: 0, // Start column numbering from 0
+      filename: 'user-function.js',
+      lineOffset: 0,
+      columnOffset: 0,
     })
 
     const result = await script.runInContext(context, {
       timeout,
       displayErrors: true,
-      breakOnSigint: true, // Allow breaking on SIGINT for better debugging
+      breakOnSigint: true,
     })
-    // }
 
     const executionTime = Date.now() - startTime
     logger.info(`[${requestId}] Function executed successfully using ${executionMethod}`, {
       executionTime,
     })
 
-    const response = {
+    return NextResponse.json({
       success: true,
-      output: {
-        result,
-        stdout,
-        executionTime,
-      },
-    }
-
-    return NextResponse.json(response)
+      output: { result, stdout, executionTime },
+    })
   } catch (error: any) {
     const executionTime = Date.now() - startTime
     logger.error(`[${requestId}] Function execution failed`, {

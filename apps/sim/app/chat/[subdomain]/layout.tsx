@@ -1,7 +1,7 @@
 'use client'
 
 import { ThemeProvider } from 'next-themes'
-import './chat-client.css'
+import './chat.css'
 
 export default function ChatLayout({ children }: { children: React.ReactNode }) {
   return (

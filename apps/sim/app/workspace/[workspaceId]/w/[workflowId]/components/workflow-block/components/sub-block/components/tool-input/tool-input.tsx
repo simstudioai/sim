@@ -483,7 +483,7 @@ export function ToolInput({
       try {
         return block.tools.config.tool({ operation })
       } catch (error) {
-        console.error('Error selecting tool for operation:', error)
+        logger.error('Error selecting tool for operation:', error)
       }
     }
 
@@ -1415,7 +1415,7 @@ export function ToolInput({
                             </Toggle>
                           </TooltipTrigger>
                           <TooltipContent className='max-w-[280px] p-2' side='top'>
-                            <p className='text-muted-foreground text-xs'>
+                            <p className='text-xs'>
                               Control how the model uses this tool in its response.
                               {tool.usageControl === 'auto' && (
                                 <span>

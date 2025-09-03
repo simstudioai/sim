@@ -92,6 +92,13 @@ import {
 } from '@/tools/microsoft_teams'
 import { mistralParserTool } from '@/tools/mistral'
 import {
+  deleteTool as mongodbDeleteTool,
+  executeTool as mongodbExecuteTool,
+  insertTool as mongodbInsertTool,
+  queryTool as mongodbQueryTool,
+  updateTool as mongodbUpdateTool,
+} from '@/tools/mongodb'
+import {
   deleteTool as mysqlDeleteTool,
   executeTool as mysqlExecuteTool,
   insertTool as mysqlInsertTool,
@@ -242,6 +249,11 @@ export const tools: Record<string, ToolConfig> = {
   postgresql_update: postgresUpdateTool,
   postgresql_delete: postgresDeleteTool,
   postgresql_execute: postgresExecuteTool,
+  mongodb_query: mongodbQueryTool,
+  mongodb_insert: mongodbInsertTool,
+  mongodb_update: mongodbUpdateTool,
+  mongodb_delete: mongodbDeleteTool,
+  mongodb_execute: mongodbExecuteTool,
   mysql_query: mysqlQueryTool,
   mysql_insert: mysqlInsertTool,
   mysql_update: mysqlUpdateTool,

@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { checkServerSideUsageLimits } from '@/lib/billing'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -18,7 +19,7 @@ import {
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
-import { environment as environmentTable, subscription, userStats } from '@/db/schema'
+import { subscription, userStats } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import {
@@ -64,7 +65,12 @@ class UsageLimitError extends Error {
   }
 }
 
-async function executeWorkflow(workflow: any, requestId: string, input?: any): Promise<any> {
+async function executeWorkflow(
+  workflow: any,
+  requestId: string,
+  input?: any,
+  executingUserId?: string
+): Promise<any> {
   const workflowId = workflow.id
   const executionId = uuidv4()
 
@@ -127,23 +133,15 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any): P
     // Use the same execution flow as in scheduled executions
     const mergedStates = mergeSubblockState(blocks)
 
-    // Fetch the user's environment variables (if any)
-    const [userEnv] = await db
-      .select()
-      .from(environmentTable)
-      .where(eq(environmentTable.userId, workflow.userId))
-      .limit(1)
-
-    if (!userEnv) {
-      logger.debug(
-        `[${requestId}] No environment record found for user ${workflow.userId}. Proceeding with empty variables.`
-      )
-    }
-
-    const variables = EnvVarsSchema.parse(userEnv?.variables ?? {})
+    // Load personal (for the executing user) and workspace env (workspace overrides personal)
+    const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
+      executingUserId || workflow.userId,
+      workflow.workspaceId || undefined
+    )
+    const variables = EnvVarsSchema.parse({ ...personalEncrypted, ...workspaceEncrypted })
 
     await loggingSession.safeStart({
-      userId: workflow.userId,
+      userId: executingUserId || workflow.userId,
       workspaceId: workflow.workspaceId,
       variables,
     })
@@ -400,7 +398,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         }
       }
 
-      const result = await executeWorkflow(validation.workflow, requestId, undefined)
+      const result = await executeWorkflow(
+        validation.workflow,
+        requestId,
+        undefined,
+        // Executing user (manual run): if session present, use that user for fallback
+        (await getSession())?.user?.id || undefined
+      )
 
       // Check if the workflow execution contains a response block output
       const hasResponseBlock = workflowHasResponseBlock(result)
@@ -589,7 +593,12 @@ export async function POST(
         )
       }
 
-      const result = await executeWorkflow(validation.workflow, requestId, input)
+      const result = await executeWorkflow(
+        validation.workflow,
+        requestId,
+        input,
+        authenticatedUserId
+      )
 
       const hasResponseBlock = workflowHasResponseBlock(result)
       if (hasResponseBlock) {

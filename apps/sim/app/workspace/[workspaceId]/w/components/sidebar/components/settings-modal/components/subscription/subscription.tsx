@@ -197,10 +197,10 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const activeOrgId = activeOrganization?.id
 
   useEffect(() => {
-    if (subscription.isTeam && activeOrgId) {
+    if ((subscription.isTeam || subscription.isEnterprise) && activeOrgId) {
       loadOrganizationBillingData(activeOrgId)
     }
-  }, [activeOrgId, subscription.isTeam, loadOrganizationBillingData])
+  }, [activeOrgId, subscription.isTeam, subscription.isEnterprise, loadOrganizationBillingData])
 
   // Auto-clear upgrade error
   useEffect(() => {
@@ -349,22 +349,39 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
             badgeText={badgeText}
             onBadgeClick={handleBadgeClick}
             seatsText={
-              permissions.canManageTeam
+              permissions.canManageTeam || subscription.isEnterprise
                 ? `${organizationBillingData?.totalSeats || subscription.seats || 1} seats`
                 : undefined
             }
-            current={usage.current}
+            current={
+              subscription.isEnterprise || subscription.isTeam
+                ? organizationBillingData?.totalCurrentUsage || 0
+                : usage.current
+            }
             limit={
-              !subscription.isFree &&
-              (permissions.canEditUsageLimit ||
-                permissions.showTeamMemberView ||
-                subscription.isEnterprise)
-                ? usage.current // placeholder; rightContent will render UsageLimit
-                : usage.limit
+              subscription.isEnterprise || subscription.isTeam
+                ? organizationBillingData?.totalUsageLimit ||
+                  organizationBillingData?.minimumBillingAmount ||
+                  0
+                : !subscription.isFree &&
+                    (permissions.canEditUsageLimit || permissions.showTeamMemberView)
+                  ? usage.current // placeholder; rightContent will render UsageLimit
+                  : usage.limit
             }
             isBlocked={Boolean(subscriptionData?.billingBlocked)}
             status={billingStatus === 'unknown' ? 'ok' : billingStatus}
-            percentUsed={Math.round(usage.percentUsed)}
+            percentUsed={
+              subscription.isEnterprise || subscription.isTeam
+                ? organizationBillingData?.totalUsageLimit &&
+                  organizationBillingData.totalUsageLimit > 0
+                  ? Math.round(
+                      (organizationBillingData.totalCurrentUsage /
+                        organizationBillingData.totalUsageLimit) *
+                        100
+                    )
+                  : 0
+                : Math.round(usage.percentUsed)
+            }
             onResolvePayment={async () => {
               try {
                 const res = await fetch('/api/billing/portal', {
@@ -387,9 +404,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
             }}
             rightContent={
               !subscription.isFree &&
-              (permissions.canEditUsageLimit ||
-                permissions.showTeamMemberView ||
-                subscription.isEnterprise) ? (
+              (permissions.canEditUsageLimit || permissions.showTeamMemberView) ? (
                 <UsageLimit
                   ref={usageLimitRef}
                   currentLimit={
@@ -398,7 +413,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                       : usageLimitData?.currentLimit || usage.limit
                   }
                   currentUsage={usage.current}
-                  canEdit={permissions.canEditUsageLimit && !subscription.isEnterprise}
+                  canEdit={permissions.canEditUsageLimit}
                   minimumLimit={
                     subscription.isTeam && isTeamAdmin
                       ? organizationBillingData?.minimumBillingAmount ||

@@ -1,11 +1,8 @@
+import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  buildDeleteQuery,
-  createPostgresConnection,
-  executeQuery,
-} from '@/app/api/tools/postgresql/utils'
+import { createPostgresConnection, executeDelete } from '@/app/api/tools/postgresql/utils'
 
 const logger = createLogger('PostgreSQLDeleteAPI')
 
@@ -15,13 +12,13 @@ const DeleteSchema = z.object({
   database: z.string().min(1, 'Database name is required'),
   username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required'),
-  ssl: z.enum(['disabled', 'required', 'preferred']).default('required'),
+  ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
   table: z.string().min(1, 'Table name is required'),
   where: z.string().min(1, 'WHERE clause is required'),
 })
 
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = randomUUID().slice(0, 8)
 
   try {
     const body = await request.json()
@@ -31,7 +28,7 @@ export async function POST(request: NextRequest) {
       `[${requestId}] Deleting data from ${params.table} on ${params.host}:${params.port}/${params.database}`
     )
 
-    const client = await createPostgresConnection({
+    const sql = createPostgresConnection({
       host: params.host,
       port: params.port,
       database: params.database,
@@ -41,8 +38,7 @@ export async function POST(request: NextRequest) {
     })
 
     try {
-      const { query, values } = buildDeleteQuery(params.table, params.where)
-      const result = await executeQuery(client, query, values)
+      const result = await executeDelete(sql, params.table, params.where)
 
       logger.info(`[${requestId}] Delete executed successfully, ${result.rowCount} row(s) deleted`)
 
@@ -52,7 +48,7 @@ export async function POST(request: NextRequest) {
         rowCount: result.rowCount,
       })
     } finally {
-      await client.end()
+      await sql.end()
     }
   } catch (error) {
     if (error instanceof z.ZodError) {

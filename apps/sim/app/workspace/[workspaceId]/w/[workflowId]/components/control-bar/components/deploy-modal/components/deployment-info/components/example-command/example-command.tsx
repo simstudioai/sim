@@ -79,7 +79,7 @@ export function ExampleCommand({
           case 'rate-limits': {
             const baseUrlForRateLimit = baseEndpoint.split('/api/workflows/')[0]
             return `curl -H "X-API-Key: ${apiKey}" \\
-  ${baseUrlForRateLimit}/api/users/rate-limit`
+  ${baseUrlForRateLimit}/api/users/me/rate-limit`
           }
 
           default:
@@ -119,7 +119,7 @@ export function ExampleCommand({
           case 'rate-limits': {
             const baseUrlForRateLimit = baseEndpoint.split('/api/workflows/')[0]
             return `curl -H "X-API-Key: SIM_API_KEY" \\
-  ${baseUrlForRateLimit}/api/users/rate-limit`
+  ${baseUrlForRateLimit}/api/users/me/rate-limit`
           }
 
           default:

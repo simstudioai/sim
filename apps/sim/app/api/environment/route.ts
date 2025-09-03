@@ -10,7 +10,6 @@ import type { EnvironmentVariable } from '@/stores/settings/environment/types'
 
 const logger = createLogger('EnvironmentAPI')
 
-// Schema for environment variable updates
 const EnvVarSchema = z.object({
   variables: z.record(z.string()),
 })
@@ -30,17 +29,13 @@ export async function POST(req: NextRequest) {
     try {
       const { variables } = EnvVarSchema.parse(body)
 
-      // Encrypt all variables
-      const encryptedVariables = await Object.entries(variables).reduce(
-        async (accPromise, [key, value]) => {
-          const acc = await accPromise
+      const encryptedVariables = await Promise.all(
+        Object.entries(variables).map(async ([key, value]) => {
           const { encrypted } = await encryptSecret(value)
-          return { ...acc, [key]: encrypted }
-        },
-        Promise.resolve({})
-      )
+          return [key, encrypted] as const
+        })
+      ).then((entries) => Object.fromEntries(entries))
 
-      // Replace all environment variables for user
       await db
         .insert(environment)
         .values({
@@ -80,7 +75,6 @@ export async function GET(request: Request) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
-    // Get the session directly in the API route
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized environment variables access attempt`)
@@ -99,18 +93,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ data: {} }, { status: 200 })
     }
 
-    // Decrypt the variables for client-side use
     const encryptedVariables = result[0].variables as Record<string, string>
     const decryptedVariables: Record<string, EnvironmentVariable> = {}
 
-    // Decrypt each variable
     for (const [key, encryptedValue] of Object.entries(encryptedVariables)) {
       try {
         const { decrypted } = await decryptSecret(encryptedValue)
         decryptedVariables[key] = { key, value: decrypted }
       } catch (error) {
         logger.error(`[${requestId}] Error decrypting variable ${key}`, error)
-        // If decryption fails, provide a placeholder
         decryptedVariables[key] = { key, value: '' }
       }
     }
