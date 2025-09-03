@@ -118,7 +118,7 @@ export const ChatInput: React.FC<{
                   <VoiceInput onVoiceStart={handleVoiceStart} disabled={isStreaming} large={true} />
                 </div>
               </TooltipTrigger>
-              <TooltipContent side='top' className='border border-gray-200 bg-white text-gray-900'>
+              <TooltipContent side='top'>
                 <p>Start voice conversation</p>
               </TooltipContent>
             </Tooltip>

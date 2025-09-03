@@ -53,7 +53,7 @@ export function SuccessView({ deployedUrl, existingChat, onDelete, onUpdate }: S
             href={deployedUrl}
             target='_blank'
             rel='noopener noreferrer'
-            className='flex h-10 flex-1 items-center break-all rounded-l-md border border-r-0 p-2 font-medium text-primary text-sm'
+            className='flex h-10 flex-1 items-center break-all rounded-l-md border border-r-0 p-2 font-medium text-foreground text-sm'
           >
             {subdomainPart}
           </a>
@@ -67,7 +67,7 @@ export function SuccessView({ deployedUrl, existingChat, onDelete, onUpdate }: S
             href={deployedUrl}
             target='_blank'
             rel='noopener noreferrer'
-            className='text-primary hover:underline'
+            className='text-foreground hover:underline'
           >
             this URL
           </a>
