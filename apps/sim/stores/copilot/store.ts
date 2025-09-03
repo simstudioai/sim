@@ -1685,27 +1685,6 @@ export const useCopilotStore = create<CopilotStore>()(
             }).catch(() => {})
           } catch {}
         }
-
-        // Optimistic stats: mark aborted for the in-flight user message
-        try {
-          const { currentChat: cc, currentUserMessageId, messageMetaById } = get() as any
-          if (cc?.id && currentUserMessageId) {
-            const meta = messageMetaById?.[currentUserMessageId] || null
-            const agentDepth = meta?.depth
-            const maxEnabled = meta?.maxEnabled
-            fetch('/api/copilot/stats', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chatId: cc.id,
-                messageId: currentUserMessageId,
-                ...(typeof agentDepth === 'number' ? { depth: agentDepth } : {}),
-                ...(typeof maxEnabled === 'boolean' ? { maxEnabled } : {}),
-                aborted: true,
-              }),
-            }).catch(() => {})
-          }
-        } catch {}
       } catch {
         set({ isSendingMessage: false, isAborting: false, abortController: null })
       }
@@ -2113,47 +2092,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
         // Post copilot_stats record (input/output tokens can be null for now)
         try {
-          const { messageMetaById } = get() as any
-          const meta =
-            (messageMetaById && (messageMetaById as any)[triggerUserMessageId || '']) || null
-          const agentDepth = meta?.depth ?? get().agentDepth
-          const maxEnabled = meta?.maxEnabled ?? (agentDepth >= 2 && !get().agentPrefetch)
-          const { useWorkflowDiffStore } = await import('@/stores/workflow-diff/store')
-          const diffState = useWorkflowDiffStore.getState() as any
-          const diffCreated = !!diffState?.isShowingDiff
-          const diffAccepted = false // acceptance may arrive earlier or later via diff store
-          const endMs = Date.now()
-          const duration = Math.max(0, endMs - startTimeMs)
-          const chatIdToUse = get().currentChat?.id || context.newChatId
-          // Prefer provided trigger user message id; fallback to last user message
-          let userMessageIdToUse = triggerUserMessageId
-          if (!userMessageIdToUse) {
-            const msgs = get().messages
-            for (let i = msgs.length - 1; i >= 0; i--) {
-              const m = msgs[i]
-              if (m.role === 'user') {
-                userMessageIdToUse = m.id
-                break
-              }
-            }
-          }
-          if (chatIdToUse) {
-            fetch('/api/copilot/stats', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chatId: chatIdToUse,
-                messageId: userMessageIdToUse || assistantMessageId,
-                depth: agentDepth,
-                maxEnabled,
-                diffCreated,
-                diffAccepted,
-                duration: duration ?? null,
-                inputTokens: null,
-                outputTokens: null,
-              }),
-            }).catch(() => {})
-          }
+          // Removed: stats sending now occurs only on accept/reject with minimal payload
         } catch {}
       } finally {
         clearTimeout(timeoutId)
