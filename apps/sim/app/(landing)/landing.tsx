@@ -1,7 +1,7 @@
 import Background from '@/app/(landing)/components/background'
 import Hero from '@/app/(landing)/components/hero/hero'
 import Nav from '@/app/(landing)/components/nav/nav'
-import Templates from '@/app/(landing)/components/templates/templates'
+import LandingTemplates from '@/app/(landing)/components/templates/landing-templates'
 
 export default function Landing() {
   return (
@@ -9,7 +9,7 @@ export default function Landing() {
       <Background>
         <Nav />
         <Hero />
-        <Templates />
+        <LandingTemplates />
       </Background>
 
       {/* Templates Section */}

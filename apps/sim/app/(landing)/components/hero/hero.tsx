@@ -31,15 +31,15 @@ import {
   StripeIcon,
   SupabaseIcon,
 } from '@/components/icons'
-import { IconButton } from '@/app/(landing)/components/hero/components/icon-button'
 import { soehne } from '@/app/fonts/soehne/soehne'
 import {
   CARD_WIDTH,
+  IconButton,
   LandingCanvas,
   type LandingGroupData,
   type LandingManualBlock,
   type LandingViewportApi,
-} from './components/landing-canvas/landing-canvas'
+} from './components'
 
 /**
  * Service-specific template messages for the hero input
