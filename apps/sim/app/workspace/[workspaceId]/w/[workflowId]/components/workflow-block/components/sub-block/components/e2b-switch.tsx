@@ -1,7 +1,7 @@
 import { Info } from 'lucide-react'
 import { Label, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
 import { Switch as UISwitch } from '@/components/ui/switch'
-import { env } from '@/lib/env'
+import { getEnv, isTruthy } from '@/lib/env'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 
 interface E2BSwitchProps {
@@ -23,7 +23,7 @@ export function E2BSwitch({
   previewValue,
   disabled = false,
 }: E2BSwitchProps) {
-  const e2bEnabled = env.NEXT_PUBLIC_E2B_ENABLED === 'true'
+  const e2bEnabled = isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED'))
   if (!e2bEnabled) return null
 
   const [storeValue, setStoreValue] = useSubBlockValue<boolean>(blockId, subBlockId)

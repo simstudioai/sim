@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { env } from '@/lib/env'
+import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, validateName } from '@/lib/utils'
@@ -443,7 +443,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     const isTriggerMode = useWorkflowStore.getState().blocks[blockId]?.triggerMode ?? false
     const effectiveAdvanced = currentWorkflow.isDiffMode ? displayAdvancedMode : isAdvancedMode
     const effectiveTrigger = currentWorkflow.isDiffMode ? displayTriggerMode : isTriggerMode
-    const e2bClientEnabled = env.NEXT_PUBLIC_E2B_ENABLED === 'true'
+    const e2bClientEnabled = isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED'))
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
