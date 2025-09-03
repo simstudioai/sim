@@ -25,6 +25,7 @@ import {
 } from '@/app/workspace/[workspaceId]/templates/components/template-card'
 import { getKeyboardShortcutText } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
 import { getAllBlocks } from '@/blocks'
+import { McpTools } from '@/components/mcp-tools'
 import { type NavigationSection, useSearchNavigation } from './hooks/use-search-navigation'
 
 interface SearchModalProps {
@@ -653,6 +654,9 @@ export function SearchModal({
                   </div>
                 </div>
               )}
+
+              {/* MCP Tools Section */}
+              {isOnWorkflowPage && <McpTools onToolClick={handleBlockClick} />}
 
               {/* Tools Section */}
               {filteredTools.length > 0 && (
