@@ -1610,7 +1610,7 @@ describe('InputResolver', () => {
       }
 
       expect(() => connectionResolver.resolveInputs(testBlock, contextWithConnections)).toThrow(
-        /Available connected blocks:.*Agent Block.*agent-1.*start/
+        /Available connected blocks:.*Agent Block.*Start/
       )
     })
 

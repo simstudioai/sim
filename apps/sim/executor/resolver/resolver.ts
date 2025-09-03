@@ -1211,6 +1211,24 @@ export class InputResolver {
   }
 
   /**
+   * Gets user-friendly block names for error messages.
+   * Only returns the actual block names that users see in the UI.
+   */
+  private getAccessibleBlockNamesForError(currentBlockId: string): string[] {
+    const accessibleBlockIds = this.getAccessibleBlocks(currentBlockId)
+    const names: string[] = []
+
+    for (const blockId of accessibleBlockIds) {
+      const block = this.blockById.get(blockId)
+      if (block?.metadata?.name) {
+        names.push(block.metadata.name)
+      }
+    }
+
+    return [...new Set(names)] // Remove duplicates
+  }
+
+  /**
    * Checks if a block reference could potentially be valid without throwing errors.
    * Used to filter out non-block patterns like <test> from block reference resolution.
    *
@@ -1262,7 +1280,7 @@ export class InputResolver {
     }
 
     if (!sourceBlock) {
-      const accessibleNames = this.getAccessibleBlockNames(currentBlockId)
+      const accessibleNames = this.getAccessibleBlockNamesForError(currentBlockId)
       return {
         isValid: false,
         errorMessage: `Block "${blockRef}" was not found. Available connected blocks: ${accessibleNames.join(', ')}`,
@@ -1272,7 +1290,7 @@ export class InputResolver {
     // Check if block is accessible (connected)
     const accessibleBlocks = this.getAccessibleBlocks(currentBlockId)
     if (!accessibleBlocks.has(sourceBlock.id)) {
-      const accessibleNames = this.getAccessibleBlockNames(currentBlockId)
+      const accessibleNames = this.getAccessibleBlockNamesForError(currentBlockId)
       return {
         isValid: false,
         errorMessage: `Block "${blockRef}" is not connected to this block. Available connected blocks: ${accessibleNames.join(', ')}`,
