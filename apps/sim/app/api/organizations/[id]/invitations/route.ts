@@ -339,7 +339,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           organizationEntry[0]?.name || 'organization',
           role,
           workspaceInvitationsWithNames,
-          `${env.NEXT_PUBLIC_APP_URL}/invite/organization?id=${orgInvitation.id}`
+          `${env.NEXT_PUBLIC_APP_URL}/invite/${orgInvitation.id}`
         )
 
         emailResult = await sendEmail({
@@ -352,7 +352,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const emailHtml = await renderInvitationEmail(
           inviter[0]?.name || 'Someone',
           organizationEntry[0]?.name || 'organization',
-          `${env.NEXT_PUBLIC_APP_URL}/invite/organization?id=${orgInvitation.id}`,
+          `${env.NEXT_PUBLIC_APP_URL}/invite/${orgInvitation.id}`,
           email
         )
 
