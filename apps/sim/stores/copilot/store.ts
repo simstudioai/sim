@@ -1548,7 +1548,11 @@ export const useCopilotStore = create<CopilotStore>()(
         currentUserMessageId: userMessage.id,
         messageMetaById: {
           ...(state.messageMetaById || {}),
-          [userMessage.id]: { depth: sendDepth, maxEnabled: sendMaxEnabled, startTimeMs: sendStartTimeMs },
+          [userMessage.id]: {
+            depth: sendDepth,
+            maxEnabled: sendMaxEnabled,
+            startTimeMs: sendStartTimeMs,
+          },
         },
       }))
 
@@ -1691,11 +1695,12 @@ export const useCopilotStore = create<CopilotStore>()(
         try {
           const { currentChat: cc, currentUserMessageId, messageMetaById } = get() as any
           if (cc?.id && currentUserMessageId) {
-            const meta = (messageMetaById && messageMetaById[currentUserMessageId]) || null
+            const meta = messageMetaById?.[currentUserMessageId] || null
             const agentDepth = meta?.depth
             const maxEnabled = meta?.maxEnabled
             const startMs = meta?.startTimeMs
-            const duration = typeof startMs === 'number' ? Math.max(0, Date.now() - startMs) : undefined
+            const duration =
+              typeof startMs === 'number' ? Math.max(0, Date.now() - startMs) : undefined
             const ds = useWorkflowDiffStore.getState() as any
             const diffCreated = !!ds?.isShowingDiff || !!meta?.diffCreated
             const diffAccepted = !!meta?.diffAccepted

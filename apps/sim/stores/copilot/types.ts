@@ -114,7 +114,13 @@ export interface CopilotState {
   // Per-message metadata captured at send-time for reliable stats
   messageMetaById?: Record<
     string,
-    { depth: 0 | 1 | 2 | 3; maxEnabled: boolean; startTimeMs?: number; diffCreated?: boolean; diffAccepted?: boolean }
+    {
+      depth: 0 | 1 | 2 | 3
+      maxEnabled: boolean
+      startTimeMs?: number
+      diffCreated?: boolean
+      diffAccepted?: boolean
+    }
   >
 }
 
