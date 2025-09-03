@@ -161,6 +161,12 @@
   color: hsl(var(--foreground));
 }
 
+/* Tooltip overrides - keep tooltips black with white text for consistency */
+.chat-light-wrapper [data-radix-tooltip-content] {
+  background-color: hsl(0 0% 3.9%) !important;
+  color: hsl(0 0% 98%) !important;
+}
+
 /* Force color scheme */
 .chat-light-wrapper {
   color-scheme: light !important;

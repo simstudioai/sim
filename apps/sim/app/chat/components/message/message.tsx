@@ -2,7 +2,6 @@
 
 import { memo, useMemo, useState } from 'react'
 import { Check, Copy } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import MarkdownRenderer from './components/markdown-renderer'
 
@@ -80,10 +79,8 @@ export const ClientChatMessage = memo(
                   <TooltipProvider>
                     <Tooltip delayDuration={300}>
                       <TooltipTrigger asChild>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          className='flex items-center gap-1.5 px-2 py-1'
+                        <button
+                          className='text-muted-foreground transition-colors hover:bg-muted'
                           onClick={() => {
                             const contentToCopy =
                               typeof cleanTextContent === 'string'
@@ -95,15 +92,11 @@ export const ClientChatMessage = memo(
                           }}
                         >
                           {isCopied ? (
-                            <>
-                              <Check className='h-3.5 w-3.5 text-green-500' />
-                            </>
+                            <Check className='h-3 w-3' strokeWidth={2} />
                           ) : (
-                            <>
-                              <Copy className='h-3.5 w-3.5 text-muted-foreground' />
-                            </>
+                            <Copy className='h-3 w-3' strokeWidth={2} />
                           )}
-                        </Button>
+                        </button>
                       </TooltipTrigger>
                       <TooltipContent side='top' align='center' sideOffset={5}>
                         {isCopied ? 'Copied!' : 'Copy to clipboard'}
