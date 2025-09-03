@@ -107,6 +107,12 @@ export interface CopilotState {
 
   // Transient flag to prevent auto-selecting a chat during new-chat UX
   suppressAutoSelect?: boolean
+
+  // Explicitly track the current user message id for this in-flight query (for stats/diff correlation)
+  currentUserMessageId?: string | null
+
+  // Per-message metadata captured at send-time for reliable stats
+  messageMetaById?: Record<string, { depth: 0 | 1 | 2 | 3; maxEnabled: boolean }>
 }
 
 export interface CopilotActions {
@@ -171,7 +177,8 @@ export interface CopilotActions {
   handleStreamingResponse: (
     stream: ReadableStream,
     messageId: string,
-    isContinuation?: boolean
+    isContinuation?: boolean,
+    triggerUserMessageId?: string
   ) => Promise<void>
   handleNewChatCreation: (newChatId: string) => Promise<void>
   updateDiffStore: (yamlContent: string, toolName?: string) => Promise<void>

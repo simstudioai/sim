@@ -1539,7 +1539,17 @@ export const useCopilotStore = create<CopilotStore>()(
       }
 
       const isFirstMessage = get().messages.length === 0 && !currentChat?.title
-      set({ messages: newMessages })
+      // Capture send-time meta for reliable stats
+      const sendDepth = get().agentDepth
+      const sendMaxEnabled = sendDepth >= 2 && !get().agentPrefetch
+      set((state) => ({
+        messages: newMessages,
+        currentUserMessageId: userMessage.id,
+        messageMetaById: {
+          ...(state.messageMetaById || {}),
+          [userMessage.id]: { depth: sendDepth, maxEnabled: sendMaxEnabled },
+        },
+      }))
 
       if (isFirstMessage) {
         const optimisticTitle = message.length > 50 ? `${message.substring(0, 47)}...` : message
@@ -1583,7 +1593,12 @@ export const useCopilotStore = create<CopilotStore>()(
         })
 
         if (result.success && result.stream) {
-          await get().handleStreamingResponse(result.stream, streamingMessage.id)
+          await get().handleStreamingResponse(
+            result.stream,
+            streamingMessage.id,
+            false,
+            userMessage.id
+          )
           set({ chatsLastLoadedAt: null, chatsLoadedForWorkflow: null })
         } else {
           if (result.error === 'Request was aborted') {
@@ -1670,6 +1685,27 @@ export const useCopilotStore = create<CopilotStore>()(
             }).catch(() => {})
           } catch {}
         }
+
+        // Optimistic stats: mark aborted for the in-flight user message
+        try {
+          const { currentChat: cc, currentUserMessageId, messageMetaById } = get() as any
+          if (cc?.id && currentUserMessageId) {
+            const meta = messageMetaById?.[currentUserMessageId] || null
+            const agentDepth = meta?.depth
+            const maxEnabled = meta?.maxEnabled
+            fetch('/api/copilot/stats', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chatId: cc.id,
+                messageId: currentUserMessageId,
+                ...(typeof agentDepth === 'number' ? { depth: agentDepth } : {}),
+                ...(typeof maxEnabled === 'boolean' ? { maxEnabled } : {}),
+                aborted: true,
+              }),
+            }).catch(() => {})
+          }
+        } catch {}
       } catch {
         set({ isSendingMessage: false, isAborting: false, abortController: null })
       }
@@ -1981,14 +2017,16 @@ export const useCopilotStore = create<CopilotStore>()(
     // Handle streaming response
     handleStreamingResponse: async (
       stream: ReadableStream,
-      messageId: string,
-      isContinuation = false
+      assistantMessageId: string,
+      isContinuation = false,
+      triggerUserMessageId?: string
     ) => {
       const reader = stream.getReader()
       const decoder = new TextDecoder()
+      const startTimeMs = Date.now()
 
       const context: StreamingContext = {
-        messageId,
+        messageId: assistantMessageId,
         accumulatedContent: new StringBuilder(),
         contentBlocks: [],
         currentTextBlock: null,
@@ -2000,7 +2038,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
       if (isContinuation) {
         const { messages } = get()
-        const existingMessage = messages.find((m) => m.id === messageId)
+        const existingMessage = messages.find((m) => m.id === assistantMessageId)
         if (existingMessage) {
           if (existingMessage.content) context.accumulatedContent.append(existingMessage.content)
           context.contentBlocks = existingMessage.contentBlocks
@@ -2042,7 +2080,7 @@ export const useCopilotStore = create<CopilotStore>()(
         const finalContent = context.accumulatedContent.toString()
         set((state) => ({
           messages: state.messages.map((msg) =>
-            msg.id === messageId
+            msg.id === assistantMessageId
               ? {
                   ...msg,
                   content: finalContent,
@@ -2052,6 +2090,7 @@ export const useCopilotStore = create<CopilotStore>()(
           ),
           isSendingMessage: false,
           abortController: null,
+          currentUserMessageId: null,
         }))
 
         if (context.newChatId && !get().currentChat) {
@@ -2071,6 +2110,51 @@ export const useCopilotStore = create<CopilotStore>()(
             })
           } catch {}
         }
+
+        // Post copilot_stats record (input/output tokens can be null for now)
+        try {
+          const { messageMetaById } = get() as any
+          const meta =
+            (messageMetaById && (messageMetaById as any)[triggerUserMessageId || '']) || null
+          const agentDepth = meta?.depth ?? get().agentDepth
+          const maxEnabled = meta?.maxEnabled ?? (agentDepth >= 2 && !get().agentPrefetch)
+          const { useWorkflowDiffStore } = await import('@/stores/workflow-diff/store')
+          const diffState = useWorkflowDiffStore.getState() as any
+          const diffCreated = !!diffState?.isShowingDiff
+          const diffAccepted = false // acceptance may arrive earlier or later via diff store
+          const endMs = Date.now()
+          const duration = Math.max(0, endMs - startTimeMs)
+          const chatIdToUse = get().currentChat?.id || context.newChatId
+          // Prefer provided trigger user message id; fallback to last user message
+          let userMessageIdToUse = triggerUserMessageId
+          if (!userMessageIdToUse) {
+            const msgs = get().messages
+            for (let i = msgs.length - 1; i >= 0; i--) {
+              const m = msgs[i]
+              if (m.role === 'user') {
+                userMessageIdToUse = m.id
+                break
+              }
+            }
+          }
+          if (chatIdToUse) {
+            fetch('/api/copilot/stats', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chatId: chatIdToUse,
+                messageId: userMessageIdToUse || assistantMessageId,
+                depth: agentDepth,
+                maxEnabled,
+                diffCreated,
+                diffAccepted,
+                duration: duration ?? null,
+                inputTokens: null,
+                outputTokens: null,
+              }),
+            }).catch(() => {})
+          }
+        } catch {}
       } finally {
         clearTimeout(timeoutId)
       }

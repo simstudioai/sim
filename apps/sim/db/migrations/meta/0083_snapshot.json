@@ -5872,21 +5872,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "workspace_environment_workspace_id_idx": {
-          "name": "workspace_environment_workspace_id_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
