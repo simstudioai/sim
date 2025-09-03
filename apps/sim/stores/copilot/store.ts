@@ -1696,7 +1696,6 @@ export const useCopilotStore = create<CopilotStore>()(
             const maxEnabled = meta?.maxEnabled
             const startMs = meta?.startTimeMs
             const duration = typeof startMs === 'number' ? Math.max(0, Date.now() - startMs) : undefined
-            const { useWorkflowDiffStore } = await import('@/stores/workflow-diff/store')
             const ds = useWorkflowDiffStore.getState() as any
             const diffCreated = !!ds?.isShowingDiff || !!meta?.diffCreated
             const diffAccepted = !!meta?.diffAccepted
