@@ -303,7 +303,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    chatId: currentChat.id,
                     messageId: triggerMessageId,
                     diffCreated: true,
                     diffAccepted: true,
@@ -441,7 +440,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    chatId: currentChat.id,
                     messageId: triggerMessageId,
                     diffCreated: true,
                     diffAccepted: false,
