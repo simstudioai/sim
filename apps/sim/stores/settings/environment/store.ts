@@ -10,7 +10,6 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
   isLoading: false,
   error: null,
 
-  // Load environment variables from DB
   loadEnvironmentVariables: async () => {
     try {
       set({ isLoading: true, error: null })
@@ -43,12 +42,10 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
     }
   },
 
-  // Save environment variables to DB
   saveEnvironmentVariables: async (variables: Record<string, string>) => {
     try {
       set({ isLoading: true, error: null })
 
-      // Transform variables to the format expected by the store
       const transformedVariables = Object.entries(variables).reduce(
         (acc, [key, value]) => ({
           ...acc,
@@ -57,10 +54,8 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
         {}
       )
 
-      // Update local state immediately (optimistic update)
       set({ variables: transformedVariables })
 
-      // Send to DB
       const response = await fetch(API_ENDPOINTS.ENVIRONMENT, {
         method: 'POST',
         headers: {
@@ -89,18 +84,67 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
         isLoading: false,
       })
 
-      // Reload from DB to ensure consistency
       get().loadEnvironmentVariables()
     }
   },
 
-  // Legacy method updated to use the new saveEnvironmentVariables
-  setVariables: (variables: Record<string, string>) => {
-    get().saveEnvironmentVariables(variables)
+  loadWorkspaceEnvironment: async (workspaceId: string) => {
+    try {
+      set({ isLoading: true, error: null })
+
+      const response = await fetch(API_ENDPOINTS.WORKSPACE_ENVIRONMENT(workspaceId))
+      if (!response.ok) {
+        throw new Error(`Failed to load workspace environment: ${response.statusText}`)
+      }
+
+      const { data } = await response.json()
+      set({ isLoading: false })
+      return data as {
+        workspace: Record<string, string>
+        personal: Record<string, string>
+        conflicts: string[]
+      }
+    } catch (error) {
+      logger.error('Error loading workspace environment:', { error })
+      set({ error: error instanceof Error ? error.message : 'Unknown error', isLoading: false })
+      return { workspace: {}, personal: {}, conflicts: [] }
+    }
   },
 
-  getVariable: (key: string): string | undefined => {
-    return get().variables[key]?.value
+  upsertWorkspaceEnvironment: async (workspaceId: string, variables: Record<string, string>) => {
+    try {
+      set({ isLoading: true, error: null })
+      const response = await fetch(API_ENDPOINTS.WORKSPACE_ENVIRONMENT(workspaceId), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variables }),
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to update workspace environment: ${response.statusText}`)
+      }
+      set({ isLoading: false })
+    } catch (error) {
+      logger.error('Error updating workspace environment:', { error })
+      set({ error: error instanceof Error ? error.message : 'Unknown error', isLoading: false })
+    }
+  },
+
+  removeWorkspaceEnvironmentKeys: async (workspaceId: string, keys: string[]) => {
+    try {
+      set({ isLoading: true, error: null })
+      const response = await fetch(API_ENDPOINTS.WORKSPACE_ENVIRONMENT(workspaceId), {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys }),
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to remove workspace environment keys: ${response.statusText}`)
+      }
+      set({ isLoading: false })
+    } catch (error) {
+      logger.error('Error removing workspace environment keys:', { error })
+      set({ error: error instanceof Error ? error.message : 'Unknown error', isLoading: false })
+    }
   },
 
   getAllVariables: (): Record<string, EnvironmentVariable> => {

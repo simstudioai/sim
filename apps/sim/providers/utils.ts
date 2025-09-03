@@ -30,7 +30,7 @@ import { openRouterProvider } from '@/providers/openrouter'
 import type { ProviderConfig, ProviderId, ProviderToolConfig } from '@/providers/types'
 import { xAIProvider } from '@/providers/xai'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { useOllamaStore } from '@/stores/ollama/store'
+import { useProvidersStore } from '@/stores/providers/store'
 
 const logger = createLogger('ProviderUtils')
 
@@ -576,7 +576,8 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   const hasUserKey = !!userProvidedKey
 
   // Ollama models don't require API keys - they run locally
-  const isOllamaModel = provider === 'ollama' || useOllamaStore.getState().models.includes(model)
+  const isOllamaModel =
+    provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)
   if (isOllamaModel) {
     return 'empty' // Ollama uses 'empty' as a placeholder API key
   }

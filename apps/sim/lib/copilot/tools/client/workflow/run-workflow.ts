@@ -99,13 +99,44 @@ export class RunWorkflowClientTool extends BaseClientTool {
       })
 
       setIsExecuting(false)
-      logger.debug('Set isExecuting(false) and switching state to success')
-      this.setState(ClientToolCallState.success)
 
-      await this.markToolComplete(
-        200,
-        `Workflow execution completed. Started at: ${executionStartTime}`
-      )
+      // Determine success for both non-streaming and streaming executions
+      let succeeded = true
+      let errorMessage: string | undefined
+      try {
+        if (result && typeof result === 'object' && 'success' in (result as any)) {
+          succeeded = Boolean((result as any).success)
+          if (!succeeded) {
+            errorMessage = (result as any)?.error || (result as any)?.output?.error
+          }
+        } else if (
+          result &&
+          typeof result === 'object' &&
+          'execution' in (result as any) &&
+          (result as any).execution &&
+          typeof (result as any).execution === 'object'
+        ) {
+          succeeded = Boolean((result as any).execution.success)
+          if (!succeeded) {
+            errorMessage =
+              (result as any).execution?.error || (result as any).execution?.output?.error
+          }
+        }
+      } catch {}
+
+      if (succeeded) {
+        logger.debug('Workflow execution finished with success')
+        this.setState(ClientToolCallState.success)
+        await this.markToolComplete(
+          200,
+          `Workflow execution completed. Started at: ${executionStartTime}`
+        )
+      } else {
+        const msg = errorMessage || 'Workflow execution failed'
+        logger.error('Workflow execution finished with failure', { message: msg })
+        this.setState(ClientToolCallState.error)
+        await this.markToolComplete(500, msg)
+      }
     } catch (error: any) {
       const message = error instanceof Error ? error.message : String(error)
       const failedDependency = typeof message === 'string' && /dependency/i.test(message)

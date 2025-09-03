@@ -304,6 +304,15 @@ export default function LoginPage({
       return
     }
 
+    const emailValidation = quickValidateEmail(forgotPasswordEmail.trim().toLowerCase())
+    if (!emailValidation.isValid) {
+      setResetStatus({
+        type: 'error',
+        message: 'Please enter a valid email address',
+      })
+      return
+    }
+
     try {
       setIsSubmittingReset(true)
       setResetStatus({ type: null, message: '' })
@@ -321,7 +330,23 @@ export default function LoginPage({
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to request password reset')
+        let errorMessage = errorData.message || 'Failed to request password reset'
+
+        if (
+          errorMessage.includes('Invalid body parameters') ||
+          errorMessage.includes('invalid email')
+        ) {
+          errorMessage = 'Please enter a valid email address'
+        } else if (errorMessage.includes('Email is required')) {
+          errorMessage = 'Please enter your email address'
+        } else if (
+          errorMessage.includes('user not found') ||
+          errorMessage.includes('User not found')
+        ) {
+          errorMessage = 'No account found with this email address'
+        }
+
+        throw new Error(errorMessage)
       }
 
       setResetStatus({
@@ -497,7 +522,8 @@ export default function LoginPage({
               Reset Password
             </DialogTitle>
             <DialogDescription className='text-neutral-300 text-sm'>
-              Enter your email address and we'll send you a link to reset your password.
+              Enter your email address and we'll send you a link to reset your password if your
+              account exists.
             </DialogDescription>
           </DialogHeader>
           <div className='space-y-4'>
@@ -512,14 +538,20 @@ export default function LoginPage({
                 placeholder='Enter your email'
                 required
                 type='email'
-                className='border-neutral-700/80 bg-neutral-900 text-white placeholder:text-white/60 focus:border-[var(--brand-primary-hover-hex)]/70 focus:ring-[var(--brand-primary-hover-hex)]/20'
+                className={cn(
+                  'border-neutral-700/80 bg-neutral-900 text-white placeholder:text-white/60 focus:border-[var(--brand-primary-hover-hex)]/70 focus:ring-[var(--brand-primary-hover-hex)]/20',
+                  resetStatus.type === 'error' && 'border-red-500 focus-visible:ring-red-500'
+                )}
               />
+              {resetStatus.type === 'error' && (
+                <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                  <p>{resetStatus.message}</p>
+                </div>
+              )}
             </div>
-            {resetStatus.type && (
-              <div
-                className={`text-sm ${resetStatus.type === 'success' ? 'text-[#4CAF50]' : 'text-red-500'}`}
-              >
-                {resetStatus.message}
+            {resetStatus.type === 'success' && (
+              <div className='mt-1 space-y-1 text-[#4CAF50] text-xs'>
+                <p>{resetStatus.message}</p>
               </div>
             )}
             <Button

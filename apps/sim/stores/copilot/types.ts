@@ -45,10 +45,13 @@ export interface CopilotMessage {
 export type ChatContext =
   | { kind: 'past_chat'; chatId: string; label: string }
   | { kind: 'workflow'; workflowId: string; label: string }
+  | { kind: 'current_workflow'; workflowId: string; label: string }
   | { kind: 'blocks'; blockIds: string[]; label: string }
-  | { kind: 'logs'; label: string }
+  | { kind: 'logs'; executionId?: string; label: string }
+  | { kind: 'workflow_block'; workflowId: string; blockId: string; label: string }
   | { kind: 'knowledge'; knowledgeId?: string; label: string }
   | { kind: 'templates'; templateId?: string; label: string }
+  | { kind: 'docs'; label: string }
 
 export interface CopilotChat {
   id: string
@@ -101,6 +104,15 @@ export interface CopilotState {
 
   // Map of toolCallId -> CopilotToolCall for quick access during streaming
   toolCallsById: Record<string, CopilotToolCall>
+
+  // Transient flag to prevent auto-selecting a chat during new-chat UX
+  suppressAutoSelect?: boolean
+
+  // Explicitly track the current user message id for this in-flight query (for stats/diff correlation)
+  currentUserMessageId?: string | null
+
+  // Per-message metadata captured at send-time for reliable stats
+  messageMetaById?: Record<string, { depth: 0 | 1 | 2 | 3; maxEnabled: boolean }>
 }
 
 export interface CopilotActions {
@@ -165,7 +177,8 @@ export interface CopilotActions {
   handleStreamingResponse: (
     stream: ReadableStream,
     messageId: string,
-    isContinuation?: boolean
+    isContinuation?: boolean,
+    triggerUserMessageId?: string
   ) => Promise<void>
   handleNewChatCreation: (newChatId: string) => Promise<void>
   updateDiffStore: (yamlContent: string, toolName?: string) => Promise<void>

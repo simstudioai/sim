@@ -54,6 +54,8 @@ interface WorkflowDiffState {
   // PERFORMANCE OPTIMIZATION: Cache frequently accessed computed values
   _cachedDisplayState?: WorkflowState
   _lastDisplayStateHash?: string
+  // Track the user message id that triggered the current diff (for stats correlation)
+  _triggerMessageId?: string | null
 }
 
 interface WorkflowDiffActions {
@@ -112,6 +114,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
         diffError: null,
         _cachedDisplayState: undefined,
         _lastDisplayStateHash: undefined,
+        _triggerMessageId: null,
 
         _batchedStateUpdate: batchedUpdate,
 
@@ -147,6 +150,22 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               return
             }
 
+            // Attempt to capture the triggering user message id from copilot store
+            let triggerMessageId: string | null = null
+            try {
+              const { useCopilotStore } = await import('@/stores/copilot/store')
+              const { messages } = useCopilotStore.getState() as any
+              if (Array.isArray(messages) && messages.length > 0) {
+                for (let i = messages.length - 1; i >= 0; i--) {
+                  const m = messages[i]
+                  if (m?.role === 'user' && m?.id) {
+                    triggerMessageId = m.id
+                    break
+                  }
+                }
+              }
+            } catch {}
+
             // PERFORMANCE OPTIMIZATION: Log diff analysis efficiently
             if (result.diff.diffAnalysis) {
               const analysis = result.diff.diffAnalysis
@@ -168,6 +187,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               diffError: null,
               _cachedDisplayState: undefined, // Clear cache
               _lastDisplayStateHash: undefined,
+              _triggerMessageId: triggerMessageId,
             })
 
             logger.info('Diff created successfully')
@@ -272,6 +292,25 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               logger.warn('No diff to accept')
               return
             }
+
+            // Immediately flag diffAccepted on stats if we can (early upsert with minimal fields)
+            try {
+              const { useCopilotStore } = await import('@/stores/copilot/store')
+              const { currentChat } = useCopilotStore.getState() as any
+              const triggerMessageId = get()._triggerMessageId
+              if (currentChat?.id && triggerMessageId) {
+                fetch('/api/copilot/stats', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chatId: currentChat.id,
+                    messageId: triggerMessageId,
+                    diffCreated: true,
+                    diffAccepted: true,
+                  }),
+                }).catch(() => {})
+              }
+            } catch {}
 
             // Update the main workflow store state
             useWorkflowStore.setState({
@@ -392,7 +431,24 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           // Update copilot tool call state to 'rejected'
           try {
             const { useCopilotStore } = await import('@/stores/copilot/store')
-            const { messages, toolCallsById } = useCopilotStore.getState()
+            const { currentChat, messages, toolCallsById } = useCopilotStore.getState() as any
+
+            // Post early diffAccepted=false if we have trigger + chat
+            try {
+              const triggerMessageId = get()._triggerMessageId
+              if (currentChat?.id && triggerMessageId) {
+                fetch('/api/copilot/stats', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chatId: currentChat.id,
+                    messageId: triggerMessageId,
+                    diffCreated: true,
+                    diffAccepted: false,
+                  }),
+                }).catch(() => {})
+              }
+            } catch {}
 
             // Prefer the latest assistant message's build/edit tool_call from contentBlocks
             let toolCallId: string | undefined

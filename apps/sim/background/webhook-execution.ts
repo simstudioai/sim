@@ -2,6 +2,7 @@ import { task } from '@trigger.dev/sdk'
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -10,7 +11,7 @@ import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webho
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { db } from '@/db'
-import { environment as environmentTable, userStats, webhook } from '@/db/schema'
+import { userStats, webhook, workflow as workflowTable } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
@@ -69,35 +70,31 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
 
     const { blocks, edges, loops, parallels } = workflowData
 
-    // Get environment variables (matching workflow-execution pattern)
-    const [userEnv] = await db
-      .select()
-      .from(environmentTable)
-      .where(eq(environmentTable.userId, payload.userId))
+    // Get environment variables with workspace precedence
+    const wfRows = await db
+      .select({ workspaceId: workflowTable.workspaceId })
+      .from(workflowTable)
+      .where(eq(workflowTable.id, payload.workflowId))
       .limit(1)
+    const workspaceId = wfRows[0]?.workspaceId || undefined
 
-    let decryptedEnvVars: Record<string, string> = {}
-    if (userEnv) {
-      const decryptionPromises = Object.entries((userEnv.variables as any) || {}).map(
-        async ([key, encryptedValue]) => {
-          try {
-            const { decrypted } = await decryptSecret(encryptedValue as string)
-            return [key, decrypted] as const
-          } catch (error: any) {
-            logger.error(`[${requestId}] Failed to decrypt environment variable "${key}":`, error)
-            throw new Error(`Failed to decrypt environment variable "${key}": ${error.message}`)
-          }
-        }
-      )
-
-      const decryptedPairs = await Promise.all(decryptionPromises)
-      decryptedEnvVars = Object.fromEntries(decryptedPairs)
-    }
+    const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
+      payload.userId,
+      workspaceId
+    )
+    const mergedEncrypted = { ...personalEncrypted, ...workspaceEncrypted }
+    const decryptedPairs = await Promise.all(
+      Object.entries(mergedEncrypted).map(async ([key, encrypted]) => {
+        const { decrypted } = await decryptSecret(encrypted)
+        return [key, decrypted] as const
+      })
+    )
+    const decryptedEnvVars: Record<string, string> = Object.fromEntries(decryptedPairs)
 
     // Start logging session
     await loggingSession.safeStart({
       userId: payload.userId,
-      workspaceId: '', // TODO: Get from workflow if needed
+      workspaceId: workspaceId || '',
       variables: decryptedEnvVars,
     })
 
@@ -179,7 +176,7 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
           workflowVariables,
           contextExtensions: {
             executionId,
-            workspaceId: '',
+            workspaceId: workspaceId || '',
           },
         })
 
@@ -291,7 +288,7 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
       workflowVariables,
       contextExtensions: {
         executionId,
-        workspaceId: '', // TODO: Get from workflow if needed - see comment on line 103
+        workspaceId: workspaceId || '',
       },
     })
 

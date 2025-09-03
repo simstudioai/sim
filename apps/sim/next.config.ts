@@ -1,6 +1,6 @@
 import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
-import { env, isTruthy } from './lib/env'
+import { env, getEnv, isTruthy } from './lib/env'
 import { isDev, isHosted, isProd } from './lib/environment'
 import { getMainCSPPolicy, getWorkflowExecutionCSPPolicy } from './lib/security/csp'
 
@@ -187,18 +187,20 @@ const nextConfig: NextConfig = {
   async redirects() {
     const redirects = []
     // Add whitelabel redirects for terms and privacy pages if external URLs are configured
-    if (env.NEXT_PUBLIC_TERMS_URL?.startsWith('http')) {
+    const termsUrl = getEnv('NEXT_PUBLIC_TERMS_URL')
+    if (termsUrl?.startsWith('http')) {
       redirects.push({
         source: '/terms',
-        destination: env.NEXT_PUBLIC_TERMS_URL,
+        destination: termsUrl,
         permanent: false,
       })
     }
 
-    if (env.NEXT_PUBLIC_PRIVACY_URL?.startsWith('http')) {
+    const privacyUrl = getEnv('NEXT_PUBLIC_PRIVACY_URL')
+    if (privacyUrl?.startsWith('http')) {
       redirects.push({
         source: '/privacy',
-        destination: env.NEXT_PUBLIC_PRIVACY_URL,
+        destination: privacyUrl,
         permanent: false,
       })
     }

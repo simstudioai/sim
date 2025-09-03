@@ -10,14 +10,19 @@ export interface EnvironmentState {
 }
 
 export interface EnvironmentStore extends EnvironmentState {
-  // Legacy method
-  setVariables: (variables: Record<string, string>) => void
-
-  // New methods for direct DB interaction
   loadEnvironmentVariables: () => Promise<void>
   saveEnvironmentVariables: (variables: Record<string, string>) => Promise<void>
 
-  // Utility methods
-  getVariable: (key: string) => string | undefined
+  loadWorkspaceEnvironment: (workspaceId: string) => Promise<{
+    workspace: Record<string, string>
+    personal: Record<string, string>
+    conflicts: string[]
+  }>
+  upsertWorkspaceEnvironment: (
+    workspaceId: string,
+    variables: Record<string, string>
+  ) => Promise<void>
+  removeWorkspaceEnvironmentKeys: (workspaceId: string, keys: string[]) => Promise<void>
+
   getAllVariables: () => Record<string, EnvironmentVariable>
 }

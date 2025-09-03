@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Code, FileJson, Trash2, Wand2, X } from 'lucide-react'
+import { Code, FileJson, Trash2, X } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,6 +67,8 @@ export function CustomToolModal({
   blockId,
   initialValues,
 }: CustomToolModalProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const [activeSection, setActiveSection] = useState<ToolSection>('schema')
   const [jsonSchema, setJsonSchema] = useState('')
   const [functionCode, setFunctionCode] = useState('')
@@ -931,25 +934,6 @@ try {
                     <Label htmlFor='json-schema' className='font-medium'>
                       JSON Schema
                     </Label>
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      className='h-5 w-5 rounded-full border border-transparent bg-muted/80 p-0 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow'
-                      onClick={() => {
-                        logger.debug('Schema AI button clicked')
-                        logger.debug(
-                          'showPromptInline function exists:',
-                          typeof schemaGeneration.showPromptInline === 'function'
-                        )
-                        schemaGeneration.isPromptVisible
-                          ? schemaGeneration.hidePromptInline()
-                          : schemaGeneration.showPromptInline()
-                      }}
-                      disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
-                      aria-label='Generate schema with AI'
-                    >
-                      <Wand2 className='h-3 w-3' />
-                    </Button>
                   </div>
                   {schemaError &&
                     !schemaGeneration.isStreaming && ( // Hide schema error while streaming
@@ -960,6 +944,18 @@ try {
                   value={jsonSchema}
                   onChange={handleJsonSchemaChange}
                   language='json'
+                  showWandButton={true}
+                  onWandClick={() => {
+                    logger.debug('Schema AI button clicked')
+                    logger.debug(
+                      'showPromptInline function exists:',
+                      typeof schemaGeneration.showPromptInline === 'function'
+                    )
+                    schemaGeneration.isPromptVisible
+                      ? schemaGeneration.hidePromptInline()
+                      : schemaGeneration.showPromptInline()
+                  }}
+                  wandButtonDisabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
                   placeholder={`{
   "type": "function",
   "function": {
@@ -1001,25 +997,6 @@ try {
                     <Label htmlFor='function-code' className='font-medium'>
                       Code (optional)
                     </Label>
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      className='h-5 w-5 rounded-full border border-transparent bg-muted/80 p-0 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow'
-                      onClick={() => {
-                        logger.debug('Code AI button clicked')
-                        logger.debug(
-                          'showPromptInline function exists:',
-                          typeof codeGeneration.showPromptInline === 'function'
-                        )
-                        codeGeneration.isPromptVisible
-                          ? codeGeneration.hidePromptInline()
-                          : codeGeneration.showPromptInline()
-                      }}
-                      disabled={codeGeneration.isLoading || codeGeneration.isStreaming}
-                      aria-label='Generate code with AI'
-                    >
-                      <Wand2 className='h-3 w-3' />
-                    </Button>
                   </div>
                   {codeError &&
                     !codeGeneration.isStreaming && ( // Hide code error while streaming
@@ -1047,6 +1024,18 @@ try {
                     value={functionCode}
                     onChange={handleFunctionCodeChange}
                     language='javascript'
+                    showWandButton={true}
+                    onWandClick={() => {
+                      logger.debug('Code AI button clicked')
+                      logger.debug(
+                        'showPromptInline function exists:',
+                        typeof codeGeneration.showPromptInline === 'function'
+                      )
+                      codeGeneration.isPromptVisible
+                        ? codeGeneration.hidePromptInline()
+                        : codeGeneration.showPromptInline()
+                    }}
+                    wandButtonDisabled={codeGeneration.isLoading || codeGeneration.isStreaming}
                     placeholder={
                       '// This code will be executed when the tool is called. You can use environment variables with {{VARIABLE_NAME}}.'
                     }
@@ -1070,6 +1059,7 @@ try {
                       searchTerm={searchTerm}
                       inputValue={functionCode}
                       cursorPosition={cursorPosition}
+                      workspaceId={workspaceId}
                       onClose={() => {
                         setShowEnvVars(false)
                         setSearchTerm('')

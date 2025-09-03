@@ -132,7 +132,7 @@ export function WandPromptBar({
             variant='ghost'
             size='icon'
             onClick={() => onSubmit(promptValue)}
-            className='h-8 w-8 rounded-full text-primary hover:bg-primary/10 hover:text-primary'
+            className='h-8 w-8 rounded-full text-muted-foreground hover:bg-primary/10 hover:text-foreground'
             disabled={isLoading || isStreaming || !promptValue.trim()}
           >
             <SendIcon className='h-4 w-4' />

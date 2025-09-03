@@ -40,6 +40,7 @@ import { MicrosoftExcelBlock } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftPlannerBlock } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
 import { MistralParseBlock } from '@/blocks/blocks/mistral_parse'
+import { MongoDBBlock } from '@/blocks/blocks/mongodb'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
 import { NotionBlock } from '@/blocks/blocks/notion'
 import { OneDriveBlock } from '@/blocks/blocks/onedrive'
@@ -116,6 +117,7 @@ export const registry: Record<string, BlockConfig> = {
   microsoft_planner: MicrosoftPlannerBlock,
   microsoft_teams: MicrosoftTeamsBlock,
   mistral_parse: MistralParseBlock,
+  mongodb: MongoDBBlock,
   mysql: MySQLBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,

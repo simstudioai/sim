@@ -385,7 +385,6 @@ async function processOutlookEmails(
           if (type === 'text' || type === 'text/plain') {
             return content
           }
-          // Default to converting HTML or unknown types
           return convertHtmlToPlainText(content)
         })(),
         bodyHtml: email.body?.content || '',

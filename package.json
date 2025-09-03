@@ -36,6 +36,7 @@
     "@t3-oss/env-nextjs": "0.13.4",
     "@vercel/analytics": "1.5.0",
     "geist": "^1.4.2",
+    "mongodb": "6.19.0",
     "react-colorful": "5.6.1",
     "remark-gfm": "4.0.1",
     "socket.io-client": "4.8.1"

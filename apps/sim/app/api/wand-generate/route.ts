@@ -1,7 +1,12 @@
+import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { env } from '@/lib/env'
+import { getCostMultiplier, isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { db } from '@/db'
+import { userStats, workflow } from '@/db/schema'
+import { getModelPricing } from '@/providers/utils'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -47,14 +52,88 @@ interface RequestBody {
   systemPrompt?: string
   stream?: boolean
   history?: ChatMessage[]
+  workflowId?: string
 }
 
-// Helper: safe stringify for error payloads that may include circular structures
 function safeStringify(value: unknown): string {
   try {
     return JSON.stringify(value)
   } catch {
     return '[unserializable]'
+  }
+}
+
+async function updateUserStatsForWand(
+  workflowId: string,
+  usage: {
+    prompt_tokens?: number
+    completion_tokens?: number
+    total_tokens?: number
+  },
+  requestId: string
+): Promise<void> {
+  if (!isBillingEnabled) {
+    logger.debug(`[${requestId}] Billing is disabled, skipping wand usage cost update`)
+    return
+  }
+
+  if (!usage.total_tokens || usage.total_tokens <= 0) {
+    logger.debug(`[${requestId}] No tokens to update in user stats`)
+    return
+  }
+
+  try {
+    const [workflowRecord] = await db
+      .select({ userId: workflow.userId })
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .limit(1)
+
+    if (!workflowRecord?.userId) {
+      logger.warn(
+        `[${requestId}] No user found for workflow ${workflowId}, cannot update user stats`
+      )
+      return
+    }
+
+    const userId = workflowRecord.userId
+    const totalTokens = usage.total_tokens || 0
+    const promptTokens = usage.prompt_tokens || 0
+    const completionTokens = usage.completion_tokens || 0
+
+    const modelName = useWandAzure ? wandModelName : 'gpt-4o'
+    const pricing = getModelPricing(modelName)
+
+    const costMultiplier = getCostMultiplier()
+    let modelCost = 0
+
+    if (pricing) {
+      const inputCost = (promptTokens / 1000000) * pricing.input
+      const outputCost = (completionTokens / 1000000) * pricing.output
+      modelCost = inputCost + outputCost
+    } else {
+      modelCost = (promptTokens / 1000000) * 0.005 + (completionTokens / 1000000) * 0.015
+    }
+
+    const costToStore = modelCost * costMultiplier
+
+    await db
+      .update(userStats)
+      .set({
+        totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
+        totalCost: sql`total_cost + ${costToStore}`,
+        currentPeriodCost: sql`current_period_cost + ${costToStore}`,
+        lastActive: new Date(),
+      })
+      .where(eq(userStats.userId, userId))
+
+    logger.debug(`[${requestId}] Updated user stats for wand usage`, {
+      userId,
+      tokensUsed: totalTokens,
+      costAdded: costToStore,
+    })
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to update user stats for wand usage`, error)
   }
 }
 
@@ -73,7 +152,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as RequestBody
 
-    const { prompt, systemPrompt, stream = false, history = [] } = body
+    const { prompt, systemPrompt, stream = false, history = [], workflowId } = body
 
     if (!prompt) {
       logger.warn(`[${requestId}] Invalid request: Missing prompt.`)
@@ -83,18 +162,14 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Use provided system prompt or default
     const finalSystemPrompt =
       systemPrompt ||
       'You are a helpful AI assistant. Generate content exactly as requested by the user.'
 
-    // Prepare messages for OpenAI API
     const messages: ChatMessage[] = [{ role: 'system', content: finalSystemPrompt }]
 
-    // Add previous messages from history
     messages.push(...history.filter((msg) => msg.role !== 'system'))
 
-    // Add the current user prompt
     messages.push({ role: 'user', content: prompt })
 
     logger.debug(
@@ -108,7 +183,6 @@ export async function POST(req: NextRequest) {
       }
     )
 
-    // For streaming responses
     if (stream) {
       try {
         logger.debug(
@@ -119,7 +193,6 @@ export async function POST(req: NextRequest) {
           `[${requestId}] About to create stream with model: ${useWandAzure ? wandModelName : 'gpt-4o'}`
         )
 
-        // Use native fetch for streaming to avoid OpenAI SDK issues with Node.js runtime
         const apiUrl = useWandAzure
           ? `${azureEndpoint}/openai/deployments/${wandModelName}/chat/completions?api-version=${azureApiVersion}`
           : 'https://api.openai.com/v1/chat/completions'
@@ -142,7 +215,7 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             model: useWandAzure ? wandModelName : 'gpt-4o',
             messages: messages,
-            temperature: 0.3,
+            temperature: 0.2,
             max_tokens: 10000,
             stream: true,
             stream_options: { include_usage: true },
@@ -161,7 +234,6 @@ export async function POST(req: NextRequest) {
 
         logger.info(`[${requestId}] Stream response received, starting processing`)
 
-        // Create a TransformStream to process the SSE data
         const encoder = new TextEncoder()
         const decoder = new TextDecoder()
 
@@ -176,6 +248,7 @@ export async function POST(req: NextRequest) {
             try {
               let buffer = ''
               let chunkCount = 0
+              let finalUsage: any = null
 
               while (true) {
                 const { done, value } = await reader.read()
@@ -187,12 +260,10 @@ export async function POST(req: NextRequest) {
                   break
                 }
 
-                // Decode the chunk
                 buffer += decoder.decode(value, { stream: true })
 
-                // Process complete SSE messages
                 const lines = buffer.split('\n')
-                buffer = lines.pop() || '' // Keep incomplete line in buffer
+                buffer = lines.pop() || ''
 
                 for (const line of lines) {
                   if (line.startsWith('data: ')) {
@@ -217,25 +288,22 @@ export async function POST(req: NextRequest) {
                           logger.info(`[${requestId}] Received first content chunk`)
                         }
 
-                        // Forward the content
                         controller.enqueue(
                           encoder.encode(`data: ${JSON.stringify({ chunk: content })}\n\n`)
                         )
                       }
 
-                      // Log usage if present
                       if (parsed.usage) {
+                        finalUsage = parsed.usage
                         logger.info(
                           `[${requestId}] Received usage data: ${JSON.stringify(parsed.usage)}`
                         )
                       }
 
-                      // Log progress periodically
                       if (chunkCount % 10 === 0) {
                         logger.debug(`[${requestId}] Processed ${chunkCount} chunks`)
                       }
                     } catch (parseError) {
-                      // Skip invalid JSON lines
                       logger.debug(
                         `[${requestId}] Skipped non-JSON line: ${data.substring(0, 100)}`
                       )
@@ -245,6 +313,10 @@ export async function POST(req: NextRequest) {
               }
 
               logger.info(`[${requestId}] Wand generation streaming completed successfully`)
+
+              if (finalUsage && workflowId) {
+                await updateUserStatsForWand(workflowId, finalUsage, requestId)
+              }
             } catch (streamError: any) {
               logger.error(`[${requestId}] Streaming error`, {
                 name: streamError?.name,
@@ -252,7 +324,6 @@ export async function POST(req: NextRequest) {
                 stack: streamError?.stack,
               })
 
-              // Send error to client
               const errorData = `data: ${JSON.stringify({ error: 'Streaming failed', done: true })}\n\n`
               controller.enqueue(encoder.encode(errorData))
               controller.close()
@@ -262,14 +333,12 @@ export async function POST(req: NextRequest) {
           },
         })
 
-        // Return Response with proper headers for Node.js runtime
         return new Response(readable, {
           headers: {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache, no-transform',
             Connection: 'keep-alive',
-            'X-Accel-Buffering': 'no', // Disable Nginx buffering
-            'Transfer-Encoding': 'chunked', // Important for Node.js runtime
+            'X-Accel-Buffering': 'no',
           },
         })
       } catch (error: any) {
@@ -294,7 +363,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // For non-streaming responses
     const completion = await client.chat.completions.create({
       model: useWandAzure ? wandModelName : 'gpt-4o',
       messages: messages,
@@ -315,6 +383,11 @@ export async function POST(req: NextRequest) {
     }
 
     logger.info(`[${requestId}] Wand generation successful`)
+
+    if (completion.usage && workflowId) {
+      await updateUserStatsForWand(workflowId, completion.usage, requestId)
+    }
+
     return NextResponse.json({ success: true, content: generatedContent })
   } catch (error: any) {
     logger.error(`[${requestId}] Wand generation failed`, {

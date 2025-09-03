@@ -198,7 +198,6 @@ export function useWand({
             const { done, value } = await reader.read()
             if (done) break
 
-            // Process incoming chunks using SSE format (identical to Chat panel)
             const chunk = decoder.decode(value)
             const lines = chunk.split('\n\n')
 
@@ -207,26 +206,21 @@ export function useWand({
                 try {
                   const data = JSON.parse(line.substring(6))
 
-                  // Check if there's an error
                   if (data.error) {
                     throw new Error(data.error)
                   }
 
-                  // Process chunk
                   if (data.chunk) {
                     accumulatedContent += data.chunk
-                    // Stream each chunk to the UI immediately
                     if (onStreamChunk) {
                       onStreamChunk(data.chunk)
                     }
                   }
 
-                  // Check if streaming is complete
                   if (data.done) {
                     break
                   }
                 } catch (parseError) {
-                  // Continue processing other lines
                   logger.debug('Failed to parse SSE line', { line, parseError })
                 }
               }
@@ -239,7 +233,6 @@ export function useWand({
         if (accumulatedContent) {
           onGeneratedContent(accumulatedContent)
 
-          // Update conversation history if enabled
           if (wandConfig.maintainHistory) {
             setConversationHistory((prev) => [
               ...prev,
@@ -248,7 +241,6 @@ export function useWand({
             ])
           }
 
-          // Call completion callback
           if (onGenerationComplete) {
             onGenerationComplete(currentPrompt, accumulatedContent)
           }

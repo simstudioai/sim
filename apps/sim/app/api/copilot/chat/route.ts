@@ -50,13 +50,25 @@ const ChatMessageSchema = z.object({
   contexts: z
     .array(
       z.object({
-        kind: z.enum(['past_chat', 'workflow', 'blocks', 'logs', 'knowledge', 'templates']),
+        kind: z.enum([
+          'past_chat',
+          'workflow',
+          'current_workflow',
+          'blocks',
+          'logs',
+          'workflow_block',
+          'knowledge',
+          'templates',
+          'docs',
+        ]),
         label: z.string(),
         chatId: z.string().optional(),
         workflowId: z.string().optional(),
         knowledgeId: z.string().optional(),
         blockId: z.string().optional(),
         templateId: z.string().optional(),
+        executionId: z.string().optional(),
+        // For workflow_block, provide both workflowId and blockId
       })
     )
     .optional(),
@@ -96,6 +108,8 @@ export async function POST(req: NextRequest) {
       conversationId,
       contexts,
     } = ChatMessageSchema.parse(body)
+    // Ensure we have a consistent user message ID for this request
+    const userMessageIdToUse = userMessageId || crypto.randomUUID()
     try {
       logger.info(`[${tracker.requestId}] Received chat POST`, {
         hasContexts: Array.isArray(contexts),
@@ -105,6 +119,7 @@ export async function POST(req: NextRequest) {
               kind: c?.kind,
               chatId: c?.chatId,
               workflowId: c?.workflowId,
+              executionId: (c as any)?.executionId,
               label: c?.label,
             }))
           : undefined,
@@ -115,13 +130,18 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(contexts) && contexts.length > 0) {
       try {
         const { processContextsServer } = await import('@/lib/copilot/process-contents')
-        const processed = await processContextsServer(contexts as any, authenticatedUserId)
+        const processed = await processContextsServer(contexts as any, authenticatedUserId, message)
         agentContexts = processed
         logger.info(`[${tracker.requestId}] Contexts processed for request`, {
           processedCount: agentContexts.length,
           kinds: agentContexts.map((c) => c.type),
           lengthPreview: agentContexts.map((c) => c.content?.length ?? 0),
         })
+        if (Array.isArray(contexts) && contexts.length > 0 && agentContexts.length === 0) {
+          logger.warn(
+            `[${tracker.requestId}] Contexts provided but none processed. Check executionId for logs contexts.`
+          )
+        }
       } catch (e) {
         logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
       }
@@ -351,6 +371,7 @@ export async function POST(req: NextRequest) {
       stream: stream,
       streamToolCalls: true,
       mode: mode,
+      messageId: userMessageIdToUse,
       ...(providerConfig ? { provider: providerConfig } : {}),
       ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
       ...(typeof effectiveDepth === 'number' ? { depth: effectiveDepth } : {}),
@@ -396,7 +417,7 @@ export async function POST(req: NextRequest) {
     if (stream && simAgentResponse.body) {
       // Create user message to save
       const userMessage = {
-        id: userMessageId || crypto.randomUUID(), // Use frontend ID if provided
+        id: userMessageIdToUse, // Consistent ID used for request and persistence
         role: 'user',
         content: message,
         timestamp: new Date().toISOString(),
@@ -471,16 +492,6 @@ export async function POST(req: NextRequest) {
             while (true) {
               const { done, value } = await reader.read()
               if (done) {
-                break
-              }
-
-              // Check if client disconnected before processing chunk
-              try {
-                // Forward the chunk to client immediately
-                controller.enqueue(value)
-              } catch (error) {
-                // Client disconnected - stop reading from sim agent
-                reader.cancel() // Stop reading from sim agent
                 break
               }
 
@@ -583,6 +594,47 @@ export async function POST(req: NextRequest) {
 
                       default:
                     }
+
+                    // Emit to client: rewrite 'error' events into user-friendly assistant message
+                    if (event?.type === 'error') {
+                      try {
+                        const displayMessage: string =
+                          (event?.data && (event.data.displayMessage as string)) ||
+                          'Sorry, I encountered an error. Please try again.'
+                        const formatted = `_${displayMessage}_`
+                        // Accumulate so it persists to DB as assistant content
+                        assistantContent += formatted
+                        // Send as content chunk
+                        try {
+                          controller.enqueue(
+                            encoder.encode(
+                              `data: ${JSON.stringify({ type: 'content', data: formatted })}\n\n`
+                            )
+                          )
+                        } catch (enqueueErr) {
+                          reader.cancel()
+                          break
+                        }
+                        // Then close this response cleanly for the client
+                        try {
+                          controller.enqueue(
+                            encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
+                          )
+                        } catch (enqueueErr) {
+                          reader.cancel()
+                          break
+                        }
+                      } catch {}
+                      // Do not forward the original error event
+                    } else {
+                      // Forward original event to client
+                      try {
+                        controller.enqueue(encoder.encode(`data: ${jsonStr}\n\n`))
+                      } catch (enqueueErr) {
+                        reader.cancel()
+                        break
+                      }
+                    }
                   } catch (e) {
                     // Enhanced error handling for large payloads and parsing issues
                     const lineLength = line.length
@@ -615,9 +667,36 @@ export async function POST(req: NextRequest) {
               logger.debug(`[${tracker.requestId}] Processing remaining buffer: "${buffer}"`)
               if (buffer.startsWith('data: ')) {
                 try {
-                  const event = JSON.parse(buffer.slice(6))
+                  const jsonStr = buffer.slice(6)
+                  const event = JSON.parse(jsonStr)
                   if (event.type === 'content' && event.data) {
                     assistantContent += event.data
+                  }
+                  // Forward remaining event, applying same error rewrite behavior
+                  if (event?.type === 'error') {
+                    const displayMessage: string =
+                      (event?.data && (event.data.displayMessage as string)) ||
+                      'Sorry, I encountered an error. Please try again.'
+                    const formatted = `_${displayMessage}_`
+                    assistantContent += formatted
+                    try {
+                      controller.enqueue(
+                        encoder.encode(
+                          `data: ${JSON.stringify({ type: 'content', data: formatted })}\n\n`
+                        )
+                      )
+                      controller.enqueue(
+                        encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
+                      )
+                    } catch (enqueueErr) {
+                      reader.cancel()
+                    }
+                  } else {
+                    try {
+                      controller.enqueue(encoder.encode(`data: ${jsonStr}\n\n`))
+                    } catch (enqueueErr) {
+                      reader.cancel()
+                    }
                   }
                 } catch (e) {
                   logger.warn(`[${tracker.requestId}] Failed to parse final buffer: "${buffer}"`)
@@ -734,7 +813,7 @@ export async function POST(req: NextRequest) {
     // Save messages if we have a chat
     if (currentChat && responseData.content) {
       const userMessage = {
-        id: userMessageId || crypto.randomUUID(), // Use frontend ID if provided
+        id: userMessageIdToUse, // Consistent ID used for request and persistence
         role: 'user',
         content: message,
         timestamp: new Date().toISOString(),

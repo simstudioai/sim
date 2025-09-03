@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Alert, AlertDescription, AlertTitle, Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
@@ -72,15 +72,6 @@ export function TeamManagement() {
   const userRole = getUserRole(session?.user?.email)
   const adminOrOwner = isAdminOrOwner(session?.user?.email)
   const usedSeats = getUsedSeats()
-  const subscription = getSubscriptionStatus()
-
-  const hasLoadedInitialData = useRef(false)
-  useEffect(() => {
-    if (!hasLoadedInitialData.current) {
-      loadData()
-      hasLoadedInitialData.current = true
-    }
-  }, [])
 
   useEffect(() => {
     if ((hasTeamPlan || hasEnterprisePlan) && session?.user?.name && !orgName) {

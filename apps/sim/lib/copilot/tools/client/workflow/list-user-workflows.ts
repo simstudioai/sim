@@ -31,7 +31,7 @@ export class ListUserWorkflowsClientTool extends BaseClientTool {
     try {
       this.setState(ClientToolCallState.executing)
 
-      const res = await fetch('/api/workflows/sync', { method: 'GET' })
+      const res = await fetch('/api/workflows', { method: 'GET' })
       if (!res.ok) {
         const text = await res.text().catch(() => '')
         await this.markToolComplete(res.status, text || 'Failed to fetch workflows')

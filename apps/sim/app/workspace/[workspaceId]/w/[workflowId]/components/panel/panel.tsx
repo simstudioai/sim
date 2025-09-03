@@ -120,8 +120,10 @@ export function Panel() {
 
   // Handle new chat creation with data loading
   const handleNewChat = useCallback(async () => {
-    await ensureCopilotDataLoaded()
+    // Instantly clear to a fresh chat locally
     copilotRef.current?.createNewChat()
+    // Ensure copilot data is loaded in the background (do not await)
+    ensureCopilotDataLoaded().catch(() => {})
   }, [ensureCopilotDataLoaded])
 
   // Handle history dropdown opening - use smart caching instead of force refresh
