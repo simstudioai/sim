@@ -28,12 +28,12 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MAX_TAG_SLOTS } from '@/lib/knowledge/consts'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components/icons/document-icons'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/use-knowledge-base-tag-definitions'
+import { DocumentList } from './components/document-list'
 
 const logger = createLogger('KnowledgeBaseTags')
 
@@ -459,37 +459,11 @@ export function KnowledgeBaseTags({ knowledgeBaseId }: KnowledgeBaseTagsProps) {
                 {selectedTagUsage && selectedTagUsage.documentCount > 0 && (
                   <div className='mt-4'>
                     <div className='mb-2 font-medium text-sm'>Affected documents:</div>
-                    <div className='rounded-md border border-border bg-background'>
-                      <div className='max-h-32 overflow-y-auto'>
-                        {selectedTagUsage.documents.slice(0, 5).map((doc, index) => {
-                          const DocumentIcon = getDocumentIcon('', doc.name)
-                          return (
-                            <div
-                              key={doc.id}
-                              className='flex items-center gap-3 border-border/50 border-b p-3 last:border-b-0'
-                            >
-                              <DocumentIcon className='h-4 w-4 flex-shrink-0' />
-                              <div className='min-w-0 flex-1'>
-                                <div className='truncate font-medium text-sm'>{doc.name}</div>
-                                {doc.tagValue && (
-                                  <div className='mt-1 text-muted-foreground text-xs'>
-                                    Tag value: <span className='font-medium'>{doc.tagValue}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )
-                        })}
-                        {selectedTagUsage.documentCount > 5 && (
-                          <div className='flex items-center gap-3 p-3 text-muted-foreground text-sm'>
-                            <div className='h-4 w-4' />
-                            <div className='font-medium'>
-                              and {selectedTagUsage.documentCount - 5} more documents...
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    <DocumentList
+                      documents={selectedTagUsage.documents}
+                      totalCount={selectedTagUsage.documentCount}
+                      maxHeight='max-h-32'
+                    />
                   </div>
                 )}
               </div>
@@ -531,29 +505,12 @@ export function KnowledgeBaseTags({ knowledgeBaseId }: KnowledgeBaseTagsProps) {
                     </div>
                   </div>
                 ) : (
-                  <div className='rounded-md border border-border bg-background'>
-                    <div className='max-h-80 overflow-y-auto'>
-                      {selectedTagUsage?.documents.map((doc, index) => {
-                        const DocumentIcon = getDocumentIcon('', doc.name)
-                        return (
-                          <div
-                            key={doc.id}
-                            className='flex items-center gap-3 border-border/50 border-b p-3 transition-colors last:border-b-0 hover:bg-muted/30'
-                          >
-                            <DocumentIcon className='h-4 w-4 flex-shrink-0' />
-                            <div className='min-w-0 flex-1'>
-                              <div className='truncate font-medium text-sm'>{doc.name}</div>
-                              {doc.tagValue && (
-                                <div className='mt-1 text-muted-foreground text-xs'>
-                                  Tag value: <span className='font-medium'>{doc.tagValue}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
+                  <DocumentList
+                    documents={selectedTagUsage?.documents || []}
+                    totalCount={selectedTagUsage?.documentCount || 0}
+                    maxHeight='max-h-80'
+                    showMoreText={false}
+                  />
                 )}
               </div>
             </AlertDialogDescription>
