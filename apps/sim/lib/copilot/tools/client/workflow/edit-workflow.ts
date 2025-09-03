@@ -151,25 +151,6 @@ export class EditWorkflowClientTool extends BaseClientTool {
       try {
         if (!this.hasAppliedDiff) {
           const diffStore = useWorkflowDiffStore.getState()
-          // Send early stats upsert with the triggering user message id if available
-          try {
-            const { useCopilotStore } = await import('@/stores/copilot/store')
-            const { currentChat, currentUserMessageId, agentDepth, agentPrefetch } =
-              useCopilotStore.getState() as any
-            if (currentChat?.id && currentUserMessageId) {
-              fetch('/api/copilot/stats', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  chatId: currentChat.id,
-                  messageId: currentUserMessageId,
-                  depth: agentDepth,
-                  maxEnabled: agentDepth >= 2 && !agentPrefetch,
-                  diffCreated: true,
-                }),
-              }).catch(() => {})
-            }
-          } catch {}
           await diffStore.setProposedChanges(result.yamlContent)
           logger.info('diff proposed changes set for edit_workflow')
           this.hasAppliedDiff = true
