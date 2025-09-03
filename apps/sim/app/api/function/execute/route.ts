@@ -1,5 +1,6 @@
 import { createContext, Script } from 'vm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { env, isTruthy } from '@/lib/env'
 import { executeInE2B } from '@/lib/execution/e2b'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -579,7 +580,7 @@ export async function POST(req: NextRequest) {
     resolvedCode = codeResolution.resolvedCode
     const contextVariables = codeResolution.contextVariables
 
-    const e2bEnabled = process.env.E2B_ENABLED === 'true'
+    const e2bEnabled = isTruthy(env.E2B_ENABLED)
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
     const useE2B =
       e2bEnabled &&
