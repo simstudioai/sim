@@ -443,13 +443,13 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     const isTriggerMode = useWorkflowStore.getState().blocks[blockId]?.triggerMode ?? false
     const effectiveAdvanced = currentWorkflow.isDiffMode ? displayAdvancedMode : isAdvancedMode
     const effectiveTrigger = currentWorkflow.isDiffMode ? displayTriggerMode : isTriggerMode
+    const e2bClientEnabled = env.NEXT_PUBLIC_E2B_ENABLED === 'true'
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
       if (block.hidden) return false
 
       // Filter out E2B-related blocks if E2B is not enabled on the client
-      const e2bClientEnabled = env.NEXT_PUBLIC_E2B_ENABLED === 'true'
       if (!e2bClientEnabled && (block.id === 'remoteExecution' || block.id === 'language')) {
         return false
       }

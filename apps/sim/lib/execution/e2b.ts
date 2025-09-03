@@ -1,11 +1,10 @@
 import { Sandbox } from '@e2b/code-interpreter'
 import { createLogger } from '@/lib/logs/console/logger'
-
-export type E2BCodeLanguage = 'javascript' | 'python'
+import { CodeLanguage } from './languages'
 
 export interface E2BExecutionRequest {
   code: string
-  language: E2BCodeLanguage
+  language: CodeLanguage
   timeoutMs: number
 }
 
@@ -38,7 +37,7 @@ export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecuti
 
   try {
     const execution = await sandbox.runCode(code, {
-      language: language === 'python' ? 'python' : 'javascript',
+      language: language === CodeLanguage.Python ? 'python' : 'javascript',
       timeoutMs,
     })
 

@@ -1,6 +1,7 @@
 import { createContext, Script } from 'vm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { executeInE2B } from '@/lib/execution/e2b'
+import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
@@ -443,8 +444,8 @@ export async function POST(req: NextRequest) {
       code,
       params = {},
       timeout = 5000,
-      language = 'javascript',
-      fastMode = false,
+      language = DEFAULT_CODE_LANGUAGE,
+      useLocalVM = false,
       envVars = {},
       blockData = {},
       blockNameMapping = {},
@@ -478,8 +479,11 @@ export async function POST(req: NextRequest) {
     const contextVariables = codeResolution.contextVariables
 
     const e2bEnabled = process.env.E2B_ENABLED === 'true'
-    const lang = (typeof language === 'string' ? language : 'javascript') as 'javascript' | 'python'
-    const useE2B = e2bEnabled && !fastMode && (lang === 'javascript' || lang === 'python')
+    const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
+    const useE2B =
+      e2bEnabled &&
+      !useLocalVM &&
+      (lang === CodeLanguage.JavaScript || lang === CodeLanguage.Python)
 
     if (useE2B) {
       logger.info(`[${requestId}] E2B status`, {
@@ -490,7 +494,7 @@ export async function POST(req: NextRequest) {
       let prologue = ''
       const epilogue = ''
 
-      if (lang === 'javascript') {
+      if (lang === CodeLanguage.JavaScript) {
         prologue += `const params = JSON.parse(${JSON.stringify(JSON.stringify(executionParams))});\n`
         prologue += `const environmentVariables = JSON.parse(${JSON.stringify(JSON.stringify(envVars))});\n`
         for (const [k, v] of Object.entries(contextVariables)) {
@@ -518,7 +522,7 @@ export async function POST(req: NextRequest) {
           sandboxId,
         } = await executeInE2B({
           code: codeForE2B,
-          language: 'javascript',
+          language: CodeLanguage.JavaScript,
           timeoutMs: timeout,
         })
         const executionTime = Date.now() - execStart
@@ -555,7 +559,7 @@ export async function POST(req: NextRequest) {
         sandboxId,
       } = await executeInE2B({
         code: codeForE2B,
-        language: 'python',
+        language: CodeLanguage.Python,
         timeoutMs: timeout,
       })
       const executionTime = Date.now() - execStart

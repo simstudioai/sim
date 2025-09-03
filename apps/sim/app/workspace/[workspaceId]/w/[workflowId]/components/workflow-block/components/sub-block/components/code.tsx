@@ -10,6 +10,7 @@ import Editor from 'react-simple-code-editor'
 import { Button } from '@/components/ui/button'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
+import { CodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
@@ -147,14 +148,14 @@ export function Code({
   const effectiveLanguage = (languageValue as 'javascript' | 'python' | 'json') || language
 
   const dynamicPlaceholder = useMemo(() => {
-    if (remoteExecution && languageValue === 'python') {
+    if (remoteExecution && languageValue === CodeLanguage.Python) {
       return 'Write Python...'
     }
     return placeholder
   }, [remoteExecution, languageValue, placeholder])
 
   const dynamicWandConfig = useMemo(() => {
-    if (remoteExecution && languageValue === 'python') {
+    if (remoteExecution && languageValue === CodeLanguage.Python) {
       return {
         ...wandConfig,
         prompt: `You are an expert Python programmer.

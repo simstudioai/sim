@@ -1,11 +1,10 @@
+import type { CodeLanguage } from '@/lib/execution/languages'
 import type { ToolResponse } from '@/tools/types'
-
-export type CodeLanguage = 'javascript' | 'python'
 
 export interface CodeExecutionInput {
   code: Array<{ content: string; id: string }> | string
   language?: CodeLanguage
-  fastMode?: boolean
+  useLocalVM?: boolean
   timeout?: number
   memoryLimit?: number
   envVars?: Record<string, string>

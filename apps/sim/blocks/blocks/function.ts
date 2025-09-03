@@ -1,4 +1,5 @@
 import { CodeIcon } from '@/components/icons'
+import { CodeLanguage, getLanguageDisplayName } from '@/lib/execution/languages'
 import type { BlockConfig } from '@/blocks/types'
 import type { CodeExecutionOutput } from '@/tools/function/types'
 
@@ -25,11 +26,11 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        { label: 'JavaScript', id: 'javascript' },
-        { label: 'Python', id: 'python' },
+        { label: getLanguageDisplayName(CodeLanguage.JavaScript), id: CodeLanguage.JavaScript },
+        { label: getLanguageDisplayName(CodeLanguage.Python), id: CodeLanguage.Python },
       ],
       placeholder: 'Select language',
-      value: () => 'javascript',
+      value: () => CodeLanguage.JavaScript,
       condition: {
         field: 'remoteExecution',
         value: true,
