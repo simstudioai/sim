@@ -5,10 +5,12 @@ import { useParams } from 'next/navigation'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
+import 'prismjs/components/prism-python'
 import Editor from 'react-simple-code-editor'
 import { Button } from '@/components/ui/button'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
+import { CodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
@@ -26,7 +28,7 @@ interface CodeProps {
   subBlockId: string
   isConnecting: boolean
   placeholder?: string
-  language?: 'javascript' | 'json'
+  language?: 'javascript' | 'json' | 'python'
   generationType?: GenerationType
   value?: string
   isPreview?: boolean
@@ -125,35 +127,73 @@ export function Code({
     if (onValidationChange && subBlockId === 'responseFormat') {
       const timeoutId = setTimeout(() => {
         onValidationChange(isValidJson)
-      }, 150) // Match debounce time from setStoreValue
+      }, 150)
       return () => clearTimeout(timeoutId)
     }
   }, [isValidJson, onValidationChange, subBlockId])
 
   const editorRef = useRef<HTMLDivElement>(null)
 
-  // Function to toggle collapsed state
   const toggleCollapsed = () => {
     setCollapsedValue(blockId, collapsedStateKey, !isCollapsed)
   }
 
-  // Create refs to hold the handlers
   const handleStreamStartRef = useRef<() => void>(() => {})
   const handleGeneratedContentRef = useRef<(generatedCode: string) => void>(() => {})
   const handleStreamChunkRef = useRef<(chunk: string) => void>(() => {})
 
-  // AI Code Generation Hook - use new wand system
-  const wandHook = wandConfig?.enabled
+  const [languageValue] = useSubBlockValue<string>(blockId, 'language')
+  const [remoteExecution] = useSubBlockValue<boolean>(blockId, 'remoteExecution')
+
+  const effectiveLanguage = (languageValue as 'javascript' | 'python' | 'json') || language
+
+  const dynamicPlaceholder = useMemo(() => {
+    if (remoteExecution && languageValue === CodeLanguage.Python) {
+      return 'Write Python...'
+    }
+    return placeholder
+  }, [remoteExecution, languageValue, placeholder])
+
+  const dynamicWandConfig = useMemo(() => {
+    if (remoteExecution && languageValue === CodeLanguage.Python) {
+      return {
+        ...wandConfig,
+        prompt: `You are an expert Python programmer.
+Generate ONLY the raw body of a Python function based on the user's request.
+The code should be executable within a Python function body context.
+- 'params' (object): Contains input parameters derived from the JSON schema. Access these directly using the parameter name wrapped in angle brackets, e.g., '<paramName>'. Do NOT use 'params.paramName'.
+- 'environmentVariables' (object): Contains environment variables. Reference these using the double curly brace syntax: '{{ENV_VAR_NAME}}'. Do NOT use os.environ or env.
+
+Current code context: {context}
+
+IMPORTANT FORMATTING RULES:
+1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. Do NOT wrap it in quotes.
+2. Reference Input Parameters/Workflow Variables: Use the exact syntax <variable_name>. Do NOT wrap it in quotes.
+3. Function Body ONLY: Do NOT include the function signature (e.g., 'def my_func(...)') or surrounding braces. Return the final value with 'return'.
+4. Imports: You may add imports as needed (standard library or pip-installed packages) without comments.
+5. No Markdown: Do NOT include backticks, code fences, or any markdown.
+6. Clarity: Write clean, readable Python code.`,
+        placeholder: 'Describe the Python function you want to create...',
+      }
+    }
+    return wandConfig
+  }, [wandConfig, remoteExecution, languageValue])
+
+  const wandHook = dynamicWandConfig?.enabled
     ? useWand({
-        wandConfig,
+        wandConfig: dynamicWandConfig,
         currentValue: code,
         onStreamStart: () => handleStreamStartRef.current?.(),
-        onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
-        onGeneratedContent: (content: string) => handleGeneratedContentRef.current?.(content),
+        onStreamChunk: (chunk: string) => {
+          setCode((prev) => prev + chunk)
+          handleStreamChunkRef.current?.(chunk)
+        },
+        onGeneratedContent: (content: string) => {
+          handleGeneratedContentRef.current?.(content)
+        },
       })
     : null
 
-  // Extract values from wand hook
   const isAiLoading = wandHook?.isLoading || false
   const isAiStreaming = wandHook?.isStreaming || false
   const generateCodeStream = wandHook?.generateStream || (() => {})
@@ -164,7 +204,6 @@ export function Code({
   const updatePromptValue = wandHook?.updatePromptValue || (() => {})
   const cancelGeneration = wandHook?.cancelGeneration || (() => {})
 
-  // State management - useSubBlockValue with explicit streaming control
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
     isStreaming: isAiStreaming,
     onStreamingEnd: () => {
@@ -174,43 +213,28 @@ export function Code({
 
   const emitTagSelection = useTagSelection(blockId, subBlockId)
 
-  // Use preview value when in preview mode, otherwise use store value or prop value
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
-  // Define the handlers in useEffect to avoid setState during render
   useEffect(() => {
     handleStreamStartRef.current = () => {
       setCode('')
-      // Streaming state is now controlled by isAiStreaming
     }
 
     handleGeneratedContentRef.current = (generatedCode: string) => {
       setCode(generatedCode)
       if (!isPreview && !disabled) {
         setStoreValue(generatedCode)
-        // Final value will be persisted when isAiStreaming becomes false
       }
-    }
-
-    handleStreamChunkRef.current = (chunk: string) => {
-      setCode((currentCode) => {
-        const newCode = currentCode + chunk
-        if (!isPreview && !disabled) {
-          // Update the value - it won't be persisted until streaming ends
-          setStoreValue(newCode)
-        }
-        return newCode
-      })
     }
   }, [isPreview, disabled, setStoreValue])
 
-  // Effects
   useEffect(() => {
+    if (isAiStreaming) return
     const valueString = value?.toString() ?? ''
     if (valueString !== code) {
       setCode(valueString)
     }
-  }, [value])
+  }, [value, code, isAiStreaming])
 
   useEffect(() => {
     if (!editorRef.current) return
@@ -279,7 +303,6 @@ export function Code({
     }
   }, [code])
 
-  // Handlers
   const handleDrop = (e: React.DragEvent) => {
     if (isPreview) return
     e.preventDefault()
@@ -338,12 +361,11 @@ export function Code({
     }, 0)
   }
 
-  // Render helpers
-  const renderLineNumbers = () => {
+  const renderLineNumbers = (): ReactElement[] => {
     const numbers: ReactElement[] = []
     let lineNumber = 1
 
-    visualLineHeights.forEach((height, index) => {
+    visualLineHeights.forEach((height) => {
       numbers.push(
         <div key={`${lineNumber}-0`} className={cn('text-muted-foreground text-xs leading-[21px]')}>
           {lineNumber}
@@ -364,7 +386,7 @@ export function Code({
 
     if (numbers.length === 0) {
       numbers.push(
-        <div key='1-0' className={cn('text-muted-foreground text-xs leading-[21px]')}>
+        <div key={'1-0'} className={cn('text-muted-foreground text-xs leading-[21px]')}>
           1
         </div>
       )
@@ -383,7 +405,7 @@ export function Code({
         onSubmit={(prompt: string) => generateCodeStream({ prompt })}
         onCancel={isAiStreaming ? cancelGeneration : hidePromptInline}
         onChange={updatePromptValue}
-        placeholder={wandConfig?.placeholder || aiPromptPlaceholder}
+        placeholder={dynamicWandConfig?.placeholder || aiPromptPlaceholder}
       />
 
       <div
@@ -440,7 +462,7 @@ export function Code({
         >
           {code.length === 0 && !isCollapsed && (
             <div className='pointer-events-none absolute top-[12px] left-[42px] select-none text-muted-foreground/50'>
-              {placeholder}
+              {dynamicPlaceholder}
             </div>
           )}
 
@@ -478,7 +500,11 @@ export function Code({
               }
             }}
             highlight={(codeToHighlight) =>
-              highlight(codeToHighlight, languages[language], language)
+              highlight(
+                codeToHighlight,
+                languages[effectiveLanguage === 'python' ? 'python' : 'javascript'],
+                effectiveLanguage === 'python' ? 'python' : 'javascript'
+              )
             }
             padding={12}
             style={{

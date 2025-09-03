@@ -26,6 +26,7 @@
     "test:billing:suite": "bun run scripts/test-billing-suite.ts"
   },
   "dependencies": {
+    "@e2b/code-interpreter": "^2.0.0",
     "@anthropic-ai/sdk": "^0.39.0",
     "@aws-sdk/client-s3": "^3.779.0",
     "@aws-sdk/s3-request-presigner": "^3.779.0",
