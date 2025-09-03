@@ -51,13 +51,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let pipelineDoc
-    try {
-      pipelineDoc = JSON.parse(params.pipeline)
-    } catch (error) {
-      logger.warn(`[${requestId}] Invalid pipeline JSON: ${params.pipeline}`)
-      return NextResponse.json({ error: 'Invalid JSON format in pipeline' }, { status: 400 })
-    }
+    const pipelineDoc = JSON.parse(params.pipeline)
 
     client = await createMongoDBConnection({
       host: params.host,

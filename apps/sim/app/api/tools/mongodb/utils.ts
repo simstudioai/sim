@@ -7,10 +7,18 @@ export async function createMongoDBConnection(config: MongoDBConnectionConfig) {
       ? `${encodeURIComponent(config.username)}:${encodeURIComponent(config.password)}@`
       : ''
 
-  const authSource = config.authSource ? `?authSource=${config.authSource}` : ''
-  const sslQuery = config.ssl === 'required' ? `${authSource ? '&' : '?'}ssl=true` : ''
+  const queryParams = new URLSearchParams()
 
-  const uri = `mongodb://${credentials}${config.host}:${config.port}/${config.database}${authSource}${sslQuery}`
+  if (config.authSource) {
+    queryParams.append('authSource', config.authSource)
+  }
+
+  if (config.ssl === 'required') {
+    queryParams.append('ssl', 'true')
+  }
+
+  const queryString = queryParams.toString()
+  const uri = `mongodb://${credentials}${config.host}:${config.port}/${config.database}${queryString ? `?${queryString}` : ''}`
 
   const client = new MongoClient(uri, {
     connectTimeoutMS: 10000,
@@ -65,7 +73,17 @@ export function validatePipeline(pipeline: string): { isValid: boolean; error?: 
       }
     }
 
-    const dangerousOperators = ['$where', '$function', '$accumulator', '$let', '$merge', '$out']
+    const dangerousOperators = [
+      '$where',
+      '$function',
+      '$accumulator',
+      '$let',
+      '$merge',
+      '$out',
+      '$currentOp',
+      '$listSessions',
+      '$listLocalSessions',
+    ]
 
     const checkPipelineStage = (stage: any): boolean => {
       if (typeof stage !== 'object' || stage === null) return false

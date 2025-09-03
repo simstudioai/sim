@@ -92,7 +92,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       message: `${result.deletedCount} documents deleted`,
       deletedCount: result.deletedCount,
-      documentCount: result.deletedCount,
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
