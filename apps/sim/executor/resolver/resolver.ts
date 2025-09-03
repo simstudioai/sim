@@ -463,10 +463,18 @@ export class InputResolver {
     const blockMatches = value.match(/<([^>]+)>/g)
     if (!blockMatches) return value
 
-    // If we're in an API block body, check each match to see if it looks like XML rather than a reference
+    // Filter out patterns that are clearly not variable references (e.g., comparison operators)
+    const validBlockMatches = blockMatches.filter((match) => this.isValidVariableReference(match))
+
+    // If no valid matches found after filtering, return original value
+    if (validBlockMatches.length === 0) {
+      return value
+    }
+
+    // If we're in an API block body, check each valid match to see if it looks like XML rather than a reference
     if (
       currentBlock.metadata?.id === 'api' &&
-      blockMatches.some((match) => {
+      validBlockMatches.some((match) => {
         const innerContent = match.slice(1, -1)
         // Patterns that suggest this is XML, not a block reference:
         return (
@@ -490,7 +498,7 @@ export class InputResolver {
       value.includes('}') &&
       value.includes('`')
 
-    for (const match of blockMatches) {
+    for (const match of validBlockMatches) {
       // Skip variables - they've already been processed
       if (match.startsWith('<variable.')) {
         continue
@@ -812,6 +820,63 @@ export class InputResolver {
     }
 
     return resolvedValue
+  }
+
+  /**
+   * Validates if a match with < and > is actually a variable reference.
+   * Valid variable references must:
+   * - Have no space after the opening <
+   * - Contain a dot (.)
+   * - Have no spaces until the closing >
+   * - Not be comparison operators or HTML tags
+   *
+   * @param match - The matched string including < and >
+   * @returns Whether this is a valid variable reference
+   */
+  private isValidVariableReference(match: string): boolean {
+    const innerContent = match.slice(1, -1)
+
+    if (!innerContent.includes('.')) {
+      return false
+    }
+
+    const dotIndex = innerContent.indexOf('.')
+    const beforeDot = innerContent.substring(0, dotIndex)
+    const afterDot = innerContent.substring(dotIndex + 1)
+
+    if (afterDot.includes(' ')) {
+      return false
+    }
+
+    if (
+      beforeDot.match(/^\s*[<>=!]+\s*$/) ||
+      beforeDot.match(/\s[<>=!]+\s/) ||
+      beforeDot.match(/^[<>=!]+\s/)
+    ) {
+      return false
+    }
+
+    if (innerContent.startsWith(' ')) {
+      return false
+    }
+
+    if (innerContent.match(/^[a-zA-Z][a-zA-Z0-9]*$/) && !innerContent.includes('.')) {
+      return false
+    }
+
+    if (innerContent.match(/^[<>=!]+\s/)) {
+      return false
+    }
+
+    if (beforeDot.match(/[+*/=<>!]/)) {
+      return false
+    }
+
+    if (afterDot.match(/[+\-*/=<>!]/)) {
+      return false
+    }
+
+    return true
   }
 
   /**

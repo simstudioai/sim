@@ -407,7 +407,6 @@ IMPORTANT FORMATTING RULES:
           isConnecting && 'ring-2 ring-blue-500 ring-offset-2',
           !isValidJson && 'border-destructive bg-destructive/10'
         )}
-        title={!isValidJson ? 'Invalid JSON' : undefined}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
