@@ -4,8 +4,8 @@ import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createInternalServerErrorResponse,
-  createUnauthorizedResponse,
   createRequestTracker,
+  createUnauthorizedResponse,
 } from '@/lib/copilot/auth'
 import { env } from '@/lib/env'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       userId: body.userId || userId,
       createdAt: body.createdAt || new Date().toISOString(),
     }
-    delete payload.id
+    payload.id = undefined
 
     const agentRes = await fetch(`${SIM_AGENT_API_URL}/api/stats`, {
       method: 'POST',
@@ -77,4 +77,4 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return createInternalServerErrorResponse('Failed to forward copilot stats')
   }
-} 
+}

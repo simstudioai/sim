@@ -1593,7 +1593,12 @@ export const useCopilotStore = create<CopilotStore>()(
         })
 
         if (result.success && result.stream) {
-          await get().handleStreamingResponse(result.stream, streamingMessage.id, false, userMessage.id)
+          await get().handleStreamingResponse(
+            result.stream,
+            streamingMessage.id,
+            false,
+            userMessage.id
+          )
           set({ chatsLastLoadedAt: null, chatsLoadedForWorkflow: null })
         } else {
           if (result.error === 'Request was aborted') {
@@ -1685,7 +1690,7 @@ export const useCopilotStore = create<CopilotStore>()(
         try {
           const { currentChat: cc, currentUserMessageId, messageMetaById } = get() as any
           if (cc?.id && currentUserMessageId) {
-            const meta = (messageMetaById && messageMetaById[currentUserMessageId]) || null
+            const meta = messageMetaById?.[currentUserMessageId] || null
             const agentDepth = meta?.depth
             const maxEnabled = meta?.maxEnabled
             fetch('/api/copilot/stats', {
@@ -2109,7 +2114,8 @@ export const useCopilotStore = create<CopilotStore>()(
         // Post copilot_stats record (input/output tokens can be null for now)
         try {
           const { messageMetaById } = get() as any
-          const meta = (messageMetaById && (messageMetaById as any)[triggerUserMessageId || '']) || null
+          const meta =
+            (messageMetaById && (messageMetaById as any)[triggerUserMessageId || '']) || null
           const agentDepth = meta?.depth ?? get().agentDepth
           const maxEnabled = meta?.maxEnabled ?? (agentDepth >= 2 && !get().agentPrefetch)
           const { useWorkflowDiffStore } = await import('@/stores/workflow-diff/store')
