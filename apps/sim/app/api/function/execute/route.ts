@@ -585,6 +585,7 @@ export async function POST(req: NextRequest) {
     const useE2B =
       e2bEnabled &&
       !useLocalVM &&
+      !isCustomTool &&
       (lang === CodeLanguage.JavaScript || lang === CodeLanguage.Python)
 
     if (useE2B) {
