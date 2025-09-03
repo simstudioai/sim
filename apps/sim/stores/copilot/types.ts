@@ -112,7 +112,10 @@ export interface CopilotState {
   currentUserMessageId?: string | null
 
   // Per-message metadata captured at send-time for reliable stats
-  messageMetaById?: Record<string, { depth: 0 | 1 | 2 | 3; maxEnabled: boolean }>
+  messageMetaById?: Record<
+    string,
+    { depth: 0 | 1 | 2 | 3; maxEnabled: boolean; startTimeMs?: number; diffCreated?: boolean; diffAccepted?: boolean }
+  >
 }
 
 export interface CopilotActions {

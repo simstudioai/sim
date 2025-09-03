@@ -1542,12 +1542,13 @@ export const useCopilotStore = create<CopilotStore>()(
       // Capture send-time meta for reliable stats
       const sendDepth = get().agentDepth
       const sendMaxEnabled = sendDepth >= 2 && !get().agentPrefetch
+      const sendStartTimeMs = Date.now()
       set((state) => ({
         messages: newMessages,
         currentUserMessageId: userMessage.id,
         messageMetaById: {
           ...(state.messageMetaById || {}),
-          [userMessage.id]: { depth: sendDepth, maxEnabled: sendMaxEnabled },
+          [userMessage.id]: { depth: sendDepth, maxEnabled: sendMaxEnabled, startTimeMs: sendStartTimeMs },
         },
       }))
 
@@ -1690,9 +1691,15 @@ export const useCopilotStore = create<CopilotStore>()(
         try {
           const { currentChat: cc, currentUserMessageId, messageMetaById } = get() as any
           if (cc?.id && currentUserMessageId) {
-            const meta = messageMetaById?.[currentUserMessageId] || null
+            const meta = (messageMetaById && messageMetaById[currentUserMessageId]) || null
             const agentDepth = meta?.depth
             const maxEnabled = meta?.maxEnabled
+            const startMs = meta?.startTimeMs
+            const duration = typeof startMs === 'number' ? Math.max(0, Date.now() - startMs) : undefined
+            const { useWorkflowDiffStore } = await import('@/stores/workflow-diff/store')
+            const ds = useWorkflowDiffStore.getState() as any
+            const diffCreated = !!ds?.isShowingDiff || !!meta?.diffCreated
+            const diffAccepted = !!meta?.diffAccepted
             fetch('/api/copilot/stats', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1701,6 +1708,9 @@ export const useCopilotStore = create<CopilotStore>()(
                 messageId: currentUserMessageId,
                 ...(typeof agentDepth === 'number' ? { depth: agentDepth } : {}),
                 ...(typeof maxEnabled === 'boolean' ? { maxEnabled } : {}),
+                ...(typeof duration === 'number' ? { duration } : {}),
+                ...(diffCreated ? { diffCreated: true } : {}),
+                ...(typeof diffAccepted === 'boolean' ? { diffAccepted } : {}),
                 aborted: true,
               }),
             }).catch(() => {})
@@ -2149,8 +2159,6 @@ export const useCopilotStore = create<CopilotStore>()(
                 diffCreated,
                 diffAccepted,
                 duration: duration ?? null,
-                inputTokens: null,
-                outputTokens: null,
               }),
             }).catch(() => {})
           }
