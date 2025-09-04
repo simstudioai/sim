@@ -103,7 +103,7 @@ export const useSubBlockStore = create<SubBlockStore>()(
       const values: Record<string, Record<string, any>> = {}
       Object.entries(blocks).forEach(([blockId, block]) => {
         values[blockId] = {}
-        Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
+        Object.entries(block.subBlocks || {}).forEach(([subBlockId, subBlock]) => {
           values[blockId][subBlockId] = (subBlock as SubBlockConfig).value
         })
       })

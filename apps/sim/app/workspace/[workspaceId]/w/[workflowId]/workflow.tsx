@@ -887,14 +887,10 @@ const WorkflowContent = React.memo(() => {
     // 2. The workflow exists in the registry
     // 3. Workflows are not currently loading
     if (hasActiveWorkflow && hasWorkflowInRegistry && isNotLoading) {
-      // Add a small delay to ensure blocks state has settled
-      const timeoutId = setTimeout(() => {
-        setIsWorkflowReady(true)
-      }, 100)
-
-      return () => clearTimeout(timeoutId)
+      setIsWorkflowReady(true)
+    } else {
+      setIsWorkflowReady(false)
     }
-    setIsWorkflowReady(false)
   }, [activeWorkflowId, params.workflowId, workflows, isLoading])
 
   // Init workflow

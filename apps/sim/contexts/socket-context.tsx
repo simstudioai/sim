@@ -376,38 +376,24 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
                         )
                       })
 
-                      // Merge workflow store with server state (do not drop optimistic local state)
-                      const existing = useWorkflowStore.getState()
-                      const mergedBlocks = {
-                        ...(existing.blocks || {}),
-                        ...(workflowState.blocks || {}),
-                      }
-                      const edgeById = new Map<string, any>()
-                      ;(existing.edges || []).forEach((e: any) => edgeById.set(e.id, e))
-                      ;(workflowState.edges || []).forEach((e: any) => edgeById.set(e.id, e))
-                      const mergedEdges = Array.from(edgeById.values())
+                      // Replace local workflow store with authoritative server state
                       useWorkflowStore.setState({
-                        blocks: mergedBlocks,
-                        edges: mergedEdges,
-                        loops: workflowState.loops || existing.loops || {},
-                        parallels: workflowState.parallels || existing.parallels || {},
-                        lastSaved: workflowState.lastSaved || existing.lastSaved || Date.now(),
-                        isDeployed: workflowState.isDeployed ?? existing.isDeployed ?? false,
-                        deployedAt: workflowState.deployedAt || existing.deployedAt,
-                        deploymentStatuses:
-                          workflowState.deploymentStatuses || existing.deploymentStatuses || {},
-                        hasActiveWebhook:
-                          workflowState.hasActiveWebhook ?? existing.hasActiveWebhook ?? false,
+                        blocks: workflowState.blocks || {},
+                        edges: workflowState.edges || [],
+                        loops: workflowState.loops || {},
+                        parallels: workflowState.parallels || {},
+                        lastSaved: workflowState.lastSaved || Date.now(),
+                        isDeployed: workflowState.isDeployed ?? false,
+                        deployedAt: workflowState.deployedAt,
+                        deploymentStatuses: workflowState.deploymentStatuses || {},
+                        hasActiveWebhook: workflowState.hasActiveWebhook ?? false,
                       })
 
-                      // Merge subblock store values per workflow
+                      // Replace subblock store values for this workflow
                       useSubBlockStore.setState((state: any) => ({
                         workflowValues: {
                           ...state.workflowValues,
-                          [data.workflowId]: {
-                            ...(state.workflowValues?.[data.workflowId] || {}),
-                            ...subblockValues,
-                          },
+                          [data.workflowId]: subblockValues,
                         },
                       }))
 
@@ -518,36 +504,24 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
                     })
                   })
 
-                  const existing = useWorkflowStore.getState()
-                  const mergedBlocks = {
-                    ...(existing.blocks || {}),
-                    ...(workflowState.blocks || {}),
-                  }
-                  const edgeById = new Map<string, any>()
-                  ;(existing.edges || []).forEach((e: any) => edgeById.set(e.id, e))
-                  ;(workflowState.edges || []).forEach((e: any) => edgeById.set(e.id, e))
-                  const mergedEdges = Array.from(edgeById.values())
+                  // Replace local workflow store with authoritative server state
                   useWorkflowStore.setState({
-                    blocks: mergedBlocks,
-                    edges: mergedEdges,
-                    loops: workflowState.loops || existing.loops || {},
-                    parallels: workflowState.parallels || existing.parallels || {},
-                    lastSaved: workflowState.lastSaved || existing.lastSaved || Date.now(),
-                    isDeployed: workflowState.isDeployed ?? existing.isDeployed ?? false,
-                    deployedAt: workflowState.deployedAt || existing.deployedAt,
-                    deploymentStatuses:
-                      workflowState.deploymentStatuses || existing.deploymentStatuses || {},
-                    hasActiveWebhook:
-                      workflowState.hasActiveWebhook ?? existing.hasActiveWebhook ?? false,
+                    blocks: workflowState.blocks || {},
+                    edges: workflowState.edges || [],
+                    loops: workflowState.loops || {},
+                    parallels: workflowState.parallels || {},
+                    lastSaved: workflowState.lastSaved || Date.now(),
+                    isDeployed: workflowState.isDeployed ?? false,
+                    deployedAt: workflowState.deployedAt,
+                    deploymentStatuses: workflowState.deploymentStatuses || {},
+                    hasActiveWebhook: workflowState.hasActiveWebhook ?? false,
                   })
 
+                  // Replace subblock store values for this workflow
                   useSubBlockStore.setState((state: any) => ({
                     workflowValues: {
                       ...state.workflowValues,
-                      [workflowData.id]: {
-                        ...(state.workflowValues?.[workflowData.id] || {}),
-                        ...subblockValues,
-                      },
+                      [workflowData.id]: subblockValues,
                     },
                   }))
 
