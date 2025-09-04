@@ -444,7 +444,8 @@ export function calculateCost(
   promptTokens = 0,
   completionTokens = 0,
   useCachedInput = false,
-  customMultiplier?: number
+  inputMultiplier?: number,
+  outputMultiplier?: number
 ) {
   // First check if it's an embedding model
   let pricing = getEmbeddingModelPricing(model)
@@ -479,13 +480,18 @@ export function calculateCost(
       : pricing.input / 1_000_000)
 
   const outputCost = completionTokens * (pricing.output / 1_000_000)
-  const totalCost = inputCost + outputCost
 
-  const costMultiplier = customMultiplier ?? getCostMultiplier()
+  logger.info('Input multiplier', { inputMultiplier })
+  logger.info('Output multiplier', { outputMultiplier })
 
-  const finalInputCost = inputCost * costMultiplier
-  const finalOutputCost = outputCost * costMultiplier
-  const finalTotalCost = totalCost * costMultiplier
+  const finalInputCost = inputCost * (inputMultiplier ?? 1)
+  const finalOutputCost = outputCost * (outputMultiplier ?? 1)
+  const finalTotalCost = finalInputCost + finalOutputCost
+
+  logger.info('Final input cost', { finalInputCost })
+  logger.info('Final output cost', { finalOutputCost })
+  logger.info('Final total cost', { finalTotalCost })
+  
 
   return {
     input: Number.parseFloat(finalInputCost.toFixed(8)), // Use 8 decimal places for small costs
