@@ -887,6 +887,7 @@ const WorkflowContent = React.memo(() => {
     // 1. We have an active workflow that matches the URL
     // 2. The workflow exists in the registry
     // 3. Workflows are not currently loading
+    // 4. Either subblock values exist OR we've initialized them
     if (hasActiveWorkflow && hasWorkflowInRegistry && isNotLoading) {
       // Ensure subblock values are initialized before marking as ready
       // This is a safety check in case setActiveWorkflow didn't fully initialize
@@ -896,7 +897,7 @@ const WorkflowContent = React.memo(() => {
       const hasAnyValues = currentValues && Object.keys(currentValues).length > 0
       const hasBlocks = blocksState && Object.keys(blocksState).length > 0
 
-      // If we have blocks but no subblock values, initialize them
+      // If we have blocks but no subblock values, initialize them synchronously
       if (!hasAnyValues && hasBlocks) {
         const values: Record<string, Record<string, any>> = {}
         Object.entries(blocksState).forEach(([blockId, block]: any) => {
@@ -913,15 +914,10 @@ const WorkflowContent = React.memo(() => {
           },
         }))
       }
-
-      // Add a small delay to ensure all state updates have propagated
-      const timeoutId = setTimeout(() => {
-        setIsWorkflowReady(true)
-      }, 100)
-
-      return () => clearTimeout(timeoutId)
+      setIsWorkflowReady(true)
+    } else {
+      setIsWorkflowReady(false)
     }
-    setIsWorkflowReady(false)
   }, [activeWorkflowId, params.workflowId, workflows, isLoading])
 
   // Init workflow
