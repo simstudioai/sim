@@ -135,6 +135,15 @@ export async function executeTool(
       if (!tool) {
         logger.error(`[${requestId}] Custom tool not found: ${toolId}`)
       }
+    } else if (toolId.startsWith('mcp-')) {
+      // Handle MCP tools via server-side proxy
+      return await executeUncheckedMcpTool(
+        toolId,
+        params,
+        executionContext,
+        requestId,
+        startTimeISO
+      )
     } else {
       // For built-in tools, use the synchronous version
       tool = getTool(toolId)
@@ -700,6 +709,158 @@ async function handleProxyRequest(
       success: false,
       output: {},
       error: error.message || 'Proxy request failed',
+    }
+  }
+}
+
+/**
+ * Execute an MCP tool via the server-side proxy
+ *
+ * @param toolId - MCP tool ID in format "mcp-serverId-toolName"
+ * @param params - Tool parameters
+ * @param executionContext - Execution context
+ * @param requestId - Request ID for logging
+ * @param startTimeISO - Start time for timing
+ */
+async function executeUncheckedMcpTool(
+  toolId: string,
+  params: Record<string, any>,
+  executionContext?: ExecutionContext,
+  requestId?: string,
+  startTimeISO?: string
+): Promise<ToolResponse> {
+  const actualRequestId = requestId || crypto.randomUUID().slice(0, 8)
+  const actualStartTime = startTimeISO || new Date().toISOString()
+
+  try {
+    logger.info(`[${actualRequestId}] Executing MCP tool: ${toolId}`)
+
+    // Parse MCP tool ID to extract server ID and tool name
+    // Format: "mcp-timestamp-toolName" where serverId is "mcp-timestamp"
+    const parts = toolId.split('-')
+    if (parts.length < 3 || parts[0] !== 'mcp') {
+      throw new Error(`Invalid MCP tool ID format: ${toolId}. Expected: mcp-timestamp-toolName`)
+    }
+
+    // Server ID is "mcp-timestamp" (first two parts)
+    const serverId = `${parts[0]}-${parts[1]}`
+    const toolName = parts.slice(2).join('-') // Handle tool names with dashes
+
+    logger.info(`[${actualRequestId}] Parsed MCP tool: server=${serverId}, tool=${toolName}`)
+
+    // Get base URL for API calls
+    const baseUrl = getBaseUrl()
+
+    // Prepare headers for internal API call
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+
+    // Add internal authorization if running on server
+    if (typeof window === 'undefined') {
+      try {
+        const internalToken = await generateInternalToken()
+        headers.Authorization = `Bearer ${internalToken}`
+      } catch (error) {
+        logger.error(`[${actualRequestId}] Failed to generate internal token:`, error)
+        // Still continue with the request, but it will likely fail auth
+      }
+    }
+
+    // Execute MCP tool via API
+    const requestBody = {
+      serverId,
+      toolName,
+      arguments: params,
+      workflowId: params._context?.workflowId || executionContext?.workflowId, // Pass workflow context for user resolution
+    }
+
+    logger.info(`[${actualRequestId}] Making MCP tool request`, {
+      hasAuthHeader: !!headers.Authorization,
+      serverId,
+      toolName,
+      hasWorkflowId: !!requestBody.workflowId,
+      workflowId: requestBody.workflowId,
+    })
+
+    const response = await fetch(`${baseUrl}/api/mcp/tools/execute`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(requestBody),
+    })
+
+    const endTime = new Date()
+    const endTimeISO = endTime.toISOString()
+    const duration = endTime.getTime() - new Date(actualStartTime).getTime()
+
+    if (!response.ok) {
+      let errorMessage = `MCP tool execution failed: ${response.status} ${response.statusText}`
+
+      try {
+        const errorData = await response.json()
+        if (errorData.error) {
+          errorMessage = errorData.error
+        }
+      } catch {
+        // Failed to parse error response, use default message
+      }
+
+      return {
+        success: false,
+        output: {},
+        error: errorMessage,
+        timing: {
+          startTime: actualStartTime,
+          endTime: endTimeISO,
+          duration,
+        },
+      }
+    }
+
+    const result = await response.json()
+
+    if (!result.success) {
+      return {
+        success: false,
+        output: {},
+        error: result.error || 'MCP tool execution failed',
+        timing: {
+          startTime: actualStartTime,
+          endTime: endTimeISO,
+          duration,
+        },
+      }
+    }
+
+    logger.info(`[${actualRequestId}] MCP tool ${toolId} executed successfully`)
+
+    // Return result in standard ToolResponse format
+    return {
+      success: true,
+      output: result.data.output || {},
+      timing: {
+        startTime: actualStartTime,
+        endTime: endTimeISO,
+        duration,
+      },
+    }
+  } catch (error) {
+    const endTime = new Date()
+    const endTimeISO = endTime.toISOString()
+    const duration = endTime.getTime() - new Date(actualStartTime).getTime()
+
+    logger.error(`[${actualRequestId}] Error executing MCP tool ${toolId}:`, error)
+
+    const errorMessage =
+      error instanceof Error ? error.message : `Failed to execute MCP tool ${toolId}`
+
+    return {
+      success: false,
+      output: {},
+      error: errorMessage,
+      timing: {
+        startTime: actualStartTime,
+        endTime: endTimeISO,
+        duration,
+      },
     }
   }
 }

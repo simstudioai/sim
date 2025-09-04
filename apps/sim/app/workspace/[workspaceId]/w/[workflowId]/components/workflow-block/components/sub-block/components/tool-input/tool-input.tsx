@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
+import { PlusIcon, Server, WrenchIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -33,10 +33,12 @@ import {
   type CustomTool,
   CustomToolModal,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
+import { McpServerModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/mcp-server-modal/mcp-server-modal'
 import { ToolCommand } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/tool-command/tool-command'
 import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/tool-credential-selector'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { getAllBlocks } from '@/blocks'
+import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -381,6 +383,7 @@ export function ToolInput({
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
+  const [mcpServerModalOpen, setMcpServerModalOpen] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -388,6 +391,9 @@ export function ToolInput({
   const isWide = useWorkflowStore((state) => state.blocks[blockId]?.isWide)
   const customTools = useCustomToolsStore((state) => state.getAllTools())
   const subBlockStore = useSubBlockStore()
+
+  // MCP tools integration
+  const { mcpTools, isLoading: mcpLoading, error: mcpError, refreshTools } = useMcpTools()
 
   // Get the current model from the 'model' subblock
   const modelValue = useSubBlockStore.getState().getValue(blockId, 'model')
@@ -1173,6 +1179,23 @@ export function ToolInput({
                     <span>Create Tool</span>
                   </ToolCommand.Item>
 
+                  <ToolCommand.Item
+                    value='Add MCP Server'
+                    onSelect={() => {
+                      if (!isPreview) {
+                        setMcpServerModalOpen(true)
+                        setOpen(false)
+                      }
+                    }}
+                    className='mb-1 flex cursor-pointer items-center gap-2'
+                    disabled={isPreview}
+                  >
+                    <div className='flex h-6 w-6 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
+                      <Server className='h-4 w-4 text-muted-foreground' />
+                    </div>
+                    <span>Add MCP Server</span>
+                  </ToolCommand.Item>
+
                   {/* Display saved custom tools at the top */}
                   {customTools.length > 0 && (
                     <>
@@ -1231,6 +1254,81 @@ export function ToolInput({
                     </>
                   )}
 
+                  {/* Display MCP tools */}
+                  {mcpTools.length > 0 &&
+                    mcpTools.some((tool) => customFilter(tool.name, searchQuery || '') > 0) && (
+                      <>
+                        <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
+                          MCP Tools
+                        </div>
+                        <ToolCommand.Group className='-mx-1 -px-1'>
+                          {mcpTools
+                            .filter((tool) => customFilter(tool.name, searchQuery || '') > 0)
+                            .map((mcpTool) => (
+                              <ToolCommand.Item
+                                key={mcpTool.id}
+                                value={mcpTool.name}
+                                onSelect={() => {
+                                  if (isPreview || disabled) return
+
+                                  const newTool: StoredTool = {
+                                    type: 'mcp',
+                                    title: mcpTool.name,
+                                    toolId: mcpTool.id,
+                                    params: {
+                                      serverId: mcpTool.serverId,
+                                      toolName: mcpTool.name,
+                                      serverName: mcpTool.serverName,
+                                    },
+                                    isExpanded: true,
+                                    usageControl: 'auto',
+                                  }
+
+                                  if (isWide) {
+                                    setStoreValue([
+                                      ...selectedTools.map((tool, index) => ({
+                                        ...tool,
+                                        isExpanded:
+                                          Math.floor(selectedTools.length / 2) ===
+                                          Math.floor(index / 2),
+                                      })),
+                                      newTool,
+                                    ])
+                                  } else {
+                                    setStoreValue([
+                                      ...selectedTools.map((tool) => ({
+                                        ...tool,
+                                        isExpanded: false,
+                                      })),
+                                      newTool,
+                                    ])
+                                  }
+                                  setOpen(false)
+                                }}
+                                className='flex cursor-pointer items-center gap-2'
+                              >
+                                <div
+                                  className='flex h-6 w-6 items-center justify-center rounded'
+                                  style={{ backgroundColor: mcpTool.bgColor }}
+                                >
+                                  <IconComponent
+                                    icon={mcpTool.icon}
+                                    className='h-4 w-4 text-white'
+                                  />
+                                </div>
+                                <span
+                                  className='max-w-[140px] truncate'
+                                  title={`${mcpTool.name} (${mcpTool.serverName})`}
+                                >
+                                  {mcpTool.name}
+                                </span>
+                              </ToolCommand.Item>
+                            ))}
+                        </ToolCommand.Group>
+                        <ToolCommand.Separator />
+                      </>
+                    )}
+
                   {/* Display built-in tools */}
                   {toolBlocks.some((block) => customFilter(block.name, searchQuery || '') > 0) && (
                     <>
@@ -1265,21 +1363,23 @@ export function ToolInput({
       ) : (
         <div className='flex min-h-[2.5rem] w-full flex-wrap gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background'>
           {selectedTools.map((tool, toolIndex) => {
-            // Handle custom tools differently
+            // Handle custom tools and MCP tools differently
             const isCustomTool = tool.type === 'custom-tool'
-            const toolBlock = !isCustomTool
-              ? toolBlocks.find((block) => block.type === tool.type)
-              : null
+            const isMcpTool = tool.type === 'mcp'
+            const toolBlock =
+              !isCustomTool && !isMcpTool
+                ? toolBlocks.find((block) => block.type === tool.type)
+                : null
 
             // Get the current tool ID (may change based on operation)
-            const currentToolId = !isCustomTool
-              ? getToolIdForOperation(tool.type, tool.operation) || tool.toolId
-              : tool.toolId
+            const currentToolId =
+              !isCustomTool && !isMcpTool
+                ? getToolIdForOperation(tool.type, tool.operation) || tool.toolId
+                : tool.toolId
 
             // Get tool parameters using the new utility with block type for UI components
-            const toolParams = !isCustomTool
-              ? getToolParametersConfig(currentToolId, tool.type)
-              : null
+            const toolParams =
+              !isCustomTool && !isMcpTool ? getToolParametersConfig(currentToolId, tool.type) : null
 
             // For custom tools, extract parameters from schema
             const customToolParams =
@@ -1296,14 +1396,33 @@ export function ToolInput({
                   )
                 : []
 
+            // For MCP tools, extract parameters from input schema
+            const mcpTool = isMcpTool ? mcpTools.find((t) => t.id === tool.toolId) : null
+            const mcpToolParams =
+              isMcpTool && mcpTool?.inputSchema?.properties
+                ? Object.entries(mcpTool.inputSchema.properties || {}).map(
+                    ([paramId, param]: [string, any]) => ({
+                      id: paramId,
+                      type: param.type || 'string',
+                      description: param.description || '',
+                      visibility: (mcpTool.inputSchema.required?.includes(paramId)
+                        ? 'user-or-llm'
+                        : 'user-only') as 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden',
+                    })
+                  )
+                : []
+
             // Get all parameters to display
             const displayParams = isCustomTool
               ? customToolParams
-              : toolParams?.userInputParameters || []
+              : isMcpTool
+                ? mcpToolParams
+                : toolParams?.userInputParameters || []
 
             // Check if tool requires OAuth
-            const requiresOAuth = !isCustomTool && toolRequiresOAuth(currentToolId)
-            const oauthConfig = !isCustomTool ? getToolOAuthConfig(currentToolId) : null
+            const requiresOAuth = !isCustomTool && !isMcpTool && toolRequiresOAuth(currentToolId)
+            const oauthConfig =
+              !isCustomTool && !isMcpTool ? getToolOAuthConfig(currentToolId) : null
 
             // Tools are always expandable so users can access the interface
             const isExpandedForDisplay = isPreview
@@ -1359,11 +1478,15 @@ export function ToolInput({
                         style={{
                           backgroundColor: isCustomTool
                             ? '#3B82F6' // blue-500 for custom tools
-                            : toolBlock?.bgColor,
+                            : isMcpTool
+                              ? mcpTool?.bgColor || '#6366F1' // Indigo for MCP tools
+                              : toolBlock?.bgColor,
                         }}
                       >
                         {isCustomTool ? (
                           <WrenchIcon className='h-3 w-3 text-white' />
+                        ) : isMcpTool ? (
+                          <IconComponent icon={Server} className='h-3 w-3 text-white' />
                         ) : (
                           <IconComponent icon={toolBlock?.icon} className='h-3 w-3 text-white' />
                         )}
@@ -1680,6 +1803,20 @@ export function ToolInput({
                       <span>Create Tool</span>
                     </ToolCommand.Item>
 
+                    <ToolCommand.Item
+                      value='Add MCP Server'
+                      onSelect={() => {
+                        setOpen(false)
+                        setMcpServerModalOpen(true)
+                      }}
+                      className='mb-1 flex cursor-pointer items-center gap-2'
+                    >
+                      <div className='flex h-6 w-6 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
+                        <Server className='h-4 w-4 text-muted-foreground' />
+                      </div>
+                      <span>Add MCP Server</span>
+                    </ToolCommand.Item>
+
                     {/* Display saved custom tools at the top */}
                     {customTools.length > 0 && (
                       <>
@@ -1737,6 +1874,79 @@ export function ToolInput({
                         <ToolCommand.Separator />
                       </>
                     )}
+
+                    {/* Display MCP tools */}
+                    {mcpTools.length > 0 &&
+                      mcpTools.some((tool) => customFilter(tool.name, searchQuery || '') > 0) && (
+                        <>
+                          <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
+                            MCP Tools
+                          </div>
+                          <ToolCommand.Group className='-mx-1 -px-1'>
+                            {mcpTools
+                              .filter((tool) => customFilter(tool.name, searchQuery || '') > 0)
+                              .map((mcpTool) => (
+                                <ToolCommand.Item
+                                  key={mcpTool.id}
+                                  value={mcpTool.name}
+                                  onSelect={() => {
+                                    const newTool: StoredTool = {
+                                      type: 'mcp',
+                                      title: mcpTool.name,
+                                      toolId: mcpTool.id,
+                                      params: {
+                                        serverId: mcpTool.serverId,
+                                        toolName: mcpTool.name,
+                                        serverName: mcpTool.serverName,
+                                      },
+                                      isExpanded: true,
+                                      usageControl: 'auto',
+                                    }
+
+                                    if (isWide) {
+                                      setStoreValue([
+                                        ...selectedTools.map((tool, index) => ({
+                                          ...tool,
+                                          isExpanded:
+                                            Math.floor(selectedTools.length / 2) ===
+                                            Math.floor(index / 2),
+                                        })),
+                                        newTool,
+                                      ])
+                                    } else {
+                                      setStoreValue([
+                                        ...selectedTools.map((tool) => ({
+                                          ...tool,
+                                          isExpanded: false,
+                                        })),
+                                        newTool,
+                                      ])
+                                    }
+                                    setOpen(false)
+                                  }}
+                                  className='flex cursor-pointer items-center gap-2'
+                                >
+                                  <div
+                                    className='flex h-6 w-6 items-center justify-center rounded'
+                                    style={{ backgroundColor: mcpTool.bgColor }}
+                                  >
+                                    <IconComponent
+                                      icon={mcpTool.icon}
+                                      className='h-4 w-4 text-white'
+                                    />
+                                  </div>
+                                  <span
+                                    className='max-w-[140px] truncate'
+                                    title={`${mcpTool.name} (${mcpTool.serverName})`}
+                                  >
+                                    {mcpTool.name}
+                                  </span>
+                                </ToolCommand.Item>
+                              ))}
+                          </ToolCommand.Group>
+                          <ToolCommand.Separator />
+                        </>
+                      )}
 
                     {/* Display built-in tools */}
                     {toolBlocks.some(
@@ -1797,6 +2007,16 @@ export function ToolInput({
               }
             : undefined
         }
+      />
+
+      {/* MCP Server Modal */}
+      <McpServerModal
+        open={mcpServerModalOpen}
+        onOpenChange={setMcpServerModalOpen}
+        onServerCreated={() => {
+          // Refresh MCP tools when a new server is created
+          refreshTools(true)
+        }}
       />
     </div>
   )

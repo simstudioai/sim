@@ -1291,3 +1291,50 @@ export const copilotFeedback = pgTable(
     createdAtIdx: index('copilot_feedback_created_at_idx').on(table.createdAt),
   })
 )
+
+export const mcpServers = pgTable(
+  'mcp_servers',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+
+    name: text('name').notNull(),
+    description: text('description'),
+
+    transport: text('transport').notNull(),
+    url: text('url'),
+    command: text('command'),
+    args: json('args'),
+    env: json('env'),
+
+    headers: json('headers').default('{}'),
+    timeout: integer('timeout').default(30000),
+    retries: integer('retries').default(3),
+
+    enabled: boolean('enabled').notNull().default(true),
+    lastConnected: timestamp('last_connected'),
+    connectionStatus: text('connection_status').default('disconnected'),
+    lastError: text('last_error'),
+
+    toolCount: integer('tool_count').default(0),
+    lastToolsRefresh: timestamp('last_tools_refresh'),
+    totalRequests: integer('total_requests').default(0),
+    lastUsed: timestamp('last_used'),
+
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+
+    deletedAt: timestamp('deleted_at'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('mcp_servers_user_id_idx').on(table.userId),
+    userWorkspaceIdx: index('mcp_servers_user_workspace_idx').on(table.userId, table.workspaceId),
+    userEnabledIdx: index('mcp_servers_user_enabled_idx').on(table.userId, table.enabled),
+    connectionStatusIdx: index('mcp_servers_connection_status_idx').on(table.connectionStatus),
+    deletedAtIdx: index('mcp_servers_deleted_at_idx').on(table.deletedAt),
+  })
+)

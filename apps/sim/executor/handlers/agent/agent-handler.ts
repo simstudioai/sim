@@ -163,6 +163,9 @@ export class AgentBlockHandler implements BlockHandler {
           if (tool.type === 'custom-tool' && tool.schema) {
             return await this.createCustomTool(tool, context)
           }
+          if (tool.type === 'mcp') {
+            return await this.createMcpTool(tool, context)
+          }
           return this.transformBlockTool(tool, context)
         })
     )
@@ -228,6 +231,132 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     return base
+  }
+
+  private async createMcpTool(tool: ToolInput, context: ExecutionContext): Promise<any> {
+    // Extract MCP tool information from the tool input
+    const { serverId, toolName, params } = tool.params || {}
+
+    if (!serverId || !toolName) {
+      logger.error('MCP tool missing required parameters:', { serverId, toolName })
+      return null
+    }
+
+    // Fetch tool schema from MCP server via API
+    try {
+      // Prepare headers with internal authentication
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+
+      // Add internal authorization for server-side calls
+      if (typeof window === 'undefined') {
+        try {
+          const { generateInternalToken } = await import('@/lib/auth/internal')
+          const internalToken = await generateInternalToken()
+          headers.Authorization = `Bearer ${internalToken}`
+        } catch (error) {
+          logger.error(`Failed to generate internal token for MCP tool discovery:`, error)
+          // Still continue with the request, but it will likely fail auth
+        }
+      }
+
+      // Add workflowId to the URL for user context resolution (like execute endpoint)
+      const url = new URL(`${process.env.NEXT_PUBLIC_APP_URL}/api/mcp/tools/discover`)
+      url.searchParams.set('serverId', serverId)
+      if (context.workflowId) {
+        url.searchParams.set('workflowId', context.workflowId)
+      }
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers,
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to discover tools from server ${serverId}`)
+      }
+
+      const data = await response.json()
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to discover MCP tools')
+      }
+
+      const mcpTool = data.data.tools.find((t: any) => t.name === toolName)
+      if (!mcpTool) {
+        throw new Error(`MCP tool ${toolName} not found on server ${serverId}`)
+      }
+
+      // Transform MCP tool schema to agent-compatible format
+      // Don't double-prefix if serverId already starts with 'mcp-'
+      const toolId = serverId.startsWith('mcp-')
+        ? `${serverId}-${toolName}`
+        : `mcp-${serverId}-${toolName}`
+
+      return {
+        id: toolId,
+        name: toolName,
+        description: mcpTool.description || `MCP tool ${toolName} from ${mcpTool.serverName}`,
+        parameters: mcpTool.inputSchema || { type: 'object', properties: {} },
+        usageControl: tool.usageControl || 'auto',
+        executeFunction: async (callParams: Record<string, any>) => {
+          logger.info(`Executing MCP tool ${toolName} on server ${serverId}`)
+
+          // Prepare headers with internal authentication
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+
+          // Add internal authorization for server-side calls
+          if (typeof window === 'undefined') {
+            try {
+              const { generateInternalToken } = await import('@/lib/auth/internal')
+              const internalToken = await generateInternalToken()
+              headers.Authorization = `Bearer ${internalToken}`
+            } catch (error) {
+              logger.error(`Failed to generate internal token for MCP tool ${toolName}:`, error)
+              // Still continue with the request, but it will likely fail auth
+            }
+          }
+
+          // Call MCP tool execution API
+          const execResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_APP_URL}/api/mcp/tools/execute`,
+            {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                serverId,
+                toolName,
+                arguments: { ...params, ...callParams },
+                workflowId: context.workflowId, // Pass workflow context for user resolution
+              }),
+            }
+          )
+
+          if (!execResponse.ok) {
+            throw new Error(
+              `MCP tool execution failed: ${execResponse.status} ${execResponse.statusText}`
+            )
+          }
+
+          const result = await execResponse.json()
+          if (!result.success) {
+            throw new Error(result.error || 'MCP tool execution failed')
+          }
+
+          // Transform MCP result to standard tool output format
+          return {
+            success: true,
+            output: result.data.output || {},
+            metadata: {
+              source: 'mcp',
+              serverId,
+              serverName: mcpTool.serverName,
+              toolName,
+            },
+          }
+        },
+      }
+    } catch (error) {
+      logger.error(`Failed to create MCP tool ${toolName} from server ${serverId}:`, error)
+      return null
+    }
   }
 
   private async transformBlockTool(tool: ToolInput, context: ExecutionContext) {
@@ -431,7 +560,7 @@ export class AgentBlockHandler implements BlockHandler {
   private logRequestDetails(
     providerRequest: any,
     messages: Message[] | undefined,
-    streamingConfig: StreamingConfig
+    _streamingConfig: StreamingConfig
   ) {
     logger.info('Provider request prepared', {
       model: providerRequest.model,

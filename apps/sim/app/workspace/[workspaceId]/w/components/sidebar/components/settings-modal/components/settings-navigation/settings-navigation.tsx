@@ -8,6 +8,7 @@ import {
   User,
   Users,
   Waypoints,
+  Zap,
 } from 'lucide-react'
 import { getEnv, isTruthy } from '@/lib/env'
 import { isHosted } from '@/lib/environment'
@@ -28,6 +29,7 @@ interface SettingsNavigationProps {
       | 'team'
       | 'privacy'
       | 'copilot'
+      | 'mcp'
   ) => void
   hasOrganization: boolean
 }
@@ -43,6 +45,7 @@ type NavigationItem = {
     | 'team'
     | 'copilot'
     | 'privacy'
+    | 'mcp'
   label: string
   icon: React.ComponentType<{ className?: string }>
   hideWhenBillingDisabled?: boolean
@@ -59,6 +62,11 @@ const allNavigationItems: NavigationItem[] = [
     id: 'credentials',
     label: 'Integrations',
     icon: Waypoints,
+  },
+  {
+    id: 'mcp',
+    label: 'MCP Servers',
+    icon: Zap,
   },
   {
     id: 'environment',
