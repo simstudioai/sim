@@ -124,27 +124,6 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
         }
       }
 
-      // Initialize subblock values
-      const subblockValues: Record<string, Record<string, any>> = {}
-      if (state?.blocks) {
-        Object.entries(state.blocks).forEach(([blockId, block]) => {
-          const blockState = block as BlockState
-          subblockValues[blockId] = {}
-
-          Object.entries(blockState.subBlocks || {}).forEach(([subblockId, subblock]) => {
-            subblockValues[blockId][subblockId] = subblock.value
-          })
-        })
-      }
-
-      // Update subblock store
-      useSubBlockStore.setState((state) => ({
-        workflowValues: {
-          ...state.workflowValues,
-          [id]: subblockValues,
-        },
-      }))
-
       if (variables && typeof variables === 'object') {
         useVariablesStore.setState((state) => {
           const withoutWorkflow = Object.fromEntries(
