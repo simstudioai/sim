@@ -1,41 +1,43 @@
-import postgres from 'postgres'
+import { Client } from 'pg'
 import type { PostgresConnectionConfig } from '@/tools/postgresql/types'
 
-export function createPostgresConnection(config: PostgresConnectionConfig) {
-  const sslConfig =
-    config.ssl === 'disabled'
-      ? false
-      : config.ssl === 'required'
-        ? 'require'
-        : config.ssl === 'preferred'
-          ? 'prefer'
-          : 'require'
-
-  const sql = postgres({
+export async function createPostgresConnection(config: PostgresConnectionConfig): Promise<Client> {
+  const client = new Client({
     host: config.host,
     port: config.port,
     database: config.database,
-    username: config.username,
+    user: config.username,
     password: config.password,
-    ssl: sslConfig,
-    connect_timeout: 10, // 10 seconds
-    idle_timeout: 20, // 20 seconds
-    max_lifetime: 60 * 30, // 30 minutes
-    max: 1, // Single connection for tool usage
+    ssl:
+      config.ssl === 'disabled'
+        ? false
+        : config.ssl === 'required'
+          ? true
+          : config.ssl === 'preferred'
+            ? { rejectUnauthorized: false }
+            : false,
+    connectionTimeoutMillis: 10000, // 10 seconds
+    query_timeout: 30000, // 30 seconds
   })
 
-  return sql
+  try {
+    await client.connect()
+    return client
+  } catch (error) {
+    await client.end()
+    throw error
+  }
 }
 
 export async function executeQuery(
-  sql: any,
+  client: Client,
   query: string,
   params: unknown[] = []
 ): Promise<{ rows: unknown[]; rowCount: number }> {
-  const result = await sql.unsafe(query, params)
+  const result = await client.query(query, params)
   return {
-    rows: Array.isArray(result) ? result : [result],
-    rowCount: Array.isArray(result) ? result.length : result ? 1 : 0,
+    rows: result.rows || [],
+    rowCount: result.rowCount || 0,
   }
 }
 
@@ -82,6 +84,7 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
     }
   }
 
+  // Only allow specific statement types for execute endpoint
   const allowedStatements = /^(select|insert|update|delete|with|explain|analyze|show)\s+/i
   if (!allowedStatements.test(trimmedQuery)) {
     return {
@@ -95,6 +98,7 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
 }
 
 export function sanitizeIdentifier(identifier: string): string {
+  // Handle schema.table format
   if (identifier.includes('.')) {
     const parts = identifier.split('.')
     return parts.map((part) => sanitizeSingleIdentifier(part)).join('.')
@@ -103,41 +107,28 @@ export function sanitizeIdentifier(identifier: string): string {
   return sanitizeSingleIdentifier(identifier)
 }
 
-function validateWhereClause(where: string): void {
-  const dangerousPatterns = [
-    /;\s*(drop|delete|insert|update|create|alter|grant|revoke)/i,
-    /union\s+select/i,
-    /into\s+outfile/i,
-    /load_file/i,
-    /--/,
-    /\/\*/,
-    /\*\//,
-  ]
-
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(where)) {
-      throw new Error('WHERE clause contains potentially dangerous operation')
-    }
-  }
-}
-
 function sanitizeSingleIdentifier(identifier: string): string {
+  // Remove any existing double quotes to prevent double-escaping
   const cleaned = identifier.replace(/"/g, '')
 
+  // Validate identifier contains only safe characters
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(cleaned)) {
     throw new Error(
       `Invalid identifier: ${identifier}. Identifiers must start with a letter or underscore and contain only letters, numbers, and underscores.`
     )
   }
 
+  // Wrap in double quotes for PostgreSQL
   return `"${cleaned}"`
 }
 
-export async function executeInsert(
-  sql: any,
+export function buildInsertQuery(
   table: string,
   data: Record<string, unknown>
-): Promise<{ rows: unknown[]; rowCount: number }> {
+): {
+  query: string
+  values: unknown[]
+} {
   const sanitizedTable = sanitizeIdentifier(table)
   const columns = Object.keys(data)
   const sanitizedColumns = columns.map((col) => sanitizeIdentifier(col))
@@ -145,22 +136,18 @@ export async function executeInsert(
   const values = columns.map((col) => data[col])
 
   const query = `INSERT INTO ${sanitizedTable} (${sanitizedColumns.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`
-  const result = await sql.unsafe(query, values)
 
-  return {
-    rows: Array.isArray(result) ? result : [result],
-    rowCount: Array.isArray(result) ? result.length : result ? 1 : 0,
-  }
+  return { query, values }
 }
 
-export async function executeUpdate(
-  sql: any,
+export function buildUpdateQuery(
   table: string,
   data: Record<string, unknown>,
   where: string
-): Promise<{ rows: unknown[]; rowCount: number }> {
-  validateWhereClause(where)
-
+): {
+  query: string
+  values: unknown[]
+} {
   const sanitizedTable = sanitizeIdentifier(table)
   const columns = Object.keys(data)
   const sanitizedColumns = columns.map((col) => sanitizeIdentifier(col))
@@ -168,27 +155,19 @@ export async function executeUpdate(
   const values = columns.map((col) => data[col])
 
   const query = `UPDATE ${sanitizedTable} SET ${setClause} WHERE ${where} RETURNING *`
-  const result = await sql.unsafe(query, values)
 
-  return {
-    rows: Array.isArray(result) ? result : [result],
-    rowCount: Array.isArray(result) ? result.length : result ? 1 : 0,
-  }
+  return { query, values }
 }
 
-export async function executeDelete(
-  sql: any,
+export function buildDeleteQuery(
   table: string,
   where: string
-): Promise<{ rows: unknown[]; rowCount: number }> {
-  validateWhereClause(where)
-
+): {
+  query: string
+  values: unknown[]
+} {
   const sanitizedTable = sanitizeIdentifier(table)
   const query = `DELETE FROM ${sanitizedTable} WHERE ${where} RETURNING *`
-  const result = await sql.unsafe(query, [])
 
-  return {
-    rows: Array.isArray(result) ? result : [result],
-    rowCount: Array.isArray(result) ? result.length : result ? 1 : 0,
-  }
+  return { query, values: [] }
 }

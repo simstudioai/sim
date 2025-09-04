@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
@@ -19,8 +18,6 @@ import { Chat } from './components/chat/chat'
 import { Console } from './components/console/console'
 import { Copilot } from './components/copilot/copilot'
 import { Variables } from './components/variables/variables'
-
-const logger = createLogger('Panel')
 
 export function Panel() {
   const [chatMessage, setChatMessage] = useState<string>('')
@@ -70,7 +67,7 @@ export function Panel() {
       try {
         await deleteChat(chatId)
       } catch (error) {
-        logger.error('Error deleting chat:', error)
+        console.error('Error deleting chat:', error)
       }
     },
     [deleteChat]
@@ -104,7 +101,7 @@ export function Panel() {
           lastLoadedWorkflowRef.current = activeWorkflowId
         }
       } catch (error) {
-        logger.error('Failed to load copilot data:', error)
+        console.error('Failed to load copilot data:', error)
       }
     },
     [
@@ -120,10 +117,8 @@ export function Panel() {
 
   // Handle new chat creation with data loading
   const handleNewChat = useCallback(async () => {
-    // Instantly clear to a fresh chat locally
+    await ensureCopilotDataLoaded()
     copilotRef.current?.createNewChat()
-    // Ensure copilot data is loaded in the background (do not await)
-    ensureCopilotDataLoaded().catch(() => {})
   }, [ensureCopilotDataLoaded])
 
   // Handle history dropdown opening - use smart caching instead of force refresh
@@ -139,14 +134,14 @@ export function Panel() {
         if (!areChatsFresh(activeWorkflowId)) {
           // Don't await - let it load in background while dropdown is already open
           ensureCopilotDataLoaded(false).catch((error) => {
-            logger.error('Failed to load chat history:', error)
+            console.error('Failed to load chat history:', error)
           })
         }
       }
 
       // If streaming, just log that we're showing cached data
       if (open && isSendingMessage) {
-        logger.info('Chat history opened during stream - showing cached data only')
+        console.log('Chat history opened during stream - showing cached data only')
       }
     },
     [ensureCopilotDataLoaded, activeWorkflowId, areChatsFresh, isSendingMessage]
@@ -283,7 +278,7 @@ export function Panel() {
       // This is a real workflow change, not just a tab switch
       if (copilotWorkflowId !== activeWorkflowId || !copilotWorkflowId) {
         ensureCopilotDataLoaded().catch((error) => {
-          logger.error('Failed to auto-load copilot data on workflow change:', error)
+          console.error('Failed to auto-load copilot data on workflow change:', error)
         })
       }
     }
@@ -392,19 +387,15 @@ export function Panel() {
                     open={isHistoryDropdownOpen}
                     onOpenChange={handleHistoryDropdownOpen}
                   >
-                    <Tooltip>
-                      <DropdownMenuTrigger asChild>
-                        <TooltipTrigger asChild>
-                          <button
-                            className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
-                            style={{ color: 'var(--base-muted-foreground)' }}
-                          >
-                            <History className='h-4 w-4' strokeWidth={2} />
-                          </button>
-                        </TooltipTrigger>
-                      </DropdownMenuTrigger>
-                      <TooltipContent side='bottom'>Chat history</TooltipContent>
-                    </Tooltip>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
+                        style={{ color: 'var(--base-muted-foreground)' }}
+                        title='Chat history'
+                      >
+                        <History className='h-4 w-4' strokeWidth={2} />
+                      </button>
+                    </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align='end'
                       className='z-[200] w-48 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
@@ -487,18 +478,13 @@ export function Panel() {
                   <TooltipContent side='bottom'>Clear {activeTab}</TooltipContent>
                 </Tooltip>
               )}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleClosePanel}
-                    className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
-                    style={{ color: 'var(--base-muted-foreground)' }}
-                  >
-                    <X className='h-4 w-4' strokeWidth={2} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side='bottom'>Close panel</TooltipContent>
-              </Tooltip>
+              <button
+                onClick={handleClosePanel}
+                className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
+                style={{ color: 'var(--base-muted-foreground)' }}
+              >
+                <X className='h-4 w-4' strokeWidth={2} />
+              </button>
             </div>
           </div>
 

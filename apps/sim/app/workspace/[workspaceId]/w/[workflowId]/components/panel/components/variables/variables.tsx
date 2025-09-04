@@ -16,18 +16,16 @@ import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 
 import Editor from 'react-simple-code-editor'
+import { Button } from '@/components/ui/button'
 import {
-  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Input,
-  ScrollArea,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui'
+} from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { validateName } from '@/lib/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -38,8 +36,15 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 const logger = createLogger('Variables')
 
 export function Variables() {
-  const { activeWorkflowId } = useWorkflowRegistry()
-  const { getVariablesByWorkflowId } = useVariablesStore()
+  const { activeWorkflowId, workflows } = useWorkflowRegistry()
+  const {
+    variables: storeVariables,
+    addVariable,
+    updateVariable,
+    deleteVariable,
+    duplicateVariable,
+    getVariablesByWorkflowId,
+  } = useVariablesStore()
   const {
     collaborativeUpdateVariable,
     collaborativeAddVariable,

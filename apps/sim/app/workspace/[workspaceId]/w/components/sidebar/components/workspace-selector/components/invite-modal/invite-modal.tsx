@@ -416,7 +416,6 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     workspacePermissions,
     permissionsLoading,
     updatePermissions,
-    refetchPermissions,
     userPermissions: userPerms,
   } = useWorkspacePermissionsContext()
 
@@ -456,9 +455,8 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
   useEffect(() => {
     if (open && workspaceId) {
       fetchPendingInvitations()
-      refetchPermissions()
     }
-  }, [open, workspaceId, fetchPendingInvitations, refetchPermissions])
+  }, [open, workspaceId, fetchPendingInvitations])
 
   // Clear errors when modal opens
   useEffect(() => {

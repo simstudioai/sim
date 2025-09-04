@@ -5,7 +5,7 @@ interface ToolServer {
   name: string;
   command: string;
   args: string[];
-  url: string;
+  url?: string;
 }
 
 interface ToolServersConfig {
@@ -16,7 +16,7 @@ interface McpoServerConfig {
   [key: string]: {
     command: string;
     args: string[];
-    url: string;
+    url?: string;
   };
 }
 

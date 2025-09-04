@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronsUpDown, Wand2 } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import { useReactFlow } from 'reactflow'
 import { Button } from '@/components/ui/button'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
@@ -14,7 +13,6 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useTagSelection } from '@/hooks/use-tag-selection'
-import { useOperationQueueStore } from '@/stores/operation-queue/store'
 
 const logger = createLogger('LongInput')
 
@@ -50,8 +48,6 @@ export function LongInput({
   onChange,
   disabled,
 }: LongInputProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
   // Local state for immediate UI updates during streaming
   const [localContent, setLocalContent] = useState<string>('')
 
@@ -77,6 +73,7 @@ export function LongInput({
 
   // State management - useSubBlockValue with explicit streaming control
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
+    debounceMs: 150,
     isStreaming: wandHook?.isStreaming || false, // Use wand streaming state
     onStreamingEnd: () => {
       logger.debug('Wand streaming ended, value persisted', { blockId, subBlockId })
@@ -382,11 +379,6 @@ export function LongInput({
           onScroll={handleScroll}
           onWheel={handleWheel}
           onKeyDown={handleKeyDown}
-          onBlur={() => {
-            try {
-              useOperationQueueStore.getState().flushDebouncedForBlock(blockId)
-            } catch {}
-          }}
           onFocus={() => {
             setShowEnvVars(false)
             setShowTags(false)
@@ -460,7 +452,6 @@ export function LongInput({
               searchTerm={searchTerm}
               inputValue={value?.toString() ?? ''}
               cursorPosition={cursorPosition}
-              workspaceId={workspaceId}
               onClose={() => {
                 setShowEnvVars(false)
                 setSearchTerm('')

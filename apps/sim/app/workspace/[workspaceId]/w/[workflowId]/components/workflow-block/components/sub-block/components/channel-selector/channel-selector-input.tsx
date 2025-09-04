@@ -1,14 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   type SlackChannelInfo,
   SlackChannelSelector,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/channel-selector/components/slack-channel-selector'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-depends-on-gate'
-import { useForeignCredential } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-foreign-credential'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 
@@ -17,6 +15,7 @@ interface ChannelSelectorInputProps {
   subBlock: SubBlockConfig
   disabled?: boolean
   onChannelSelect?: (channelId: string) => void
+  credential?: string
   isPreview?: boolean
   previewValue?: any | null
 }
@@ -26,11 +25,10 @@ export function ChannelSelectorInput({
   subBlock,
   disabled = false,
   onChannelSelect,
+  credential: providedCredential,
   isPreview = false,
   previewValue,
 }: ChannelSelectorInputProps) {
-  const params = useParams()
-  const workflowIdFromUrl = (params?.workflowId as string) || ''
   // Use the proper hook to get the current value and setter (same as file-selector)
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
   // Reactive upstream fields
@@ -44,22 +42,20 @@ export function ChannelSelectorInput({
   const provider = subBlock.provider || 'slack'
   const isSlack = provider === 'slack'
   // Central dependsOn gating
-  const { finalDisabled, dependsOn, dependencyValues } = useDependsOnGate(blockId, subBlock, {
-    disabled,
-    isPreview,
-  })
+  const { finalDisabled } = useDependsOnGate(blockId, subBlock, { disabled, isPreview })
 
-  // Choose credential strictly based on auth method
-  const credential: string =
-    (authMethod as string) === 'bot_token'
-      ? (botToken as string) || ''
-      : (connectedCredential as string) || ''
+  // Get the credential for the provider - use provided credential or fall back to reactive values
+  let credential: string
+  if (providedCredential) {
+    credential = providedCredential
+  } else if ((authMethod as string) === 'bot_token' && (botToken as string)) {
+    credential = botToken as string
+  } else {
+    credential = (connectedCredential as string) || ''
+  }
 
-  // Determine if connected OAuth credential is foreign (not applicable for bot tokens)
-  const { isForeignCredential } = useForeignCredential(
-    'slack',
-    (authMethod as string) === 'bot_token' ? '' : (connectedCredential as string) || ''
-  )
+  // Use preview value when in preview mode, otherwise use store value
+  const value = isPreview ? previewValue : storeValue
 
   // Get the current value from the store or prop value if in preview mode (same pattern as file-selector)
   useEffect(() => {
@@ -68,21 +64,6 @@ export function ChannelSelectorInput({
       setSelectedChannelId(val)
     }
   }, [isPreview, previewValue, storeValue])
-
-  // Clear channel when any declared dependency changes (e.g., authMethod/credential)
-  const prevDepsSigRef = useRef<string>('')
-  useEffect(() => {
-    if (dependsOn.length === 0) return
-    const currentSig = JSON.stringify(dependencyValues)
-    if (prevDepsSigRef.current && prevDepsSigRef.current !== currentSig) {
-      if (!isPreview) {
-        setSelectedChannelId('')
-        setChannelInfo(null)
-        setStoreValue('')
-      }
-    }
-    prevDepsSigRef.current = currentSig
-  }, [dependsOn, dependencyValues, isPreview, setStoreValue])
 
   // Handle channel selection (same pattern as file-selector)
   const handleChannelChange = (channelId: string, info?: SlackChannelInfo) => {
@@ -109,8 +90,6 @@ export function ChannelSelectorInput({
                 credential={credential}
                 label={subBlock.placeholder || 'Select Slack channel'}
                 disabled={finalDisabled}
-                workflowId={workflowIdFromUrl}
-                isForeignCredential={isForeignCredential}
               />
             </div>
           </TooltipTrigger>

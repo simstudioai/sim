@@ -27,10 +27,10 @@ export class SetEnvironmentVariablesClientTool extends BaseClientTool {
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
       [ClientToolCallState.generating]: {
-        text: 'Preparing to set environment variables',
+        text: 'Setting environment variables',
         icon: Loader2,
       },
-      [ClientToolCallState.pending]: { text: 'Set environment variables?', icon: Settings2 },
+      [ClientToolCallState.pending]: { text: 'Setting environment variables', icon: Loader2 },
       [ClientToolCallState.executing]: { text: 'Setting environment variables', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Set environment variables', icon: Settings2 },
       [ClientToolCallState.error]: { text: 'Failed to set environment variables', icon: X },

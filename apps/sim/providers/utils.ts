@@ -26,11 +26,10 @@ import {
 } from '@/providers/models'
 import { ollamaProvider } from '@/providers/ollama'
 import { openaiProvider } from '@/providers/openai'
-import { openRouterProvider } from '@/providers/openrouter'
 import type { ProviderConfig, ProviderId, ProviderToolConfig } from '@/providers/types'
 import { xAIProvider } from '@/providers/xai'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { useProvidersStore } from '@/stores/providers/store'
+import { useOllamaStore } from '@/stores/ollama/store'
 
 const logger = createLogger('ProviderUtils')
 
@@ -89,11 +88,6 @@ export const providers: Record<
     models: getProviderModelsFromDefinitions('azure-openai'),
     modelPatterns: PROVIDER_DEFINITIONS['azure-openai'].modelPatterns,
   },
-  openrouter: {
-    ...openRouterProvider,
-    models: getProviderModelsFromDefinitions('openrouter'),
-    modelPatterns: PROVIDER_DEFINITIONS.openrouter.modelPatterns,
-  },
   ollama: {
     ...ollamaProvider,
     models: getProviderModelsFromDefinitions('ollama'),
@@ -101,6 +95,7 @@ export const providers: Record<
   },
 }
 
+// Initialize all providers that have initialize method
 Object.entries(providers).forEach(([id, provider]) => {
   if (provider.initialize) {
     provider.initialize().catch((error) => {
@@ -111,15 +106,10 @@ Object.entries(providers).forEach(([id, provider]) => {
   }
 })
 
+// Function to update Ollama provider models
 export function updateOllamaProviderModels(models: string[]): void {
   updateOllamaModelsInDefinitions(models)
   providers.ollama.models = getProviderModelsFromDefinitions('ollama')
-}
-
-export async function updateOpenRouterProviderModels(models: string[]): Promise<void> {
-  const { updateOpenRouterModels } = await import('@/providers/models')
-  updateOpenRouterModels(models)
-  providers.openrouter.models = getProviderModelsFromDefinitions('openrouter')
 }
 
 export function getBaseModelProviders(): Record<string, ProviderId> {
@@ -548,26 +538,6 @@ export function getHostedModels(): string[] {
 }
 
 /**
- * Determine if model usage should be billed to the user
- *
- * @param model The model name
- * @param userProvidedApiKey Whether the user provided their own API key
- * @returns true if the usage should be billed to the user
- */
-export function shouldBillModelUsage(model: string, userProvidedApiKey?: string): boolean {
-  const hostedModels = getHostedModels()
-  if (!hostedModels.includes(model)) {
-    return false
-  }
-
-  if (userProvidedApiKey && userProvidedApiKey.trim() !== '') {
-    return false
-  }
-
-  return true
-}
-
-/**
  * Get an API key for a specific provider, handling rotation and fallbacks
  * For use server-side only
  */
@@ -576,8 +546,7 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   const hasUserKey = !!userProvidedKey
 
   // Ollama models don't require API keys - they run locally
-  const isOllamaModel =
-    provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)
+  const isOllamaModel = provider === 'ollama' || useOllamaStore.getState().models.includes(model)
   if (isOllamaModel) {
     return 'empty' // Ollama uses 'empty' as a placeholder API key
   }

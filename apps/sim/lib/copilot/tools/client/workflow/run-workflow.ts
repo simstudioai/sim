@@ -24,7 +24,7 @@ export class RunWorkflowClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Preparing to run your workflow', icon: Loader2 },
+      [ClientToolCallState.generating]: { text: 'Preparing to run your workflow', icon: Play },
       [ClientToolCallState.pending]: { text: 'Run this workflow?', icon: Play },
       [ClientToolCallState.executing]: { text: 'Running your workflow', icon: Loader2 },
       [ClientToolCallState.success]: { text: 'Workflow executed', icon: Play },
@@ -99,44 +99,13 @@ export class RunWorkflowClientTool extends BaseClientTool {
       })
 
       setIsExecuting(false)
+      logger.debug('Set isExecuting(false) and switching state to success')
+      this.setState(ClientToolCallState.success)
 
-      // Determine success for both non-streaming and streaming executions
-      let succeeded = true
-      let errorMessage: string | undefined
-      try {
-        if (result && typeof result === 'object' && 'success' in (result as any)) {
-          succeeded = Boolean((result as any).success)
-          if (!succeeded) {
-            errorMessage = (result as any)?.error || (result as any)?.output?.error
-          }
-        } else if (
-          result &&
-          typeof result === 'object' &&
-          'execution' in (result as any) &&
-          (result as any).execution &&
-          typeof (result as any).execution === 'object'
-        ) {
-          succeeded = Boolean((result as any).execution.success)
-          if (!succeeded) {
-            errorMessage =
-              (result as any).execution?.error || (result as any).execution?.output?.error
-          }
-        }
-      } catch {}
-
-      if (succeeded) {
-        logger.debug('Workflow execution finished with success')
-        this.setState(ClientToolCallState.success)
-        await this.markToolComplete(
-          200,
-          `Workflow execution completed. Started at: ${executionStartTime}`
-        )
-      } else {
-        const msg = errorMessage || 'Workflow execution failed'
-        logger.error('Workflow execution finished with failure', { message: msg })
-        this.setState(ClientToolCallState.error)
-        await this.markToolComplete(500, msg)
-      }
+      await this.markToolComplete(
+        200,
+        `Workflow execution completed. Started at: ${executionStartTime}`
+      )
     } catch (error: any) {
       const message = error instanceof Error ? error.message : String(error)
       const failedDependency = typeof message === 'string' && /dependency/i.test(message)

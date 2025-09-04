@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import { useReactFlow } from 'reactflow'
 import { Button } from '@/components/ui/button'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
@@ -29,7 +28,6 @@ interface ComboBoxProps {
   placeholder?: string
   isConnecting: boolean
   config: SubBlockConfig
-  isWide?: boolean
 }
 
 export function ComboBox({
@@ -44,10 +42,7 @@ export function ComboBox({
   placeholder = 'Type or select an option...',
   isConnecting,
   config,
-  isWide = false,
 }: ComboBoxProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
   const [storeInitialized, setStoreInitialized] = useState(false)
   const [open, setOpen] = useState(false)
@@ -451,12 +446,7 @@ export function ComboBox({
 
       {/* Dropdown */}
       {open && (
-        <div
-          className={cn(
-            'absolute top-full left-0 z-[100] mt-1 w-full overflow-visible',
-            isWide ? 'min-w-[350px]' : 'min-w-[286px]'
-          )}
-        >
+        <div className='absolute top-full left-0 z-[100] mt-1 w-full min-w-[286px]'>
           <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
             <div
               ref={dropdownRef}
@@ -511,7 +501,6 @@ export function ComboBox({
         searchTerm={searchTerm}
         inputValue={displayValue}
         cursorPosition={cursorPosition}
-        workspaceId={workspaceId}
         onClose={() => {
           setShowEnvVars(false)
           setSearchTerm('')

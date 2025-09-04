@@ -18,7 +18,7 @@ const logger = createLogger('CreateMenu')
 
 const TIMERS = {
   LONG_PRESS_DELAY: 500,
-  CLOSE_DELAY: 300,
+  CLOSE_DELAY: 150,
 } as const
 
 interface CreateMenuProps {

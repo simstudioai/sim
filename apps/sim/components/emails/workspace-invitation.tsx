@@ -13,12 +13,9 @@ import {
 } from '@react-email/components'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getAssetUrl } from '@/lib/utils'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
-
-const logger = createLogger('WorkspaceInvitationEmail')
 
 interface WorkspaceInvitationEmailProps {
   workspaceName?: string
@@ -39,11 +36,8 @@ export const WorkspaceInvitationEmail = ({
   let enhancedLink = invitationLink
 
   try {
-    // If the link is pointing to any API endpoint directly, update it to use the client route
-    if (
-      invitationLink.includes('/api/workspaces/invitations/accept') ||
-      invitationLink.match(/\/api\/workspaces\/invitations\/[^?]+\?token=/)
-    ) {
+    // If the link is pointing to the API endpoint directly, update it to use the client route
+    if (invitationLink.includes('/api/workspaces/invitations/accept')) {
       const url = new URL(invitationLink)
       const token = url.searchParams.get('token')
       if (token) {
@@ -51,7 +45,7 @@ export const WorkspaceInvitationEmail = ({
       }
     }
   } catch (e) {
-    logger.error('Error enhancing invitation link:', e)
+    console.error('Error enhancing invitation link:', e)
   }
 
   return (

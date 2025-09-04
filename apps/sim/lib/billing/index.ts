@@ -5,7 +5,8 @@
 
 export * from '@/lib/billing/calculations/usage-monitor'
 export * from '@/lib/billing/core/billing'
-export * from '@/lib/billing/core/organization'
+export * from '@/lib/billing/core/billing-periods'
+export * from '@/lib/billing/core/organization-billing'
 export * from '@/lib/billing/core/subscription'
 export {
   getHighestPrioritySubscription as getActiveSubscription,
@@ -23,6 +24,10 @@ export {
   updateUserUsageLimit as updateUsageLimit,
 } from '@/lib/billing/core/usage'
 export * from '@/lib/billing/subscriptions/utils'
-export { canEditUsageLimit as canEditLimit } from '@/lib/billing/subscriptions/utils'
+export {
+  calculateDefaultUsageLimit as getDefaultLimit,
+  canEditUsageLimit as canEditLimit,
+  getMinimumUsageLimit as getMinimumLimit,
+} from '@/lib/billing/subscriptions/utils'
 export * from '@/lib/billing/types'
 export * from '@/lib/billing/validation/seat-management'

@@ -49,12 +49,15 @@ const PASSWORD_VALIDATIONS = {
   },
 }
 
+// Validate callback URL to prevent open redirect vulnerabilities
 const validateCallbackUrl = (url: string): boolean => {
   try {
+    // If it's a relative URL, it's safe
     if (url.startsWith('/')) {
       return true
     }
 
+    // If absolute URL, check if it belongs to the same origin
     const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
     if (url.startsWith(currentOrigin)) {
       return true
@@ -67,6 +70,7 @@ const validateCallbackUrl = (url: string): boolean => {
   }
 }
 
+// Validate password and return array of error messages
 const validatePassword = (passwordValue: string): string[] => {
   const errors: string[] = []
 
@@ -304,15 +308,6 @@ export default function LoginPage({
       return
     }
 
-    const emailValidation = quickValidateEmail(forgotPasswordEmail.trim().toLowerCase())
-    if (!emailValidation.isValid) {
-      setResetStatus({
-        type: 'error',
-        message: 'Please enter a valid email address',
-      })
-      return
-    }
-
     try {
       setIsSubmittingReset(true)
       setResetStatus({ type: null, message: '' })
@@ -330,23 +325,7 @@ export default function LoginPage({
 
       if (!response.ok) {
         const errorData = await response.json()
-        let errorMessage = errorData.message || 'Failed to request password reset'
-
-        if (
-          errorMessage.includes('Invalid body parameters') ||
-          errorMessage.includes('invalid email')
-        ) {
-          errorMessage = 'Please enter a valid email address'
-        } else if (errorMessage.includes('Email is required')) {
-          errorMessage = 'Please enter your email address'
-        } else if (
-          errorMessage.includes('user not found') ||
-          errorMessage.includes('User not found')
-        ) {
-          errorMessage = 'No account found with this email address'
-        }
-
-        throw new Error(errorMessage)
+        throw new Error(errorData.message || 'Failed to request password reset')
       }
 
       setResetStatus({
@@ -496,23 +475,6 @@ export default function LoginPage({
             Sign up
           </Link>
         </div>
-
-        <div className='text-center text-neutral-500/80 text-xs leading-relaxed'>
-          By signing in, you agree to our{' '}
-          <Link
-            href='/terms'
-            className='text-neutral-400 underline-offset-4 transition hover:text-neutral-300 hover:underline'
-          >
-            Terms of Service
-          </Link>{' '}
-          and{' '}
-          <Link
-            href='/privacy'
-            className='text-neutral-400 underline-offset-4 transition hover:text-neutral-300 hover:underline'
-          >
-            Privacy Policy
-          </Link>
-        </div>
       </div>
 
       <Dialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
@@ -522,8 +484,7 @@ export default function LoginPage({
               Reset Password
             </DialogTitle>
             <DialogDescription className='text-neutral-300 text-sm'>
-              Enter your email address and we'll send you a link to reset your password if your
-              account exists.
+              Enter your email address and we'll send you a link to reset your password.
             </DialogDescription>
           </DialogHeader>
           <div className='space-y-4'>
@@ -538,20 +499,16 @@ export default function LoginPage({
                 placeholder='Enter your email'
                 required
                 type='email'
-                className={cn(
-                  'border-neutral-700/80 bg-neutral-900 text-white placeholder:text-white/60 focus:border-[var(--brand-primary-hover-hex)]/70 focus:ring-[var(--brand-primary-hover-hex)]/20',
-                  resetStatus.type === 'error' && 'border-red-500 focus-visible:ring-red-500'
-                )}
+                className='border-neutral-700/80 bg-neutral-900 text-white placeholder:text-white/60 focus:border-[var(--brand-primary-hover-hex)]/70 focus:ring-[var(--brand-primary-hover-hex)]/20'
               />
-              {resetStatus.type === 'error' && (
-                <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                  <p>{resetStatus.message}</p>
-                </div>
-              )}
             </div>
-            {resetStatus.type === 'success' && (
-              <div className='mt-1 space-y-1 text-[#4CAF50] text-xs'>
-                <p>{resetStatus.message}</p>
+            {resetStatus.type && (
+              <div
+                className={`text-sm ${
+                  resetStatus.type === 'success' ? 'text-[#4CAF50]' : 'text-red-500'
+                }`}
+              >
+                {resetStatus.message}
               </div>
             )}
             <Button

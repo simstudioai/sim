@@ -149,15 +149,9 @@ export function TriggerConfigSection({
                 </Button>
               </PopoverTrigger>
               <PopoverContent className='w-[400px] p-0' align='start'>
-                <Command className='outline-none focus:outline-none'>
-                  <CommandInput
-                    placeholder={`Search ${fieldDef.label.toLowerCase()}...`}
-                    className='text-foreground placeholder:text-muted-foreground'
-                  />
-                  <CommandList
-                    className='max-h-[200px] overflow-y-auto outline-none focus:outline-none'
-                    onWheel={(e) => e.stopPropagation()}
-                  >
+                <Command>
+                  <CommandInput placeholder={`Search ${fieldDef.label.toLowerCase()}...`} />
+                  <CommandList className='max-h-[200px] overflow-y-auto'>
                     <CommandEmpty>
                       {availableOptions.length === 0
                         ? 'No options available. Please select credentials first.'

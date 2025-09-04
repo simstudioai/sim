@@ -2,7 +2,6 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { client } from '@/lib/auth-client'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
-import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import type {
   OrganizationStore,
@@ -17,8 +16,6 @@ import {
 } from '@/stores/organization/utils'
 
 const logger = createLogger('OrganizationStore')
-
-const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 const CACHE_DURATION = 30 * 1000
 
@@ -52,20 +49,6 @@ export const useOrganizationStore = create<OrganizationStore>()(
       hasEnterprisePlan: false,
 
       loadData: async () => {
-        if (!isBillingEnabled) {
-          logger.debug('Billing disabled, skipping organization data loading')
-          set({
-            organizations: [],
-            activeOrganization: null,
-            hasTeamPlan: false,
-            hasEnterprisePlan: false,
-            isLoading: false,
-            error: null,
-            lastFetched: Date.now(),
-          })
-          return
-        }
-
         const state = get()
 
         if (state.lastFetched && Date.now() - state.lastFetched < CACHE_DURATION) {
@@ -184,6 +167,44 @@ export const useOrganizationStore = create<OrganizationStore>()(
               lastSubscriptionFetched: Date.now(),
             })
           } else {
+            // Check billing endpoint for enterprise subscriptions
+            const { hasEnterprisePlan } = get()
+            if (hasEnterprisePlan) {
+              try {
+                const billingResponse = await fetch('/api/billing?context=user')
+                if (billingResponse.ok) {
+                  const billingData = await billingResponse.json()
+                  if (
+                    billingData.success &&
+                    billingData.data.isEnterprise &&
+                    billingData.data.status
+                  ) {
+                    const enterpriseSubscription = {
+                      id: `subscription_${Date.now()}`,
+                      plan: billingData.data.plan,
+                      status: billingData.data.status,
+                      seats: billingData.data.seats,
+                      referenceId: billingData.data.organizationId || 'unknown',
+                    }
+                    logger.info('Found enterprise subscription from billing data', {
+                      plan: enterpriseSubscription.plan,
+                      seats: enterpriseSubscription.seats,
+                    })
+                    set({
+                      subscriptionData: enterpriseSubscription,
+                      isLoadingSubscription: false,
+                      lastSubscriptionFetched: Date.now(),
+                    })
+                    return
+                  }
+                }
+              } catch (err) {
+                logger.error('Error fetching enterprise subscription from billing endpoint', {
+                  error: err,
+                })
+              }
+            }
+
             logger.warn('No active subscription found for organization', { orgId })
             set({
               subscriptionData: null,
@@ -200,14 +221,13 @@ export const useOrganizationStore = create<OrganizationStore>()(
         }
       },
 
-      loadOrganizationBillingData: async (organizationId: string, force?: boolean) => {
+      loadOrganizationBillingData: async (organizationId: string) => {
         const state = get()
 
         if (
           state.organizationBillingData &&
           state.lastOrgBillingFetched &&
-          Date.now() - state.lastOrgBillingFetched < CACHE_DURATION &&
-          !force
+          Date.now() - state.lastOrgBillingFetched < CACHE_DURATION
         ) {
           logger.debug('Using cached organization billing data')
           return
@@ -304,25 +324,12 @@ export const useOrganizationStore = create<OrganizationStore>()(
       },
 
       refreshOrganization: async () => {
-        if (!isBillingEnabled) {
-          logger.debug('Billing disabled, skipping organization refresh')
-          return
-        }
-
         const { activeOrganization } = get()
         if (!activeOrganization?.id) return
 
         try {
           const fullOrgResponse = await client.organization.getFullOrganization()
           const updatedOrg = fullOrgResponse.data
-
-          logger.info('Refreshed organization data', {
-            orgId: updatedOrg?.id,
-            members: updatedOrg?.members?.length ?? 0,
-            invitations: updatedOrg?.invitations?.length ?? 0,
-            pendingInvitations:
-              updatedOrg?.invitations?.filter((inv: any) => inv.status === 'pending').length ?? 0,
-          })
 
           set({ activeOrganization: updatedOrg })
 
@@ -340,15 +347,6 @@ export const useOrganizationStore = create<OrganizationStore>()(
 
       // Organization management
       createOrganization: async (name: string, slug: string) => {
-        if (!isBillingEnabled) {
-          logger.debug('Billing disabled, skipping organization creation')
-          set({
-            error: 'Organizations are only available when billing is enabled',
-            isCreatingOrg: false,
-          })
-          return
-        }
-
         set({ isCreatingOrg: true, error: null })
 
         try {
@@ -578,22 +576,44 @@ export const useOrganizationStore = create<OrganizationStore>()(
         set({ isLoading: true })
 
         try {
-          const response = await fetch(
-            `/api/organizations/${activeOrganization.id}/invitations?invitationId=${encodeURIComponent(
-              invitationId
-            )}`,
-            { method: 'DELETE' }
-          )
-          if (!response.ok) {
-            const data = await response.json().catch(() => ({}) as any)
-            throw new Error((data as any).error || 'Failed to cancel invitation')
-          }
+          await client.organization.cancelInvitation({ invitationId })
           await get().refreshOrganization()
         } catch (error) {
           logger.error('Failed to cancel invitation', { error })
           set({ error: error instanceof Error ? error.message : 'Failed to cancel invitation' })
         } finally {
           set({ isLoading: false })
+        }
+      },
+
+      updateMemberUsageLimit: async (userId: string, organizationId: string, newLimit: number) => {
+        try {
+          const response = await fetch(
+            `/api/usage-limits?context=member&userId=${userId}&organizationId=${organizationId}`,
+            {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ limit: newLimit }),
+            }
+          )
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.error || 'Failed to update member usage limit')
+          }
+
+          // Refresh organization billing data
+          await get().loadOrganizationBillingData(organizationId)
+
+          logger.debug('Member usage limit updated successfully', { userId, newLimit })
+          return { success: true }
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : 'Failed to update member usage limit'
+          logger.error('Failed to update member usage limit', { error, userId, newLimit })
+          return { success: false, error: errorMessage }
         }
       },
 
@@ -643,7 +663,7 @@ export const useOrganizationStore = create<OrganizationStore>()(
         }
 
         const { used: totalCount } = calculateSeatUsage(activeOrganization)
-        if (totalCount > newSeatCount) {
+        if (totalCount >= newSeatCount) {
           set({
             error: `You have ${totalCount} active members/invitations. Please remove members or cancel invitations before reducing seats.`,
           })

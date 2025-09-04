@@ -4,6 +4,7 @@ import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 
 const logger = createLogger('SimAgentClient')
 
+// Base URL for the sim-agent service
 const SIM_AGENT_BASE_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 export interface SimAgentRequest {
@@ -44,6 +45,7 @@ class SimAgentClient {
     try {
       const url = `${this.baseUrl}${endpoint}`
 
+      // Use provided API key or try to get it from environment
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         ...headers,

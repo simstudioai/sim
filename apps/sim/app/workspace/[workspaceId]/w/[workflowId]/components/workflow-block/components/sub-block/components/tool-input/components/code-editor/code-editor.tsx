@@ -4,7 +4,7 @@ import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-json'
 import 'prismjs/themes/prism.css'
-import { Wand2 } from 'lucide-react'
+
 import Editor from 'react-simple-code-editor'
 import { cn } from '@/lib/utils'
 
@@ -19,9 +19,6 @@ interface CodeEditorProps {
   onKeyDown?: (e: React.KeyboardEvent) => void
   disabled?: boolean
   schemaParameters?: Array<{ name: string; type: string; description: string; required: boolean }>
-  showWandButton?: boolean
-  onWandClick?: () => void
-  wandButtonDisabled?: boolean
 }
 
 export function CodeEditor({
@@ -35,9 +32,6 @@ export function CodeEditor({
   onKeyDown,
   disabled = false,
   schemaParameters = [],
-  showWandButton = false,
-  onWandClick,
-  wandButtonDisabled = false,
 }: CodeEditorProps) {
   const [code, setCode] = useState(value)
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
@@ -212,23 +206,7 @@ export function CodeEditor({
         className
       )}
     >
-      {showWandButton && onWandClick && (
-        <button
-          onClick={onWandClick}
-          disabled={wandButtonDisabled}
-          className={cn(
-            'absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-transparent bg-muted/80 p-0 text-foreground shadow-sm transition-all duration-200',
-            'hover:border-primary/20 hover:bg-muted hover:text-foreground hover:shadow',
-            'opacity-0 transition-opacity group-hover:opacity-100',
-            wandButtonDisabled && 'cursor-not-allowed opacity-50'
-          )}
-          aria-label='Generate with AI'
-        >
-          <Wand2 className='h-4 w-4' />
-        </button>
-      )}
-
-      {!showWandButton && code.split('\n').length > 5 && (
+      {code.split('\n').length > 5 && (
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(

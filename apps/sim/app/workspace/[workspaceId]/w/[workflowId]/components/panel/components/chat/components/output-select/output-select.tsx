@@ -355,7 +355,9 @@ export function OutputSelect({
           </span>
         )}
         <ChevronDown
-          className={`ml-1 h-4 w-4 flex-shrink-0 transition-transform ${isOutputDropdownOpen ? 'rotate-180' : ''}`}
+          className={`ml-1 h-4 w-4 flex-shrink-0 transition-transform ${
+            isOutputDropdownOpen ? 'rotate-180' : ''
+          }`}
         />
       </button>
 

@@ -1,8 +1,11 @@
-import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { createPostgresConnection, executeUpdate } from '@/app/api/tools/postgresql/utils'
+import {
+  buildUpdateQuery,
+  createPostgresConnection,
+  executeQuery,
+} from '@/app/api/tools/postgresql/utils'
 
 const logger = createLogger('PostgreSQLUpdateAPI')
 
@@ -12,7 +15,7 @@ const UpdateSchema = z.object({
   database: z.string().min(1, 'Database name is required'),
   username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required'),
-  ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
+  ssl: z.enum(['disabled', 'required', 'preferred']).default('required'),
   table: z.string().min(1, 'Table name is required'),
   data: z.union([
     z
@@ -37,7 +40,7 @@ const UpdateSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
     const body = await request.json()
@@ -47,7 +50,7 @@ export async function POST(request: NextRequest) {
       `[${requestId}] Updating data in ${params.table} on ${params.host}:${params.port}/${params.database}`
     )
 
-    const sql = createPostgresConnection({
+    const client = await createPostgresConnection({
       host: params.host,
       port: params.port,
       database: params.database,
@@ -57,7 +60,8 @@ export async function POST(request: NextRequest) {
     })
 
     try {
-      const result = await executeUpdate(sql, params.table, params.data, params.where)
+      const { query, values } = buildUpdateQuery(params.table, params.data, params.where)
+      const result = await executeQuery(client, query, values)
 
       logger.info(`[${requestId}] Update executed successfully, ${result.rowCount} row(s) updated`)
 
@@ -67,7 +71,7 @@ export async function POST(request: NextRequest) {
         rowCount: result.rowCount,
       })
     } finally {
-      await sql.end()
+      await client.end()
     }
   } catch (error) {
     if (error instanceof z.ZodError) {

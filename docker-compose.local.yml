@@ -78,7 +78,7 @@ services:
     image: pgvector/pgvector:pg17
     restart: always
     ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+      - '5432:5432'
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -98,6 +98,12 @@ services:
     volumes:
       - ./mcpo-config.json:/app/config/config.json
     command: ['uvx', 'mcpo', '--host', '0.0.0.0', '--port', '8000']
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/openapi.json"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres_data:

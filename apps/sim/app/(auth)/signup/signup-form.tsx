@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { client, useSession } from '@/lib/auth-client'
+import { client } from '@/lib/auth-client'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
@@ -49,6 +49,10 @@ const NAME_VALIDATIONS = {
     regex: /^(?!.*\s\s).*$/,
     message: 'Name cannot contain consecutive spaces.',
   },
+  noLeadingTrailingSpaces: {
+    test: (value: string) => value === value.trim(),
+    message: 'Name cannot start or end with spaces.',
+  },
 }
 
 const validateEmailField = (emailValue: string): string[] => {
@@ -78,7 +82,6 @@ function SignupFormContent({
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { refetch: refetchSession } = useSession()
   const [isLoading, setIsLoading] = useState(false)
   const [, setMounted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -171,6 +174,10 @@ function SignupFormContent({
       errors.push(NAME_VALIDATIONS.noConsecutiveSpaces.message)
     }
 
+    if (!NAME_VALIDATIONS.noLeadingTrailingSpaces.test(nameValue)) {
+      errors.push(NAME_VALIDATIONS.noLeadingTrailingSpaces.message)
+    }
+
     return errors
   }
 
@@ -185,10 +192,11 @@ function SignupFormContent({
   }
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value
-    setName(rawValue)
+    const newName = e.target.value
+    setName(newName)
 
-    const errors = validateName(rawValue)
+    // Silently validate but don't show errors until submit
+    const errors = validateName(newName)
     setNameErrors(errors)
     setShowNameValidationError(false)
   }
@@ -215,21 +223,23 @@ function SignupFormContent({
     const formData = new FormData(e.currentTarget)
     const emailValue = formData.get('email') as string
     const passwordValue = formData.get('password') as string
-    const nameValue = formData.get('name') as string
+    const name = formData.get('name') as string
 
-    const trimmedName = nameValue.trim()
-
-    const nameValidationErrors = validateName(trimmedName)
+    // Validate name on submit
+    const nameValidationErrors = validateName(name)
     setNameErrors(nameValidationErrors)
     setShowNameValidationError(nameValidationErrors.length > 0)
 
+    // Validate email on submit
     const emailValidationErrors = validateEmailField(emailValue)
     setEmailErrors(emailValidationErrors)
     setShowEmailValidationError(emailValidationErrors.length > 0)
 
+    // Validate password on submit
     const errors = validatePassword(passwordValue)
     setPasswordErrors(errors)
 
+    // Only show validation errors if there are any
     setShowValidationError(errors.length > 0)
 
     try {
@@ -238,6 +248,7 @@ function SignupFormContent({
         emailValidationErrors.length > 0 ||
         errors.length > 0
       ) {
+        // Prioritize name errors first, then email errors, then password errors
         if (nameValidationErrors.length > 0) {
           setNameErrors([nameValidationErrors[0]])
           setShowNameValidationError(true)
@@ -254,6 +265,8 @@ function SignupFormContent({
         return
       }
 
+      // Check if name will be truncated and warn user
+      const trimmedName = name.trim()
       if (trimmedName.length > 100) {
         setNameErrors(['Name will be truncated to 100 characters. Please shorten your name.'])
         setShowNameValidationError(true)
@@ -315,14 +328,6 @@ function SignupFormContent({
       if (!response || response.error) {
         setIsLoading(false)
         return
-      }
-
-      // Refresh session to get the new user data immediately after signup
-      try {
-        await refetchSession()
-        logger.info('Session refreshed after successful signup')
-      } catch (sessionError) {
-        logger.error('Failed to refresh session after signup:', sessionError)
       }
 
       // For new signups, always require verification
@@ -500,23 +505,6 @@ function SignupFormContent({
             className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
           >
             Sign in
-          </Link>
-        </div>
-
-        <div className='text-center text-neutral-500/80 text-xs leading-relaxed'>
-          By creating an account, you agree to our{' '}
-          <Link
-            href='/terms'
-            className='text-neutral-400 underline-offset-4 transition hover:text-neutral-300 hover:underline'
-          >
-            Terms of Service
-          </Link>{' '}
-          and{' '}
-          <Link
-            href='/privacy'
-            className='text-neutral-400 underline-offset-4 transition hover:text-neutral-300 hover:underline'
-          >
-            Privacy Policy
           </Link>
         </div>
       </div>

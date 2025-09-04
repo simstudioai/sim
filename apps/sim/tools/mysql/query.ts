@@ -64,7 +64,7 @@ export const queryTool: ToolConfig<MySQLQueryParams, MySQLResponse> = {
       database: params.database,
       username: params.username,
       password: params.password,
-      ssl: params.ssl || 'required',
+      ssl: params.ssl || 'preferred',
       query: params.query,
     }),
   },

@@ -7,11 +7,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { createLogger } from '@/lib/logs/console/logger'
-import { ACCEPT_ATTRIBUTE, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from '@/lib/uploads/validation'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
 const logger = createLogger('UploadModal')
+
+const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
+const ACCEPTED_FILE_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+  'text/csv',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]
 
 interface FileWithPreview extends File {
   preview: string
@@ -64,7 +74,7 @@ export function UploadModal({
       return `File "${file.name}" is too large. Maximum size is 100MB.`
     }
     if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
-      return `File "${file.name}" has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, or HTML files.`
+      return `File "${file.name}" has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, or XLSX files.`
     }
     return null
   }
@@ -156,9 +166,15 @@ export function UploadModal({
     return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
   }
 
+  // Calculate progress percentage
+  const progressPercentage =
+    uploadProgress.totalFiles > 0
+      ? Math.round((uploadProgress.filesCompleted / uploadProgress.totalFiles) * 100)
+      : 0
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className='flex max-h-[95vh] flex-col overflow-hidden sm:max-w-[600px]'>
+      <DialogContent className='flex max-h-[95vh] max-w-2xl flex-col overflow-hidden'>
         <DialogHeader>
           <DialogTitle>Upload Documents</DialogTitle>
         </DialogHeader>
@@ -183,7 +199,7 @@ export function UploadModal({
                 <input
                   ref={fileInputRef}
                   type='file'
-                  accept={ACCEPT_ATTRIBUTE}
+                  accept={ACCEPTED_FILE_TYPES.join(',')}
                   onChange={handleFileChange}
                   className='hidden'
                   multiple
@@ -193,8 +209,7 @@ export function UploadModal({
                     {isDragging ? 'Drop files here!' : 'Drop files here or click to browse'}
                   </p>
                   <p className='text-muted-foreground text-xs'>
-                    Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max 100MB
-                    each)
+                    Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 100MB each)
                   </p>
                 </div>
               </div>
@@ -214,7 +229,7 @@ export function UploadModal({
                   <input
                     ref={fileInputRef}
                     type='file'
-                    accept={ACCEPT_ATTRIBUTE}
+                    accept={ACCEPTED_FILE_TYPES.join(',')}
                     onChange={handleFileChange}
                     className='hidden'
                     multiple
@@ -224,7 +239,7 @@ export function UploadModal({
                   </p>
                 </div>
 
-                <div className='max-h-80 space-y-2 overflow-auto'>
+                <div className='max-h-60 space-y-2 overflow-auto'>
                   {files.map((file, index) => {
                     const fileStatus = uploadProgress.fileStatuses?.[index]
                     const isCurrentlyUploading = fileStatus?.status === 'uploading'
@@ -281,26 +296,23 @@ export function UploadModal({
         </div>
 
         {/* Footer */}
-        <div className='flex justify-between border-t pt-4'>
-          <div className='flex gap-3' />
-          <div className='flex gap-3'>
-            <Button variant='outline' onClick={handleClose} disabled={isUploading}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={files.length === 0 || isUploading}
-              className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
-            >
-              {isUploading
-                ? uploadProgress.stage === 'uploading'
-                  ? `Uploading ${uploadProgress.filesCompleted + 1}/${uploadProgress.totalFiles}...`
-                  : uploadProgress.stage === 'processing'
-                    ? 'Processing...'
-                    : 'Uploading...'
-                : `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`}
-            </Button>
-          </div>
+        <div className='flex justify-end gap-3 border-t pt-4'>
+          <Button variant='outline' onClick={handleClose} disabled={isUploading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleUpload}
+            disabled={files.length === 0 || isUploading}
+            className='bg-[var(--brand-primary-hex)] font-[480] text-primary-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+          >
+            {isUploading
+              ? uploadProgress.stage === 'uploading'
+                ? `Uploading ${uploadProgress.filesCompleted + 1}/${uploadProgress.totalFiles}...`
+                : uploadProgress.stage === 'processing'
+                  ? 'Processing...'
+                  : 'Uploading...'
+              : `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

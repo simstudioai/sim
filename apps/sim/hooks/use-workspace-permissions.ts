@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { permissionTypeEnum } from '@/db/schema'
 import { API_ENDPOINTS } from '@/stores/constants'
@@ -25,7 +25,6 @@ interface UseWorkspacePermissionsReturn {
   loading: boolean
   error: string | null
   updatePermissions: (newPermissions: WorkspacePermissions) => void
-  refetch: () => Promise<void>
 }
 
 /**
@@ -91,17 +90,10 @@ export function useWorkspacePermissions(workspaceId: string | null): UseWorkspac
     }
   }, [workspaceId])
 
-  const refetch = useCallback(async () => {
-    if (workspaceId) {
-      await fetchPermissions(workspaceId)
-    }
-  }, [workspaceId])
-
   return {
     permissions,
     loading,
     error,
     updatePermissions,
-    refetch,
   }
 }

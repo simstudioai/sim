@@ -1,4 +1,3 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import type { GmailSearchParams, GmailToolResponse } from '@/tools/gmail/types'
 import {
   createMessagesSummary,
@@ -6,8 +5,6 @@ import {
   processMessageForSummary,
 } from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('GmailSearchTool')
 
 export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> = {
   id: 'gmail_search',
@@ -112,7 +109,7 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
         },
       }
     } catch (error: any) {
-      logger.error('Error fetching message details:', error)
+      console.error('Error fetching message details:', error)
       return {
         success: true,
         output: {

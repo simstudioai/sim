@@ -1,12 +1,34 @@
+import { createCipheriv, createHash, createHmac, randomBytes } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
+import { generateApiKey } from '@/lib/utils'
+import { db } from '@/db'
+import { copilotApiKeys } from '@/db/schema'
 
 const logger = createLogger('CopilotApiKeysGenerate')
 
-const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
+function deriveKey(keyString: string): Buffer {
+  return createHash('sha256').update(keyString, 'utf8').digest()
+}
+
+function encryptRandomIv(plaintext: string, keyString: string): string {
+  const key = deriveKey(keyString)
+  const iv = randomBytes(16)
+  const cipher = createCipheriv('aes-256-gcm', key, iv)
+  let encrypted = cipher.update(plaintext, 'utf8', 'hex')
+  encrypted += cipher.final('hex')
+  const authTag = cipher.getAuthTag().toString('hex')
+  return `${iv.toString('hex')}:${encrypted}:${authTag}`
+}
+
+function computeLookup(plaintext: string, keyString: string): string {
+  // Deterministic, constant-time comparable MAC: HMAC-SHA256(DB_KEY, plaintext)
+  return createHmac('sha256', Buffer.from(keyString, 'utf8'))
+    .update(plaintext, 'utf8')
+    .digest('hex')
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,39 +37,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    if (!env.AGENT_API_DB_ENCRYPTION_KEY) {
+      logger.error('AGENT_API_DB_ENCRYPTION_KEY is not set')
+      return NextResponse.json({ error: 'Server not configured' }, { status: 500 })
+    }
+
     const userId = session.user.id
 
-    const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
-      },
-      body: JSON.stringify({ userId }),
-    })
+    // Generate and prefix the key (strip the generic sim_ prefix from the random part)
+    const rawKey = generateApiKey().replace(/^sim_/, '')
+    const plaintextKey = `sk-sim-copilot-${rawKey}`
 
-    if (!res.ok) {
-      const errorBody = await res.text().catch(() => '')
-      logger.error('Sim Agent generate key error', { status: res.status, error: errorBody })
-      return NextResponse.json(
-        { error: 'Failed to generate copilot API key' },
-        { status: res.status || 500 }
-      )
-    }
+    // Encrypt with random IV for confidentiality
+    const dbEncrypted = encryptRandomIv(plaintextKey, env.AGENT_API_DB_ENCRYPTION_KEY)
 
-    const data = (await res.json().catch(() => null)) as { apiKey?: string } | null
+    // Compute deterministic lookup value for O(1) search
+    const lookup = computeLookup(plaintextKey, env.AGENT_API_DB_ENCRYPTION_KEY)
 
-    if (!data?.apiKey) {
-      logger.error('Sim Agent generate key returned invalid payload')
-      return NextResponse.json({ error: 'Invalid response from Sim Agent' }, { status: 500 })
-    }
+    const [inserted] = await db
+      .insert(copilotApiKeys)
+      .values({ userId, apiKeyEncrypted: dbEncrypted, apiKeyLookup: lookup })
+      .returning({ id: copilotApiKeys.id })
 
     return NextResponse.json(
-      { success: true, key: { id: 'new', apiKey: data.apiKey } },
+      { success: true, key: { id: inserted.id, apiKey: plaintextKey } },
       { status: 201 }
     )
   } catch (error) {
-    logger.error('Failed to proxy generate copilot API key', { error })
+    logger.error('Failed to generate copilot API key', { error })
     return NextResponse.json({ error: 'Failed to generate copilot API key' }, { status: 500 })
   }
 }

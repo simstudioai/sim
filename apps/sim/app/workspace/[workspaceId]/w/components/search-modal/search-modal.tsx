@@ -27,6 +27,8 @@ import { getKeyboardShortcutText } from '@/app/workspace/[workspaceId]/w/hooks/u
 import { getAllBlocks } from '@/blocks'
 import { McpTools } from '@/components/mcp-tools'
 import { type NavigationSection, useSearchNavigation } from './hooks/use-search-navigation'
+import { getMcpTools } from '@/lib/mcp'
+import type { McpTool } from '@/lib/mcp'
 
 interface SearchModalProps {
   open: boolean
@@ -116,9 +118,28 @@ export function SearchModal({
   const router = useRouter()
   const workspaceId = params.workspaceId as string
   const brand = useBrandConfig()
+  const [mcpTools, setMcpTools] = useState<McpTool[]>([])
+  const [mcpToolsLoading, setMcpToolsLoading] = useState(true)
 
   // Local state for templates to handle star changes
   const [localTemplates, setLocalTemplates] = useState<TemplateData[]>(templates)
+
+  useEffect(() => {
+    async function fetchMcpTools() {
+      if (isOnWorkflowPage) {
+        setMcpToolsLoading(true)
+        try {
+          const tools = await getMcpTools()
+          setMcpTools(tools)
+        } catch (error) {
+          console.error('Error fetching MCP tools:', error)
+        } finally {
+          setMcpToolsLoading(false)
+        }
+      }
+    }
+    fetchMcpTools()
+  }, [isOnWorkflowPage])
 
   // Update local templates when props change
   useEffect(() => {
@@ -259,6 +280,12 @@ export function SearchModal({
     return tools.filter((tool) => tool.name.toLowerCase().includes(query))
   }, [tools, searchQuery])
 
+  const filteredMcpTools = useMemo(() => {
+    if (!searchQuery.trim()) return mcpTools
+    const query = searchQuery.toLowerCase()
+    return mcpTools.filter((tool) => tool.name.toLowerCase().includes(query))
+  }, [mcpTools, searchQuery])
+
   const filteredTemplates = useMemo(() => {
     if (!searchQuery.trim()) return localTemplates.slice(0, 8)
     const query = searchQuery.toLowerCase()
@@ -309,6 +336,16 @@ export function SearchModal({
       })
     }
 
+    if (filteredMcpTools.length > 0) {
+      sections.push({
+        id: 'mcp-tools',
+        name: 'MCP Tools',
+        type: 'grid',
+        items: filteredMcpTools,
+        gridCols: filteredMcpTools.length,
+      })
+    }
+
     if (filteredTools.length > 0) {
       sections.push({
         id: 'tools',
@@ -350,6 +387,7 @@ export function SearchModal({
   }, [
     filteredBlocks,
     filteredTools,
+    filteredMcpTools,
     filteredTemplates,
     filteredWorkspaces,
     filteredWorkflows,
@@ -488,7 +526,7 @@ export function SearchModal({
 
     const { section, item } = current
 
-    if (section.id === 'blocks' || section.id === 'tools') {
+    if (section.id === 'blocks' || section.id === 'tools' || section.id === 'mcp-tools') {
       handleBlockClick(item.type)
     } else if (section.id === 'templates') {
       // Templates don't have direct selection, but we close the modal
@@ -656,7 +694,17 @@ export function SearchModal({
               )}
 
               {/* MCP Tools Section */}
-              {isOnWorkflowPage && <McpTools onToolClick={handleBlockClick} />}
+              {isOnWorkflowPage && (
+                <McpTools
+                  onToolClick={handleBlockClick}
+                  tools={filteredMcpTools}
+                  isLoading={mcpToolsLoading}
+                  isItemSelected={(index) => isItemSelected('mcp-tools', index)}
+                  scrollRef={(el) => {
+                    if (el) scrollRefs.current.set('mcp-tools', el)
+                  }}
+                />
+              )}
 
               {/* Tools Section */}
               {filteredTools.length > 0 && (

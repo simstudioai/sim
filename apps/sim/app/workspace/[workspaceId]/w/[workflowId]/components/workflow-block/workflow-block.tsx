@@ -6,8 +6,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { getEnv, isTruthy } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console/logger'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, validateName } from '@/lib/utils'
 import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
@@ -24,8 +22,6 @@ import { useCurrentWorkflow } from '../../hooks'
 import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
 import { SubBlock } from './components/sub-block/sub-block'
-
-const logger = createLogger('WorkflowBlock')
 
 interface WorkflowBlockProps {
   type: string
@@ -236,10 +232,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           fetchScheduleInfo(currentWorkflowId)
         }
       } else {
-        logger.error('Failed to reactivate schedule')
+        console.error('Failed to reactivate schedule')
       }
     } catch (error) {
-      logger.error('Error reactivating schedule:', error)
+      console.error('Error reactivating schedule:', error)
     }
   }
 
@@ -259,10 +255,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           fetchScheduleInfo(currentWorkflowId)
         }
       } else {
-        logger.error('Failed to disable schedule')
+        console.error('Failed to disable schedule')
       }
     } catch (error) {
-      logger.error('Error disabling schedule:', error)
+      console.error('Error disabling schedule:', error)
     }
   }
 
@@ -332,12 +328,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           return
         }
       } catch (err) {
-        logger.error('Error fetching schedule status:', err)
+        console.error('Error fetching schedule status:', err)
       }
 
       setScheduleInfo(baseInfo)
     } catch (error) {
-      logger.error('Error fetching schedule info:', error)
+      console.error('Error fetching schedule info:', error)
       setScheduleInfo(null)
     } finally {
       setIsLoadingScheduleInfo(false)
@@ -443,16 +439,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     const isTriggerMode = useWorkflowStore.getState().blocks[blockId]?.triggerMode ?? false
     const effectiveAdvanced = currentWorkflow.isDiffMode ? displayAdvancedMode : isAdvancedMode
     const effectiveTrigger = currentWorkflow.isDiffMode ? displayTriggerMode : isTriggerMode
-    const e2bClientEnabled = isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED'))
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
       if (block.hidden) return false
-
-      // Filter out E2B-related blocks if E2B is not enabled on the client
-      if (!e2bClientEnabled && (block.id === 'remoteExecution' || block.id === 'language')) {
-        return false
-      }
 
       // Special handling for trigger mode
       if (block.type === ('trigger-config' as SubBlockType)) {
@@ -1005,7 +995,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                               : undefined
                         }
                         allowExpandInPreview={currentWorkflow.isDiffMode}
-                        isWide={displayIsWide}
                       />
                     </div>
                   ))}

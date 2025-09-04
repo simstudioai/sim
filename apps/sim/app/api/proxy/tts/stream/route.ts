@@ -112,9 +112,7 @@ export async function POST(request: NextRequest) {
 
     return new Response(
       `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      {
-        status: 500,
-      }
+      { status: 500 }
     )
   }
 }

@@ -12,7 +12,7 @@ export interface CopilotToolCall {
 
 export interface MessageFileAttachment {
   id: string
-  key: string
+  s3_key: string
   filename: string
   media_type: string
   size: number
@@ -35,23 +35,9 @@ export interface CopilotMessage {
         startTime?: number
       }
     | { type: 'tool_call'; toolCall: CopilotToolCall; timestamp: number }
-    | { type: 'contexts'; contexts: ChatContext[]; timestamp: number }
   >
   fileAttachments?: MessageFileAttachment[]
-  contexts?: ChatContext[]
 }
-
-// Contexts attached to a user message
-export type ChatContext =
-  | { kind: 'past_chat'; chatId: string; label: string }
-  | { kind: 'workflow'; workflowId: string; label: string }
-  | { kind: 'current_workflow'; workflowId: string; label: string }
-  | { kind: 'blocks'; blockIds: string[]; label: string }
-  | { kind: 'logs'; executionId?: string; label: string }
-  | { kind: 'workflow_block'; workflowId: string; blockId: string; label: string }
-  | { kind: 'knowledge'; knowledgeId?: string; label: string }
-  | { kind: 'templates'; templateId?: string; label: string }
-  | { kind: 'docs'; label: string }
 
 export interface CopilotChat {
   id: string
@@ -104,15 +90,6 @@ export interface CopilotState {
 
   // Map of toolCallId -> CopilotToolCall for quick access during streaming
   toolCallsById: Record<string, CopilotToolCall>
-
-  // Transient flag to prevent auto-selecting a chat during new-chat UX
-  suppressAutoSelect?: boolean
-
-  // Explicitly track the current user message id for this in-flight query (for stats/diff correlation)
-  currentUserMessageId?: string | null
-
-  // Per-message metadata captured at send-time for reliable stats
-  messageMetaById?: Record<string, { depth: 0 | 1 | 2 | 3; maxEnabled: boolean }>
 }
 
 export interface CopilotActions {
@@ -130,11 +107,7 @@ export interface CopilotActions {
 
   sendMessage: (
     message: string,
-    options?: {
-      stream?: boolean
-      fileAttachments?: MessageFileAttachment[]
-      contexts?: ChatContext[]
-    }
+    options?: { stream?: boolean; fileAttachments?: MessageFileAttachment[] }
   ) => Promise<void>
   abortMessage: () => void
   sendImplicitFeedback: (
@@ -177,8 +150,7 @@ export interface CopilotActions {
   handleStreamingResponse: (
     stream: ReadableStream,
     messageId: string,
-    isContinuation?: boolean,
-    triggerUserMessageId?: string
+    isContinuation?: boolean
   ) => Promise<void>
   handleNewChatCreation: (newChatId: string) => Promise<void>
   updateDiffStore: (yamlContent: string, toolName?: string) => Promise<void>

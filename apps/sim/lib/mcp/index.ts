@@ -2,12 +2,31 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { ApiIcon } from '@/components/icons';
+import type { FC, SVGProps } from 'react';
+
+// Basic OpenAPI interfaces to avoid using 'any'
+interface OpenAPIOperation {
+  operationId?: string;
+  summary?: string;
+  description?: string;
+}
+
+interface OpenAPIPath {
+  [method: string]: OpenAPIOperation;
+}
+
+interface OpenAPISpec {
+  paths?: {
+    [path: string]: OpenAPIPath;
+  };
+}
+
 
 const McpToolSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
-  icon: z.any(),
+  icon: z.custom<FC<SVGProps<SVGSVGElement>>>(),
   bgColor: z.string(),
   type: z.string(),
   server: z.string(),
@@ -51,7 +70,7 @@ export async function getMcpTools(): Promise<McpTool[]> {
         console.error(`Error fetching OpenAPI schema from ${serverName}: ${response.statusText}`);
         continue;
       }
-      const openapi_spec = await response.json();
+      const openapi_spec: OpenAPISpec = await response.json();
 
       const serverTools = transformOpenAPIToMcpTools(openapi_spec, serverName);
       allTools.push(...serverTools);
@@ -64,7 +83,7 @@ export async function getMcpTools(): Promise<McpTool[]> {
   return allTools;
 }
 
-function transformOpenAPIToMcpTools(openapi_spec: any, serverName: string): McpTool[] {
+function transformOpenAPIToMcpTools(openapi_spec: OpenAPISpec, serverName: string): McpTool[] {
   const tools: McpTool[] = [];
   if (!openapi_spec.paths) {
     return tools;

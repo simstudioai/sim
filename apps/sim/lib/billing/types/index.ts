@@ -3,17 +3,10 @@
  * Centralized type definitions for the billing system
  */
 
-export interface EnterpriseSubscriptionMetadata {
-  plan: 'enterprise'
-  // The referenceId must be provided in Stripe metadata to link to the organization
-  // This gets stored in the subscription.referenceId column
-  referenceId: string
-  // The fixed monthly price for this enterprise customer (as string from Stripe metadata)
-  // This will be used to set the organization's usage limit
-  monthlyPrice: string
-  // Number of seats for invitation limits (not for billing) (as string from Stripe metadata)
-  // We set Stripe quantity to 1 and use this for actual seat count
-  seats: string
+export interface SubscriptionFeatures {
+  sharingEnabled: boolean
+  multiplayerEnabled: boolean
+  workspaceCollaborationEnabled: boolean
 }
 
 export interface UsageData {
@@ -32,6 +25,7 @@ export interface UsageLimitInfo {
   canEdit: boolean
   minimumLimit: number
   plan: string
+  setBy: string | null
   updatedAt: Date | null
 }
 
@@ -50,6 +44,7 @@ export interface UserSubscriptionState {
   isEnterprise: boolean
   isFree: boolean
   highestPrioritySubscription: any | null
+  features: SubscriptionFeatures
   hasExceededLimit: boolean
   planName: string
 }
@@ -59,6 +54,9 @@ export interface SubscriptionPlan {
   priceId: string
   limits: {
     cost: number
+    sharingEnabled: number
+    multiplayerEnabled: number
+    workspaceCollaborationEnabled: number
   }
 }
 
@@ -139,6 +137,7 @@ export interface SubscriptionAPIResponse {
   status: string | null
   seats: number | null
   metadata: any | null
+  features: SubscriptionFeatures
   usage: UsageData
 }
 
@@ -191,10 +190,12 @@ export interface UseSubscriptionStateReturn {
     seats?: number
     metadata?: any
   }
+  features: SubscriptionFeatures
   usage: UsageData
   isLoading: boolean
   error: Error | null
   refetch: () => Promise<any>
+  hasFeature: (feature: keyof SubscriptionFeatures) => boolean
   isAtLeastPro: () => boolean
   isAtLeastTeam: () => boolean
   canUpgrade: () => boolean

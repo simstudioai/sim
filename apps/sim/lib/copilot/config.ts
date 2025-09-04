@@ -217,6 +217,14 @@ export function getCopilotConfig(): CopilotConfig {
 
   try {
     applyEnvironmentOverrides(config)
+
+    logger.info('Copilot configuration loaded', {
+      chatProvider: config.chat.defaultProvider,
+      chatModel: config.chat.defaultModel,
+      ragProvider: config.rag.defaultProvider,
+      ragModel: config.rag.defaultModel,
+      streamingEnabled: config.general.streamingEnabled,
+    })
   } catch (error) {
     logger.warn('Error applying environment variable overrides, using defaults', { error })
   }

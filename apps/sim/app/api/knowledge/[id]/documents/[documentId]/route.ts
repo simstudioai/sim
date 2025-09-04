@@ -1,14 +1,16 @@
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import {
-  deleteDocument,
-  markDocumentAsFailedTimeout,
-  retryDocumentProcessing,
-  updateDocument,
-} from '@/lib/knowledge/documents/service'
+import { TAG_SLOTS } from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
-import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
+import {
+  checkDocumentAccess,
+  checkDocumentWriteAccess,
+  processDocumentAsync,
+} from '@/app/api/knowledge/utils'
+import { db } from '@/db'
+import { document, embedding } from '@/db/schema'
 
 const logger = createLogger('DocumentByIdAPI')
 
@@ -111,7 +113,9 @@ export async function PUT(
 
       const updateData: any = {}
 
+      // Handle special operations first
       if (validatedData.markFailedDueToTimeout) {
+        // Mark document as failed due to timeout (replaces mark-failed endpoint)
         const doc = accessCheck.document
 
         if (doc.processingStatus !== 'processing') {
@@ -128,28 +132,56 @@ export async function PUT(
           )
         }
 
-        try {
-          await markDocumentAsFailedTimeout(documentId, doc.processingStartedAt, requestId)
+        const now = new Date()
+        const processingDuration = now.getTime() - new Date(doc.processingStartedAt).getTime()
+        const DEAD_PROCESS_THRESHOLD_MS = 150 * 1000
 
-          return NextResponse.json({
-            success: true,
-            data: {
-              documentId,
-              status: 'failed',
-              message: 'Document marked as failed due to timeout',
-            },
-          })
-        } catch (error) {
-          if (error instanceof Error) {
-            return NextResponse.json({ error: error.message }, { status: 400 })
-          }
-          throw error
+        if (processingDuration <= DEAD_PROCESS_THRESHOLD_MS) {
+          return NextResponse.json(
+            { error: 'Document has not been processing long enough to be considered dead' },
+            { status: 400 }
+          )
         }
+
+        updateData.processingStatus = 'failed'
+        updateData.processingError =
+          'Processing timed out - background process may have been terminated'
+        updateData.processingCompletedAt = now
+
+        logger.info(
+          `[${requestId}] Marked document ${documentId} as failed due to dead process (processing time: ${Math.round(processingDuration / 1000)}s)`
+        )
       } else if (validatedData.retryProcessing) {
+        // Retry processing (replaces retry endpoint)
         const doc = accessCheck.document
 
         if (doc.processingStatus !== 'failed') {
           return NextResponse.json({ error: 'Document is not in failed state' }, { status: 400 })
+        }
+
+        // Clear existing embeddings and reset document state
+        await db.transaction(async (tx) => {
+          await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+
+          await tx
+            .update(document)
+            .set({
+              processingStatus: 'pending',
+              processingStartedAt: null,
+              processingCompletedAt: null,
+              processingError: null,
+              chunkCount: 0,
+              tokenCount: 0,
+              characterCount: 0,
+            })
+            .where(eq(document.id, documentId))
+        })
+
+        const processingOptions = {
+          chunkSize: 1024,
+          minCharactersPerChunk: 24,
+          recipe: 'default',
+          lang: 'en',
         }
 
         const docData = {
@@ -159,33 +191,80 @@ export async function PUT(
           mimeType: doc.mimeType,
         }
 
-        const result = await retryDocumentProcessing(
-          knowledgeBaseId,
-          documentId,
-          docData,
-          requestId
+        processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions).catch(
+          (error: unknown) => {
+            logger.error(`[${requestId}] Background retry processing error:`, error)
+          }
         )
+
+        logger.info(`[${requestId}] Document retry initiated: ${documentId}`)
 
         return NextResponse.json({
           success: true,
           data: {
             documentId,
-            status: result.status,
-            message: result.message,
+            status: 'pending',
+            message: 'Document retry processing started',
           },
         })
       } else {
-        const updatedDocument = await updateDocument(documentId, validatedData, requestId)
+        // Regular field updates
+        if (validatedData.filename !== undefined) updateData.filename = validatedData.filename
+        if (validatedData.enabled !== undefined) updateData.enabled = validatedData.enabled
+        if (validatedData.chunkCount !== undefined) updateData.chunkCount = validatedData.chunkCount
+        if (validatedData.tokenCount !== undefined) updateData.tokenCount = validatedData.tokenCount
+        if (validatedData.characterCount !== undefined)
+          updateData.characterCount = validatedData.characterCount
+        if (validatedData.processingStatus !== undefined)
+          updateData.processingStatus = validatedData.processingStatus
+        if (validatedData.processingError !== undefined)
+          updateData.processingError = validatedData.processingError
 
-        logger.info(
-          `[${requestId}] Document updated: ${documentId} in knowledge base ${knowledgeBaseId}`
-        )
-
-        return NextResponse.json({
-          success: true,
-          data: updatedDocument,
+        // Tag field updates
+        TAG_SLOTS.forEach((slot) => {
+          if ((validatedData as any)[slot] !== undefined) {
+            ;(updateData as any)[slot] = (validatedData as any)[slot]
+          }
         })
       }
+
+      await db.transaction(async (tx) => {
+        // Update the document
+        await tx.update(document).set(updateData).where(eq(document.id, documentId))
+
+        // If any tag fields were updated, also update the embeddings
+        const hasTagUpdates = TAG_SLOTS.some((field) => (validatedData as any)[field] !== undefined)
+
+        if (hasTagUpdates) {
+          const embeddingUpdateData: Record<string, string | null> = {}
+          TAG_SLOTS.forEach((field) => {
+            if ((validatedData as any)[field] !== undefined) {
+              embeddingUpdateData[field] = (validatedData as any)[field] || null
+            }
+          })
+
+          await tx
+            .update(embedding)
+            .set(embeddingUpdateData)
+            .where(eq(embedding.documentId, documentId))
+        }
+      })
+
+      // Fetch the updated document
+      const updatedDocument = await db
+        .select()
+        .from(document)
+        .where(eq(document.id, documentId))
+        .limit(1)
+
+      logger.info(
+        `[${requestId}] Document updated: ${documentId} in knowledge base ${knowledgeBaseId}`
+      )
+
+      return NextResponse.json({
+        success: true,
+        data: updatedDocument[0],
+      })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
         logger.warn(`[${requestId}] Invalid document update data`, {
@@ -234,7 +313,13 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const result = await deleteDocument(documentId, requestId)
+    // Soft delete by setting deletedAt timestamp
+    await db
+      .update(document)
+      .set({
+        deletedAt: new Date(),
+      })
+      .where(eq(document.id, documentId))
 
     logger.info(
       `[${requestId}] Document deleted: ${documentId} from knowledge base ${knowledgeBaseId}`
@@ -242,7 +327,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      data: result,
+      data: { message: 'Document deleted successfully' },
     })
   } catch (error) {
     logger.error(`[${requestId}] Error deleting document`, error)

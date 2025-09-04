@@ -59,19 +59,29 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
         .limit(1)
 
       if (userStatsRecord.length === 0) {
-        console.warn('User stats record not found - should be created during onboarding', {
+        // Create new record
+        await db.insert(userStats).values({
+          id: crypto.randomUUID(),
           userId: workflow.userId,
-        })
-        return // Skip stats update if record doesn't exist
-      }
-      // Update existing record
-      await db
-        .update(userStats)
-        .set({
-          totalManualExecutions: userStatsRecord[0].totalManualExecutions + runs,
+          totalManualExecutions: runs,
+          totalApiCalls: 0,
+          totalWebhookTriggers: 0,
+          totalScheduledExecutions: 0,
+          totalChatExecutions: 0,
+          totalTokensUsed: 0,
+          totalCost: '0.00',
           lastActive: new Date(),
         })
-        .where(eq(userStats.userId, workflow.userId))
+      } else {
+        // Update existing record
+        await db
+          .update(userStats)
+          .set({
+            totalManualExecutions: userStatsRecord[0].totalManualExecutions + runs,
+            lastActive: new Date(),
+          })
+          .where(eq(userStats.userId, workflow.userId))
+      }
     }
 
     return { success: true, runsAdded: runs }

@@ -14,7 +14,7 @@ import {
   prepareToolsWithUsageControl,
   trackForcedToolUsage,
 } from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers/store'
+import { useOllamaStore } from '@/stores/ollama/store'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('OllamaProvider')
@@ -78,13 +78,13 @@ export const ollamaProvider: ProviderConfig = {
     try {
       const response = await fetch(`${OLLAMA_HOST}/api/tags`)
       if (!response.ok) {
-        useProvidersStore.getState().setModels('ollama', [])
+        useOllamaStore.getState().setModels([])
         logger.warn('Ollama service is not available. The provider will be disabled.')
         return
       }
       const data = (await response.json()) as ModelsObject
       this.models = data.models.map((model) => model.name)
-      useProvidersStore.getState().setModels('ollama', this.models)
+      useOllamaStore.getState().setModels(this.models)
     } catch (error) {
       logger.warn('Ollama model instantiation failed. The provider will be disabled.', {
         error: error instanceof Error ? error.message : 'Unknown error',

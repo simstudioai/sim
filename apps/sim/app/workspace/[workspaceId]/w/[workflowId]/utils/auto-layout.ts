@@ -3,24 +3,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 const logger = createLogger('AutoLayoutUtils')
 
 /**
- * Default auto layout options
- */
-export const DEFAULT_AUTO_LAYOUT_OPTIONS: AutoLayoutOptions = {
-  strategy: 'smart',
-  direction: 'auto',
-  spacing: {
-    horizontal: 250,
-    vertical: 200,
-    layer: 350,
-  },
-  alignment: 'center',
-  padding: {
-    x: 125,
-    y: 125,
-  },
-}
-
-/**
  * Auto layout options interface
  */
 export interface AutoLayoutOptions {
@@ -36,6 +18,24 @@ export interface AutoLayoutOptions {
     x?: number
     y?: number
   }
+}
+
+/**
+ * Default auto layout options
+ */
+const DEFAULT_AUTO_LAYOUT_OPTIONS: AutoLayoutOptions = {
+  strategy: 'smart',
+  direction: 'auto',
+  spacing: {
+    horizontal: 500,
+    vertical: 400,
+    layer: 700,
+  },
+  alignment: 'center',
+  padding: {
+    x: 250,
+    y: 250,
+  },
 }
 
 /**

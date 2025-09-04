@@ -46,7 +46,7 @@ const initialState = {
         isDeployed: false,
         isPublished: false,
       },
-      timestamp: 0,
+      timestamp: Date.now(),
       action: 'Initial state',
       subblockValues: {},
     },
@@ -1070,12 +1070,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 })
 
                 if (!updateResponse.ok) {
-                  logger.error('Failed to update webhook status')
+                  console.error('Failed to update webhook status')
                 }
               }
             }
           } catch (error) {
-            logger.error('Error toggling webhook status:', error)
+            console.error('Error toggling webhook status:', error)
           }
         }
 

@@ -81,7 +81,6 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       provider: 'slack',
       placeholder: 'Select Slack channel',
       mode: 'basic',
-      dependsOn: ['credential', 'authMethod'],
     },
     // Manual channel ID input (advanced mode)
     {

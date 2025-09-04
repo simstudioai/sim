@@ -1,46 +1,23 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { getMcpTools } from '@/lib/mcp'
-
-interface McpTool {
-  id: string
-  name: string
-  description: string
-  icon: React.ComponentType<any>
-  bgColor: string
-  type: string
-  server: string
-}
+import type { McpTool } from '@/lib/mcp'
 
 interface McpToolsProps {
   onToolClick: (toolType: string) => void
+  tools: McpTool[]
+  isLoading: boolean
+  isItemSelected: (index: number) => boolean
+  scrollRef: (el: HTMLDivElement | null) => void
 }
 
-export function McpTools({ onToolClick }: McpToolsProps) {
-  const [mcpTools, setMcpTools] = useState<McpTool[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  async function fetchMcpTools() {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const tools = await getMcpTools()
-      setMcpTools(tools)
-    } catch (error) {
-      console.error('Error fetching MCP tools:', error)
-      setError('Failed to load MCP tools. Please ensure the MCPO server is running and the configuration is correct.')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchMcpTools()
-  }, [])
-
-  const groupedTools = mcpTools.reduce(
+export function McpTools({
+  onToolClick,
+  tools,
+  isLoading,
+  isItemSelected,
+  scrollRef,
+}: McpToolsProps) {
+  const groupedTools = tools.reduce(
     (acc, tool) => {
       if (!acc[tool.server]) {
         acc[tool.server] = []
@@ -55,36 +32,32 @@ export function McpTools({ onToolClick }: McpToolsProps) {
     return <div>Loading MCP Tools...</div>
   }
 
-  if (error) {
-    return (
-      <div className="text-red-500 p-4">
-        <p>{error}</p>
-        <button
-          onClick={fetchMcpTools}
-          className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Retry
-        </button>
-      </div>
-    )
+  if (tools.length === 0) {
+    return null
   }
 
   return (
     <div>
-      {Object.entries(groupedTools).map(([server, tools]) => (
+      {Object.entries(groupedTools).map(([server, serverTools]) => (
         <div key={server}>
           <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
             {server}
           </h3>
           <div
+            ref={scrollRef}
             className='scrollbar-none flex gap-2 overflow-x-auto px-6 pb-1'
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {tools.map((tool) => (
+            {serverTools.map((tool, index) => (
               <button
                 key={tool.id}
                 onClick={() => onToolClick(tool.type)}
-                className='flex h-auto w-[180px] flex-shrink-0 cursor-pointer flex-col items-start gap-2 rounded-[8px] border p-3 transition-all duration-200 border-border/40 bg-background/60 hover:border-border hover:bg-secondary/80'
+                data-nav-item={`mcp-tools-${index}`}
+                className={`flex h-auto w-[180px] flex-shrink-0 cursor-pointer flex-col items-start gap-2 rounded-[8px] border p-3 transition-all duration-200 ${
+                  isItemSelected(index)
+                    ? 'border-border bg-secondary/80'
+                    : 'border-border/40 bg-background/60 hover:border-border hover:bg-secondary/80'
+                }`}
               >
                 <div className='flex items-center gap-2'>
                   <div

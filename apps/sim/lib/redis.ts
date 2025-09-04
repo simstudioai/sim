@@ -4,8 +4,8 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('Redis')
 
-// Only use Redis if explicitly configured
-const redisUrl = env.REDIS_URL
+// Default to localhost if REDIS_URL is not provided
+const redisUrl = env.REDIS_URL || 'redis://localhost:6379'
 
 // Global Redis client for connection pooling
 // This is important for serverless environments like Vercel
@@ -23,11 +23,6 @@ const MAX_CACHE_SIZE = 1000
 export function getRedisClient(): Redis | null {
   // For server-side only
   if (typeof window !== 'undefined') return null
-
-  // Return null immediately if no Redis URL is configured
-  if (!redisUrl) {
-    return null
-  }
 
   if (globalRedisClient) return globalRedisClient
 

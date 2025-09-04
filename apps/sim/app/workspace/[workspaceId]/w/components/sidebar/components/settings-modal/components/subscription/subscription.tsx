@@ -1,11 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Skeleton } from '@/components/ui'
-import { useSession } from '@/lib/auth-client'
-import { useSubscriptionUpgrade } from '@/lib/subscription/upgrade'
+import { Badge, Progress, Skeleton } from '@/components/ui'
+import { useSession, useSubscription } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { UsageHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/shared/usage-header'
 import {
   CancelSubscription,
   PlanCard,
@@ -24,6 +23,10 @@ import {
 import { useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
+// Logger
+const logger = createLogger('Subscription')
+
+// Constants
 const CONSTANTS = {
   UPGRADE_ERROR_TIMEOUT: 3000, // 3 seconds
   TYPEFORM_ENTERPRISE_URL: 'https://form.typeform.com/to/jqCO12pF',
@@ -32,11 +35,13 @@ const CONSTANTS = {
   INITIAL_TEAM_SEATS: 1,
 } as const
 
+// Styles
 const STYLES = {
   GRADIENT_BADGE:
     'gradient-text h-[1.125rem] rounded-[6px] border-gradient-primary/20 bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary px-2 py-0 font-medium text-xs cursor-pointer',
 } as const
 
+// Types
 type TargetPlan = 'pro' | 'team'
 
 interface SubscriptionProps {
@@ -44,7 +49,7 @@ interface SubscriptionProps {
 }
 
 /**
- * Skeleton component for subscription loading state.
+ * Skeleton component for subscription loading state
  */
 function SubscriptionSkeleton() {
   return (
@@ -165,6 +170,7 @@ function SubscriptionSkeleton() {
   )
 }
 
+// Utility functions
 const formatPlanName = (plan: string): string => plan.charAt(0).toUpperCase() + plan.slice(1)
 
 /**
@@ -173,7 +179,7 @@ const formatPlanName = (plan: string): string => plan.charAt(0).toUpperCase() + 
  */
 export function Subscription({ onOpenChange }: SubscriptionProps) {
   const { data: session } = useSession()
-  const { handleUpgrade } = useSubscriptionUpgrade()
+  const betterAuthSubscription = useSubscription()
 
   const {
     isLoading,
@@ -197,10 +203,10 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const activeOrgId = activeOrganization?.id
 
   useEffect(() => {
-    if ((subscription.isTeam || subscription.isEnterprise) && activeOrgId) {
+    if (subscription.isTeam && activeOrgId) {
       loadOrganizationBillingData(activeOrgId)
     }
-  }, [activeOrgId, subscription.isTeam, subscription.isEnterprise, loadOrganizationBillingData])
+  }, [activeOrgId, subscription.isTeam, loadOrganizationBillingData])
 
   // Auto-clear upgrade error
   useEffect(() => {
@@ -252,7 +258,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
 
   // UI state computed values
   const showBadge = permissions.canEditUsageLimit && !permissions.showTeamMemberView
-  const badgeText = subscription.isFree ? 'Upgrade' : 'Increase Limit'
+  const badgeText = subscription.isFree ? 'Upgrade' : 'Add'
 
   const handleBadgeClick = () => {
     if (subscription.isFree) {
@@ -262,15 +268,50 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     }
   }
 
-  const handleUpgradeWithErrorHandling = useCallback(
+  const handleUpgrade = useCallback(
     async (targetPlan: TargetPlan) => {
+      if (!session?.user?.id) return
+
+      const { subscriptionData } = useSubscriptionStore.getState()
+      const currentSubscriptionId = subscriptionData?.stripeSubscriptionId
+
+      let referenceId = session.user.id
+      if (subscription.isTeam && activeOrgId) {
+        referenceId = activeOrgId
+      }
+
+      const currentUrl = `${window.location.origin}${window.location.pathname}`
+
       try {
-        await handleUpgrade(targetPlan)
+        const upgradeParams = {
+          plan: targetPlan,
+          referenceId,
+          successUrl: currentUrl,
+          cancelUrl: currentUrl,
+          ...(targetPlan === 'team' && { seats: CONSTANTS.INITIAL_TEAM_SEATS }),
+        } as const
+
+        // Add subscriptionId for existing subscriptions to ensure proper plan switching
+        const finalParams = currentSubscriptionId
+          ? { ...upgradeParams, subscriptionId: currentSubscriptionId }
+          : upgradeParams
+
+        logger.info(
+          currentSubscriptionId ? 'Upgrading existing subscription' : 'Creating new subscription',
+          {
+            targetPlan,
+            currentSubscriptionId,
+            referenceId,
+          }
+        )
+
+        await betterAuthSubscription.upgrade(finalParams)
       } catch (error) {
-        alert(error instanceof Error ? error.message : 'Unknown error occurred')
+        logger.error('Failed to initiate subscription upgrade:', error)
+        alert('Failed to initiate upgrade. Please try again or contact support.')
       }
     },
-    [handleUpgrade]
+    [session?.user?.id, subscription.isTeam, activeOrgId, betterAuthSubscription]
   )
 
   const renderPlanCard = useCallback(
@@ -287,7 +328,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
               priceSubtext='/month'
               features={PRO_PLAN_FEATURES}
               buttonText={subscription.isFree ? 'Upgrade' : 'Upgrade to Pro'}
-              onButtonClick={() => handleUpgradeWithErrorHandling('pro')}
+              onButtonClick={() => handleUpgrade('pro')}
               isError={upgradeError === 'pro'}
               layout={layout}
             />
@@ -302,7 +343,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
               priceSubtext='/month'
               features={TEAM_PLAN_FEATURES}
               buttonText={subscription.isFree ? 'Upgrade' : 'Upgrade to Team'}
-              onButtonClick={() => handleUpgradeWithErrorHandling('team')}
+              onButtonClick={() => handleUpgrade('team')}
               isError={upgradeError === 'team'}
               layout={layout}
             />
@@ -342,96 +383,63 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
       <div className='flex flex-col gap-2'>
         {/* Current Plan & Usage Overview - Styled like usage-indicator */}
         <div className='mb-2'>
-          <UsageHeader
-            title={formatPlanName(subscription.plan)}
-            gradientTitle={!subscription.isFree}
-            showBadge={showBadge}
-            badgeText={badgeText}
-            onBadgeClick={handleBadgeClick}
-            seatsText={
-              permissions.canManageTeam || subscription.isEnterprise
-                ? `${organizationBillingData?.totalSeats || subscription.seats || 1} seats`
-                : undefined
-            }
-            current={
-              subscription.isEnterprise || subscription.isTeam
-                ? organizationBillingData?.totalCurrentUsage || 0
-                : usage.current
-            }
-            limit={
-              subscription.isEnterprise || subscription.isTeam
-                ? organizationBillingData?.totalUsageLimit ||
-                  organizationBillingData?.minimumBillingAmount ||
-                  0
-                : !subscription.isFree &&
-                    (permissions.canEditUsageLimit || permissions.showTeamMemberView)
-                  ? usage.current // placeholder; rightContent will render UsageLimit
-                  : usage.limit
-            }
-            isBlocked={Boolean(subscriptionData?.billingBlocked)}
-            status={billingStatus === 'unknown' ? 'ok' : billingStatus}
-            percentUsed={
-              subscription.isEnterprise || subscription.isTeam
-                ? organizationBillingData?.totalUsageLimit &&
-                  organizationBillingData.totalUsageLimit > 0
-                  ? Math.round(
-                      (organizationBillingData.totalCurrentUsage /
-                        organizationBillingData.totalUsageLimit) *
-                        100
-                    )
-                  : 0
-                : Math.round(usage.percentUsed)
-            }
-            onResolvePayment={async () => {
-              try {
-                const res = await fetch('/api/billing/portal', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    context:
-                      subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user',
-                    organizationId: activeOrgId,
-                    returnUrl: `${window.location.origin}/workspace?billing=updated`,
-                  }),
-                })
-                const data = await res.json()
-                if (!res.ok || !data?.url)
-                  throw new Error(data?.error || 'Failed to start billing portal')
-                window.location.href = data.url
-              } catch (e) {
-                alert(e instanceof Error ? e.message : 'Failed to open billing portal')
-              }
-            }}
-            rightContent={
-              !subscription.isFree &&
-              (permissions.canEditUsageLimit || permissions.showTeamMemberView) ? (
-                <UsageLimit
-                  ref={usageLimitRef}
-                  currentLimit={
-                    subscription.isTeam && isTeamAdmin
-                      ? organizationBillingData?.totalUsageLimit || usage.limit
-                      : usageLimitData?.currentLimit || usage.limit
-                  }
-                  currentUsage={usage.current}
-                  canEdit={permissions.canEditUsageLimit}
-                  minimumLimit={
-                    subscription.isTeam && isTeamAdmin
-                      ? organizationBillingData?.minimumBillingAmount ||
-                        (subscription.isPro ? 20 : 40)
-                      : usageLimitData?.minimumLimit || (subscription.isPro ? 20 : 40)
-                  }
-                  context={subscription.isTeam && isTeamAdmin ? 'organization' : 'user'}
-                  organizationId={subscription.isTeam && isTeamAdmin ? activeOrgId : undefined}
-                  onLimitUpdated={async () => {
-                    if (subscription.isTeam && isTeamAdmin && activeOrgId) {
-                      await loadOrganizationBillingData(activeOrgId, true)
-                    }
-                  }}
-                />
-              ) : undefined
-            }
-            progressValue={Math.min(Math.round(usage.percentUsed), 100)}
-          />
+          <div className='rounded-[8px] border bg-background p-3 shadow-xs'>
+            <div className='space-y-2'>
+              {/* Plan and usage info */}
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-2'>
+                  <span
+                    className={cn(
+                      'font-medium text-sm',
+                      subscription.isFree
+                        ? 'text-foreground'
+                        : 'gradient-text bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary'
+                    )}
+                  >
+                    {formatPlanName(subscription.plan)}
+                  </span>
+                  {showBadge && (
+                    <Badge
+                      className={STYLES.GRADIENT_BADGE}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleBadgeClick()
+                      }}
+                    >
+                      {badgeText}
+                    </Badge>
+                  )}
+                  {/* Team seats info for admins */}
+                  {permissions.canManageTeam && (
+                    <span className='text-muted-foreground text-xs'>
+                      ({organizationBillingData?.totalSeats || subscription.seats || 1} seats)
+                    </span>
+                  )}
+                </div>
+                <div className='flex items-center gap-1 text-xs tabular-nums'>
+                  <span className='text-muted-foreground'>${usage.current.toFixed(2)}</span>
+                  <span className='text-muted-foreground'>/</span>
+                  {!subscription.isFree &&
+                  (permissions.canEditUsageLimit ||
+                    permissions.showTeamMemberView ||
+                    subscription.isEnterprise) ? (
+                    <UsageLimit
+                      ref={usageLimitRef}
+                      currentLimit={usageLimitData?.currentLimit || usage.limit}
+                      currentUsage={usage.current}
+                      canEdit={permissions.canEditUsageLimit && !subscription.isEnterprise}
+                      minimumLimit={usageLimitData?.minimumLimit || (subscription.isPro ? 20 : 40)}
+                    />
+                  ) : (
+                    <span className='text-muted-foreground'>${usage.limit}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <Progress value={Math.min(usage.percentUsed, 100)} className='h-2' />
+            </div>
+          </div>
         </div>
 
         {/* Team Member Notice */}
@@ -487,16 +495,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                 </>
               )
             })()}
-          </div>
-        )}
-
-        {/* Next Billing Date */}
-        {subscription.isPaid && subscriptionData?.periodEnd && (
-          <div className='mt-4 flex items-center justify-between'>
-            <span className='font-medium text-sm'>Next Billing Date</span>
-            <span className='text-muted-foreground text-sm'>
-              {new Date(subscriptionData.periodEnd).toLocaleDateString()}
-            </span>
           </div>
         )}
 

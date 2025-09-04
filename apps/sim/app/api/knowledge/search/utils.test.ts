@@ -16,7 +16,7 @@ vi.mock('@/lib/logs/console/logger', () => ({
   })),
 }))
 vi.mock('@/db')
-vi.mock('@/lib/knowledge/documents/utils', () => ({
+vi.mock('@/lib/documents/utils', () => ({
   retryWithExponentialBackoff: (fn: any) => fn(),
 }))
 

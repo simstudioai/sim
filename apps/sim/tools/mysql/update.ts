@@ -76,7 +76,7 @@ export const updateTool: ToolConfig<MySQLUpdateParams, MySQLResponse> = {
       database: params.database,
       username: params.username,
       password: params.password,
-      ssl: params.ssl || 'required',
+      ssl: params.ssl || 'preferred',
       table: params.table,
       data: params.data,
       where: params.where,

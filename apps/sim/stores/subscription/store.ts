@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type {
   BillingStatus,
   SubscriptionData,
+  SubscriptionFeatures,
   SubscriptionStore,
   UsageData,
   UsageLimitData,
@@ -13,6 +14,12 @@ import type {
 const logger = createLogger('SubscriptionStore')
 
 const CACHE_DURATION = 30 * 1000
+
+const defaultFeatures: SubscriptionFeatures = {
+  sharingEnabled: false,
+  multiplayerEnabled: false,
+  workspaceCollaborationEnabled: false,
+}
 
 const defaultUsage: UsageData = {
   current: 0,
@@ -65,7 +72,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           }
 
           const result = await response.json()
-          const data = { ...result.data, billingBlocked: result.data?.billingBlocked ?? false }
+          const data = result.data
 
           // Transform dates with error handling
           const transformedData: SubscriptionData = {
@@ -103,7 +110,6 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
                   })()
                 : null,
             },
-            billingBlocked: !!data.billingBlocked,
           }
 
           // Debug logging for billing periods
@@ -142,7 +148,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 
       loadUsageLimitData: async () => {
         try {
-          const response = await fetch('/api/usage?context=user')
+          const response = await fetch('/api/usage-limits?context=user')
 
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`)
@@ -168,7 +174,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 
       updateUsageLimit: async (newLimit: number) => {
         try {
-          const response = await fetch('/api/usage?context=user', {
+          const response = await fetch('/api/usage-limits?context=user', {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -191,6 +197,53 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
             error instanceof Error ? error.message : 'Failed to update usage limit'
           logger.error('Failed to update usage limit', { error, newLimit })
           return { success: false, error: errorMessage }
+        }
+      },
+
+      cancelSubscription: async () => {
+        const state = get()
+        if (!state.subscriptionData) {
+          logger.error('No subscription data available for cancellation')
+          return { success: false, error: 'No subscription data available' }
+        }
+
+        set({ isLoading: true, error: null })
+
+        try {
+          const response = await fetch('/api/users/me/subscription/cancel', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.error || 'Failed to cancel subscription')
+          }
+
+          const result = await response.json()
+
+          logger.info('Subscription cancelled successfully', {
+            periodEnd: result.data.periodEnd,
+            cancelAtPeriodEnd: result.data.cancelAtPeriodEnd,
+          })
+
+          // Refresh subscription data to reflect cancellation status
+          await get().refresh()
+
+          return {
+            success: true,
+            periodEnd: result.data.periodEnd ? new Date(result.data.periodEnd) : undefined,
+          }
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : 'Failed to cancel subscription'
+          logger.error('Failed to cancel subscription', { error })
+          set({ error: errorMessage })
+          return { success: false, error: errorMessage }
+        } finally {
+          set({ isLoading: false })
         }
       },
 
@@ -240,7 +293,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           // Load both subscription and usage limit data in parallel
           const [subscriptionResponse, usageLimitResponse] = await Promise.all([
             fetch('/api/billing?context=user'),
-            fetch('/api/usage?context=user'),
+            fetch('/api/usage-limits?context=user'),
           ])
 
           if (!subscriptionResponse.ok) {
@@ -375,14 +428,16 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         }
       },
 
+      getFeatures: () => {
+        return get().subscriptionData?.features ?? defaultFeatures
+      },
+
       getUsage: () => {
         return get().subscriptionData?.usage ?? defaultUsage
       },
 
       getBillingStatus: (): BillingStatus => {
         const usage = get().getUsage()
-        const blocked = get().subscriptionData?.billingBlocked
-        if (blocked) return 'blocked'
         if (usage.isExceeded) return 'exceeded'
         if (usage.isWarning) return 'warning'
         return 'ok'
@@ -403,6 +458,10 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
         return Math.max(0, diffDays)
+      },
+
+      hasFeature: (feature: keyof SubscriptionFeatures) => {
+        return get().getFeatures()[feature] ?? false
       },
 
       isAtLeastPro: () => {

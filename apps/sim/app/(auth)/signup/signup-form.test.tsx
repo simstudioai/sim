@@ -5,7 +5,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { client, useSession } from '@/lib/auth-client'
+import { client } from '@/lib/auth-client'
 import SignupPage from '@/app/(auth)/signup/signup-form'
 
 vi.mock('next/navigation', () => ({
@@ -22,7 +22,6 @@ vi.mock('@/lib/auth-client', () => ({
       sendVerificationOtp: vi.fn(),
     },
   },
-  useSession: vi.fn(),
 }))
 
 vi.mock('@/app/(auth)/components/social-login-buttons', () => ({
@@ -44,9 +43,6 @@ describe('SignupPage', () => {
     vi.clearAllMocks()
     ;(useRouter as any).mockReturnValue(mockRouter)
     ;(useSearchParams as any).mockReturnValue(mockSearchParams)
-    ;(useSession as any).mockReturnValue({
-      refetch: vi.fn().mockResolvedValue({}),
-    })
     mockSearchParams.get.mockReturnValue(null)
   })
 
@@ -166,9 +162,8 @@ describe('SignupPage', () => {
       })
     })
 
-    it('should automatically trim spaces from name input', async () => {
+    it('should prevent submission with invalid name validation', async () => {
       const mockSignUp = vi.mocked(client.signUp.email)
-      mockSignUp.mockResolvedValue({ data: null, error: null })
 
       render(<SignupPage {...defaultProps} />)
 
@@ -177,20 +172,22 @@ describe('SignupPage', () => {
       const passwordInput = screen.getByPlaceholderText(/enter your password/i)
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
+      // Use name with leading/trailing spaces which should fail validation
       fireEvent.change(nameInput, { target: { value: '  John Doe  ' } })
       fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
       fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
       fireEvent.click(submitButton)
 
+      // Should not call signUp because validation failed
+      expect(mockSignUp).not.toHaveBeenCalled()
+
+      // Should show validation error
       await waitFor(() => {
-        expect(mockSignUp).toHaveBeenCalledWith(
-          expect.objectContaining({
-            name: 'John Doe',
-            email: 'user@company.com',
-            password: 'Password123!',
-          }),
-          expect.any(Object)
-        )
+        expect(
+          screen.getByText(
+            /Name cannot contain consecutive spaces|Name cannot start or end with spaces/
+          )
+        ).toBeInTheDocument()
       })
     })
 

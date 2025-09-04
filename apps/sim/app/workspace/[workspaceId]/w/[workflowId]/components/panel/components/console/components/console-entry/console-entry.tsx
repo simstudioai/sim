@@ -155,7 +155,7 @@ const ImagePreview = ({
         className='h-auto w-full rounded-lg border'
         unoptimized
         onError={(e) => {
-          logger.error('Image failed to load:', imageSrc)
+          console.error('Image failed to load:', imageSrc)
           setLoadError(true)
           onLoadError?.(true)
         }}
@@ -333,7 +333,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
       // Clean up the URL
       setTimeout(() => URL.revokeObjectURL(url), 100)
     } catch (error) {
-      logger.error('Error downloading image:', error)
+      console.error('Error downloading image:', error)
       alert('Failed to download image. Please try again later.')
     }
   }

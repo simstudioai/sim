@@ -26,7 +26,7 @@ jobs:
           node-version: latest
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Run tests with coverage
         env:

@@ -2,19 +2,16 @@ import crypto from 'crypto'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console/logger'
 import { getUsersWithPermissions, hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { permissions, type permissionTypeEnum } from '@/db/schema'
-
-const logger = createLogger('WorkspacesPermissionsAPI')
 
 type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
 interface UpdatePermissionsRequest {
   updates: Array<{
     userId: string
-    permissions: PermissionType
+    permissions: PermissionType // Single permission type instead of object with booleans
   }>
 }
 
@@ -36,6 +33,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
+    // Verify the current user has access to this workspace
     const userPermission = await db
       .select()
       .from(permissions)
@@ -59,7 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       total: result.length,
     })
   } catch (error) {
-    logger.error('Error fetching workspace permissions:', error)
+    console.error('Error fetching workspace permissions:', error)
     return NextResponse.json({ error: 'Failed to fetch workspace permissions' }, { status: 500 })
   }
 }
@@ -83,6 +81,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
+    // Verify the current user has admin access to this workspace (either direct or through organization)
     const hasAdminAccess = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
 
     if (!hasAdminAccess) {
@@ -92,8 +91,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       )
     }
 
+    // Parse and validate request body
     const body: UpdatePermissionsRequest = await request.json()
 
+    // Prevent users from modifying their own admin permissions
     const selfUpdate = body.updates.find((update) => update.userId === session.user.id)
     if (selfUpdate && selfUpdate.permissions !== 'admin') {
       return NextResponse.json(
@@ -102,8 +103,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       )
     }
 
+    // Process updates in a transaction
     await db.transaction(async (tx) => {
       for (const update of body.updates) {
+        // Delete existing permissions for this user and workspace
         await tx
           .delete(permissions)
           .where(
@@ -114,6 +117,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             )
           )
 
+        // Insert the single new permission
         await tx.insert(permissions).values({
           id: crypto.randomUUID(),
           userId: update.userId,
@@ -134,7 +138,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       total: updatedUsers.length,
     })
   } catch (error) {
-    logger.error('Error updating workspace permissions:', error)
+    console.error('Error updating workspace permissions:', error)
     return NextResponse.json({ error: 'Failed to update workspace permissions' }, { status: 500 })
   }
 }

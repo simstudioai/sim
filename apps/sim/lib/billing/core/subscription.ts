@@ -1,10 +1,11 @@
 import { and, eq, inArray } from 'drizzle-orm'
+import { client } from '@/lib/auth-client'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import {
+  calculateDefaultUsageLimit,
   checkEnterprisePlan,
   checkProPlan,
   checkTeamPlan,
-  getFreeTierLimit,
-  getPerUserMinimumLimit,
 } from '@/lib/billing/subscriptions/utils'
 import type { UserSubscriptionState } from '@/lib/billing/types'
 import { isProd } from '@/lib/environment'
@@ -156,27 +157,15 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
     const subscription = await getHighestPrioritySubscription(userId)
 
     // Calculate usage limit
-    let limit = getFreeTierLimit() // Default free tier limit
-
+    let limit = DEFAULT_FREE_CREDITS // Default free tier limit
     if (subscription) {
-      // Team/Enterprise: Use organization limit
-      if (subscription.plan === 'team' || subscription.plan === 'enterprise') {
-        const { getUserUsageLimit } = await import('@/lib/billing/core/usage')
-        limit = await getUserUsageLimit(userId)
-        logger.info('Using organization limit', {
-          userId,
-          plan: subscription.plan,
-          limit,
-        })
-      } else {
-        // Pro/Free: Use individual limit
-        limit = getPerUserMinimumLimit(subscription)
-        logger.info('Using subscription-based limit', {
-          userId,
-          plan: subscription.plan,
-          limit,
-        })
-      }
+      limit = calculateDefaultUsageLimit(subscription)
+      logger.info('Using subscription-based limit', {
+        userId,
+        plan: subscription.plan,
+        seats: subscription.seats || 1,
+        limit,
+      })
     } else {
       logger.info('Using free tier limit', { userId, limit })
     }
@@ -205,7 +194,86 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
 /**
  * Check if sharing features are enabled for user
  */
-// Removed unused feature flag helpers: isSharingEnabled, isMultiplayerEnabled, isWorkspaceCollaborationEnabled
+export async function isSharingEnabled(userId: string): Promise<boolean> {
+  try {
+    if (!isProd) {
+      return true
+    }
+
+    const subscription = await getHighestPrioritySubscription(userId)
+
+    if (!subscription) {
+      return false // Free users don't have sharing
+    }
+
+    // Use Better-Auth client to check feature flags
+    const { data: subscriptions } = await client.subscription.list({
+      query: { referenceId: subscription.referenceId },
+    })
+
+    const activeSubscription = subscriptions?.find((sub) => sub.status === 'active')
+    return !!activeSubscription?.limits?.sharingEnabled
+  } catch (error) {
+    logger.error('Error checking sharing permission', { error, userId })
+    return false
+  }
+}
+
+/**
+ * Check if multiplayer features are enabled for user
+ */
+export async function isMultiplayerEnabled(userId: string): Promise<boolean> {
+  try {
+    if (!isProd) {
+      return true
+    }
+
+    const subscription = await getHighestPrioritySubscription(userId)
+
+    if (!subscription) {
+      return false // Free users don't have multiplayer
+    }
+
+    // Use Better-Auth client to check feature flags
+    const { data: subscriptions } = await client.subscription.list({
+      query: { referenceId: subscription.referenceId },
+    })
+
+    const activeSubscription = subscriptions?.find((sub) => sub.status === 'active')
+    return !!activeSubscription?.limits?.multiplayerEnabled
+  } catch (error) {
+    logger.error('Error checking multiplayer permission', { error, userId })
+    return false
+  }
+}
+
+/**
+ * Check if workspace collaboration features are enabled for user
+ */
+export async function isWorkspaceCollaborationEnabled(userId: string): Promise<boolean> {
+  try {
+    if (!isProd) {
+      return true
+    }
+
+    const subscription = await getHighestPrioritySubscription(userId)
+
+    if (!subscription) {
+      return false // Free users don't have workspace collaboration
+    }
+
+    // Use Better-Auth client to check feature flags
+    const { data: subscriptions } = await client.subscription.list({
+      query: { referenceId: subscription.referenceId },
+    })
+
+    const activeSubscription = subscriptions?.find((sub) => sub.status === 'active')
+    return !!activeSubscription?.limits?.workspaceCollaborationEnabled
+  } catch (error) {
+    logger.error('Error checking workspace collaboration permission', { error, userId })
+    return false
+  }
+}
 
 /**
  * Get comprehensive subscription state for a user
@@ -238,19 +306,42 @@ export async function getUserSubscriptionState(userId: string): Promise<UserSubs
     else if (isTeam) planName = 'team'
     else if (isPro) planName = 'pro'
 
+    // Check features based on subscription (avoid redundant better-auth calls)
+    let sharingEnabled = false
+    let multiplayerEnabled = false
+    let workspaceCollaborationEnabled = false
+
+    if (!isProd || subscription) {
+      if (!isProd) {
+        // Development mode - enable all features
+        sharingEnabled = true
+        multiplayerEnabled = true
+        workspaceCollaborationEnabled = true
+      } else {
+        // Production mode - check subscription features
+        try {
+          const { data: subscriptions } = await client.subscription.list({
+            query: { referenceId: subscription.referenceId },
+          })
+          const activeSubscription = subscriptions?.find((sub) => sub.status === 'active')
+
+          sharingEnabled = !!activeSubscription?.limits?.sharingEnabled
+          multiplayerEnabled = !!activeSubscription?.limits?.multiplayerEnabled
+          workspaceCollaborationEnabled =
+            !!activeSubscription?.limits?.workspaceCollaborationEnabled
+        } catch (error) {
+          logger.error('Error checking subscription features', { error, userId })
+          // Default to false on error
+        }
+      }
+    }
+
     // Check cost limit using already-fetched user stats
     let hasExceededLimit = false
     if (isProd && statsRecords.length > 0) {
-      let limit = getFreeTierLimit() // Default free tier limit
+      let limit = DEFAULT_FREE_CREDITS // Default free tier limit
       if (subscription) {
-        // Team/Enterprise: Use organization limit
-        if (subscription.plan === 'team' || subscription.plan === 'enterprise') {
-          const { getUserUsageLimit } = await import('@/lib/billing/core/usage')
-          limit = await getUserUsageLimit(userId)
-        } else {
-          // Pro/Free: Use individual limit
-          limit = getPerUserMinimumLimit(subscription)
-        }
+        limit = calculateDefaultUsageLimit(subscription)
       }
 
       const currentCost = Number.parseFloat(
@@ -265,6 +356,11 @@ export async function getUserSubscriptionState(userId: string): Promise<UserSubs
       isEnterprise,
       isFree,
       highestPrioritySubscription: subscription,
+      features: {
+        sharingEnabled,
+        multiplayerEnabled,
+        workspaceCollaborationEnabled,
+      },
       hasExceededLimit,
       planName,
     }
@@ -278,6 +374,11 @@ export async function getUserSubscriptionState(userId: string): Promise<UserSubs
       isEnterprise: false,
       isFree: true,
       highestPrioritySubscription: null,
+      features: {
+        sharingEnabled: false,
+        multiplayerEnabled: false,
+        workspaceCollaborationEnabled: false,
+      },
       hasExceededLimit: false,
       planName: 'free',
     }

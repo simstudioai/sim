@@ -11,7 +11,8 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 const logger = createLogger('SubBlockValue')
 
 interface UseSubBlockValueOptions {
-  isStreaming?: boolean
+  debounceMs?: number
+  isStreaming?: boolean // Explicit streaming state
   onStreamingEnd?: () => void
 }
 
@@ -129,21 +130,8 @@ export function useSubBlockValue<T = any>(
       if (!isEqual(valueRef.current, newValue)) {
         valueRef.current = newValue
 
-        // Ensure we're passing the actual value, not a reference that might change
-        const valueCopy =
-          newValue === null
-            ? null
-            : typeof newValue === 'object'
-              ? JSON.parse(JSON.stringify(newValue))
-              : newValue
-
-        // If streaming, hold value locally and do not update global store to avoid render-phase updates
-        if (isStreaming) {
-          streamingValueRef.current = valueCopy
-          return
-        }
-
-        // Update local store immediately for UI responsiveness (non-streaming)
+        // Update local store immediately for UI responsiveness
+        // The collaborative function will also update it, but that's okay for idempotency
         useSubBlockStore.setState((state) => ({
           workflowValues: {
             ...state.workflowValues,
@@ -157,7 +145,7 @@ export function useSubBlockValue<T = any>(
           },
         }))
 
-        // Handle model changes for provider-based blocks - clear API key when provider changes (non-streaming)
+        // Handle model changes for provider-based blocks - clear API key when provider changes
         if (
           subBlockId === 'model' &&
           isProviderBasedBlock &&
@@ -165,18 +153,36 @@ export function useSubBlockValue<T = any>(
           typeof newValue === 'string'
         ) {
           const currentApiKeyValue = useSubBlockStore.getState().getValue(blockId, 'apiKey')
+
+          // Only clear if there's currently an API key value
           if (currentApiKeyValue && currentApiKeyValue !== '') {
             const oldModelValue = storeValue as string
             const oldProvider = oldModelValue ? getProviderFromModel(oldModelValue) : null
             const newProvider = getProviderFromModel(newValue)
+
+            // Clear API key if provider changed
             if (oldProvider !== newProvider) {
+              // Use collaborative function to clear the API key
               collaborativeSetSubblockValue(blockId, 'apiKey', '')
             }
           }
         }
 
-        // Emit immediately - let the operation queue handle debouncing and deduplication
-        emitValue(valueCopy)
+        // Ensure we're passing the actual value, not a reference that might change
+        const valueCopy =
+          newValue === null
+            ? null
+            : typeof newValue === 'object'
+              ? JSON.parse(JSON.stringify(newValue))
+              : newValue
+
+        // If streaming, just store the value without emitting
+        if (isStreaming) {
+          streamingValueRef.current = valueCopy
+        } else {
+          // Emit immediately - let the operation queue handle debouncing and deduplication
+          emitValue(valueCopy)
+        }
 
         if (triggerWorkflowUpdate) {
           useWorkflowStore.getState().triggerUpdate()

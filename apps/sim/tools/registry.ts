@@ -92,13 +92,6 @@ import {
 } from '@/tools/microsoft_teams'
 import { mistralParserTool } from '@/tools/mistral'
 import {
-  deleteTool as mongodbDeleteTool,
-  executeTool as mongodbExecuteTool,
-  insertTool as mongodbInsertTool,
-  queryTool as mongodbQueryTool,
-  updateTool as mongodbUpdateTool,
-} from '@/tools/mongodb'
-import {
   deleteTool as mysqlDeleteTool,
   executeTool as mysqlExecuteTool,
   insertTool as mysqlInsertTool,
@@ -116,12 +109,7 @@ import {
 } from '@/tools/notion'
 import { onedriveCreateFolderTool, onedriveListTool, onedriveUploadTool } from '@/tools/onedrive'
 import { imageTool, embeddingsTool as openAIEmbeddings } from '@/tools/openai'
-import {
-  outlookDraftTool,
-  outlookForwardTool,
-  outlookReadTool,
-  outlookSendTool,
-} from '@/tools/outlook'
+import { outlookDraftTool, outlookReadTool, outlookSendTool } from '@/tools/outlook'
 import { parallelSearchTool } from '@/tools/parallel'
 import { perplexityChatTool } from '@/tools/perplexity'
 import {
@@ -249,11 +237,6 @@ export const tools: Record<string, ToolConfig> = {
   postgresql_update: postgresUpdateTool,
   postgresql_delete: postgresDeleteTool,
   postgresql_execute: postgresExecuteTool,
-  mongodb_query: mongodbQueryTool,
-  mongodb_insert: mongodbInsertTool,
-  mongodb_update: mongodbUpdateTool,
-  mongodb_delete: mongodbDeleteTool,
-  mongodb_execute: mongodbExecuteTool,
   mysql_query: mysqlQueryTool,
   mysql_insert: mysqlInsertTool,
   mysql_update: mysqlUpdateTool,
@@ -319,7 +302,6 @@ export const tools: Record<string, ToolConfig> = {
   outlook_read: outlookReadTool,
   outlook_send: outlookSendTool,
   outlook_draft: outlookDraftTool,
-  outlook_forward: outlookForwardTool,
   linear_read_issues: linearReadIssuesTool,
   linear_create_issue: linearCreateIssueTool,
   onedrive_create_folder: onedriveCreateFolderTool,

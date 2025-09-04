@@ -34,7 +34,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
 import type { SubBlockConfig } from '@/blocks/types'
 import { DocumentTagEntry } from './components/document-tag-entry/document-tag-entry'
-import { E2BSwitch } from './components/e2b-switch'
 import { KnowledgeTagFilters } from './components/knowledge-tag-filters/knowledge-tag-filters'
 
 interface SubBlockProps {
@@ -46,7 +45,6 @@ interface SubBlockProps {
   disabled?: boolean
   fieldDiffStatus?: FieldDiffStatus
   allowExpandInPreview?: boolean
-  isWide?: boolean
 }
 
 export function SubBlock({
@@ -58,7 +56,6 @@ export function SubBlock({
   disabled = false,
   fieldDiffStatus,
   allowExpandInPreview,
-  isWide = false,
 }: SubBlockProps) {
   const [isValidJson, setIsValidJson] = useState(true)
 
@@ -151,7 +148,6 @@ export function SubBlock({
               disabled={isDisabled}
               isConnecting={isConnecting}
               config={config}
-              isWide={isWide}
             />
           </div>
         )
@@ -204,18 +200,6 @@ export function SubBlock({
           />
         )
       case 'switch':
-        if (config.id === 'remoteExecution') {
-          return (
-            <E2BSwitch
-              blockId={blockId}
-              subBlockId={config.id}
-              title={config.title ?? ''}
-              isPreview={isPreview}
-              previewValue={previewValue}
-              disabled={isDisabled}
-            />
-          )
-        }
         return (
           <Switch
             blockId={blockId}
@@ -499,15 +483,10 @@ export function SubBlock({
               </TooltipContent>
             </Tooltip>
           )}
-          {config.id === 'responseFormat' && (
+          {config.id === 'responseFormat' && !isValidJson && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <AlertTriangle
-                  className={cn(
-                    'h-4 w-4 cursor-pointer text-destructive',
-                    !isValidJson ? 'opacity-100' : 'opacity-0'
-                  )}
-                />
+                <AlertTriangle className='h-4 w-4 cursor-pointer text-destructive' />
               </TooltipTrigger>
               <TooltipContent side='top'>
                 <p>Invalid JSON</p>

@@ -1,5 +1,4 @@
 import { CodeIcon } from '@/components/icons'
-import { CodeLanguage, getLanguageDisplayName } from '@/lib/execution/languages'
 import type { BlockConfig } from '@/blocks/types'
 import type { CodeExecutionOutput } from '@/tools/function/types'
 
@@ -8,34 +7,12 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
   name: 'Function',
   description: 'Run custom logic',
   longDescription:
-    'Execute custom JavaScript or Python code within your workflow. Use E2B for remote execution with imports or enable Fast Mode (bolt) to run JavaScript locally for lowest latency.',
+    'Execute custom JavaScript or TypeScript code within your workflow to transform data or implement complex logic. Create reusable functions to process inputs and generate outputs for other blocks.',
   docsLink: 'https://docs.sim.ai/blocks/function',
   category: 'blocks',
   bgColor: '#FF402F',
   icon: CodeIcon,
   subBlocks: [
-    {
-      id: 'remoteExecution',
-      type: 'switch',
-      layout: 'full',
-      title: 'Remote Code Execution',
-      description: 'Python/Javascript code run in a sandbox environment. Slower execution times.',
-    },
-    {
-      id: 'language',
-      type: 'dropdown',
-      layout: 'full',
-      options: [
-        { label: getLanguageDisplayName(CodeLanguage.JavaScript), id: CodeLanguage.JavaScript },
-        { label: getLanguageDisplayName(CodeLanguage.Python), id: CodeLanguage.Python },
-      ],
-      placeholder: 'Select language',
-      value: () => CodeLanguage.JavaScript,
-      condition: {
-        field: 'remoteExecution',
-        value: true,
-      },
-    },
     {
       id: 'code',
       type: 'code',
@@ -99,9 +76,7 @@ try {
     access: ['function_execute'],
   },
   inputs: {
-    code: { type: 'string', description: 'JavaScript or Python code to execute' },
-    remoteExecution: { type: 'boolean', description: 'Use E2B remote execution' },
-    language: { type: 'string', description: 'Language (javascript or python)' },
+    code: { type: 'string', description: 'JavaScript/TypeScript code to execute' },
     timeout: { type: 'number', description: 'Execution timeout' },
   },
   outputs: {

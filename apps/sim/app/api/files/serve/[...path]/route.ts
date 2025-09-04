@@ -2,7 +2,7 @@ import { readFile } from 'fs/promises'
 import type { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { downloadFile, getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
-import { S3_KB_CONFIG } from '@/lib/uploads/setup'
+import { BLOB_KB_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'
 
 import {
@@ -14,6 +14,19 @@ import {
 } from '@/app/api/files/utils'
 
 const logger = createLogger('FilesServeAPI')
+
+async function streamToBuffer(readableStream: NodeJS.ReadableStream): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    readableStream.on('data', (data) => {
+      chunks.push(data instanceof Buffer ? data : Buffer.from(data))
+    })
+    readableStream.on('end', () => {
+      resolve(Buffer.concat(chunks))
+    })
+    readableStream.on('error', reject)
+  })
+}
 
 /**
  * Main API route handler for serving files
@@ -89,23 +102,49 @@ async function handleLocalFile(filename: string): Promise<NextResponse> {
 }
 
 async function downloadKBFile(cloudKey: string): Promise<Buffer> {
-  logger.info(`Downloading KB file: ${cloudKey}`)
   const storageProvider = getStorageProvider()
 
   if (storageProvider === 'blob') {
-    const { BLOB_KB_CONFIG } = await import('@/lib/uploads/setup')
-    return downloadFile(cloudKey, {
-      containerName: BLOB_KB_CONFIG.containerName,
-      accountName: BLOB_KB_CONFIG.accountName,
-      accountKey: BLOB_KB_CONFIG.accountKey,
-      connectionString: BLOB_KB_CONFIG.connectionString,
-    })
+    logger.info(`Downloading KB file from Azure Blob Storage: ${cloudKey}`)
+    // Use KB-specific blob configuration
+    const { getBlobServiceClient } = await import('@/lib/uploads/blob/blob-client')
+    const blobServiceClient = getBlobServiceClient()
+    const containerClient = blobServiceClient.getContainerClient(BLOB_KB_CONFIG.containerName)
+    const blockBlobClient = containerClient.getBlockBlobClient(cloudKey)
+
+    const downloadBlockBlobResponse = await blockBlobClient.download()
+    if (!downloadBlockBlobResponse.readableStreamBody) {
+      throw new Error('Failed to get readable stream from blob download')
+    }
+
+    // Convert stream to buffer
+    return await streamToBuffer(downloadBlockBlobResponse.readableStreamBody)
   }
 
   if (storageProvider === 's3') {
-    return downloadFile(cloudKey, {
-      bucket: S3_KB_CONFIG.bucket,
-      region: S3_KB_CONFIG.region,
+    logger.info(`Downloading KB file from S3: ${cloudKey}`)
+    // Use KB-specific S3 configuration
+    const { getS3Client } = await import('@/lib/uploads/s3/s3-client')
+    const { GetObjectCommand } = await import('@aws-sdk/client-s3')
+
+    const s3Client = getS3Client()
+    const command = new GetObjectCommand({
+      Bucket: S3_KB_CONFIG.bucket,
+      Key: cloudKey,
+    })
+
+    const response = await s3Client.send(command)
+    if (!response.Body) {
+      throw new Error('No body in S3 response')
+    }
+
+    // Convert stream to buffer using the same method as the regular S3 client
+    const stream = response.Body as any
+    return new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = []
+      stream.on('data', (chunk: Buffer) => chunks.push(chunk))
+      stream.on('end', () => resolve(Buffer.concat(chunks)))
+      stream.on('error', reject)
     })
   }
 
@@ -128,22 +167,17 @@ async function handleCloudProxy(
     if (isKBFile) {
       fileBuffer = await downloadKBFile(cloudKey)
     } else if (bucketType === 'copilot') {
+      // Download from copilot-specific bucket
       const storageProvider = getStorageProvider()
 
       if (storageProvider === 's3') {
+        const { downloadFromS3WithConfig } = await import('@/lib/uploads/s3/s3-client')
         const { S3_COPILOT_CONFIG } = await import('@/lib/uploads/setup')
-        fileBuffer = await downloadFile(cloudKey, {
-          bucket: S3_COPILOT_CONFIG.bucket,
-          region: S3_COPILOT_CONFIG.region,
-        })
+        fileBuffer = await downloadFromS3WithConfig(cloudKey, S3_COPILOT_CONFIG)
       } else if (storageProvider === 'blob') {
-        const { BLOB_COPILOT_CONFIG } = await import('@/lib/uploads/setup')
-        fileBuffer = await downloadFile(cloudKey, {
-          containerName: BLOB_COPILOT_CONFIG.containerName,
-          accountName: BLOB_COPILOT_CONFIG.accountName,
-          accountKey: BLOB_COPILOT_CONFIG.accountKey,
-          connectionString: BLOB_COPILOT_CONFIG.connectionString,
-        })
+        // For Azure Blob, use the default downloadFile for now
+        // TODO: Add downloadFromBlobWithConfig when needed
+        fileBuffer = await downloadFile(cloudKey)
       } else {
         fileBuffer = await downloadFile(cloudKey)
       }

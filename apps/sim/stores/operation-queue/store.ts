@@ -31,26 +31,14 @@ interface OperationQueueState {
   cancelOperationsForBlock: (blockId: string) => void
   cancelOperationsForVariable: (variableId: string) => void
 
-  flushAllDebounced: () => void
-  flushDebouncedForBlock: (blockId: string) => void
-  flushDebouncedForVariable: (variableId: string) => void
-  flushDebouncedForWorkflow: (workflowId: string) => void
-  cancelOperationsForWorkflow: (workflowId: string) => void
-
   triggerOfflineMode: () => void
   clearError: () => void
 }
 
 const retryTimeouts = new Map<string, NodeJS.Timeout>()
 const operationTimeouts = new Map<string, NodeJS.Timeout>()
-
-type PendingDebouncedOperation = {
-  timeout: NodeJS.Timeout
-  op: Omit<QueuedOperation, 'timestamp' | 'retryCount' | 'status'>
-}
-
-const subblockDebounced = new Map<string, PendingDebouncedOperation>()
-const variableDebounced = new Map<string, PendingDebouncedOperation>()
+const subblockDebounceTimeouts = new Map<string, NodeJS.Timeout>()
+const variableDebounceTimeouts = new Map<string, NodeJS.Timeout>()
 
 let emitWorkflowOperation:
   | ((operation: string, target: string, payload: any, operationId?: string) => void)
@@ -71,10 +59,7 @@ export function registerEmitFunctions(
   emitWorkflowOperation = workflowEmit
   emitSubblockUpdate = subblockEmit
   emitVariableUpdate = variableEmit
-  currentRegisteredWorkflowId = workflowId
 }
-
-let currentRegisteredWorkflowId: string | null = null
 
 export const useOperationQueueStore = create<OperationQueueState>((set, get) => ({
   operations: [],
@@ -91,9 +76,9 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       const { blockId, subblockId } = operation.operation.payload
       const debounceKey = `${blockId}-${subblockId}`
 
-      const existing = subblockDebounced.get(debounceKey)
-      if (existing) {
-        clearTimeout(existing.timeout)
+      const existingTimeout = subblockDebounceTimeouts.get(debounceKey)
+      if (existingTimeout) {
+        clearTimeout(existingTimeout)
       }
 
       set((state) => ({
@@ -110,25 +95,23 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       }))
 
       const timeoutId = setTimeout(() => {
-        const pending = subblockDebounced.get(debounceKey)
-        subblockDebounced.delete(debounceKey)
-        if (pending) {
-          const queuedOp: QueuedOperation = {
-            ...pending.op,
-            timestamp: Date.now(),
-            retryCount: 0,
-            status: 'pending',
-          }
+        subblockDebounceTimeouts.delete(debounceKey)
 
-          set((state) => ({
-            operations: [...state.operations, queuedOp],
-          }))
-
-          get().processNextOperation()
+        const queuedOp: QueuedOperation = {
+          ...operation,
+          timestamp: Date.now(),
+          retryCount: 0,
+          status: 'pending',
         }
-      }, 25)
 
-      subblockDebounced.set(debounceKey, { timeout: timeoutId, op: operation })
+        set((state) => ({
+          operations: [...state.operations, queuedOp],
+        }))
+
+        get().processNextOperation()
+      }, 25) // 25ms debounce for subblock operations - optimized for collaborative editing
+
+      subblockDebounceTimeouts.set(debounceKey, timeoutId)
       return
     }
 
@@ -141,9 +124,9 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       const { variableId, field } = operation.operation.payload
       const debounceKey = `${variableId}-${field}`
 
-      const existing = variableDebounced.get(debounceKey)
-      if (existing) {
-        clearTimeout(existing.timeout)
+      const existingTimeout = variableDebounceTimeouts.get(debounceKey)
+      if (existingTimeout) {
+        clearTimeout(existingTimeout)
       }
 
       set((state) => ({
@@ -160,25 +143,23 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       }))
 
       const timeoutId = setTimeout(() => {
-        const pending = variableDebounced.get(debounceKey)
-        variableDebounced.delete(debounceKey)
-        if (pending) {
-          const queuedOp: QueuedOperation = {
-            ...pending.op,
-            timestamp: Date.now(),
-            retryCount: 0,
-            status: 'pending',
-          }
+        variableDebounceTimeouts.delete(debounceKey)
 
-          set((state) => ({
-            operations: [...state.operations, queuedOp],
-          }))
-
-          get().processNextOperation()
+        const queuedOp: QueuedOperation = {
+          ...operation,
+          timestamp: Date.now(),
+          retryCount: 0,
+          status: 'pending',
         }
-      }, 25)
 
-      variableDebounced.set(debounceKey, { timeout: timeoutId, op: operation })
+        set((state) => ({
+          operations: [...state.operations, queuedOp],
+        }))
+
+        get().processNextOperation()
+      }, 25) // 25ms debounce for variable operations - same as subblocks
+
+      variableDebounceTimeouts.set(debounceKey, timeoutId)
       return
     }
 
@@ -268,10 +249,10 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     ) {
       const { blockId, subblockId } = operation.operation.payload
       const debounceKey = `${blockId}-${subblockId}`
-      const pending = subblockDebounced.get(debounceKey)
-      if (pending) {
-        clearTimeout(pending.timeout)
-        subblockDebounced.delete(debounceKey)
+      const debounceTimeout = subblockDebounceTimeouts.get(debounceKey)
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout)
+        subblockDebounceTimeouts.delete(debounceKey)
       }
     }
 
@@ -282,10 +263,10 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     ) {
       const { variableId, field } = operation.operation.payload
       const debounceKey = `${variableId}-${field}`
-      const pending = variableDebounced.get(debounceKey)
-      if (pending) {
-        clearTimeout(pending.timeout)
-        variableDebounced.delete(debounceKey)
+      const debounceTimeout = variableDebounceTimeouts.get(debounceKey)
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout)
+        variableDebounceTimeouts.delete(debounceKey)
       }
     }
 
@@ -321,10 +302,10 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     ) {
       const { blockId, subblockId } = operation.operation.payload
       const debounceKey = `${blockId}-${subblockId}`
-      const pending = subblockDebounced.get(debounceKey)
-      if (pending) {
-        clearTimeout(pending.timeout)
-        subblockDebounced.delete(debounceKey)
+      const debounceTimeout = subblockDebounceTimeouts.get(debounceKey)
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout)
+        subblockDebounceTimeouts.delete(debounceKey)
       }
     }
 
@@ -335,10 +316,10 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     ) {
       const { variableId, field } = operation.operation.payload
       const debounceKey = `${variableId}-${field}`
-      const pending = variableDebounced.get(debounceKey)
-      if (pending) {
-        clearTimeout(pending.timeout)
-        variableDebounced.delete(debounceKey)
+      const debounceTimeout = variableDebounceTimeouts.get(debounceKey)
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout)
+        variableDebounceTimeouts.delete(debounceKey)
       }
     }
 
@@ -409,17 +390,10 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       return
     }
 
-    const nextOperation = currentRegisteredWorkflowId
-      ? state.operations.find(
-          (op) => op.status === 'pending' && op.workflowId === currentRegisteredWorkflowId
-        )
-      : state.operations.find((op) => op.status === 'pending')
+    // Find the first pending operation (FIFO - first in, first out)
+    const nextOperation = state.operations.find((op) => op.status === 'pending')
     if (!nextOperation) {
-      return
-    }
-
-    if (currentRegisteredWorkflowId && nextOperation.workflowId !== currentRegisteredWorkflowId) {
-      return
+      return // No pending operations
     }
 
     // Mark as processing
@@ -469,13 +443,13 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
     // Cancel all debounce timeouts for this block's subblocks
     const keysToDelete: string[] = []
-    for (const [key, pending] of subblockDebounced.entries()) {
+    for (const [key, timeout] of subblockDebounceTimeouts.entries()) {
       if (key.startsWith(`${blockId}-`)) {
-        clearTimeout(pending.timeout)
+        clearTimeout(timeout)
         keysToDelete.push(key)
       }
     }
-    keysToDelete.forEach((key) => subblockDebounced.delete(key))
+    keysToDelete.forEach((key) => subblockDebounceTimeouts.delete(key))
 
     // Find and cancel operation timeouts for operations related to this block
     const state = get()
@@ -529,13 +503,13 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
     // Cancel all debounce timeouts for this variable
     const keysToDelete: string[] = []
-    for (const [key, pending] of variableDebounced.entries()) {
+    for (const [key, timeout] of variableDebounceTimeouts.entries()) {
       if (key.startsWith(`${variableId}-`)) {
-        clearTimeout(pending.timeout)
+        clearTimeout(timeout)
         keysToDelete.push(key)
       }
     }
-    keysToDelete.forEach((key) => variableDebounced.delete(key))
+    keysToDelete.forEach((key) => variableDebounceTimeouts.delete(key))
 
     // Find and cancel operation timeouts for operations related to this variable
     const state = get()
@@ -584,142 +558,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
     // Process next operation if there are any remaining
     get().processNextOperation()
-  },
-
-  flushAllDebounced: () => {
-    const toEnqueue: Omit<QueuedOperation, 'timestamp' | 'retryCount' | 'status'>[] = []
-    subblockDebounced.forEach((pending, key) => {
-      clearTimeout(pending.timeout)
-      subblockDebounced.delete(key)
-      toEnqueue.push(pending.op)
-    })
-    variableDebounced.forEach((pending, key) => {
-      clearTimeout(pending.timeout)
-      variableDebounced.delete(key)
-      toEnqueue.push(pending.op)
-    })
-    if (toEnqueue.length === 0) return
-    set((state) => ({
-      operations: [
-        ...state.operations,
-        ...toEnqueue.map((op) => ({
-          ...op,
-          timestamp: Date.now(),
-          retryCount: 0,
-          status: 'pending' as const,
-        })),
-      ],
-    }))
-    get().processNextOperation()
-  },
-
-  flushDebouncedForBlock: (blockId: string) => {
-    const toEnqueue: Omit<QueuedOperation, 'timestamp' | 'retryCount' | 'status'>[] = []
-    const keys: string[] = []
-    subblockDebounced.forEach((pending, key) => {
-      if (key.startsWith(`${blockId}-`)) {
-        clearTimeout(pending.timeout)
-        keys.push(key)
-        toEnqueue.push(pending.op)
-      }
-    })
-    keys.forEach((k) => subblockDebounced.delete(k))
-    if (toEnqueue.length === 0) return
-    set((state) => ({
-      operations: [
-        ...state.operations,
-        ...toEnqueue.map((op) => ({
-          ...op,
-          timestamp: Date.now(),
-          retryCount: 0,
-          status: 'pending' as const,
-        })),
-      ],
-    }))
-    get().processNextOperation()
-  },
-
-  flushDebouncedForVariable: (variableId: string) => {
-    const toEnqueue: Omit<QueuedOperation, 'timestamp' | 'retryCount' | 'status'>[] = []
-    const keys: string[] = []
-    variableDebounced.forEach((pending, key) => {
-      if (key.startsWith(`${variableId}-`)) {
-        clearTimeout(pending.timeout)
-        keys.push(key)
-        toEnqueue.push(pending.op)
-      }
-    })
-    keys.forEach((k) => variableDebounced.delete(k))
-    if (toEnqueue.length === 0) return
-    set((state) => ({
-      operations: [
-        ...state.operations,
-        ...toEnqueue.map((op) => ({
-          ...op,
-          timestamp: Date.now(),
-          retryCount: 0,
-          status: 'pending' as const,
-        })),
-      ],
-    }))
-    get().processNextOperation()
-  },
-
-  flushDebouncedForWorkflow: (workflowId: string) => {
-    const toEnqueue: Omit<QueuedOperation, 'timestamp' | 'retryCount' | 'status'>[] = []
-    const subblockKeys: string[] = []
-    subblockDebounced.forEach((pending, key) => {
-      if (pending.op.workflowId === workflowId) {
-        clearTimeout(pending.timeout)
-        subblockKeys.push(key)
-        toEnqueue.push(pending.op)
-      }
-    })
-    subblockKeys.forEach((k) => subblockDebounced.delete(k))
-    const variableKeys: string[] = []
-    variableDebounced.forEach((pending, key) => {
-      if (pending.op.workflowId === workflowId) {
-        clearTimeout(pending.timeout)
-        variableKeys.push(key)
-        toEnqueue.push(pending.op)
-      }
-    })
-    variableKeys.forEach((k) => variableDebounced.delete(k))
-    if (toEnqueue.length === 0) return
-    set((state) => ({
-      operations: [
-        ...state.operations,
-        ...toEnqueue.map((op) => ({
-          ...op,
-          timestamp: Date.now(),
-          retryCount: 0,
-          status: 'pending' as const,
-        })),
-      ],
-    }))
-    get().processNextOperation()
-  },
-
-  cancelOperationsForWorkflow: (workflowId: string) => {
-    const state = get()
-    retryTimeouts.forEach((timeout, opId) => {
-      const op = state.operations.find((o) => o.id === opId)
-      if (op && op.workflowId === workflowId) {
-        clearTimeout(timeout)
-        retryTimeouts.delete(opId)
-      }
-    })
-    operationTimeouts.forEach((timeout, opId) => {
-      const op = state.operations.find((o) => o.id === opId)
-      if (op && op.workflowId === workflowId) {
-        clearTimeout(timeout)
-        operationTimeouts.delete(opId)
-      }
-    })
-    set((s) => ({
-      operations: s.operations.filter((op) => op.workflowId !== workflowId),
-      isProcessing: false,
-    }))
   },
 
   triggerOfflineMode: () => {

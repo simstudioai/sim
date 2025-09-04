@@ -16,8 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
 import { env } from '@/lib/env'
 
 interface TeamSeatsProps {
@@ -31,7 +29,6 @@ interface TeamSeatsProps {
   onConfirm: (seats: number) => Promise<void>
   confirmButtonText: string
   showCostBreakdown?: boolean
-  isCancelledAtPeriodEnd?: boolean
 }
 
 export function TeamSeats({
@@ -45,7 +42,6 @@ export function TeamSeats({
   onConfirm,
   confirmButtonText,
   showCostBreakdown = false,
-  isCancelledAtPeriodEnd = false,
 }: TeamSeatsProps) {
   const [selectedSeats, setSelectedSeats] = useState(initialSeats)
 
@@ -55,7 +51,7 @@ export function TeamSeats({
     }
   }, [open, initialSeats])
 
-  const costPerSeat = env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT
+  const costPerSeat = env.TEAM_TIER_COST_LIMIT ?? 40
   const totalMonthlyCost = selectedSeats * costPerSeat
   const costChange = currentSeats ? (selectedSeats - currentSeats) * costPerSeat : 0
 
@@ -118,39 +114,19 @@ export function TeamSeats({
           <Button variant='outline' onClick={() => onOpenChange(false)} disabled={isLoading}>
             Cancel
           </Button>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>
-                  <Button
-                    onClick={handleConfirm}
-                    disabled={
-                      isLoading ||
-                      (showCostBreakdown && selectedSeats === currentSeats) ||
-                      isCancelledAtPeriodEnd
-                    }
-                  >
-                    {isLoading ? (
-                      <div className='flex items-center space-x-2'>
-                        <div className='h-4 w-4 animate-spin rounded-full border-2 border-current border-b-transparent' />
-                        <span>Loading...</span>
-                      </div>
-                    ) : (
-                      <span>{confirmButtonText}</span>
-                    )}
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              {isCancelledAtPeriodEnd && (
-                <TooltipContent>
-                  <p>
-                    To update seats, go to Subscription {'>'} Manage {'>'} Keep Subscription to
-                    reactivate
-                  </p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+          <Button
+            onClick={handleConfirm}
+            disabled={isLoading || (showCostBreakdown && selectedSeats === currentSeats)}
+          >
+            {isLoading ? (
+              <div className='flex items-center space-x-2'>
+                <div className='h-4 w-4 animate-spin rounded-full border-2 border-current border-b-transparent' />
+                <span>Loading...</span>
+              </div>
+            ) : (
+              <span>{confirmButtonText}</span>
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

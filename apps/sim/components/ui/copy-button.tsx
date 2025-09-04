@@ -35,6 +35,7 @@ export function CopyButton({ text, className = '', showLabel = true }: CopyButto
           e.stopPropagation() // Prevent click from affecting parent elements
           copyToClipboard()
         }}
+        title='Copy to clipboard'
       >
         {copied ? (
           <Check className='h-3.5 w-3.5 text-green-500' />

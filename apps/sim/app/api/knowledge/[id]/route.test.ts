@@ -16,25 +16,8 @@ mockKnowledgeSchemas()
 mockDrizzleOrm()
 mockConsoleLogger()
 
-vi.mock('@/lib/knowledge/service', () => ({
-  getKnowledgeBaseById: vi.fn(),
-  updateKnowledgeBase: vi.fn(),
-  deleteKnowledgeBase: vi.fn(),
-}))
-
-vi.mock('@/app/api/knowledge/utils', () => ({
-  checkKnowledgeBaseAccess: vi.fn(),
-  checkKnowledgeBaseWriteAccess: vi.fn(),
-}))
-
 describe('Knowledge Base By ID API Route', () => {
   const mockAuth$ = mockAuth()
-
-  let mockGetKnowledgeBaseById: any
-  let mockUpdateKnowledgeBase: any
-  let mockDeleteKnowledgeBase: any
-  let mockCheckKnowledgeBaseAccess: any
-  let mockCheckKnowledgeBaseWriteAccess: any
 
   const mockDbChain = {
     select: vi.fn().mockReturnThis(),
@@ -79,15 +62,6 @@ describe('Knowledge Base By ID API Route', () => {
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),
     })
-
-    const knowledgeService = await import('@/lib/knowledge/service')
-    const knowledgeUtils = await import('@/app/api/knowledge/utils')
-
-    mockGetKnowledgeBaseById = knowledgeService.getKnowledgeBaseById as any
-    mockUpdateKnowledgeBase = knowledgeService.updateKnowledgeBase as any
-    mockDeleteKnowledgeBase = knowledgeService.deleteKnowledgeBase as any
-    mockCheckKnowledgeBaseAccess = knowledgeUtils.checkKnowledgeBaseAccess as any
-    mockCheckKnowledgeBaseWriteAccess = knowledgeUtils.checkKnowledgeBaseWriteAccess as any
   })
 
   afterEach(() => {
@@ -100,12 +74,9 @@ describe('Knowledge Base By ID API Route', () => {
     it('should retrieve knowledge base successfully for authenticated user', async () => {
       mockAuth$.mockAuthenticatedUser()
 
-      mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
-        hasAccess: true,
-        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
-      })
+      mockDbChain.limit.mockResolvedValueOnce([{ id: 'kb-123', userId: 'user-123' }])
 
-      mockGetKnowledgeBaseById.mockResolvedValueOnce(mockKnowledgeBase)
+      mockDbChain.limit.mockResolvedValueOnce([mockKnowledgeBase])
 
       const req = createMockRequest('GET')
       const { GET } = await import('@/app/api/knowledge/[id]/route')
@@ -116,8 +87,7 @@ describe('Knowledge Base By ID API Route', () => {
       expect(data.success).toBe(true)
       expect(data.data.id).toBe('kb-123')
       expect(data.data.name).toBe('Test Knowledge Base')
-      expect(mockCheckKnowledgeBaseAccess).toHaveBeenCalledWith('kb-123', 'user-123')
-      expect(mockGetKnowledgeBaseById).toHaveBeenCalledWith('kb-123')
+      expect(mockDbChain.select).toHaveBeenCalled()
     })
 
     it('should return unauthorized for unauthenticated user', async () => {
@@ -135,10 +105,7 @@ describe('Knowledge Base By ID API Route', () => {
     it('should return not found for non-existent knowledge base', async () => {
       mockAuth$.mockAuthenticatedUser()
 
-      mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
-        hasAccess: false,
-        notFound: true,
-      })
+      mockDbChain.limit.mockResolvedValueOnce([])
 
       const req = createMockRequest('GET')
       const { GET } = await import('@/app/api/knowledge/[id]/route')
@@ -152,10 +119,7 @@ describe('Knowledge Base By ID API Route', () => {
     it('should return unauthorized for knowledge base owned by different user', async () => {
       mockAuth$.mockAuthenticatedUser()
 
-      mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
-        hasAccess: false,
-        notFound: false,
-      })
+      mockDbChain.limit.mockResolvedValueOnce([{ id: 'kb-123', userId: 'different-user' }])
 
       const req = createMockRequest('GET')
       const { GET } = await import('@/app/api/knowledge/[id]/route')
@@ -166,29 +130,9 @@ describe('Knowledge Base By ID API Route', () => {
       expect(data.error).toBe('Unauthorized')
     })
 
-    it('should return not found when service returns null', async () => {
-      mockAuth$.mockAuthenticatedUser()
-
-      mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
-        hasAccess: true,
-        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
-      })
-
-      mockGetKnowledgeBaseById.mockResolvedValueOnce(null)
-
-      const req = createMockRequest('GET')
-      const { GET } = await import('@/app/api/knowledge/[id]/route')
-      const response = await GET(req, { params: mockParams })
-      const data = await response.json()
-
-      expect(response.status).toBe(404)
-      expect(data.error).toBe('Knowledge base not found')
-    })
-
     it('should handle database errors', async () => {
       mockAuth$.mockAuthenticatedUser()
-
-      mockCheckKnowledgeBaseAccess.mockRejectedValueOnce(new Error('Database error'))
+      mockDbChain.limit.mockRejectedValueOnce(new Error('Database error'))
 
       const req = createMockRequest('GET')
       const { GET } = await import('@/app/api/knowledge/[id]/route')
@@ -212,13 +156,13 @@ describe('Knowledge Base By ID API Route', () => {
 
       resetMocks()
 
-      mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
-        hasAccess: true,
-        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
-      })
+      mockDbChain.where.mockReturnValueOnce(mockDbChain) // Return this to continue chain
+      mockDbChain.limit.mockResolvedValueOnce([{ id: 'kb-123', userId: 'user-123' }])
 
-      const updatedKnowledgeBase = { ...mockKnowledgeBase, ...validUpdateData }
-      mockUpdateKnowledgeBase.mockResolvedValueOnce(updatedKnowledgeBase)
+      mockDbChain.where.mockResolvedValueOnce(undefined)
+
+      mockDbChain.where.mockReturnValueOnce(mockDbChain) // Return this to continue chain
+      mockDbChain.limit.mockResolvedValueOnce([{ ...mockKnowledgeBase, ...validUpdateData }])
 
       const req = createMockRequest('PUT', validUpdateData)
       const { PUT } = await import('@/app/api/knowledge/[id]/route')
@@ -228,16 +172,7 @@ describe('Knowledge Base By ID API Route', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.data.name).toBe('Updated Knowledge Base')
-      expect(mockCheckKnowledgeBaseWriteAccess).toHaveBeenCalledWith('kb-123', 'user-123')
-      expect(mockUpdateKnowledgeBase).toHaveBeenCalledWith(
-        'kb-123',
-        {
-          name: validUpdateData.name,
-          description: validUpdateData.description,
-          chunkingConfig: undefined,
-        },
-        expect.any(String)
-      )
+      expect(mockDbChain.update).toHaveBeenCalled()
     })
 
     it('should return unauthorized for unauthenticated user', async () => {
@@ -257,10 +192,8 @@ describe('Knowledge Base By ID API Route', () => {
 
       resetMocks()
 
-      mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
-        hasAccess: false,
-        notFound: true,
-      })
+      mockDbChain.where.mockReturnValueOnce(mockDbChain) // Return this to continue chain
+      mockDbChain.limit.mockResolvedValueOnce([])
 
       const req = createMockRequest('PUT', validUpdateData)
       const { PUT } = await import('@/app/api/knowledge/[id]/route')
@@ -276,10 +209,8 @@ describe('Knowledge Base By ID API Route', () => {
 
       resetMocks()
 
-      mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
-        hasAccess: true,
-        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
-      })
+      mockDbChain.where.mockReturnValueOnce(mockDbChain) // Return this to continue chain
+      mockDbChain.limit.mockResolvedValueOnce([{ id: 'kb-123', userId: 'user-123' }])
 
       const invalidData = {
         name: '',
@@ -298,13 +229,9 @@ describe('Knowledge Base By ID API Route', () => {
     it('should handle database errors during update', async () => {
       mockAuth$.mockAuthenticatedUser()
 
-      // Mock successful write access check
-      mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
-        hasAccess: true,
-        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
-      })
+      mockDbChain.limit.mockResolvedValueOnce([{ id: 'kb-123', userId: 'user-123' }])
 
-      mockUpdateKnowledgeBase.mockRejectedValueOnce(new Error('Database error'))
+      mockDbChain.where.mockRejectedValueOnce(new Error('Database error'))
 
       const req = createMockRequest('PUT', validUpdateData)
       const { PUT } = await import('@/app/api/knowledge/[id]/route')
@@ -324,12 +251,10 @@ describe('Knowledge Base By ID API Route', () => {
 
       resetMocks()
 
-      mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
-        hasAccess: true,
-        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
-      })
+      mockDbChain.where.mockReturnValueOnce(mockDbChain) // Return this to continue chain
+      mockDbChain.limit.mockResolvedValueOnce([{ id: 'kb-123', userId: 'user-123' }])
 
-      mockDeleteKnowledgeBase.mockResolvedValueOnce(undefined)
+      mockDbChain.where.mockResolvedValueOnce(undefined)
 
       const req = createMockRequest('DELETE')
       const { DELETE } = await import('@/app/api/knowledge/[id]/route')
@@ -339,8 +264,7 @@ describe('Knowledge Base By ID API Route', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.data.message).toBe('Knowledge base deleted successfully')
-      expect(mockCheckKnowledgeBaseWriteAccess).toHaveBeenCalledWith('kb-123', 'user-123')
-      expect(mockDeleteKnowledgeBase).toHaveBeenCalledWith('kb-123', expect.any(String))
+      expect(mockDbChain.update).toHaveBeenCalled()
     })
 
     it('should return unauthorized for unauthenticated user', async () => {
@@ -360,10 +284,8 @@ describe('Knowledge Base By ID API Route', () => {
 
       resetMocks()
 
-      mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
-        hasAccess: false,
-        notFound: true,
-      })
+      mockDbChain.where.mockReturnValueOnce(mockDbChain) // Return this to continue chain
+      mockDbChain.limit.mockResolvedValueOnce([])
 
       const req = createMockRequest('DELETE')
       const { DELETE } = await import('@/app/api/knowledge/[id]/route')
@@ -379,10 +301,8 @@ describe('Knowledge Base By ID API Route', () => {
 
       resetMocks()
 
-      mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
-        hasAccess: false,
-        notFound: false,
-      })
+      mockDbChain.where.mockReturnValueOnce(mockDbChain) // Return this to continue chain
+      mockDbChain.limit.mockResolvedValueOnce([{ id: 'kb-123', userId: 'different-user' }])
 
       const req = createMockRequest('DELETE')
       const { DELETE } = await import('@/app/api/knowledge/[id]/route')
@@ -396,12 +316,9 @@ describe('Knowledge Base By ID API Route', () => {
     it('should handle database errors during delete', async () => {
       mockAuth$.mockAuthenticatedUser()
 
-      mockCheckKnowledgeBaseWriteAccess.mockResolvedValueOnce({
-        hasAccess: true,
-        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
-      })
+      mockDbChain.limit.mockResolvedValueOnce([{ id: 'kb-123', userId: 'user-123' }])
 
-      mockDeleteKnowledgeBase.mockRejectedValueOnce(new Error('Database error'))
+      mockDbChain.where.mockRejectedValueOnce(new Error('Database error'))
 
       const req = createMockRequest('DELETE')
       const { DELETE } = await import('@/app/api/knowledge/[id]/route')

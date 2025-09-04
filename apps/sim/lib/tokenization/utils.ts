@@ -121,10 +121,7 @@ export function validateTokenizationInput(
     throw createTokenizationError(
       'MISSING_TEXT',
       'Either input text or output text must be provided',
-      {
-        inputLength: inputText?.length || 0,
-        outputLength: outputText?.length || 0,
-      }
+      { inputLength: inputText?.length || 0, outputLength: outputText?.length || 0 }
     )
   }
 }

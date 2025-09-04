@@ -16,7 +16,6 @@ const logger = createLogger('Credentials')
 
 interface CredentialsProps {
   onOpenChange?: (open: boolean) => void
-  registerCloseHandler?: (handler: (open: boolean) => void) => void
 }
 
 interface ServiceInfo extends OAuthServiceConfig {
@@ -25,7 +24,7 @@ interface ServiceInfo extends OAuthServiceConfig {
   accounts?: { id: string; name: string }[]
 }
 
-export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsProps) {
+export function Credentials({ onOpenChange }: CredentialsProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session } = useSession()
@@ -40,8 +39,6 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
   const [_pendingScopes, setPendingScopes] = useState<string[]>([])
   const [authSuccess, setAuthSuccess] = useState(false)
   const [showActionRequired, setShowActionRequired] = useState(false)
-  const prevConnectedIdsRef = useRef<Set<string>>(new Set())
-  const connectionAddedRef = useRef<boolean>(false)
 
   // Define available services from our standardized OAuth providers
   const defineServices = (): ServiceInfo[] => {
@@ -188,43 +185,6 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
       fetchServices()
     }
   }, [userId])
-
-  // Track when a new connection is added compared to previous render
-  useEffect(() => {
-    try {
-      const currentConnected = new Set<string>()
-      services.forEach((svc) => {
-        if (svc.isConnected) currentConnected.add(svc.id)
-      })
-      // Detect new connections by comparing to previous connected set
-      for (const id of currentConnected) {
-        if (!prevConnectedIdsRef.current.has(id)) {
-          connectionAddedRef.current = true
-          break
-        }
-      }
-      prevConnectedIdsRef.current = currentConnected
-    } catch {}
-  }, [services])
-
-  // On mount, register a close handler so the parent modal can delegate close events here
-  useEffect(() => {
-    if (!registerCloseHandler) return
-    const handle = (open: boolean) => {
-      if (open) return
-      try {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(
-            new CustomEvent('oauth-integration-closed', {
-              detail: { success: connectionAddedRef.current === true },
-            })
-          )
-        }
-      } catch {}
-      onOpenChange?.(open)
-    }
-    registerCloseHandler(handle)
-  }, [registerCloseHandler, onOpenChange])
 
   // Handle connect button click
   const handleConnect = async (service: ServiceInfo) => {

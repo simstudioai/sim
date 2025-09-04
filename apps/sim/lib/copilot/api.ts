@@ -42,7 +42,7 @@ export interface CopilotChat {
  */
 export interface MessageFileAttachment {
   id: string
-  key: string
+  s3_key: string
   filename: string
   media_type: string
   size: number
@@ -57,20 +57,13 @@ export interface SendMessageRequest {
   chatId?: string
   workflowId?: string
   mode?: 'ask' | 'agent'
-  depth?: 0 | 1 | 2 | 3
+  depth?: -2 | -1 | 0 | 1 | 2 | 3
   prefetch?: boolean
   createNewChat?: boolean
   stream?: boolean
   implicitFeedback?: string
   fileAttachments?: MessageFileAttachment[]
   abortSignal?: AbortSignal
-  contexts?: Array<{
-    kind: string
-    label?: string
-    chatId?: string
-    workflowId?: string
-    executionId?: string
-  }>
 }
 
 /**
@@ -110,23 +103,6 @@ export async function sendStreamingMessage(
 ): Promise<StreamingResponse> {
   try {
     const { abortSignal, ...requestBody } = request
-    try {
-      const preview = Array.isArray((requestBody as any).contexts)
-        ? (requestBody as any).contexts.map((c: any) => ({
-            kind: c?.kind,
-            chatId: c?.chatId,
-            workflowId: c?.workflowId,
-            label: c?.label,
-          }))
-        : undefined
-      logger.info('Preparing to send streaming message', {
-        hasContexts: Array.isArray((requestBody as any).contexts),
-        contextsCount: Array.isArray((requestBody as any).contexts)
-          ? (requestBody as any).contexts.length
-          : 0,
-        contextsPreview: preview,
-      })
-    } catch {}
     const response = await fetch('/api/copilot/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

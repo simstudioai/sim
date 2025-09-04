@@ -1,4 +1,3 @@
-import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import type { CodeExecutionInput, CodeExecutionOutput } from '@/tools/function/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -17,21 +16,6 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       required: true,
       visibility: 'user-or-llm',
       description: 'The code to execute',
-    },
-    language: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Language to execute (javascript or python)',
-      default: DEFAULT_CODE_LANGUAGE,
-    },
-    useLocalVM: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-only',
-      description:
-        'If true, execute JavaScript in local VM for faster execution. If false, use remote E2B execution.',
-      default: false,
     },
     timeout: {
       type: 'number',
@@ -83,8 +67,6 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
 
       return {
         code: codeContent,
-        language: params.language || DEFAULT_CODE_LANGUAGE,
-        useLocalVM: params.useLocalVM || false,
         timeout: params.timeout || DEFAULT_TIMEOUT,
         envVars: params.envVars || {},
         workflowVariables: params.workflowVariables || {},

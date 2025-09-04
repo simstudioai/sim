@@ -24,6 +24,7 @@ export async function authenticateSocket(socket: AuthenticatedSocket, next: any)
       hasToken: !!token,
       origin,
       referer,
+      allHeaders: Object.keys(socket.handshake.headers),
     })
 
     if (!token) {

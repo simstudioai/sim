@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, Trash } from 'lucide-react'
-import { useParams } from 'next/navigation'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
@@ -53,8 +52,6 @@ export function ConditionInput({
   previewValue,
   disabled = false,
 }: ConditionInputProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
 
   const emitTagSelection = useTagSelection(blockId, subBlockId)
@@ -75,7 +72,6 @@ export function ConditionInput({
   const hasInitializedRef = useRef(false)
   // Track previous blockId to detect workflow changes
   const previousBlockIdRef = useRef<string>(blockId)
-  const shouldPersistRef = useRef<boolean>(false)
 
   // Create default blocks with stable IDs
   const createDefaultBlocks = (): ConditionalBlock[] => [
@@ -154,30 +150,35 @@ export function ConditionInput({
       // If effective value is null, and we've already initialized, keep current state
       if (effectiveValueStr === null) {
         if (hasInitializedRef.current) {
+          // We already have blocks, just mark as ready if not already
           if (!isReady) setIsReady(true)
           isSyncingFromStoreRef.current = false
           return
         }
 
+        // If we haven't initialized yet, set default blocks
         setConditionalBlocks(createDefaultBlocks())
         hasInitializedRef.current = true
         setIsReady(true)
-        shouldPersistRef.current = false
         isSyncingFromStoreRef.current = false
         return
       }
 
+      // Skip if the effective value hasn't changed and we're already initialized
       if (effectiveValueStr === prevStoreValueRef.current && hasInitializedRef.current) {
         if (!isReady) setIsReady(true)
         isSyncingFromStoreRef.current = false
         return
       }
 
+      // Update the previous store value ref
       prevStoreValueRef.current = effectiveValueStr
 
+      // Parse the effective value
       const parsedBlocks = safeParseJSON(effectiveValueStr)
 
       if (parsedBlocks) {
+        // Use the parsed blocks, but ensure titles are correct based on position
         const blocksWithCorrectTitles = parsedBlocks.map((block, index) => ({
           ...block,
           title: index === 0 ? 'if' : index === parsedBlocks.length - 1 ? 'else' : 'else if',
@@ -186,14 +187,14 @@ export function ConditionInput({
         setConditionalBlocks(blocksWithCorrectTitles)
         hasInitializedRef.current = true
         if (!isReady) setIsReady(true)
-        shouldPersistRef.current = false
       } else if (!hasInitializedRef.current) {
+        // Only set default blocks if we haven't initialized yet
         setConditionalBlocks(createDefaultBlocks())
         hasInitializedRef.current = true
         setIsReady(true)
-        shouldPersistRef.current = false
       }
     } finally {
+      // Reset the syncing flag after a short delay
       setTimeout(() => {
         isSyncingFromStoreRef.current = false
       }, 0)
@@ -202,21 +203,18 @@ export function ConditionInput({
 
   // Update store whenever conditional blocks change
   useEffect(() => {
-    if (
-      isSyncingFromStoreRef.current ||
-      !isReady ||
-      conditionalBlocks.length === 0 ||
-      isPreview ||
-      !shouldPersistRef.current
-    )
+    // Skip if we're currently syncing from store to prevent loops
+    // or if we're not ready yet (still initializing) or in preview mode
+    if (isSyncingFromStoreRef.current || !isReady || conditionalBlocks.length === 0 || isPreview)
       return
 
     const newValue = JSON.stringify(conditionalBlocks)
 
+    // Only update if the value has actually changed
     if (newValue !== prevStoreValueRef.current) {
       prevStoreValueRef.current = newValue
       setStoreValue(newValue)
-      updateNodeInternals(blockId)
+      updateNodeInternals(`${blockId}-${subBlockId}`)
     }
   }, [
     conditionalBlocks,
@@ -343,7 +341,6 @@ export function ConditionInput({
       )
       const dropPosition = textarea?.selectionStart ?? 0
 
-      shouldPersistRef.current = true
       setConditionalBlocks((blocks) =>
         blocks.map((block) => {
           if (block.id === blockId) {
@@ -376,7 +373,6 @@ export function ConditionInput({
   // Handle tag selection - updated for individual blocks
   const handleTagSelect = (blockId: string, newValue: string) => {
     if (isPreview || disabled) return
-    shouldPersistRef.current = true
     setConditionalBlocks((blocks) =>
       blocks.map((block) =>
         block.id === blockId
@@ -394,7 +390,6 @@ export function ConditionInput({
   // Handle environment variable selection - updated for individual blocks
   const handleEnvVarSelect = (blockId: string, newValue: string) => {
     if (isPreview || disabled) return
-    shouldPersistRef.current = true
     setConditionalBlocks((blocks) =>
       blocks.map((block) =>
         block.id === blockId
@@ -412,7 +407,6 @@ export function ConditionInput({
   const handleTagSelectImmediate = (blockId: string, newValue: string) => {
     if (isPreview || disabled) return
 
-    shouldPersistRef.current = true
     setConditionalBlocks((blocks) =>
       blocks.map((block) =>
         block.id === blockId
@@ -442,7 +436,6 @@ export function ConditionInput({
   const handleEnvVarSelectImmediate = (blockId: string, newValue: string) => {
     if (isPreview || disabled) return
 
-    shouldPersistRef.current = true
     setConditionalBlocks((blocks) =>
       blocks.map((block) =>
         block.id === blockId
@@ -482,13 +475,13 @@ export function ConditionInput({
     if (isPreview || disabled) return
 
     const blockIndex = conditionalBlocks.findIndex((block) => block.id === afterId)
-    if (conditionalBlocks[blockIndex]?.title === 'else') return
 
+    // Generate a stable ID using the blockId and a timestamp
     const newBlockId = generateStableId(blockId, `else-if-${Date.now()}`)
 
     const newBlock: ConditionalBlock = {
       id: newBlockId,
-      title: '',
+      title: '', // Will be set by updateBlockTitles
       value: '',
       showTags: false,
       showEnvVars: false,
@@ -499,9 +492,9 @@ export function ConditionInput({
 
     const newBlocks = [...conditionalBlocks]
     newBlocks.splice(blockIndex + 1, 0, newBlock)
-    shouldPersistRef.current = true
     setConditionalBlocks(updateBlockTitles(newBlocks))
 
+    // Focus the new block's editor after a short delay
     setTimeout(() => {
       const textarea: any = containerRef.current?.querySelector(
         `[data-block-id="${newBlock.id}"] textarea`
@@ -523,20 +516,13 @@ export function ConditionInput({
     })
 
     if (conditionalBlocks.length === 1) return
-    shouldPersistRef.current = true
     setConditionalBlocks((blocks) => updateBlockTitles(blocks.filter((block) => block.id !== id)))
-
-    setTimeout(() => updateNodeInternals(blockId), 0)
   }
 
   const moveBlock = (id: string, direction: 'up' | 'down') => {
     if (isPreview || disabled) return
 
     const blockIndex = conditionalBlocks.findIndex((block) => block.id === id)
-    if (blockIndex === -1) return
-
-    if (conditionalBlocks[blockIndex]?.title === 'else') return
-
     if (
       (direction === 'up' && blockIndex === 0) ||
       (direction === 'down' && blockIndex === conditionalBlocks.length - 1)
@@ -545,17 +531,11 @@ export function ConditionInput({
 
     const newBlocks = [...conditionalBlocks]
     const targetIndex = direction === 'up' ? blockIndex - 1 : blockIndex + 1
-
-    if (direction === 'down' && newBlocks[targetIndex]?.title === 'else') return
-
     ;[newBlocks[blockIndex], newBlocks[targetIndex]] = [
       newBlocks[targetIndex],
       newBlocks[blockIndex],
     ]
-    shouldPersistRef.current = true
     setConditionalBlocks(updateBlockTitles(newBlocks))
-
-    setTimeout(() => updateNodeInternals(blockId), 0)
   }
 
   // Add useEffect to handle keyboard events for both dropdowns
@@ -646,7 +626,7 @@ export function ConditionInput({
                     variant='ghost'
                     size='sm'
                     onClick={() => addBlock(block.id)}
-                    disabled={isPreview || disabled || block.title === 'else'}
+                    disabled={isPreview || disabled}
                     className='h-8 w-8'
                   >
                     <Plus className='h-4 w-4' />
@@ -663,7 +643,7 @@ export function ConditionInput({
                       variant='ghost'
                       size='sm'
                       onClick={() => moveBlock(block.id, 'up')}
-                      disabled={isPreview || index === 0 || disabled || block.title === 'else'}
+                      disabled={isPreview || index === 0 || disabled}
                       className='h-8 w-8'
                     >
                       <ChevronUp className='h-4 w-4' />
@@ -679,13 +659,7 @@ export function ConditionInput({
                       variant='ghost'
                       size='sm'
                       onClick={() => moveBlock(block.id, 'down')}
-                      disabled={
-                        isPreview ||
-                        disabled ||
-                        index === conditionalBlocks.length - 1 ||
-                        conditionalBlocks[index + 1]?.title === 'else' ||
-                        block.title === 'else'
-                      }
+                      disabled={isPreview || index === conditionalBlocks.length - 1 || disabled}
                       className='h-8 w-8'
                     >
                       <ChevronDown className='h-4 w-4' />
@@ -749,7 +723,6 @@ export function ConditionInput({
                         const tagTrigger = checkTagTrigger(newCode, pos)
                         const envVarTrigger = checkEnvVarTrigger(newCode, pos)
 
-                        shouldPersistRef.current = true
                         setConditionalBlocks((blocks) =>
                           blocks.map((b) => {
                             if (b.id === block.id) {
@@ -799,7 +772,6 @@ export function ConditionInput({
                     searchTerm={block.searchTerm}
                     inputValue={block.value}
                     cursorPosition={block.cursorPosition}
-                    workspaceId={workspaceId}
                     onClose={() => {
                       setConditionalBlocks((blocks) =>
                         blocks.map((b) =>
