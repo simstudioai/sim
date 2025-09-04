@@ -39,7 +39,6 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { hasWorkflowsInitiallyLoaded, useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Workflow')
@@ -887,20 +886,7 @@ const WorkflowContent = React.memo(() => {
     // 1. We have an active workflow that matches the URL
     // 2. The workflow exists in the registry
     // 3. Workflows are not currently loading
-    // 4. Either subblock values exist OR we've initialized them
     if (hasActiveWorkflow && hasWorkflowInRegistry && isNotLoading) {
-      // Ensure subblock values are initialized before marking as ready
-      // This is a safety check in case setActiveWorkflow didn't fully initialize
-      const currentValues = useSubBlockStore.getState().workflowValues?.[currentId]
-      const blocksState = useWorkflowStore.getState().blocks
-
-      const hasAnyValues = currentValues && Object.keys(currentValues).length > 0
-      const hasBlocks = blocksState && Object.keys(blocksState).length > 0
-
-      // If we have blocks but no subblock values, initialize them using the store's method
-      if (!hasAnyValues && hasBlocks) {
-        useSubBlockStore.getState().initializeFromWorkflow(currentId, blocksState)
-      }
       setIsWorkflowReady(true)
     } else {
       setIsWorkflowReady(false)

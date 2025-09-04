@@ -506,22 +506,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
           }
 
-          // Extract and update subblock values
-          const subblockValues: Record<string, Record<string, any>> = {}
-          Object.entries(workflowState.blocks).forEach(([blockId, block]) => {
-            const blockState = block as any
-            subblockValues[blockId] = {}
-            Object.entries(blockState.subBlocks || {}).forEach(([subblockId, subblock]) => {
-              subblockValues[blockId][subblockId] = (subblock as any).value
-            })
-          })
-
-          useSubBlockStore.setState((state) => ({
-            workflowValues: {
-              ...state.workflowValues,
-              [id]: subblockValues,
-            },
-          }))
+          // Subblock values will be initialized by initializeFromWorkflow below
         } else {
           // If no state in DB, use empty state - server should have created start block
           workflowState = {
