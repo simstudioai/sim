@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import type { StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
 import { getApiKey } from '@/providers/utils'
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic'
  * Server-side proxy for provider requests
  */
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const startTime = Date.now()
 
   try {

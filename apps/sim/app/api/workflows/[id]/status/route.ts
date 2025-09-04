@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { generateRequestId } from '@/lib/utils'
 import { hasWorkflowChanged } from '@/lib/workflows/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -8,7 +9,7 @@ import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/
 const logger = createLogger('WorkflowStatusAPI')
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const { id } = await params

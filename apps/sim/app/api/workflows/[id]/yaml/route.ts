@@ -4,7 +4,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { simAgentClient } from '@/lib/sim-agent'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
+import { SIM_AGENT_API_URL_DEFAULT, simAgentClient } from '@/lib/sim-agent'
+import { generateRequestId } from '@/lib/utils'
 import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
@@ -244,7 +246,7 @@ async function upsertCustomToolsFromBlocks(
  * Handles copilot edits, imports, and text editor saves
  */
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const startTime = Date.now()
   const { id: workflowId } = await params
 

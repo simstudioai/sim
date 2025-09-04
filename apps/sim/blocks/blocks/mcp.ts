@@ -2,7 +2,6 @@ import { ServerIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
-// MCP-specific response type
 export interface McpResponse extends ToolResponse {
   output: {
     text: string
@@ -28,7 +27,7 @@ export const McpBlock: BlockConfig<McpResponse> = {
     'Connect to MCP servers to execute tools and access external services. Supports HTTP/SSE and Streamable HTTP transports for secure server-side execution. Configure MCP servers in workspace settings.',
   docsLink: 'https://docs.sim.ai/tools/mcp',
   category: 'tools',
-  bgColor: '#6366F1', // Indigo color to distinguish from custom tools
+  bgColor: '#E0E0E0',
   icon: ServerIcon,
   subBlocks: [
     {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { validateProxyUrl } from '@/lib/security/url-validation'
+import { generateRequestId } from '@/lib/utils'
 import { executeTool } from '@/tools'
 import { getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
 
@@ -74,7 +75,7 @@ const createErrorResponse = (error: any, status = 500, additionalData = {}) => {
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const targetUrl = url.searchParams.get('url')
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   if (!targetUrl) {
     logger.error(`[${requestId}] Missing 'url' parameter`)
@@ -167,7 +168,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
 

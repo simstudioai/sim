@@ -4,6 +4,7 @@ import { TAG_SLOTS } from '@/lib/knowledge/consts'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
+import { generateRequestId } from '@/lib/utils'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { calculateCost } from '@/providers/utils'
@@ -57,7 +58,7 @@ const VectorSearchSchema = z
   )
 
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const body = await request.json()

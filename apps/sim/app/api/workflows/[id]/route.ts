@@ -6,6 +6,7 @@ import { verifyInternalToken } from '@/lib/auth/internal'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions, hasAdminPermission } from '@/lib/permissions/utils'
+import { generateRequestId } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
 import { apiKey as apiKeyTable, templates, workflow } from '@/db/schema'
@@ -25,7 +26,7 @@ const UpdateWorkflowSchema = z.object({
  * Uses hybrid approach: try normalized tables first, fallback to JSON blob
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const startTime = Date.now()
   const { id: workflowId } = await params
 
@@ -169,7 +170,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const startTime = Date.now()
   const { id: workflowId } = await params
 
@@ -306,7 +307,7 @@ export async function DELETE(
  * Update workflow metadata (name, description, color, folderId)
  */
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const startTime = Date.now()
   const { id: workflowId } = await params
 

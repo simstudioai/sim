@@ -48,7 +48,7 @@ type AutoLayoutRequest = z.infer<typeof AutoLayoutRequestSchema>
  * Apply autolayout to an existing workflow
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const startTime = Date.now()
   const { id: workflowId } = await params
 

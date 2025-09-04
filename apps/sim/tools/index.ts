@@ -1,6 +1,7 @@
 import { generateInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
+import { generateRequestId } from '@/lib/utils'
 import type { ExecutionContext } from '@/executor/types'
 import type { OAuthTokenPayload, ToolConfig, ToolResponse } from '@/tools/types'
 import {
@@ -123,7 +124,7 @@ export async function executeTool(
   // Capture start time for precise timing
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     let tool: ToolConfig | undefined
@@ -436,7 +437,7 @@ async function handleInternalRequest(
   tool: ToolConfig,
   params: Record<string, any>
 ): Promise<ToolResponse> {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   // Format the request parameters
   const requestParams = formatRequestParams(tool, params)
@@ -647,7 +648,7 @@ async function handleProxyRequest(
   params: Record<string, any>,
   executionContext?: ExecutionContext
 ): Promise<ToolResponse> {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   const baseUrl = getBaseUrl()
   const proxyUrl = new URL('/api/proxy', baseUrl).toString()
@@ -729,7 +730,7 @@ async function executeUncheckedMcpTool(
   requestId?: string,
   startTimeISO?: string
 ): Promise<ToolResponse> {
-  const actualRequestId = requestId || crypto.randomUUID().slice(0, 8)
+  const actualRequestId = requestId || generateRequestId()
   const actualStartTime = startTimeISO || new Date().toISOString()
 
   try {

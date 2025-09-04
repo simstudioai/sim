@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { account } from '@/db/schema'
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
       const accessToken = await refreshAccessTokenIfNeeded(
         credentialId,
         credentialOwnerUserId,
-        crypto.randomUUID().slice(0, 8)
+        generateRequestId()
       )
 
       if (!accessToken) {

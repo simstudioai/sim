@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { memory } from '@/db/schema'
 
@@ -13,7 +14,7 @@ export const runtime = 'nodejs'
  * GET handler for retrieving a specific memory by ID
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id } = await params
 
   try {
@@ -85,7 +86,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id } = await params
 
   try {
@@ -156,7 +157,7 @@ export async function DELETE(
  * PUT handler for updating a specific memory
  */
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id } = await params
 
   try {

@@ -25,7 +25,7 @@ import {
   type McpTool,
   type McpToolCall,
   type McpToolResult,
-} from './types'
+} from '@/lib/mcp/types'
 
 const logger = createLogger('McpClient')
 

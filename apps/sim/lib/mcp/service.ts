@@ -4,16 +4,18 @@
 
 import { and, eq, isNull } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { mcpServers } from '@/db/schema'
-import { McpClient } from './client'
+import { McpClient } from '@/lib/mcp/client'
 import type {
   McpServerConfig,
   McpServerSummary,
   McpTool,
   McpToolCall,
   McpToolResult,
-} from './types'
+} from '@/lib/mcp/types'
+import { MCP_CONSTANTS } from '@/lib/mcp/utils'
+import { generateRequestId } from '@/lib/utils'
+import { db } from '@/db'
+import { mcpServers } from '@/db/schema'
 
 const logger = createLogger('McpService')
 
@@ -24,7 +26,7 @@ interface ToolCache {
 
 class McpService {
   private toolCache = new Map<string, ToolCache>()
-  private readonly cacheTimeout = 5 * 60 * 1000 // 5 minutes
+  private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT
 
   /**
    * Get server configuration from database
@@ -119,7 +121,7 @@ class McpService {
     serverId: string,
     toolCall: McpToolCall
   ): Promise<McpToolResult> {
-    const requestId = crypto.randomUUID().slice(0, 8)
+    const requestId = generateRequestId()
 
     try {
       logger.info(
@@ -160,7 +162,7 @@ class McpService {
     workspaceId?: string,
     forceRefresh = false
   ): Promise<McpTool[]> {
-    const requestId = crypto.randomUUID().slice(0, 8)
+    const requestId = generateRequestId()
     const cacheKey = `${userId}${workspaceId ? `:${workspaceId}` : ''}`
 
     try {
@@ -236,7 +238,7 @@ class McpService {
     serverId: string,
     _forceRefresh = false
   ): Promise<McpTool[]> {
-    const requestId = crypto.randomUUID().slice(0, 8)
+    const requestId = generateRequestId()
 
     try {
       logger.info(`[${requestId}] Discovering tools from server ${serverId} for user ${userId}`)
@@ -267,7 +269,7 @@ class McpService {
    * Get server summaries for a user
    */
   async getServerSummaries(userId: string, workspaceId?: string): Promise<McpServerSummary[]> {
-    const requestId = crypto.randomUUID().slice(0, 8)
+    const requestId = generateRequestId()
 
     try {
       logger.info(`[${requestId}] Getting server summaries for user ${userId}`)

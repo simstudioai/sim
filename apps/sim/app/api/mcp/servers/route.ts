@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpApiResponse } from '@/lib/mcp/types'
 import { validateMcpServerUrl } from '@/lib/mcp/url-validator'
+import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { mcpServers } from '@/db/schema'
 
@@ -16,7 +17,7 @@ export const dynamic = 'force-dynamic'
  * GET - List all registered MCP servers for the current user
  */
 export async function GET() {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     logger.info(`[${requestId}] Listing MCP servers`)
@@ -74,7 +75,7 @@ export async function GET() {
  * POST - Register a new MCP server for the current user
  */
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const body = await request.json()
@@ -182,7 +183,7 @@ export async function POST(request: NextRequest) {
  * DELETE - Unregister an MCP server for the current user
  */
 export async function DELETE(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const { searchParams } = new URL(request.url)

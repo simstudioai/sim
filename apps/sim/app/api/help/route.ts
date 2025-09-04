@@ -7,6 +7,7 @@ import { getFromEmailAddress } from '@/lib/email/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'
+import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('HelpAPI')
 
@@ -17,7 +18,7 @@ const helpFormSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     // Get user session

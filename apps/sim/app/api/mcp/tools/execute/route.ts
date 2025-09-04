@@ -1,9 +1,16 @@
-import { type NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
-import { verifyInternalToken } from '@/lib/auth/internal'
+import type { NextRequest } from 'next/server'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { mcpService } from '@/lib/mcp/service'
-import type { McpApiResponse, McpToolCall, McpToolResult } from '@/lib/mcp/types'
+import type { McpToolCall, McpToolResult } from '@/lib/mcp/types'
+import {
+  categorizeError,
+  createMcpErrorResponse,
+  createMcpSuccessResponse,
+  MCP_CONSTANTS,
+  validateStringParam,
+} from '@/lib/mcp/utils'
+import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('McpToolExecutionAPI')
 
@@ -13,7 +20,7 @@ export const dynamic = 'force-dynamic'
  * POST - Execute a tool on an MCP server
  */
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const body = await request.json()
@@ -28,83 +35,31 @@ export async function POST(request: NextRequest) {
       workflowId: body.workflowId,
     })
 
-    // Get authenticated user - support both session and internal token auth
-    let userId: string | undefined
-
-    // First try session authentication
-    const session = await getSession()
-    if (session?.user?.id) {
-      userId = session.user.id
-    } else {
-      // If no session, check for internal token authentication
-      const authHeader = request.headers.get('authorization')
-      if (authHeader?.startsWith('Bearer ')) {
-        const token = authHeader.substring(7)
-        const isValidToken = await verifyInternalToken(token)
-        if (isValidToken) {
-          // For internal tokens, get the user ID from workflow context (like custom tools)
-          const workflowId = body.workflowId
-          if (!workflowId) {
-            logger.warn(`[${requestId}] Missing workflowId for internal token authentication`)
-            return NextResponse.json(
-              { success: false, error: 'workflowId required for internal token authentication' },
-              { status: 400 }
-            )
-          }
-
-          // Get workflow owner as user context (same pattern as hybrid auth)
-          const { eq } = await import('drizzle-orm')
-          const { db } = await import('@/db')
-          const { workflow } = await import('@/db/schema')
-
-          const [workflowData] = await db
-            .select({ userId: workflow.userId })
-            .from(workflow)
-            .where(eq(workflow.id, workflowId))
-            .limit(1)
-
-          if (!workflowData) {
-            return NextResponse.json(
-              { success: false, error: 'Workflow not found' },
-              { status: 404 }
-            )
-          }
-
-          userId = workflowData.userId
-        }
-      }
-    }
-
-    if (!userId) {
-      logger.warn(`[${requestId}] Authentication failed - no userId found`)
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
+    // Get authenticated user using hybrid auth
+    const auth = await checkHybridAuth(request)
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Authentication failed: ${auth.error}`)
+      return createMcpErrorResponse(
+        new Error(auth.error || 'Authentication required'),
+        'Authentication failed',
+        401
       )
     }
+
+    const userId = auth.userId
     const { serverId, toolName, arguments: args } = body
 
     // Validate required parameters
-    if (!serverId || typeof serverId !== 'string') {
+    const serverIdValidation = validateStringParam(serverId, 'serverId')
+    if (!serverIdValidation.isValid) {
       logger.warn(`[${requestId}] Invalid serverId: ${serverId}`)
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'serverId is required and must be a string',
-        },
-        { status: 400 }
-      )
+      return createMcpErrorResponse(new Error(serverIdValidation.error), 'Invalid serverId', 400)
     }
 
-    if (!toolName || typeof toolName !== 'string') {
+    const toolNameValidation = validateStringParam(toolName, 'toolName')
+    if (!toolNameValidation.isValid) {
       logger.warn(`[${requestId}] Invalid toolName: ${toolName}`)
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'toolName is required and must be a string',
-        },
-        { status: 400 }
-      )
+      return createMcpErrorResponse(new Error(toolNameValidation.error), 'Invalid toolName', 400)
     }
 
     logger.info(
@@ -118,12 +73,12 @@ export async function POST(request: NextRequest) {
       tool = tools.find((t) => t.name === toolName)
 
       if (!tool) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Tool ${toolName} not found on server ${serverId}. Available tools: ${tools.map((t) => t.name).join(', ')}`,
-          },
-          { status: 404 }
+        return createMcpErrorResponse(
+          new Error(
+            `Tool ${toolName} not found on server ${serverId}. Available tools: ${tools.map((t) => t.name).join(', ')}`
+          ),
+          'Tool not found',
+          404
         )
       }
     } catch (error) {
@@ -137,12 +92,10 @@ export async function POST(request: NextRequest) {
     if (tool) {
       const validationError = validateToolArguments(tool, args)
       if (validationError) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Invalid arguments for tool ${toolName}: ${validationError}`,
-          },
-          { status: 400 }
+        return createMcpErrorResponse(
+          new Error(`Invalid arguments for tool ${toolName}: ${validationError}`),
+          'Invalid tool arguments',
+          400
         )
       }
     }
@@ -153,64 +106,30 @@ export async function POST(request: NextRequest) {
     }
 
     // Execute the tool with timeout
-    const executionTimeout = 60000 // 60 seconds
     const result = await Promise.race([
       mcpService.executeTool(userId, serverId, toolCall),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Tool execution timeout')), executionTimeout)
+        setTimeout(
+          () => reject(new Error('Tool execution timeout')),
+          MCP_CONSTANTS.EXECUTION_TIMEOUT
+        )
       ),
     ])
 
     // Transform result for platform compatibility
     const transformedResult = transformToolResult(result)
 
-    const response: McpApiResponse<any> = {
-      success: !result.isError,
-      data: transformedResult,
-    }
-
     if (result.isError) {
       logger.warn(`[${requestId}] Tool execution returned error for ${toolName} on ${serverId}`)
-    } else {
-      logger.info(`[${requestId}] Successfully executed tool ${toolName} on server ${serverId}`)
+      return createMcpErrorResponse(transformedResult, 'Tool execution failed', 400)
     }
-
-    return NextResponse.json(response, {
-      status: result.isError ? 400 : 200,
-    })
+    logger.info(`[${requestId}] Successfully executed tool ${toolName} on server ${serverId}`)
+    return createMcpSuccessResponse(transformedResult)
   } catch (error) {
     logger.error(`[${requestId}] Error executing MCP tool:`, error)
 
-    // Handle specific error types
-    if (error instanceof Error) {
-      if (error.message.includes('timeout')) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Tool execution timed out',
-          },
-          { status: 408 }
-        )
-      }
-
-      if (error.message.includes('not found') || error.message.includes('not accessible')) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: error.message,
-          },
-          { status: 404 }
-        )
-      }
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Tool execution failed',
-      },
-      { status: 500 }
-    )
+    const { message, status } = categorizeError(error)
+    return createMcpErrorResponse(new Error(message), 'Tool execution failed', status)
   }
 }
 

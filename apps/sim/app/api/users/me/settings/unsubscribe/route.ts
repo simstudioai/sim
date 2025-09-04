@@ -9,6 +9,7 @@ import {
   verifyUnsubscribeToken,
 } from '@/lib/email/unsubscribe'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('UnsubscribeAPI')
 
@@ -19,7 +20,7 @@ const unsubscribeSchema = z.object({
 })
 
 export async function GET(req: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const { searchParams } = new URL(req.url)
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const body = await req.json()

@@ -34,6 +34,10 @@ vi.mock('@/lib/env', () => ({
     typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value),
 }))
 
+vi.mock('@/lib/utils', () => ({
+  generateRequestId: vi.fn(() => 'test-request-id'),
+}))
+
 vi.mock('@/lib/documents/utils', () => ({
   retryWithExponentialBackoff: vi.fn().mockImplementation((fn) => fn()),
 }))

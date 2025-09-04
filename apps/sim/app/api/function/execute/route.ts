@@ -4,7 +4,7 @@ import { env, isTruthy } from '@/lib/env'
 import { executeInE2B } from '@/lib/execution/e2b'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
-
+import { generateRequestId } from '@/lib/utils'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -533,7 +533,7 @@ function escapeRegExp(string: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const startTime = Date.now()
   let stdout = ''
   let userCodeStartLine = 3 // Default value for error reporting

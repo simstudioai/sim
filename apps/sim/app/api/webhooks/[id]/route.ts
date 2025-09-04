@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
+import { generateRequestId } from '@/lib/utils'
 import { getOAuthToken } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { webhook, workflow } from '@/db/schema'
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic'
 
 // Get a specific webhook
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const { id } = await params
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 // Update a webhook
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const { id } = await params
@@ -181,7 +182,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const { id } = await params

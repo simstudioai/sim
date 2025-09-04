@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { account } from '@/db/schema'
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('GmailLabelAPI')
 
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     // Get the session

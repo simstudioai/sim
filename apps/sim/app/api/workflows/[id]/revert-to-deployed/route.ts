@@ -1,8 +1,8 @@
-import crypto from 'crypto'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -20,7 +20,7 @@ export const runtime = 'nodejs'
  * Revert workflow to its deployed state by saving deployed state to normalized tables
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id } = await params
 
   try {

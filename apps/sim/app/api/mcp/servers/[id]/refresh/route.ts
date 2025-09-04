@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpApiResponse } from '@/lib/mcp/types'
+import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { mcpServers } from '@/db/schema'
 
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic'
  * POST - Refresh an MCP server connection
  */
 export async function POST(_request: NextRequest, { params }: { params: { id: string } }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const serverId = params.id
 
   try {

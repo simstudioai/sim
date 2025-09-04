@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { McpApiResponse } from '@/lib/mcp/types'
 import { validateMcpServerUrl } from '@/lib/mcp/url-validator'
+import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { mcpServers } from '@/db/schema'
 
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic'
  * PATCH - Update an MCP server for the current user
  */
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const serverId = params.id
 
   try {
