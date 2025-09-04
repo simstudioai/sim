@@ -372,13 +372,13 @@ export async function POST(req: NextRequest) {
       streamToolCalls: true,
       mode: mode,
       messageId: userMessageIdToUse,
-      chatId: actualChatId,
       ...(providerConfig ? { provider: providerConfig } : {}),
       ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
       ...(typeof effectiveDepth === 'number' ? { depth: effectiveDepth } : {}),
       ...(typeof effectivePrefetch === 'boolean' ? { prefetch: effectivePrefetch } : {}),
       ...(session?.user?.name && { userName: session.user.name }),
       ...(agentContexts.length > 0 && { context: agentContexts }),
+      ...(actualChatId ? { chatId: actualChatId } : {}),
     }
 
     try {

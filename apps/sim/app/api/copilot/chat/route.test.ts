@@ -226,6 +226,7 @@ describe('Copilot Chat API Route', () => {
             mode: 'agent',
             messageId: 'mock-uuid-1234-5678',
             depth: 0,
+            chatId: 'chat-123',
           }),
         })
       )
@@ -289,6 +290,7 @@ describe('Copilot Chat API Route', () => {
             mode: 'agent',
             messageId: 'mock-uuid-1234-5678',
             depth: 0,
+            chatId: 'chat-123',
           }),
         })
       )
@@ -341,6 +343,7 @@ describe('Copilot Chat API Route', () => {
             mode: 'agent',
             messageId: 'mock-uuid-1234-5678',
             depth: 0,
+            chatId: 'chat-123',
           }),
         })
       )
@@ -430,6 +433,7 @@ describe('Copilot Chat API Route', () => {
             mode: 'ask',
             messageId: 'mock-uuid-1234-5678',
             depth: 0,
+            chatId: 'chat-123',
           }),
         })
       )
