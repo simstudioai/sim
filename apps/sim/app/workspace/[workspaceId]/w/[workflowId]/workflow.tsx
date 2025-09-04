@@ -39,6 +39,7 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { hasWorkflowsInitiallyLoaded, useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Workflow')
@@ -887,7 +888,33 @@ const WorkflowContent = React.memo(() => {
     // 2. The workflow exists in the registry
     // 3. Workflows are not currently loading
     if (hasActiveWorkflow && hasWorkflowInRegistry && isNotLoading) {
-      // Add a small delay to ensure blocks state has settled
+      // Ensure subblock values are initialized before marking as ready
+      // This is a safety check in case setActiveWorkflow didn't fully initialize
+      const currentValues = useSubBlockStore.getState().workflowValues?.[currentId]
+      const blocksState = useWorkflowStore.getState().blocks
+
+      const hasAnyValues = currentValues && Object.keys(currentValues).length > 0
+      const hasBlocks = blocksState && Object.keys(blocksState).length > 0
+
+      // If we have blocks but no subblock values, initialize them
+      if (!hasAnyValues && hasBlocks) {
+        const values: Record<string, Record<string, any>> = {}
+        Object.entries(blocksState).forEach(([blockId, block]: any) => {
+          values[blockId] = {}
+          Object.entries(block.subBlocks || {}).forEach(([subBlockId, subBlock]: any) => {
+            values[blockId][subBlockId] = subBlock?.value ?? null
+          })
+        })
+
+        useSubBlockStore.setState((state: any) => ({
+          workflowValues: {
+            ...state.workflowValues,
+            [currentId]: values,
+          },
+        }))
+      }
+
+      // Add a small delay to ensure all state updates have propagated
       const timeoutId = setTimeout(() => {
         setIsWorkflowReady(true)
       }, 100)
