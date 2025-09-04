@@ -1,4 +1,4 @@
-import { isHosted } from '@/lib/environment'
+import { getCostMultiplier, isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { anthropicProvider } from '@/providers/anthropic'
 import { azureOpenAIProvider } from '@/providers/azure-openai'
@@ -480,17 +480,9 @@ export function calculateCost(
       : pricing.input / 1_000_000)
 
   const outputCost = completionTokens * (pricing.output / 1_000_000)
-
-  logger.info('Input multiplier', { inputMultiplier })
-  logger.info('Output multiplier', { outputMultiplier })
-
   const finalInputCost = inputCost * (inputMultiplier ?? 1)
   const finalOutputCost = outputCost * (outputMultiplier ?? 1)
   const finalTotalCost = finalInputCost + finalOutputCost
-
-  logger.info('Final input cost', { finalInputCost })
-  logger.info('Final output cost', { finalOutputCost })
-  logger.info('Final total cost', { finalTotalCost })
 
   return {
     input: Number.parseFloat(finalInputCost.toFixed(8)), // Use 8 decimal places for small costs
