@@ -897,22 +897,9 @@ const WorkflowContent = React.memo(() => {
       const hasAnyValues = currentValues && Object.keys(currentValues).length > 0
       const hasBlocks = blocksState && Object.keys(blocksState).length > 0
 
-      // If we have blocks but no subblock values, initialize them synchronously
+      // If we have blocks but no subblock values, initialize them using the store's method
       if (!hasAnyValues && hasBlocks) {
-        const values: Record<string, Record<string, any>> = {}
-        Object.entries(blocksState).forEach(([blockId, block]: any) => {
-          values[blockId] = {}
-          Object.entries(block.subBlocks || {}).forEach(([subBlockId, subBlock]: any) => {
-            values[blockId][subBlockId] = subBlock?.value ?? null
-          })
-        })
-
-        useSubBlockStore.setState((state: any) => ({
-          workflowValues: {
-            ...state.workflowValues,
-            [currentId]: values,
-          },
-        }))
+        useSubBlockStore.getState().initializeFromWorkflow(currentId, blocksState)
       }
       setIsWorkflowReady(true)
     } else {
