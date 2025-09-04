@@ -91,4 +91,26 @@ Copilot is your in-editor assistant that helps you build, understand, and improv
   >
     <div className="m-0 text-sm">Maximum reasoning for deep planning, debugging, and complex architectural changes.</div>
   </Card>
-</Cards> 
+</Cards>
+
+## Billing and Cost Calculation
+
+### How Costs Are Calculated
+
+Copilot usage is billed per token from the underlying LLM:
+
+- **Input tokens**: billed at the provider's base rate (**at-cost**)
+- **Output tokens**: billed at **1.5×** the provider's base output rate
+
+```javascript
+copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5)) / 1,000,000
+```
+
+| Component | Rate Applied         |
+|----------|----------------------|
+| Input    | inputPrice           |
+| Output   | outputPrice × 1.5    |
+
+<Callout type="info">
+  Model prices are per million tokens. The calculation divides by 1,000,000 to get the actual cost. See <a href="/execution/advanced#cost-calculation">Logging and Cost Calculation</a> for background and examples.
+</Callout>

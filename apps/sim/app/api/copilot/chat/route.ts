@@ -372,6 +372,7 @@ export async function POST(req: NextRequest) {
       streamToolCalls: true,
       mode: mode,
       messageId: userMessageIdToUse,
+      chatId: actualChatId,
       ...(providerConfig ? { provider: providerConfig } : {}),
       ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
       ...(typeof effectiveDepth === 'number' ? { depth: effectiveDepth } : {}),
