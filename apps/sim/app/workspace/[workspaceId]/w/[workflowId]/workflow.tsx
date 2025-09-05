@@ -890,6 +890,16 @@ const WorkflowContent = React.memo(() => {
     const validateAndNavigate = async () => {
       const workflowIds = Object.keys(workflows)
       const currentId = params.workflowId as string
+      const { activeWorkflowId: currentActiveId } = useWorkflowRegistry.getState()
+
+      // If we have the current workflow in registry, set it as active immediately
+      // This fixes the first-load issue where canvas stays empty
+      if (workflows[currentId] && currentActiveId !== currentId) {
+        const { clearDiff } = useWorkflowDiffStore.getState()
+        clearDiff()
+        await setActiveWorkflow(currentId)
+        // Don't return here - continue with validation below
+      }
 
       // Check if workflows have been initially loaded at least once
       // This prevents premature navigation decisions on page refresh
@@ -940,23 +950,19 @@ const WorkflowContent = React.memo(() => {
         router.replace(`/workspace/${currentWorkflow.workspaceId}/w/${currentId}`)
         return
       }
-
-      // Get current active workflow state
-      const { activeWorkflowId } = useWorkflowRegistry.getState()
-
-      if (activeWorkflowId !== currentId) {
-        // Clear workflow diff store when switching workflows
-        const { clearDiff } = useWorkflowDiffStore.getState()
-        clearDiff()
-
-        // Set the active workflow to match the URL
-        await setActiveWorkflow(currentId)
-      }
-      // If already active, no need to call setActiveWorkflow again
     }
 
     validateAndNavigate()
-  }, [params.workflowId, workflows, isLoading, setActiveWorkflow, createWorkflow, router])
+  }, [
+    params.workflowId,
+    workflows,
+    isLoading,
+    activeWorkflowId,
+    workspaceId,
+    setActiveWorkflow,
+    createWorkflow,
+    router,
+  ])
 
   // Transform blocks and loops into ReactFlow nodes
   const nodes = useMemo(() => {
