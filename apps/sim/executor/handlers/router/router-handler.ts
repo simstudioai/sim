@@ -102,7 +102,7 @@ export class RouterBlockHandler implements BlockHandler {
       )
 
       return {
-        content: inputs.prompt,
+        content: {},
         model: result.model,
         tokens: {
           prompt: tokens.prompt || 0,

@@ -172,7 +172,7 @@ describe('RouterBlockHandler', () => {
     })
 
     expect(result).toEqual({
-      content: 'Choose the best option.',
+      content: {},
       model: 'mock-model',
       tokens: { prompt: 100, completion: 5, total: 105 },
       cost: {
