@@ -247,6 +247,7 @@ export async function POST(
   }
 
   // --- PHASE 3: Rate limiting for webhook execution ---
+  let isEnterprise = false
   try {
     // Get user subscription for rate limiting
     const [subscriptionRecord] = await db
@@ -256,6 +257,7 @@ export async function POST(
       .limit(1)
 
     const subscriptionPlan = (subscriptionRecord?.plan || 'free') as SubscriptionPlan
+    isEnterprise = subscriptionPlan === 'enterprise'
 
     // Check async rate limits (webhooks are processed asynchronously)
     const rateLimiter = new RateLimiter()
@@ -333,7 +335,7 @@ export async function POST(
     // Continue processing - better to risk usage limit bypass than fail webhook
   }
 
-  // --- PHASE 5: Queue webhook execution (trigger.dev or direct based on env) ---
+  // --- PHASE 5: Queue webhook execution (trigger.dev or direct based on plan/env) ---
   try {
     const payload = {
       webhookId: foundWebhook.id,
@@ -346,7 +348,9 @@ export async function POST(
       blockId: foundWebhook.blockId,
     }
 
-    const useTrigger = isTruthy(env.TRIGGER_DEV_ENABLED)
+    // Enterprise users always execute directly, others check TRIGGER_DEV_ENABLED env
+    // Note: isEnterprise was already determined during rate limiting phase
+    const useTrigger = !isEnterprise && isTruthy(env.TRIGGER_DEV_ENABLED)
 
     if (useTrigger) {
       const handle = await tasks.trigger('webhook-execution', payload)
@@ -358,8 +362,9 @@ export async function POST(
       void executeWebhookJob(payload).catch((error) => {
         logger.error(`[${requestId}] Direct webhook execution failed`, error)
       })
+      const reason = isEnterprise ? 'Enterprise plan' : 'Trigger.dev disabled'
       logger.info(
-        `[${requestId}] Queued direct webhook execution for ${foundWebhook.provider} webhook (Trigger.dev disabled)`
+        `[${requestId}] Queued direct webhook execution for ${foundWebhook.provider} webhook (${reason})`
       )
     }
 
