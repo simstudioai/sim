@@ -79,7 +79,11 @@ export function UsageHeader({
           </div>
         </div>
 
-        <Progress value={isBlocked ? 100 : progress} className='h-2' />
+        <Progress
+          value={isBlocked ? 100 : progress}
+          className='h-2'
+          indicatorClassName='bg-black dark:bg-white'
+        />
 
         {isBlocked && (
           <div className='flex items-center justify-between rounded-[6px] bg-destructive/10 px-2 py-1'>

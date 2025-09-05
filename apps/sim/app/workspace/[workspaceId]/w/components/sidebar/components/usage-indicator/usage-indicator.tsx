@@ -92,8 +92,12 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           </span>
         </div>
 
-        {/* Progress Bar with color: yellow for warning, red for full/blocked */}
-        <Progress value={isBlocked ? 100 : progressPercentage} className='h-2' />
+        {/* Progress Bar */}
+        <Progress
+          value={isBlocked ? 100 : progressPercentage}
+          className='h-2'
+          indicatorClassName='bg-black dark:bg-white'
+        />
       </div>
     </div>
   )

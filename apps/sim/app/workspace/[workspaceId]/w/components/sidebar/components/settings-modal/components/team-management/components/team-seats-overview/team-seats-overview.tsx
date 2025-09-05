@@ -100,9 +100,11 @@ export function TeamSeatsOverview({
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
             <span className='font-medium text-sm'>Seats</span>
-            <span className='text-muted-foreground text-xs'>
-              (${env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT}/month each)
-            </span>
+            {!checkEnterprisePlan(subscriptionData) ? (
+              <span className='text-muted-foreground text-xs'>
+                (${env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT}/month each)
+              </span>
+            ) : null}
           </div>
           <div className='flex items-center gap-1 text-xs tabular-nums'>
             <span className='text-muted-foreground'>{usedSeats} used</span>
