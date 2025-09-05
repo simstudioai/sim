@@ -836,31 +836,11 @@ export class InputResolver {
   private isValidVariableReference(match: string): boolean {
     const innerContent = match.slice(1, -1)
 
-    if (!innerContent.includes('.')) {
-      return false
-    }
-
-    const dotIndex = innerContent.indexOf('.')
-    const beforeDot = innerContent.substring(0, dotIndex)
-    const afterDot = innerContent.substring(dotIndex + 1)
-
-    if (afterDot.includes(' ')) {
-      return false
-    }
-
-    if (
-      beforeDot.match(/^\s*[<>=!]+\s*$/) ||
-      beforeDot.match(/\s[<>=!]+\s/) ||
-      beforeDot.match(/^[<>=!]+\s/)
-    ) {
-      return false
-    }
-
     if (innerContent.startsWith(' ')) {
       return false
     }
 
-    if (innerContent.match(/^[a-zA-Z][a-zA-Z0-9]*$/) && !innerContent.includes('.')) {
+    if (innerContent.match(/^\s*[<>=!]+\s*$/) || innerContent.match(/\s[<>=!]+\s/)) {
       return false
     }
 
@@ -868,12 +848,26 @@ export class InputResolver {
       return false
     }
 
-    if (beforeDot.match(/[+*/=<>!]/)) {
-      return false
-    }
+    if (innerContent.includes('.')) {
+      const dotIndex = innerContent.indexOf('.')
+      const beforeDot = innerContent.substring(0, dotIndex)
+      const afterDot = innerContent.substring(dotIndex + 1)
 
-    if (afterDot.match(/[+\-*/=<>!]/)) {
-      return false
+      if (afterDot.includes(' ')) {
+        return false
+      }
+
+      if (beforeDot.match(/[+*/=<>!]/) || afterDot.match(/[+\-*/=<>!]/)) {
+        return false
+      }
+    } else {
+      if (
+        innerContent.match(/[+\-*/=<>!]/) ||
+        innerContent.match(/^\d/) ||
+        innerContent.match(/\s\d/)
+      ) {
+        return false
+      }
     }
 
     return true
