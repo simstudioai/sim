@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Code, FileJson, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Code, FileJson, Trash2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   AlertDialog,
@@ -934,11 +934,18 @@ try {
                     <Label htmlFor='json-schema' className='font-medium'>
                       JSON Schema
                     </Label>
+                    {schemaError &&
+                      !schemaGeneration.isStreaming && ( // Hide schema error while streaming
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AlertTriangle className='h-4 w-4 cursor-pointer text-destructive' />
+                          </TooltipTrigger>
+                          <TooltipContent side='top'>
+                            <p>Invalid JSON</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                   </div>
-                  {schemaError &&
-                    !schemaGeneration.isStreaming && ( // Hide schema error while streaming
-                      <div className='ml-4 break-words text-red-600 text-sm'>{schemaError}</div>
-                    )}
                 </div>
                 <CodeEditor
                   value={jsonSchema}
@@ -975,7 +982,6 @@ try {
 }`}
                   minHeight='360px'
                   className={cn(
-                    schemaError && !schemaGeneration.isStreaming ? 'border-red-500' : '',
                     (schemaGeneration.isLoading || schemaGeneration.isStreaming) &&
                       'cursor-not-allowed opacity-50'
                   )}

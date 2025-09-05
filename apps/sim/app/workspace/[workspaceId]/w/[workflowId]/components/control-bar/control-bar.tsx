@@ -1101,21 +1101,11 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
    * Get workflows in the exact order they appear in the sidebar
    */
   const getSidebarOrderedWorkflows = () => {
-    // Get and sort regular workflows by last modified (newest first)
+    // Get and sort regular workflows by creation date (newest first) for stable ordering
     const regularWorkflows = Object.values(workflows)
       .filter((workflow) => workflow.workspaceId === workspaceId)
       .filter((workflow) => workflow.marketplaceData?.status !== 'temp')
-      .sort((a, b) => {
-        const dateA =
-          a.lastModified instanceof Date
-            ? a.lastModified.getTime()
-            : new Date(a.lastModified).getTime()
-        const dateB =
-          b.lastModified instanceof Date
-            ? b.lastModified.getTime()
-            : new Date(b.lastModified).getTime()
-        return dateB - dateA
-      })
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 
     // Group workflows by folder
     const workflowsByFolder = regularWorkflows.reduce(

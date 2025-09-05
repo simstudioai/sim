@@ -86,7 +86,7 @@ export async function executeProviderRequest(
     const { prompt: promptTokens = 0, completion: completionTokens = 0 } = response.tokens
     const useCachedInput = !!request.context && request.context.length > 0
 
-    if (shouldBillModelUsage(response.model, request.apiKey)) {
+    if (shouldBillModelUsage(response.model)) {
       response.cost = calculateCost(response.model, promptTokens, completionTokens, useCachedInput)
     } else {
       response.cost = {

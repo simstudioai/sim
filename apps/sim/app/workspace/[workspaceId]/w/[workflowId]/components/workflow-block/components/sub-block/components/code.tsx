@@ -404,10 +404,8 @@ IMPORTANT FORMATTING RULES:
       <div
         className={cn(
           'group relative min-h-[100px] rounded-md border border-input bg-background font-mono text-sm transition-colors',
-          isConnecting && 'ring-2 ring-blue-500 ring-offset-2',
-          !isValidJson && 'border-destructive bg-destructive/10'
+          isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
         )}
-        title={!isValidJson ? 'Invalid JSON' : undefined}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
@@ -419,7 +417,7 @@ IMPORTANT FORMATTING RULES:
               onClick={isPromptVisible ? hidePromptInline : showPromptInline}
               disabled={isAiLoading || isAiStreaming}
               aria-label='Generate code with AI'
-              className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow'
+              className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-foreground hover:shadow'
             >
               <Wand2 className='h-4 w-4' />
             </Button>

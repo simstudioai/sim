@@ -19,6 +19,11 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions) => ({ and: conditions })),
 }))
 
+// Mock getHighestPrioritySubscription
+vi.mock('@/lib/billing/core/subscription', () => ({
+  getHighestPrioritySubscription: vi.fn().mockResolvedValue(null),
+}))
+
 import { db } from '@/db'
 
 describe('RateLimiter', () => {

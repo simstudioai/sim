@@ -24,6 +24,11 @@ export interface VariablesStore {
   isEditing: string | null
 
   /**
+   * Loads variables for a specific workflow from the API and hydrates the store.
+   */
+  loadForWorkflow: (workflowId: string) => Promise<void>
+
+  /**
    * Adds a new variable with automatic name uniqueness validation
    * If a variable with the same name exists, it will be suffixed with a number
    * Optionally accepts a predetermined ID for collaborative operations

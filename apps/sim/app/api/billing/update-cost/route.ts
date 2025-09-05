@@ -16,7 +16,8 @@ const UpdateCostSchema = z.object({
   input: z.number().min(0, 'Input tokens must be a non-negative number'),
   output: z.number().min(0, 'Output tokens must be a non-negative number'),
   model: z.string().min(1, 'Model is required'),
-  multiplier: z.number().min(0),
+  inputMultiplier: z.number().min(0),
+  outputMultiplier: z.number().min(0),
 })
 
 /**
@@ -75,14 +76,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { userId, input, output, model, multiplier } = validation.data
+    const { userId, input, output, model, inputMultiplier, outputMultiplier } = validation.data
 
     logger.info(`[${requestId}] Processing cost update`, {
       userId,
       input,
       output,
       model,
-      multiplier,
+      inputMultiplier,
+      outputMultiplier,
     })
 
     const finalPromptTokens = input
@@ -95,7 +97,8 @@ export async function POST(req: NextRequest) {
       finalPromptTokens,
       finalCompletionTokens,
       false,
-      multiplier
+      inputMultiplier,
+      outputMultiplier
     )
 
     logger.info(`[${requestId}] Cost calculation result`, {
@@ -104,7 +107,8 @@ export async function POST(req: NextRequest) {
       promptTokens: finalPromptTokens,
       completionTokens: finalCompletionTokens,
       totalTokens: totalTokens,
-      multiplier,
+      inputMultiplier,
+      outputMultiplier,
       costResult,
     })
 

@@ -9,7 +9,7 @@ export function getErrorMessage(reason: string): string {
     case 'already-processed':
       return 'This invitation has already been accepted or declined.'
     case 'email-mismatch':
-      return 'This invitation was sent to a different email address. Please log in with the correct account or contact the person who invited you.'
+      return 'This invitation was sent to a different email address. Please log in with the correct account.'
     case 'workspace-not-found':
       return 'The workspace associated with this invitation could not be found.'
     case 'user-not-found':
