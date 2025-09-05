@@ -1190,7 +1190,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }))
         }
 
-        // Workflow has already been persisted to the database via the duplication endpoint
+        try {
+          await useVariablesStore.getState().loadForWorkflow(id)
+        } catch (error) {
+          logger.warn(`Error hydrating variables for duplicated workflow ${id}:`, error)
+        }
 
         logger.info(
           `Duplicated workflow ${sourceId} to ${id} in workspace ${workspaceId || 'none'}`
