@@ -2,6 +2,7 @@ import { tasks } from '@trigger.dev/sdk'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkServerSideUsageLimits } from '@/lib/billing'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -11,7 +12,7 @@ import {
 } from '@/lib/webhooks/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { db } from '@/db'
-import { subscription, webhook, workflow } from '@/db/schema'
+import { webhook, workflow } from '@/db/schema'
 import { RateLimiter } from '@/services/queue'
 import type { SubscriptionPlan } from '@/services/queue/types'
 
@@ -249,21 +250,17 @@ export async function POST(
   // --- PHASE 3: Rate limiting for webhook execution ---
   let isEnterprise = false
   try {
-    // Get user subscription for rate limiting
-    const [subscriptionRecord] = await db
-      .select({ plan: subscription.plan })
-      .from(subscription)
-      .where(eq(subscription.referenceId, foundWorkflow.userId))
-      .limit(1)
+    // Get user subscription for rate limiting (checks both personal and org subscriptions)
+    const userSubscription = await getHighestPrioritySubscription(foundWorkflow.userId)
 
-    const subscriptionPlan = (subscriptionRecord?.plan || 'free') as SubscriptionPlan
+    const subscriptionPlan = (userSubscription?.plan || 'free') as SubscriptionPlan
     isEnterprise = subscriptionPlan === 'enterprise'
 
     // Check async rate limits (webhooks are processed asynchronously)
     const rateLimiter = new RateLimiter()
-    const rateLimitCheck = await rateLimiter.checkRateLimit(
+    const rateLimitCheck = await rateLimiter.checkRateLimitWithSubscription(
       foundWorkflow.userId,
-      subscriptionPlan,
+      userSubscription,
       'webhook',
       true // isAsync = true for webhook execution
     )
