@@ -14,6 +14,7 @@ export interface WorkflowMetadata {
   id: string
   name: string
   lastModified: Date
+  createdAt: Date
   description?: string
   color: string
   marketplaceData?: MarketplaceData | null

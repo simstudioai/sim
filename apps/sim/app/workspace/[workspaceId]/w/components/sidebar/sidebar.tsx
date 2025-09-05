@@ -691,13 +691,13 @@ export function Sidebar() {
         }
       })
 
-      // Sort by name alphabetically for stable ordering
-      const sortByName = (a: WorkflowMetadata, b: WorkflowMetadata) => {
-        return a.name.localeCompare(b.name)
+      // Sort by creation date (newest first) for stable ordering
+      const sortByCreatedAt = (a: WorkflowMetadata, b: WorkflowMetadata) => {
+        return b.createdAt.getTime() - a.createdAt.getTime()
       }
 
-      regular.sort(sortByName)
-      temp.sort(sortByName)
+      regular.sort(sortByCreatedAt)
+      temp.sort(sortByCreatedAt)
     }
 
     return { regularWorkflows: regular, tempWorkflows: temp }
