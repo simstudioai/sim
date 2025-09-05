@@ -44,7 +44,6 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
       )
     }
 
-    // Check if server exists and belongs to user
     const [server] = await db
       .select()
       .from(mcpServers)
@@ -61,13 +60,11 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
       )
     }
 
-    // Test actual connection and discover tools
     let connectionStatus: 'connected' | 'disconnected' | 'error' = 'error'
     let toolCount = 0
     let lastError: string | null = null
 
     try {
-      // Use the MCP service to test connection and discover tools
       const tools = await mcpService.discoverServerTools(userId, serverId, true) // Force refresh
       connectionStatus = 'connected'
       toolCount = tools.length
@@ -80,7 +77,6 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
       logger.warn(`[${requestId}] Failed to connect to server ${serverId}:`, error)
     }
 
-    // Update server status in database
     const [refreshedServer] = await db
       .update(mcpServers)
       .set({

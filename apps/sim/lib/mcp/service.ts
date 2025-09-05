@@ -185,7 +185,6 @@ class McpService {
         return []
       }
 
-      // Discover tools from all servers
       const allTools: McpTool[] = []
       const results = await Promise.allSettled(
         servers.map(async (config) => {
@@ -202,7 +201,6 @@ class McpService {
         })
       )
 
-      // Collect successful results
       results.forEach((result, index) => {
         if (result.status === 'fulfilled') {
           allTools.push(...result.value)
@@ -214,7 +212,6 @@ class McpService {
         }
       })
 
-      // Cache results
       this.toolCache.set(cacheKey, {
         tools: allTools,
         expiry: new Date(Date.now() + this.cacheTimeout),
@@ -279,7 +276,6 @@ class McpService {
 
       for (const config of servers) {
         try {
-          // Test connection to get status
           const client = await this.createClient(config)
           const tools = await client.listTools()
           await client.disconnect()

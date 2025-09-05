@@ -6,7 +6,7 @@
  * This file contains unit tests for the tools registry and executeTool function,
  * which are the central pieces of infrastructure for executing tools.
  */
-import { afterEach, beforeEach, describe, expect, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mockEnvironmentVariables } from '@/tools/__test-utils__/test-tools'
 import { executeTool } from '@/tools/index'
 import { tools } from '@/tools/registry'

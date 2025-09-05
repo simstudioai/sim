@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Get authenticated user using hybrid auth
-    const auth = await checkHybridAuth(request)
+    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       return createMcpErrorResponse(
         new Error(auth.error || 'Authentication required'),

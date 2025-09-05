@@ -8,8 +8,6 @@
  * - Session management with Mcp-Session-Id header
  */
 
-// EventSource import removed - not needed for Streamable HTTP transport
-
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   type JsonRpcRequest,
@@ -41,7 +39,6 @@ export class McpClient {
       timeout: NodeJS.Timeout
     }
   >()
-  // EventSource removed - Streamable HTTP doesn't use persistent SSE connections
   private serverCapabilities?: McpCapabilities
   private mcpSessionId?: string // MCP Session ID from server
 
@@ -62,7 +59,6 @@ export class McpClient {
           await this.connectStreamableHttp()
           break
         case 'sse':
-          // Legacy SSE transport (deprecated) - treat as Streamable HTTP
           await this.connectStreamableHttp()
           break
         default:
@@ -88,14 +84,11 @@ export class McpClient {
   async disconnect(): Promise<void> {
     logger.info(`Disconnecting from MCP server: ${this.config.name}`)
 
-    // Cancel all pending requests
     for (const [, pending] of this.pendingRequests) {
       clearTimeout(pending.timeout)
       pending.reject(new McpError('Connection closed'))
     }
     this.pendingRequests.clear()
-
-    // Streamable HTTP doesn't maintain persistent connections to close
 
     this.connectionStatus.connected = false
     logger.info(`Disconnected from MCP server: ${this.config.name}`)
@@ -183,7 +176,6 @@ export class McpClient {
 
       this.pendingRequests.set(id, { resolve, reject, timeout })
 
-      // All transports use HTTP requests in Streamable HTTP
       this.sendHttpRequest(request).catch(reject)
     })
   }
@@ -212,7 +204,6 @@ export class McpClient {
 
     logger.info(`Initialized MCP server ${this.config.name}:`, result.serverInfo)
 
-    // Send initialized notification
     await this.sendNotification('notifications/initialized', {})
   }
 
@@ -226,7 +217,6 @@ export class McpClient {
       params,
     }
 
-    // All transports use HTTP requests in Streamable HTTP
     await this.sendHttpRequest(notification)
   }
 
@@ -238,8 +228,6 @@ export class McpClient {
       throw new McpError('URL required for Streamable HTTP transport')
     }
 
-    // Streamable HTTP uses single endpoint for all communication
-    // Connection will be validated during initialization
     logger.info(`Using Streamable HTTP transport for ${this.config.name}`)
   }
 
@@ -251,12 +239,9 @@ export class McpClient {
       throw new McpError('URL required for HTTP transport')
     }
 
-    // Try the request as-is first, then with/without trailing slash if it fails
     const urlsToTry = [
       this.config.url,
-      // If URL doesn't end with /, try adding it
       ...(this.config.url.endsWith('/') ? [] : [`${this.config.url}/`]),
-      // If URL ends with /, try removing it
       ...(this.config.url.endsWith('/') ? [this.config.url.slice(0, -1)] : []),
     ]
 
@@ -266,7 +251,6 @@ export class McpClient {
       try {
         await this.attemptHttpRequest(request, url, index === 0)
 
-        // If we succeeded with a different URL, update the config for future requests
         if (index > 0) {
           logger.info(`[${this.config.name}] Updated URL from ${this.config.url} to ${url}`)
           this.config.url = url
@@ -275,7 +259,6 @@ export class McpClient {
       } catch (error) {
         lastError = error as Error
 
-        // Only retry on 404 errors (likely routing issues)
         if (error instanceof McpError && !error.message.includes('404')) {
           break
         }
@@ -316,7 +299,6 @@ export class McpClient {
       ...this.config.headers,
     }
 
-    // Include MCP Session ID if we have one (Streamable HTTP requirement)
     if (this.mcpSessionId) {
       headers['Mcp-Session-Id'] = this.mcpSessionId
     }
@@ -334,7 +316,6 @@ export class McpClient {
     })
 
     if (!response.ok) {
-      // Log the response body for debugging
       const responseText = await response.text().catch(() => 'Could not read response body')
       logger.error(`[${this.config.name}] HTTP request failed:`, {
         status: response.status,
@@ -346,11 +327,9 @@ export class McpClient {
     }
 
     if ('id' in request) {
-      // This is a request expecting a response
       const contentType = response.headers.get('Content-Type')
 
       if (contentType?.includes('application/json')) {
-        // Check for MCP Session ID in response headers (Streamable HTTP)
         const sessionId = response.headers.get('Mcp-Session-Id')
         if (sessionId && !this.mcpSessionId) {
           this.mcpSessionId = sessionId
@@ -360,23 +339,19 @@ export class McpClient {
         const responseData: JsonRpcResponse = await response.json()
         this.handleResponse(responseData)
       } else if (contentType?.includes('text/event-stream')) {
-        // Handle Server-Sent Events response format (legacy MCP servers)
         logger.info(`[${this.config.name}] Parsing SSE response for request ${request.id}`)
         const responseText = await response.text()
         this.handleSseResponse(responseText, request.id)
       } else {
-        // Handle other non-JSON responses (like HTTP 202 "Accepted")
         logger.info(`[${this.config.name}] Received non-JSON response for request ${request.id}`, {
           contentType,
         })
-        // For notifications or async operations, this might be expected
-        // Don't try to parse as JSON
       }
     }
   }
 
   /**
-   * Handle JSON-RPC response
+   * Handle JSON-RPC responsef
    */
   private handleResponse(response: JsonRpcResponse): void {
     const pending = this.pendingRequests.get(response.id)

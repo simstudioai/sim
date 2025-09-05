@@ -1526,12 +1526,12 @@ export function ToolInput({
                                 Auto
                               </span>
                               <span
-                                className={`font-medium text-xs ${tool.usageControl === 'force' ? 'block' : 'hidden'}`}
+                                className={`font-medium text-xs ${tool.usageControl === 'force' ? 'block text-muted-foreground' : 'hidden'}`}
                               >
                                 Force
                               </span>
                               <span
-                                className={`font-medium text-xs ${tool.usageControl === 'none' ? 'block' : 'hidden'}`}
+                                className={`font-medium text-xs ${tool.usageControl === 'none' ? 'block text-muted-foreground' : 'hidden'}`}
                               >
                                 None
                               </span>
@@ -1539,12 +1539,11 @@ export function ToolInput({
                           </TooltipTrigger>
                           <TooltipContent className='max-w-[280px] p-2' side='top'>
                             <p className='text-xs'>
-                              Control how the model uses this tool in its response.
                               {tool.usageControl === 'auto' && (
                                 <span>
                                   {' '}
-                                  <span className='font-medium'> Auto:</span> Let the model decide
-                                  when to use the tool
+                                  <span className='font-medium'> Auto:</span> The model decides when
+                                  to use the tool
                                 </span>
                               )}
                               {tool.usageControl === 'force' && (

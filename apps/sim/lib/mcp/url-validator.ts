@@ -84,7 +84,6 @@ export function validateMcpServerUrl(urlString: string): UrlValidationResult {
     }
   }
 
-  // Check protocol - only allow HTTP/HTTPS
   if (!['http:', 'https:'].includes(url.protocol)) {
     return {
       isValid: false,
@@ -92,10 +91,8 @@ export function validateMcpServerUrl(urlString: string): UrlValidationResult {
     }
   }
 
-  // Extract hostname for validation
   const hostname = url.hostname.toLowerCase()
 
-  // Block dangerous hostnames
   if (BLOCKED_HOSTNAMES.includes(hostname)) {
     return {
       isValid: false,
@@ -103,7 +100,6 @@ export function validateMcpServerUrl(urlString: string): UrlValidationResult {
     }
   }
 
-  // Check for private IP ranges (IPv4)
   if (isIPv4(hostname)) {
     for (const range of PRIVATE_IP_RANGES) {
       if (range.test(hostname)) {
@@ -115,7 +111,6 @@ export function validateMcpServerUrl(urlString: string): UrlValidationResult {
     }
   }
 
-  // Check for private IP ranges (IPv6)
   if (isIPv6(hostname)) {
     for (const range of PRIVATE_IPV6_RANGES) {
       if (range.test(hostname)) {
@@ -127,7 +122,6 @@ export function validateMcpServerUrl(urlString: string): UrlValidationResult {
     }
   }
 
-  // Check port restrictions
   if (url.port) {
     const port = Number.parseInt(url.port, 10)
     if (BLOCKED_PORTS.includes(port)) {
@@ -138,7 +132,6 @@ export function validateMcpServerUrl(urlString: string): UrlValidationResult {
     }
   }
 
-  // Validate URL length (prevent extremely long URLs)
   if (urlString.length > 2048) {
     return {
       isValid: false,
@@ -146,7 +139,6 @@ export function validateMcpServerUrl(urlString: string): UrlValidationResult {
     }
   }
 
-  // Additional checks for common MCP patterns
   if (url.protocol === 'https:' && url.port === '80') {
     return {
       isValid: false,
@@ -182,10 +174,8 @@ function isIPv4(hostname: string): boolean {
  * Check if a string is a valid IPv6 address
  */
 function isIPv6(hostname: string): boolean {
-  // Remove brackets if present
   const cleanHostname = hostname.replace(/^\[|\]$/g, '')
 
-  // Basic IPv6 pattern - this is simplified but covers most cases
   const ipv6Regex =
     /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::$|^::1$|^(?:[0-9a-fA-F]{1,4}:)*::[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4})*$/
 

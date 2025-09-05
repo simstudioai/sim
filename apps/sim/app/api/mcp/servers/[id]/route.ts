@@ -45,7 +45,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       )
     }
 
-    // Validate URL if being updated
     if (body.url && (body.transport === 'http' || body.transport === 'sse')) {
       const urlValidation = validateMcpServerUrl(body.url)
       if (!urlValidation.isValid) {
@@ -57,11 +56,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
           { status: 400 }
         )
       }
-      // Use normalized URL
       body.url = urlValidation.normalizedUrl
     }
 
-    // Update in database
     const [updatedServer] = await db
       .update(mcpServers)
       .set({

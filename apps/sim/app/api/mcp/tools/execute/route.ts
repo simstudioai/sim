@@ -23,19 +23,6 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const body = await request.json()
-
-    logger.info(`[${requestId}] MCP tool execution request received`, {
-      hasAuthHeader: !!request.headers.get('authorization'),
-      authHeaderType: request.headers.get('authorization')?.substring(0, 10),
-      bodyKeys: Object.keys(body),
-      serverId: body.serverId,
-      toolName: body.toolName,
-      hasWorkflowId: !!body.workflowId,
-      workflowId: body.workflowId,
-    })
-
-    // Get authenticated user using hybrid auth
     const auth = await checkHybridAuth(request)
     if (!auth.success || !auth.userId) {
       logger.warn(`[${requestId}] Authentication failed: ${auth.error}`)
@@ -47,9 +34,22 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = auth.userId
+
+    const body = await request.json()
+
+    logger.info(`[${requestId}] MCP tool execution request received`, {
+      hasAuthHeader: !!request.headers.get('authorization'),
+      authHeaderType: request.headers.get('authorization')?.substring(0, 10),
+      bodyKeys: Object.keys(body),
+      serverId: body.serverId,
+      toolName: body.toolName,
+      hasWorkflowId: !!body.workflowId,
+      workflowId: body.workflowId,
+      userId: userId,
+    })
+
     const { serverId, toolName, arguments: args } = body
 
-    // Validate required parameters
     const serverIdValidation = validateStringParam(serverId, 'serverId')
     if (!serverIdValidation.isValid) {
       logger.warn(`[${requestId}] Invalid serverId: ${serverId}`)
@@ -66,7 +66,6 @@ export async function POST(request: NextRequest) {
       `[${requestId}] Executing tool ${toolName} on server ${serverId} for user ${userId}`
     )
 
-    // First, discover the tool to validate arguments against its schema
     let tool = null
     try {
       const tools = await mcpService.discoverServerTools(userId, serverId, false) // Use cache
@@ -88,7 +87,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate arguments against tool schema if available
     if (tool) {
       const validationError = validateToolArguments(tool, args)
       if (validationError) {
@@ -105,7 +103,6 @@ export async function POST(request: NextRequest) {
       arguments: args || {},
     }
 
-    // Execute the tool with timeout
     const result = await Promise.race([
       mcpService.executeTool(userId, serverId, toolCall),
       new Promise<never>((_, reject) =>
@@ -116,7 +113,6 @@ export async function POST(request: NextRequest) {
       ),
     ])
 
-    // Transform result for platform compatibility
     const transformedResult = transformToolResult(result)
 
     if (result.isError) {
@@ -197,7 +193,6 @@ function transformToolResult(result: McpToolResult): any {
     }
   }
 
-  // Extract text content as the primary output
   const textContent =
     result.content
       ?.filter((c) => c.type === 'text')

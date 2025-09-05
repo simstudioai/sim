@@ -223,7 +223,6 @@ export async function DELETE(request: NextRequest) {
 
     logger.info(`[${requestId}] Unregistering MCP server: ${serverId}`)
 
-    // Soft delete from database (mark as deleted)
     const [deletedServer] = await db
       .update(mcpServers)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
@@ -240,7 +239,6 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Clear user's tool cache since we removed a server
     mcpService.clearCache(session.user.id)
 
     const response: McpApiResponse = {

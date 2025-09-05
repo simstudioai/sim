@@ -33,24 +33,21 @@ export const McpBlock: BlockConfig<McpResponse> = {
     {
       id: 'server',
       title: 'MCP Server',
-      type: 'dropdown',
+      type: 'mcp-server-selector',
       layout: 'full',
       required: true,
       placeholder: 'Select an MCP server',
       description: 'Choose from configured MCP servers in your workspace',
-      // Options will be populated dynamically from registered servers
-      options: () => [],
     },
     {
       id: 'tool',
       title: 'Tool',
-      type: 'dropdown',
+      type: 'mcp-tool-selector',
       layout: 'full',
       required: true,
       placeholder: 'Select a tool',
       description: 'Available tools from the selected MCP server',
-      // Options will be populated dynamically based on selected server
-      options: () => [],
+      dependsOn: ['server'], // Tool options depend on selected server
       condition: {
         field: 'server',
         value: '',
@@ -59,32 +56,15 @@ export const McpBlock: BlockConfig<McpResponse> = {
     },
     {
       id: 'arguments',
-      title: 'Tool Arguments',
-      type: 'code',
+      title: '',
+      type: 'mcp-dynamic-args',
       layout: 'full',
-      language: 'json',
-      placeholder: '{\n  "arg1": "value1",\n  "arg2": "value2"\n}',
-      description: 'Arguments to pass to the MCP tool (JSON format)',
+      description: '',
       condition: {
         field: 'tool',
         value: '',
         not: true, // Show when tool is not empty
       },
-    },
-    {
-      id: 'timeout',
-      title: 'Timeout (seconds)',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: '60',
-      description: 'Maximum execution time for the tool (default: 60s)',
-    },
-    {
-      id: 'retryOnFailure',
-      title: 'Retry on Failure',
-      type: 'switch',
-      layout: 'half',
-      description: 'Automatically retry if the tool execution fails',
     },
   ],
   tools: {
@@ -95,8 +75,6 @@ export const McpBlock: BlockConfig<McpResponse> = {
         serverId: params.server,
         toolName: params.tool,
         arguments: params.arguments ? JSON.parse(params.arguments) : {},
-        timeout: params.timeout ? Number.parseInt(params.timeout) * 1000 : 60000,
-        retryOnFailure: params.retryOnFailure === true,
       }),
     },
   },
@@ -117,14 +95,6 @@ export const McpBlock: BlockConfig<McpResponse> = {
         properties: {},
         additionalProperties: true,
       },
-    },
-    timeout: {
-      type: 'number',
-      description: 'Timeout in seconds (default: 60)',
-    },
-    retryOnFailure: {
-      type: 'boolean',
-      description: 'Whether to retry on failure (default: false)',
     },
   },
   outputs: {

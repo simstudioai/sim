@@ -3,12 +3,12 @@ import {
   CreditCard,
   FileCode,
   Key,
+  Server,
   Settings,
   Shield,
   User,
   Users,
   Waypoints,
-  Zap,
 } from 'lucide-react'
 import { getEnv, isTruthy } from '@/lib/env'
 import { isHosted } from '@/lib/environment'
@@ -66,7 +66,7 @@ const allNavigationItems: NavigationItem[] = [
   {
     id: 'mcp',
     label: 'MCP Servers',
-    icon: Zap,
+    icon: Server,
   },
   {
     id: 'environment',

@@ -1,17 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, Plus, Trash2, WrenchIcon, X } from 'lucide-react'
+import { AlertCircle, Plus, Search, X } from 'lucide-react'
 import {
   Alert,
   AlertDescription,
-  Badge,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Input,
   Label,
   Select,
@@ -19,6 +13,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Skeleton,
 } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
@@ -47,6 +42,7 @@ export function MCP() {
   } = useMcpServersStore()
 
   const [showAddForm, setShowAddForm] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
   const [formData, setFormData] = useState<McpServerFormData>({
     name: '',
     transport: 'http',
@@ -119,63 +115,143 @@ export function MCP() {
     {} as Record<string, typeof mcpTools>
   )
 
+  // Filter servers based on search term
+  const filteredServers = (servers || []).filter((server) =>
+    server.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
   return (
-    <div className='flex h-full flex-col'>
-      <div className='flex-1 overflow-y-auto'>
-        <div className='space-y-6 p-6'>
-          {/* Header */}
-          <div>
-            <h2 className='font-semibold text-xl'>MCP Servers</h2>
-            <p className='mt-1 text-muted-foreground text-sm'>
-              Manage Model Context Protocol servers to extend your workflow capabilities with
-              external tools.
-            </p>
+    <div className='relative flex h-full flex-col'>
+      {/* Fixed Header with Search */}
+      <div className='px-6 pt-4 pb-2'>
+        {/* Search Input */}
+        {serversLoading ? (
+          <Skeleton className='h-9 w-56 rounded-lg' />
+        ) : (
+          <div className='flex h-9 w-56 items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
+            <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
+            <Input
+              placeholder='Search servers...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='flex-1 border-0 bg-transparent px-0 font-[380] font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+            />
           </div>
+        )}
 
-          {/* Error Alert */}
-          {(toolsError || serversError) && (
-            <Alert variant='destructive'>
-              <AlertCircle className='h-4 w-4' />
-              <AlertDescription>{toolsError || serversError}</AlertDescription>
-            </Alert>
+        {/* Error Alert */}
+        {(toolsError || serversError) && (
+          <Alert variant='destructive' className='mt-4'>
+            <AlertCircle className='h-4 w-4' />
+            <AlertDescription>{toolsError || serversError}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+
+      {/* Scrollable Content */}
+      <div className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'>
+        <div className='h-full space-y-4 py-2'>
+          {/* Server List */}
+          {serversLoading ? (
+            <div className='space-y-4'>
+              <McpServerSkeleton />
+              <McpServerSkeleton />
+              <McpServerSkeleton />
+            </div>
+          ) : !servers || servers.length === 0 ? (
+            <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
+              Click "Add Server" below to get started
+            </div>
+          ) : (
+            <div className='space-y-4'>
+              {filteredServers.map((server: any) => {
+                // Add defensive checks for server properties
+                if (!server || !server.id) {
+                  return null
+                }
+
+                const tools = toolsByServer[server.id] || []
+
+                return (
+                  <div key={server.id} className='flex flex-col gap-2'>
+                    <div className='flex items-center justify-between gap-4'>
+                      <div className='flex items-center gap-3'>
+                        <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
+                          <code className='font-mono text-foreground text-xs'>
+                            {server.name || 'Unnamed Server'}
+                          </code>
+                        </div>
+                        <span className='text-muted-foreground text-xs'>
+                          {server.transport?.toUpperCase() || 'HTTP'}
+                        </span>
+                        <span className='text-muted-foreground text-xs'>•</span>
+                        <span className='text-muted-foreground text-xs'>
+                          {tools.length} tool{tools.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => handleRemoveServer(server.id)}
+                        className='h-8 text-muted-foreground hover:text-foreground'
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                    {tools.length > 0 && (
+                      <div className='mt-1 ml-2 flex flex-wrap gap-1'>
+                        {tools.map((tool) => (
+                          <span
+                            key={tool.id}
+                            className='inline-flex h-5 items-center rounded bg-muted/50 px-2 text-muted-foreground text-xs'
+                          >
+                            {tool.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              {/* Show message when search has no results but there are servers */}
+              {searchTerm.trim() && filteredServers.length === 0 && servers.length > 0 && (
+                <div className='py-8 text-center text-muted-foreground text-sm'>
+                  No servers found matching "{searchTerm}"
+                </div>
+              )}
+            </div>
           )}
-
-          {/* Add Server Button */}
-          <div className='flex items-center justify-between'>
-            <h3 className='font-medium text-lg'>Configured Servers</h3>
-            <Button onClick={() => setShowAddForm(!showAddForm)} variant='outline' size='sm'>
-              <Plus className='mr-2 h-4 w-4' />
-              Add Server
-            </Button>
-          </div>
 
           {/* Add Server Form */}
           {showAddForm && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Add MCP Server</CardTitle>
-                <CardDescription>Configure a new Model Context Protocol server</CardDescription>
-              </CardHeader>
-              <CardContent className='space-y-4'>
-                <div className='grid grid-cols-2 gap-4'>
-                  <div>
-                    <Label htmlFor='server-name'>Server Name</Label>
+            <div className='rounded-[8px] border bg-background p-4 shadow-xs'>
+              <div className='space-y-4'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <Label className='font-normal'>Server Name</Label>
+                  </div>
+                  <div className='w-[320px]'>
                     <Input
-                      id='server-name'
                       placeholder='e.g., Firecrawl MCP'
                       value={formData.name}
                       onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                      className='h-9'
                     />
                   </div>
-                  <div>
-                    <Label htmlFor='transport'>Transport Type</Label>
+                </div>
+
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <Label className='font-normal'>Transport</Label>
+                  </div>
+                  <div className='w-[320px]'>
                     <Select
                       value={formData.transport}
                       onValueChange={(value: 'http' | 'sse') =>
                         setFormData((prev) => ({ ...prev, transport: value }))
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className='h-9'>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -186,186 +262,152 @@ export function MCP() {
                   </div>
                 </div>
 
-                <div>
-                  <Label htmlFor='server-url'>Server URL</Label>
-                  <Input
-                    id='server-url'
-                    placeholder='https://mcp.firecrawl.dev/YOUR_API_KEY/sse'
-                    value={formData.url}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, url: e.target.value }))}
-                  />
-                </div>
-
-                <div>
-                  <Label>Headers (Optional)</Label>
-                  <div className='space-y-2'>
-                    {Object.entries(formData.headers || {}).map(([key, value], index) => (
-                      <div key={index} className='flex gap-2'>
-                        <Input
-                          placeholder='Header name (e.g., Authorization)'
-                          value={key}
-                          onChange={(e) => {
-                            const newHeaders = { ...formData.headers }
-                            delete newHeaders[key]
-                            newHeaders[e.target.value] = value
-                            setFormData((prev) => ({ ...prev, headers: newHeaders }))
-                          }}
-                          className='flex-1'
-                        />
-                        <Input
-                          placeholder='Header value (e.g., Bearer token)'
-                          value={value}
-                          onChange={(e) => {
-                            setFormData((prev) => ({
-                              ...prev,
-                              headers: { ...prev.headers, [key]: e.target.value },
-                            }))
-                          }}
-                          className='flex-1'
-                        />
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          onClick={() => {
-                            const newHeaders = { ...formData.headers }
-                            delete newHeaders[key]
-                            setFormData((prev) => ({ ...prev, headers: newHeaders }))
-                          }}
-                        >
-                          <X className='h-4 w-4' />
-                        </Button>
-                      </div>
-                    ))}
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='sm'
-                      onClick={() => {
-                        setFormData((prev) => ({
-                          ...prev,
-                          headers: { ...prev.headers, '': '' },
-                        }))
-                      }}
-                    >
-                      <Plus className='mr-2 h-4 w-4' />
-                      Add Header
-                    </Button>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <Label className='font-normal'>Server URL</Label>
+                  </div>
+                  <div className='w-[320px]'>
+                    <Input
+                      placeholder='https://mcp.server.dev/sse'
+                      value={formData.url}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, url: e.target.value }))}
+                      className='h-9'
+                    />
                   </div>
                 </div>
 
-                <div className='flex justify-end gap-2'>
-                  <Button variant='outline' onClick={() => setShowAddForm(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleAddServer}
-                    disabled={serversLoading || !formData.name.trim()}
-                  >
-                    {serversLoading ? 'Adding...' : 'Add Server'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                {Object.entries(formData.headers || {}).map(([key, value], index) => (
+                  <div key={index} className='flex items-center justify-between'>
+                    <div className='flex items-center gap-2'>
+                      <Label className='font-normal'>Header</Label>
+                    </div>
+                    <div className='flex w-[320px] gap-1'>
+                      <Input
+                        placeholder='Name'
+                        value={key}
+                        onChange={(e) => {
+                          const newHeaders = { ...formData.headers }
+                          delete newHeaders[key]
+                          newHeaders[e.target.value] = value
+                          setFormData((prev) => ({ ...prev, headers: newHeaders }))
+                        }}
+                        className='h-9 flex-1'
+                      />
+                      <Input
+                        placeholder='Value'
+                        value={value}
+                        onChange={(e) => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            headers: { ...prev.headers, [key]: e.target.value },
+                          }))
+                        }}
+                        className='h-9 flex-1'
+                      />
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => {
+                          const newHeaders = { ...formData.headers }
+                          delete newHeaders[key]
+                          setFormData((prev) => ({ ...prev, headers: newHeaders }))
+                        }}
+                        className='h-9 w-9 p-0 text-muted-foreground hover:text-foreground'
+                      >
+                        <X className='h-3 w-3' />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
 
-          {/* Server List */}
-          <div className='space-y-4'>
-            {serversLoading ? (
-              <div className='flex justify-center py-8'>
-                <div className='text-muted-foreground text-sm'>Loading servers...</div>
+                <div className='flex items-center justify-between'>
+                  <div />
+                  <div className='w-[320px]'>
+                    <div className='flex gap-2'>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            headers: { ...prev.headers, '': '' },
+                          }))
+                        }}
+                        className='h-9 text-muted-foreground hover:text-foreground'
+                      >
+                        <Plus className='mr-2 h-3 w-3' />
+                        Add Header
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className='border-t pt-4'>
+                  <div className='flex items-center justify-between'>
+                    <div />
+                    <div className='flex gap-2'>
+                      <Button variant='ghost' size='sm' onClick={() => setShowAddForm(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        size='sm'
+                        onClick={handleAddServer}
+                        disabled={serversLoading || !formData.name.trim()}
+                      >
+                        {serversLoading ? 'Adding...' : 'Add Server'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            ) : !servers || servers.length === 0 ? (
-              <Card>
-                <CardContent className='flex flex-col items-center justify-center py-12'>
-                  <WrenchIcon className='mb-4 h-12 w-12 text-muted-foreground' />
-                  <h3 className='mb-2 font-medium text-lg'>No MCP Servers</h3>
-                  <p className='mb-4 text-center text-muted-foreground text-sm'>
-                    Add your first MCP server to start using external tools in your workflows.
-                  </p>
-                  <Button onClick={() => setShowAddForm(true)} size='sm'>
-                    <Plus className='mr-2 h-4 w-4' />
-                    Add Server
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              (servers || []).map((server: any) => {
-                // Add defensive checks for server properties
-                if (!server || !server.id) {
-                  return null
-                }
-
-                const tools = toolsByServer[server.id] || []
-
-                return (
-                  <Card key={server.id}>
-                    <CardHeader>
-                      <div className='flex items-center justify-between'>
-                        <div>
-                          <CardTitle className='flex items-center gap-2'>
-                            {server.name || 'Unnamed Server'}
-                            {server.transport && (
-                              <Badge variant='outline' className='text-xs'>
-                                {server.transport.toUpperCase()}
-                              </Badge>
-                            )}
-                          </CardTitle>
-                          <CardDescription>{server.url || 'No URL configured'}</CardDescription>
-                        </div>
-                        <div className='flex items-center gap-2'>
-                          <Button
-                            variant='outline'
-                            size='sm'
-                            onClick={() => handleRemoveServer(server.id)}
-                          >
-                            <Trash2 className='h-4 w-4' />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div>
-                        <h4 className='mb-2 font-medium text-sm'>
-                          Available Tools ({tools.length})
-                        </h4>
-                        {tools.length > 0 ? (
-                          <div className='flex flex-wrap gap-2'>
-                            {tools.map((tool) => (
-                              <Badge key={tool.id} variant='secondary' className='text-xs'>
-                                {tool.name}
-                              </Badge>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className='text-muted-foreground text-sm'>
-                            {toolsLoading ? 'Loading tools...' : 'No tools discovered'}
-                          </p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })
-            )}
-          </div>
-
-          {/* Tool Summary */}
-          {mcpTools && mcpTools.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Tool Summary</CardTitle>
-                <CardDescription>All tools available across your MCP servers</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className='text-muted-foreground text-sm'>
-                  <strong>{mcpTools.length}</strong> tools available from{' '}
-                  <strong>{Object.keys(toolsByServer).length}</strong> servers
-                </div>
-              </CardContent>
-            </Card>
+            </div>
           )}
         </div>
+      </div>
+
+      {/* Footer */}
+      <div className='bg-background'>
+        <div className='flex w-full items-center justify-between px-6 py-4'>
+          {serversLoading ? (
+            <>
+              <Skeleton className='h-9 w-[117px] rounded-[8px]' />
+              <div className='w-[200px]' />
+            </>
+          ) : (
+            <>
+              <Button
+                onClick={() => setShowAddForm(!showAddForm)}
+                variant='ghost'
+                className='h-9 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                disabled={serversLoading}
+              >
+                <Plus className='h-4 w-4 stroke-[2px]' />
+                Add Server
+              </Button>
+              <div className='text-muted-foreground text-xs'>
+                Configure MCP servers to extend workflow capabilities
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function McpServerSkeleton() {
+  return (
+    <div className='flex flex-col gap-2'>
+      <Skeleton className='h-4 w-24' /> {/* Server label */}
+      <div className='flex items-center justify-between gap-4'>
+        <div className='flex items-center gap-3'>
+          <Skeleton className='h-8 w-40 rounded-[8px]' /> {/* Server name */}
+          <Skeleton className='h-5 w-12 rounded' /> {/* Transport badge */}
+          <Skeleton className='h-4 w-16' /> {/* Tool count */}
+        </div>
+        <Skeleton className='h-8 w-16' /> {/* Delete button */}
       </div>
     </div>
   )
