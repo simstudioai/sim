@@ -18,7 +18,7 @@ const getCurrentOllamaModels = () => {
 
 interface RouterResponse extends ToolResponse {
   output: {
-    content: string
+    prompt: string
     model: string
     tokens?: {
       prompt?: number
@@ -198,7 +198,6 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       hidden: true,
       min: 0,
       max: 2,
-      value: () => '0.1',
     },
     {
       id: 'systemPrompt',
@@ -246,7 +245,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
     },
   },
   outputs: {
-    content: { type: 'string', description: 'Routing response content' },
+    prompt: { type: 'string', description: 'Routing prompt used' },
     model: { type: 'string', description: 'Model used' },
     tokens: { type: 'json', description: 'Token usage' },
     cost: { type: 'json', description: 'Cost information' },
