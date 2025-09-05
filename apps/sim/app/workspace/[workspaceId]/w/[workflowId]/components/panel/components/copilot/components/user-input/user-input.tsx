@@ -393,11 +393,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         const workspaceFiltered = items.filter(
           (w: any) => w.workspaceId === workspaceId || !w.workspaceId
         )
-        // Sort by last modified/updated (newest first), matching sidebar behavior
+        // Sort by name alphabetically for stable ordering, matching sidebar behavior
         const sorted = [...workspaceFiltered].sort((a: any, b: any) => {
-          const ta = new Date(a.lastModified || a.updatedAt || a.createdAt || 0).getTime()
-          const tb = new Date(b.lastModified || b.updatedAt || b.createdAt || 0).getTime()
-          return tb - ta
+          return (a.name || 'Untitled Workflow').localeCompare(b.name || 'Untitled Workflow')
         })
         setWorkflows(
           sorted.map((w: any) => ({
