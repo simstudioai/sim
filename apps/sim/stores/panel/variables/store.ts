@@ -109,7 +109,9 @@ export const useVariablesStore = create<VariablesStore>()(
         const variables = (data?.data as Record<string, Variable>) || {}
         set((state) => {
           const withoutWorkflow = Object.fromEntries(
-            Object.entries(state.variables).filter(([, v]: any) => v.workflowId !== workflowId)
+            Object.entries(state.variables).filter(
+              (entry): entry is [string, Variable] => entry[1].workflowId !== workflowId
+            )
           )
           return {
             variables: { ...withoutWorkflow, ...variables },
