@@ -867,48 +867,41 @@ const WorkflowContent = React.memo(() => {
     [project, isPointInLoopNodeWrapper, getNodes]
   )
 
-  // Track when workflow is fully ready for rendering
+  // Initialize workflow when it exists in registry and isn't active
   useEffect(() => {
     const currentId = params.workflowId as string
+    if (!currentId || !workflows[currentId]) return
 
-    // Reset workflow ready state when workflow changes
     if (activeWorkflowId !== currentId) {
-      setIsWorkflowReady(false)
-      return
+      // Clear diff and set as active
+      const { clearDiff } = useWorkflowDiffStore.getState()
+      clearDiff()
+      setActiveWorkflow(currentId)
     }
+  }, [params.workflowId, workflows, activeWorkflowId, setActiveWorkflow])
 
-    // Check if we have the necessary data to render the workflow
-    const hasActiveWorkflow = activeWorkflowId === currentId
-    const hasWorkflowInRegistry = Boolean(workflows[currentId])
-    const isNotLoading = !isLoading
+  // Track when workflow is ready for rendering
+  useEffect(() => {
+    const currentId = params.workflowId as string
 
     // Workflow is ready when:
     // 1. We have an active workflow that matches the URL
     // 2. The workflow exists in the registry
     // 3. Workflows are not currently loading
-    if (hasActiveWorkflow && hasWorkflowInRegistry && isNotLoading) {
-      setIsWorkflowReady(true)
-    } else {
-      setIsWorkflowReady(false)
-    }
+    const shouldBeReady =
+      activeWorkflowId === currentId && Boolean(workflows[currentId]) && !isLoading
+
+    setIsWorkflowReady(shouldBeReady)
   }, [activeWorkflowId, params.workflowId, workflows, isLoading])
 
-  // Init workflow
+  // Handle navigation and validation
   useEffect(() => {
     const validateAndNavigate = async () => {
       const workflowIds = Object.keys(workflows)
       const currentId = params.workflowId as string
 
-      // Check if workflows have been initially loaded at least once
-      // This prevents premature navigation decisions on page refresh
-      if (!hasWorkflowsInitiallyLoaded()) {
-        logger.info('Waiting for initial workflow load...')
-        return
-      }
-
-      // Wait for both initialization and workflow loading to complete
-      if (isLoading) {
-        logger.info('Workflows still loading, waiting...')
+      // Wait for initial load to complete before making navigation decisions
+      if (!hasWorkflowsInitiallyLoaded() || isLoading) {
         return
       }
 
@@ -948,24 +941,10 @@ const WorkflowContent = React.memo(() => {
         router.replace(`/workspace/${currentWorkflow.workspaceId}/w/${currentId}`)
         return
       }
-
-      // Get current active workflow state
-      const { activeWorkflowId } = useWorkflowRegistry.getState()
-
-      if (activeWorkflowId !== currentId) {
-        // Clear workflow diff store when switching workflows
-        const { clearDiff } = useWorkflowDiffStore.getState()
-        clearDiff()
-
-        setActiveWorkflow(currentId)
-      } else {
-        // Don't reset variables cache if we're not actually switching workflows
-        setActiveWorkflow(currentId)
-      }
     }
 
     validateAndNavigate()
-  }, [params.workflowId, workflows, isLoading, setActiveWorkflow, createWorkflow, router])
+  }, [params.workflowId, workflows, isLoading, workspaceId, router])
 
   // Transform blocks and loops into ReactFlow nodes
   const nodes = useMemo(() => {

@@ -484,8 +484,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               future: [],
             },
           }
-
-          // Subblock values will be initialized by initializeFromWorkflow below
         } else {
           // If no state in DB, use empty state - server should have created start block
           workflowState = {
@@ -535,10 +533,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }))
         }
 
+        // Update all stores atomically to prevent race conditions
+        // Set activeWorkflowId and workflow state together
+        set({ activeWorkflowId: id, error: null })
         useWorkflowStore.setState(workflowState)
         useSubBlockStore.getState().initializeFromWorkflow(id, (workflowState as any).blocks || {})
-
-        set({ activeWorkflowId: id, error: null })
 
         window.dispatchEvent(
           new CustomEvent('active-workflow-changed', {
