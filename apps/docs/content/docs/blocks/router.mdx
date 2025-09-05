@@ -117,7 +117,7 @@ Your API key for the selected LLM provider. This is securely stored and used for
 
 After a router makes a decision, you can access its outputs:
 
-- **`<router.content>`**: Summary of the routing decision made
+- **`<router.prompt>`**: Summary of the routing prompt used
 - **`<router.selected_path>`**: Details of the chosen destination block
 - **`<router.tokens>`**: Token usage statistics from the LLM
 - **`<router.model>`**: The model used for decision-making
@@ -182,7 +182,7 @@ Confidence Threshold: 0.7 // Minimum confidence for routing
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>router.content</strong>: Summary of routing decision
+        <strong>router.prompt</strong>: Summary of routing prompt used
       </li>
       <li>
         <strong>router.selected_path</strong>: Details of chosen destination
