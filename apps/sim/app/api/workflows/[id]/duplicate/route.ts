@@ -97,7 +97,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         isDeployed: false,
         collaborators: [],
         runCount: 0,
-        variables: source.variables || {},
+        // Duplicate variables
+        variables: (() => {
+          const sourceVars = (source.variables as Record<string, any>) || {}
+          const remapped: Record<string, any> = {}
+          for (const [_, variable] of Object.entries(sourceVars)) {
+            const newVarId = crypto.randomUUID()
+            remapped[newVarId] = {
+              ...variable,
+              id: newVarId,
+              workflowId: newWorkflowId,
+            }
+          }
+          return remapped
+        })(),
         isPublished: false,
         marketplaceData: null,
       })
