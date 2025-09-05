@@ -64,7 +64,12 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     vi.doMock('@/lib/env', () => ({
       env: {
         NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
+        BILLING_ENABLED: false,
       },
+      isTruthy: (value: any) =>
+        typeof value === 'string'
+          ? value.toLowerCase() === 'true' || value === '1'
+          : Boolean(value),
     }))
 
     mockTransaction = vi.fn()
@@ -377,6 +382,16 @@ describe('Workspace Invitation [invitationId] API Route', () => {
       }))
       vi.doMock('@/lib/permissions/utils', () => ({
         hasWorkspaceAdminAccess: vi.fn(),
+      }))
+      vi.doMock('@/lib/env', () => ({
+        env: {
+          NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
+          BILLING_ENABLED: false,
+        },
+        isTruthy: (value: any) =>
+          typeof value === 'string'
+            ? value.toLowerCase() === 'true' || value === '1'
+            : Boolean(value),
       }))
       vi.doMock('@/db/schema', () => ({
         workspaceInvitation: { id: 'id' },

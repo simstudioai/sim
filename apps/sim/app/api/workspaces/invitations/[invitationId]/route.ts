@@ -1,7 +1,11 @@
 import { randomUUID } from 'crypto'
+import { render } from '@react-email/render'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { WorkspaceInvitationEmail } from '@/components/emails/workspace-invitation'
 import { getSession } from '@/lib/auth'
+import { sendEmail } from '@/lib/email/mailer'
+import { getFromEmailAddress } from '@/lib/email/utils'
 import { env } from '@/lib/env'
 import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import { db } from '@/db'
@@ -48,6 +52,14 @@ export async function GET(
       .then((rows) => rows[0])
 
     if (!invitation) {
+      if (isAcceptFlow) {
+        return NextResponse.redirect(
+          new URL(
+            `/invite/${invitationId}?error=invalid-token`,
+            env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+          )
+        )
+      }
       return NextResponse.json({ error: 'Invitation not found or has expired' }, { status: 404 })
     }
 
@@ -232,5 +244,89 @@ export async function DELETE(
   } catch (error) {
     console.error('Error deleting workspace invitation:', error)
     return NextResponse.json({ error: 'Failed to delete invitation' }, { status: 500 })
+  }
+}
+
+// POST /api/workspaces/invitations/[invitationId] - Resend a workspace invitation
+export async function POST(
+  _req: NextRequest,
+  { params }: { params: Promise<{ invitationId: string }> }
+) {
+  const { invitationId } = await params
+  const session = await getSession()
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const invitation = await db
+      .select()
+      .from(workspaceInvitation)
+      .where(eq(workspaceInvitation.id, invitationId))
+      .then((rows) => rows[0])
+
+    if (!invitation) {
+      return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
+    }
+
+    const hasAdminAccess = await hasWorkspaceAdminAccess(session.user.id, invitation.workspaceId)
+    if (!hasAdminAccess) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
+
+    if (invitation.status !== ('pending' as WorkspaceInvitationStatus)) {
+      return NextResponse.json({ error: 'Can only resend pending invitations' }, { status: 400 })
+    }
+
+    const ws = await db
+      .select()
+      .from(workspace)
+      .where(eq(workspace.id, invitation.workspaceId))
+      .then((rows) => rows[0])
+
+    if (!ws) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+    }
+
+    const newToken = randomUUID()
+    const newExpiresAt = new Date()
+    newExpiresAt.setDate(newExpiresAt.getDate() + 7)
+
+    await db
+      .update(workspaceInvitation)
+      .set({ token: newToken, expiresAt: newExpiresAt, updatedAt: new Date() })
+      .where(eq(workspaceInvitation.id, invitationId))
+
+    const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+    const invitationLink = `${baseUrl}/invite/${invitationId}?token=${newToken}`
+
+    const emailHtml = await render(
+      WorkspaceInvitationEmail({
+        workspaceName: ws.name,
+        inviterName: session.user.name || session.user.email || 'A user',
+        invitationLink,
+      })
+    )
+
+    const result = await sendEmail({
+      to: invitation.email,
+      subject: `You've been invited to join "${ws.name}" on Sim`,
+      html: emailHtml,
+      from: getFromEmailAddress(),
+      emailType: 'transactional',
+    })
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: 'Failed to send invitation email. Please try again.' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error resending workspace invitation:', error)
+    return NextResponse.json({ error: 'Failed to resend invitation' }, { status: 500 })
   }
 }
