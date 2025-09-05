@@ -2,6 +2,7 @@ import { tasks } from '@trigger.dev/sdk'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkServerSideUsageLimits } from '@/lib/billing'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -250,7 +251,6 @@ export async function POST(
   let isEnterprise = false
   try {
     // Get user subscription for rate limiting (checks both personal and org subscriptions)
-    const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
     const userSubscription = await getHighestPrioritySubscription(foundWorkflow.userId)
 
     const subscriptionPlan = (userSubscription?.plan || 'free') as SubscriptionPlan

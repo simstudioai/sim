@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { checkServerSideUsageLimits } from '@/lib/billing'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -375,7 +376,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // Check rate limits BEFORE entering queue for GET requests
       if (triggerType === 'api') {
         // Get user subscription (checks both personal and org subscriptions)
-        const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
         const userSubscription = await getHighestPrioritySubscription(validation.workflow.userId)
 
         const subscriptionPlan = (userSubscription?.plan || 'free') as SubscriptionPlan
@@ -503,7 +503,6 @@ export async function POST(
     }
 
     // Get user subscription (checks both personal and org subscriptions)
-    const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
     const userSubscription = await getHighestPrioritySubscription(authenticatedUserId)
 
     const subscriptionPlan = (userSubscription?.plan || 'free') as SubscriptionPlan
