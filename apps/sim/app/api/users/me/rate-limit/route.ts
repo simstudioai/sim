@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
-import { apiKey as apiKeyTable, subscription } from '@/db/schema'
+import { apiKey as apiKeyTable } from '@/db/schema'
 import { RateLimiter } from '@/services/queue'
 
 const logger = createLogger('RateLimitAPI')
@@ -33,13 +33,11 @@ export async function GET(request: NextRequest) {
       return createErrorResponse('Authentication required', 401)
     }
 
-    const [subscriptionRecord] = await db
-      .select({ plan: subscription.plan })
-      .from(subscription)
-      .where(eq(subscription.referenceId, authenticatedUserId))
-      .limit(1)
+    // Get user subscription (checks both personal and org subscriptions)
+    const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
+    const userSubscription = await getHighestPrioritySubscription(authenticatedUserId)
 
-    const subscriptionPlan = (subscriptionRecord?.plan || 'free') as
+    const subscriptionPlan = (userSubscription?.plan || 'free') as
       | 'free'
       | 'pro'
       | 'team'
@@ -49,15 +47,15 @@ export async function GET(request: NextRequest) {
     const isApiAuth = !session?.user?.id
     const triggerType = isApiAuth ? 'api' : 'manual'
 
-    const syncStatus = await rateLimiter.getRateLimitStatus(
+    const syncStatus = await rateLimiter.getRateLimitStatusWithSubscription(
       authenticatedUserId,
-      subscriptionPlan,
+      userSubscription,
       triggerType,
       false
     )
-    const asyncStatus = await rateLimiter.getRateLimitStatus(
+    const asyncStatus = await rateLimiter.getRateLimitStatusWithSubscription(
       authenticatedUserId,
-      subscriptionPlan,
+      userSubscription,
       triggerType,
       true
     )

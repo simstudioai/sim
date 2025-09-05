@@ -19,7 +19,7 @@ import {
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
-import { subscription, userStats } from '@/db/schema'
+import { userStats } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import {
@@ -374,19 +374,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     try {
       // Check rate limits BEFORE entering queue for GET requests
       if (triggerType === 'api') {
-        // Get user subscription
-        const [subscriptionRecord] = await db
-          .select({ plan: subscription.plan })
-          .from(subscription)
-          .where(eq(subscription.referenceId, validation.workflow.userId))
-          .limit(1)
+        // Get user subscription (checks both personal and org subscriptions)
+        const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
+        const userSubscription = await getHighestPrioritySubscription(validation.workflow.userId)
 
-        const subscriptionPlan = (subscriptionRecord?.plan || 'free') as SubscriptionPlan
+        const subscriptionPlan = (userSubscription?.plan || 'free') as SubscriptionPlan
 
         const rateLimiter = new RateLimiter()
-        const rateLimitCheck = await rateLimiter.checkRateLimit(
+        const rateLimitCheck = await rateLimiter.checkRateLimitWithSubscription(
           validation.workflow.userId,
-          subscriptionPlan,
+          userSubscription,
           triggerType,
           false // isAsync = false for sync calls
         )
@@ -505,20 +502,18 @@ export async function POST(
       return createErrorResponse('Authentication required', 401)
     }
 
-    const [subscriptionRecord] = await db
-      .select({ plan: subscription.plan })
-      .from(subscription)
-      .where(eq(subscription.referenceId, authenticatedUserId))
-      .limit(1)
+    // Get user subscription (checks both personal and org subscriptions)
+    const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
+    const userSubscription = await getHighestPrioritySubscription(authenticatedUserId)
 
-    const subscriptionPlan = (subscriptionRecord?.plan || 'free') as SubscriptionPlan
+    const subscriptionPlan = (userSubscription?.plan || 'free') as SubscriptionPlan
 
     if (isAsync) {
       try {
         const rateLimiter = new RateLimiter()
-        const rateLimitCheck = await rateLimiter.checkRateLimit(
+        const rateLimitCheck = await rateLimiter.checkRateLimitWithSubscription(
           authenticatedUserId,
-          subscriptionPlan,
+          userSubscription,
           'api',
           true // isAsync = true
         )
@@ -580,9 +575,9 @@ export async function POST(
 
     try {
       const rateLimiter = new RateLimiter()
-      const rateLimitCheck = await rateLimiter.checkRateLimit(
+      const rateLimitCheck = await rateLimiter.checkRateLimitWithSubscription(
         authenticatedUserId,
-        subscriptionPlan,
+        userSubscription,
         triggerType,
         false // isAsync = false for sync calls
       )

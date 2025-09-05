@@ -18,7 +18,7 @@ import { decryptSecret } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { db } from '@/db'
-import { subscription, userStats, workflow, workflowSchedule } from '@/db/schema'
+import { userStats, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { RateLimiter } from '@/services/queue'
@@ -108,19 +108,16 @@ export async function GET() {
           continue
         }
 
-        // Check rate limits for scheduled execution
-        const [subscriptionRecord] = await db
-          .select({ plan: subscription.plan })
-          .from(subscription)
-          .where(eq(subscription.referenceId, workflowRecord.userId))
-          .limit(1)
+        // Check rate limits for scheduled execution (checks both personal and org subscriptions)
+        const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
+        const userSubscription = await getHighestPrioritySubscription(workflowRecord.userId)
 
-        const subscriptionPlan = (subscriptionRecord?.plan || 'free') as SubscriptionPlan
+        const subscriptionPlan = (userSubscription?.plan || 'free') as SubscriptionPlan
 
         const rateLimiter = new RateLimiter()
-        const rateLimitCheck = await rateLimiter.checkRateLimit(
+        const rateLimitCheck = await rateLimiter.checkRateLimitWithSubscription(
           workflowRecord.userId,
-          subscriptionPlan,
+          userSubscription,
           'schedule',
           false // schedules are always sync
         )

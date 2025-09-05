@@ -1,4 +1,5 @@
 import { eq, sql } from 'drizzle-orm'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { userRateLimits } from '@/db/schema'
@@ -12,14 +13,40 @@ import {
 
 const logger = createLogger('RateLimiter')
 
+interface SubscriptionInfo {
+  plan: string
+  referenceId: string
+}
+
 export class RateLimiter {
   /**
-   * Check if user can execute a workflow
+   * Determine the rate limit key based on subscription
+   * For team/enterprise plans, use the organization ID (referenceId)
+   * For pro/free plans, use the user ID
+   */
+  private getRateLimitKey(userId: string, subscription: SubscriptionInfo | null): string {
+    if (!subscription) {
+      return userId
+    }
+
+    const plan = subscription.plan as SubscriptionPlan
+    if (plan === 'team' || plan === 'enterprise') {
+      // For team/enterprise, referenceId is the organization ID
+      // All organization members share the same rate limit pool
+      return subscription.referenceId
+    }
+
+    // For pro/free plans, use the individual user ID
+    return userId
+  }
+
+  /**
+   * Check if user can execute a workflow with organization-aware rate limiting
    * Manual executions bypass rate limiting entirely
    */
-  async checkRateLimit(
+  async checkRateLimitWithSubscription(
     userId: string,
-    subscriptionPlan: SubscriptionPlan = 'free',
+    subscription: SubscriptionInfo | null,
     triggerType: TriggerType = 'manual',
     isAsync = false
   ): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
@@ -32,6 +59,9 @@ export class RateLimiter {
         }
       }
 
+      const subscriptionPlan = (subscription?.plan || 'free') as SubscriptionPlan
+      const rateLimitKey = this.getRateLimitKey(userId, subscription)
+
       const limit = RATE_LIMITS[subscriptionPlan]
       const execLimit = isAsync
         ? limit.asyncApiExecutionsPerMinute
@@ -40,11 +70,11 @@ export class RateLimiter {
       const now = new Date()
       const windowStart = new Date(now.getTime() - RATE_LIMIT_WINDOW_MS)
 
-      // Get or create rate limit record
+      // Get or create rate limit record using the rate limit key
       const [rateLimitRecord] = await db
         .select()
         .from(userRateLimits)
-        .where(eq(userRateLimits.userId, userId))
+        .where(eq(userRateLimits.userId, rateLimitKey))
         .limit(1)
 
       if (!rateLimitRecord || new Date(rateLimitRecord.windowStart) < windowStart) {
@@ -52,7 +82,7 @@ export class RateLimiter {
         const result = await db
           .insert(userRateLimits)
           .values({
-            userId,
+            userId: rateLimitKey,
             syncApiRequests: isAsync ? 0 : 1,
             asyncApiRequests: isAsync ? 1 : 0,
             windowStart: now,
@@ -94,7 +124,20 @@ export class RateLimiter {
               isRateLimited: true,
               rateLimitResetAt: resetAt,
             })
-            .where(eq(userRateLimits.userId, userId))
+            .where(eq(userRateLimits.userId, rateLimitKey))
+
+          logger.info(
+            `Rate limit exceeded - request ${actualCount} > limit ${execLimit} for ${
+              rateLimitKey === userId ? `user ${userId}` : `organization ${rateLimitKey}`
+            }`,
+            {
+              execLimit,
+              isAsync,
+              actualCount,
+              rateLimitKey,
+              plan: subscriptionPlan,
+            }
+          )
 
           return {
             allowed: false,
@@ -119,7 +162,7 @@ export class RateLimiter {
             : { syncApiRequests: sql`${userRateLimits.syncApiRequests} + 1` }),
           lastRequestAt: now,
         })
-        .where(eq(userRateLimits.userId, userId))
+        .where(eq(userRateLimits.userId, rateLimitKey))
         .returning({
           asyncApiRequests: userRateLimits.asyncApiRequests,
           syncApiRequests: userRateLimits.syncApiRequests,
@@ -137,11 +180,15 @@ export class RateLimiter {
         )
 
         logger.info(
-          `Rate limit exceeded - request ${actualNewRequests} > limit ${execLimit} for user ${userId}`,
+          `Rate limit exceeded - request ${actualNewRequests} > limit ${execLimit} for ${
+            rateLimitKey === userId ? `user ${userId}` : `organization ${rateLimitKey}`
+          }`,
           {
             execLimit,
             isAsync,
             actualNewRequests,
+            rateLimitKey,
+            plan: subscriptionPlan,
           }
         )
 
@@ -152,7 +199,7 @@ export class RateLimiter {
             isRateLimited: true,
             rateLimitResetAt: resetAt,
           })
-          .where(eq(userRateLimits.userId, userId))
+          .where(eq(userRateLimits.userId, rateLimitKey))
 
         return {
           allowed: false,
@@ -178,12 +225,27 @@ export class RateLimiter {
   }
 
   /**
-   * Get current rate limit status for user
-   * Only applies to API executions
+   * Legacy method - for backward compatibility
+   * @deprecated Use checkRateLimitWithSubscription instead
    */
-  async getRateLimitStatus(
+  async checkRateLimit(
     userId: string,
     subscriptionPlan: SubscriptionPlan = 'free',
+    triggerType: TriggerType = 'manual',
+    isAsync = false
+  ): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
+    // For backward compatibility, fetch the subscription
+    const subscription = await getHighestPrioritySubscription(userId)
+    return this.checkRateLimitWithSubscription(userId, subscription, triggerType, isAsync)
+  }
+
+  /**
+   * Get current rate limit status with organization awareness
+   * Only applies to API executions
+   */
+  async getRateLimitStatusWithSubscription(
+    userId: string,
+    subscription: SubscriptionInfo | null,
     triggerType: TriggerType = 'manual',
     isAsync = false
   ): Promise<{ used: number; limit: number; remaining: number; resetAt: Date }> {
@@ -197,6 +259,9 @@ export class RateLimiter {
         }
       }
 
+      const subscriptionPlan = (subscription?.plan || 'free') as SubscriptionPlan
+      const rateLimitKey = this.getRateLimitKey(userId, subscription)
+
       const limit = RATE_LIMITS[subscriptionPlan]
       const execLimit = isAsync
         ? limit.asyncApiExecutionsPerMinute
@@ -207,7 +272,7 @@ export class RateLimiter {
       const [rateLimitRecord] = await db
         .select()
         .from(userRateLimits)
-        .where(eq(userRateLimits.userId, userId))
+        .where(eq(userRateLimits.userId, rateLimitKey))
         .limit(1)
 
       if (!rateLimitRecord || new Date(rateLimitRecord.windowStart) < windowStart) {
@@ -229,8 +294,9 @@ export class RateLimiter {
     } catch (error) {
       logger.error('Error getting rate limit status:', error)
       const execLimit = isAsync
-        ? RATE_LIMITS[subscriptionPlan].asyncApiExecutionsPerMinute
-        : RATE_LIMITS[subscriptionPlan].syncApiExecutionsPerMinute
+        ? RATE_LIMITS[(subscription?.plan || 'free') as SubscriptionPlan]
+            .asyncApiExecutionsPerMinute
+        : RATE_LIMITS[(subscription?.plan || 'free') as SubscriptionPlan].syncApiExecutionsPerMinute
       return {
         used: 0,
         limit: execLimit,
@@ -241,13 +307,27 @@ export class RateLimiter {
   }
 
   /**
-   * Reset rate limit for user (admin action)
+   * Legacy method - for backward compatibility
+   * @deprecated Use getRateLimitStatusWithSubscription instead
    */
-  async resetRateLimit(userId: string): Promise<void> {
-    try {
-      await db.delete(userRateLimits).where(eq(userRateLimits.userId, userId))
+  async getRateLimitStatus(
+    userId: string,
+    subscriptionPlan: SubscriptionPlan = 'free',
+    triggerType: TriggerType = 'manual',
+    isAsync = false
+  ): Promise<{ used: number; limit: number; remaining: number; resetAt: Date }> {
+    // For backward compatibility, fetch the subscription
+    const subscription = await getHighestPrioritySubscription(userId)
+    return this.getRateLimitStatusWithSubscription(userId, subscription, triggerType, isAsync)
+  }
 
-      logger.info(`Reset rate limit for user ${userId}`)
+  /**
+   * Reset rate limit for a user or organization
+   */
+  async resetRateLimit(rateLimitKey: string): Promise<void> {
+    try {
+      await db.delete(userRateLimits).where(eq(userRateLimits.userId, rateLimitKey))
+      logger.info(`Reset rate limit for ${rateLimitKey}`)
     } catch (error) {
       logger.error('Error resetting rate limit:', error)
       throw error
