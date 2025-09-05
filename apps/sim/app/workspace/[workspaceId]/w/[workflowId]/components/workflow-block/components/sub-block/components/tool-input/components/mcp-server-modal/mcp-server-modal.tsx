@@ -154,7 +154,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
               {Object.entries(formData.headers || {}).map(([key, value], index) => (
                 <div key={index} className='flex gap-2'>
                   <Input
-                    placeholder='Header name (e.g., Authorization)'
+                    placeholder='Header name'
                     value={key}
                     onChange={(e) => {
                       const newHeaders = { ...formData.headers }
@@ -165,7 +165,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                     className='flex-1'
                   />
                   <Input
-                    placeholder='Header value (e.g., Bearer token)'
+                    placeholder='Header value'
                     value={value}
                     onChange={(e) => {
                       setFormData((prev) => ({
