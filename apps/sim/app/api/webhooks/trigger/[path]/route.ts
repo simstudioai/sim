@@ -14,7 +14,6 @@ import { executeWebhookJob } from '@/background/webhook-execution'
 import { db } from '@/db'
 import { webhook, workflow } from '@/db/schema'
 import { RateLimiter } from '@/services/queue'
-import type { SubscriptionPlan } from '@/services/queue/types'
 
 const logger = createLogger('WebhookTriggerAPI')
 
@@ -251,8 +250,6 @@ export async function POST(
   try {
     // Get user subscription for rate limiting (checks both personal and org subscriptions)
     const userSubscription = await getHighestPrioritySubscription(foundWorkflow.userId)
-
-    const subscriptionPlan = (subscriptionRecord?.plan || 'free') as SubscriptionPlan
 
     // Check async rate limits (webhooks are processed asynchronously)
     const rateLimiter = new RateLimiter()

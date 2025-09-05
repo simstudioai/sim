@@ -23,12 +23,7 @@ import { db } from '@/db'
 import { userStats } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
-import {
-  RateLimitError,
-  RateLimiter,
-  type SubscriptionPlan,
-  type TriggerType,
-} from '@/services/queue'
+import { RateLimitError, RateLimiter, type TriggerType } from '@/services/queue'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
 const logger = createLogger('WorkflowExecuteAPI')
@@ -378,8 +373,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         // Get user subscription (checks both personal and org subscriptions)
         const userSubscription = await getHighestPrioritySubscription(validation.workflow.userId)
 
-        const subscriptionPlan = (userSubscription?.plan || 'free') as SubscriptionPlan
-
         const rateLimiter = new RateLimiter()
         const rateLimitCheck = await rateLimiter.checkRateLimitWithSubscription(
           validation.workflow.userId,
@@ -504,8 +497,6 @@ export async function POST(
 
     // Get user subscription (checks both personal and org subscriptions)
     const userSubscription = await getHighestPrioritySubscription(authenticatedUserId)
-
-    const subscriptionPlan = (userSubscription?.plan || 'free') as SubscriptionPlan
 
     if (isAsync) {
       try {

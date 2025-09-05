@@ -23,7 +23,6 @@ import { userStats, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { RateLimiter } from '@/services/queue'
-import type { SubscriptionPlan } from '@/services/queue/types'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
 // Add dynamic export to prevent caching
@@ -111,8 +110,6 @@ export async function GET() {
 
         // Check rate limits for scheduled execution (checks both personal and org subscriptions)
         const userSubscription = await getHighestPrioritySubscription(workflowRecord.userId)
-
-        const subscriptionPlan = (userSubscription?.plan || 'free') as SubscriptionPlan
 
         const rateLimiter = new RateLimiter()
         const rateLimitCheck = await rateLimiter.checkRateLimitWithSubscription(
