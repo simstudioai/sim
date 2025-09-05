@@ -7,7 +7,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 export default function WorkflowsPage() {
   const router = useRouter()
-  const { workflows, isLoading, loadWorkflows } = useWorkflowRegistry()
+  const { workflows, isLoading, loadWorkflows, setActiveWorkflow } = useWorkflowRegistry()
   const [hasInitialized, setHasInitialized] = useState(false)
 
   const params = useParams()
@@ -45,9 +45,14 @@ export default function WorkflowsPage() {
 
     // If we have valid workspace workflows, redirect to the first one
     if (workspaceWorkflows.length > 0) {
-      router.replace(`/workspace/${workspaceId}/w/${workspaceWorkflows[0]}`)
+      // Ensure the workflow is set as active before redirecting
+      // This prevents the empty canvas issue on first login
+      const firstWorkflowId = workspaceWorkflows[0]
+      setActiveWorkflow(firstWorkflowId).then(() => {
+        router.replace(`/workspace/${workspaceId}/w/${firstWorkflowId}`)
+      })
     }
-  }, [hasInitialized, isLoading, workflows, workspaceId, router])
+  }, [hasInitialized, isLoading, workflows, workspaceId, router, setActiveWorkflow])
 
   // Always show loading state until redirect happens
   // There should always be a default workflow, so we never show "no workflows found"
