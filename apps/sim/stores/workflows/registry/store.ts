@@ -109,6 +109,7 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
         description: description || '',
         color: color || '#3972F6',
         lastModified: createdAt ? new Date(createdAt) : new Date(),
+        createdAt: createdAt ? new Date(createdAt) : new Date(),
         marketplaceData: marketplaceData || null,
         workspaceId,
         folderId: folderId || null,
@@ -594,6 +595,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             id: serverWorkflowId,
             name: createdWorkflow.name,
             lastModified: new Date(),
+            createdAt: new Date(),
             description: createdWorkflow.description,
             color: createdWorkflow.color,
             marketplaceData: options.marketplaceId
@@ -836,6 +838,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           id,
           name: metadata.name || generateCreativeWorkflowName(),
           lastModified: new Date(),
+          createdAt: new Date(),
           description: metadata.description || 'Imported from marketplace',
           color: metadata.color || getNextWorkflowColor(),
           marketplaceData: { id: marketplaceId, status: 'temp' as const },
@@ -992,6 +995,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           id,
           name: `${sourceWorkflow.name} (Copy)`,
           lastModified: new Date(),
+          createdAt: new Date(),
           description: sourceWorkflow.description,
           color: getNextWorkflowColor(),
           workspaceId, // Include the workspaceId in the new workflow
@@ -1322,6 +1326,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               ...workflow,
               ...metadata,
               lastModified: new Date(),
+              createdAt: workflow.createdAt, // Preserve creation date
             },
           },
           error: null,
@@ -1354,6 +1359,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 color: updatedWorkflow.color,
                 folderId: updatedWorkflow.folderId,
                 lastModified: new Date(updatedWorkflow.updatedAt),
+                createdAt: updatedWorkflow.createdAt
+                  ? new Date(updatedWorkflow.createdAt)
+                  : state.workflows[id].createdAt,
               },
             },
           }))
