@@ -691,21 +691,13 @@ export function Sidebar() {
         }
       })
 
-      // Sort by last modified date (newest first)
-      const sortByLastModified = (a: WorkflowMetadata, b: WorkflowMetadata) => {
-        const dateA =
-          a.lastModified instanceof Date
-            ? a.lastModified.getTime()
-            : new Date(a.lastModified).getTime()
-        const dateB =
-          b.lastModified instanceof Date
-            ? b.lastModified.getTime()
-            : new Date(b.lastModified).getTime()
-        return dateB - dateA
+      // Sort by name alphabetically for stable ordering
+      const sortByName = (a: WorkflowMetadata, b: WorkflowMetadata) => {
+        return a.name.localeCompare(b.name)
       }
 
-      regular.sort(sortByLastModified)
-      temp.sort(sortByLastModified)
+      regular.sort(sortByName)
+      temp.sort(sortByName)
     }
 
     return { regularWorkflows: regular, tempWorkflows: temp }
