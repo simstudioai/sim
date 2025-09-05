@@ -531,9 +531,7 @@ export const subscription = pgTable(
 )
 
 export const userRateLimits = pgTable('user_rate_limits', {
-  userId: text('user_id')
-    .primaryKey()
-    .references(() => user.id, { onDelete: 'cascade' }),
+  referenceId: text('reference_id').primaryKey(), // Can be userId or organizationId for pooling
   syncApiRequests: integer('sync_api_requests').notNull().default(0), // Sync API requests counter
   asyncApiRequests: integer('async_api_requests').notNull().default(0), // Async API requests counter
   windowStart: timestamp('window_start').notNull().defaultNow(),

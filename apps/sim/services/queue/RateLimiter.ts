@@ -21,8 +21,8 @@ interface SubscriptionInfo {
 export class RateLimiter {
   /**
    * Determine the rate limit key based on subscription
-   * For team/enterprise plans, use the organization ID (referenceId)
-   * For pro/free plans, use the user ID
+   * For team/enterprise plans via organization, use the organization ID
+   * For direct user subscriptions (including direct team), use the user ID
    */
   private getRateLimitKey(userId: string, subscription: SubscriptionInfo | null): string {
     if (!subscription) {
@@ -30,13 +30,16 @@ export class RateLimiter {
     }
 
     const plan = subscription.plan as SubscriptionPlan
-    if (plan === 'team' || plan === 'enterprise') {
-      // For team/enterprise, referenceId is the organization ID
+
+    // Check if this is an organization subscription (referenceId !== userId)
+    // If referenceId === userId, it's a direct user subscription
+    if ((plan === 'team' || plan === 'enterprise') && subscription.referenceId !== userId) {
+      // This is an organization subscription
       // All organization members share the same rate limit pool
       return subscription.referenceId
     }
 
-    // For pro/free plans, use the individual user ID
+    // For direct user subscriptions (free/pro/team/enterprise where referenceId === userId)
     return userId
   }
 
@@ -74,7 +77,7 @@ export class RateLimiter {
       const [rateLimitRecord] = await db
         .select()
         .from(userRateLimits)
-        .where(eq(userRateLimits.userId, rateLimitKey))
+        .where(eq(userRateLimits.referenceId, rateLimitKey))
         .limit(1)
 
       if (!rateLimitRecord || new Date(rateLimitRecord.windowStart) < windowStart) {
@@ -82,7 +85,7 @@ export class RateLimiter {
         const result = await db
           .insert(userRateLimits)
           .values({
-            userId: rateLimitKey,
+            referenceId: rateLimitKey,
             syncApiRequests: isAsync ? 0 : 1,
             asyncApiRequests: isAsync ? 1 : 0,
             windowStart: now,
@@ -90,7 +93,7 @@ export class RateLimiter {
             isRateLimited: false,
           })
           .onConflictDoUpdate({
-            target: userRateLimits.userId,
+            target: userRateLimits.referenceId,
             set: {
               // Only reset if window is still expired (avoid race condition)
               syncApiRequests: sql`CASE WHEN ${userRateLimits.windowStart} < ${windowStart.toISOString()} THEN ${isAsync ? 0 : 1} ELSE ${userRateLimits.syncApiRequests} + ${isAsync ? 0 : 1} END`,
@@ -124,7 +127,7 @@ export class RateLimiter {
               isRateLimited: true,
               rateLimitResetAt: resetAt,
             })
-            .where(eq(userRateLimits.userId, rateLimitKey))
+            .where(eq(userRateLimits.referenceId, rateLimitKey))
 
           logger.info(
             `Rate limit exceeded - request ${actualCount} > limit ${execLimit} for ${
@@ -162,7 +165,7 @@ export class RateLimiter {
             : { syncApiRequests: sql`${userRateLimits.syncApiRequests} + 1` }),
           lastRequestAt: now,
         })
-        .where(eq(userRateLimits.userId, rateLimitKey))
+        .where(eq(userRateLimits.referenceId, rateLimitKey))
         .returning({
           asyncApiRequests: userRateLimits.asyncApiRequests,
           syncApiRequests: userRateLimits.syncApiRequests,
@@ -199,7 +202,7 @@ export class RateLimiter {
             isRateLimited: true,
             rateLimitResetAt: resetAt,
           })
-          .where(eq(userRateLimits.userId, rateLimitKey))
+          .where(eq(userRateLimits.referenceId, rateLimitKey))
 
         return {
           allowed: false,
@@ -272,7 +275,7 @@ export class RateLimiter {
       const [rateLimitRecord] = await db
         .select()
         .from(userRateLimits)
-        .where(eq(userRateLimits.userId, rateLimitKey))
+        .where(eq(userRateLimits.referenceId, rateLimitKey))
         .limit(1)
 
       if (!rateLimitRecord || new Date(rateLimitRecord.windowStart) < windowStart) {
@@ -326,7 +329,7 @@ export class RateLimiter {
    */
   async resetRateLimit(rateLimitKey: string): Promise<void> {
     try {
-      await db.delete(userRateLimits).where(eq(userRateLimits.userId, rateLimitKey))
+      await db.delete(userRateLimits).where(eq(userRateLimits.referenceId, rateLimitKey))
       logger.info(`Reset rate limit for ${rateLimitKey}`)
     } catch (error) {
       logger.error('Error resetting rate limit:', error)
