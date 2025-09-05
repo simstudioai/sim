@@ -162,12 +162,13 @@ export function DeploymentInfo({
         </div>
       </div>
 
-      {deployedState && (
+      {deployedState && workflowId && (
         <DeployedWorkflowModal
           isOpen={isViewingDeployed}
           onClose={() => setIsViewingDeployed(false)}
           needsRedeployment={deploymentInfo.needsRedeployment}
-          deployedWorkflowState={deployedState}
+          activeDeployedState={deployedState}
+          workflowId={workflowId}
         />
       )}
     </>

@@ -227,16 +227,31 @@ describe('Workflow Deployment API Route', () => {
    * Test DELETE undeployment
    */
   it('should undeploy workflow successfully', async () => {
-    const mockUpdate = vi.fn().mockReturnValue({
+    const mockUpdate = vi.fn().mockImplementation((table) => ({
       set: vi.fn().mockReturnValue({
         where: vi.fn().mockResolvedValue([{ id: 'workflow-id' }]),
       }),
-    })
+    }))
 
     vi.doMock('@/db', () => ({
       db: {
         update: mockUpdate,
+        transaction: vi.fn().mockImplementation(async (callback) => {
+          const tx = {
+            update: mockUpdate,
+          }
+          return callback(tx)
+        }),
       },
+    }))
+
+    vi.doMock('@/db/schema', () => ({
+      workflowDeploymentVersion: { workflowId: 'workflowId' },
+      workflow: { id: 'id', isDeployed: 'isDeployed', deployedAt: 'deployedAt' },
+    }))
+
+    vi.doMock('drizzle-orm', () => ({
+      eq: vi.fn((field, value) => ({ field, value })),
     }))
 
     const req = createMockRequest('DELETE')
@@ -255,7 +270,7 @@ describe('Workflow Deployment API Route', () => {
     expect(data).toHaveProperty('deployedAt', null)
     expect(data).toHaveProperty('apiKey', null)
 
-    expect(mockUpdate).toHaveBeenCalled()
+    expect(mockUpdate).toHaveBeenCalledTimes(2)
   })
 
   /**

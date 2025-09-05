@@ -27,17 +27,28 @@ interface DeployedWorkflowModalProps {
   isOpen: boolean
   onClose: () => void
   needsRedeployment: boolean
-  deployedWorkflowState: WorkflowState
+  activeDeployedState?: WorkflowState
+  selectedDeployedState?: WorkflowState
+  selectedVersion?: number
+  onActivateVersion?: () => void
+  isActivating?: boolean
+  selectedVersionLabel?: string
+  workflowId: string
 }
 
 export function DeployedWorkflowModal({
   isOpen,
   onClose,
   needsRedeployment,
-  deployedWorkflowState,
+  activeDeployedState,
+  selectedDeployedState,
+  selectedVersion,
+  onActivateVersion,
+  isActivating,
+  selectedVersionLabel,
+  workflowId,
 }: DeployedWorkflowModalProps) {
   const [showRevertDialog, setShowRevertDialog] = useState(false)
-  const { revertToDeployedState } = useWorkflowStore()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
   // Get current workflow state to compare with deployed state
@@ -48,11 +59,29 @@ export function DeployedWorkflowModal({
     parallels: state.parallels,
   }))
 
-  const handleRevert = () => {
-    if (activeWorkflowId) {
-      revertToDeployedState(deployedWorkflowState)
+  const handleRevert = async () => {
+    if (!activeWorkflowId) {
+      logger.error('Cannot revert: no active workflow ID')
+      return
+    }
+
+    try {
+      const versionToRevert = selectedVersion !== undefined ? selectedVersion : 'active'
+      const response = await fetch(
+        `/api/workflows/${workflowId}/deployments/${versionToRevert}/revert`,
+        {
+          method: 'POST',
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to revert to version')
+      }
+
       setShowRevertDialog(false)
       onClose()
+    } catch (error) {
+      logger.error('Failed to revert workflow:', error)
     }
   }
 
@@ -70,21 +99,23 @@ export function DeployedWorkflowModal({
         </div>
         <DeployedWorkflowCard
           currentWorkflowState={currentWorkflowState}
-          deployedWorkflowState={deployedWorkflowState}
+          activeDeployedWorkflowState={activeDeployedState}
+          selectedDeployedWorkflowState={selectedDeployedState}
+          selectedVersionLabel={selectedVersionLabel}
         />
 
         <div className='mt-6 flex justify-between'>
-          {needsRedeployment && (
+          {(needsRedeployment || selectedVersion !== undefined) && (
             <AlertDialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>
               <AlertDialogTrigger asChild>
-                <Button variant='destructive'>Revert to Deployed</Button>
+                <Button variant='destructive'>Revert to Deployment</Button>
               </AlertDialogTrigger>
               <AlertDialogContent style={{ zIndex: 1001 }} className='sm:max-w-[425px]'>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Revert to Deployed Version?</AlertDialogTitle>
+                  <AlertDialogTitle>Revert to this Version?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will replace your current workflow with the deployed version. Any unsaved
-                    changes will be lost. This action cannot be undone.
+                    This will replace your current workflow with the deployed version. This action
+                    cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -100,9 +131,16 @@ export function DeployedWorkflowModal({
             </AlertDialog>
           )}
 
-          <Button variant='outline' onClick={onClose} className='ml-auto'>
-            Close
-          </Button>
+          <div className='ml-auto flex items-center gap-2'>
+            {onActivateVersion && (
+              <Button onClick={onActivateVersion} disabled={!!isActivating}>
+                {isActivating ? 'Activating…' : 'Activate'}
+              </Button>
+            )}
+            <Button variant='outline' onClick={onClose}>
+              Close
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

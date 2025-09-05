@@ -20,14 +20,6 @@ const isContainerType = (blockType: string): boolean => {
 }
 
 /**
- * Check if a block is a container block
- */
-const isContainerBlock = (blocks: Record<string, any>, blockId: string): boolean => {
-  const block = blocks[blockId]
-  return block && isContainerType(block.type)
-}
-
-/**
  * Get the priority score of a block
  */
 const getBlockPriorityScore = (
@@ -40,68 +32,6 @@ const getBlockPriorityScore = (
   if (disabledBlocks.has(blockId)) return 2
   if (terminalBlocks.has(blockId)) return 1
   return 0
-}
-
-/**
- * Get the type of a block
- */
-const getBlockType = (
-  blockId: string,
-  orphanedBlocks: Set<string>,
-  disabledBlocks: Set<string>,
-  terminalBlocks: Set<string>
-): 'orphaned' | 'disabled' | 'terminal' | 'regular' => {
-  if (orphanedBlocks.has(blockId)) return 'orphaned'
-  if (disabledBlocks.has(blockId)) return 'disabled'
-  if (terminalBlocks.has(blockId)) return 'terminal'
-  return 'regular'
-}
-
-/**
- * Calculate extra spacing between blocks of different types
- */
-const calculateExtraSpacing = (
-  currentBlockType: string,
-  nextBlockType: string,
-  baseSpacing: number,
-  multiplier = 0.3
-): number => {
-  return currentBlockType !== nextBlockType ? baseSpacing * multiplier : 0
-}
-
-/**
- * Calculate the dimensions of a group of blocks
- */
-const calculateGroupDimensions = (
-  group: string[],
-  orphanedBlocks: Set<string>,
-  disabledBlocks: Set<string>,
-  terminalBlocks: Set<string>,
-  blocks: Record<string, any>,
-  spacing: number,
-  getDimension: (blocks: Record<string, any>, blockId: string) => number
-): number => {
-  const sortedGroup = sortBlocksByPriority(group, orphanedBlocks, disabledBlocks, terminalBlocks)
-
-  let totalDimension = 0
-  sortedGroup.forEach((nodeId, index) => {
-    const blockDimension = getDimension(blocks, nodeId)
-    totalDimension += blockDimension
-
-    if (index < sortedGroup.length - 1) {
-      const currentBlockType = getBlockType(nodeId, orphanedBlocks, disabledBlocks, terminalBlocks)
-      const nextBlockType = getBlockType(
-        sortedGroup[index + 1],
-        orphanedBlocks,
-        disabledBlocks,
-        terminalBlocks
-      )
-      const extraSpacing = calculateExtraSpacing(currentBlockType, nextBlockType, spacing)
-      totalDimension += spacing * 0.5 + extraSpacing
-    }
-  })
-
-  return totalDimension
 }
 
 /**
@@ -184,30 +114,23 @@ const getBlockDimensions = (
 }
 
 /**
- * Get the height of a block
- */
-const getBlockHeight = (blocks: Record<string, any>, blockId: string): number => {
-  return getBlockDimensions(blocks, blockId).height
-}
-
-/**
- * Get the width of a block
- */
-const getBlockWidth = (blocks: Record<string, any>, blockId: string): number => {
-  return getBlockDimensions(blocks, blockId).width
-}
-
-/**
  * Calculates the depth of a node in the hierarchy tree
  * @param nodeId ID of the node to check
  * @param getNodes Function to retrieve all nodes from ReactFlow
  * @param maxDepth Maximum depth to prevent stack overflow
  * @returns Depth level (0 for root nodes, increasing for nested nodes)
  */
-export const getNodeDepth = (nodeId: string, getNodes: () => any[], maxDepth = 100): number => {
+export const getNodeDepth = (
+  nodeId: string,
+  getNodes: () => any[],
+  blocks?: Record<string, any>,
+  maxDepth = 100
+): number => {
   const node = getNodes().find((n) => n.id === nodeId)
-  if (!node || !node.parentId || maxDepth <= 0) return 0
-  return 1 + getNodeDepth(node.parentId, getNodes, maxDepth - 1)
+  if (!node || maxDepth <= 0) return 0
+  const parentId = blocks?.[nodeId]?.data?.parentId
+  if (!parentId) return 0
+  return 1 + getNodeDepth(parentId, getNodes, blocks, maxDepth - 1)
 }
 
 /**
@@ -216,10 +139,16 @@ export const getNodeDepth = (nodeId: string, getNodes: () => any[], maxDepth = 1
  * @param getNodes Function to retrieve all nodes from ReactFlow
  * @returns Array of node IDs representing the hierarchy path
  */
-export const getNodeHierarchy = (nodeId: string, getNodes: () => any[]): string[] => {
+export const getNodeHierarchy = (
+  nodeId: string,
+  getNodes: () => any[],
+  blocks?: Record<string, any>
+): string[] => {
   const node = getNodes().find((n) => n.id === nodeId)
-  if (!node || !node.parentId) return [nodeId]
-  return [...getNodeHierarchy(node.parentId, getNodes), nodeId]
+  if (!node) return [nodeId]
+  const parentId = blocks?.[nodeId]?.data?.parentId
+  if (!parentId) return [nodeId]
+  return [...getNodeHierarchy(parentId, getNodes, blocks), nodeId]
 }
 
 /**
@@ -230,7 +159,8 @@ export const getNodeHierarchy = (nodeId: string, getNodes: () => any[]): string[
  */
 export const getNodeAbsolutePosition = (
   nodeId: string,
-  getNodes: () => any[]
+  getNodes: () => any[],
+  blocks?: Record<string, any>
 ): { x: number; y: number } => {
   const node = getNodes().find((n) => n.id === nodeId)
   if (!node) {
@@ -238,34 +168,36 @@ export const getNodeAbsolutePosition = (
     return { x: 0, y: 0 }
   }
 
-  if (!node.parentId) {
+  const parentId = blocks?.[nodeId]?.data?.parentId
+  if (!parentId) {
     return node.position
   }
 
-  const parentNode = getNodes().find((n) => n.id === node.parentId)
+  const parentNode = getNodes().find((n) => n.id === parentId)
   if (!parentNode) {
     logger.warn('Node references non-existent parent', {
       nodeId,
-      invalidParentId: node.parentId,
+      invalidParentId: parentId,
     })
     return node.position
   }
 
   const visited = new Set<string>()
-  let current: any = node
-  while (current?.parentId) {
-    if (visited.has(current.parentId)) {
+  let currentId = nodeId
+  while (currentId && blocks?.[currentId]?.data?.parentId) {
+    const currentParentId = blocks[currentId].data.parentId
+    if (visited.has(currentParentId)) {
       logger.error('Circular parent reference detected', {
         nodeId,
         parentChain: Array.from(visited),
       })
       return node.position
     }
-    visited.add(current.id)
-    current = getNodes().find((n) => n.id === current.parentId)
+    visited.add(currentId)
+    currentId = currentParentId
   }
 
-  const parentPos = getNodeAbsolutePosition(node.parentId, getNodes)
+  const parentPos = getNodeAbsolutePosition(parentId, getNodes, blocks)
 
   return {
     x: parentPos.x + node.position.x,
@@ -283,11 +215,12 @@ export const getNodeAbsolutePosition = (
 export const calculateRelativePosition = (
   nodeId: string,
   newParentId: string,
-  getNodes: () => any[]
+  getNodes: () => any[],
+  blocks?: Record<string, any>
 ): { x: number; y: number } => {
-  const nodeAbsPos = getNodeAbsolutePosition(nodeId, getNodes)
+  const nodeAbsPos = getNodeAbsolutePosition(nodeId, getNodes, blocks)
 
-  const parentAbsPos = getNodeAbsolutePosition(newParentId, getNodes)
+  const parentAbsPos = getNodeAbsolutePosition(newParentId, getNodes, blocks)
 
   return {
     x: nodeAbsPos.x - parentAbsPos.x,
@@ -308,6 +241,7 @@ export const updateNodeParent = (
   nodeId: string,
   newParentId: string | null,
   getNodes: () => any[],
+  blocks: Record<string, any>,
   updateBlockPosition: (id: string, position: { x: number; y: number }) => void,
   updateParentId: (id: string, parentId: string, extent: 'parent') => void,
   resizeLoopNodes: () => void
@@ -315,16 +249,16 @@ export const updateNodeParent = (
   const node = getNodes().find((n) => n.id === nodeId)
   if (!node) return
 
-  const currentParentId = node.parentId || null
+  const currentParentId = blocks[nodeId]?.data?.parentId || null
   if (newParentId === currentParentId) return
 
   if (newParentId) {
-    const relativePosition = calculateRelativePosition(nodeId, newParentId, getNodes)
+    const relativePosition = calculateRelativePosition(nodeId, newParentId, getNodes, blocks)
 
     updateBlockPosition(nodeId, relativePosition)
     updateParentId(nodeId, newParentId, 'parent')
   } else if (currentParentId) {
-    const absolutePosition = getNodeAbsolutePosition(nodeId, getNodes)
+    const absolutePosition = getNodeAbsolutePosition(nodeId, getNodes, blocks)
 
     // First set the absolute position so the node visually stays in place
     updateBlockPosition(nodeId, absolutePosition)
@@ -343,7 +277,8 @@ export const updateNodeParent = (
  */
 export const isPointInLoopNode = (
   position: { x: number; y: number },
-  getNodes: () => any[]
+  getNodes: () => any[],
+  blocks?: Record<string, any>
 ): {
   loopId: string
   loopPosition: { x: number; y: number }
@@ -353,7 +288,7 @@ export const isPointInLoopNode = (
     .filter((n) => isContainerType(n.type))
     .filter((n) => {
       // Use absolute coordinates for nested containers
-      const absolutePos = getNodeAbsolutePosition(n.id, getNodes)
+      const absolutePos = getNodeAbsolutePosition(n.id, getNodes, blocks)
       const rect = {
         left: absolutePos.x,
         right: absolutePos.x + (n.data?.width || DEFAULT_CONTAINER_WIDTH),
@@ -371,7 +306,7 @@ export const isPointInLoopNode = (
     .map((n) => ({
       loopId: n.id,
       // Return absolute position so callers can compute relative placement correctly
-      loopPosition: getNodeAbsolutePosition(n.id, getNodes),
+      loopPosition: getNodeAbsolutePosition(n.id, getNodes, blocks),
       dimensions: {
         width: n.data?.width || DEFAULT_CONTAINER_WIDTH,
         height: n.data?.height || DEFAULT_CONTAINER_HEIGHT,
@@ -450,7 +385,7 @@ export const resizeLoopNodes = (
     .filter((node) => isContainerType(node.type))
     .map((node) => ({
       ...node,
-      depth: getNodeDepth(node.id, getNodes),
+      depth: getNodeDepth(node.id, getNodes, blocks),
     }))
     .sort((a, b) => a.depth - b.depth)
 

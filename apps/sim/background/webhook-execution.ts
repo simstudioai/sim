@@ -8,7 +8,7 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { db } from '@/db'
 import { userStats, webhook, workflow as workflowTable } from '@/db/schema'
@@ -62,11 +62,8 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
       )
     }
 
-    // Load workflow from normalized tables
-    const workflowData = await loadWorkflowFromNormalizedTables(payload.workflowId)
-    if (!workflowData) {
-      throw new Error(`Workflow not found: ${payload.workflowId}`)
-    }
+    // Load workflow from active deployed state
+    const workflowData = await loadDeployedWorkflowState(payload.workflowId)
 
     const { blocks, edges, loops, parallels } = workflowData
 
