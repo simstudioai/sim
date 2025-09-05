@@ -571,10 +571,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }))
         }
 
+        // Update all stores atomically to prevent race conditions
+        // Set activeWorkflowId and workflow state together
+        set({ activeWorkflowId: id, error: null })
         useWorkflowStore.setState(workflowState)
         useSubBlockStore.getState().initializeFromWorkflow(id, (workflowState as any).blocks || {})
-
-        set({ activeWorkflowId: id, error: null })
 
         window.dispatchEvent(
           new CustomEvent('active-workflow-changed', {

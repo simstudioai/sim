@@ -871,12 +871,6 @@ const WorkflowContent = React.memo(() => {
   useEffect(() => {
     const currentId = params.workflowId as string
 
-    // Reset workflow ready state when workflow changes
-    if (activeWorkflowId !== currentId) {
-      setIsWorkflowReady(false)
-      return
-    }
-
     // Check if we have the necessary data to render the workflow
     const hasActiveWorkflow = activeWorkflowId === currentId
     const hasWorkflowInRegistry = Boolean(workflows[currentId])
@@ -886,15 +880,9 @@ const WorkflowContent = React.memo(() => {
     // 1. We have an active workflow that matches the URL
     // 2. The workflow exists in the registry
     // 3. Workflows are not currently loading
-    if (hasActiveWorkflow && hasWorkflowInRegistry && isNotLoading) {
-      // Add a small delay to ensure blocks state has settled
-      const timeoutId = setTimeout(() => {
-        setIsWorkflowReady(true)
-      }, 100)
+    const shouldBeReady = hasActiveWorkflow && hasWorkflowInRegistry && isNotLoading
 
-      return () => clearTimeout(timeoutId)
-    }
-    setIsWorkflowReady(false)
+    setIsWorkflowReady(shouldBeReady)
   }, [activeWorkflowId, params.workflowId, workflows, isLoading])
 
   // Init workflow
@@ -961,11 +949,10 @@ const WorkflowContent = React.memo(() => {
         const { clearDiff } = useWorkflowDiffStore.getState()
         clearDiff()
 
-        setActiveWorkflow(currentId)
-      } else {
-        // Don't reset variables cache if we're not actually switching workflows
-        setActiveWorkflow(currentId)
+        // Set the active workflow to match the URL
+        await setActiveWorkflow(currentId)
       }
+      // If already active, no need to call setActiveWorkflow again
     }
 
     validateAndNavigate()
