@@ -185,7 +185,7 @@ export default function Hero() {
     { key: 'pinecone', icon: PineconeIcon, label: 'Pinecone' },
     { key: 'supabase', icon: SupabaseIcon, label: 'Supabase' },
     { key: 'linear', icon: LinearIcon, label: 'Linear', style: { color: '#5E6AD2' } },
-    { key: 'discord', icon: DiscordIcon, label: 'Discord' },
+    { key: 'discord', icon: DiscordIcon, label: 'Discord', style: { color: '#5765F2' } },
     { key: 'airtable', icon: AirtableIcon, label: 'Airtable' },
     { key: 'stripe', icon: StripeIcon, label: 'Stripe' },
     { key: 'notion', icon: NotionIcon, label: 'Notion' },

@@ -60,7 +60,7 @@ const communicationIcons = [
   { icon: SlackIcon, label: 'Slack' },
   { icon: GmailIcon, label: 'Gmail' },
   { icon: OutlookIcon, label: 'Outlook' },
-  { icon: DiscordIcon, label: 'Discord' },
+  { icon: DiscordIcon, label: 'Discord', style: { color: '#5765F2' } },
   { icon: LinearIcon, label: 'Linear', style: { color: '#5E6AD2' } },
   { icon: NotionIcon, label: 'Notion' },
   { icon: JiraIcon, label: 'Jira' },

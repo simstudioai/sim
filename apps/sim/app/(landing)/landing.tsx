@@ -1,5 +1,6 @@
 import {
   Background,
+  Footer,
   Hero,
   Integrations,
   LandingEnterprise,
@@ -18,6 +19,7 @@ export default function Landing() {
         <LandingEnterprise />
         <Integrations />
         <LandingPricing />
+        <Footer />
       </Background>
 
       {/* Pricing Section */}

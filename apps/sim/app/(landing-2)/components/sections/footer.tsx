@@ -156,7 +156,7 @@ function Footer() {
                     rel='noopener noreferrer'
                     className='text-2xl transition-all duration-500'
                   >
-                    <DiscordIcon className='h-9 w-9 fill-[#9E91AA] hover:fill-[#bdaecb] md:h-10 md:w-10' />
+                    <DiscordIcon className='h-9 w-9 text-[#9E91AA] transition-colors duration-500 hover:text-[#bdaecb] md:h-10 md:w-10' />
                   </Link>
                   <Link
                     href={'https://x.com/simdotai'}
@@ -346,7 +346,7 @@ function Footer() {
                   rel='noopener noreferrer'
                   className='text-2xl transition-all duration-500'
                 >
-                  <DiscordIcon className='h-9 w-9 fill-[#9E91AA] hover:fill-[#bdaecb] md:h-10 md:w-10' />
+                  <DiscordIcon className='h-9 w-9 text-[#9E91AA] transition-colors duration-500 hover:text-[#bdaecb] md:h-10 md:w-10' />
                 </Link>
                 <Link
                   href={'https://x.com/simdotai'}

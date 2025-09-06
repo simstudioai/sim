@@ -218,6 +218,7 @@ export const config = {
     '/login',
     '/signup',
     '/invite/:path*', // Match invitation routes
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    // Catch-all for other pages, excluding static assets and public directories
+    '/((?!_next/static|_next/image|favicon.ico|logo/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
   ],
 }

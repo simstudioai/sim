@@ -86,15 +86,20 @@ export default function LandingTemplates() {
 
       {/* Templates Grid */}
       <div className='grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3'>
-        {templates.map((template) => (
-          <LandingTemplatePreview
+        {templates.map((template, index) => (
+          <div
             key={template.id}
-            previewImage={template.previewImage}
-            avatarImage={template.avatarImage}
-            title={template.title}
-            authorName={template.authorName}
-            usageCount={template.usageCount}
-          />
+            className={`
+              ${index >= 3 ? 'hidden md:block' : ''} ${index >= 6 ? 'md:hidden lg:block' : ''} `}
+          >
+            <LandingTemplatePreview
+              previewImage={template.previewImage}
+              avatarImage={template.avatarImage}
+              title={template.title}
+              authorName={template.authorName}
+              usageCount={template.usageCount}
+            />
+          </div>
         ))}
       </div>
     </div>

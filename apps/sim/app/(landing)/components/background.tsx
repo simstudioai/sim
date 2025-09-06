@@ -11,7 +11,7 @@ export default function Background({ className, children }: BackgroundProps) {
       <svg
         aria-hidden='true'
         focusable='false'
-        className='-translate-x-1/2 pointer-events-none absolute top-0 left-1/2 z-10 h-full w-[1308px]'
+        className='-translate-x-1/2 pointer-events-none absolute top-0 left-1/2 z-10 h-full min-h-full w-[1308px]'
         width='1308'
         height='4942'
         viewBox='0 10 1308 4942'
@@ -103,8 +103,8 @@ export default function Background({ className, children }: BackgroundProps) {
           stroke='#E7E4EF'
           strokeWidth='2'
         />
-        <path d='M10.7967 3062.83V3538.62' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M1297.76 3062.83V3538.62' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M10.7967 3062.83V4965.99' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M1297.76 3062.83V4965.99' stroke='#E7E4EF' strokeWidth='2' />
         <path
           d='M959.828 116.604C1064.72 187.189 1162.61 277.541 1293.45 536.597'
           stroke='#E7E4EF'

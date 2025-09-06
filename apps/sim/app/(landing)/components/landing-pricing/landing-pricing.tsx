@@ -189,7 +189,7 @@ function PricingCard({ tier, index }: { tier: PricingTier; index: number }) {
 
 export default function LandingPricing() {
   return (
-    <section className='px-[32px] pb-[484px]'>
+    <section className='px-[32px]'>
       <div className='grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4'>
         {pricingTiers.map((tier, index) => (
           <PricingCard key={tier.name} tier={tier} index={index} />
