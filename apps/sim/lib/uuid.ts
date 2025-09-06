@@ -76,6 +76,33 @@ export function generateServerUUID(): string {
 }
 
 /**
+ * Generate a cryptographically secure UUID for security-sensitive operations
+ * This function enforces secure UUID generation and throws an error if 
+ * secure generation is not available.
+ * 
+ * Use this for: tokens, secrets, API keys, session IDs, etc.
+ * 
+ * @throws {Error} If secure UUID generation is not available
+ */
+export function generateSecureUUID(): string {
+  if (typeof window === 'undefined') {
+    // Server-side - always secure
+    return generateServerUUID()
+  }
+  
+  // Client-side - must be secure context
+  if (!isSecureContext()) {
+    throw new Error('Secure UUID generation not available in insecure context. Use generateUUID() for non-security-sensitive operations.')
+  }
+  
+  try {
+    return crypto.randomUUID()
+  } catch (error) {
+    throw new Error('Failed to generate secure UUID: crypto.randomUUID() not available')
+  }
+}
+
+/**
  * Context-aware UUID generation
  * - Uses server-side crypto on the server
  * - Uses client-side crypto or fallback on the client
@@ -88,6 +115,41 @@ export function generateContextAwareUUID(): string {
     // Client-side
     return generateUUID()
   }
+}
+
+/**
+ * Validate that we're not using a fallback UUID for security-sensitive operations
+ * This helps prevent accidental use of weak UUIDs in production
+ */
+export function validateSecureUUIDCapability(): { isSecure: boolean; reason?: string } {
+  if (typeof window === 'undefined') {
+    // Server-side - check Node.js crypto
+    try {
+      if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
+        return { isSecure: true }
+      }
+      
+      const { randomUUID } = require('crypto')
+      if (typeof randomUUID === 'function') {
+        return { isSecure: true }
+      }
+      
+      return { isSecure: false, reason: 'Node.js crypto module or randomUUID function not available' }
+    } catch (error) {
+      return { isSecure: false, reason: 'Node.js crypto module not available' }
+    }
+  }
+  
+  // Client-side
+  if (!isSecureContext()) {
+    return { isSecure: false, reason: 'Not running in a secure context (HTTPS required)' }
+  }
+  
+  if (typeof crypto === 'undefined' || typeof crypto.randomUUID !== 'function') {
+    return { isSecure: false, reason: 'crypto.randomUUID() not available in this browser' }
+  }
+  
+  return { isSecure: true }
 }
 
 // Default export for easy migration

@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { generateUUID } from '@/lib/uuid'
@@ -42,7 +41,7 @@ export const useChatStore = create<ChatStore>()(
             // Generate a new conversationId when clearing chat for a specific workflow
             if (workflowId) {
               const newConversationIds = { ...state.conversationIds }
-              newConversationIds[workflowId] = uuidv4()
+              newConversationIds[workflowId] = generateUUID()
               return {
                 ...newState,
                 conversationIds: newConversationIds,
@@ -168,7 +167,7 @@ export const useChatStore = create<ChatStore>()(
         },
 
         generateNewConversationId: (workflowId) => {
-          const newId = uuidv4()
+          const newId = generateUUID()
           set((state) => {
             const newConversationIds = { ...state.conversationIds }
             newConversationIds[workflowId] = newId
