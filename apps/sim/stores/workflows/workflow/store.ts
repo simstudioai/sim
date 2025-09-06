@@ -2,6 +2,7 @@ import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateUniqueBlockDuplicateName, normalizeBlockName } from '@/lib/naming'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import {
@@ -522,11 +523,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           y: block.position.y + 20,
         }
 
-        // More efficient name handling
-        const match = block.name.match(/(.*?)(\d+)?$/)
-        const newName = match?.[2]
-          ? `${match[1]}${Number.parseInt(match[2]) + 1}`
-          : `${block.name} 1`
+        const existingNames = Object.values(get().blocks).map((b: any) => b.name)
+        const newName = generateUniqueBlockDuplicateName(existingNames, block.name)
 
         // Get merged state to capture current subblock values
         const mergedBlock = mergeSubblockState(get().blocks, id)[id]
@@ -602,11 +600,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       updateBlockName: (id: string, name: string) => {
         const oldBlock = get().blocks[id]
         if (!oldBlock) return false
-
-        // Helper function to normalize block names (same as resolver)
-        const normalizeBlockName = (blockName: string): string => {
-          return blockName.toLowerCase().replace(/\s+/g, '')
-        }
 
         // Check for normalized name collisions
         const normalizedNewName = normalizeBlockName(name)
