@@ -13,6 +13,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateUUID } from '@/lib/uuid'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ControlBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/control-bar'
 import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/diff-controls'
@@ -483,7 +484,7 @@ const WorkflowContent = React.memo(() => {
       // Special handling for container nodes (loop or parallel)
       if (type === 'loop' || type === 'parallel') {
         // Create a unique ID and name for the container
-        const id = crypto.randomUUID()
+        const id = generateUUID()
 
         // Auto-number the blocks based on existing blocks of the same type
         const existingBlocksOfType = Object.values(blocks).filter((b) => b.type === type)
@@ -506,7 +507,7 @@ const WorkflowContent = React.memo(() => {
             const sourceHandle = determineSourceHandle(closestBlock)
 
             autoConnectEdge = {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               source: closestBlock.id,
               target: id,
               sourceHandle,
@@ -548,7 +549,7 @@ const WorkflowContent = React.memo(() => {
       })
 
       // Create a new block with a unique ID
-      const id = crypto.randomUUID()
+      const id = generateUUID()
       const name = `${blockConfig.name} ${Object.values(blocks).filter((b) => b.type === type).length + 1}`
 
       // Auto-connect logic
@@ -562,7 +563,7 @@ const WorkflowContent = React.memo(() => {
           const sourceHandle = determineSourceHandle(closestBlock)
 
           autoConnectEdge = {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             source: closestBlock.id,
             target: id,
             sourceHandle,
@@ -624,7 +625,7 @@ const WorkflowContent = React.memo(() => {
         // Special handling for container nodes (loop or parallel)
         if (data.type === 'loop' || data.type === 'parallel') {
           // Create a unique ID and name for the container
-          const id = crypto.randomUUID()
+          const id = generateUUID()
 
           // Auto-number the blocks based on existing blocks of the same type
           const existingBlocksOfType = Object.values(blocks).filter((b) => b.type === data.type)
@@ -660,7 +661,7 @@ const WorkflowContent = React.memo(() => {
                 const sourceHandle = determineSourceHandle(closestBlock)
 
                 autoConnectEdge = {
-                  id: crypto.randomUUID(),
+                  id: generateUUID(),
                   source: closestBlock.id,
                   target: id,
                   sourceHandle,
@@ -697,7 +698,7 @@ const WorkflowContent = React.memo(() => {
         }
 
         // Generate id and name here so they're available in all code paths
-        const id = crypto.randomUUID()
+        const id = generateUUID()
         const name =
           data.type === 'loop'
             ? `Loop ${Object.values(blocks).filter((b) => b.type === 'loop').length + 1}`
@@ -748,7 +749,7 @@ const WorkflowContent = React.memo(() => {
                   type: closestBlock.type,
                 })
                 addEdge({
-                  id: crypto.randomUUID(),
+                  id: generateUUID(),
                   source: closestBlock.id,
                   target: id,
                   sourceHandle,
@@ -765,7 +766,7 @@ const WorkflowContent = React.memo(() => {
                   : 'parallel-start-source'
 
               addEdge({
-                id: crypto.randomUUID(),
+                id: generateUUID(),
                 source: containerInfo.loopId,
                 target: id,
                 sourceHandle: startSourceHandle,
@@ -784,7 +785,7 @@ const WorkflowContent = React.memo(() => {
               const sourceHandle = determineSourceHandle(closestBlock)
 
               autoConnectEdge = {
-                id: crypto.randomUUID(),
+                id: generateUUID(),
                 source: closestBlock.id,
                 target: id,
                 sourceHandle,
@@ -1125,7 +1126,7 @@ const WorkflowContent = React.memo(() => {
         const targetParentId = targetNode.parentId
 
         // Generate a unique edge ID
-        const edgeId = crypto.randomUUID()
+        const edgeId = generateUUID()
 
         // Special case for container start source: Always allow connections to nodes within the same container
         if (
@@ -1438,7 +1439,7 @@ const WorkflowContent = React.memo(() => {
                 type: closestBlock.type,
               })
               addEdge({
-                id: crypto.randomUUID(),
+                id: generateUUID(),
                 source: closestBlock.id,
                 target: node.id,
                 sourceHandle,
@@ -1455,7 +1456,7 @@ const WorkflowContent = React.memo(() => {
                 : 'parallel-start-source'
 
             addEdge({
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               source: potentialParentId,
               target: node.id,
               sourceHandle: startSourceHandle,

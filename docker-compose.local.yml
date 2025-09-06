@@ -8,7 +8,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 8G
+          memory: 4G
+        reservations:
+          memory: 2G
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
       - BETTER_AUTH_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
@@ -54,7 +56,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 8G
+          memory: 2G
+        reservations:
+          memory: 1G
     healthcheck:
       test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3002/health']
       interval: 90s
