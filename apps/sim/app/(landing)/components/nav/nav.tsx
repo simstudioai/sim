@@ -47,36 +47,36 @@ export default async function Nav() {
   return (
     <nav
       aria-label='Primary'
-      className={`${soehne.className} flex w-full items-center justify-between px-[56px] pt-[17px] pb-[32px]`}
+      className={`${soehne.className} flex w-full items-center justify-between px-[50px] pt-[11.5px] pb-[26px]`}
     >
       <div className='flex items-center gap-[40px]'>
         <Link href='/' aria-label='Sim home'>
           <Image
             src='/logo/b&w/text/b&w.svg'
             alt='Sim logo'
-            width={58.5684}
-            height={28.56}
+            width={49.78314}
+            height={24.276}
             priority
           />
         </Link>
-        <ul className='flex items-center justify-center gap-[24px] pt-[4px]'>
+        <ul className='flex items-center justify-center gap-[22px] pt-[4px]'>
           <li>
             <Link
               href='https://docs.sim.ai'
               target='_blank'
               rel='noopener noreferrer'
-              className='text-[18px] text-muted-foreground'
+              className='text-[16px] text-muted-foreground'
             >
               Docs
             </Link>
           </li>
           <li>
-            <Link href='/' className='text-[18px] text-muted-foreground'>
+            <Link href='/' className='text-[16px] text-muted-foreground'>
               Pricing
             </Link>
           </li>
           <li>
-            <Link href='/' className='text-[18px] text-muted-foreground'>
+            <Link href='/' className='text-[16px] text-muted-foreground'>
               Enterprise
             </Link>
           </li>
@@ -85,22 +85,22 @@ export default async function Nav() {
               href='https://github.com/simstudioai/sim'
               target='_blank'
               rel='noopener noreferrer'
-              className='flex items-center gap-2 text-[18px] text-muted-foreground'
+              className='flex items-center gap-2 text-[16px] text-muted-foreground'
               aria-label='GitHub repository'
             >
-              <GithubIcon className='h-[18px] w-[18px]' />
+              <GithubIcon className='h-[16px] w-[16px]' />
               <span>{formattedStars}</span>
             </a>
           </li>
         </ul>
       </div>
-      <div className='flex items-center justify-center gap-[20px]'>
-        <Link href='/login' className='text-[#2E2E2E] text-[18px]'>
+      <div className='flex items-center justify-center gap-[20px] pt-[2px]'>
+        <Link href='/login' className='text-[#2E2E2E] text-[16px]'>
           Log in
         </Link>
         <Link
           href='/signup'
-          className='inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] px-3 py-[6px] text-[18px] text-white shadow-[inset_0_2px_4px_0_#9B77FF]'
+          className='inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] px-3 py-[6px] text-[16px] text-white shadow-[inset_0_2px_4px_0_#9B77FF]'
           aria-label='Get started'
         >
           Get started

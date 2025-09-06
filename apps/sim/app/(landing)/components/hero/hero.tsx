@@ -356,7 +356,7 @@ export default function Hero() {
       className={`${soehne.className} flex w-full flex-col items-center justify-center pt-[80px]`}
     >
       <h1 className='font-medium text-[74px] leading-none tracking-tight'>Workflows for LLMs</h1>
-      <h2 className='pt-[14px] text-center text-[22px] opacity-70'>
+      <h2 className='pt-[10px] text-center text-[22px] opacity-70'>
         Build and deploy AI agent workflows
       </h2>
       <div
@@ -429,7 +429,7 @@ export default function Hero() {
       </div>
 
       {/* Canvas */}
-      <div className='mt-[126px] w-full max-w-[1308px]'>
+      <div className='mt-[134px] w-full max-w-[1308px]'>
         <LandingCanvas
           nodes={rfNodes}
           edges={rfEdges}

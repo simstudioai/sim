@@ -19,7 +19,7 @@ export default function LandingTemplatePreview({
     <div className='flex flex-col'>
       {/* Preview Image */}
       <div
-        className='h-44 w-full rounded-[14px] bg-center bg-cover bg-no-repeat'
+        className='h-44 w-full rounded-[10px] bg-center bg-cover bg-no-repeat'
         style={{
           backgroundImage: `url(${previewImage}), linear-gradient(to right, #F5F5F5, #F5F5F5)`,
         }}

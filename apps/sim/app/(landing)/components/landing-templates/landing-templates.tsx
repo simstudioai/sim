@@ -79,8 +79,10 @@ const templates = [
 
 export default function LandingTemplates() {
   return (
-    <div className={`${inter.className} flex flex-col px-[56px] pt-[34px] pb-[56px]`}>
-      <h3 className='mb-8 font-medium text-[28px] text-foreground tracking-tight'>Templates</h3>
+    <div className={`${inter.className} flex flex-col px-[50px] pt-[34px]`}>
+      <h3 className='mb-[24px] font-medium text-[28px] text-foreground tracking-tight'>
+        Templates
+      </h3>
 
       {/* Templates Grid */}
       <div className='grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3'>

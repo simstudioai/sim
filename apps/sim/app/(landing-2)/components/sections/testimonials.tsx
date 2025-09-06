@@ -5,7 +5,15 @@ import { getAssetUrl } from '@/lib/utils'
 import useIsMobile from '@/app/(landing-2)/components/hooks/use-is-mobile'
 import { Marquee } from '@/app/(landing-2)/components/magicui/marquee'
 
-const X_TESTIMONIALS = [
+interface Testimonial {
+  text: string
+  username: string
+  viewCount: string
+  tweetUrl: string
+  profileImage: string
+}
+
+const X_TESTIMONIALS: Testimonial[] = [
   {
     text: "Drag-and-drop AI workflows for devs who'd rather build agents than babysit them.",
     username: '@GithubProjects',
@@ -75,6 +83,55 @@ const X_TESTIMONIALS = [
 const firstRowTestimonials = X_TESTIMONIALS.slice(0, Math.ceil(X_TESTIMONIALS.length / 2))
 const secondRowTestimonials = X_TESTIMONIALS.slice(Math.ceil(X_TESTIMONIALS.length / 2))
 
+// Testimonial Row Component
+interface TestimonialRowProps {
+  testimonials: Testimonial[]
+  rowKey: string
+}
+
+function TestimonialRow({ testimonials, rowKey }: TestimonialRowProps) {
+  return (
+    <div className='animation-container flex w-full animate-fade-up flex-col text-white opacity-0 will-change-[opacity,transform] [animation-delay:400ms]'>
+      <Marquee className='flex w-full [--duration:40s] [--gap:16px]' pauseOnHover={true}>
+        {testimonials.map((card, index) => (
+          <motion.div
+            key={`${rowKey}-${index}`}
+            className='flex min-w-[280px] max-w-[340px] cursor-pointer flex-col gap-2 rounded-xl border border-[#333] bg-[#121212] p-2 sm:min-w-[320px] sm:max-w-[380px] sm:p-3'
+            whileHover={{ scale: 1.02, boxShadow: '0 2px 4px 0 rgba(0, 0, 0, 0.08)' }}
+            onClick={() =>
+              card.tweetUrl && window.open(card.tweetUrl, '_blank', 'noopener,noreferrer')
+            }
+          >
+            <div className='flex flex-col gap-1'>
+              <p className='text-sm text-white sm:text-base'>{card.text}</p>
+            </div>
+            <div className='mt-auto flex items-center justify-between'>
+              <div className='flex items-center gap-1.5 sm:gap-2'>
+                {card.profileImage && (
+                  <img
+                    src={card.profileImage}
+                    alt={`${card.username} profile`}
+                    className='h-6 w-6 rounded-full border border-[#333] object-cover sm:h-8 sm:w-8'
+                  />
+                )}
+                <div className='flex items-center'>
+                  <span className='text-white/80 text-xs sm:text-sm'>@</span>
+                  <p className='text-white/80 text-xs sm:text-sm'>
+                    {card.username.replace('@', '')}
+                  </p>
+                </div>
+              </div>
+              <div className='flex items-center'>
+                <p className='text-[10px] text-white/60 sm:text-xs'>{card.viewCount} views</p>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </Marquee>
+    </div>
+  )
+}
+
 function Testimonials() {
   const { isMobile, mounted } = useIsMobile()
 
@@ -88,12 +145,10 @@ function Testimonials() {
     <section className='animation-container relative flex w-full flex-col overflow-hidden py-10 will-change-[opacity,transform] sm:py-12 md:py-16'>
       <div className='flex flex-col items-center gap-3 px-4 pb-6 sm:gap-5 sm:pb-8 md:pb-10'>
         {isMobile ? (
-          <p className='text-center font-medium text-[42px] text-white tracking-normal md:text-5xl'>
-            Loved by
-          </p>
+          <p className='text-center text-[42px] text-white tracking-normal md:text-5xl'>Loved by</p>
         ) : (
           <motion.p
-            className='text-center font-medium text-5xl text-white tracking-normal'
+            className='text-center text-5xl text-white tracking-normal'
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
@@ -104,87 +159,13 @@ function Testimonials() {
         )}
       </div>
 
-      <div className='mt-0 flex flex-col space-y-2 sm:space-y-3'>
+      <div className='mt-0 flex flex-col gap-4'>
         {/* First Row of X Posts */}
-        <div className='animation-container flex w-full animate-fade-up flex-col text-white opacity-0 will-change-[opacity,transform] [animation-delay:400ms]'>
-          <Marquee className='flex w-full [--duration:40s]' pauseOnHover={true}>
-            {firstRowTestimonials.map((card, index) => (
-              <motion.div
-                key={`first-row-${index}`}
-                className='mx-0.5 flex min-w-[280px] max-w-[340px] cursor-pointer flex-col gap-2 rounded-lg border border-[#333] bg-[#121212] p-2 sm:min-w-[320px] sm:max-w-[380px] sm:p-3'
-                whileHover={{ scale: 1.02, boxShadow: '0 8px 32px 0 rgba(80, 60, 120, 0.18)' }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                onClick={() =>
-                  card.tweetUrl && window.open(card.tweetUrl, '_blank', 'noopener,noreferrer')
-                }
-              >
-                <div className='flex flex-col gap-1'>
-                  <p className='font-medium text-sm text-white sm:text-base'>{card.text}</p>
-                </div>
-                <div className='mt-auto flex items-center justify-between'>
-                  <div className='flex items-center gap-1.5 sm:gap-2'>
-                    {card.profileImage && (
-                      <img
-                        src={card.profileImage}
-                        alt={`${card.username} profile`}
-                        className='h-6 w-6 rounded-full border border-[#333] object-cover sm:h-8 sm:w-8'
-                      />
-                    )}
-                    <div className='flex items-center'>
-                      <span className='font-medium text-white/80 text-xs sm:text-sm'>@</span>
-                      <p className='font-medium text-white/80 text-xs sm:text-sm'>
-                        {card.username.replace('@', '')}
-                      </p>
-                    </div>
-                  </div>
-                  <div className='flex items-center'>
-                    <p className='text-[10px] text-white/60 sm:text-xs'>{card.viewCount} views</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </Marquee>
-        </div>
+        <TestimonialRow testimonials={firstRowTestimonials} rowKey='first-row' />
 
         {/* Second Row of X Posts */}
-        <div className='animation-container flex w-full animate-fade-up flex-col text-white opacity-0 will-change-[opacity,transform] [animation-delay:600ms]'>
-          <Marquee className='flex w-full [--duration:40s]' pauseOnHover={true}>
-            {secondRowTestimonials.map((card, index) => (
-              <motion.div
-                key={`second-row-${index}`}
-                className='mx-0.5 flex min-w-[280px] max-w-[340px] cursor-pointer flex-col gap-2 rounded-lg border border-[#333] bg-[#121212] p-2 sm:min-w-[320px] sm:max-w-[380px] sm:p-3'
-                whileHover={{ scale: 1.02, boxShadow: '0 8px 32px 0 rgba(80, 60, 120, 0.18)' }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                onClick={() =>
-                  card.tweetUrl && window.open(card.tweetUrl, '_blank', 'noopener,noreferrer')
-                }
-              >
-                <div className='flex flex-col gap-1'>
-                  <p className='font-medium text-sm text-white sm:text-base'>{card.text}</p>
-                </div>
-                <div className='mt-auto flex items-center justify-between'>
-                  <div className='flex items-center gap-1.5 sm:gap-2'>
-                    {card.profileImage && (
-                      <img
-                        src={card.profileImage}
-                        alt={`${card.username} profile`}
-                        className='h-6 w-6 rounded-full border border-[#333] object-cover sm:h-8 sm:w-8'
-                      />
-                    )}
-                    <div className='flex items-center'>
-                      <span className='font-medium text-white/80 text-xs sm:text-sm'>@</span>
-                      <p className='font-medium text-white/80 text-xs sm:text-sm'>
-                        {card.username.replace('@', '')}
-                      </p>
-                    </div>
-                  </div>
-                  <div className='flex items-center'>
-                    <p className='text-[10px] text-white/60 sm:text-xs'>{card.viewCount} views</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </Marquee>
+        <div style={{ animationDelay: '200ms' }}>
+          <TestimonialRow testimonials={secondRowTestimonials} rowKey='second-row' />
         </div>
       </div>
     </section>
