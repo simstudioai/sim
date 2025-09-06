@@ -24,6 +24,7 @@ const SettingsSchema = z.object({
       unsubscribeNotifications: z.boolean().optional(),
     })
     .optional(),
+  billingUsageNotificationsEnabled: z.boolean().optional(),
 })
 
 // Default settings values
@@ -35,6 +36,7 @@ const defaultSettings = {
   consoleExpandedByDefault: true,
   telemetryEnabled: true,
   emailPreferences: {},
+  billingUsageNotificationsEnabled: true,
 }
 
 export async function GET() {
@@ -68,6 +70,7 @@ export async function GET() {
           consoleExpandedByDefault: userSettings.consoleExpandedByDefault,
           telemetryEnabled: userSettings.telemetryEnabled,
           emailPreferences: userSettings.emailPreferences ?? {},
+          billingUsageNotificationsEnabled: userSettings.billingUsageNotificationsEnabled ?? true,
         },
       },
       { status: 200 }

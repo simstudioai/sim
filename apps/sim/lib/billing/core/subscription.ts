@@ -7,10 +7,11 @@ import {
   getPerUserMinimumLimit,
 } from '@/lib/billing/subscriptions/utils'
 import type { UserSubscriptionState } from '@/lib/billing/types'
+import { env } from '@/lib/env'
 import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { member, subscription, userStats } from '@/db/schema'
+import { member, subscription, user, userStats } from '@/db/schema'
 
 const logger = createLogger('SubscriptionCore')
 
@@ -74,7 +75,6 @@ export async function getHighestPrioritySubscription(userId: string) {
  */
 export async function isProPlan(userId: string): Promise<boolean> {
   try {
-    // In development, enable Pro features for easier testing
     if (!isProd) {
       return true
     }
@@ -155,7 +155,6 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
 
     const subscription = await getHighestPrioritySubscription(userId)
 
-    // Calculate usage limit
     let limit = getFreeTierLimit() // Default free tier limit
 
     if (subscription) {
@@ -281,5 +280,56 @@ export async function getUserSubscriptionState(userId: string): Promise<UserSubs
       hasExceededLimit: false,
       planName: 'free',
     }
+  }
+}
+
+/**
+ * Send welcome email for Pro and Team plan subscriptions
+ */
+export async function sendPlanWelcomeEmail(subscription: any): Promise<void> {
+  try {
+    const subPlan = subscription.plan
+    if (subPlan === 'pro' || subPlan === 'team') {
+      const userId = subscription.referenceId
+      const users = await db
+        .select({ email: user.email, name: user.name })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1)
+
+      if (users.length > 0 && users[0].email) {
+        const { getEmailSubject, renderPlanWelcomeEmail } = await import(
+          '@/components/emails/render-email'
+        )
+        const { sendEmail } = await import('@/lib/email/mailer')
+
+        const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+        const html = await renderPlanWelcomeEmail({
+          planName: subPlan === 'pro' ? 'Pro' : 'Team',
+          userName: users[0].name || undefined,
+          loginLink: `${baseUrl}/login`,
+        })
+
+        await sendEmail({
+          to: users[0].email,
+          subject: getEmailSubject(subPlan === 'pro' ? 'plan-welcome-pro' : 'plan-welcome-team'),
+          html,
+          emailType: 'updates',
+        })
+
+        logger.info('Plan welcome email sent successfully', {
+          userId,
+          email: users[0].email,
+          plan: subPlan,
+        })
+      }
+    }
+  } catch (error) {
+    logger.error('Failed to send plan welcome email', {
+      error,
+      subscriptionId: subscription.id,
+      plan: subscription.plan,
+    })
+    throw error
   }
 }

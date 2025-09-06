@@ -1,5 +1,7 @@
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { checkUsageStatus, maybeSendUsageThresholdEmail } from '@/lib/billing/core/usage'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
@@ -14,7 +16,14 @@ import type {
   WorkflowState,
 } from '@/lib/logs/types'
 import { db } from '@/db'
-import { userStats, workflow, workflowExecutionLogs } from '@/db/schema'
+import {
+  member,
+  organization,
+  userStats,
+  user as userTable,
+  workflow,
+  workflowExecutionLogs,
+} from '@/db/schema'
 
 export interface ToolCall {
   name: string
@@ -173,12 +182,127 @@ export class ExecutionLogger implements IExecutionLoggerService {
       throw new Error(`Workflow log not found for execution ${executionId}`)
     }
 
-    // Update user stats with cost information (same logic as original execution logger)
-    await this.updateUserStats(
-      updatedLog.workflowId,
-      costSummary,
-      updatedLog.trigger as ExecutionTrigger['type']
-    )
+    try {
+      const [wf] = await db.select().from(workflow).where(eq(workflow.id, updatedLog.workflowId))
+      if (wf) {
+        const [usr] = await db
+          .select({ id: userTable.id, email: userTable.email, name: userTable.name })
+          .from(userTable)
+          .where(eq(userTable.id, wf.userId))
+          .limit(1)
+
+        if (usr?.email) {
+          const sub = await getHighestPrioritySubscription(usr.id)
+
+          const costMultiplier = getCostMultiplier()
+          const costDelta =
+            (costSummary.baseExecutionCharge || 0) + (costSummary.modelCost || 0) * costMultiplier
+
+          const planName = sub?.plan || 'Free'
+          const scope: 'user' | 'organization' =
+            sub && (sub.plan === 'team' || sub.plan === 'enterprise') ? 'organization' : 'user'
+
+          if (scope === 'user') {
+            const before = await checkUsageStatus(usr.id)
+
+            await this.updateUserStats(
+              updatedLog.workflowId,
+              costSummary,
+              updatedLog.trigger as ExecutionTrigger['type']
+            )
+
+            const limit = before.usageData.limit
+            const percentBefore = before.usageData.percentUsed
+            const percentAfter =
+              limit > 0 ? Math.min(100, percentBefore + (costDelta / limit) * 100) : percentBefore
+            const currentUsageAfter = before.usageData.currentUsage + costDelta
+
+            await maybeSendUsageThresholdEmail({
+              scope: 'user',
+              userId: usr.id,
+              userEmail: usr.email,
+              userName: usr.name || undefined,
+              planName,
+              percentBefore,
+              percentAfter,
+              currentUsageAfter,
+              limit,
+            })
+          } else if (sub?.referenceId) {
+            let orgLimit = 0
+            const orgRows = await db
+              .select({ orgUsageLimit: organization.orgUsageLimit })
+              .from(organization)
+              .where(eq(organization.id, sub.referenceId))
+              .limit(1)
+            const { getPlanPricing } = await import('@/lib/billing/core/billing')
+            const { basePrice } = getPlanPricing(sub.plan)
+            const minimum = (sub.seats || 1) * basePrice
+            if (orgRows.length > 0 && orgRows[0].orgUsageLimit) {
+              const configured = Number.parseFloat(orgRows[0].orgUsageLimit)
+              orgLimit = Math.max(configured, minimum)
+            } else {
+              orgLimit = minimum
+            }
+
+            const [{ sum: orgUsageBefore }] = await db
+              .select({ sum: sql`COALESCE(SUM(${userStats.currentPeriodCost}), 0)` })
+              .from(member)
+              .leftJoin(userStats, eq(member.userId, userStats.userId))
+              .where(eq(member.organizationId, sub.referenceId))
+              .limit(1)
+            const orgUsageBeforeNum = Number.parseFloat(
+              (orgUsageBefore as any)?.toString?.() || '0'
+            )
+
+            await this.updateUserStats(
+              updatedLog.workflowId,
+              costSummary,
+              updatedLog.trigger as ExecutionTrigger['type']
+            )
+
+            const percentBefore =
+              orgLimit > 0 ? Math.min(100, (orgUsageBeforeNum / orgLimit) * 100) : 0
+            const percentAfter =
+              orgLimit > 0
+                ? Math.min(100, percentBefore + (costDelta / orgLimit) * 100)
+                : percentBefore
+            const currentUsageAfter = orgUsageBeforeNum + costDelta
+
+            await maybeSendUsageThresholdEmail({
+              scope: 'organization',
+              organizationId: sub.referenceId,
+              planName,
+              percentBefore,
+              percentAfter,
+              currentUsageAfter,
+              limit: orgLimit,
+            })
+          }
+        } else {
+          await this.updateUserStats(
+            updatedLog.workflowId,
+            costSummary,
+            updatedLog.trigger as ExecutionTrigger['type']
+          )
+        }
+      } else {
+        await this.updateUserStats(
+          updatedLog.workflowId,
+          costSummary,
+          updatedLog.trigger as ExecutionTrigger['type']
+        )
+      }
+    } catch (e) {
+      try {
+        await this.updateUserStats(
+          updatedLog.workflowId,
+          costSummary,
+          updatedLog.trigger as ExecutionTrigger['type']
+        )
+      } catch {}
+      logger.warn('Usage threshold notification check failed (non-fatal)', { error: e })
+    }
 
     logger.debug(`Completed workflow execution ${executionId}`)
 

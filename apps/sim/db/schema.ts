@@ -374,8 +374,10 @@ export const settings = pgTable('settings', {
   // Email preferences
   emailPreferences: json('email_preferences').notNull().default('{}'),
 
-  // Keep general for future flexible settings
-  general: json('general').notNull().default('{}'),
+  // Billing usage notifications preference
+  billingUsageNotificationsEnabled: boolean('billing_usage_notifications_enabled')
+    .notNull()
+    .default(true),
 
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
