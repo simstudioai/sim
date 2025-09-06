@@ -53,7 +53,7 @@ export default async function Nav() {
         <Link href='/' aria-label='Sim home'>
           <Image
             src='/logo/b&w/text/b&w.svg'
-            alt='Sim logo'
+            alt='Sim - Workflows for LLMs'
             width={49.78314}
             height={24.276}
             priority
@@ -71,12 +71,12 @@ export default async function Nav() {
             </Link>
           </li>
           <li>
-            <Link href='/' className='text-[16px] text-muted-foreground'>
+            <Link href='#pricing' className='text-[16px] text-muted-foreground'>
               Pricing
             </Link>
           </li>
           <li>
-            <Link href='/' className='text-[16px] text-muted-foreground'>
+            <Link href='#enterprise' className='text-[16px] text-muted-foreground'>
               Enterprise
             </Link>
           </li>
@@ -86,9 +86,9 @@ export default async function Nav() {
               target='_blank'
               rel='noopener noreferrer'
               className='flex items-center gap-2 text-[16px] text-muted-foreground'
-              aria-label='GitHub repository'
+              aria-label={`GitHub repository - ${formattedStars} stars`}
             >
-              <GithubIcon className='h-[16px] w-[16px]' />
+              <GithubIcon className='h-[16px] w-[16px]' aria-hidden='true' />
               <span>{formattedStars}</span>
             </a>
           </li>
@@ -101,7 +101,7 @@ export default async function Nav() {
         <Link
           href='/signup'
           className='inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] px-3 py-[6px] text-[16px] text-white shadow-[inset_0_2px_4px_0_#9B77FF]'
-          aria-label='Get started'
+          aria-label='Get started with Sim'
         >
           Get started
         </Link>

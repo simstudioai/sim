@@ -352,13 +352,16 @@ export default function Hero() {
   }, [])
 
   return (
-    <div
+    <section
       className={`${soehne.className} flex w-full flex-col items-center justify-center pt-[80px]`}
+      aria-labelledby='hero-heading'
     >
-      <h1 className='font-medium text-[74px] leading-none tracking-tight'>Workflows for LLMs</h1>
-      <h2 className='pt-[10px] text-center text-[22px] opacity-70'>
+      <h1 id='hero-heading' className='font-medium text-[74px] leading-none tracking-tight'>
+        Workflows for LLMs
+      </h1>
+      <p className='pt-[10px] text-center text-[22px] opacity-70'>
         Build and deploy AI agent workflows
-      </h2>
+      </p>
       <div
         className='flex items-center justify-center gap-[2px] pt-[32px]'
         onMouseEnter={handleIconContainerMouseEnter}
@@ -382,7 +385,11 @@ export default function Hero() {
         })}
       </div>
       <div className='relative flex items-center justify-center pt-[12px]'>
+        <label htmlFor='agent-description' className='sr-only'>
+          Describe the AI agent you want to build
+        </label>
         <textarea
+          id='agent-description'
           placeholder='Ask Sim to build an agent to read my emails...'
           className='h-[120px] w-[640px] resize-none px-4 py-3'
           value={textValue}
@@ -438,6 +445,6 @@ export default function Hero() {
           viewportApiRef={viewportApiRef}
         />
       </div>
-    </div>
+    </section>
   )
 }

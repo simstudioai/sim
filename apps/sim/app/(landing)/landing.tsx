@@ -11,22 +11,16 @@ import {
 
 export default function Landing() {
   return (
-    <main className='relative'>
-      <Background>
-        <Nav />
+    <Background>
+      <Nav />
+      <main className='relative'>
         <Hero />
         <LandingTemplates />
         <LandingEnterprise />
         <Integrations />
         <LandingPricing />
-        <Footer />
-      </Background>
-
-      {/* Pricing Section */}
-      {/* TODO: Add Pricing component */}
-
-      {/* Footer Section */}
-      {/* TODO: Add Footer component */}
-    </main>
+      </main>
+      <Footer />
+    </Background>
   )
 }

@@ -7,7 +7,7 @@ type BackgroundProps = {
 
 export default function Background({ className, children }: BackgroundProps) {
   return (
-    <section className={cn('relative min-h-screen w-full', className)}>
+    <div className={cn('relative min-h-screen w-full', className)}>
       <svg
         aria-hidden='true'
         focusable='false'
@@ -308,6 +308,6 @@ export default function Background({ className, children }: BackgroundProps) {
       </svg>
 
       <div className='relative z-0 mx-auto w-full max-w-[1308px]'>{children}</div>
-    </section>
+    </div>
   )
 }

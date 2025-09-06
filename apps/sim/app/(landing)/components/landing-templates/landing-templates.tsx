@@ -79,10 +79,17 @@ const templates = [
 
 export default function LandingTemplates() {
   return (
-    <div className={`${inter.className} flex flex-col px-[50px] pt-[34px]`}>
-      <h3 className='mb-[24px] font-medium text-[28px] text-foreground tracking-tight'>
+    <section
+      id='templates'
+      className={`${inter.className} flex flex-col px-[50px] pt-[34px]`}
+      aria-labelledby='templates-heading'
+    >
+      <h2
+        id='templates-heading'
+        className='mb-[24px] font-medium text-[28px] text-foreground tracking-tight'
+      >
         Templates
-      </h3>
+      </h2>
 
       {/* Templates Grid */}
       <div className='grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3'>
@@ -102,6 +109,6 @@ export default function LandingTemplates() {
           </div>
         ))}
       </div>
-    </div>
+    </section>
   )
 }

@@ -161,10 +161,17 @@ function TickerRow({ direction, offset, showOdd, icons }: TickerRowProps) {
 
 export default function Integrations() {
   return (
-    <div className={`${inter.className} flex flex-col pt-[32px] pb-[20px]`}>
-      <h3 className='mb-[4px] pl-[50px] font-medium text-[28px] text-foreground tracking-tight'>
+    <section
+      id='integrations'
+      className={`${inter.className} flex flex-col pt-[32px] pb-[20px]`}
+      aria-labelledby='integrations-heading'
+    >
+      <h2
+        id='integrations-heading'
+        className='mb-[4px] pl-[50px] font-medium text-[28px] text-foreground tracking-tight'
+      >
         Integrations
-      </h3>
+      </h2>
       <p className='mb-[24px] pl-[50px] text-[#515151] text-[18px]'>
         Immediately connect to 100+ models and apps
       </p>
@@ -175,6 +182,6 @@ export default function Integrations() {
         <TickerRow direction='right' offset={0.5} showOdd={true} icons={communicationIcons} />
         <TickerRow direction='left' offset={1} showOdd={false} icons={dataStorageIcons} />
       </div>
-    </div>
+    </section>
   )
 }

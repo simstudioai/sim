@@ -30,7 +30,11 @@ const enterpriseLogos = [
 
 export default function LandingEnterprise() {
   return (
-    <div className='flex h-[182px] items-center pt-[34px]'>
+    <section
+      id='enterprise'
+      className='flex h-[182px] items-center pt-[34px]'
+      aria-label='Enterprise customers'
+    >
       <div className='relative flex h-full w-full items-center justify-between'>
         {enterpriseLogos.map((enterprise, index) => (
           <React.Fragment key={enterprise.name}>
@@ -66,6 +70,6 @@ export default function LandingEnterprise() {
           </React.Fragment>
         ))}
       </div>
-    </div>
+    </section>
   )
 }
