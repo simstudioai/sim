@@ -2,6 +2,7 @@ import { and, eq, like, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateServerUUID } from '@/lib/uuid'
 import { db } from '@/db'
 import { account } from '@/db/schema'
 
@@ -13,7 +14,7 @@ const logger = createLogger('OAuthDisconnectAPI')
  * Disconnect an OAuth provider for the current user
  */
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateServerUUID().slice(0, 8)
 
   try {
     // Get the session

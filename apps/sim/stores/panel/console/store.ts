@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { redactApiKeys } from '@/lib/utils'
+import { generateUUID } from '@/lib/uuid'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { ConsoleEntry, ConsoleStore } from '@/stores/panel/console/types'
 
@@ -162,7 +163,7 @@ export const useConsoleStore = create<ConsoleStore>()(
             // Create the new entry with ID and timestamp
             const newEntry = {
               ...redactedEntry,
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               timestamp: new Date().toISOString(),
             }
 

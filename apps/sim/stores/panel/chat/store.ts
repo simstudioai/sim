@@ -1,6 +1,6 @@
-import { v4 as uuidv4 } from 'uuid'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
+import { generateUUID } from '@/lib/uuid'
 import type { ChatMessage, ChatStore } from '@/stores/panel/chat/types'
 
 // MAX across all workflows
@@ -19,7 +19,7 @@ export const useChatStore = create<ChatStore>()(
             const newMessage: ChatMessage = {
               ...message,
               // Preserve provided id and timestamp if they exist; otherwise generate new ones
-              id: (message as any).id ?? crypto.randomUUID(),
+              id: (message as any).id ?? generateUUID(),
               timestamp: (message as any).timestamp ?? new Date().toISOString(),
             }
 
@@ -41,7 +41,7 @@ export const useChatStore = create<ChatStore>()(
             // Generate a new conversationId when clearing chat for a specific workflow
             if (workflowId) {
               const newConversationIds = { ...state.conversationIds }
-              newConversationIds[workflowId] = uuidv4()
+              newConversationIds[workflowId] = generateUUID()
               return {
                 ...newState,
                 conversationIds: newConversationIds,
@@ -167,7 +167,7 @@ export const useChatStore = create<ChatStore>()(
         },
 
         generateNewConversationId: (workflowId) => {
-          const newId = uuidv4()
+          const newId = generateUUID()
           set((state) => {
             const newConversationIds = { ...state.conversationIds }
             newConversationIds[workflowId] = newId

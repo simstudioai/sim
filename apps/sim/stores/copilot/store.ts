@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
+import { generateUUID } from '@/lib/uuid'
 import type {
   BaseClientToolMetadata,
   ClientToolDisplay,
@@ -425,7 +426,7 @@ function createUserMessage(
   contexts?: ChatContext[]
 ): CopilotMessage {
   return {
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     role: 'user',
     content,
     timestamp: new Date().toISOString(),
@@ -442,7 +443,7 @@ function createUserMessage(
 
 function createStreamingMessage(): CopilotMessage {
   return {
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     role: 'assistant',
     content: '',
     timestamp: new Date().toISOString(),

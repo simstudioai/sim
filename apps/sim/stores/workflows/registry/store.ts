@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateCreativeWorkflowName } from '@/lib/naming'
+import { generateUUID } from '@/lib/uuid'
 import { API_ENDPOINTS } from '@/stores/constants'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type {
@@ -642,7 +643,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             logger.info(`Created workflow from marketplace: ${options.marketplaceId}`)
           } else {
             // Create starter block for new workflow
-            const starterId = crypto.randomUUID()
+            const starterId = generateUUID()
             const starterBlock = {
               id: starterId,
               type: 'starter' as const,
@@ -831,7 +832,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         state: any,
         metadata: Partial<WorkflowMetadata>
       ) => {
-        const id = crypto.randomUUID()
+        const id = generateUUID()
 
         // Generate workflow metadata with marketplace properties
         const newWorkflow: WorkflowMetadata = {
@@ -1021,7 +1022,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         } else {
           // Source is not active workflow, create with starter block for now
           // In a future enhancement, we could fetch from DB
-          const starterId = crypto.randomUUID()
+          const starterId = generateUUID()
           const starterBlock = {
             id: starterId,
             type: 'starter' as const,

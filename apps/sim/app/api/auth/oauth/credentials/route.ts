@@ -3,6 +3,7 @@ import { jwtDecode } from 'jwt-decode'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateSecureUUID } from '@/lib/uuid'
 import type { OAuthService } from '@/lib/oauth/oauth'
 import { parseProvider } from '@/lib/oauth/oauth'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
@@ -23,7 +24,7 @@ interface GoogleIdToken {
  * Get credentials for a specific provider
  */
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateSecureUUID().slice(0, 8)
 
   try {
     // Get query params

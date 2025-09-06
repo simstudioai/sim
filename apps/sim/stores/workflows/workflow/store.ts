@@ -2,6 +2,7 @@ import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateUUID } from '@/lib/uuid'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import {
@@ -393,7 +394,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         const newEdge = {
-          id: edge.id || crypto.randomUUID(),
+          id: edge.id || generateUUID(),
           source: edge.source,
           target: edge.target,
           sourceHandle: edge.sourceHandle,
@@ -516,7 +517,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const block = get().blocks[id]
         if (!block) return
 
-        const newId = crypto.randomUUID()
+        const newId = generateUUID()
         const offsetPosition = {
           x: block.position.x + 250,
           y: block.position.y + 20,

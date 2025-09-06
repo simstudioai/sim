@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateSecureUUID } from '@/lib/uuid'
 import { db } from '@/db'
 import { apiKey } from '@/db/schema'
 
@@ -12,7 +13,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateSecureUUID().slice(0, 8)
   const { id } = await params
 
   try {
