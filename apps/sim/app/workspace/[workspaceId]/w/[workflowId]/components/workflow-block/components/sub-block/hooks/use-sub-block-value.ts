@@ -18,7 +18,7 @@ interface UseSubBlockValueOptions {
 /**
  * Custom hook to get and set values for a sub-block in a workflow.
  * Handles complex object values properly by using deep equality comparison.
- * Includes automatic debouncing and explicit streaming mode for AI generation.
+ * Supports explicit streaming mode for AI generation.
  *
  * @param blockId The ID of the block containing the sub-block
  * @param subBlockId The ID of the sub-block
@@ -181,7 +181,7 @@ export function useSubBlockValue<T = any>(
           }
         }
 
-        // Emit immediately - let the operation queue handle debouncing and deduplication
+        // Emit immediately; the client queue coalesces same-key ops and the server debounces
         emitValue(valueCopy)
 
         if (triggerWorkflowUpdate) {

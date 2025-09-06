@@ -260,6 +260,10 @@ export class RoomManager {
     }
   }
 
+  emitToWorkflow<T = unknown>(workflowId: string, event: string, payload: T): void {
+    this.io.to(workflowId).emit(event, payload)
+  }
+
   /**
    * Get the number of unique users in a workflow room
    * (not the number of socket connections)

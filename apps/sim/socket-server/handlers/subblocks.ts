@@ -8,6 +8,16 @@ import type { RoomManager } from '@/socket-server/rooms/manager'
 
 const logger = createLogger('SubblocksHandlers')
 
+type PendingSubblock = {
+  latest: { blockId: string; subblockId: string; value: any; timestamp: number }
+  timeout: NodeJS.Timeout
+  // Map operationId -> socketId to emit confirmations/failures to correct clients
+  opToSocket: Map<string, string>
+}
+
+// Keyed by `${workflowId}:${blockId}:${subblockId}`
+const pendingSubblockUpdates = new Map<string, PendingSubblock>()
+
 export function setupSubblocksHandlers(
   socket: AuthenticatedSocket,
   deps: HandlerDependencies | RoomManager
@@ -46,93 +56,31 @@ export function setupSubblocksHandlers(
         userPresence.lastActivity = Date.now()
       }
 
-      // First, verify that the workflow still exists in the database
-      const workflowExists = await db
-        .select({ id: workflow.id })
-        .from(workflow)
-        .where(eq(workflow.id, workflowId))
-        .limit(1)
-
-      if (workflowExists.length === 0) {
-        logger.warn(`Ignoring subblock update: workflow ${workflowId} no longer exists`, {
-          socketId: socket.id,
-          blockId,
-          subblockId,
-        })
-        roomManager.cleanupUserFromRoom(socket.id, workflowId)
-        return
-      }
-
-      let updateSuccessful = false
-      await db.transaction(async (tx) => {
-        const [block] = await tx
-          .select({ subBlocks: workflowBlocks.subBlocks })
-          .from(workflowBlocks)
-          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
-          .limit(1)
-
-        if (!block) {
-          // Block was deleted - this is a normal race condition in collaborative editing
-          logger.debug(
-            `Ignoring subblock update for deleted block: ${workflowId}/${blockId}.${subblockId}`
-          )
-          return
-        }
-
-        const subBlocks = (block.subBlocks as any) || {}
-
-        if (!subBlocks[subblockId]) {
-          // Create new subblock with minimal structure
-          subBlocks[subblockId] = {
-            id: subblockId,
-            type: 'unknown', // Will be corrected by next collaborative update
-            value: value,
+      // Server-side debounce/coalesce by workflowId+blockId+subblockId
+      const debouncedKey = `${workflowId}:${blockId}:${subblockId}`
+      const existing = pendingSubblockUpdates.get(debouncedKey)
+      if (existing) {
+        clearTimeout(existing.timeout)
+        existing.latest = { blockId, subblockId, value, timestamp }
+        if (operationId) existing.opToSocket.set(operationId, socket.id)
+        existing.timeout = setTimeout(async () => {
+          await flushSubblockUpdate(workflowId, existing, roomManager)
+          pendingSubblockUpdates.delete(debouncedKey)
+        }, 25)
+      } else {
+        const opToSocket = new Map<string, string>()
+        if (operationId) opToSocket.set(operationId, socket.id)
+        const timeout = setTimeout(async () => {
+          const pending = pendingSubblockUpdates.get(debouncedKey)
+          if (pending) {
+            await flushSubblockUpdate(workflowId, pending, roomManager)
+            pendingSubblockUpdates.delete(debouncedKey)
           }
-        } else {
-          // Preserve existing id and type, only update value
-          subBlocks[subblockId] = {
-            ...subBlocks[subblockId],
-            value: value,
-          }
-        }
-
-        await tx
-          .update(workflowBlocks)
-          .set({
-            subBlocks: subBlocks,
-            updatedAt: new Date(),
-          })
-          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
-
-        updateSuccessful = true
-      })
-
-      // Only broadcast to other clients if the update was successful
-      if (updateSuccessful) {
-        socket.to(workflowId).emit('subblock-update', {
-          blockId,
-          subblockId,
-          value,
-          timestamp,
-          senderId: socket.id,
-          userId: session.userId,
-        })
-
-        // Emit confirmation if operationId is provided
-        if (operationId) {
-          socket.emit('operation-confirmed', {
-            operationId,
-            serverTimestamp: Date.now(),
-          })
-        }
-
-        logger.debug(`Subblock update in workflow ${workflowId}: ${blockId}.${subblockId}`)
-      } else if (operationId) {
-        // Block was deleted - notify client that operation completed (but didn't update anything)
-        socket.emit('operation-failed', {
-          operationId,
-          error: 'Block no longer exists',
-          retryable: false, // No point retrying for deleted blocks
+        }, 25)
+        pendingSubblockUpdates.set(debouncedKey, {
+          latest: { blockId, subblockId, value, timestamp },
+          timeout,
+          opToSocket,
         })
       }
     } catch (error) {
@@ -140,12 +88,12 @@ export function setupSubblocksHandlers(
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 
-      // Emit operation-failed for queue-tracked operations
+      // Best-effort failure for the single operation if provided
       if (operationId) {
         socket.emit('operation-failed', {
           operationId,
           error: errorMessage,
-          retryable: true, // Subblock updates are generally retryable
+          retryable: true,
         })
       }
 
@@ -158,4 +106,120 @@ export function setupSubblocksHandlers(
       })
     }
   })
+}
+
+async function flushSubblockUpdate(
+  workflowId: string,
+  pending: PendingSubblock,
+  roomManager: RoomManager
+) {
+  const { blockId, subblockId, value, timestamp } = pending.latest
+  try {
+    // Verify workflow still exists
+    const workflowExists = await db
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .limit(1)
+
+    if (workflowExists.length === 0) {
+      pending.opToSocket.forEach((socketId, opId) => {
+        const sock = (roomManager as any).io?.sockets?.sockets?.get(socketId)
+        if (sock) {
+          sock.emit('operation-failed', {
+            operationId: opId,
+            error: 'Workflow not found',
+            retryable: false,
+          })
+        }
+      })
+      return
+    }
+
+    let updateSuccessful = false
+    await db.transaction(async (tx) => {
+      const [block] = await tx
+        .select({ subBlocks: workflowBlocks.subBlocks })
+        .from(workflowBlocks)
+        .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+        .limit(1)
+
+      if (!block) {
+        return
+      }
+
+      const subBlocks = (block.subBlocks as any) || {}
+      if (!subBlocks[subblockId]) {
+        subBlocks[subblockId] = { id: subblockId, type: 'unknown', value }
+      } else {
+        subBlocks[subblockId] = { ...subBlocks[subblockId], value }
+      }
+
+      await tx
+        .update(workflowBlocks)
+        .set({ subBlocks, updatedAt: new Date() })
+        .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+
+      updateSuccessful = true
+    })
+
+    if (updateSuccessful) {
+      // Broadcast to other clients (exclude senders to avoid overwriting their local state)
+      const senderSocketIds = new Set(pending.opToSocket.values())
+      const io = (roomManager as any).io
+      if (io) {
+        // Get all sockets in the room
+        const roomSockets = io.sockets.adapter.rooms.get(workflowId)
+        if (roomSockets) {
+          roomSockets.forEach((socketId: string) => {
+            // Only emit to sockets that didn't send any of the coalesced ops
+            if (!senderSocketIds.has(socketId)) {
+              const sock = io.sockets.sockets.get(socketId)
+              if (sock) {
+                sock.emit('subblock-update', {
+                  blockId,
+                  subblockId,
+                  value,
+                  timestamp,
+                })
+              }
+            }
+          })
+        }
+      }
+
+      // Confirm all coalesced operationIds
+      pending.opToSocket.forEach((socketId, opId) => {
+        const sock = (roomManager as any).io?.sockets?.sockets?.get(socketId)
+        if (sock) {
+          sock.emit('operation-confirmed', { operationId: opId, serverTimestamp: Date.now() })
+        }
+      })
+
+      logger.debug(`Flushed subblock update ${workflowId}: ${blockId}.${subblockId}`)
+    } else {
+      pending.opToSocket.forEach((socketId, opId) => {
+        const sock = (roomManager as any).io?.sockets?.sockets?.get(socketId)
+        if (sock) {
+          sock.emit('operation-failed', {
+            operationId: opId,
+            error: 'Block no longer exists',
+            retryable: false,
+          })
+        }
+      })
+    }
+  } catch (error) {
+    logger.error('Error flushing subblock update:', error)
+    pending.opToSocket.forEach((socketId, opId) => {
+      const sock = (roomManager as any).io?.sockets?.sockets?.get(socketId)
+      if (sock) {
+        sock.emit('operation-failed', {
+          operationId: opId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          retryable: true,
+        })
+      }
+    })
+  }
 }
