@@ -1,4 +1,5 @@
 import type { JiraRetrieveParams, JiraRetrieveResponse } from '@/tools/jira/types'
+import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveResponse> = {
@@ -30,8 +31,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description:
-        'Jira project ID to retrieve issues from. If not provided, all issues will be retrieved.',
+      description: 'Jira project ID (optional; not required to retrieve a single issue).',
     },
     issueKey: {
       type: 'string',
@@ -66,16 +66,17 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
   },
 
   transformResponse: async (response: Response, params?: JiraRetrieveParams) => {
-    // If we don't have a cloudId, we need to fetch it first
-    if (!params?.cloudId) {
-      const accessibleResources = await response.json()
-      const normalizedInput = `https://${params?.domain}`.toLowerCase()
-      const matchedResource = accessibleResources.find(
-        (r: any) => r.url.toLowerCase() === normalizedInput
+    if (!params?.issueKey) {
+      throw new Error(
+        'Select a project to read issues, or provide an issue key to read a single issue.'
       )
+    }
 
+    // If we don't have a cloudId, resolve it robustly using the Jira utils helper
+    if (!params?.cloudId) {
+      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
       // Now fetch the actual issue with the found cloudId
-      const issueUrl = `https://api.atlassian.com/ex/jira/${matchedResource.id}/rest/api/3/issue/${params?.issueKey}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog`
+      const issueUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog`
       const issueResponse = await fetch(issueUrl, {
         method: 'GET',
         headers: {
@@ -84,31 +85,48 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
         },
       })
 
+      if (!issueResponse.ok) {
+        let message = `Failed to fetch Jira issue (${issueResponse.status})`
+        try {
+          const err = await issueResponse.json()
+          message = err?.message || err?.errorMessages?.[0] || message
+        } catch (_e) {}
+        throw new Error(message)
+      }
+
       const data = await issueResponse.json()
       return {
         success: true,
         output: {
           ts: new Date().toISOString(),
-          issueKey: data.key,
-          summary: data.fields.summary,
-          description: data.fields.description,
-          created: data.fields.created,
-          updated: data.fields.updated,
+          issueKey: data?.key,
+          summary: data?.fields?.summary,
+          description: data?.fields?.description,
+          created: data?.fields?.created,
+          updated: data?.fields?.updated,
         },
       }
     }
 
     // If we have a cloudId, this response is the issue data
+    if (!response.ok) {
+      let message = `Failed to fetch Jira issue (${response.status})`
+      try {
+        const err = await response.json()
+        message = err?.message || err?.errorMessages?.[0] || message
+      } catch (_e) {}
+      throw new Error(message)
+    }
     const data = await response.json()
     return {
       success: true,
       output: {
         ts: new Date().toISOString(),
-        issueKey: data.key,
-        summary: data.fields.summary,
-        description: data.fields.description,
-        created: data.fields.created,
-        updated: data.fields.updated,
+        issueKey: data?.key,
+        summary: data?.fields?.summary,
+        description: data?.fields?.description,
+        created: data?.fields?.created,
+        updated: data?.fields?.updated,
       },
     }
   },

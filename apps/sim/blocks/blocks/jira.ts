@@ -99,7 +99,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       layout: 'full',
       canonicalParamId: 'issueKey',
       placeholder: 'Enter Jira issue key',
-      dependsOn: ['credential', 'domain', 'projectId'],
+      dependsOn: ['credential', 'domain', 'projectId', 'manualProjectId'],
       condition: { field: 'operation', value: ['read', 'update'] },
       mode: 'advanced',
     },
@@ -127,8 +127,15 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     access: ['jira_retrieve', 'jira_update', 'jira_write', 'jira_bulk_read'],
     config: {
       tool: (params) => {
+        const effectiveProjectId = (params.projectId || params.manualProjectId || '').trim()
+        const effectiveIssueKey = (params.issueKey || params.manualIssueKey || '').trim()
+
         switch (params.operation) {
           case 'read':
+            // If a project is selected but no issue is chosen, route to bulk read
+            if (effectiveProjectId && !effectiveIssueKey) {
+              return 'jira_bulk_read'
+            }
             return 'jira_retrieve'
           case 'update':
             return 'jira_update'
@@ -141,6 +148,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         }
       },
       params: (params) => {
+        console.log('[JIRA BLOCK] All received params:', JSON.stringify(params, null, 2))
+
         const { credential, projectId, manualProjectId, issueKey, manualIssueKey, ...rest } = params
 
         // Use the selected IDs or the manually entered ones
@@ -194,25 +203,53 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
             }
           }
           case 'read': {
-            if (!effectiveIssueKey) {
+            // Check for project ID from either source
+            const projectForRead = (params.projectId || params.manualProjectId || '').trim()
+            const issueForRead = (params.issueKey || params.manualIssueKey || '').trim()
+
+            console.log('[JIRA BLOCK] Read operation params:', {
+              projectForRead,
+              issueForRead,
+              hasProject: !!projectForRead,
+              hasIssue: !!issueForRead,
+            })
+
+            // If a project is provided but no issue is chosen, default to bulk read behavior
+            if (!issueForRead && projectForRead) {
+              console.log(
+                '[JIRA BLOCK] Read operation routing to bulk read with projectId:',
+                projectForRead
+              )
+              return {
+                ...baseParams,
+                projectId: projectForRead,
+              }
+            }
+
+            if (!issueForRead) {
               throw new Error(
-                'Issue Key is required. Please select an issue or enter an issue key manually.'
+                'Select a project to read issues, or provide an issue key to read a single issue.'
               )
             }
             return {
               ...baseParams,
-              issueKey: effectiveIssueKey,
+              issueKey: issueForRead,
+              // Include projectId if available for context
+              ...(projectForRead && { projectId: projectForRead }),
             }
           }
           case 'read-bulk': {
-            if (!effectiveProjectId) {
+            // Check both projectId and manualProjectId directly from params
+            const finalProjectId = params.projectId || params.manualProjectId || ''
+
+            if (!finalProjectId) {
               throw new Error(
                 'Project ID is required. Please select a project or enter a project ID manually.'
               )
             }
             return {
               ...baseParams,
-              projectId: effectiveProjectId,
+              projectId: finalProjectId.trim(),
             }
           }
           default:
