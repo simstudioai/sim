@@ -53,25 +53,3 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
-  migrations:
-    name: Apply Database Migrations
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    needs: test
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Apply migrations
-        working-directory: ./apps/sim
-        env:
-          DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.DATABASE_URL || secrets.STAGING_DATABASE_URL }}
-        run: bunx drizzle-kit migrate
